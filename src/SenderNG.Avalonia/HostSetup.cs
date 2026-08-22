@@ -28,6 +28,12 @@ public static class HostSetup
         RegisterModule(builder.Services, new Modules.Fixed.GCodeConsoleModule());
         RegisterModule(builder.Services, new Modules.Fixed.GrblSettingsModule());
 
+        // Plugin modules (jog / cutting / coolant / macro).
+        RegisterModule(builder.Services, new Modules.Plugins.JogModule());
+        RegisterModule(builder.Services, new Modules.Plugins.CuttingModule());
+        RegisterModule(builder.Services, new Modules.Plugins.CoolantModule());
+        RegisterModule(builder.Services, new Modules.Plugins.MacroModule());
+
         // External module assemblies are added here as they appear.
         ModuleCatalog.Scan(builder.Services);
 
