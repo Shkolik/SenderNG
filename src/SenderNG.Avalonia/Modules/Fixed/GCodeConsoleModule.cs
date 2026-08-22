@@ -8,7 +8,7 @@ public class GCodeConsoleModule : IModule
 {
     public string Id => "gcode-console";
     public string Name => "G-Code / Console";
-    public int Order => 30;
+    public int Order => 20;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>

@@ -16,9 +16,9 @@
                     <Grid ColumnDefinitions="60,*,*,*" Margin="8,2">
                         <TextBlock Grid.Column="0" Text="{Binding Name}"
                                    VerticalAlignment="Center" FontWeight="Bold" />
-                        <TextBox Grid.Column="1" Text="{Binding X, StringFormat={}{0:F3}}" Margin="4,2" Watermark="X" />
-                        <TextBox Grid.Column="2" Text="{Binding Y, StringFormat={}{0:F3}}" Margin="4,2" Watermark="Y" />
-                        <TextBox Grid.Column="3" Text="{Binding Z, StringFormat={}{0:F3}}" Margin="4,2" Watermark="Z" />
+                        <TextBox Grid.Column="1" Text="{Binding X, StringFormat={}{0:F3}}" Margin="4,2" PlaceholderText="X" />
+                        <TextBox Grid.Column="2" Text="{Binding Y, StringFormat={}{0:F3}}" Margin="4,2" PlaceholderText="Y" />
+                        <TextBox Grid.Column="3" Text="{Binding Z, StringFormat={}{0:F3}}" Margin="4,2" PlaceholderText="Z" />
                     </Grid>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>

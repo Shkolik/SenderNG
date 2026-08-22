@@ -28,26 +28,42 @@ public class GrblSettingsViewModel : ViewModelBase
 
     public ObservableCollection<SettingRow> Settings { get; } = new();
 
+    private string _status = string.Empty;
+    public string Status
+    {
+        get => _status;
+        set => SetField(ref _status, value);
+    }
+
     public DelegateCommand LoadCommand { get; }
 
     public GrblSettingsViewModel(Func<Task<IEnumerable<string>>> provider)
     {
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
-        LoadCommand = new DelegateCommand(async _ => await LoadAsync());
+        LoadCommand = new DelegateCommand(_ => _ = LoadAsync());
     }
 
     public async Task LoadAsync()
     {
-        var rows = new List<SettingRow>();
-        foreach (var line in await _provider())
+        try
         {
-            if (Parse(line) is { } row)
-                rows.Add(row);
-        }
+            var rows = new List<SettingRow>();
+            foreach (var line in await _provider())
+            {
+                if (Parse(line) is { } row)
+                    rows.Add(row);
+            }
 
-        Settings.Clear();
-        foreach (var row in rows)
-            Settings.Add(row);
+            Settings.Clear();
+            foreach (var row in rows)
+                Settings.Add(row);
+
+            Status = $"Loaded {rows.Count} settings";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Load failed: {ex.Message}";
+        }
     }
 
     public static SettingRow? Parse(string line)

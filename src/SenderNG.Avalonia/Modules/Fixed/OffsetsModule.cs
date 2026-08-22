@@ -8,7 +8,7 @@ public class OffsetsModule : IModule
 {
     public string Id => "offsets";
     public string Name => "Offsets";
-    public int Order => 20;
+    public int Order => 30;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>
