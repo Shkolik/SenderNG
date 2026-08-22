@@ -80,7 +80,13 @@ public class MainViewModel : ViewModelBase
         DemoToggleCommand = new DelegateCommand(_ => ToggleDemo());
         ConnectCommand = new DelegateCommand(_ => _ = ConnectAsync());
         DisconnectCommand = new DelegateCommand(_ => Disconnect());
-        SelectModuleCommand = new DelegateCommand(p => SelectedModule = p as IModule);
+        SelectModuleCommand = new DelegateCommand(p =>
+        {
+            if (p is IModule m && SelectedModule == m)
+                SelectedModule = null; // clicking the open flyout button toggles it closed
+            else
+                SelectedModule = p as IModule;
+        });
         SendMdiCommand = new DelegateCommand(_ => _ = SendMdiAsync(), _ => !string.IsNullOrWhiteSpace(MdiInput));
         OpenFileCommand = new DelegateCommand(_ => OpenFile());
         SelectRecentCommand = new DelegateCommand(p => SelectRecent(p as string));

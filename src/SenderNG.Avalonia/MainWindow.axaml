@@ -244,6 +244,12 @@
                 </ScrollViewer>
             </Border>
 
+            <!-- Click-outside catcher: transparent full-panel button under the drawer; clicking it closes the flyout -->
+            <Button Background="Transparent" BorderThickness="0" Padding="0" CornerRadius="0"
+                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                    Command="{Binding SelectModuleCommand}" CommandParameter="{x:Null}"
+                    IsVisible="{Binding SelectedModule, Converter={x:Static conv:Converters.IsFlyout}}" />
+
             <!-- Flyout drawer overlay — opens on top of Right panel, left of the strip -->
             <Border Width="360" HorizontalAlignment="Right" VerticalAlignment="Stretch"
                     Background="White" BorderBrush="#aaa" BorderThickness="1"
