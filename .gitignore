@@ -1,0 +1,50 @@
+# Build
+bin/
+obj/
+out/
+publish/
+*.user
+*.suo
+.vs/
+.idea/
+*.DotSettings.user
+
+# .NET
+*.nupkg
+*.snupkg
+project.lock.json
+.nuget/
+packages/
+*.nuget.props
+*.nuget.targets
+
+# Avalonia / Rider
+.avalonia/
+*.aps
+*.pch
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+
+# Logs
+*.log
+logs/
+
+# Test
+TestResults/
+coverage*.xml
+coverage*.json
+
+# Secrets
+appsettings.local.json
+*.pfx
+*.key
+
+# SenderNG generated
+FacingProfiles.xml
+PartingProfiles.xml
+ThreadingProfiles.xml
+TurningProfiles.xml
