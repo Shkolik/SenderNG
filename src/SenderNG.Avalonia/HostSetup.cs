@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Avalonia.Services;
 using SenderNG.Avalonia.ViewModels;
 using SenderNG.Core.Modules;
 
@@ -21,6 +22,7 @@ public static class HostSetup
         // Shared AppSettings graph: one instance for every consumer (VMs, services).
         builder.Services.AddSingleton(sp => sp.GetRequiredService<SettingsService>().Load());
         builder.Services.AddSingleton<IComPortService, SerialComPortService>();
+        builder.Services.AddSingleton<IFileDialogService, AvaloniaFileDialogService>();
         builder.Services.AddSingleton<DemoGrblService>();
         builder.Services.AddSingleton<RealGrblService>();
         // The proxy is THE IGrblService singleton: consumers subscribe once and
@@ -56,6 +58,7 @@ public static class HostSetup
                 sp.GetRequiredService<SettingsService>(),
                 sp,
                 comPorts: sp.GetRequiredService<IComPortService>(),
+                fileDialogs: sp.GetRequiredService<IFileDialogService>(),
                 modules: sp.GetServices<IModule>(),
                 viewFactory: sp.GetRequiredService<Func<IModule, object>>()));
 
