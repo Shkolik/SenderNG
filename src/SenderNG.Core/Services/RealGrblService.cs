@@ -23,7 +23,12 @@ public class RealGrblService : IGrblService
         if (IsConnected)
             return Task.CompletedTask;
 
-        _port = new SerialPort(port, 115200, Parity.None, 8, StopBits.One);
+        _port = new SerialPort(port, 115200, Parity.None, 8, StopBits.One)
+        {
+            // Prevent indefinite blocking on unresponsive adapters.
+            ReadTimeout = 2000,
+            WriteTimeout = 2000,
+        };
         _port.Open();
         IsConnected = true;
 
@@ -68,9 +73,17 @@ public class RealGrblService : IGrblService
         if (!IsConnected || _port is not { IsOpen: true })
             throw new InvalidOperationException("Not connected.");
 
-        _port.WriteLine(line);
-        var response = _port.ReadLine();
-        ParseStatus(response);
+        try
+        {
+            _port.WriteLine(line);
+            var response = _port.ReadLine();
+            ParseStatus(response);
+        }
+        catch (TimeoutException)
+        {
+            // Controller did not answer in time; report nothing but don't hang or crash.
+        }
+
         return Task.CompletedTask;
     }
 
