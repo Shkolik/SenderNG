@@ -74,6 +74,21 @@ public class MainViewModel : ViewModelBase
 
     public ObservableCollection<IModule> Modules { get; } = new();
 
+    public bool IsModuleVisible(IModule m) =>
+        _settingsService.Load().ModulesVisibility.TryGetValue(m.Id, out var v) ? v : m.IsVisibleByDefault;
+
+    public IEnumerable<IModule> LeftModules =>
+        Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Left).OrderBy(m => m.Order);
+
+    public IEnumerable<IModule> CenterModules =>
+        Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Center).OrderBy(m => m.Order);
+
+    public IEnumerable<IModule> RightModules =>
+        Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Right).OrderBy(m => m.Order);
+
+    public IEnumerable<IModule> FlyoutModules =>
+        Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Flyout).OrderBy(m => m.Order);
+
     public IModule? SelectedModule
     {
         get => _selectedModule;

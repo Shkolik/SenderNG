@@ -10,6 +10,8 @@ public class CoolantModule : IModule
     public string Id => "coolant";
     public string Name => "Coolant";
     public int Order => 35;
+    public PanelHint Panel => PanelHint.Right;
+    public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>
