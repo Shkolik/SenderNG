@@ -4,23 +4,23 @@ using SenderNG.Core.Modules;
 
 namespace SenderNG.Avalonia.Modules.Fixed;
 
-public class GCodeConsoleModule : IModule
+public class ProgramModule : IModule
 {
-    public string Id => "gcode-console";
-    public string Name => "G-Code / Console";
+    public string Id => "program";
+    public string Name => "Program";
     public int Order => 20;
     public PanelHint Panel => PanelHint.Center;
     public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>
-        services.AddSingleton<GCodeConsoleViewModel>();
+        services.AddSingleton<ProgramViewModel>();
 
     public void RegisterSettings(AppSettings settings) { }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
-        serviceProvider.GetRequiredService<GCodeConsoleViewModel>();
+        serviceProvider.GetRequiredService<ProgramViewModel>();
 
     public object CreateView(object viewModel) =>
-        new GCodeConsoleView { DataContext = viewModel };
+        new ProgramView { DataContext = viewModel };
 }

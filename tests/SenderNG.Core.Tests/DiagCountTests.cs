@@ -17,6 +17,6 @@ public class HostModuleRegistrationTests
         var ids = modules.Select(m => m.Id).OrderBy(i => i).ToList();
         Assert.True(modules.Count == modules.DistinctBy(m => m.Id).Count(),
             $"duplicates ({modules.Count}): {string.Join(",", ids)}");
-        Assert.Equal(9, modules.Count);
+        Assert.Equal(10, modules.Count);
     }
 }

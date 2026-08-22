@@ -5,7 +5,6 @@ using Avalonia.Media;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
-using SenderNG.Avalonia.Modules.Fixed;
 using SenderNG.Avalonia.ViewModels;
 using SenderNG.Core.Commands;
 using SenderNG.Core.Modules;
@@ -49,7 +48,6 @@ public class MainViewModel : ViewModelBase
         IGrblService grbl,
         SettingsService settings,
         IServiceProvider services,
-        GCodeConsoleViewModel? console = null,
         IEnumerable<IModule>? modules = null,
         IComPortService? comPorts = null,
         Func<IModule, object>? viewFactory = null)
@@ -65,7 +63,6 @@ public class MainViewModel : ViewModelBase
         _comPorts = comPorts;
         _viewFactory = viewFactory;
         _isDemo = ResolveInner(grbl) is DemoGrblService;
-        Console = console;
 
         foreach (var module in modules ?? Enumerable.Empty<IModule>())
             Modules.Add(module);
@@ -192,8 +189,6 @@ public class MainViewModel : ViewModelBase
         private set => SetField(ref _currentModuleView, value);
     }
 
-    public GCodeConsoleViewModel? Console { get; }
-
     public ObservableCollection<string> MdiHistory { get; } = new();
 
     public ObservableCollection<string> RecentFiles { get; } = new();
@@ -298,7 +293,6 @@ public class MainViewModel : ViewModelBase
         try
         {
             await Grbl.SendAsync(line);
-            Console?.Log($"> {line}");
             Status = $"MDI: {line}";
         }
         catch (Exception ex)
@@ -338,7 +332,6 @@ public class MainViewModel : ViewModelBase
     private void Rewind()
     {
         Status = "Rewind (placeholder)";
-        Console?.Log("Rewind");
     }
 
     private void OnModulesChanged(object? sender, NotifyCollectionChangedEventArgs e)

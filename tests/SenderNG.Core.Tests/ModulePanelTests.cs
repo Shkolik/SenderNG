@@ -29,8 +29,11 @@ public class ModulePanelTests
         Assert.Equal(10, new DroModule().Order);
         Assert.True(new DroModule().IsVisibleByDefault);
 
-        Assert.Equal(PanelHint.Center, new GCodeConsoleModule().Panel);
-        Assert.Equal(20, new GCodeConsoleModule().Order);
+        Assert.Equal(PanelHint.Center, new ProgramModule().Panel);
+        Assert.Equal(20, new ProgramModule().Order);
+
+        Assert.Equal(PanelHint.Center, new ConsoleModule().Panel);
+        Assert.Equal(21, new ConsoleModule().Order);
 
         Assert.Equal(PanelHint.Left, new OffsetsModule().Panel);
         Assert.Equal(30, new OffsetsModule().Order);

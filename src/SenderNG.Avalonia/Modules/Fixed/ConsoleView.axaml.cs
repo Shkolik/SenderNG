@@ -2,9 +2,9 @@ using Avalonia.Controls;
 
 namespace SenderNG.Avalonia.Modules.Fixed;
 
-public partial class GCodeConsoleView : UserControl
+public partial class ConsoleView : UserControl
 {
-    public GCodeConsoleView()
+    public ConsoleView()
     {
         InitializeComponent();
     }
