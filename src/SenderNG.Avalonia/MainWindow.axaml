@@ -43,13 +43,13 @@
                 <Border Grid.Row="0" Margin="4" BorderBrush="Gray" BorderThickness="1">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Top" Text="GCodeView" FontWeight="Bold" Margin="4" />
-                        <ListBox x:Name="GCodeList" ItemsSource="{Binding GCodeLines}" />
-                    </DockPanel>
-                </Border>
-                <Border Grid.Row="1" Margin="4" BorderBrush="Gray" BorderThickness="1">
-                    <DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="ConsoleView" FontWeight="Bold" Margin="4" />
-                        <ListBox x:Name="ConsoleList" ItemsSource="{Binding ConsoleLines}" />
+                <ListBox ItemsSource="{Binding Console.GCodeLines}" />
+            </DockPanel>
+        </Border>
+        <Border Grid.Row="1" Margin="4" BorderBrush="Gray" BorderThickness="1">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="ConsoleView" FontWeight="Bold" Margin="4" />
+                <ListBox ItemsSource="{Binding Console.ConsoleLines}" />
                     </DockPanel>
                 </Border>
             </Grid>

@@ -25,6 +25,7 @@ public static class HostSetup
         // Built-in fixed modules (no assembly scan).
         RegisterModule(builder.Services, new Modules.Fixed.DroModule());
         RegisterModule(builder.Services, new Modules.Fixed.OffsetsModule());
+        RegisterModule(builder.Services, new Modules.Fixed.GCodeConsoleModule());
 
         // External module assemblies are added here as they appear.
         ModuleCatalog.Scan(builder.Services);

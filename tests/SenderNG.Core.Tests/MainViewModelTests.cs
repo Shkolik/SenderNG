@@ -50,7 +50,7 @@ public class MainViewModelTests
     {
         var settings = MakeSettings();
         IModule[] modules = [new StubModule(), new StubModule()];
-        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings), modules);
+        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings), modules: modules);
 
         Assert.Equal(2, vm.Modules.Count);
         Assert.All(vm.Modules, m => Assert.IsType<StubModule>(m));

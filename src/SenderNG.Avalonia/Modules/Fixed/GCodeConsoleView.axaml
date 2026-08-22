@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Fixed"
+             mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="400"
+             x:Class="SenderNG.Avalonia.Modules.Fixed.GCodeConsoleView"
+             x:DataType="vm:GCodeConsoleViewModel">
+
+    <Grid RowDefinitions="*,*">
+        <Border Grid.Row="0" Margin="4" BorderBrush="Gray" BorderThickness="1">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="G-Code" FontWeight="Bold" Margin="4" />
+                <ListBox ItemsSource="{Binding GCodeLines}" />
+            </DockPanel>
+        </Border>
+        <Border Grid.Row="1" Margin="4" BorderBrush="Gray" BorderThickness="1">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="Console" FontWeight="Bold" Margin="4" />
+                <ListBox ItemsSource="{Binding ConsoleLines}" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

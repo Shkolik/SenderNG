@@ -3,6 +3,7 @@ using System.Windows.Input;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
+using SenderNG.Avalonia.Modules.Fixed;
 using SenderNG.Avalonia.ViewModels;
 using SenderNG.Core.Commands;
 using SenderNG.Core.Modules;
@@ -21,6 +22,7 @@ public class MainViewModel : ViewModelBase
         IGrblService grbl,
         SettingsService settings,
         IServiceProvider services,
+        GCodeConsoleViewModel? console = null,
         IEnumerable<IModule>? modules = null)
     {
         ArgumentNullException.ThrowIfNull(grbl);
@@ -32,6 +34,7 @@ public class MainViewModel : ViewModelBase
         SettingsService = settings;
         _services = services;
         _isDemo = grbl is DemoGrblService;
+        Console = console;
 
         foreach (var module in modules ?? Enumerable.Empty<IModule>())
             Modules.Add(module);
@@ -62,9 +65,7 @@ public class MainViewModel : ViewModelBase
 
     public ObservableCollection<IModule> Modules { get; } = new();
 
-    public ObservableCollection<string> GCodeLines { get; } = new();
-
-    public ObservableCollection<string> ConsoleLines { get; } = new();
+    public GCodeConsoleViewModel? Console { get; }
 
     public DelegateCommand DemoToggleCommand { get; }
 
