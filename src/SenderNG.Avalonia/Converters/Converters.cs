@@ -10,6 +10,9 @@ public static class Converters
     public static HasElementsConverter HasElements => HasElementsConverter.Instance;
     public static LeftPluginsVisibilityConverter LeftPluginsVisible => LeftPluginsVisibilityConverter.Instance;
     public static MachineStateToBrushConverter MachineStateBrush => MachineStateToBrushConverter.Instance;
+    public static BoolToSignalBrushConverter SignalBrush => BoolToSignalBrushConverter.Instance;
+    public static IsNotNullConverter IsNotNull => IsNotNullConverter.Instance;
+    public static IsFlyoutModuleConverter IsFlyout => IsFlyoutModuleConverter.Instance;
 }
 
 public sealed class HasElementsConverter : IValueConverter
@@ -86,6 +89,40 @@ public sealed class MachineStateToBrushConverter : IValueConverter
         return DefaultBrush;
     }
 
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+public sealed class BoolToSignalBrushConverter : IValueConverter
+{
+    public static readonly BoolToSignalBrushConverter Instance = new();
+    private static readonly IBrush ActiveBrush = new SolidColorBrush(Color.Parse("#e04545"));
+    private static readonly IBrush InactiveBrush = Brushes.Transparent;
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        return value is true ? ActiveBrush : InactiveBrush;
+    }
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+public sealed class IsNotNullConverter : IValueConverter
+{
+    public static readonly IsNotNullConverter Instance = new();
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value is not null;
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+public sealed class IsFlyoutModuleConverter : IValueConverter
+{
+    public static readonly IsFlyoutModuleConverter Instance = new();
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is SenderNG.Core.Modules.IModule m)
+            return m.Panel == SenderNG.Core.Modules.PanelHint.Flyout;
+        return false;
+    }
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
