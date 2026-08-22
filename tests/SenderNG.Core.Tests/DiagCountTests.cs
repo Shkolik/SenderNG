@@ -17,6 +17,7 @@ public class HostModuleRegistrationTests
         var ids = modules.Select(m => m.Id).OrderBy(i => i).ToList();
         Assert.True(modules.Count == modules.DistinctBy(m => m.Id).Count(),
             $"duplicates ({modules.Count}): {string.Join(",", ids)}");
-        Assert.Equal(10, modules.Count);
+        // 10 built-in + Dummy plugin discovered via ModuleCatalog assembly scan.
+        Assert.Equal(11, modules.Count);
     }
 }

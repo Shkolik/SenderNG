@@ -65,6 +65,25 @@ public class ModuleCatalogTests
     }
 
     [Fact]
+    public void Scan_discovers_dummy_module_from_external_assembly()
+    {
+        // SenderNG.Modules.Dummy is a separate project (external plugin assembly);
+        // the host passes it to Scan exactly like this.
+        var sc = new ServiceCollection();
+        ModuleCatalog.Scan(sc, typeof(SenderNG.Modules.Dummy.DummyModule).Assembly);
+
+        using var sp = sc.BuildServiceProvider();
+        var modules = sp.GetServices<IModule>().ToList();
+
+        var dummy = Assert.Single(modules, m => m.Id == "dummy");
+        Assert.IsType<SenderNG.Modules.Dummy.DummyModule>(dummy);
+        Assert.Equal("Dummy", dummy.Name);
+        Assert.Equal(100, dummy.Order);
+        Assert.Equal(PanelHint.Flyout, dummy.Panel);
+        Assert.True(dummy.IsVisibleByDefault);
+    }
+
+    [Fact]
     public void HotKey_record_holds_gesture_and_action()
     {
         var hk = new HotKey("Ctrl+O", "File.Open");
