@@ -62,7 +62,8 @@ public static class HostSetup
 
     private static void RegisterModule(IServiceCollection services, IModule module)
     {
-        services.AddSingleton(module);
+        // NOTE: do not call AddSingleton(module) here - 'module' is statically typed
+        // IModule, so generic inference would register IModule a second time.
         services.AddSingleton<IModule>(module);
         module.RegisterServices(services);
     }
