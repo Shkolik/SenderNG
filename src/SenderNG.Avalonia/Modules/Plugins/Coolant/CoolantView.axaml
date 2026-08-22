@@ -8,11 +8,11 @@
              x:DataType="vm:CoolantViewModel">
 
     <StackPanel Margin="8" Spacing="8">
-        <CheckBox IsChecked="{Binding IsFlood, Mode=OneWay}" Content="Flood (M8)" />
-        <CheckBox IsChecked="{Binding IsMist, Mode=OneWay}" Content="Mist (M7)" />
+        <CheckBox IsChecked="{Binding IsFlood, Mode=OneWay}" Content="Flood (M8)" CornerRadius="0" />
+        <CheckBox IsChecked="{Binding IsMist, Mode=OneWay}" Content="Mist (M7)" CornerRadius="0" />
         <StackPanel Orientation="Horizontal" Spacing="6">
-            <Button Content="Toggle Flood" Command="{Binding FloodCommand}" />
-            <Button Content="Toggle Mist" Command="{Binding MistCommand}" />
+            <Button Content="Toggle Flood" Command="{Binding FloodCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
+            <Button Content="Toggle Mist" Command="{Binding MistCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
         </StackPanel>
     </StackPanel>
 </UserControl>

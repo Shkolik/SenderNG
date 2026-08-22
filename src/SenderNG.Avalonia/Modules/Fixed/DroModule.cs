@@ -9,6 +9,8 @@ public class DroModule : IModule
     public string Id => "dro";
     public string Name => "DRO";
     public int Order => 10;
+    public PanelHint Panel => PanelHint.Left;
+    public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>

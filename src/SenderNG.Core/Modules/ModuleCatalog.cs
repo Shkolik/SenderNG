@@ -26,6 +26,11 @@ public static class ModuleCatalog
                 continue;
             }
 
+            // Only auto-register modules with a public parameterless constructor;
+            // test stubs or modules requiring ctor args are registered manually.
+            if (type.GetConstructor(Type.EmptyTypes) is null)
+                continue;
+
             services.AddSingleton(type);
             services.AddSingleton<IModule>(sp => (IModule)sp.GetRequiredService(type));
 

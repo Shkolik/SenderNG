@@ -10,6 +10,8 @@ public class JogModule : IModule
     public string Id => "jog";
     public string Name => "Jog";
     public int Order => 15;
+    public PanelHint Panel => PanelHint.Right;
+    public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>

@@ -4,6 +4,8 @@ using SenderNG.Avalonia.ViewModels;
 
 namespace SenderNG.Avalonia.Modules.Fixed;
 
+public record GCodeProgramRow(int Line, string Status, string Data);
+
 public class GCodeConsoleViewModel : ViewModelBase
 {
     private readonly IGrblService _grbl;
@@ -11,6 +13,8 @@ public class GCodeConsoleViewModel : ViewModelBase
     public ObservableCollection<string> ConsoleLines { get; } = new();
 
     public ObservableCollection<string> GCodeLines { get; } = new();
+
+    public ObservableCollection<GCodeProgramRow> ProgramRows { get; } = new();
 
     public GCodeConsoleViewModel(IGrblService grbl)
     {
@@ -28,10 +32,17 @@ public class GCodeConsoleViewModel : ViewModelBase
     public void LoadGCode(string text)
     {
         GCodeLines.Clear();
+        ProgramRows.Clear();
         if (string.IsNullOrWhiteSpace(text))
             return;
 
-        foreach (var line in text.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries))
-            GCodeLines.Add(line.TrimEnd('\r'));
+        int n = 1;
+        foreach (var line in text.Split(["\r\n", "\n"], StringSplitOptions.None))
+        {
+            var data = line.TrimEnd('\r');
+            GCodeLines.Add(data);
+            // Status: · idle, ✓ done, ✕ error — placeholder · for now
+            ProgramRows.Add(new GCodeProgramRow(n++, "·", data));
+        }
     }
 }

@@ -21,6 +21,8 @@ public class MainViewModel : ViewModelBase
     private string _status = string.Empty;
     private IModule? _selectedModule;
     private object? _currentModuleView;
+    private string _mdiInput = string.Empty;
+    private int _mdiHistoryIndex;
 
     public MainViewModel(
         IGrblService grbl,
@@ -49,7 +51,25 @@ public class MainViewModel : ViewModelBase
 
         DemoToggleCommand = new DelegateCommand(_ => ToggleDemo());
         ConnectCommand = new DelegateCommand(_ => _ = ConnectAsync());
+        DisconnectCommand = new DelegateCommand(_ => Disconnect());
         SelectModuleCommand = new DelegateCommand(p => SelectedModule = p as IModule);
+        SendMdiCommand = new DelegateCommand(_ => _ = SendMdiAsync(), _ => !string.IsNullOrWhiteSpace(MdiInput));
+        OpenFileCommand = new DelegateCommand(_ => OpenFile());
+        SelectRecentCommand = new DelegateCommand(p => SelectRecent(p as string));
+        // Cycle bar delegates (grblHAL realtime)
+        // TODO: Cycle commands currently use SendAsync(string) placeholder; future: use realtime byte API (e.g., SendRealtime) for "~", "!", 0x18
+        CycleStartCommand = new DelegateCommand(_ => _ = CycleAsync("~", "Cycle Start"));
+        FeedHoldCommand = new DelegateCommand(_ => _ = CycleAsync("!", "Feed Hold"));
+        StopCommand = new DelegateCommand(_ => _ = CycleAsync("\x18", "Stop"));
+        RewindCommand = new DelegateCommand(_ => Rewind());
+        MdiHistoryPrevCommand = new DelegateCommand(_ => MdiHistoryPrev());
+        MdiHistoryNextCommand = new DelegateCommand(_ => MdiHistoryNext());
+        // placeholder Help/Settings delegates keep Status
+        MachineSettingsCommand = new DelegateCommand(_ => Status = "Machine settings (placeholder)");
+        AppSettingsCommand = new DelegateCommand(_ => Status = "App settings (placeholder)");
+        AboutCommand = new DelegateCommand(_ => Status = "SenderNG — About (placeholder)");
+        LibrariesCommand = new DelegateCommand(_ => Status = "Libraries (placeholder)");
+        _mdiHistoryIndex = MdiHistory.Count;
     }
 
     public SettingsService SettingsService { get; }
@@ -74,6 +94,21 @@ public class MainViewModel : ViewModelBase
 
     public ObservableCollection<IModule> Modules { get; } = new();
 
+    public bool IsModuleVisible(IModule m) =>
+        _settingsService.Load().ModulesVisibility.TryGetValue(m.Id, out var v) ? v : m.IsVisibleByDefault;
+
+    public IEnumerable<IModule> LeftModules =>
+        Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Left).OrderBy(m => m.Order);
+
+    public IEnumerable<IModule> CenterModules =>
+        Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Center).OrderBy(m => m.Order);
+
+    public IEnumerable<IModule> RightModules =>
+        Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Right).OrderBy(m => m.Order);
+
+    public IEnumerable<IModule> FlyoutModules =>
+        Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Flyout).OrderBy(m => m.Order);
+
     public IModule? SelectedModule
     {
         get => _selectedModule;
@@ -93,11 +128,53 @@ public class MainViewModel : ViewModelBase
 
     public GCodeConsoleViewModel? Console { get; }
 
+    public ObservableCollection<string> MdiHistory { get; } = new();
+
+    public ObservableCollection<string> RecentFiles { get; } = new();
+
+    public string MdiInput
+    {
+        get => _mdiInput;
+        set
+        {
+            if (SetField(ref _mdiInput, value))
+                (SendMdiCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        }
+    }
+
     public DelegateCommand DemoToggleCommand { get; }
 
     public ICommand ConnectCommand { get; }
 
+    public ICommand DisconnectCommand { get; }
+
+    public ICommand SendMdiCommand { get; }
+
+    public ICommand OpenFileCommand { get; }
+
+    public ICommand CycleStartCommand { get; }
+
+    public ICommand FeedHoldCommand { get; }
+
+    public ICommand StopCommand { get; }
+
+    public ICommand RewindCommand { get; }
+
+    public ICommand MdiHistoryPrevCommand { get; }
+
+    public ICommand MdiHistoryNextCommand { get; }
+
+    public ICommand MachineSettingsCommand { get; }
+
+    public ICommand AppSettingsCommand { get; }
+
+    public ICommand AboutCommand { get; }
+
+    public ICommand LibrariesCommand { get; }
+
     public DelegateCommand SelectModuleCommand { get; }
+
+    public ICommand SelectRecentCommand { get; }
 
     private void ToggleDemo()
     {
@@ -115,6 +192,87 @@ public class MainViewModel : ViewModelBase
         {
             Grbl = target;
         }
+    }
+
+    private void MdiHistoryPrev()
+    {
+        if (MdiHistory.Count == 0) return;
+        if (_mdiHistoryIndex == MdiHistory.Count)
+            _mdiHistoryIndex = MdiHistory.Count - 1;
+        else if (_mdiHistoryIndex > 0)
+            _mdiHistoryIndex--;
+        // else stay at 0
+        MdiInput = MdiHistory[_mdiHistoryIndex];
+    }
+
+    private void MdiHistoryNext()
+    {
+        if (MdiHistory.Count == 0) return;
+        if (_mdiHistoryIndex < MdiHistory.Count - 1)
+        {
+            _mdiHistoryIndex++;
+            MdiInput = MdiHistory[_mdiHistoryIndex];
+        }
+        else if (_mdiHistoryIndex == MdiHistory.Count - 1)
+        {
+            _mdiHistoryIndex = MdiHistory.Count;
+            MdiInput = string.Empty;
+        }
+    }
+
+    private async Task SendMdiAsync()
+    {
+        var line = MdiInput?.Trim();
+        if (string.IsNullOrWhiteSpace(line)) return;
+        // push to session history first (dedup tail), even if send fails or not connected
+        if (MdiHistory.Count == 0 || MdiHistory[^1] != line)
+            MdiHistory.Add(line);
+        _mdiHistoryIndex = MdiHistory.Count;
+        MdiInput = string.Empty;
+        try
+        {
+            await Grbl.SendAsync(line);
+            Console?.Log($"> {line}");
+            Status = $"MDI: {line}";
+        }
+        catch (Exception ex)
+        {
+            Status = $"MDI failed: {ex.Message}";
+        }
+    }
+
+    private void OpenFile()
+    {
+        // TODO: integrate file dialog — RecentFiles will be populated from dialog result (future file-open integration)
+        Status = "Open file... (placeholder)";
+    }
+
+    private void SelectRecent(string? file)
+    {
+        if (string.IsNullOrWhiteSpace(file)) return;
+        Status = $"Open {file} (placeholder)";
+        // TODO: file-open integration will load GCode via LoadGCode and push to RecentFiles
+    }
+
+    private void Disconnect()
+    {
+        try { Grbl.Disconnect(); Status = "Disconnected"; }
+        catch (Exception ex) { Status = $"Disconnect failed: {ex.Message}"; }
+    }
+
+    // TODO: Cycle commands via SendAsync(string) placeholder; future: use realtime byte API (e.g., SendRealtime) for grblHAL realtime commands
+    private async Task CycleAsync(string payload, string label)
+    {
+        // TODO: replace SendAsync(string) with SendRealtime(byte) for "~" (Cycle Start), "!" (Feed Hold), 0x18 (Reset/Stop)
+        try { await Grbl.SendAsync(payload); Status = label; }
+        catch (Exception ex) { Status = $"{label} failed: {ex.Message}"; }
+    }
+
+    // TODO: Rewind should use realtime/control API if applicable; placeholder Status for now
+    private void Rewind()
+    {
+        Status = "Rewind (placeholder)";
+        Console?.Log("Rewind");
     }
 
     private static IGrblService ResolveInner(IGrblService service) =>

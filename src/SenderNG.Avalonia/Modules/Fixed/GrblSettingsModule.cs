@@ -9,6 +9,8 @@ public class GrblSettingsModule : IModule
     public string Id => "grbl-settings";
     public string Name => "GRBL Settings";
     public int Order => 40;
+    public PanelHint Panel => PanelHint.Right;
+    public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>

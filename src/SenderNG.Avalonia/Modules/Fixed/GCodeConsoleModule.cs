@@ -9,6 +9,8 @@ public class GCodeConsoleModule : IModule
     public string Id => "gcode-console";
     public string Name => "G-Code / Console";
     public int Order => 20;
+    public PanelHint Panel => PanelHint.Center;
+    public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>

@@ -9,25 +9,27 @@
 
     <DockPanel Margin="8">
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,0,0,8">
-            <Button Content="Add" Command="{Binding AddMacroCommand}" />
-            <Button Content="Remove" Command="{Binding RemoveMacroCommand}" />
-            <Button Content="Run" Command="{Binding RunCommand}" />
+            <Button Content="Add" Command="{Binding AddMacroCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
+            <Button Content="Remove" Command="{Binding RemoveMacroCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
+            <Button Content="Run" Command="{Binding RunCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
         </StackPanel>
 
         <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
             <TextBox Text="{Binding SelectedMacro.Name, Mode=TwoWay}"
                      PlaceholderText="Macro name"
-                     IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                     IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}"
+                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
             <TextBox Text="{Binding SelectedMacro.Code, Mode=TwoWay}"
                      PlaceholderText="G-code lines, one per line"
                      AcceptsReturn="True" MinHeight="100" TextWrapping="Wrap"
-                     IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                     IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}"
+                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
         </StackPanel>
 
-        <ListBox ItemsSource="{Binding Macros}" SelectedItem="{Binding SelectedMacro}" MinHeight="80">
+        <ListBox ItemsSource="{Binding Macros}" SelectedItem="{Binding SelectedMacro}" MinHeight="80" CornerRadius="0" BorderBrush="#aaa" BorderThickness="1" Background="White">
             <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="vm:MacroItem">
-                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Margin="2" />
+                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Margin="2" FontSize="11" Foreground="#333" />
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>

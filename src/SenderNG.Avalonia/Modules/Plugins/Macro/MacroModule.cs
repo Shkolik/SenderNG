@@ -10,6 +10,8 @@ public class MacroModule : IModule
     public string Id => "macro";
     public string Name => "Macros";
     public int Order => 45;
+    public PanelHint Panel => PanelHint.Flyout;
+    public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>

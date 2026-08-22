@@ -8,24 +8,24 @@
              x:DataType="vm:CuttingViewModel">
 
     <StackPanel Margin="8">
-        <TextBlock Text="Feed Override" FontWeight="Bold" Margin="0,0,0,4" />
+        <TextBlock Text="Feed Override" FontWeight="Bold" Margin="0,0,0,4" FontSize="11" Foreground="#333" />
         <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,10">
-            <Button Content="-10" Command="{Binding FeedDown10Command}" />
-            <Button Content="-1" Command="{Binding FeedDownCommand}" />
+            <Button Content="-10" Command="{Binding FeedDown10Command}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="-1" Command="{Binding FeedDownCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
             <TextBlock Text="{Binding FeedOverride, StringFormat={}{0} %}"
-                       VerticalAlignment="Center" MinWidth="60" TextAlignment="Center" FontWeight="Bold" />
-            <Button Content="+1" Command="{Binding FeedUpCommand}" />
-            <Button Content="+10" Command="{Binding FeedUp10Command}" />
+                       VerticalAlignment="Center" MinWidth="60" TextAlignment="Center" FontWeight="Bold" FontSize="11" Foreground="#333" />
+            <Button Content="+1" Command="{Binding FeedUpCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="+10" Command="{Binding FeedUp10Command}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
         </StackPanel>
 
-        <TextBlock Text="Spindle Override" FontWeight="Bold" Margin="0,0,0,4" />
+        <TextBlock Text="Spindle Override" FontWeight="Bold" Margin="0,0,0,4" FontSize="11" Foreground="#333" />
         <StackPanel Orientation="Horizontal" Spacing="6">
-            <Button Content="-10" Command="{Binding SpindleDown10Command}" />
-            <Button Content="-1" Command="{Binding SpindleDownCommand}" />
+            <Button Content="-10" Command="{Binding SpindleDown10Command}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="-1" Command="{Binding SpindleDownCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
             <TextBlock Text="{Binding SpindleOverride, StringFormat={}{0} %}"
-                       VerticalAlignment="Center" MinWidth="60" TextAlignment="Center" FontWeight="Bold" />
-            <Button Content="+1" Command="{Binding SpindleUpCommand}" />
-            <Button Content="+10" Command="{Binding SpindleUp10Command}" />
+                       VerticalAlignment="Center" MinWidth="60" TextAlignment="Center" FontWeight="Bold" FontSize="11" Foreground="#333" />
+            <Button Content="+1" Command="{Binding SpindleUpCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="+10" Command="{Binding SpindleUp10Command}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
         </StackPanel>
     </StackPanel>
 </UserControl>

@@ -10,6 +10,8 @@ public class CuttingModule : IModule
     public string Id => "cutting";
     public string Name => "Cutting";
     public int Order => 25;
+    public PanelHint Panel => PanelHint.Right;
+    public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>
