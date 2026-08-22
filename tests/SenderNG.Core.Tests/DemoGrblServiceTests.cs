@@ -57,4 +57,80 @@ public class DemoGrblServiceTests
         Assert.Equal(5, st.Positions[1]);
         Assert.Equal(2, st.Positions[2]);
     }
+
+    [Fact]
+    public async Task Jog_command_applies_incremental_delta()
+    {
+        var svc = new DemoGrblService(new AppSettings { DemoAxes = 3 });
+        await svc.ConnectAsync("demo");
+        await svc.SendAsync("G0 X10 Y5 Z2");
+
+        await svc.SendAsync("$J=G91 G0 X1 Y-2 F1000");
+
+        var st = await svc.State.FirstAsync();
+        Assert.Equal(11, st.Positions[0]);
+        Assert.Equal(3, st.Positions[1]);
+        Assert.Equal(2, st.Positions[2]);
+    }
+
+    [Fact]
+    public async Task Jog_without_explicit_mode_uses_modal_distance_mode()
+    {
+        var svc = new DemoGrblService(new AppSettings { DemoAxes = 3 });
+        await svc.ConnectAsync("demo");
+
+        // G91 sets incremental mode modally; subsequent plain move is relative.
+        await svc.SendAsync("G91");
+        await svc.SendAsync("G0 X10");
+
+        var st = await svc.State.FirstAsync();
+        Assert.Equal(10, st.Positions[0]);
+
+        await svc.SendAsync("G90");
+        await svc.SendAsync("G0 X5");
+
+        st = await svc.State.FirstAsync();
+        Assert.Equal(5, st.Positions[0]);
+    }
+
+    [Fact]
+    public async Task Jog_supports_A_and_B_axes_when_present()
+    {
+        var svc = new DemoGrblService(new AppSettings { DemoAxes = 5 });
+        await svc.ConnectAsync("demo");
+
+        await svc.SendAsync("$J=G91 G0 A1 B-1 F500");
+
+        var st = await svc.State.FirstAsync();
+        Assert.Equal(1, st.Positions[3]);
+        Assert.Equal(-1, st.Positions[4]);
+    }
+
+    [Fact]
+    public async Task Jog_ignores_axes_beyond_NumAxes()
+    {
+        var svc = new DemoGrblService(new AppSettings { DemoAxes = 3 });
+        await svc.ConnectAsync("demo");
+
+        await svc.SendAsync("$J=G91 G0 X1 A5 B7 F500");
+
+        var st = await svc.State.FirstAsync();
+        Assert.Equal(3, st.NumAxes);
+        Assert.Equal(1, st.Positions[0]);
+        Assert.Equal(0, st.Positions[1]);
+        Assert.Equal(0, st.Positions[2]);
+    }
+
+    [Fact]
+    public async Task Absolute_G1_move_still_sets_absolute_positions()
+    {
+        var svc = new DemoGrblService(new AppSettings { DemoAxes = 3 });
+        await svc.ConnectAsync("demo");
+
+        await svc.SendAsync("G1 X4 Y4 F200");
+
+        var st = await svc.State.FirstAsync();
+        Assert.Equal(4, st.Positions[0]);
+        Assert.Equal(4, st.Positions[1]);
+    }
 }

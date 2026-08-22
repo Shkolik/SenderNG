@@ -7,6 +7,7 @@ public class DemoGrblService : IGrblService
 {
     private readonly BehaviorSubject<MachineState> _subject;
     private readonly object _lock = new();
+    private int _distanceMode = 90; // modal G90/G91
 
     public bool IsConnected { get; private set; }
 
@@ -54,32 +55,57 @@ public class DemoGrblService : IGrblService
         return Task.CompletedTask;
     }
 
-    // TODO: delegate motion simulation to GCodeEmulator once its API is exposed for
-    // incremental line-by-line feeding; hand-parse kept for this thin slice.
-    private static void ApplyMotion(string line, MachineState state)
+    // Hand-parses motion lines: supports $J= jog commands, modal G90/G91
+    // distance modes and the X/Y/Z/A/B axis set, clamped to NumAxes.
+    private void ApplyMotion(string line, MachineState state)
     {
-        if (!(line.StartsWith('G') && (line.Length > 1 && (line[1] == '0' || line[1] == '1'))))
-            return;
+        var rest = line;
+        if (rest.StartsWith("$J=", StringComparison.OrdinalIgnoreCase))
+            rest = rest[3..];
 
-        foreach (var part in line[2..].Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        var incremental = _distanceMode == 91;
+
+        foreach (var part in rest.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
             if (part.Length < 2)
                 continue;
 
-            var axis = char.ToUpperInvariant(part[0]);
-            if (!double.TryParse(part[1..], System.Globalization.CultureInfo.InvariantCulture, out var value))
-                continue;
+            var letter = char.ToUpperInvariant(part[0]);
 
-            var index = axis switch
+            if (letter == 'G')
+            {
+                switch (part[1..])
+                {
+                    case "90":
+                        _distanceMode = 90;
+                        incremental = false;
+                        break;
+                    case "91":
+                        _distanceMode = 91;
+                        incremental = true;
+                        break;
+                    // G0/G1/other G-words: motion mode only, no position effect here.
+                }
+                continue;
+            }
+
+            var index = letter switch
             {
                 'X' => 0,
                 'Y' => 1,
                 'Z' => 2,
+                'A' => 3,
+                'B' => 4,
                 _ => -1
             };
 
-            if (index >= 0 && index < state.Positions.Length)
-                state.Positions[index] = value;
+            if (index < 0 || index >= state.Positions.Length || index >= state.NumAxes)
+                continue;
+
+            if (!double.TryParse(part[1..], System.Globalization.CultureInfo.InvariantCulture, out var value))
+                continue;
+
+            state.Positions[index] = incremental ? state.Positions[index] + value : value;
         }
     }
 }
