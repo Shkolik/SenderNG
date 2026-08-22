@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SenderNG.Core\SenderNG.Core.csproj" />
+    <ProjectReference Include="..\..\src\SenderNG.Avalonia\SenderNG.Avalonia.csproj" />
   </ItemGroup>
 
 </Project>

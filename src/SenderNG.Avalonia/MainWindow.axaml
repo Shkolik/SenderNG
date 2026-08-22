@@ -2,8 +2,57 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        xmlns:vm="clr-namespace:SenderNG.Avalonia.ViewModels"
+        xmlns:m="clr-namespace:SenderNG.Core.Modules;assembly=SenderNG.Core"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
         x:Class="SenderNG.Avalonia.MainWindow"
-        Title="SenderNG.Avalonia">
-    Welcome to Avalonia!
+        x:DataType="vm:MainViewModel"
+        Title="SenderNG" Width="900" Height="600">
+
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Connect" Command="{Binding ConnectCommand}" />
+                <Separator />
+                <MenuItem Header="E_xit" Command="{Binding $parent[Window].Close}" />
+            </MenuItem>
+            <MenuItem Header="_Machine">
+                <MenuItem Header="_Demo Mode"
+                          IsChecked="{Binding IsDemo, Mode=OneWay}"
+                          Command="{Binding DemoToggleCommand}" />
+            </MenuItem>
+        </Menu>
+
+        <Grid ColumnDefinitions="220,*">
+            <!-- Sidebar: module list (populated by ModuleCatalog) -->
+            <Border Grid.Column="0" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    BorderThickness="0,0,1,0">
+                <ScrollViewer>
+                    <ItemsControl ItemsSource="{Binding Modules}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="m:IModule">
+                                <TextBlock Text="{Binding Name}" Margin="8,6" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+
+            <!-- Main content: G-Code view + console placeholders -->
+            <Grid Grid.Column="1" RowDefinitions="*,*">
+                <Border Grid.Row="0" Margin="4" BorderBrush="Gray" BorderThickness="1">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="GCodeView" FontWeight="Bold" Margin="4" />
+                        <ListBox x:Name="GCodeList" ItemsSource="{Binding GCodeLines}" />
+                    </DockPanel>
+                </Border>
+                <Border Grid.Row="1" Margin="4" BorderBrush="Gray" BorderThickness="1">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="ConsoleView" FontWeight="Bold" Margin="4" />
+                        <ListBox x:Name="ConsoleList" ItemsSource="{Binding ConsoleLines}" />
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </Grid>
+    </DockPanel>
 </Window>
