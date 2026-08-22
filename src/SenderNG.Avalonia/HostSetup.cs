@@ -18,6 +18,7 @@ public static class HostSetup
         var builder = Host.CreateApplicationBuilder(args);
 
         builder.Services.AddSingleton<SettingsService>();
+        builder.Services.AddSingleton<IComPortService, SerialComPortService>();
         builder.Services.AddSingleton<DemoGrblService>();
         builder.Services.AddSingleton<RealGrblService>();
         builder.Services.AddSingleton<IGrblService>(sp => sp.GetRequiredService<DemoGrblService>());
@@ -33,11 +34,18 @@ public static class HostSetup
         RegisterModule(builder.Services, new Modules.Plugins.CuttingModule());
         RegisterModule(builder.Services, new Modules.Plugins.CoolantModule());
         RegisterModule(builder.Services, new Modules.Plugins.MacroModule());
+        RegisterModule(builder.Services, new Modules.Plugins.ProbingModule());
 
         // External module assemblies are added here as they appear.
         ModuleCatalog.Scan(builder.Services);
 
         builder.Services.AddSingleton<MainViewModel>();
+        builder.Services.AddSingleton(sp =>
+            new MainViewModel(
+                sp.GetRequiredService<IGrblService>(),
+                sp.GetRequiredService<SettingsService>(),
+                sp,
+                comPorts: sp.GetRequiredService<IComPortService>()));
 
         return builder.Build();
     }

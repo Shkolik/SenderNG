@@ -14,6 +14,7 @@ public class MainViewModel : ViewModelBase
 {
     private readonly IServiceProvider _services;
     private readonly SettingsService _settingsService;
+    private readonly IComPortService? _comPorts;
     private bool _isDemo;
     private IGrblService _grbl;
     private string _status = string.Empty;
@@ -23,7 +24,8 @@ public class MainViewModel : ViewModelBase
         SettingsService settings,
         IServiceProvider services,
         GCodeConsoleViewModel? console = null,
-        IEnumerable<IModule>? modules = null)
+        IEnumerable<IModule>? modules = null,
+        IComPortService? comPorts = null)
     {
         ArgumentNullException.ThrowIfNull(grbl);
         ArgumentNullException.ThrowIfNull(settings);
@@ -33,6 +35,7 @@ public class MainViewModel : ViewModelBase
         _settingsService = settings;
         SettingsService = settings;
         _services = services;
+        _comPorts = comPorts;
         _isDemo = grbl is DemoGrblService;
         Console = console;
 
@@ -84,6 +87,16 @@ public class MainViewModel : ViewModelBase
         try
         {
             var port = _settingsService.Load().Port;
+            if (port == "auto" && _comPorts is not null)
+            {
+                var ports = _comPorts?.GetPorts() ?? [];
+                if (ports.Length == 0)
+                {
+                    Status = "No ports found";
+                    return;
+                }
+                port = ports[0];
+            }
             Status = $"Connecting to {port}...";
             await Grbl.ConnectAsync(port);
             Status = $"Connected: {port}";

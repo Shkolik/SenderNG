@@ -86,6 +86,39 @@ public class MainViewModelTests
         Assert.Contains("Connected", vm.Status);
     }
 
+    private sealed class StubComPorts(string[] ports) : IComPortService
+    {
+        public string[] GetPorts() => ports;
+    }
+
+    [Fact]
+    public async Task ConnectAsync_with_auto_port_picks_first_enumerated_port()
+    {
+        var settings = MakeSettings();
+        var vm = new MainViewModel(
+            new DemoGrblService(new AppSettings()), settings, MakeProvider(settings),
+            comPorts: new StubComPorts(["COM3", "COM7"]));
+
+        vm.ConnectCommand.Execute(null);
+        await Task.Yield();
+
+        Assert.Contains("COM3", vm.Status);
+    }
+
+    [Fact]
+    public async Task ConnectAsync_with_auto_port_and_no_ports_reports_no_ports_found()
+    {
+        var settings = MakeSettings();
+        var vm = new MainViewModel(
+            new DemoGrblService(new AppSettings()), settings, MakeProvider(settings),
+            comPorts: new StubComPorts([]));
+
+        vm.ConnectCommand.Execute(null);
+        await Task.Yield();
+
+        Assert.Equal("No ports found", vm.Status);
+    }
+
     [Fact]
     public async Task ConnectCommand_sets_status_failed_and_does_not_throw_on_bad_port()
     {
