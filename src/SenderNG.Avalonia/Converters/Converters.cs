@@ -6,7 +6,7 @@ namespace SenderNG.Avalonia.Converters;
 
 public static class Converters
 {
-    public static readonly IValueConverter HasElements = new HasElementsConverter();
+    public static HasElementsConverter HasElements => HasElementsConverter.Instance;
 }
 
 public sealed class HasElementsConverter : IValueConverter
@@ -19,10 +19,17 @@ public sealed class HasElementsConverter : IValueConverter
         {
             int i => i > 0,
             ICollection c => c.Count > 0,
-            IEnumerable e => e.GetEnumerator().MoveNext(),
+            IEnumerable e => HasAny(e),
             null => false,
-            _ => true
+            _ => false
         };
+    }
+
+    private static bool HasAny(IEnumerable e)
+    {
+        var en = e.GetEnumerator();
+        try { return en.MoveNext(); }
+        finally { (en as IDisposable)?.Dispose(); }
     }
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>

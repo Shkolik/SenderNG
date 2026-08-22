@@ -186,6 +186,7 @@
             </ScrollViewer>
         </Border>
 
+        <!-- TODO(Task 4): 32px flyout gutter width is provisional (topology Task 3); revisit sizing/responsive behavior in Task 4 polish — leave as-is. -->
         <!-- Col3 Row1: Flyout vertical ItemsControl only if Count>0 -->
         <Border Grid.Row="1" Grid.Column="3"
                 Background="#e0e0e0" BorderBrush="#aaa" BorderThickness="1,0,0,0"
@@ -202,6 +203,7 @@
                             <Button Content="{Binding Name}" CornerRadius="0" Background="#eee"
                                     BorderBrush="#999" BorderThickness="1" Padding="4,8"
                                     HorizontalAlignment="Stretch" FontSize="10">
+                                <!-- TODO(Task 4): RotateTransform 90° is provisional vertical-text placeholder; revisit Avalonia vertical writing-mode styling in Task 4 — leave as-is. -->
                                 <Button.RenderTransform>
                                     <RotateTransform Angle="90" />
                                 </Button.RenderTransform>
