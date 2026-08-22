@@ -36,7 +36,14 @@ public class MacroViewModel : ViewModelBase
     public MacroItem? SelectedMacro
     {
         get => _selectedMacro;
-        set => SetField(ref _selectedMacro, value);
+        set
+        {
+            if (SetField(ref _selectedMacro, value))
+            {
+                RunCommand.RaiseCanExecuteChanged();
+                RemoveMacroCommand.RaiseCanExecuteChanged();
+            }
+        }
     }
 
     public DelegateCommand RunCommand { get; }
@@ -90,7 +97,7 @@ public class MacroViewModel : ViewModelBase
             return;
 
         foreach (var item in items)
-            Macros.Add(item);
+            AddItem(item);
     }
 
     private static List<MacroItem>? ReadTyped(List<object> list) =>
@@ -114,9 +121,15 @@ public class MacroViewModel : ViewModelBase
     private void AddMacro()
     {
         var macro = new MacroItem { Name = $"Macro {Macros.Count + 1}", Code = string.Empty };
-        Macros.Add(macro);
+        AddItem(macro);
         SelectedMacro = macro;
         Save();
+    }
+
+    private void AddItem(MacroItem item)
+    {
+        item.PropertyChanged += (_, _) => Save();
+        Macros.Add(item);
     }
 
     private void RemoveSelected()

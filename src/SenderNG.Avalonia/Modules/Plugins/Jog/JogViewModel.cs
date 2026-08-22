@@ -46,6 +46,7 @@ public class JogViewModel : ViewModelBase
         set => SetField(ref _padlockEngaged, value);
     }
 
+    // TODO: stale snapshot — does not refresh when settings mode changes; revisit when mode-switch restart is implemented.
     public string Mode => _appSettings.Mode;
 
     public DelegateCommand JogXPlusCommand { get; }

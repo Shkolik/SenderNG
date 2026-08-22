@@ -14,14 +14,6 @@
             <Button Content="Run" Command="{Binding RunCommand}" />
         </StackPanel>
 
-        <ListBox ItemsSource="{Binding Macros}" SelectedItem="{Binding SelectedMacro}" MinHeight="80">
-            <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="vm:MacroItem">
-                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Margin="2" />
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
-
         <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
             <TextBox Text="{Binding SelectedMacro.Name, Mode=TwoWay}"
                      PlaceholderText="Macro name"
@@ -31,5 +23,13 @@
                      AcceptsReturn="True" MinHeight="100" TextWrapping="Wrap"
                      IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}" />
         </StackPanel>
+
+        <ListBox ItemsSource="{Binding Macros}" SelectedItem="{Binding SelectedMacro}" MinHeight="80">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:MacroItem">
+                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Margin="2" />
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
     </DockPanel>
 </UserControl>
