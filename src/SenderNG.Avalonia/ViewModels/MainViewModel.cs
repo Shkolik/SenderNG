@@ -55,7 +55,9 @@ public class MainViewModel : ViewModelBase
         SelectModuleCommand = new DelegateCommand(p => SelectedModule = p as IModule);
         SendMdiCommand = new DelegateCommand(_ => _ = SendMdiAsync(), _ => !string.IsNullOrWhiteSpace(MdiInput));
         OpenFileCommand = new DelegateCommand(_ => OpenFile());
+        SelectRecentCommand = new DelegateCommand(p => SelectRecent(p as string));
         // Cycle bar delegates (grblHAL realtime)
+        // TODO: Cycle commands currently use SendAsync(string) placeholder; future: use realtime byte API (e.g., SendRealtime) for "~", "!", 0x18
         CycleStartCommand = new DelegateCommand(_ => _ = CycleAsync("~", "Cycle Start"));
         FeedHoldCommand = new DelegateCommand(_ => _ = CycleAsync("!", "Feed Hold"));
         StopCommand = new DelegateCommand(_ => _ = CycleAsync("\x18", "Stop"));
@@ -172,6 +174,8 @@ public class MainViewModel : ViewModelBase
 
     public DelegateCommand SelectModuleCommand { get; }
 
+    public ICommand SelectRecentCommand { get; }
+
     private void ToggleDemo()
     {
         IsDemo = !IsDemo;
@@ -239,10 +243,15 @@ public class MainViewModel : ViewModelBase
 
     private void OpenFile()
     {
+        // TODO: integrate file dialog — RecentFiles will be populated from dialog result (future file-open integration)
         Status = "Open file... (placeholder)";
-        // keep RecentFiles extensible
-        if (!string.IsNullOrWhiteSpace(MdiInput) && !RecentFiles.Contains(MdiInput))
-            RecentFiles.Add(MdiInput);
+    }
+
+    private void SelectRecent(string? file)
+    {
+        if (string.IsNullOrWhiteSpace(file)) return;
+        Status = $"Open {file} (placeholder)";
+        // TODO: file-open integration will load GCode via LoadGCode and push to RecentFiles
     }
 
     private void Disconnect()
@@ -251,12 +260,15 @@ public class MainViewModel : ViewModelBase
         catch (Exception ex) { Status = $"Disconnect failed: {ex.Message}"; }
     }
 
+    // TODO: Cycle commands via SendAsync(string) placeholder; future: use realtime byte API (e.g., SendRealtime) for grblHAL realtime commands
     private async Task CycleAsync(string payload, string label)
     {
+        // TODO: replace SendAsync(string) with SendRealtime(byte) for "~" (Cycle Start), "!" (Feed Hold), 0x18 (Reset/Stop)
         try { await Grbl.SendAsync(payload); Status = label; }
         catch (Exception ex) { Status = $"{label} failed: {ex.Message}"; }
     }
 
+    // TODO: Rewind should use realtime/control API if applicable; placeholder Status for now
     private void Rewind()
     {
         Status = "Rewind (placeholder)";

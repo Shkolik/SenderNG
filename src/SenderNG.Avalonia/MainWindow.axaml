@@ -11,12 +11,6 @@
          Title="SenderNG" Width="1000" Height="600"
          Background="#f6f6f6">
 
-    <Window.KeyBindings>
-        <KeyBinding Gesture="Enter" Command="{Binding SendMdiCommand}" />
-        <KeyBinding Gesture="Up" Command="{Binding MdiHistoryPrevCommand}" />
-        <KeyBinding Gesture="Down" Command="{Binding MdiHistoryNextCommand}" />
-    </Window.KeyBindings>
-
     <Grid ColumnDefinitions="220,*,260,32" RowDefinitions="Auto,*,Auto,Auto">
 
         <!-- Row0: Menu + Toolbar (grid-column 0/4) -->
@@ -29,7 +23,7 @@
                         <MenuItem Header="_Recent" ItemsSource="{Binding RecentFiles}">
                             <MenuItem.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding}" />
+                                    <MenuItem Header="{Binding}" Command="{Binding $parent[Window].DataContext.SelectRecentCommand}" CommandParameter="{Binding}" />
                                 </DataTemplate>
                             </MenuItem.ItemTemplate>
                         </MenuItem>
@@ -232,8 +226,14 @@
                 Background="White" BorderBrush="#aaa" BorderThickness="0,1,0,1" Padding="6">
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <TextBlock Text="MDI" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <TextBox Width="300" Text="{Binding MdiInput, Mode=TwoWay}" PlaceholderText="Type GCode (UP/DOWN history)…" CornerRadius="0"
-                         BorderBrush="#999" BorderThickness="1" Padding="4,3" />
+                <TextBox x:Name="MdiBox" Width="300" Text="{Binding MdiInput, Mode=TwoWay}" PlaceholderText="Type GCode (UP/DOWN history)…" CornerRadius="0"
+                         BorderBrush="#999" BorderThickness="1" Padding="4,3">
+                    <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding SendMdiCommand}" />
+                        <KeyBinding Gesture="Up" Command="{Binding MdiHistoryPrevCommand}" />
+                        <KeyBinding Gesture="Down" Command="{Binding MdiHistoryNextCommand}" />
+                    </TextBox.KeyBindings>
+                </TextBox>
                 <Button Content="Send" Command="{Binding SendMdiCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="12,4" />
                 <ComboBox PlaceholderText="History" CornerRadius="0" BorderBrush="#999" BorderThickness="1" Width="120"
                           ItemsSource="{Binding MdiHistory}" SelectedItem="{Binding MdiInput, Mode=TwoWay}" />

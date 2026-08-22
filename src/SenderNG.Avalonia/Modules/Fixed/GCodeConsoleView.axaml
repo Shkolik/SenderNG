@@ -19,7 +19,7 @@
                 </Grid>
                 <ListBox ItemsSource="{Binding ProgramRows}">
                     <ListBox.ItemTemplate>
-                        <DataTemplate>
+                        <DataTemplate x:DataType="vm:GCodeProgramRow">
                             <Grid ColumnDefinitions="44,28,1*">
                                 <TextBlock Grid.Column="0" Text="{Binding Line}" FontSize="10" Foreground="#666" VerticalAlignment="Center" Margin="4,0" HorizontalAlignment="Right" />
                                 <!-- Status cell: 28px no header, cells show ✓/✕/· with tooltip -->
