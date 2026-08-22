@@ -12,6 +12,10 @@ public class GCodeConsoleViewModel : ViewModelBase
 
     public ObservableCollection<string> GCodeLines { get; } = new();
 
+    public ObservableCollection<GCodeProgramRow> ProgramRows { get; } = new();
+
+    public record GCodeProgramRow(int Line, string Status, string Data);
+
     public GCodeConsoleViewModel(IGrblService grbl)
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
@@ -28,10 +32,17 @@ public class GCodeConsoleViewModel : ViewModelBase
     public void LoadGCode(string text)
     {
         GCodeLines.Clear();
+        ProgramRows.Clear();
         if (string.IsNullOrWhiteSpace(text))
             return;
 
+        int n = 1;
         foreach (var line in text.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries))
-            GCodeLines.Add(line.TrimEnd('\r'));
+        {
+            var data = line.TrimEnd('\r');
+            GCodeLines.Add(data);
+            // Status: · idle, ✓ done, ✕ error — placeholder · for now
+            ProgramRows.Add(new GCodeProgramRow(n++, "·", data));
+        }
     }
 }

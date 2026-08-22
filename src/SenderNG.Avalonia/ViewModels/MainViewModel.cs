@@ -21,6 +21,8 @@ public class MainViewModel : ViewModelBase
     private string _status = string.Empty;
     private IModule? _selectedModule;
     private object? _currentModuleView;
+    private string _mdiInput = string.Empty;
+    private int _mdiHistoryIndex;
 
     public MainViewModel(
         IGrblService grbl,
@@ -49,7 +51,23 @@ public class MainViewModel : ViewModelBase
 
         DemoToggleCommand = new DelegateCommand(_ => ToggleDemo());
         ConnectCommand = new DelegateCommand(_ => _ = ConnectAsync());
+        DisconnectCommand = new DelegateCommand(_ => Disconnect());
         SelectModuleCommand = new DelegateCommand(p => SelectedModule = p as IModule);
+        SendMdiCommand = new DelegateCommand(_ => _ = SendMdiAsync(), _ => !string.IsNullOrWhiteSpace(MdiInput));
+        OpenFileCommand = new DelegateCommand(_ => OpenFile());
+        // Cycle bar delegates (grblHAL realtime)
+        CycleStartCommand = new DelegateCommand(_ => _ = CycleAsync("~", "Cycle Start"));
+        FeedHoldCommand = new DelegateCommand(_ => _ = CycleAsync("!", "Feed Hold"));
+        StopCommand = new DelegateCommand(_ => _ = CycleAsync("\x18", "Stop"));
+        RewindCommand = new DelegateCommand(_ => Rewind());
+        MdiHistoryPrevCommand = new DelegateCommand(_ => MdiHistoryPrev());
+        MdiHistoryNextCommand = new DelegateCommand(_ => MdiHistoryNext());
+        // placeholder Help/Settings delegates keep Status
+        MachineSettingsCommand = new DelegateCommand(_ => Status = "Machine settings (placeholder)");
+        AppSettingsCommand = new DelegateCommand(_ => Status = "App settings (placeholder)");
+        AboutCommand = new DelegateCommand(_ => Status = "SenderNG — About (placeholder)");
+        LibrariesCommand = new DelegateCommand(_ => Status = "Libraries (placeholder)");
+        _mdiHistoryIndex = MdiHistory.Count;
     }
 
     public SettingsService SettingsService { get; }
@@ -108,9 +126,49 @@ public class MainViewModel : ViewModelBase
 
     public GCodeConsoleViewModel? Console { get; }
 
+    public ObservableCollection<string> MdiHistory { get; } = new();
+
+    public ObservableCollection<string> RecentFiles { get; } = new();
+
+    public string MdiInput
+    {
+        get => _mdiInput;
+        set
+        {
+            if (SetField(ref _mdiInput, value))
+                (SendMdiCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        }
+    }
+
     public DelegateCommand DemoToggleCommand { get; }
 
     public ICommand ConnectCommand { get; }
+
+    public ICommand DisconnectCommand { get; }
+
+    public ICommand SendMdiCommand { get; }
+
+    public ICommand OpenFileCommand { get; }
+
+    public ICommand CycleStartCommand { get; }
+
+    public ICommand FeedHoldCommand { get; }
+
+    public ICommand StopCommand { get; }
+
+    public ICommand RewindCommand { get; }
+
+    public ICommand MdiHistoryPrevCommand { get; }
+
+    public ICommand MdiHistoryNextCommand { get; }
+
+    public ICommand MachineSettingsCommand { get; }
+
+    public ICommand AppSettingsCommand { get; }
+
+    public ICommand AboutCommand { get; }
+
+    public ICommand LibrariesCommand { get; }
 
     public DelegateCommand SelectModuleCommand { get; }
 
@@ -130,6 +188,79 @@ public class MainViewModel : ViewModelBase
         {
             Grbl = target;
         }
+    }
+
+    private void MdiHistoryPrev()
+    {
+        if (MdiHistory.Count == 0) return;
+        if (_mdiHistoryIndex == MdiHistory.Count)
+            _mdiHistoryIndex = MdiHistory.Count - 1;
+        else if (_mdiHistoryIndex > 0)
+            _mdiHistoryIndex--;
+        // else stay at 0
+        MdiInput = MdiHistory[_mdiHistoryIndex];
+    }
+
+    private void MdiHistoryNext()
+    {
+        if (MdiHistory.Count == 0) return;
+        if (_mdiHistoryIndex < MdiHistory.Count - 1)
+        {
+            _mdiHistoryIndex++;
+            MdiInput = MdiHistory[_mdiHistoryIndex];
+        }
+        else if (_mdiHistoryIndex == MdiHistory.Count - 1)
+        {
+            _mdiHistoryIndex = MdiHistory.Count;
+            MdiInput = string.Empty;
+        }
+    }
+
+    private async Task SendMdiAsync()
+    {
+        var line = MdiInput?.Trim();
+        if (string.IsNullOrWhiteSpace(line)) return;
+        // push to session history first (dedup tail), even if send fails or not connected
+        if (MdiHistory.Count == 0 || MdiHistory[^1] != line)
+            MdiHistory.Add(line);
+        _mdiHistoryIndex = MdiHistory.Count;
+        MdiInput = string.Empty;
+        try
+        {
+            await Grbl.SendAsync(line);
+            Console?.Log($"> {line}");
+            Status = $"MDI: {line}";
+        }
+        catch (Exception ex)
+        {
+            Status = $"MDI failed: {ex.Message}";
+        }
+    }
+
+    private void OpenFile()
+    {
+        Status = "Open file... (placeholder)";
+        // keep RecentFiles extensible
+        if (!string.IsNullOrWhiteSpace(MdiInput) && !RecentFiles.Contains(MdiInput))
+            RecentFiles.Add(MdiInput);
+    }
+
+    private void Disconnect()
+    {
+        try { Grbl.Disconnect(); Status = "Disconnected"; }
+        catch (Exception ex) { Status = $"Disconnect failed: {ex.Message}"; }
+    }
+
+    private async Task CycleAsync(string payload, string label)
+    {
+        try { await Grbl.SendAsync(payload); Status = label; }
+        catch (Exception ex) { Status = $"{label} failed: {ex.Message}"; }
+    }
+
+    private void Rewind()
+    {
+        Status = "Rewind (placeholder)";
+        Console?.Log("Rewind");
     }
 
     private static IGrblService ResolveInner(IGrblService service) =>

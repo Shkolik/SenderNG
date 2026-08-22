@@ -8,8 +8,14 @@
         mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="600"
         x:Class="SenderNG.Avalonia.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="SenderNG" Width="1000" Height="600"
-        Background="#f6f6f6">
+         Title="SenderNG" Width="1000" Height="600"
+         Background="#f6f6f6">
+
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Enter" Command="{Binding SendMdiCommand}" />
+        <KeyBinding Gesture="Up" Command="{Binding MdiHistoryPrevCommand}" />
+        <KeyBinding Gesture="Down" Command="{Binding MdiHistoryNextCommand}" />
+    </Window.KeyBindings>
 
     <Grid ColumnDefinitions="220,*,260,32" RowDefinitions="Auto,*,Auto,Auto">
 
@@ -19,21 +25,27 @@
             <StackPanel>
                 <Menu Background="#e8e8e8" CornerRadius="0">
                     <MenuItem Header="_File">
-                        <MenuItem Header="_Open" />
-                        <MenuItem Header="_Recent" />
+                        <MenuItem Header="_Open" Command="{Binding OpenFileCommand}" />
+                        <MenuItem Header="_Recent" ItemsSource="{Binding RecentFiles}">
+                            <MenuItem.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" />
+                                </DataTemplate>
+                            </MenuItem.ItemTemplate>
+                        </MenuItem>
                         <Separator />
                         <MenuItem Header="_Connect" Command="{Binding ConnectCommand}" />
-                        <MenuItem Header="_Disconnect" />
+                        <MenuItem Header="_Disconnect" Command="{Binding DisconnectCommand}" />
                         <Separator />
                         <MenuItem Header="E_xit" Command="{Binding $parent[Window].Close}" />
                     </MenuItem>
                     <MenuItem Header="_Settings">
-                        <MenuItem Header="_Machine" />
-                        <MenuItem Header="_App settings" />
+                        <MenuItem Header="_Machine" Command="{Binding MachineSettingsCommand}" />
+                        <MenuItem Header="_App settings" Command="{Binding AppSettingsCommand}" />
                     </MenuItem>
                     <MenuItem Header="_Help">
-                        <MenuItem Header="_About" />
-                        <MenuItem Header="_Libraries" />
+                        <MenuItem Header="_About" Command="{Binding AboutCommand}" />
+                        <MenuItem Header="_Libraries" Command="{Binding LibrariesCommand}" />
                     </MenuItem>
                     <MenuItem Header="_Machine">
                         <MenuItem Header="_Demo Mode"
@@ -44,7 +56,8 @@
                 <Border BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="4,2" Background="#e8e8e8">
                     <StackPanel Orientation="Horizontal" Spacing="4">
                         <Button Content="Connect" Command="{Binding ConnectCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
-                        <Button Content="Open" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
+                        <Button Content="Open" Command="{Binding OpenFileCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
+                        <!-- Toolbar extensible: additional module toolbar items can be added here via ItemsControl bound to ToolbarModules -->
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -154,10 +167,10 @@
                 <!-- Cycle bar: 4 Buttons left-aligned below Center TabControl -->
                 <Border Grid.Row="1" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="6">
                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left">
-                        <Button Content="▶ Cycle Start" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" FontSize="11" />
-                        <Button Content="⏸ Feed Hold" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" FontSize="11" />
-                        <Button Content="■ Stop" CornerRadius="0" Background="#e04545" Foreground="White" BorderBrush="#b00" BorderThickness="1" Padding="8,4" FontSize="11" />
-                        <Button Content="↺ Rewind" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" FontSize="11" />
+                        <Button Content="▶ Cycle Start" Command="{Binding CycleStartCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" FontSize="11" />
+                        <Button Content="⏸ Feed Hold" Command="{Binding FeedHoldCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" FontSize="11" />
+                        <Button Content="■ Stop" Command="{Binding StopCommand}" CornerRadius="0" Background="#e04545" Foreground="White" BorderBrush="#b00" BorderThickness="1" Padding="8,4" FontSize="11" />
+                        <Button Content="↺ Rewind" Command="{Binding RewindCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" FontSize="11" />
                     </StackPanel>
                 </Border>
             </Grid>
@@ -214,16 +227,18 @@
             </ScrollViewer>
         </Border>
 
-        <!-- Row2: MDI TextBox Width=300 + Send + history dropdown (full width grid-column 1/5) -->
+        <!-- Row2: MDI TextBox Width=300 + Send + history dropdown (full width grid-column 1/5) + signals/limits summary -->
         <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4"
                 Background="White" BorderBrush="#aaa" BorderThickness="0,1,0,1" Padding="6">
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <TextBlock Text="MDI" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <TextBox Width="300" PlaceholderText="Type GCode (UP/DOWN history)…" CornerRadius="0"
+                <TextBox Width="300" Text="{Binding MdiInput, Mode=TwoWay}" PlaceholderText="Type GCode (UP/DOWN history)…" CornerRadius="0"
                          BorderBrush="#999" BorderThickness="1" Padding="4,3" />
-                <Button Content="Send" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="12,4" />
-                <ComboBox PlaceholderText="History" CornerRadius="0" BorderBrush="#999" BorderThickness="1" Width="120" />
+                <Button Content="Send" Command="{Binding SendMdiCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="12,4" />
+                <ComboBox PlaceholderText="History" CornerRadius="0" BorderBrush="#999" BorderThickness="1" Width="120"
+                          ItemsSource="{Binding MdiHistory}" SelectedItem="{Binding MdiInput, Mode=TwoWay}" />
                 <TextBlock Text="{Binding Status}" Foreground="#666" FontSize="10" VerticalAlignment="Center" Margin="8,0,0,0" />
+                <TextBlock Text="Signals: X Y Z  H S R P  ■ Probe  |  Limits: -0.07 – 70.07" Foreground="#888" FontSize="9" VerticalAlignment="Center" Margin="12,0,0,0" Opacity="0.85" />
             </StackPanel>
         </Border>
 
