@@ -12,6 +12,16 @@
          Title="SenderNG" Width="1000" Height="600"
          Background="#f6f6f6">
 
+    <!-- Flyout strip buttons: width stays 32, height adapts to rotated text.
+         Overrides app-wide fixed Button Height=28 (class selector beats type selector). -->
+    <Window.Styles>
+        <Style Selector="Button.flyoutToggle">
+            <Setter Property="Height" Value="NaN" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="4,2" />
+        </Style>
+    </Window.Styles>
+
     <Grid ColumnDefinitions="320,*,260,Auto" RowDefinitions="Auto,*,Auto,Auto">
 
         <!-- Row0: Menu + Toolbar (grid-column 0/3) -->
@@ -264,9 +274,9 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="m:IModule">
-                            <Button CornerRadius="0" Background="#eee"
-                                    BorderBrush="#999" BorderThickness="1" Padding="4,2"
-                                    HorizontalAlignment="Stretch" FontSize="10" Height="28" MinHeight="28"
+                            <Button Classes="flyoutToggle" CornerRadius="0" Background="#eee"
+                                    BorderBrush="#999" BorderThickness="1"
+                                    HorizontalAlignment="Stretch" FontSize="10"
                                     Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectModuleCommand}"
                                     CommandParameter="{Binding}">
                                 <LayoutTransformControl>

@@ -42,8 +42,9 @@ public static class HostSetup
         RegisterModule(builder.Services, new Modules.Plugins.MacroModule());
         RegisterModule(builder.Services, new Modules.Plugins.ProbingModule());
 
-        // External module assemblies are added here as they appear.
-        ModuleCatalog.Scan(builder.Services);
+        // External module assemblies: discovered via ModuleCatalog assembly scan
+        // (proves the plugin discovery path — Dummy lives in its own project).
+        ModuleCatalog.Scan(builder.Services, typeof(SenderNG.Modules.Dummy.DummyModule).Assembly);
 
         // Avalonia-side view factory: module -> view model + view as controls.
         builder.Services.AddSingleton<Func<IModule, object>>(sp =>
