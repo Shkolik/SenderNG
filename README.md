@@ -25,7 +25,7 @@ SenderNG is a diverged, focused fork of ioSender — stripped to foam cutting, 3
 
 ## Development
 ```bash
-# .NET 8 SDK required
+# .NET 10 SDK + Avalonia 12 required
 dotnet build
 dotnet run --project src/SenderNG.Avalonia
 ```
