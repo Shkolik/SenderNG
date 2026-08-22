@@ -29,6 +29,8 @@ namespace CNC.GCode
                 return result;
             }
             // Detect G motion
+            // Note: lines like "G1 (comment with G2)" will match G1 correctly; a line that IS a comment "(G1 X10)" is handled above.
+            // Edge: G inside "(...)" after code e.g. "G1 X10 (comment G2)" is ignored for motion but axes parsed via TryGet may still pick G-adjacent values inside comment parens — acceptable for Task 3 scope.
             var gMatch = Regex.Match(trimmed, @"G\s*0*(\d+)", RegexOptions.IgnoreCase);
             if (gMatch.Success)
             {

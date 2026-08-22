@@ -1,3 +1,4 @@
+// TODO Task 5: expand to full Grbl for RealGrblService - currently minimal 271L vs foamcut 2535L (tech debt, ported caps/ParseCaps only)
 /*
  * Grbl.cs - part of CNC Controls library (portable net10.0)
  * Original v0.44 / Io Engineering - stripped WPF refs for SenderNG
@@ -185,9 +186,25 @@ namespace CNC.Core
 
         public static CapsResult ParseCaps(string capsLine)
         {
-            // Use GrblInfo.TestProcess for portable handling + return snapshot
-            GrblInfo.TestProcess(capsLine);
-            return new CapsResult{ NumAxes=GrblInfo.NumAxes, PlanBufferSize=GrblInfo.PlanBufferSize, SerialBufferSize=GrblInfo.SerialBufferSize, NumTools=GrblInfo.NumTools };
+            // Pure: does not mutate GrblInfo static state (fixes TestProcess leakage / test-order dependence)
+            // Defaults mirror GrblInfo initial values
+            int plan = 16, serial = 128, axes = 3, tools = 0;
+            if (capsLine != null && capsLine.StartsWith("[OPT:", StringComparison.Ordinal))
+            {
+                var inner = capsLine.Substring(5).TrimEnd(']');
+                var parts = inner.Split(',');
+                var nums = new List<int>();
+                int off = 0;
+                if (parts.Length > 0 && parts[0].Any(c => char.IsLetter(c))) off = 1;
+                for (int i = off; i < parts.Length; i++)
+                    if (int.TryParse(parts[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out int v))
+                        nums.Add(v);
+                if (nums.Count > 0) plan = nums[0];
+                if (nums.Count > 1) serial = nums[1];
+                if (nums.Count > 2) axes = nums[2];
+                if (nums.Count > 3) tools = nums[3];
+            }
+            return new CapsResult{ NumAxes=axes, PlanBufferSize=plan, SerialBufferSize=serial, NumTools=tools };
         }
 
         // Stub for file error handling - retains columns[0] fix from 8ea54fb line 2000

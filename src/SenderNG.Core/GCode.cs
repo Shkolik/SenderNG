@@ -474,7 +474,7 @@ namespace CNC.GCode
                         U = value;
                         break;
                     case 7:
-                        U = value;
+                        V = value;
                         break;
                     case 8:
                         W = value;
