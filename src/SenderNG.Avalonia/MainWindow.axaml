@@ -1,0 +1,52 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:SenderNG.Avalonia.ViewModels"
+        xmlns:m="clr-namespace:SenderNG.Core.Modules;assembly=SenderNG.Core"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
+        x:Class="SenderNG.Avalonia.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="SenderNG" Width="900" Height="600">
+
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Connect" Command="{Binding ConnectCommand}" />
+                <Separator />
+                <MenuItem Header="E_xit" Command="{Binding $parent[Window].Close}" />
+            </MenuItem>
+            <MenuItem Header="_Machine">
+                <MenuItem Header="_Demo Mode"
+                          IsChecked="{Binding IsDemo, Mode=OneWay}"
+                          Command="{Binding DemoToggleCommand}" />
+            </MenuItem>
+        </Menu>
+
+        <Grid ColumnDefinitions="220,*">
+            <!-- Sidebar: module buttons switch the main content area -->
+            <Border Grid.Column="0" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    BorderThickness="0,0,1,0">
+                <ScrollViewer>
+                    <ItemsControl ItemsSource="{Binding Modules}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="m:IModule">
+                                <Button Content="{Binding Name}"
+                                        Margin="4,2"
+                                        HorizontalContentAlignment="Left"
+                                        HorizontalAlignment="Stretch"
+                                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectModuleCommand}"
+                                        CommandParameter="{Binding}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+
+            <!-- Main content: selected module's view -->
+            <Grid Grid.Column="1">
+                <ContentControl Content="{Binding CurrentModuleView}" Margin="4" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+            </Grid>
+        </Grid>
+    </DockPanel>
+</Window>

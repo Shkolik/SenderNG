@@ -1,0 +1,6 @@
+# Normalize line endings: text files use LF in repo, native in working dir.
+* text=auto
+
+# Binary assets — never touch line endings.
+*.png binary
+*.dll binary

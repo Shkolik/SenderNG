@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             mc:Ignorable="d" d:DesignWidth="420" d:DesignHeight="360"
+             x:Class="SenderNG.Avalonia.Modules.Plugins.JogView"
+             x:DataType="vm:JogViewModel">
+
+    <StackPanel Margin="8">
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+            <TextBlock Text="Step:" VerticalAlignment="Center" />
+            <ComboBox ItemsSource="{Binding StepDistances}"
+                      SelectedIndex="{Binding SelectedStepIndex}" MinWidth="80" />
+            <TextBlock Text="XY F:" VerticalAlignment="Center" />
+            <TextBox Text="{Binding XySpeed}" MinWidth="70" />
+            <TextBlock Text="Z F:" VerticalAlignment="Center" />
+            <TextBox Text="{Binding ZSpeed}" MinWidth="70" />
+        </StackPanel>
+
+        <UniformGrid Rows="3" Columns="3" Margin="0,0,0,8">
+            <Button Content="NW ↖" Command="{Binding JogXYNwSeCommand}" Margin="2" />
+            <Button Content="Y+" Command="{Binding JogYPlusCommand}" Margin="2" />
+            <Button Content="NE ↗" Command="{Binding JogXYSwNECommand}" Margin="2" />
+            <Button Content="X−" Command="{Binding JogXMinusCommand}" Margin="2" />
+            <Button Content="•" IsEnabled="False" Margin="2" />
+            <Button Content="X+" Command="{Binding JogXPlusCommand}" Margin="2" />
+            <Button Content="SW ↙" Command="{Binding JogXYNEswCommand}" Margin="2" />
+            <Button Content="Y−" Command="{Binding JogYMinusCommand}" Margin="2" />
+            <Button Content="SE ↘" Command="{Binding JogXYSeNwCommand}" Margin="2" />
+        </UniformGrid>
+
+        <UniformGrid Rows="1" Columns="4" Margin="0,0,0,8">
+            <Button Content="Z+" Command="{Binding JogZPlusCommand}" Margin="2" />
+            <Button Content="Z−" Command="{Binding JogZMinusCommand}" Margin="2" />
+            <Button Content="B+" Command="{Binding JogBPlusCommand}" Margin="2" />
+            <Button Content="B−" Command="{Binding JogBMinusCommand}" Margin="2" />
+        </UniformGrid>
+
+        <CheckBox IsChecked="{Binding PadlockEngaged}"
+                  Content="Padlock Z↔A (Foam)" Margin="0,0,0,8" />
+
+        <UniformGrid Rows="1" Columns="2">
+            <Button Content="A+" Command="{Binding JogAPlusCommand}" Margin="2" />
+            <Button Content="A−" Command="{Binding JogAMinusCommand}" Margin="2" />
+        </UniformGrid>
+    </StackPanel>
+</UserControl>

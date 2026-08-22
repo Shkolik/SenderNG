@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             mc:Ignorable="d" d:DesignWidth="420" d:DesignHeight="300"
+             x:Class="SenderNG.Avalonia.Modules.Plugins.ProbeView"
+             x:DataType="vm:ProbeViewModel">
+
+    <StackPanel Margin="8" Spacing="8">
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" Margin="0,0,0,8">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Depth (mm)" VerticalAlignment="Center" Margin="0,0,8,4" />
+            <TextBox Grid.Row="0" Grid.Column="1"
+                     Text="{Binding ProbeDepth, Mode=TwoWay, StringFormat='0.###'}"
+                     PlaceholderText="Probe travel distance" Margin="0,0,0,4" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Feed (mm/min)" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox Grid.Row="1" Grid.Column="1"
+                     Text="{Binding ProbeFeed, Mode=TwoWay, StringFormat='0.###'}"
+                     PlaceholderText="Probe feed rate" />
+        </Grid>
+
+        <UniformGrid Rows="2" Columns="2">
+            <Button Content="X+" Command="{Binding ProbeXPlusCommand}" Margin="2" MinHeight="36" />
+            <Button Content="X-" Command="{Binding ProbeXMinusCommand}" Margin="2" MinHeight="36" />
+            <Button Content="Y+" Command="{Binding ProbeYPlusCommand}" Margin="2" MinHeight="36" />
+            <Button Content="Y-" Command="{Binding ProbeYMinusCommand}" Margin="2" MinHeight="36" />
+        </UniformGrid>
+
+        <Button Content="Probe Z" Command="{Binding ProbeZCommand}" HorizontalAlignment="Stretch" MinHeight="40" />
+
+        <TextBlock Text="{Binding LastProbeResult}"
+                   IsVisible="{Binding LastProbeResult, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   FontFamily="Consolas,monospace" TextWrapping="Wrap" />
+    </StackPanel>
+</UserControl>

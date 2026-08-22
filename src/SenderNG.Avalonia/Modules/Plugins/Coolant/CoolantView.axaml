@@ -1,0 +1,18 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             mc:Ignorable="d" d:DesignWidth="260" d:DesignHeight="140"
+             x:Class="SenderNG.Avalonia.Modules.Plugins.CoolantView"
+             x:DataType="vm:CoolantViewModel">
+
+    <StackPanel Margin="8" Spacing="8">
+        <CheckBox IsChecked="{Binding IsFlood, Mode=OneWay}" Content="Flood (M8)" />
+        <CheckBox IsChecked="{Binding IsMist, Mode=OneWay}" Content="Mist (M7)" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Content="Toggle Flood" Command="{Binding FloodCommand}" />
+            <Button Content="Toggle Mist" Command="{Binding MistCommand}" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

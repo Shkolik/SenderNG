@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             mc:Ignorable="d" d:DesignWidth="460" d:DesignHeight="340"
+             x:Class="SenderNG.Avalonia.Modules.Plugins.MacroView"
+             x:DataType="vm:MacroViewModel">
+
+    <DockPanel Margin="8">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,0,0,8">
+            <Button Content="Add" Command="{Binding AddMacroCommand}" />
+            <Button Content="Remove" Command="{Binding RemoveMacroCommand}" />
+            <Button Content="Run" Command="{Binding RunCommand}" />
+        </StackPanel>
+
+        <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
+            <TextBox Text="{Binding SelectedMacro.Name, Mode=TwoWay}"
+                     PlaceholderText="Macro name"
+                     IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            <TextBox Text="{Binding SelectedMacro.Code, Mode=TwoWay}"
+                     PlaceholderText="G-code lines, one per line"
+                     AcceptsReturn="True" MinHeight="100" TextWrapping="Wrap"
+                     IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        </StackPanel>
+
+        <ListBox ItemsSource="{Binding Macros}" SelectedItem="{Binding SelectedMacro}" MinHeight="80">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:MacroItem">
+                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Margin="2" />
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</UserControl>
