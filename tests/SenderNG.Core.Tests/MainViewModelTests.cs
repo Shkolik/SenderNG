@@ -75,6 +75,28 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void MainViewModel_toggles_proxy_inner_and_keeps_proxy_instance()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings);
+        var proxy = new GrblServiceProxy(provider.GetRequiredService<DemoGrblService>());
+        var vm = new MainViewModel(proxy, settings, provider);
+
+        Assert.True(vm.IsDemo);
+        Assert.Same(proxy, vm.Grbl);
+
+        vm.DemoToggleCommand.Execute(null);
+
+        Assert.False(vm.IsDemo);
+        Assert.Same(provider.GetRequiredService<RealGrblService>(), proxy.Inner);
+
+        vm.DemoToggleCommand.Execute(null);
+
+        Assert.True(vm.IsDemo);
+        Assert.Same(provider.GetRequiredService<DemoGrblService>(), proxy.Inner);
+    }
+
+    [Fact]
     public async Task ConnectCommand_sets_status_connected_on_success()
     {
         var settings = MakeSettings();

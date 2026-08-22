@@ -21,7 +21,10 @@ public static class HostSetup
         builder.Services.AddSingleton<IComPortService, SerialComPortService>();
         builder.Services.AddSingleton<DemoGrblService>();
         builder.Services.AddSingleton<RealGrblService>();
-        builder.Services.AddSingleton<IGrblService>(sp => sp.GetRequiredService<DemoGrblService>());
+        // The proxy is THE IGrblService singleton: consumers subscribe once and
+        // survive demo/real swaps via Inner reassignment.
+        builder.Services.AddSingleton<IGrblService>(sp =>
+            new GrblServiceProxy(sp.GetRequiredService<DemoGrblService>()));
 
         // Built-in fixed modules (no assembly scan).
         RegisterModule(builder.Services, new Modules.Fixed.DroModule());

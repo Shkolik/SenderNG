@@ -36,7 +36,7 @@ public class MainViewModel : ViewModelBase
         SettingsService = settings;
         _services = services;
         _comPorts = comPorts;
-        _isDemo = grbl is DemoGrblService;
+        _isDemo = ResolveInner(grbl) is DemoGrblService;
         Console = console;
 
         foreach (var module in modules ?? Enumerable.Empty<IModule>())
@@ -77,10 +77,23 @@ public class MainViewModel : ViewModelBase
     private void ToggleDemo()
     {
         IsDemo = !IsDemo;
-        Grbl = IsDemo
+        IGrblService target = IsDemo
             ? _services.GetRequiredService<DemoGrblService>()
             : _services.GetRequiredService<RealGrblService>();
+
+        if (Grbl is GrblServiceProxy proxy)
+        {
+            // Swap the inner service in place so existing subscribers keep working.
+            proxy.Inner = target;
+        }
+        else
+        {
+            Grbl = target;
+        }
     }
+
+    private static IGrblService ResolveInner(IGrblService service) =>
+        service is GrblServiceProxy proxy ? proxy.Inner : service;
 
     private async Task ConnectAsync()
     {
