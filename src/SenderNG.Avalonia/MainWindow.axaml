@@ -11,12 +11,12 @@
          Title="SenderNG" Width="1000" Height="600"
          Background="#f6f6f6">
 
-    <Grid ColumnDefinitions="220,*,260,Auto" RowDefinitions="Auto,*,Auto,Auto">
+    <Grid ColumnDefinitions="220,*,260,Auto,Auto" RowDefinitions="Auto,*,Auto,Auto">
 
-        <!-- Row0: Menu + Toolbar (grid-column 0/4) -->
-        <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="4"
-                Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,0,0,1">
-            <StackPanel>
+        <!-- Row0: Menu + Toolbar (grid-column 0/5) -->
+        <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="5"
+                Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,0,0,1" HorizontalAlignment="Stretch">
+            <StackPanel HorizontalAlignment="Stretch">
                 <Menu Background="#e8e8e8" CornerRadius="0">
                     <MenuItem Header="_File">
                         <MenuItem Header="_Open" Command="{Binding OpenFileCommand}" />
@@ -47,10 +47,15 @@
                                   Command="{Binding DemoToggleCommand}" />
                     </MenuItem>
                 </Menu>
-                <Border BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="4,2" Background="#e8e8e8">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <Button Content="Connect" Command="{Binding ConnectCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
-                        <Button Content="Open" Command="{Binding OpenFileCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
+                <Border BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="4,2" Background="#e8e8e8" HorizontalAlignment="Stretch">
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <!-- Toolbox buttons square 32x32 icon-only with ToolTip -->
+                        <Button Command="{Binding ConnectCommand}" ToolTip.Tip="Connect" Width="32" Height="32" MinHeight="32" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                            <PathIcon Data="M8 2 L14 8 L8 14 L2 8 Z M7 7 L9 7 L9 12 L7 12 Z" Width="16" Height="16" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Button>
+                        <Button Command="{Binding OpenFileCommand}" ToolTip.Tip="Open" Width="32" Height="32" MinHeight="32" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                            <PathIcon Data="M2 4 L2 14 L14 14 L14 6 L8 6 L6 4 Z" Width="16" Height="16" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Button>
                         <!-- Toolbar extensible: additional module toolbar items can be added here via ItemsControl bound to ToolbarModules -->
                     </StackPanel>
                 </Border>
@@ -59,45 +64,46 @@
 
         <!-- Col0 Row1: Left Border with 5 Expanders -->
         <Border Grid.Row="1" Grid.Column="0"
-                Background="White" BorderBrush="#aaa" BorderThickness="0,0,1,0">
+                Background="White" BorderBrush="#aaa" BorderThickness="0,0,1,0" HorizontalAlignment="Stretch">
             <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
                 <!-- DRO -->
                 <Expander Grid.Row="0" IsExpanded="True" CornerRadius="0" Background="White"
-                          BorderBrush="#aaa" BorderThickness="1" Margin="4,4,4,2" Padding="0">
+                          BorderBrush="#aaa" BorderThickness="1" Margin="4,4,4,2" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                     <Expander.Header>
                         <TextBlock Text="DRO" FontWeight="SemiBold" />
                     </Expander.Header>
-                    <Border Padding="6">
+                    <Border Padding="6" HorizontalAlignment="Stretch">
                         <TextBlock Text="DRO — placeholder" Foreground="#888" FontSize="11" />
                     </Border>
                 </Expander>
 
                 <!-- Program limits -->
                 <Expander Grid.Row="1" IsExpanded="True" CornerRadius="0" Background="White"
-                          BorderBrush="#aaa" BorderThickness="1" Margin="4,2" Padding="0">
+                          BorderBrush="#aaa" BorderThickness="1" Margin="4,2" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                     <Expander.Header>
                         <TextBlock Text="Program limits" FontWeight="SemiBold" />
                     </Expander.Header>
-                    <Border Padding="6">
+                    <Border Padding="6" HorizontalAlignment="Stretch">
                         <TextBlock Text="X -0.075 – 70.075&#x0a;Y -0.075 – 120.075" Foreground="#888" FontSize="10" />
                     </Border>
                 </Expander>
 
-                <!-- Left plugins ItemsControl (flex:1 fills) -->
+                <!-- Left plugins ItemsControl (flex:1 fills) — hidden when no extra left plugins (count <=2) -->
                 <Expander Grid.Row="2" IsExpanded="True" CornerRadius="0" Background="White"
                           BorderBrush="#aaa" BorderThickness="1" Margin="4,2" Padding="0"
-                          VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
+                          VerticalAlignment="Stretch" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                          IsVisible="{Binding LeftModules, Converter={x:Static conv:Converters.LeftPluginsVisible}}">
                     <Expander.Header>
                         <StackPanel>
                             <TextBlock Text="Left plugins" FontWeight="SemiBold" />
                             <TextBlock Text="fills available space (flex:1)" Foreground="#888" FontSize="9" />
                         </StackPanel>
                     </Expander.Header>
-                    <ScrollViewer VerticalAlignment="Stretch">
-                        <ItemsControl ItemsSource="{Binding LeftModules}" Margin="4">
+                    <ScrollViewer VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
+                        <ItemsControl ItemsSource="{Binding LeftModules}" Margin="4" HorizontalAlignment="Stretch">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="m:IModule">
-                                    <Border BorderBrush="#aaa" BorderThickness="1" CornerRadius="0" Margin="0,2" Padding="6" Background="#fafafa">
+                                    <Border BorderBrush="#aaa" BorderThickness="1" CornerRadius="0" Margin="0,2" Padding="6" Background="#fafafa" HorizontalAlignment="Stretch">
                                         <TextBlock Text="{Binding Name}" FontSize="11" />
                                     </Border>
                                 </DataTemplate>
@@ -106,83 +112,132 @@
                     </ScrollViewer>
                 </Expander>
 
-                <!-- Signals (pinned bottom) -->
+                <!-- Signals (pinned bottom) — dynamic: each axis letter with red indicator above -->
                 <Expander Grid.Row="3" IsExpanded="True" CornerRadius="0" Background="White"
-                          BorderBrush="#aaa" BorderThickness="1" Margin="4,2" Padding="0">
+                          BorderBrush="#aaa" BorderThickness="1" Margin="4,2" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                     <Expander.Header>
                         <TextBlock Text="Signals" FontWeight="SemiBold" />
                     </Expander.Header>
-                    <Border Padding="6">
-                        <TextBlock Text="X Y Z  H S R P  ■ Probe" FontSize="10" Foreground="#666" />
+                    <Border Padding="6" HorizontalAlignment="Stretch">
+                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Stretch">
+                            <ItemsControl ItemsSource="{Binding AxisSignals}" HorizontalAlignment="Stretch">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:AxisSignal">
+                                        <StackPanel Spacing="2" HorizontalAlignment="Center">
+                                            <Ellipse Width="10" Height="10" Stroke="#999" StrokeThickness="1"
+                                                     Fill="{Binding IsActive, Converter={x:Static conv:Converters.SignalBrush}}"
+                                                     HorizontalAlignment="Center" />
+                                            <TextBlock Text="{Binding Letter}" FontSize="10" Foreground="#333" HorizontalAlignment="Center" FontWeight="SemiBold" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <!-- Probe indicator separate: red circle/rect when ProbeActive -->
+                            <StackPanel Spacing="2" HorizontalAlignment="Center" Margin="12,0,0,0">
+                                <Ellipse Width="10" Height="10" Stroke="#999" StrokeThickness="1"
+                                         Fill="{Binding ProbeActive, Converter={x:Static conv:Converters.SignalBrush}}"
+                                         HorizontalAlignment="Center" />
+                                <TextBlock Text="Probe" FontSize="10" Foreground="#333" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
                     </Border>
                 </Expander>
 
                 <!-- State / Controls (pinned bottom) -->
                 <Expander Grid.Row="4" IsExpanded="True" CornerRadius="0" Background="White"
-                          BorderBrush="#aaa" BorderThickness="1" Margin="4,2,4,4" Padding="0">
+                          BorderBrush="#aaa" BorderThickness="1" Margin="4,2,4,4" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                     <Expander.Header>
                         <TextBlock Text="State / Controls" FontWeight="SemiBold" />
                     </Expander.Header>
-                    <StackPanel Margin="6" Spacing="4">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Border Background="#c8e8c8" BorderBrush="#8a8" BorderThickness="1" CornerRadius="0" Padding="6,2">
-                                <TextBlock Text="State: RUN" FontSize="10" />
+                    <StackPanel Margin="6" Spacing="4" HorizontalAlignment="Stretch">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Border Height="28" MinHeight="28" VerticalAlignment="Center" HorizontalAlignment="Stretch" Background="{Binding StateBrush}" BorderBrush="#8a8" BorderThickness="1" CornerRadius="0" Padding="6,0">
+                                <TextBlock Text="{Binding MachineState, StringFormat='State: {0}'}" FontSize="10" VerticalAlignment="Center" Foreground="{Binding StateForeground}" />
                             </Border>
-                            <CheckBox Content="Check" FontSize="11" CornerRadius="0" />
+                            <CheckBox Content="Check" FontSize="11" CornerRadius="0" VerticalAlignment="Center" />
                         </StackPanel>
-                        <Grid ColumnDefinitions="*,*,*">
-                            <Button Grid.Column="0" Content="Home" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Margin="0,0,2,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,4" />
-                            <Button Grid.Column="1" Content="Unlock" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Margin="2,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,4" />
-                            <Button Grid.Column="2" Content="Reset" CornerRadius="0" Background="#e04545" Foreground="White" BorderBrush="#b00" BorderThickness="1" Margin="2,0,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,4" />
+                        <Grid ColumnDefinitions="*,*,*" HorizontalAlignment="Stretch">
+                            <Button Grid.Column="0" Content="Home" CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1" Margin="0,0,2,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0" Height="28" MinHeight="28" />
+                            <Button Grid.Column="1" Content="Unlock" CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1" Margin="2,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0" Height="28" MinHeight="28" />
+                            <Button Grid.Column="2" Content="Reset" CornerRadius="0" Background="#e04545" Foreground="White" BorderBrush="#b00" BorderThickness="1" Margin="2,0,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0" Height="28" MinHeight="28" />
                         </Grid>
                     </StackPanel>
                 </Expander>
             </Grid>
         </Border>
 
-        <!-- Col1 Row1: Center TabControl + pinned Cycle bar -->
-        <Border Grid.Row="1" Grid.Column="1" Background="White" BorderBrush="#aaa" BorderThickness="1,0,0,0">
+        <!-- Col1 Row1: Center TabControl + pinned Cycle bar — now hosts real module views via CenterTabs viewFactory -->
+        <Border Grid.Row="1" Grid.Column="1" Background="White" BorderBrush="#aaa" BorderThickness="1,0,0,0" HorizontalAlignment="Stretch">
             <Grid RowDefinitions="*,Auto">
-                <TabControl Grid.Row="0" ItemsSource="{Binding CenterModules}" CornerRadius="0" Background="White" Margin="4">
+                <TabControl Grid.Row="0" ItemsSource="{Binding CenterTabs}" CornerRadius="0" Background="White" Margin="4" HorizontalAlignment="Stretch">
                     <TabControl.ItemTemplate>
-                        <DataTemplate x:DataType="m:IModule">
-                            <TextBlock Text="{Binding Name}" FontSize="11" />
+                        <DataTemplate x:DataType="vm:CenterTab">
+                            <TextBlock Text="{Binding Module.Name}" FontSize="11" />
                         </DataTemplate>
                     </TabControl.ItemTemplate>
                     <TabControl.ContentTemplate>
-                        <DataTemplate x:DataType="m:IModule">
-                            <Border Padding="8" Background="#fafafa">
-                                <TextBlock Text="{Binding Name, StringFormat='{}{0} — view placeholder'}" Foreground="#888" FontSize="11" />
-                            </Border>
+                        <DataTemplate x:DataType="vm:CenterTab">
+                            <ContentControl Content="{Binding View}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                <ContentControl.DataTemplates>
+                                    <DataTemplate DataType="x:Object">
+                                        <TextBlock Text="No view" Foreground="#888" FontSize="11" Margin="8" />
+                                    </DataTemplate>
+                                </ContentControl.DataTemplates>
+                            </ContentControl>
                         </DataTemplate>
                     </TabControl.ContentTemplate>
                 </TabControl>
 
-                <!-- Cycle bar: 4 Buttons left-aligned below Center TabControl -->
-                <Border Grid.Row="1" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="6">
-                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left">
-                        <Button Content="▶ Cycle Start" Command="{Binding CycleStartCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" FontSize="11" />
-                        <Button Content="⏸ Feed Hold" Command="{Binding FeedHoldCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" FontSize="11" />
-                        <Button Content="■ Stop" Command="{Binding StopCommand}" CornerRadius="0" Background="#e04545" Foreground="White" BorderBrush="#b00" BorderThickness="1" Padding="8,4" FontSize="11" />
-                        <Button Content="↺ Rewind" Command="{Binding RewindCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" FontSize="11" />
+                <!-- Cycle bar: 4 Buttons left-aligned below Center TabControl — Height 28, glyphs black/white on bg -->
+                <Border Grid.Row="1" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="6" HorizontalAlignment="Stretch">
+                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left" VerticalAlignment="Center">
+                        <Button Command="{Binding CycleStartCommand}" CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1" Padding="8,0" FontSize="11" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
+                                <TextBlock Text="▶" Foreground="Black" FontSize="11" VerticalAlignment="Center" />
+                                <TextBlock Text="Cycle Start" Foreground="Black" FontSize="11" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Command="{Binding FeedHoldCommand}" CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1" Padding="8,0" FontSize="11" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
+                                <TextBlock Text="‖" Foreground="Black" FontSize="11" VerticalAlignment="Center" />
+                                <TextBlock Text="Feed Hold" Foreground="Black" FontSize="11" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Command="{Binding StopCommand}" CornerRadius="0" Background="#e04545" Foreground="White" BorderBrush="#b00" BorderThickness="1" Padding="8,0" FontSize="11" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
+                                <TextBlock Text="■" Foreground="White" FontSize="11" VerticalAlignment="Center" />
+                                <TextBlock Text="Stop" Foreground="White" FontSize="11" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Command="{Binding RewindCommand}" CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1" Padding="8,0" FontSize="11" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
+                                <TextBlock Text="↺" Foreground="Black" FontSize="11" VerticalAlignment="Center" />
+                                <TextBlock Text="Rewind" Foreground="Black" FontSize="11" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </Border>
             </Grid>
         </Border>
 
         <!-- Col2 Row1: Right Expanders ItemsSource="{Binding RightModules}" -->
-        <Border Grid.Row="1" Grid.Column="2" Background="White" BorderBrush="#aaa" BorderThickness="1,0,0,0">
-            <ScrollViewer>
-                <StackPanel Spacing="2" Margin="4">
-                    <ItemsControl ItemsSource="{Binding RightModules}">
+        <Border Grid.Row="1" Grid.Column="2" Background="White" BorderBrush="#aaa" BorderThickness="1,0,0,0" HorizontalAlignment="Stretch">
+            <ScrollViewer HorizontalAlignment="Stretch">
+                <StackPanel Spacing="2" Margin="4" HorizontalAlignment="Stretch">
+                    <ItemsControl ItemsSource="{Binding RightModules}" HorizontalAlignment="Stretch">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="m:IModule">
                                 <Expander IsExpanded="True" CornerRadius="0" Background="White"
-                                          BorderBrush="#aaa" BorderThickness="1" Margin="0,2" Padding="0">
+                                          BorderBrush="#aaa" BorderThickness="1" Margin="0,2" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11" />
                                     </Expander.Header>
-                                    <Border Padding="6">
+                                    <Border Padding="6" HorizontalAlignment="Stretch">
                                         <TextBlock Text="{Binding Name, StringFormat='{}{0} content — placeholder'}" Foreground="#888" FontSize="11" />
                                     </Border>
                                 </Expander>
@@ -208,7 +263,9 @@
                         <DataTemplate x:DataType="m:IModule">
                             <Button CornerRadius="0" Background="#eee"
                                     BorderBrush="#999" BorderThickness="1" Padding="4,2"
-                                    HorizontalAlignment="Stretch" FontSize="10">
+                                    HorizontalAlignment="Stretch" FontSize="10" Height="28" MinHeight="28"
+                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectModuleCommand}"
+                                    CommandParameter="{Binding}">
                                 <LayoutTransformControl>
                                     <LayoutTransformControl.LayoutTransform>
                                         <RotateTransform Angle="-90" />
@@ -222,30 +279,48 @@
             </ScrollViewer>
         </Border>
 
-        <!-- Row2: MDI TextBox Width=300 + Send + history dropdown (full width grid-column 1/5) + signals/limits summary -->
-        <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4"
-                Background="White" BorderBrush="#aaa" BorderThickness="0,1,0,1" Padding="6">
+        <!-- Col4 Row1: Flyout drawer — shows selected flyout module view (CurrentModuleView) when flyout selected -->
+        <Border Grid.Row="1" Grid.Column="4" Width="360"
+                Background="White" BorderBrush="#aaa" BorderThickness="1,0,0,0"
+                IsVisible="{Binding SelectedModule, Converter={x:Static conv:Converters.IsFlyout}}">
+            <Grid RowDefinitions="Auto,*">
+                <Border Grid.Row="0" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,0,0,1" Padding="6,4">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding SelectedModule.Name, FallbackValue='Flyout'}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Content="✕" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,0" Height="22" MinHeight="22" FontSize="10"
+                                Command="{Binding SelectModuleCommand}" CommandParameter="{x:Null}" />
+                    </Grid>
+                </Border>
+                <ContentControl Grid.Row="1" Content="{Binding CurrentModuleView}" Margin="4" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+            </Grid>
+        </Border>
+
+        <!-- Row2: MDI editable ComboBox (IsEditable) Width=300 + Send + signals/limits summary -->
+        <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="5"
+                Background="White" BorderBrush="#aaa" BorderThickness="0,1,0,1" Padding="6" HorizontalAlignment="Stretch">
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <TextBlock Text="MDI" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <TextBox x:Name="MdiBox" Width="300" Text="{Binding MdiInput, Mode=TwoWay}" PlaceholderText="Type GCode (UP/DOWN history)…" CornerRadius="0"
-                         BorderBrush="#999" BorderThickness="1" Padding="4,3">
-                    <TextBox.KeyBindings>
+                <ComboBox x:Name="MdiBox" Width="300" Height="28" MinHeight="28" IsEditable="True"
+                          Text="{Binding MdiInput, Mode=TwoWay}"
+                          ItemsSource="{Binding MdiHistory}"
+                          PlaceholderText="Type GCode (UP/DOWN history)…"
+                          CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                          VerticalAlignment="Center" VerticalContentAlignment="Center">
+                    <ComboBox.KeyBindings>
                         <KeyBinding Gesture="Enter" Command="{Binding SendMdiCommand}" />
                         <KeyBinding Gesture="Up" Command="{Binding MdiHistoryPrevCommand}" />
                         <KeyBinding Gesture="Down" Command="{Binding MdiHistoryNextCommand}" />
-                    </TextBox.KeyBindings>
-                </TextBox>
-                <Button Content="Send" Command="{Binding SendMdiCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="12,4" />
-                <ComboBox PlaceholderText="History" CornerRadius="0" BorderBrush="#999" BorderThickness="1" Width="120"
-                          ItemsSource="{Binding MdiHistory}" SelectedItem="{Binding MdiInput, Mode=TwoWay}" />
+                    </ComboBox.KeyBindings>
+                </ComboBox>
+                <Button Content="Send" Command="{Binding SendMdiCommand}" CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1" Padding="12,0" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center" />
                 <TextBlock Text="{Binding Status}" Foreground="#666" FontSize="10" VerticalAlignment="Center" Margin="8,0,0,0" />
-                <TextBlock Text="Signals: X Y Z  H S R P  ■ Probe  |  Limits: -0.07 – 70.07" Foreground="#888" FontSize="9" VerticalAlignment="Center" Margin="12,0,0,0" Opacity="0.85" />
+                <TextBlock Text="Signals: dynamic (see panel) | Limits: -0.07 – 70.07" Foreground="#888" FontSize="9" VerticalAlignment="Center" Margin="12,0,0,0" Opacity="0.85" />
             </StackPanel>
         </Border>
 
         <!-- Row3: StatusBar -->
-        <Border Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="4"
-                Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="4,2">
+        <Border Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="5"
+                Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="4,2" HorizontalAlignment="Stretch">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <TextBlock Grid.Column="0" Text="Block: --/--" FontSize="10" Foreground="#666" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1" Text="Ready" FontSize="10" Foreground="#666" HorizontalAlignment="Center" VerticalAlignment="Center" />

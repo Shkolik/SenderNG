@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Windows.Input;
+using Avalonia.Media;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,6 +11,20 @@ using SenderNG.Core.Commands;
 using SenderNG.Core.Modules;
 
 namespace SenderNG.Avalonia.ViewModels;
+
+public sealed class AxisSignal : ViewModelBase
+{
+    private bool _isActive;
+    public AxisSignal(string letter) => Letter = letter;
+    public string Letter { get; }
+    public bool IsActive
+    {
+        get => _isActive;
+        set => SetField(ref _isActive, value);
+    }
+}
+
+public sealed record CenterTab(IModule Module, object? View);
 
 public class MainViewModel : ViewModelBase
 {
@@ -23,6 +39,11 @@ public class MainViewModel : ViewModelBase
     private object? _currentModuleView;
     private string _mdiInput = string.Empty;
     private int _mdiHistoryIndex;
+    private string _machineState = "Idle";
+    private IBrush _stateBrush = new SolidColorBrush(Color.Parse("#ffe8a0"));
+    private IBrush _stateForeground = Brushes.Black;
+    private IDisposable? _stateSubscription;
+    private bool _probeActive;
 
     public MainViewModel(
         IGrblService grbl,
@@ -49,6 +70,16 @@ public class MainViewModel : ViewModelBase
         foreach (var module in modules ?? Enumerable.Empty<IModule>())
             Modules.Add(module);
 
+        Modules.CollectionChanged += OnModulesChanged;
+
+        // Seed dynamic signals from initial state (DemoAxes) so UI shows X0 Y0 without connecting
+        // Use settings DemoAxes as fallback; live State subscription will correct it immediately if BehaviourSubject replays
+        var seedAxes = _settingsService.Load().DemoAxes;
+        seedAxes = Math.Min(seedAxes, CNC.Core.GrblInfo.AxisLetters.Length);
+        seedAxes = Math.Max(1, seedAxes);
+        for (var i = 0; i < seedAxes; i++)
+            AxisSignals.Add(new AxisSignal(CNC.Core.GrblInfo.AxisLetters[i].ToString()));
+
         DemoToggleCommand = new DelegateCommand(_ => ToggleDemo());
         ConnectCommand = new DelegateCommand(_ => _ = ConnectAsync());
         DisconnectCommand = new DelegateCommand(_ => Disconnect());
@@ -70,6 +101,10 @@ public class MainViewModel : ViewModelBase
         AboutCommand = new DelegateCommand(_ => Status = "SenderNG — About (placeholder)");
         LibrariesCommand = new DelegateCommand(_ => Status = "Libraries (placeholder)");
         _mdiHistoryIndex = MdiHistory.Count;
+
+        // State indicator: subscribe to grbl State and expose MachineState + StateBrush (RUN green #c8e8c8, IDLE yellow #ffe8a0, ALARM red #e04545, Height 28)
+        // Also drives dynamic Signals panel (AxisSignals + ProbeActive) from MachineState.NumAxes / Signals
+        _stateSubscription = _grbl.State.Subscribe(s => ApplyState(s));
     }
 
     public SettingsService SettingsService { get; }
@@ -77,7 +112,14 @@ public class MainViewModel : ViewModelBase
     public IGrblService Grbl
     {
         get => _grbl;
-        private set => SetField(ref _grbl, value);
+        private set
+        {
+            if (SetField(ref _grbl, value))
+            {
+                _stateSubscription?.Dispose();
+                _stateSubscription = _grbl.State.Subscribe(s => ApplyState(s));
+            }
+        }
     }
 
     public bool IsDemo
@@ -91,6 +133,19 @@ public class MainViewModel : ViewModelBase
         get => _status;
         private set => SetField(ref _status, value);
     }
+
+    public string MachineState
+    {
+        get => _machineState;
+        private set
+        {
+            if (SetField(ref _machineState, value))
+                OnPropertyChanged(nameof(StateBrush));
+        }
+    }
+
+    public IBrush StateBrush => _stateBrush;
+    public IBrush StateForeground => _stateForeground;
 
     public ObservableCollection<IModule> Modules { get; } = new();
 
@@ -108,6 +163,17 @@ public class MainViewModel : ViewModelBase
 
     public IEnumerable<IModule> FlyoutModules =>
         Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Flyout).OrderBy(m => m.Order);
+
+    public ObservableCollection<AxisSignal> AxisSignals { get; } = new();
+
+    public bool ProbeActive
+    {
+        get => _probeActive;
+        private set => SetField(ref _probeActive, value);
+    }
+
+    public IEnumerable<CenterTab> CenterTabs =>
+        CenterModules.Select(m => new CenterTab(m, _viewFactory?.Invoke(m)));
 
     public IModule? SelectedModule
     {
@@ -273,6 +339,69 @@ public class MainViewModel : ViewModelBase
     {
         Status = "Rewind (placeholder)";
         Console?.Log("Rewind");
+    }
+
+    private void OnModulesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(LeftModules));
+        OnPropertyChanged(nameof(CenterModules));
+        OnPropertyChanged(nameof(RightModules));
+        OnPropertyChanged(nameof(FlyoutModules));
+        OnPropertyChanged(nameof(CenterTabs));
+    }
+
+    private void ApplyState(MachineState state)
+    {
+        if (state is null) return;
+        ApplyMachineState(state.Status);
+        UpdateSignals(state);
+    }
+
+    private void UpdateSignals(MachineState state)
+    {
+        var letters = CNC.Core.GrblInfo.AxisLetters;
+        var num = state.NumAxes;
+        // Clamp to letters length
+        num = Math.Min(num, letters.Length);
+
+        while (AxisSignals.Count > num)
+            AxisSignals.RemoveAt(AxisSignals.Count - 1);
+        while (AxisSignals.Count < num)
+            AxisSignals.Add(new AxisSignal(letters[AxisSignals.Count].ToString()));
+
+        for (var i = 0; i < num; i++)
+        {
+            var flag = (CNC.Core.Signals)(1 << i);
+            AxisSignals[i].IsActive = (state.Signals & flag) != 0;
+        }
+
+        ProbeActive = (state.Signals & CNC.Core.Signals.Probe) != 0;
+    }
+
+    private void ApplyMachineState(string status)
+    {
+        _machineState = string.IsNullOrWhiteSpace(status) ? "Idle" : status;
+        _stateBrush = ResolveStateBrush(_machineState);
+        _stateForeground = _machineState.Contains("alarm", StringComparison.OrdinalIgnoreCase)
+            ? Brushes.White : Brushes.Black;
+        OnPropertyChanged(nameof(MachineState));
+        OnPropertyChanged(nameof(StateBrush));
+        OnPropertyChanged(nameof(StateForeground));
+    }
+
+    private static IBrush ResolveStateBrush(string status)
+    {
+        if (status.Contains("run", StringComparison.OrdinalIgnoreCase))
+            return new SolidColorBrush(Color.Parse("#c8e8c8"));
+        if (status.Contains("alarm", StringComparison.OrdinalIgnoreCase))
+            return new SolidColorBrush(Color.Parse("#e04545"));
+        if (status.Contains("idle", StringComparison.OrdinalIgnoreCase))
+            return new SolidColorBrush(Color.Parse("#ffe8a0"));
+        if (status.Contains("hold", StringComparison.OrdinalIgnoreCase))
+            return new SolidColorBrush(Color.Parse("#ffe8a0"));
+        if (status.Contains("check", StringComparison.OrdinalIgnoreCase))
+            return new SolidColorBrush(Color.Parse("#ffe8a0"));
+        return new SolidColorBrush(Color.Parse("#e0e0e0"));
     }
 
     private static IGrblService ResolveInner(IGrblService service) =>

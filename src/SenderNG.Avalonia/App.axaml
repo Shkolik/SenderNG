@@ -6,18 +6,33 @@
 
     <Application.Styles>
         <FluentTheme />
-        <!-- Flat style: square corners (CornerRadius=0), muted grays #f6f6f6/#e8e8e8/#aaa/#999, accent ONLY Stop/Reset #e04545 -->
+         <!-- Flat style: square corners (CornerRadius=0), muted grays #f6f6f6/#e8e8e8/#aaa/#999, accent ONLY Stop/Reset #e04545 -->
         <Style Selector="Button">
             <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="8,0" />
         </Style>
         <Style Selector="TextBox">
             <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="ComboBox">
             <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="Expander">
             <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         </Style>
         <Style Selector="Border">
             <Setter Property="CornerRadius" Value="0" />
