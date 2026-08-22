@@ -42,12 +42,18 @@ public static class HostSetup
         // External module assemblies are added here as they appear.
         ModuleCatalog.Scan(builder.Services);
 
+        // Avalonia-side view factory: module -> view model + view as controls.
+        builder.Services.AddSingleton<Func<IModule, object>>(sp =>
+            module => module.CreateView(module.CreateViewModel(sp)));
+
         builder.Services.AddSingleton(sp =>
             new MainViewModel(
                 sp.GetRequiredService<IGrblService>(),
                 sp.GetRequiredService<SettingsService>(),
                 sp,
-                comPorts: sp.GetRequiredService<IComPortService>()));
+                comPorts: sp.GetRequiredService<IComPortService>(),
+                modules: sp.GetServices<IModule>(),
+                viewFactory: sp.GetRequiredService<Func<IModule, object>>()));
 
         return builder.Build();
     }

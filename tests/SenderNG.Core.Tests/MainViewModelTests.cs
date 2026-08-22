@@ -97,6 +97,37 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void SelectModuleCommand_builds_view_via_factory()
+    {
+        var settings = MakeSettings();
+        IModule[] modules = [new StubModule()];
+        Func<IModule, object> factory = m => new ViewStub();
+        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings), modules: modules, viewFactory: factory);
+
+        Assert.Null(vm.SelectedModule);
+        Assert.Null(vm.CurrentModuleView);
+
+        vm.SelectModuleCommand.Execute(modules[0]);
+
+        Assert.Same(modules[0], vm.SelectedModule);
+        Assert.IsType<ViewStub>(vm.CurrentModuleView);
+    }
+
+    [Fact]
+    public void SelectModuleCommand_ignores_null_parameter()
+    {
+        var settings = MakeSettings();
+        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings), viewFactory: _ => new ViewStub());
+
+        vm.SelectModuleCommand.Execute(null);
+
+        Assert.Null(vm.SelectedModule);
+        Assert.Null(vm.CurrentModuleView);
+    }
+
+    private sealed class ViewStub;
+
+    [Fact]
     public async Task ConnectCommand_sets_status_connected_on_success()
     {
         var settings = MakeSettings();
