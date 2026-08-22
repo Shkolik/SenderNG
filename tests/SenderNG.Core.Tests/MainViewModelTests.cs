@@ -1,39 +1,101 @@
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Avalonia.ViewModels;
+using SenderNG.Core.Modules;
 
 namespace SenderNG.Core.Tests;
 
 public class MainViewModelTests
 {
+    private sealed class StubModule : IModule
+    {
+        public string Id => "stub";
+        public string Name => "Stub";
+        public int Order => 0;
+        public IReadOnlyList<HotKey> HotKeys { get; } = [];
+        public void RegisterServices(IServiceCollection services) { }
+        public void RegisterSettings(AppSettings settings) { }
+        public object CreateViewModel(IServiceProvider serviceProvider) => new object();
+        public object CreateView(object viewModel) => new object();
+    }
+
     private static SettingsService MakeSettings()
     {
         var dir = Path.Combine(Path.GetTempPath(), "senderng-tests-" + Guid.NewGuid().ToString("N"));
         return new SettingsService(dir);
     }
 
+    private static ServiceProvider MakeProvider(SettingsService settings)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(settings);
+        services.AddSingleton(_ => new DemoGrblService(settings.Load()));
+        services.AddSingleton<RealGrblService>();
+        return services.BuildServiceProvider();
+    }
+
     [Fact]
     public void MainViewModel_IsDemo_true_initially_when_demo_service_registered()
     {
-        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), MakeSettings());
+        var settings = MakeSettings();
+        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings));
 
         Assert.True(vm.IsDemo);
         Assert.IsType<DemoGrblService>(vm.Grbl);
     }
 
     [Fact]
-    public void MainViewModel_toggles_demo_and_swaps_service()
+    public void MainViewModel_seeds_modules_from_injected_modules()
     {
-        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), MakeSettings());
+        var settings = MakeSettings();
+        IModule[] modules = [new StubModule(), new StubModule()];
+        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings), modules);
+
+        Assert.Equal(2, vm.Modules.Count);
+        Assert.All(vm.Modules, m => Assert.IsType<StubModule>(m));
+    }
+
+    [Fact]
+    public void MainViewModel_toggles_demo_and_swaps_service_reusing_di_singletons()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings);
+        var vm = new MainViewModel(provider.GetRequiredService<DemoGrblService>(), settings, provider);
 
         vm.DemoToggleCommand.Execute(null);
 
         Assert.False(vm.IsDemo);
-        Assert.IsType<RealGrblService>(vm.Grbl);
+        Assert.Same(provider.GetRequiredService<RealGrblService>(), vm.Grbl);
 
         vm.DemoToggleCommand.Execute(null);
 
         Assert.True(vm.IsDemo);
-        Assert.IsType<DemoGrblService>(vm.Grbl);
+        Assert.Same(provider.GetRequiredService<DemoGrblService>(), vm.Grbl);
+    }
+
+    [Fact]
+    public async Task ConnectCommand_sets_status_connected_on_success()
+    {
+        var settings = MakeSettings();
+        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings));
+
+        vm.ConnectCommand.Execute(null);
+        await Task.Yield();
+
+        Assert.Contains("Connected", vm.Status);
+    }
+
+    [Fact]
+    public async Task ConnectCommand_sets_status_failed_and_does_not_throw_on_bad_port()
+    {
+        var settings = MakeSettings();
+        settings.Save(new AppSettings { Port = "nonexistent-port-xyz" });
+        var vm = new MainViewModel(new RealGrblService(), settings, MakeProvider(settings));
+
+        vm.ConnectCommand.Execute(null);
+        await Task.Yield();
+
+        Assert.StartsWith("Connection failed", vm.Status);
     }
 }

@@ -2,32 +2,42 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
-using SenderNG.Core.Commands;
+using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Avalonia.ViewModels;
+using SenderNG.Core.Commands;
 using SenderNG.Core.Modules;
 
 namespace SenderNG.Avalonia.ViewModels;
 
 public class MainViewModel : ViewModelBase
 {
-    private readonly Func<IGrblService> _demoFactory;
-    private readonly Func<IGrblService> _realFactory;
+    private readonly IServiceProvider _services;
+    private readonly SettingsService _settingsService;
     private bool _isDemo;
     private IGrblService _grbl;
+    private string _status = string.Empty;
 
-    public MainViewModel(IGrblService grbl, SettingsService settings, Func<IGrblService>? realFactory = null)
+    public MainViewModel(
+        IGrblService grbl,
+        SettingsService settings,
+        IServiceProvider services,
+        IEnumerable<IModule>? modules = null)
     {
         ArgumentNullException.ThrowIfNull(grbl);
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(services);
 
         _grbl = grbl;
+        _settingsService = settings;
         SettingsService = settings;
+        _services = services;
         _isDemo = grbl is DemoGrblService;
-        _demoFactory = () => new DemoGrblService(settings.Load());
-        _realFactory = realFactory ?? (() => new RealGrblService());
+
+        foreach (var module in modules ?? Enumerable.Empty<IModule>())
+            Modules.Add(module);
 
         DemoToggleCommand = new DelegateCommand(_ => ToggleDemo());
-        ConnectCommand = new DelegateCommand(async _ => await Grbl.ConnectAsync("auto"));
+        ConnectCommand = new DelegateCommand(_ => _ = ConnectAsync());
     }
 
     public SettingsService SettingsService { get; }
@@ -44,6 +54,12 @@ public class MainViewModel : ViewModelBase
         private set => SetField(ref _isDemo, value);
     }
 
+    public string Status
+    {
+        get => _status;
+        private set => SetField(ref _status, value);
+    }
+
     public ObservableCollection<IModule> Modules { get; } = new();
 
     public ObservableCollection<string> GCodeLines { get; } = new();
@@ -57,6 +73,23 @@ public class MainViewModel : ViewModelBase
     private void ToggleDemo()
     {
         IsDemo = !IsDemo;
-        Grbl = IsDemo ? _demoFactory() : _realFactory();
+        Grbl = IsDemo
+            ? _services.GetRequiredService<DemoGrblService>()
+            : _services.GetRequiredService<RealGrblService>();
+    }
+
+    private async Task ConnectAsync()
+    {
+        try
+        {
+            var port = _settingsService.Load().Port;
+            Status = $"Connecting to {port}...";
+            await Grbl.ConnectAsync(port);
+            Status = $"Connected: {port}";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Connection failed: {ex.Message}";
+        }
     }
 }

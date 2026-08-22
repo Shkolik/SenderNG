@@ -27,6 +27,7 @@ public static class ModuleCatalog
             }
 
             services.AddSingleton(type);
+            services.AddSingleton<IModule>(sp => (IModule)sp.GetRequiredService(type));
 
             var instance = (IModule)Activator.CreateInstance(type)!;
             instance.RegisterServices(services);
