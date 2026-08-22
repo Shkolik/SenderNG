@@ -62,10 +62,16 @@
                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <!-- Toolbox buttons square 48x48 icon-only with ToolTip, contour icons -->
                         <Button Command="{Binding ConnectCommand}" ToolTip.Tip="Connect" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-                            <PathIcon Data="M8 2 L14 8 L8 14 L2 8 Z M8 4 L12 8 L8 12 L4 8 Z" Width="22" Height="22" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <!-- Plug/connector outline (stroke only) -->
+                            <Path Data="M7 2 L7 6 M13 2 L13 6 M5 6 L15 6 L15 10 C15 12.8 12.8 15 10 15 C7.2 15 5 12.8 5 10 Z M10 15 L10 18"
+                                  Stroke="Black" StrokeThickness="1.5"
+                                  Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Button>
                         <Button Command="{Binding OpenFileCommand}" ToolTip.Tip="Open" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-                            <PathIcon Data="M3 5 L3 15 L13 15 L13 7 L9 7 L7 5 Z M3 5 L7 5 L9 7 L13 7" Width="22" Height="22" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <!-- Folder outline (stroke only) -->
+                            <Path Data="M3 5 h4 l2 2 h6 v7 a1 1 0 0 1 -1 1 H4 a1 1 0 0 1 -1 -1 Z"
+                                  Stroke="Black" StrokeThickness="1.5"
+                                  Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Button>
                         <!-- Toolbar extensible: additional module toolbar items can be added here via ItemsControl bound to ToolbarModules -->
                     </StackPanel>

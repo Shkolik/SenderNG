@@ -5,6 +5,7 @@ using Avalonia.Media;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
+using SenderNG.Avalonia.Modules.Fixed;
 using SenderNG.Avalonia.ViewModels;
 using SenderNG.Core.Commands;
 using SenderNG.Core.Modules;
@@ -30,6 +31,7 @@ public class MainViewModel : ViewModelBase
     private readonly IServiceProvider _services;
     private readonly SettingsService _settingsService;
     private readonly IComPortService? _comPorts;
+    private readonly IFileDialogService? _fileDialogs;
     private readonly Func<IModule, object>? _viewFactory;
     private bool _isDemo;
     private IGrblService _grbl;
@@ -50,7 +52,8 @@ public class MainViewModel : ViewModelBase
         IServiceProvider services,
         IEnumerable<IModule>? modules = null,
         IComPortService? comPorts = null,
-        Func<IModule, object>? viewFactory = null)
+        Func<IModule, object>? viewFactory = null,
+        IFileDialogService? fileDialogs = null)
     {
         ArgumentNullException.ThrowIfNull(grbl);
         ArgumentNullException.ThrowIfNull(settings);
@@ -61,6 +64,7 @@ public class MainViewModel : ViewModelBase
         SettingsService = settings;
         _services = services;
         _comPorts = comPorts;
+        _fileDialogs = fileDialogs;
         _viewFactory = viewFactory;
         _isDemo = ResolveInner(grbl) is DemoGrblService;
 
@@ -88,8 +92,8 @@ public class MainViewModel : ViewModelBase
                 SelectedModule = p as IModule;
         });
         SendMdiCommand = new DelegateCommand(_ => _ = SendMdiAsync(), _ => !string.IsNullOrWhiteSpace(MdiInput));
-        OpenFileCommand = new DelegateCommand(_ => OpenFile());
-        SelectRecentCommand = new DelegateCommand(p => SelectRecent(p as string));
+        OpenFileCommand = new DelegateCommand(_ => _ = OpenFileAsync());
+        SelectRecentCommand = new DelegateCommand(p => _ = LoadGCodeFileAsync(p as string));
         // Cycle bar delegates (grblHAL realtime)
         // TODO: Cycle commands currently use SendAsync(string) placeholder; future: use realtime byte API (e.g., SendRealtime) for "~", "!", 0x18
         CycleStartCommand = new DelegateCommand(_ => _ = CycleAsync("~", "Cycle Start"));
@@ -307,17 +311,51 @@ public class MainViewModel : ViewModelBase
         }
     }
 
-    private void OpenFile()
+    private async Task OpenFileAsync()
     {
-        // TODO: integrate file dialog — RecentFiles will be populated from dialog result (future file-open integration)
-        Status = "Open file... (placeholder)";
+        if (_fileDialogs is null)
+        {
+            Status = "Open file: no dialog service available";
+            return;
+        }
+        var path = await _fileDialogs.OpenFileAsync(
+            "Open G-code file",
+            "G-code (*.nc;*.ngc;*.gcode;*.gco;*.tap)|*.nc;*.ngc;*.gcode;*.gco;*.tap",
+            "All files|*.*");
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        await LoadGCodeFileAsync(path);
     }
 
-    private void SelectRecent(string? file)
+    private async Task LoadGCodeFileAsync(string? path)
     {
-        if (string.IsNullOrWhiteSpace(file)) return;
-        Status = $"Open {file} (placeholder)";
-        // TODO: file-open integration will load GCode via LoadGCode and push to RecentFiles
+        if (string.IsNullOrWhiteSpace(path)) return;
+        try
+        {
+            var text = await File.ReadAllTextAsync(path);
+            var errors = GCodeValidator.Validate(text);
+            if (errors.Count > 0)
+            {
+                Status = $"Validation failed: {Path.GetFileName(path)} ({errors.Count}+ error(s))";
+                if (_fileDialogs is not null)
+                    await _fileDialogs.ShowErrorAsync("G-code validation failed", string.Join(Environment.NewLine, errors));
+                return;
+            }
+
+            var blocks = text.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries).Length;
+            _services.GetRequiredService<ProgramViewModel>().LoadGCode(text);
+
+            RecentFiles.Remove(path);
+            RecentFiles.Insert(0, path);
+            Status = $"Loaded {Path.GetFileName(path)} ({blocks} blocks)";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Open failed: {ex.Message}";
+            if (_fileDialogs is not null)
+                await _fileDialogs.ShowErrorAsync("Open failed", ex.Message);
+        }
     }
 
     private void Disconnect()
