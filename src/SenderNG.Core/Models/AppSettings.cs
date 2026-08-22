@@ -6,4 +6,5 @@ public class AppSettings
     public string Mode { get; set; } = "Mill";
     public string Port { get; set; } = "auto";
     public Dictionary<string, object> Modules { get; set; } = new();
+    public Dictionary<string, bool> ModulesVisibility { get; set; } = new();
 }

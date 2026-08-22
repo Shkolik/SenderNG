@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace SenderNG.Core.Modules;
 
+public enum PanelHint { Left, Center, Right, Flyout, Menu, Bottom }
+
 /// <summary>
 /// Contract for a pluggable sender module. Core stays UI-agnostic: view/view-model
 /// creation returns <see cref="object"/> and the host (Avalonia) casts them.
@@ -17,6 +19,12 @@ public interface IModule
 
     /// <summary>Sort order in which the module's UI is presented.</summary>
     int Order { get; }
+
+    /// <summary>Preferred panel where the module's UI should be hosted.</summary>
+    PanelHint Panel => PanelHint.Center;
+
+    /// <summary>Whether the module is visible by default (overridable via AppSettings.ModulesVisibility).</summary>
+    bool IsVisibleByDefault => true;
 
     /// <summary>Global hot keys provided by this module.</summary>
     IReadOnlyList<HotKey> HotKeys { get; }
