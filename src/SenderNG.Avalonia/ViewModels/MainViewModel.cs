@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using Avalonia.Media;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,6 +24,10 @@ public class MainViewModel : ViewModelBase
     private object? _currentModuleView;
     private string _mdiInput = string.Empty;
     private int _mdiHistoryIndex;
+    private string _machineState = "Idle";
+    private IBrush _stateBrush = new SolidColorBrush(Color.Parse("#ffe8a0"));
+    private IBrush _stateForeground = Brushes.Black;
+    private IDisposable? _stateSubscription;
 
     public MainViewModel(
         IGrblService grbl,
@@ -70,6 +75,9 @@ public class MainViewModel : ViewModelBase
         AboutCommand = new DelegateCommand(_ => Status = "SenderNG — About (placeholder)");
         LibrariesCommand = new DelegateCommand(_ => Status = "Libraries (placeholder)");
         _mdiHistoryIndex = MdiHistory.Count;
+
+        // State indicator: subscribe to grbl State and expose MachineState + StateBrush (RUN green #c8e8c8, IDLE yellow #ffe8a0, ALARM red #e04545, Height 28)
+        _stateSubscription = _grbl.State.Subscribe(s => ApplyMachineState(s.Status));
     }
 
     public SettingsService SettingsService { get; }
@@ -77,7 +85,14 @@ public class MainViewModel : ViewModelBase
     public IGrblService Grbl
     {
         get => _grbl;
-        private set => SetField(ref _grbl, value);
+        private set
+        {
+            if (SetField(ref _grbl, value))
+            {
+                _stateSubscription?.Dispose();
+                _stateSubscription = _grbl.State.Subscribe(s => ApplyMachineState(s.Status));
+            }
+        }
     }
 
     public bool IsDemo
@@ -91,6 +106,19 @@ public class MainViewModel : ViewModelBase
         get => _status;
         private set => SetField(ref _status, value);
     }
+
+    public string MachineState
+    {
+        get => _machineState;
+        private set
+        {
+            if (SetField(ref _machineState, value))
+                OnPropertyChanged(nameof(StateBrush));
+        }
+    }
+
+    public IBrush StateBrush => _stateBrush;
+    public IBrush StateForeground => _stateForeground;
 
     public ObservableCollection<IModule> Modules { get; } = new();
 
@@ -273,6 +301,32 @@ public class MainViewModel : ViewModelBase
     {
         Status = "Rewind (placeholder)";
         Console?.Log("Rewind");
+    }
+
+    private void ApplyMachineState(string status)
+    {
+        _machineState = string.IsNullOrWhiteSpace(status) ? "Idle" : status;
+        _stateBrush = ResolveStateBrush(_machineState);
+        _stateForeground = _machineState.Contains("alarm", StringComparison.OrdinalIgnoreCase)
+            ? Brushes.White : Brushes.Black;
+        OnPropertyChanged(nameof(MachineState));
+        OnPropertyChanged(nameof(StateBrush));
+        OnPropertyChanged(nameof(StateForeground));
+    }
+
+    private static IBrush ResolveStateBrush(string status)
+    {
+        if (status.Contains("run", StringComparison.OrdinalIgnoreCase))
+            return new SolidColorBrush(Color.Parse("#c8e8c8"));
+        if (status.Contains("alarm", StringComparison.OrdinalIgnoreCase))
+            return new SolidColorBrush(Color.Parse("#e04545"));
+        if (status.Contains("idle", StringComparison.OrdinalIgnoreCase))
+            return new SolidColorBrush(Color.Parse("#ffe8a0"));
+        if (status.Contains("hold", StringComparison.OrdinalIgnoreCase))
+            return new SolidColorBrush(Color.Parse("#ffe8a0"));
+        if (status.Contains("check", StringComparison.OrdinalIgnoreCase))
+            return new SolidColorBrush(Color.Parse("#ffe8a0"));
+        return new SolidColorBrush(Color.Parse("#e0e0e0"));
     }
 
     private static IGrblService ResolveInner(IGrblService service) =>
