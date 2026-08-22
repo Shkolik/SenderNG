@@ -7,19 +7,20 @@
              x:Class="SenderNG.Avalonia.Modules.Fixed.GrblSettingsView"
              x:DataType="vm:GrblSettingsViewModel">
 
-    <DockPanel>
+    <DockPanel Background="#f6f6f6">
         <Button DockPanel.Dock="Top" Content="Load Settings"
-                Command="{Binding LoadCommand}" Margin="8" HorizontalAlignment="Left" />
+                 Command="{Binding LoadCommand}" Margin="8" HorizontalAlignment="Left"
+                 CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
         <ItemsControl ItemsSource="{Binding Settings}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:SettingRow">
                     <Grid ColumnDefinitions="60,120,*" Margin="8,2">
                         <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat=${0}}"
-                                   VerticalAlignment="Center" FontWeight="Bold" />
-                        <TextBox Grid.Column="1" Text="{Binding Value}" Margin="4,2" />
+                                   VerticalAlignment="Center" FontWeight="Bold" FontSize="11" Foreground="#333" />
+                        <TextBox Grid.Column="1" Text="{Binding Value}" Margin="4,2" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
                         <TextBlock Grid.Column="2" Text="{Binding Comment}"
                                    VerticalAlignment="Center" Margin="8,0,0,0"
-                                   Opacity="0.7" />
+                                   Opacity="0.7" FontSize="11" Foreground="#666" />
                     </Grid>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>

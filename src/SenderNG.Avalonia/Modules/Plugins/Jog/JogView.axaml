@@ -9,40 +9,40 @@
 
     <StackPanel Margin="8">
         <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
-            <TextBlock Text="Step:" VerticalAlignment="Center" />
+            <TextBlock Text="Step:" VerticalAlignment="Center" FontSize="11" Foreground="#333" />
             <ComboBox ItemsSource="{Binding StepDistances}"
-                      SelectedIndex="{Binding SelectedStepIndex}" MinWidth="80" />
-            <TextBlock Text="XY F:" VerticalAlignment="Center" />
-            <TextBox Text="{Binding XySpeed}" MinWidth="70" />
-            <TextBlock Text="Z F:" VerticalAlignment="Center" />
-            <TextBox Text="{Binding ZSpeed}" MinWidth="70" />
+                      SelectedIndex="{Binding SelectedStepIndex}" MinWidth="80" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+            <TextBlock Text="XY F:" VerticalAlignment="Center" FontSize="11" Foreground="#333" />
+            <TextBox Text="{Binding XySpeed}" MinWidth="70" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+            <TextBlock Text="Z F:" VerticalAlignment="Center" FontSize="11" Foreground="#333" />
+            <TextBox Text="{Binding ZSpeed}" MinWidth="70" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
         </StackPanel>
 
         <UniformGrid Rows="3" Columns="3" Margin="0,0,0,8">
-            <Button Content="NW ↖" Command="{Binding JogXYNwSeCommand}" Margin="2" />
-            <Button Content="Y+" Command="{Binding JogYPlusCommand}" Margin="2" />
-            <Button Content="NE ↗" Command="{Binding JogXYSwNECommand}" Margin="2" />
-            <Button Content="X−" Command="{Binding JogXMinusCommand}" Margin="2" />
-            <Button Content="•" IsEnabled="False" Margin="2" />
-            <Button Content="X+" Command="{Binding JogXPlusCommand}" Margin="2" />
-            <Button Content="SW ↙" Command="{Binding JogXYNEswCommand}" Margin="2" />
-            <Button Content="Y−" Command="{Binding JogYMinusCommand}" Margin="2" />
-            <Button Content="SE ↘" Command="{Binding JogXYSeNwCommand}" Margin="2" />
+            <Button Content="NW ↖" Command="{Binding JogXYNwSeCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="Y+" Command="{Binding JogYPlusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="NE ↗" Command="{Binding JogXYSwNECommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="X−" Command="{Binding JogXMinusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="•" IsEnabled="False" Margin="2" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+            <Button Content="X+" Command="{Binding JogXPlusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="SW ↙" Command="{Binding JogXYNEswCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="Y−" Command="{Binding JogYMinusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="SE ↘" Command="{Binding JogXYSeNwCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
         </UniformGrid>
 
         <UniformGrid Rows="1" Columns="4" Margin="0,0,0,8">
-            <Button Content="Z+" Command="{Binding JogZPlusCommand}" Margin="2" />
-            <Button Content="Z−" Command="{Binding JogZMinusCommand}" Margin="2" />
-            <Button Content="B+" Command="{Binding JogBPlusCommand}" Margin="2" />
-            <Button Content="B−" Command="{Binding JogBMinusCommand}" Margin="2" />
+            <Button Content="Z+" Command="{Binding JogZPlusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="Z−" Command="{Binding JogZMinusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="B+" Command="{Binding JogBPlusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="B−" Command="{Binding JogBMinusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
         </UniformGrid>
 
         <CheckBox IsChecked="{Binding PadlockEngaged}"
-                  Content="Padlock Z↔A (Foam)" Margin="0,0,0,8" />
+                  Content="Padlock Z↔A (Foam)" Margin="0,0,0,8" CornerRadius="0" />
 
         <UniformGrid Rows="1" Columns="2">
-            <Button Content="A+" Command="{Binding JogAPlusCommand}" Margin="2" />
-            <Button Content="A−" Command="{Binding JogAMinusCommand}" Margin="2" />
+            <Button Content="A+" Command="{Binding JogAPlusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+            <Button Content="A−" Command="{Binding JogAMinusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
         </UniformGrid>
     </StackPanel>
 </UserControl>

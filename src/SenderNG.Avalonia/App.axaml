@@ -6,5 +6,30 @@
 
     <Application.Styles>
         <FluentTheme />
+        <!-- Flat style: square corners (CornerRadius=0), muted grays #f6f6f6/#e8e8e8/#aaa/#999, accent ONLY Stop/Reset #e04545 -->
+        <Style Selector="Button">
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="Expander">
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="Border">
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="ListBox">
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="TabControl">
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="CheckBox">
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
     </Application.Styles>
 </Application>

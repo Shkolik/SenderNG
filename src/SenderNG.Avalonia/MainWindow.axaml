@@ -11,7 +11,7 @@
          Title="SenderNG" Width="1000" Height="600"
          Background="#f6f6f6">
 
-    <Grid ColumnDefinitions="220,*,260,32" RowDefinitions="Auto,*,Auto,Auto">
+    <Grid ColumnDefinitions="220,*,260,Auto" RowDefinitions="Auto,*,Auto,Auto">
 
         <!-- Row0: Menu + Toolbar (grid-column 0/4) -->
         <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="4"
@@ -193,9 +193,8 @@
             </ScrollViewer>
         </Border>
 
-        <!-- TODO(Task 4): 32px flyout gutter width is provisional (topology Task 3); revisit sizing/responsive behavior in Task 4 polish — leave as-is. -->
-        <!-- Col3 Row1: Flyout vertical ItemsControl only if Count>0 -->
-        <Border Grid.Row="1" Grid.Column="3"
+        <!-- Col3 Row1: Flyout vertical 32px strip — only if FlyoutModules>0 (HasElementsConverter); Auto column collapses gutter when hidden -->
+        <Border Grid.Row="1" Grid.Column="3" Width="32"
                 Background="#e0e0e0" BorderBrush="#aaa" BorderThickness="1,0,0,0"
                 IsVisible="{Binding FlyoutModules, Converter={x:Static conv:Converters.HasElements}}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -207,13 +206,15 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="m:IModule">
-                            <Button Content="{Binding Name}" CornerRadius="0" Background="#eee"
-                                    BorderBrush="#999" BorderThickness="1" Padding="4,8"
+                            <Button CornerRadius="0" Background="#eee"
+                                    BorderBrush="#999" BorderThickness="1" Padding="4,2"
                                     HorizontalAlignment="Stretch" FontSize="10">
-                                <!-- TODO(Task 4): RotateTransform 90° is provisional vertical-text placeholder; revisit Avalonia vertical writing-mode styling in Task 4 — leave as-is. -->
-                                <Button.RenderTransform>
-                                    <RotateTransform Angle="90" />
-                                </Button.RenderTransform>
+                                <LayoutTransformControl>
+                                    <LayoutTransformControl.LayoutTransform>
+                                        <RotateTransform Angle="-90" />
+                                    </LayoutTransformControl.LayoutTransform>
+                                    <TextBlock Text="{Binding Name}" FontSize="10" />
+                                </LayoutTransformControl>
                             </Button>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

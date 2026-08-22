@@ -15,8 +15,8 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:AxisPosition">
-                <Border Margin="4" Padding="12,8" CornerRadius="4"
-                        BorderBrush="Gray" BorderThickness="1">
+                <Border Margin="4" Padding="12,8" CornerRadius="0"
+                        BorderBrush="#aaa" BorderThickness="1" Background="#fafafa">
                     <StackPanel>
                         <TextBlock Text="{Binding Letter}" FontSize="14" HorizontalAlignment="Center" />
                         <TextBlock Text="{Binding Position, StringFormat={}{0:F3}}" FontSize="22"

@@ -7,34 +7,34 @@
              x:Class="SenderNG.Avalonia.Modules.Fixed.GCodeConsoleView"
              x:DataType="vm:GCodeConsoleViewModel">
 
-    <Grid RowDefinitions="*,*">
-        <Border Grid.Row="0" Margin="4" BorderBrush="Gray" BorderThickness="1">
+    <Grid RowDefinitions="*,*" Background="#f6f6f6">
+        <Border Grid.Row="0" Margin="4" BorderBrush="#aaa" BorderThickness="1" CornerRadius="0" Background="White">
             <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="G-Code" FontWeight="Bold" Margin="4" />
+                <TextBlock DockPanel.Dock="Top" Text="G-Code" FontWeight="Bold" Margin="4" FontSize="11" Foreground="#333" />
                 <!-- Program grid header: 3 columns Line (44px) | Status (28px blank) | Data (1*) -->
                 <Grid DockPanel.Dock="Top" ColumnDefinitions="44,28,1*" Background="#e8e8e8" Height="22">
-                    <TextBlock Grid.Column="0" Text="Line" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center" Margin="6,0" />
+                    <TextBlock Grid.Column="0" Text="Line" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center" Margin="6,0" Foreground="#333" />
                     <TextBlock Grid.Column="1" Text="" />
-                    <TextBlock Grid.Column="2" Text="Data" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center" Margin="6,0" />
+                    <TextBlock Grid.Column="2" Text="Data" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center" Margin="6,0" Foreground="#333" />
                 </Grid>
-                <ListBox ItemsSource="{Binding ProgramRows}">
+                <ListBox ItemsSource="{Binding ProgramRows}" CornerRadius="0" BorderBrush="#aaa" BorderThickness="0">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:GCodeProgramRow">
                             <Grid ColumnDefinitions="44,28,1*">
                                 <TextBlock Grid.Column="0" Text="{Binding Line}" FontSize="10" Foreground="#666" VerticalAlignment="Center" Margin="4,0" HorizontalAlignment="Right" />
                                 <!-- Status cell: 28px no header, cells show ✓/✕/· with tooltip -->
                                 <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="11" Foreground="#888" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip.Tip="{Binding Status}" />
-                                <TextBlock Grid.Column="2" Text="{Binding Data}" FontFamily="Consolas" FontSize="11" VerticalAlignment="Center" Margin="4,0" />
+                                <TextBlock Grid.Column="2" Text="{Binding Data}" FontFamily="Consolas" FontSize="11" VerticalAlignment="Center" Margin="4,0" Foreground="#333" />
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
             </DockPanel>
         </Border>
-        <Border Grid.Row="1" Margin="4" BorderBrush="Gray" BorderThickness="1">
+        <Border Grid.Row="1" Margin="4" BorderBrush="#aaa" BorderThickness="1" CornerRadius="0" Background="White">
             <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="Console" FontWeight="Bold" Margin="4" />
-                <ListBox ItemsSource="{Binding ConsoleLines}" />
+                <TextBlock DockPanel.Dock="Top" Text="Console" FontWeight="Bold" Margin="4" FontSize="11" Foreground="#333" />
+                <ListBox ItemsSource="{Binding ConsoleLines}" CornerRadius="0" BorderBrush="#aaa" BorderThickness="0" />
             </DockPanel>
         </Border>
     </Grid>

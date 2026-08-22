@@ -7,18 +7,19 @@
              x:Class="SenderNG.Avalonia.Modules.Fixed.OffsetsView"
              x:DataType="vm:OffsetsViewModel">
 
-    <DockPanel>
+    <DockPanel Background="#f6f6f6">
         <Button DockPanel.Dock="Bottom" Content="Save Offsets"
-                Command="{Binding SaveCommand}" Margin="8" HorizontalAlignment="Left" />
+                 Command="{Binding SaveCommand}" Margin="8" HorizontalAlignment="Left"
+                 CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
         <ItemsControl ItemsSource="{Binding Rows}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:OffsetRow">
                     <Grid ColumnDefinitions="60,*,*,*" Margin="8,2">
                         <TextBlock Grid.Column="0" Text="{Binding Name}"
-                                   VerticalAlignment="Center" FontWeight="Bold" />
-                        <TextBox Grid.Column="1" Text="{Binding X, StringFormat={}{0:F3}}" Margin="4,2" PlaceholderText="X" />
-                        <TextBox Grid.Column="2" Text="{Binding Y, StringFormat={}{0:F3}}" Margin="4,2" PlaceholderText="Y" />
-                        <TextBox Grid.Column="3" Text="{Binding Z, StringFormat={}{0:F3}}" Margin="4,2" PlaceholderText="Z" />
+                                   VerticalAlignment="Center" FontWeight="Bold" FontSize="11" Foreground="#333" />
+                        <TextBox Grid.Column="1" Text="{Binding X, StringFormat={}{0:F3}}" Margin="4,2" PlaceholderText="X" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+                        <TextBox Grid.Column="2" Text="{Binding Y, StringFormat={}{0:F3}}" Margin="4,2" PlaceholderText="Y" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+                        <TextBox Grid.Column="3" Text="{Binding Z, StringFormat={}{0:F3}}" Margin="4,2" PlaceholderText="Z" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
                     </Grid>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
