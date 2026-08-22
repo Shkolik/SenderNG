@@ -22,11 +22,21 @@ public static class HostSetup
         builder.Services.AddSingleton<RealGrblService>();
         builder.Services.AddSingleton<IGrblService>(sp => sp.GetRequiredService<DemoGrblService>());
 
-        // Module assemblies are added here as they appear (none exist yet).
+        // Built-in fixed modules (no assembly scan).
+        RegisterModule(builder.Services, new Modules.Fixed.DroModule());
+
+        // External module assemblies are added here as they appear.
         ModuleCatalog.Scan(builder.Services);
 
         builder.Services.AddSingleton<MainViewModel>();
 
         return builder.Build();
+    }
+
+    private static void RegisterModule(IServiceCollection services, IModule module)
+    {
+        services.AddSingleton(module);
+        services.AddSingleton<IModule>(module);
+        module.RegisterServices(services);
     }
 }

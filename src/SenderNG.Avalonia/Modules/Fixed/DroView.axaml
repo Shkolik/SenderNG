@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Fixed"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="300"
+             x:Class="SenderNG.Avalonia.Modules.Fixed.DroView"
+             x:DataType="vm:DroViewModel">
+
+    <ItemsControl ItemsSource="{Binding Axes}">
+        <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:AxisPosition">
+                <Border Margin="4" Padding="12,8" CornerRadius="4"
+                        BorderBrush="Gray" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Letter}" FontSize="14" HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding Position, StringFormat={}{0:F3}}" FontSize="22"
+                                   FontWeight="Bold" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
+</UserControl>
