@@ -39,7 +39,6 @@ public static class HostSetup
         // External module assemblies are added here as they appear.
         ModuleCatalog.Scan(builder.Services);
 
-        builder.Services.AddSingleton<MainViewModel>();
         builder.Services.AddSingleton(sp =>
             new MainViewModel(
                 sp.GetRequiredService<IGrblService>(),
