@@ -1,0 +1,70 @@
+<h2>SenderNG — 4-Panel Layout v6 (restored widget details + Line | Status(blank) | Data grid)</h2>
+<p class="subtitle">Combines v4's rich left/right widget content with v5's Program grid column fix</p>
+
+<style>
+  .flat-btn { border:1px solid #999; background:#eee; padding:5px 10px; border-radius:0; font-size:11px; }
+  .flat-btn-red { border:1px solid #b00; background:#e04545; color:white; padding:5px 10px; border-radius:0; }
+  .mock-input { border:1px solid #999; border-radius:0; padding:4px 6px; }
+</style>
+
+<div class="mockup">
+  <div class="mockup-header">Preview v6: Full widget details restored — Left collapsible, Center 3-col grid, Right collapsible, Flat</div>
+  <div class="mockup-body" style="font-family: Segoe UI, sans-serif; font-size: 11px;">
+    <div style="display: grid; grid-template-columns: 220px 1fr 260px 32px; grid-template-rows: auto 1fr auto auto; gap:4px; border:1px solid #999; padding:4px; background:#f6f6f6; height:560px;">
+      <div style="grid-column:1 / 5; background:#e8e8e8; padding:4px; border:1px solid #aaa;">
+        <div style="display:flex; gap:12px; border-bottom:1px solid #bbb; padding-bottom:4px; margin-bottom:4px;">File: Open | Recent ▾ | Connect | Disconnect &nbsp;|&nbsp; Settings: Machine | App &nbsp;|&nbsp; Help: About | Libraries</div>
+        <div style="display:flex; gap:4px;"><button class="flat-btn">⧉ Connect</button><button class="flat-btn">🗁 Open</button><span style="color:#888; font-size:10px;">toolbar — flat glyphs</span></div>
+      </div>
+      <!-- Left: all widgets collapsible, rich content -->
+      <div style="background:white; border:1px solid #aaa; padding:4px; display:flex; flex-direction:column; gap:4px; overflow:auto;">
+        <details open style="background:#eef2f8; border:1px solid #aaa; padding:4px;"><summary><b>DRO</b></summary>X 29.084 [0] &nbsp; Zero<br>Y 12.208 [0] &nbsp; Zero<br>Z 0.000 [0] &nbsp; Zero<br><span style="color:#666;">Zero all</span></details>
+        <details open style="border:1px solid #aaa; padding:4px;"><summary><b>Program limits</b></summary><span style="color:#666; font-size:10px;">X -0.075 - 70.075 mm<br>Y -0.075 - 120.075 mm<br>Z 0.000 - 0.000 mm</span></details>
+        <details open style="background:#f4f4ff; border:1px dashed #888; padding:4px;"><summary><b>Left plugins</b> <span style="color:#888; font-size:10px;">between limits & Signals</span></summary><span style="color:#888; font-size:10px;">Offsets etc if claimed Left — collapsible</span></details>
+        <details open style="background:#eef; border:1px solid #aaa; padding:4px;"><summary><b>Signals</b></summary><span style="font-size:10px;">X Y Z &nbsp; H S R P &nbsp; <span style="color:#c00;">■</span> Probe &nbsp; TLO ref'd ☐</span></details>
+        <details open style="background:#f5f5f5; border:1px solid #aaa; padding:4px;"><summary><b>State / Controls</b></summary><div style="display:flex; gap:4px; align-items:center; margin:2px 0;"><span style="background:#c8e8c8; padding:2px 6px; border:1px solid #8a8; font-size:10px;">State: RUN</span><span>☐ Check</span></div><div style="display:flex; gap:4px;"><button class="flat-btn" style="flex:1;">Home</button><button class="flat-btn" style="flex:1;">Unlock</button><button class="flat-btn-red" style="flex:1;">Reset</button></div></details>
+      </div>
+      <!-- Center: 2 tabs + 3-col grid + pinned Cycle bar -->
+      <div style="background:white; border:1px solid #aaa; padding:0; display:flex; flex-direction:column;">
+        <div style="display:flex; gap:2px; background:#e8e8e8; padding:4px; border-bottom:1px solid #aaa;">
+          <span style="background:white; border:1px solid #888; padding:2px 8px; border-bottom:0;">Program</span>
+          <span style="background:#d0d0d0; border:1px solid #aaa; padding:2px 8px; border-bottom:0;">Console</span>
+          <span style="margin-left:auto; color:#888; font-size:10px;">Grid: Line | Status(blank) | Data</span>
+        </div>
+        <div style="flex:1; padding:4px; overflow:auto;">
+          <div style="border:1px solid #aaa; padding:0; background:#fafafa;">
+            <div style="display:grid; grid-template-columns:44px 28px 1fr; gap:0; font-size:10px; background:#e8e8e8; border-bottom:1px solid #aaa;">
+              <div style="padding:4px 6px; border-right:1px solid #bbb; font-weight:bold;">Line</div>
+              <div style="padding:4px 2px; border-right:1px solid #bbb; text-align:center; color:#888;"></div>
+              <div style="padding:4px 6px; font-weight:bold;">Data</div>
+            </div>
+            <div style="display:grid; grid-template-columns:44px 28px 1fr; gap:0; font-size:10px; font-family: Consolas, monospace;">
+              <div style="padding:2px 6px; border-right:1px solid #ddd; border-bottom:1px solid #eee; text-align:right; color:#666;">10</div><div style="padding:2px; border-right:1px solid #ddd; border-bottom:1px solid #eee; text-align:center; color:#2a2;">✓</div><div style="padding:2px 6px; border-bottom:1px solid #eee;">G94</div>
+              <div style="padding:2px 6px; border-right:1px solid #ddd; border-bottom:1px solid #eee; text-align:right; color:#666;">11</div><div style="padding:2px; border-right:1px solid #ddd; border-bottom:1px solid #eee; text-align:center; color:#2a2;">✓</div><div style="padding:2px 6px; border-bottom:1px solid #eee;">X0.000Y0.000F130.0</div>
+              <div style="padding:2px 6px; border-right:1px solid #ddd; border-bottom:1px solid #eee; text-align:right; color:#666;">12</div><div style="padding:2px; border-right:1px solid #ddd; border-bottom:1px solid #eee; text-align:center; color:#c00;">✕</div><div style="padding:2px 6px; border-bottom:1px solid #eee;">G0 X31.000Y12.925</div>
+              <div style="padding:2px 6px; border-right:1px solid #ddd; border-bottom:1px solid #eee; text-align:right; color:#666;">13</div><div style="padding:2px; border-right:1px solid #ddd; border-bottom:1px solid #eee; text-align:center; color:#888;">·</div><div style="padding:2px 6px; border-bottom:1px solid #eee;">G1 X39.000Y12.925G0.0</div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#e8e8e8; border-top:1px solid #aaa; padding:6px; display:flex; gap:6px; justify-content:flex-start;">
+          <button class="flat-btn">▶ Cycle Start</button><button class="flat-btn">⏸ Feed Hold</button><button class="flat-btn-red">■ Stop</button><button class="flat-btn">↺ Rewind</button>
+        </div>
+      </div>
+      <!-- Right: rich collapsible widgets -->
+      <div style="background:white; border:1px solid #aaa; padding:4px; display:flex; flex-direction:column; gap:4px; overflow:auto;">
+        <details open style="border:1px solid #ccb; background:#fff9e0; padding:4px;"><summary><b>Work Parameters</b></summary>Offset: G54 ▾ &nbsp; Tool: None ▾<br>TLO ref'd ☐ &nbsp; <span style="color:#888;">Probe pos</span></details>
+        <details open style="border:1px solid #aaa; padding:4px;"><summary><b>Coolant</b></summary>☐ Flood (M8) &nbsp; ☐ Mist (M7)</details>
+        <details open style="border:1px solid #aaa; padding:4px;"><summary><b>Spindle</b></summary>Off ○ CW ○ CCW<br>RPM <input style="width:40px; border:1px solid #aaa; padding:1px;" value="90"> &nbsp; <button class="flat-btn" style="padding:1px 4px;">+</button><button class="flat-btn" style="padding:1px 4px;">-</button></details>
+        <details open style="border:1px solid #aaa; padding:4px;"><summary><b>Feed rate</b></summary>130 mm/min<br>Override 100% <button class="flat-btn" style="padding:1px 4px;">+</button><button class="flat-btn" style="padding:1px 4px;">-</button> &nbsp;<button class="flat-btn" style="padding:1px 4px;">0</button></details>
+        <details open style="border:1px solid #aaa; padding:4px;"><summary><b>Rapids</b></summary>Override 100% <button class="flat-btn" style="padding:1px 4px;">+</button><button class="flat-btn" style="padding:1px 4px;">-</button></details>
+        <details open style="border:1px dashed #888; padding:4px; flex:1;"><summary><b>Right plugins</b></summary><span style="color:#888; font-size:10px;">Jog / Cutting etc if claimed Right — each collapsible</span></details>
+      </div>
+      <div style="background:#e0e0e0; border:1px solid #aaa; writing-mode: vertical-rl; padding:4px; display:flex; gap:6px;">Jog / Macros / Goto</div>
+      <div style="grid-column:1 / 5; background:white; border:1px solid #aaa; padding:4px; display:flex; gap:8px; align-items:center;">
+        <span style="font-weight:bold;">MDI</span><input class="mock-input" placeholder="G0 X10 (UP/DOWN history)…" style="width:300px;"><button class="flat-btn">Send</button><span style="font-size:10px; color:#888;">~300px, history dropdown, session-preserved</span>
+      </div>
+      <div style="grid-column:1 / 5; background:#e8e8e8; padding:2px 6px; font-size:10px; display:flex; justify-content:space-between; border:1px solid #aaa;">
+        <span>Block: 15/160</span><span>Run time: 00:00:06 | Jog step: 0.05</span>
+      </div>
+    </div>
+  </div>
+</div>

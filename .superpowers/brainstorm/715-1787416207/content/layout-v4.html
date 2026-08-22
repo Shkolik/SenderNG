@@ -1,0 +1,88 @@
+<h2>SenderNG — 4-Panel Layout v4 (flat style, left-aligned Cycle bar, no rounded buttons)</h2>
+<p class="subtitle">Flat, minimal — no rounded corners, muted grays, color accent only on Stop/Reset (red). Flat glyphs/SVG when icons needed. Center Cycle bar left-aligned.</p>
+
+<style>
+  .flat-btn { border:1px solid #999; background:#eee; padding:5px 10px; border-radius:0; font-size:11px; cursor:pointer; }
+  .flat-btn-red { border:1px solid #b00; background:#e04545; color:white; padding:5px 10px; border-radius:0; }
+  .flat-btn:active { background:#ddd; }
+  .mock-input { border:1px solid #999; border-radius:0; padding:4px 6px; }
+  details { border-radius:0; }
+</style>
+
+<div class="mockup">
+  <div class="mockup-header">Preview v4: Flat style — left-aligned Cycle bar, square buttons, accent only on Stop/Reset</div>
+  <div class="mockup-body" style="font-family: Segoe UI, sans-serif; font-size: 11px; line-height: 1.3;">
+    <div style="display: grid; grid-template-columns: 220px 1fr 260px 32px; grid-template-rows: auto 1fr auto auto; gap:4px; border:1px solid #999; padding:4px; background:#f6f6f6; height:540px;">
+      <!-- Menu + Toolbar (flat) -->
+      <div style="grid-column:1 / 5; background:#e8e8e8; padding:4px; border:1px solid #aaa;">
+        <div style="display:flex; gap:12px; border-bottom:1px solid #bbb; padding-bottom:4px; margin-bottom:4px; font-size:11px;">
+          <span><b>File</b>: Open | Recent ▾ | Connect | Disconnect</span>
+          <span><b>Settings</b>: Machine | App settings</span>
+          <span><b>Help</b>: About | Libraries</span>
+        </div>
+        <div style="display:flex; gap:4px; align-items:center;">
+          <button class="flat-btn">⧉ Connect</button>
+          <button class="flat-btn">🗁 Open</button>
+          <span style="color:#888; font-size:10px;">flat glyphs — no rounded, no color except state accents</span>
+        </div>
+      </div>
+      <!-- Left panel: collapsible, plugin between Program limits & Signals -->
+      <div style="background:white; border:1px solid #aaa; padding:4px; display:flex; flex-direction:column; gap:4px; overflow:auto;">
+        <details open style="background:#eef2f8; border:1px solid #aaa; padding:4px;"><summary style="cursor:pointer;"><b>DRO</b></summary>X 29.084 [0] &nbsp; Zero<br>Y 12.208 [0] &nbsp; Zero<br>Z 0.000 [0] &nbsp; Zero<br><span style="color:#666;">Zero all</span></details>
+        <details open style="border:1px solid #aaa; padding:4px;"><summary style="cursor:pointer;"><b>Program limits</b></summary><span style="color:#666; font-size:10px;">X -0.075 - 70.075<br>Y -0.075 - 120.075</span></details>
+        <details open style="background:#f4f4ff; border:1px dashed #888; padding:4px;"><summary style="cursor:pointer;"><b>Left plugins</b> <span style="color:#888; font-size:10px;">between limits & Signals</span></summary><span style="color:#888; font-size:10px;">Offsets etc if claimed Left — collapsible, hidden if none</span></details>
+        <details open style="background:#eef; border:1px solid #aaa; padding:4px;"><summary style="cursor:pointer;"><b>Signals</b></summary><span style="font-size:10px;">X Y Z &nbsp; H S R P</span></details>
+        <details open style="background:#f5f5f5; border:1px solid #aaa; padding:4px;"><summary style="cursor:pointer;"><b>State / Controls</b></summary><div style="display:flex; gap:4px; align-items:center; margin:2px 0;"><span style="background:#c8e8c8; padding:2px 6px; border:1px solid #8a8; font-size:10px;">State: RUN</span><span>☐ Check</span></div><div style="display:flex; gap:4px;"><button class="flat-btn" style="flex:1;">Home</button><button class="flat-btn" style="flex:1;">Unlock</button><button class="flat-btn-red" style="flex:1;">Reset</button></div></details>
+      </div>
+      <!-- Center panel: 2 tabs + left-aligned Cycle bar -->
+      <div style="background:white; border:1px solid #aaa; padding:0; display:flex; flex-direction:column;">
+        <div style="display:flex; gap:2px; background:#e8e8e8; padding:4px; border-bottom:1px solid #aaa;">
+          <span style="background:white; border:1px solid #888; padding:2px 8px; border-bottom:0;">Program</span>
+          <span style="background:#d0d0d0; border:1px solid #aaa; padding:2px 8px; border-bottom:0;">Console</span>
+          <span style="margin-left:auto; color:#888; font-size:10px;">2 tabs, flat, square corners</span>
+        </div>
+        <div style="flex:1; padding:4px; overflow:auto;">
+          <div style="border:1px solid #aaa; padding:4px; background:#fafafa; height:160px;">
+            <div style="display:grid; grid-template-columns:50px 50px 1fr; gap:1px; font-size:10px;">
+              <div style="background:#ddd; padding:2px; border:1px solid #aaa;">Block</div><div style="background:#ddd; padding:2px; border:1px solid #aaa;">Data</div><div></div>
+              <div style="padding:2px;">10</div><div style="padding:2px;">ok</div><div style="padding:2px;">G94</div>
+              <div style="padding:2px;">11</div><div style="padding:2px;">ok</div><div style="padding:2px;">X0.000Y0.000F130</div>
+            </div>
+          </div>
+        </div>
+        <!-- Cycle bar LEFT-ALIGNED, flat, only Stop accent -->
+        <div style="background:#e8e8e8; border-top:1px solid #aaa; padding:6px; display:flex; gap:6px; justify-content:flex-start;">
+          <button class="flat-btn">▶ Cycle Start</button>
+          <button class="flat-btn">⏸ Feed Hold</button>
+          <button class="flat-btn-red">■ Stop</button>
+          <button class="flat-btn">↺ Rewind</button>
+        </div>
+      </div>
+      <!-- Right panel: collapsible -->
+      <div style="background:white; border:1px solid #aaa; padding:4px; display:flex; flex-direction:column; gap:4px; overflow:auto;">
+        <details open style="border:1px solid #aaa; background:#fff9e0; padding:4px;"><summary style="cursor:pointer;"><b>Work Parameters</b></summary>Offset: G54 &nbsp; Tool: None</details>
+        <details open style="border:1px solid #aaa; padding:4px;"><summary style="cursor:pointer;"><b>Coolant</b></summary>☐ Flood ☐ Mist</details>
+        <details open style="border:1px solid #aaa; padding:4px;"><summary style="cursor:pointer;"><b>Spindle</b></summary>Off ○ CW ○ CCW<br>RPM 90</details>
+        <details open style="border:1px solid #aaa; padding:4px;"><summary style="cursor:pointer;"><b>Feed rate</b></summary>130 mm/min Override 100%</details>
+        <details open style="border:1px solid #aaa; padding:4px; flex:1;"><summary style="cursor:pointer; color:#888;">Right plugins</summary></details>
+      </div>
+      <!-- Flyout -->
+      <div style="background:#e0e0e0; border:1px solid #aaa; writing-mode: vertical-rl; padding:4px; display:flex; gap:6px; align-items:center;">
+        <span style="background:white; border:1px solid #888; padding:4px 2px;">Jog</span>
+        <span style="background:#ccc; border:1px solid #888; padding:4px 2px;">Macros</span>
+        <span style="font-size:9px; color:#666;">only if ≥1 Flyout</span>
+      </div>
+      <!-- Bottom: short MDI ~300px, flat -->
+      <div style="grid-column:1 / 5; background:white; border:1px solid #aaa; padding:4px; display:flex; gap:8px; align-items:center;">
+        <span style="font-weight:bold;">MDI</span>
+        <input class="mock-input" placeholder="G0 X10 (UP/DOWN history)…" style="width:300px;">
+        <button class="flat-btn">Send</button>
+        <span style="font-size:10px; color:#888;">~300px, flat, history dropdown</span>
+      </div>
+      <div style="grid-column:1 / 5; background:#e8e8e8; padding:2px 6px; font-size:10px; display:flex; justify-content:space-between; border:1px solid #aaa;">
+        <span>Block: 15/160</span><span>Run time: 00:00:06 | Jog step: 0.05</span>
+      </div>
+    </div>
+    <p style="margin-top:8px; font-size:11px; color:#555;">Flat style: square corners, muted grays (#eee/#ddd/#aaa), no rounded/screaming colors — <b>accent only on Stop & Reset (red)</b>. Glyphs: flat SVG/XAML. Center Cycle bar is left-aligned as requested, always visible below TabControl.</p>
+  </div>
+</div>

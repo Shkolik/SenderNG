@@ -170,3 +170,23 @@ Passed!  - Failed: 0, Passed: 111, Skipped: 0, Total: 111, Duration: ~1s
 ## Commits (fix)
 
 - `fix: Task 4 — scope MDI KeyBindings, RecentFiles MenuItem, OpenFile placeholder, realtime TODO, preserve empty lines` — 3 files, review 5+2 findings.
+
+---
+
+## Center tabs split
+
+Date: 2026-08-22
+Branch: feat/center-tabs
+
+### Changes
+- Split GCodeConsoleModule into ProgramModule (Id=program, Order=20) and ConsoleModule (Id=console, Order=21), both Panel=Center, IsVisibleByDefault=true.
+- ProgramViewModel: ProgramRows + LoadGCode (empty-line preserved, GCodeProgramRow record kept). ProgramView: Border > DockPanel > header Grid (Line 44px | blank Status 28px | Data 1*) + ListBox with status tooltip template.
+- ConsoleViewModel: ConsoleLines + Log(); subscribes IGrblService.State to append received lines ("< <Status>|WPos ..."). ConsoleView: flat #f6f6f6 ListBox.
+- Deleted GCodeConsoleModule/GCodeConsoleViewModel/GCodeConsoleView(.axaml/.axaml.cs); removed HostSetup registration; removed MainViewModel console param/Console property and its Log call sites.
+- MainWindow.axaml center: ContentControl (dead Console binding � root cause of blank center) replaced with TabControl ItemsSource=CenterTabs, ItemTemplate Module.Name, ContentTemplate ContentControl {Binding View}; Cycle bar unchanged.
+- Tests: replaced GCodeConsoleViewModelTests with ProgramViewModelTests + ConsoleViewModelTests; ModulePanelTests updated to Program/Console assertions; DiagCountTests module count 9 -> 10.
+
+### Verification
+- dotnet build: 0 errors
+- dotnet test: 113 passed / 0 failed
+- grep GCodeConsole in src/: no matches

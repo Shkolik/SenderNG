@@ -162,16 +162,21 @@
             </Grid>
         </Border>
 
-        <!-- Col1 Row1: Center — hosts GCodeConsoleView which itself is TabControl with Program/Console tabs -->
+        <!-- Col1 Row1: Center — TabControl with one tab per Center-claiming module (Program, Console) -->
         <Border Grid.Row="1" Grid.Column="1" Background="White" BorderBrush="#aaa" BorderThickness="1,0,0,0" HorizontalAlignment="Stretch">
             <Grid RowDefinitions="*,Auto">
-                <ContentControl Grid.Row="0" Content="{Binding Console}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="4">
-                    <ContentControl.DataTemplates>
-                        <DataTemplate DataType="fixed:GCodeConsoleViewModel">
-                            <fixed:GCodeConsoleView />
+                <TabControl Grid.Row="0" ItemsSource="{Binding CenterTabs}" CornerRadius="0" Background="White" Margin="4" HorizontalAlignment="Stretch">
+                    <TabControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:CenterTab">
+                            <TextBlock Text="{Binding Module.Name}" FontSize="11" />
                         </DataTemplate>
-                    </ContentControl.DataTemplates>
-                </ContentControl>
+                    </TabControl.ItemTemplate>
+                    <TabControl.ContentTemplate>
+                        <DataTemplate x:DataType="vm:CenterTab">
+                            <ContentControl Content="{Binding View}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                        </DataTemplate>
+                    </TabControl.ContentTemplate>
+                </TabControl>
 
                 <!-- Cycle bar: 4 Buttons left-aligned below Center TabControl — Height 28, flat contour glyphs black/white on bg -->
                 <Border Grid.Row="1" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="6" HorizontalAlignment="Stretch">
