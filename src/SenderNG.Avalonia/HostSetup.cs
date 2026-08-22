@@ -26,6 +26,7 @@ public static class HostSetup
         RegisterModule(builder.Services, new Modules.Fixed.DroModule());
         RegisterModule(builder.Services, new Modules.Fixed.OffsetsModule());
         RegisterModule(builder.Services, new Modules.Fixed.GCodeConsoleModule());
+        RegisterModule(builder.Services, new Modules.Fixed.GrblSettingsModule());
 
         // External module assemblies are added here as they appear.
         ModuleCatalog.Scan(builder.Services);

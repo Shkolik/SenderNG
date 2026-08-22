@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Fixed"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="400"
+             x:Class="SenderNG.Avalonia.Modules.Fixed.GrblSettingsView"
+             x:DataType="vm:GrblSettingsViewModel">
+
+    <DockPanel>
+        <Button DockPanel.Dock="Top" Content="Load Settings"
+                Command="{Binding LoadCommand}" Margin="8" HorizontalAlignment="Left" />
+        <ItemsControl ItemsSource="{Binding Settings}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:SettingRow">
+                    <Grid ColumnDefinitions="60,120,*" Margin="8,2">
+                        <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat=${0}}"
+                                   VerticalAlignment="Center" FontWeight="Bold" />
+                        <TextBox Grid.Column="1" Text="{Binding Value}" Margin="4,2" />
+                        <TextBlock Grid.Column="2" Text="{Binding Comment}"
+                                   VerticalAlignment="Center" Margin="8,0,0,0"
+                                   Opacity="0.7" />
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </DockPanel>
+</UserControl>
