@@ -38,4 +38,32 @@ public class SettingsServiceTests
         Assert.Equal(4, loaded.DemoAxes);
         Assert.Equal("Laser", loaded.Mode);
     }
+
+    [Fact]
+    public void Load_returns_cached_instance_so_all_consumers_share_one_graph()
+    {
+        var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tmp);
+        var svc = new SettingsService(tmp);
+
+        var first = svc.Load();
+        var second = svc.Load();
+
+        Assert.Same(first, second);
+    }
+
+    [Fact]
+    public void Save_updates_the_cached_instance()
+    {
+        var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tmp);
+        var svc = new SettingsService(tmp);
+
+        var cached = svc.Load();
+        var replacement = new AppSettings { DemoAxes = 5 };
+        svc.Save(replacement);
+
+        Assert.Same(replacement, svc.Load());
+        Assert.NotSame(cached, svc.Load());
+    }
 }

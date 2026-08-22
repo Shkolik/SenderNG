@@ -88,6 +88,8 @@ public class MacroViewModel : ViewModelBase
 
         var items = raw switch
         {
+            // Shared in-memory graph stores the strongly-typed list written by Save().
+            List<Dictionary<string, object>> typedDicts => ReadTyped([.. typedDicts]),
             List<object> typed => ReadTyped(typed),
             JsonElement { ValueKind: JsonValueKind.Array } el => ReadJson(el),
             _ => null,
