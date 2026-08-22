@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             mc:Ignorable="d" d:DesignWidth="360" d:DesignHeight="220"
+             x:Class="SenderNG.Avalonia.Modules.Plugins.CuttingView"
+             x:DataType="vm:CuttingViewModel">
+
+    <StackPanel Margin="8">
+        <TextBlock Text="Feed Override" FontWeight="Bold" Margin="0,0,0,4" />
+        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,10">
+            <Button Content="-10" Command="{Binding FeedDown10Command}" />
+            <Button Content="-1" Command="{Binding FeedDownCommand}" />
+            <TextBlock Text="{Binding FeedOverride, StringFormat={}{0} %}"
+                       VerticalAlignment="Center" MinWidth="60" TextAlignment="Center" FontWeight="Bold" />
+            <Button Content="+1" Command="{Binding FeedUpCommand}" />
+            <Button Content="+10" Command="{Binding FeedUp10Command}" />
+        </StackPanel>
+
+        <TextBlock Text="Spindle Override" FontWeight="Bold" Margin="0,0,0,4" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Content="-10" Command="{Binding SpindleDown10Command}" />
+            <Button Content="-1" Command="{Binding SpindleDownCommand}" />
+            <TextBlock Text="{Binding SpindleOverride, StringFormat={}{0} %}"
+                       VerticalAlignment="Center" MinWidth="60" TextAlignment="Center" FontWeight="Bold" />
+            <Button Content="+1" Command="{Binding SpindleUpCommand}" />
+            <Button Content="+10" Command="{Binding SpindleUp10Command}" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>
