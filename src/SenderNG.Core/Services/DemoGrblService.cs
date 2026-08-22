@@ -54,6 +54,8 @@ public class DemoGrblService : IGrblService
         return Task.CompletedTask;
     }
 
+    // TODO: delegate motion simulation to GCodeEmulator once its API is exposed for
+    // incremental line-by-line feeding; hand-parse kept for this thin slice.
     private static void ApplyMotion(string line, MachineState state)
     {
         if (!(line.StartsWith('G') && (line.Length > 1 && (line[1] == '0' || line[1] == '1'))))

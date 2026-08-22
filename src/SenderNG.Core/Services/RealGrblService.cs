@@ -26,7 +26,31 @@ public class RealGrblService : IGrblService
         _port = new SerialPort(port, 115200, Parity.None, 8, StopBits.One);
         _port.Open();
         IsConnected = true;
+
+        // Axis count from controller caps ([OPT:...] response), not a fixed default
+        var caps = RequestCaps();
+        if (caps != null)
+            _subject.Value.NumAxes = caps.NumAxes;
+
         return Task.CompletedTask;
+    }
+
+    // TODO: full grbl handshake ($I / [OPT:...]) in later task; for now probe via version command
+    private CNC.Core.CapsResult? RequestCaps()
+    {
+        try
+        {
+            _port!.WriteLine("$I");
+            var deadline = DateTime.UtcNow.AddSeconds(2);
+            while (DateTime.UtcNow < deadline)
+            {
+                var line = _port.ReadLine();
+                if (line.StartsWith("[OPT:"))
+                    return CNC.Core.Grbl.ParseCaps(line) is { } caps ? caps : null;
+            }
+        }
+        catch (TimeoutException) { }
+        return null;
     }
 
     public void Disconnect()
