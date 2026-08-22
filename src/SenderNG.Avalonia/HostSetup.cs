@@ -18,6 +18,8 @@ public static class HostSetup
         var builder = Host.CreateApplicationBuilder(args);
 
         builder.Services.AddSingleton<SettingsService>();
+        // Shared AppSettings graph: one instance for every consumer (VMs, services).
+        builder.Services.AddSingleton(sp => sp.GetRequiredService<SettingsService>().Load());
         builder.Services.AddSingleton<IComPortService, SerialComPortService>();
         builder.Services.AddSingleton<DemoGrblService>();
         builder.Services.AddSingleton<RealGrblService>();
