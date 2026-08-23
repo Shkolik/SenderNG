@@ -99,14 +99,32 @@
                     </Border>
                 </Expander>
 
-                <!-- Program limits -->
+                <!-- Program limits: hidden until a program with motion is loaded -->
                 <Expander Grid.Row="1" IsExpanded="True" CornerRadius="0" Background="White"
-                          BorderBrush="#aaa" BorderThickness="1" Margin="4,2" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                          BorderBrush="#aaa" BorderThickness="1" Margin="4,2" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                          IsVisible="{Binding HasProgramLimits}">
                     <Expander.Header>
                         <TextBlock Text="Program limits" FontWeight="SemiBold" />
                     </Expander.Header>
                     <Border Padding="6" HorizontalAlignment="Stretch">
-                        <TextBlock Text="X -0.075 – 70.075&#x0a;Y -0.075 – 120.075" Foreground="#888" FontSize="10" />
+                        <ItemsControl ItemsSource="{Binding ProgramLimitRows}" HorizontalAlignment="Stretch">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="fixed:ProgramLimitRow">
+                                    <Grid ColumnDefinitions="14,*,10,*,Auto" Margin="0,1" HorizontalAlignment="Stretch">
+                                        <TextBlock Grid.Column="0" Text="{Binding Letter}" FontSize="11" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" TextAlignment="Center" />
+                                        <TextBox Grid.Column="1" Text="{Binding Min, StringFormat={}{0:F3}, Mode=OneWay}" IsReadOnly="True"
+                                                 Height="22" MinHeight="22" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                                 FontSize="10" VerticalContentAlignment="Center" Margin="2,0" />
+                                        <TextBlock Grid.Column="2" Text="-" VerticalAlignment="Center" TextAlignment="Center" FontSize="10" Foreground="#666" />
+                                        <TextBox Grid.Column="3" Text="{Binding Max, StringFormat={}{0:F3}, Mode=OneWay}" IsReadOnly="True"
+                                                 Height="22" MinHeight="22" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                                 FontSize="10" VerticalContentAlignment="Center" Margin="2,0" />
+                                        <TextBlock Grid.Column="4" Text="mm" VerticalAlignment="Center" FontSize="10" Foreground="#888" Margin="4,0,0,0" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </Border>
                 </Expander>
 
