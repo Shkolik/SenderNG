@@ -71,6 +71,10 @@ public class MainViewModel : ViewModelBase
         _viewFactory = viewFactory;
         _isDemo = ResolveInner(grbl) is DemoGrblService;
 
+        // Tolerant resolve: unit tests construct MainViewModel with a minimal provider.
+        var droVm = _services.GetService<Modules.Fixed.DroViewModel>();
+        DroContent = new DroView { DataContext = droVm };
+
         foreach (var module in modules ?? Enumerable.Empty<IModule>())
             Modules.Add(module);
 
@@ -119,6 +123,11 @@ public class MainViewModel : ViewModelBase
     }
 
     public SettingsService SettingsService { get; }
+
+    /// <summary>Hosted DRO module view (per-axis position rows + zero buttons).</summary>
+    public object DroContent { get; }
+
+    public string DroHeader => "DRO";
 
     public IGrblService Grbl
     {
