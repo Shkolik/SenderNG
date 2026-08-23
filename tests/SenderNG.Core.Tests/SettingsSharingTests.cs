@@ -44,7 +44,7 @@ public class SettingsSharingTests
         macroVm.AddMacroCommand.Execute(null); // auto-saves "Macro 1"
 
         var jogVm = new JogViewModel(grbl, settings);
-        jogVm.XySpeed = 1234;
+        jogVm.IsSpeed2 = true; // 2000
         jogVm.Save(); // pre-fix this wrote a stale snapshot without Macros
 
         Assert.True(File.Exists(Path.Combine(dir, "settings.json")));
@@ -52,7 +52,7 @@ public class SettingsSharingTests
         Assert.Contains("Macros", json);
         Assert.Contains("Macro 1", json);
         Assert.Contains("Jog", json);
-        Assert.Contains("1234", json);
+        Assert.Contains("2000", json);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class SettingsSharingTests
         var (dir, settings) = MakeSettings();
 
         var jogVm = new JogViewModel(new RecordingGrbl(), settings);
-        jogVm.XySpeed = 2500;
+        jogVm.IsSpeed2 = true; // 2000
         jogVm.Save();
 
         var offsetsVm = new SenderNG.Avalonia.Modules.Fixed.OffsetsViewModel(settings);
@@ -70,7 +70,7 @@ public class SettingsSharingTests
 
         var json = File.ReadAllText(Path.Combine(dir, "settings.json"));
         Assert.Contains("Jog", json);
-        Assert.Contains("2500", json);
+        Assert.Contains("2000", json);
         Assert.Contains("Offsets", json);
         Assert.Contains("G54", json);
     }

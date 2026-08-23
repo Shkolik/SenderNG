@@ -10,18 +10,66 @@ using SenderNG.Core.Modules;
 
 namespace CNC.Core.ViewModels;
 
+/// <summary>One editable numeric field exposed by a module (e.g. Jog distances).</summary>
+public sealed class NumericSettingEntry : ViewModelBase
+{
+    private readonly Func<double> _get;
+    private readonly Action<double> _set;
+    private double _value;
+
+    public NumericSettingEntry(string label, Func<double> get, Action<double> set)
+    {
+        ArgumentNullException.ThrowIfNull(get);
+        ArgumentNullException.ThrowIfNull(set);
+        Label = label;
+        _get = get;
+        _set = set;
+        _value = get();
+    }
+
+    public string Label { get; }
+
+    public double Value
+    {
+        get => _value;
+        set
+        {
+            if (_value == value)
+                return;
+            _value = value;
+            OnPropertyChanged(nameof(Value));
+            _set(value);
+        }
+    }
+
+    // Re-read from the module (mode switch swaps the underlying config).
+    public void Refresh()
+    {
+        var v = _get();
+        if (_value == v)
+            return;
+        _value = v;
+        OnPropertyChanged(nameof(Value));
+    }
+}
+
 /// <summary>One module row in the App Settings dialog: name + visibility checkbox.</summary>
 public sealed class ModuleSettingsEntry : ViewModelBase
 {
     private bool _isVisible;
 
-    public ModuleSettingsEntry(string id, string name, bool isVisible, System.Action<string, bool> visibilityChanged)
+    public ModuleSettingsEntry(string id, string name, bool isVisible,
+        System.Action<string, bool> visibilityChanged,
+        IEnumerable<NumericSettingEntry>? fields = null)
     {
         ArgumentNullException.ThrowIfNull(visibilityChanged);
         Id = id;
         Name = name;
         _isVisible = isVisible;
         _visibilityChanged = visibilityChanged;
+        if (fields is not null)
+            foreach (var f in fields)
+                Fields.Add(f);
     }
 
     private readonly System.Action<string, bool> _visibilityChanged;
@@ -29,6 +77,15 @@ public sealed class ModuleSettingsEntry : ViewModelBase
     public string Id { get; }
 
     public string Name { get; }
+
+    public ObservableCollection<NumericSettingEntry> Fields { get; } = new();
+
+    // Re-read field values (mode switch swaps the underlying config).
+    public void RefreshFields()
+    {
+        foreach (var f in Fields)
+            f.Refresh();
+    }
 
     public bool IsVisible
     {
@@ -66,11 +123,17 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
         foreach (var module in modules.OrderBy(m => m.Order))
         {
             _defaults[module.Id] = module.IsVisibleByDefault;
+            IEnumerable<NumericSettingEntry>? fields = null;
+            if (module is IModuleSettingsProvider provider)
+                fields = provider.GetSettingFields()
+                    .Select(f => new NumericSettingEntry(f.Label, f.Get, f.Set))
+                    .ToList();
             ModuleSections.Add(new ModuleSettingsEntry(
                 module.Id,
                 module.Name,
                 IsModuleVisible(module),
-                VisibilityChanged));
+                VisibilityChanged,
+                fields));
         }
 
         CloseCommand = new DelegateCommand(_ => RequestClose(true));
@@ -131,6 +194,7 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
                 var visible = IsEntryVisible(entry.Id);
                 if (entry.IsVisible != visible)
                     entry.IsVisible = visible;
+                entry.RefreshFields();
             }
         }
         finally
