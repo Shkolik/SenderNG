@@ -42,6 +42,7 @@ public class MainViewModel : ViewModelBase
     private string _mdiInput = string.Empty;
     private int _mdiHistoryIndex;
     private string _machineState = "Idle";
+    private string? _currentFileName;
     private IBrush _stateBrush = new SolidColorBrush(Color.Parse("#ffe8a0"));
     private IBrush _stateForeground = Brushes.Black;
     private IDisposable? _stateSubscription;
@@ -120,6 +121,10 @@ public class MainViewModel : ViewModelBase
         // State indicator: subscribe to grbl State and expose MachineState + StateBrush (RUN green #c8e8c8, IDLE yellow #ffe8a0, ALARM red #e04545, Height 28)
         // Also drives dynamic Signals panel (AxisSignals + ProbeActive) from MachineState.NumAxes / Signals
         _stateSubscription = _grbl.State.Subscribe(s => ApplyState(s));
+
+        // Demo mode connects automatically so commands work without manual Connect.
+        if (_isDemo)
+            _ = AutoConnectDemoAsync();
     }
 
     public SettingsService SettingsService { get; }
@@ -145,7 +150,30 @@ public class MainViewModel : ViewModelBase
     public bool IsDemo
     {
         get => _isDemo;
-        private set => SetField(ref _isDemo, value);
+        private set
+        {
+            if (SetField(ref _isDemo, value))
+                OnPropertyChanged(nameof(Title));
+        }
+    }
+
+    /// <summary>Window title: demo flag and loaded file name.</summary>
+    public string Title =>
+        IsDemo ? BaseTitleWithDemo + FileTitleSuffix : BaseTitleWithoutDemo + FileTitleSuffix;
+
+    private static string BaseTitleWithDemo => "SenderNG (DEMO mode)";
+    private static string BaseTitleWithoutDemo => "SenderNG";
+
+    private string FileTitleSuffix => string.IsNullOrEmpty(CurrentFileName) ? "" : $" - {CurrentFileName}";
+
+    public string? CurrentFileName
+    {
+        get => _currentFileName;
+        private set
+        {
+            if (SetField(ref _currentFileName, value))
+                OnPropertyChanged(nameof(Title));
+        }
     }
 
     public string Status
@@ -278,6 +306,26 @@ public class MainViewModel : ViewModelBase
         {
             Grbl = target;
         }
+
+        if (IsDemo)
+            _ = AutoConnectDemoAsync();
+    }
+
+    /// <summary>Demo mode needs no port - connect automatically so commands just work.</summary>
+    private async Task AutoConnectDemoAsync()
+    {
+        var inner = ResolveInner(Grbl);
+        if (inner is DemoGrblService demo && !demo.IsConnected)
+        {
+            try
+            {
+                await Grbl.ConnectAsync("demo");
+            }
+            catch
+            {
+                // Demo connect cannot realistically fail; ignore to keep ctor/toggle path safe.
+            }
+        }
     }
 
     private void MdiHistoryPrev()
@@ -360,6 +408,7 @@ public class MainViewModel : ViewModelBase
 
             var blocks = text.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries).Length;
             _services.GetRequiredService<ProgramViewModel>().LoadGCode(text);
+            CurrentFileName = Path.GetFileName(path);
 
             RecentFiles.Remove(path);
             RecentFiles.Insert(0, path);
