@@ -8,7 +8,7 @@ namespace CNC.Core.Services;
 /// Consumers subscribe once and keep receiving state across demo/real swaps;
 /// the proxy re-subscribes its relay subject whenever <see cref="Inner"/> changes.
 /// </summary>
-public class GrblServiceProxy : IGrblService
+public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
 {
     private IGrblService _inner;
     private IDisposable? _subscription;
@@ -34,6 +34,11 @@ public class GrblServiceProxy : IGrblService
     public void Disconnect() => _inner.Disconnect();
 
     public Task SendAsync(string line) => _inner.SendAsync(line);
+
+    public Task<IReadOnlyList<string>> GetSettingLinesAsync() =>
+        _inner is IGrblSettingsProvider provider
+            ? provider.GetSettingLinesAsync()
+            : throw new NotSupportedException("The active machine does not support settings.");
 
     private IGrblService SetInner(IGrblService value)
     {
