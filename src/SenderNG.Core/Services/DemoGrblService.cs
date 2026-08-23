@@ -67,7 +67,8 @@ public class DemoGrblService : IGrblService
     }
 
     // Hand-parses motion lines: supports $J= jog commands, modal G90/G91
-    // distance modes and the X/Y/Z/A/B axis set, clamped to NumAxes.
+    // distance modes, G92 coordinate setting and the X/Y/Z/A/B axis set,
+    // clamped to NumAxes.
     private void ApplyMotion(string line, MachineState state)
     {
         var rest = line;
@@ -75,6 +76,7 @@ public class DemoGrblService : IGrblService
             rest = rest[3..];
 
         var incremental = _distanceMode == 91;
+        var isG92 = false;
 
         foreach (var part in rest.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
@@ -94,6 +96,9 @@ public class DemoGrblService : IGrblService
                     case "91":
                         _distanceMode = 91;
                         incremental = true;
+                        break;
+                    case "92":
+                        isG92 = true;
                         break;
                     // G0/G1/other G-words: motion mode only, no position effect here.
                 }
@@ -116,7 +121,7 @@ public class DemoGrblService : IGrblService
             if (!double.TryParse(part[1..], System.Globalization.CultureInfo.InvariantCulture, out var value))
                 continue;
 
-            state.Positions[index] = incremental ? state.Positions[index] + value : value;
+            state.Positions[index] = isG92 ? value : incremental ? state.Positions[index] + value : value;
         }
     }
 }

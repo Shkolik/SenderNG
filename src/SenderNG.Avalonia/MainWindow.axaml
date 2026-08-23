@@ -88,10 +88,10 @@
                 <Expander Grid.Row="0" IsExpanded="True" CornerRadius="0" Background="White"
                           BorderBrush="#aaa" BorderThickness="1" Margin="4,4,4,2" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                     <Expander.Header>
-                        <TextBlock Text="DRO" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding DroHeader, FallbackValue='DRO'}" FontWeight="SemiBold" />
                     </Expander.Header>
-                    <Border Padding="6" HorizontalAlignment="Stretch">
-                        <TextBlock Text="DRO — placeholder" Foreground="#888" FontSize="11" />
+                    <Border HorizontalAlignment="Stretch">
+                        <ContentControl Content="{Binding DroContent}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" />
                     </Border>
                 </Expander>
 

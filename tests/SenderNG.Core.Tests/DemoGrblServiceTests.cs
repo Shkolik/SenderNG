@@ -134,3 +134,34 @@ public class DemoGrblServiceTests
         Assert.Equal(4, st.Positions[1]);
     }
 }
+
+public class DemoGrblServiceG92Tests
+{
+    [Fact]
+    public async Task G92_zeroes_listed_axes_only()
+    {
+        var svc = new DemoGrblService(new AppSettings { DemoAxes = 3 });
+        await svc.ConnectAsync("demo");
+        await svc.SendAsync("G1 X10 Y20 Z30");
+
+        await svc.SendAsync("G92 X0 Z0");
+
+        var st = await svc.State.FirstAsync();
+        Assert.Equal(0, st.Positions[0]);
+        Assert.Equal(20, st.Positions[1]);
+        Assert.Equal(0, st.Positions[2]);
+    }
+
+    [Fact]
+    public async Task G92_sets_axis_to_given_value()
+    {
+        var svc = new DemoGrblService(new AppSettings { DemoAxes = 3 });
+        await svc.ConnectAsync("demo");
+        await svc.SendAsync("G1 X50");
+
+        await svc.SendAsync("G92 X5.5");
+
+        var st = await svc.State.FirstAsync();
+        Assert.Equal(5.5, st.Positions[0]);
+    }
+}
