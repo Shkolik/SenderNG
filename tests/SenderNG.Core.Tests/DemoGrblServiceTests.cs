@@ -165,3 +165,42 @@ public class DemoGrblServiceG92Tests
         Assert.Equal(5.5, st.Positions[0]);
     }
 }
+
+public class DemoGrblServiceSettingsTests
+{
+    [Fact]
+    public async Task GetSettingLinesAsync_returns_defaults()
+    {
+        var svc = new DemoGrblService(new AppSettings());
+        var lines = await svc.GetSettingLinesAsync();
+        Assert.Contains("$0=10", lines);
+        Assert.Contains("$13=0", lines);
+        Assert.Contains("$110=500.000", lines);
+    }
+
+    [Fact]
+    public async Task Send_setting_assignment_updates_store()
+    {
+        var svc = new DemoGrblService(new AppSettings());
+        await svc.ConnectAsync("demo");
+
+        await svc.SendAsync("$13=1");
+        var lines = await svc.GetSettingLinesAsync();
+
+        Assert.Contains("$13=1", lines);
+        Assert.DoesNotContain("$13=0", lines);
+    }
+
+    [Fact]
+    public async Task Jog_and_motion_unaffected_by_setting_prefix()
+    {
+        var svc = new DemoGrblService(new AppSettings());
+        await svc.ConnectAsync("demo");
+
+        await svc.SendAsync("$J=G91 X5");
+        await svc.SendAsync("G1 X10 Y20 Z30");
+
+        var st = await svc.State.FirstAsync();
+        Assert.Equal(15, st.Positions[0]);
+    }
+}
