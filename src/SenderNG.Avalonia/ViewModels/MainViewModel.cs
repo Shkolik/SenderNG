@@ -26,6 +26,8 @@ public sealed class AxisSignal : ViewModelBase
 
 public sealed record CenterTab(IModule Module, object? View);
 
+public sealed record ModuleView(IModule Module, object? View);
+
 public sealed record MenuEntry(string Header, ICommand Command, object? Parameter);
 
 public class MainViewModel : ViewModelBase
@@ -213,6 +215,10 @@ public class MainViewModel : ViewModelBase
 
     public IEnumerable<IModule> RightModules =>
         Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Right).OrderBy(m => m.Order);
+
+    /// <summary>Right-panel modules paired with their built views (Expander content).</summary>
+    public IEnumerable<ModuleView> RightModuleViews =>
+        RightModules.Select(m => new ModuleView(m, _viewFactory?.Invoke(m)));
 
     public IEnumerable<IModule> FlyoutModules =>
         Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Flyout).OrderBy(m => m.Order);
@@ -517,6 +523,7 @@ public class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(LeftModules));
         OnPropertyChanged(nameof(CenterModules));
         OnPropertyChanged(nameof(RightModules));
+        OnPropertyChanged(nameof(RightModuleViews));
         OnPropertyChanged(nameof(FlyoutModules));
         OnPropertyChanged(nameof(MenuModules));
         OnPropertyChanged(nameof(SettingsMenu));
@@ -529,6 +536,7 @@ public class MainViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(LeftModules));
         OnPropertyChanged(nameof(RightModules));
+        OnPropertyChanged(nameof(RightModuleViews));
         OnPropertyChanged(nameof(FlyoutModules));
         OnPropertyChanged(nameof(MenuModules));
         OnPropertyChanged(nameof(SettingsMenu));
