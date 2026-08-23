@@ -53,6 +53,48 @@ public sealed class NumericSettingEntry : ViewModelBase
     }
 }
 
+/// <summary>One editable boolean field exposed by a module (e.g. Jog diagonals).</summary>
+public sealed class BoolSettingEntry : ViewModelBase
+{
+    private readonly Func<bool> _get;
+    private readonly Action<bool> _set;
+    private bool _value;
+
+    public BoolSettingEntry(string label, Func<bool> get, Action<bool> set)
+    {
+        ArgumentNullException.ThrowIfNull(get);
+        ArgumentNullException.ThrowIfNull(set);
+        Label = label;
+        _get = get;
+        _set = set;
+        _value = get();
+    }
+
+    public string Label { get; }
+
+    public bool Value
+    {
+        get => _value;
+        set
+        {
+            if (_value == value)
+                return;
+            _value = value;
+            OnPropertyChanged(nameof(Value));
+            _set(value);
+        }
+    }
+
+    public void Refresh()
+    {
+        var v = _get();
+        if (_value == v)
+            return;
+        _value = v;
+        OnPropertyChanged(nameof(Value));
+    }
+}
+
 /// <summary>One module row in the App Settings dialog: name + visibility checkbox.</summary>
 public sealed class ModuleSettingsEntry : ViewModelBase
 {
@@ -60,7 +102,8 @@ public sealed class ModuleSettingsEntry : ViewModelBase
 
     public ModuleSettingsEntry(string id, string name, bool isVisible,
         System.Action<string, bool> visibilityChanged,
-        IEnumerable<NumericSettingEntry>? fields = null)
+        IEnumerable<NumericSettingEntry>? fields = null,
+        IEnumerable<BoolSettingEntry>? boolFields = null)
     {
         ArgumentNullException.ThrowIfNull(visibilityChanged);
         Id = id;
@@ -70,6 +113,9 @@ public sealed class ModuleSettingsEntry : ViewModelBase
         if (fields is not null)
             foreach (var f in fields)
                 Fields.Add(f);
+        if (boolFields is not null)
+            foreach (var f in boolFields)
+                BoolFields.Add(f);
     }
 
     private readonly System.Action<string, bool> _visibilityChanged;
@@ -80,10 +126,14 @@ public sealed class ModuleSettingsEntry : ViewModelBase
 
     public ObservableCollection<NumericSettingEntry> Fields { get; } = new();
 
+    public ObservableCollection<BoolSettingEntry> BoolFields { get; } = new();
+
     // Re-read field values (mode switch swaps the underlying config).
     public void RefreshFields()
     {
         foreach (var f in Fields)
+            f.Refresh();
+        foreach (var f in BoolFields)
             f.Refresh();
     }
 
@@ -124,16 +174,23 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
         {
             _defaults[module.Id] = module.IsVisibleByDefault;
             IEnumerable<NumericSettingEntry>? fields = null;
+            IEnumerable<BoolSettingEntry>? boolFields = null;
             if (module is IModuleSettingsProvider provider)
+            {
                 fields = provider.GetSettingFields()
                     .Select(f => new NumericSettingEntry(f.Label, f.Get, f.Set))
                     .ToList();
+                boolFields = provider.GetBoolSettingFields()
+                    .Select(f => new BoolSettingEntry(f.Label, f.Get, f.Set))
+                    .ToList();
+            }
             ModuleSections.Add(new ModuleSettingsEntry(
                 module.Id,
                 module.Name,
                 IsModuleVisible(module),
                 VisibilityChanged,
-                fields));
+                fields,
+                boolFields));
         }
 
         CloseCommand = new DelegateCommand(_ => RequestClose(true));

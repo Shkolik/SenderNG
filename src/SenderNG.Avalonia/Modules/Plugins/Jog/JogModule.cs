@@ -55,6 +55,17 @@ public class JogModule : IModule, IModuleSettingsProvider
         }
     }
 
+    public IEnumerable<ModuleSettingBool> GetBoolSettingFields()
+    {
+        if (_settingsService is null)
+            yield break;
+
+        yield return new ModuleSettingBool(
+            "Diagonal buttons",
+            () => LoadConfig().Diagonals,
+            v => UpdateConfig(c => c.Diagonals = v));
+    }
+
     private JogConfig LoadConfig() =>
         JogConfigStore.Load(_settingsService!.Load());
 

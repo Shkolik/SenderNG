@@ -63,16 +63,20 @@
 
         <!-- XY cross (both modes); in Foam+Together it jogs both gantries mirrored -->
         <UniformGrid Rows="3" Columns="3">
-            <Button Classes="jog diag" Content="◰" Command="{Binding JogCommand}" CommandParameter="X-,Y+|Z-,A+" />
+            <Button Classes="jog diag" Content="◰" Command="{Binding JogCommand}" CommandParameter="X-,Y+|Z-,A+"
+                    IsVisible="{Binding ShowDiagonals}" />
             <Button Classes="jog" Content="Y+" Command="{Binding JogCommand}" CommandParameter="Y+|A+" />
-            <Button Classes="jog diag" Content="◳" Command="{Binding JogCommand}" CommandParameter="X+,Y+|Z+,A+" />
+            <Button Classes="jog diag" Content="◳" Command="{Binding JogCommand}" CommandParameter="X+,Y+|Z+,A+"
+                    IsVisible="{Binding ShowDiagonals}" />
             <Button Classes="jog" Content="X-" Command="{Binding JogCommand}" CommandParameter="X-|Z-" />
             <Button Classes="jog" Content="Stop" Background="#e04545" BorderBrush="#b03535" Foreground="White" FontSize="11"
                     Command="{Binding StopCommand}" ToolTip.Tip="Feed hold" />
             <Button Classes="jog" Content="X+" Command="{Binding JogCommand}" CommandParameter="X+|Z+" />
-            <Button Classes="jog diag" Content="◲" Command="{Binding JogCommand}" CommandParameter="X-,Y-|Z-,A-" />
+            <Button Classes="jog diag" Content="◲" Command="{Binding JogCommand}" CommandParameter="X-,Y-|Z-,A-"
+                    IsVisible="{Binding ShowDiagonals}" />
             <Button Classes="jog" Content="Y-" Command="{Binding JogCommand}" CommandParameter="Y-|A-" />
-            <Button Classes="jog diag" Content="◱" Command="{Binding JogCommand}" CommandParameter="X+,Y-|Z+,A-" />
+            <Button Classes="jog diag" Content="◱" Command="{Binding JogCommand}" CommandParameter="X+,Y-|Z+,A-"
+                    IsVisible="{Binding ShowDiagonals}" />
         </UniformGrid>
 
         <!-- Foam only: together padlock + independent ZA cross -->
@@ -81,22 +85,22 @@
                       ToolTip.Tip="Synchronize both gantries" Padding="2,0" MinHeight="18" />
             <UniformGrid Rows="3" Columns="3">
                 <Button Classes="jog diag" Content="◰" Command="{Binding JogCommand}" CommandParameter="Z-,A+"
-                        IsEnabled="{Binding ZaCrossEnabled}" />
+                        IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
                 <Button Classes="jog" Content="A+" Command="{Binding JogCommand}" CommandParameter="A+"
                         IsEnabled="{Binding ZaCrossEnabled}" />
                 <Button Classes="jog diag" Content="◳" Command="{Binding JogCommand}" CommandParameter="Z+,A+"
-                        IsEnabled="{Binding ZaCrossEnabled}" />
+                        IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
                 <Button Classes="jog" Content="Z-" Command="{Binding JogCommand}" CommandParameter="Z-"
                         IsEnabled="{Binding ZaCrossEnabled}" />
                 <Button Classes="jog" Content="•" IsEnabled="False" FontSize="11" />
                 <Button Classes="jog" Content="Z+" Command="{Binding JogCommand}" CommandParameter="Z+"
                         IsEnabled="{Binding ZaCrossEnabled}" />
                 <Button Classes="jog diag" Content="◲" Command="{Binding JogCommand}" CommandParameter="Z-,A-"
-                        IsEnabled="{Binding ZaCrossEnabled}" />
+                        IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
                 <Button Classes="jog" Content="A-" Command="{Binding JogCommand}" CommandParameter="A-"
                         IsEnabled="{Binding ZaCrossEnabled}" />
                 <Button Classes="jog diag" Content="◱" Command="{Binding JogCommand}" CommandParameter="Z+,A-"
-                        IsEnabled="{Binding ZaCrossEnabled}" />
+                        IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
             </UniformGrid>
         </StackPanel>
 

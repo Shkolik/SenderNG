@@ -108,3 +108,25 @@ public class JogConfigTests
         Assert.Equal(0, config.SpeedIndex); // -7 clamps to 0
     }
 }
+
+public class JogDiagonalsConfigTests
+{
+    [Fact]
+    public void Diagonals_roundtrip_per_mode()
+    {
+        var settings = new AppSettings { Mode = "Mill" };
+        _ = settings.Current;
+
+        var mill = JogConfigStore.Load(settings);
+        Assert.True(mill.Diagonals); // default on
+        mill.Diagonals = false;
+        JogConfigStore.Save(settings, mill);
+
+        settings.Mode = AppSettings.FoamMode;
+        Assert.True(JogConfigStore.Load(settings).Diagonals); // foam unaffected
+
+        JogConfigStore.Save(settings, JogConfigStore.Load(settings));
+        settings.Mode = AppSettings.MillMode;
+        Assert.False(JogConfigStore.Load(settings).Diagonals);
+    }
+}

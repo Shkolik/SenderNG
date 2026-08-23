@@ -8,6 +8,7 @@ public class JogConfig
     public double[] Speeds { get; set; } = [500.0, 1000.0, 2000.0, 3000.0];
     public int DistanceIndex { get; set; } = 1;
     public int SpeedIndex { get; set; } = 1;
+    public bool Diagonals { get; set; } = true;
 }
 
 // Reads/writes the "Jog" section of AppSettings.Modules:
@@ -38,6 +39,8 @@ public static class JogConfigStore
                     config.DistanceIndex = (int)di;
                 if (ReadDouble(entry, "SpeedIndex") is { } si)
                     config.SpeedIndex = (int)si;
+                if (ReadBool(entry, "Diagonals") is { } diag)
+                    config.Diagonals = diag;
             }
         }
 
@@ -60,6 +63,7 @@ public static class JogConfigStore
             ["Speeds"] = normalized.Speeds.ToList(),
             ["DistanceIndex"] = normalized.DistanceIndex,
             ["SpeedIndex"] = normalized.SpeedIndex,
+            ["Diagonals"] = normalized.Diagonals,
         };
         settings.Modules[SectionKey] = section;
     }
@@ -102,6 +106,9 @@ public static class JogConfigStore
 
     private static double? ReadDouble(IReadOnlyDictionary<string, object?> entry, string key) =>
         entry.TryGetValue(key, out var v) ? ToDouble(v) : null;
+
+    private static bool? ReadBool(IReadOnlyDictionary<string, object?> entry, string key) =>
+        entry.TryGetValue(key, out var v) && v is bool b ? b : null;
 
     private static List<double>? ReadArray(IReadOnlyDictionary<string, object?> entry, string key)
     {

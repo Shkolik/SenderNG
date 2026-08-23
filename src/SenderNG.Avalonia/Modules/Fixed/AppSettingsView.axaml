@@ -60,7 +60,15 @@
                             <StackPanel Spacing="4">
                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11" />
                                 <CheckBox Content="Visible" IsChecked="{Binding IsVisible, Mode=TwoWay}" />
-                                <ItemsControl ItemsSource="{Binding Fields}">
+                                <ItemsControl ItemsSource="{Binding BoolFields}" Margin="12,0,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:BoolSettingEntry">
+                                            <CheckBox Content="{Binding Label}" IsChecked="{Binding Value, Mode=TwoWay}"
+                                                      FontSize="11" Margin="0,2,0,0" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <ItemsControl ItemsSource="{Binding Fields}" Margin="12,0,0,0">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:NumericSettingEntry">
                                             <StackPanel Orientation="Horizontal" Margin="0,2,0,0">

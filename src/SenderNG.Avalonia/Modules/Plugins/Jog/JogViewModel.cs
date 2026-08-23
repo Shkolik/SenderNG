@@ -48,6 +48,8 @@ public class JogViewModel : ViewModelBase
     public bool IsFoam => _appSettings.Mode == AppSettings.FoamMode;
     public bool IsMill => !IsFoam;
 
+    public bool ShowDiagonals => Config.Diagonals;
+
     // Session-only padlock: while engaged the XY cross jogs both gantries mirrored.
     private bool _together;
     public bool Together
@@ -202,6 +204,7 @@ public class JogViewModel : ViewModelBase
         OnPropertyChanged(nameof(Config));
         OnPropertyChanged(nameof(IsFoam));
         OnPropertyChanged(nameof(IsMill));
+        OnPropertyChanged(nameof(ShowDiagonals));
         OnPropertyChanged(nameof(SelectedDistanceIndex));
         OnPropertyChanged(nameof(SelectedSpeedIndex));
         OnPropertyChanged(nameof(SelectedDistance));
