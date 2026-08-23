@@ -37,6 +37,9 @@ public static class HostSetup
         // survive demo/real swaps via Inner reassignment.
         builder.Services.AddSingleton<IGrblService>(sp =>
             new GrblServiceProxy(sp.GetRequiredService<DemoGrblService>()));
+        // Settings route through the proxy to whichever inner service is active.
+        builder.Services.AddSingleton<IGrblSettingsProvider>(sp =>
+            (IGrblSettingsProvider)sp.GetRequiredService<IGrblService>());
 
         // Built-in fixed modules (no assembly scan).
         RegisterModule(builder.Services, new Modules.Fixed.DroModule());

@@ -4,7 +4,7 @@ using CNC.Core.Abstractions;
 
 namespace CNC.Core.Services;
 
-public class RealGrblService : IGrblService
+public class RealGrblService : IGrblService, IGrblSettingsProvider
 {
     private readonly BehaviorSubject<MachineState> _subject;
     private SerialPort? _port;
@@ -85,6 +85,41 @@ public class RealGrblService : IGrblService
         }
 
         return Task.CompletedTask;
+    }
+
+    // $$ report: collect "$N=value" lines until the trailing "ok".
+    public Task<IReadOnlyList<string>> GetSettingLinesAsync()
+    {
+        if (!IsConnected || _port is not { IsOpen: true })
+            throw new InvalidOperationException("Not connected.");
+
+        var lines = new List<string>();
+        _port.WriteLine("$$");
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (DateTime.UtcNow < deadline)
+        {
+            string line;
+            try
+            {
+                line = _port.ReadLine();
+            }
+            catch (TimeoutException)
+            {
+                break;
+            }
+
+            line = line.Trim();
+            if (line.Length == 0)
+                continue;
+            if (line == "ok")
+                break;
+            if (line.StartsWith("error", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(line);
+            if (line.StartsWith('$'))
+                lines.Add(line);
+        }
+
+        return Task.FromResult<IReadOnlyList<string>>(lines);
     }
 
     private void ParseStatus(string response)

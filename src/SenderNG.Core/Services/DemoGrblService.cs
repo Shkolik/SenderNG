@@ -8,15 +8,56 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider
     private readonly BehaviorSubject<MachineState> _subject;
     private readonly object _lock = new();
     private int _distanceMode = 90; // modal G90/G91
-    private readonly Dictionary<int, string> _settings = CreateDefaultSettings();
+    private readonly string? _settingsFilePath;
+    private Dictionary<int, string> _settings;
 
     public bool IsConnected { get; private set; }
 
     public IObservable<MachineState> State => _subject;
 
-    public DemoGrblService(AppSettings settings)
+    public DemoGrblService(AppSettings settings, string? settingsFilePath = null)
     {
         _subject = new BehaviorSubject<MachineState>(new MachineState(settings.DemoAxes));
+        _settingsFilePath = settingsFilePath ??
+            Path.Combine(SettingsService.DefaultDir(), "grbl-settings-demo.txt");
+        _settings = LoadSettings(_settingsFilePath);
+    }
+
+    // Demo settings persist across sessions: defaults overlaid by $N=value lines from disk.
+    private static Dictionary<int, string> LoadSettings(string path)
+    {
+        var store = CreateDefaultSettings();
+        try
+        {
+            if (!File.Exists(path))
+                return store;
+            foreach (var line in File.ReadAllLines(path))
+            {
+                if (TryParseSetting(line.Trim(), out var number, out var value))
+                    store[number] = value;
+            }
+        }
+        catch
+        {
+            // Unreadable file falls back to defaults.
+        }
+        return store;
+    }
+
+    private void PersistSettings()
+    {
+        if (_settingsFilePath is null)
+            return;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_settingsFilePath)!);
+            File.WriteAllText(_settingsFilePath,
+                string.Join(Environment.NewLine, _settings.OrderBy(kv => kv.Key).Select(kv => $"${kv.Key}={kv.Value}")));
+        }
+        catch
+        {
+            // Best-effort persistence; demo keeps working in memory.
+        }
     }
 
     // Fresh state resets positions — acceptable when reconfiguring the machine.
@@ -110,6 +151,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider
             if (assign && TryParseSetting(trimmed, out var number, out var value))
             {
                 _settings[number] = value;
+                PersistSettings();
                 return Task.CompletedTask;
             }
 

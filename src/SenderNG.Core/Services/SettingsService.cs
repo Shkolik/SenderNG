@@ -9,10 +9,14 @@ public class SettingsService
 
     public SettingsService(string? dir = null)
     {
-        _dir = dir ?? (IsWritable(AppContext.BaseDirectory)
-            ? AppContext.BaseDirectory
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SenderNG"));
+        _dir = dir ?? DefaultDir();
     }
+
+    // Writable base dir for all persisted app files (settings, demo machine data).
+    public static string DefaultDir() =>
+        IsWritable(AppContext.BaseDirectory)
+            ? AppContext.BaseDirectory
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SenderNG");
 
     // All consumers share one AppSettings graph: the first Load() reads disk,
     // later calls return the same instance so per-module Saves never resurrect

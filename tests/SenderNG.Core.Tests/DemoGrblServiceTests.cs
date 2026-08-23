@@ -171,11 +171,20 @@ public class DemoGrblServiceSettingsTests
     [Fact]
     public async Task GetSettingLinesAsync_returns_defaults()
     {
-        var svc = new DemoGrblService(new AppSettings());
-        var lines = await svc.GetSettingLinesAsync();
-        Assert.Contains("$0=10", lines);
-        Assert.Contains("$13=0", lines);
-        Assert.Contains("$110=500.000", lines);
+        // Explicit empty temp dir: must not read the real app's persisted demo settings.
+        var file = Path.Combine(Path.GetTempPath(), "sng-test-" + Guid.NewGuid().ToString("N") + ".txt");
+        try
+        {
+            var svc = new DemoGrblService(new AppSettings(), file);
+            var lines = await svc.GetSettingLinesAsync();
+            Assert.Contains("$0=10", lines);
+            Assert.Contains("$13=0", lines);
+            Assert.Contains("$110=500.000", lines);
+        }
+        finally
+        {
+            if (File.Exists(file)) File.Delete(file);
+        }
     }
 
     [Fact]
@@ -202,5 +211,65 @@ public class DemoGrblServiceSettingsTests
 
         var st = await svc.State.FirstAsync();
         Assert.Equal(15, st.Positions[0]);
+    }
+}
+
+public class DemoGrblServiceSettingsFileTests
+{
+    [Fact]
+    public async Task Settings_persist_to_file_and_reload_in_new_instance()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "sng-test-" + Guid.NewGuid().ToString("N"));
+        var file = Path.Combine(dir, "grbl-settings-demo.txt");
+        try
+        {
+            var svc = new DemoGrblService(new AppSettings(), file);
+            await svc.ConnectAsync("demo");
+            await svc.SendAsync("$13=1");
+            await svc.SendAsync("$110=800.000");
+
+            Assert.True(File.Exists(file));
+
+            var reloaded = new DemoGrblService(new AppSettings(), file);
+            var lines = await reloaded.GetSettingLinesAsync();
+            Assert.Contains("$13=1", lines);
+            Assert.Contains("$110=800.000", lines);
+            Assert.Contains("$0=10", lines); // default still present
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+}
+
+public class GrblSettingsProxyRoutingTests
+{
+    [Fact]
+    public async Task Proxy_routes_settings_to_active_inner_service()
+    {
+        var demo = new DemoGrblService(new AppSettings());
+        IGrblSettingsProvider proxy = new GrblServiceProxy(demo);
+
+        var lines = await proxy.GetSettingLinesAsync();
+        Assert.Contains("$0=10", lines);
+    }
+
+    [Fact]
+    public async Task Proxy_throws_clear_error_when_inner_has_no_settings()
+    {
+        var bare = new BareGrblService();
+        IGrblSettingsProvider proxy = new GrblServiceProxy(bare);
+
+        await Assert.ThrowsAsync<NotSupportedException>(() => proxy.GetSettingLinesAsync());
+    }
+
+    private class BareGrblService : IGrblService
+    {
+        public bool IsConnected => false;
+        public IObservable<MachineState> State => Observable.Empty<MachineState>();
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public Task SendAsync(string line) => Task.CompletedTask;
     }
 }
