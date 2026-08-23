@@ -65,7 +65,7 @@ public class LayoutVisibilityTests
     public void CenterModules_excludes_Hidden()
     {
         var appSettings = new AppSettings();
-        appSettings.ModulesVisibility["gcode-console"] = false;
+        appSettings.Current.ModulesVisibility["gcode-console"] = false;
         var vm = CreateVMWithVisibility(appSettings);
         Assert.DoesNotContain(vm.CenterModules, m => m.Id == "gcode-console");
     }
@@ -95,7 +95,7 @@ public class LayoutVisibilityTests
     public void RightModules_excludes_Hidden()
     {
         var appSettings = new AppSettings();
-        appSettings.ModulesVisibility["jog"] = false;
+        appSettings.Current.ModulesVisibility["jog"] = false;
         var vm = CreateVMWithVisibility(appSettings);
         Assert.DoesNotContain(vm.RightModules, m => m.Id == "jog");
         Assert.Contains(vm.RightModules, m => m.Id == "grbl-settings");
@@ -133,7 +133,7 @@ public class LayoutVisibilityTests
     public void IsModuleVisible_respects_ModulesVisibility_override()
     {
         var appSettings = new AppSettings();
-        appSettings.ModulesVisibility["hidden-by-default"] = true;
+        appSettings.Current.ModulesVisibility["hidden-by-default"] = true;
         var mods = new IModule[] { new StubModule("hidden-by-default", PanelHint.Left, 99, visibleByDefault: false) };
         var vm = CreateVMWithVisibility(appSettings, mods);
         Assert.True(vm.IsModuleVisible(mods[0]));

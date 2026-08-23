@@ -8,6 +8,13 @@ namespace SenderNG.Core.Tests;
 
 public class MainViewModelTests
 {
+    private static AppSettings PortSettings(string port)
+    {
+        var s = new AppSettings();
+        s.Current.Port = port;
+        return s;
+    }
+
     private sealed class StubModule : IModule
     {
         public string Id => "stub";
@@ -176,7 +183,7 @@ public class MainViewModelTests
     public async Task ConnectCommand_sets_status_failed_and_does_not_throw_on_bad_port()
     {
         var settings = MakeSettings();
-        settings.Save(new AppSettings { Port = "nonexistent-port-xyz" });
+        settings.Save(PortSettings("nonexistent-port-xyz"));
         var vm = new MainViewModel(new RealGrblService(), settings, MakeProvider(settings));
 
         vm.ConnectCommand.Execute(null);

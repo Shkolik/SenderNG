@@ -26,7 +26,7 @@ public class DemoMachineSettingsViewModel : ViewModelBase, IClosableDialog
         _settings = settings;
         _demo = demo;
         _savedCallback = savedCallback;
-        _numAxes = Math.Clamp(settings.DemoAxes, MinAxes, GrblInfo.AxisLetters.Length);
+        _numAxes = Math.Clamp(settings.Current.DemoAxes, MinAxes, GrblInfo.AxisLetters.Length);
         _mode = settings.Mode == "Foam" ? "Foam" : "Mill";
 
         OkCommand = new DelegateCommand(_ => Save());
@@ -82,8 +82,9 @@ public class DemoMachineSettingsViewModel : ViewModelBase, IClosableDialog
         if (clamped != NumAxes)
             NumAxes = clamped;
 
-        _settings.DemoAxes = clamped;
+        // Mode first so the axes land in the newly selected mode's section.
         _settings.Mode = _mode;
+        _settings.Current.DemoAxes = clamped;
         _demo.SetNumAxes(clamped);
 
         RequestClose(true);

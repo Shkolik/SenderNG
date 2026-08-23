@@ -17,7 +17,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider
 
     public DemoGrblService(AppSettings settings, string? settingsFilePath = null)
     {
-        _subject = new BehaviorSubject<MachineState>(new MachineState(settings.DemoAxes));
+        _subject = new BehaviorSubject<MachineState>(new MachineState(settings.Current.DemoAxes));
         _settingsFilePath = settingsFilePath ??
             Path.Combine(SettingsService.DefaultDir(), "grbl-settings-demo.txt");
         _settings = LoadSettings(_settingsFilePath);

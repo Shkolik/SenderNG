@@ -7,10 +7,17 @@ namespace SenderNG.Core.Tests;
 
 public class DemoGrblServiceTests
 {
+    private static AppSettings SettingsFor(int demoAxes)
+    {
+        var s = new AppSettings();
+        s.Current.DemoAxes = demoAxes;
+        return s;
+    }
+
     [Fact]
     public async Task Demo_connects_and_returns_state()
     {
-        var svc = new DemoGrblService(new AppSettings { DemoAxes = 4 });
+        var svc = new DemoGrblService(SettingsFor(4));
         await svc.ConnectAsync("demo");
         Assert.True(svc.IsConnected);
         var st = await svc.State.FirstAsync();
@@ -36,7 +43,7 @@ public class DemoGrblServiceTests
     [Fact]
     public async Task Send_status_query_pushes_state()
     {
-        var svc = new DemoGrblService(new AppSettings { DemoAxes = 3 });
+        var svc = new DemoGrblService(SettingsFor(3));
         await svc.ConnectAsync("demo");
         MachineState? received = null;
         using var sub = svc.State.Subscribe(s => received = s);
@@ -49,7 +56,7 @@ public class DemoGrblServiceTests
     [Fact]
     public async Task Send_motion_line_updates_positions()
     {
-        var svc = new DemoGrblService(new AppSettings { DemoAxes = 3 });
+        var svc = new DemoGrblService(SettingsFor(3));
         await svc.ConnectAsync("demo");
         await svc.SendAsync("G0 X10 Y5 Z2");
         var st = await svc.State.FirstAsync();
@@ -61,7 +68,7 @@ public class DemoGrblServiceTests
     [Fact]
     public async Task Jog_command_applies_incremental_delta()
     {
-        var svc = new DemoGrblService(new AppSettings { DemoAxes = 3 });
+        var svc = new DemoGrblService(SettingsFor(3));
         await svc.ConnectAsync("demo");
         await svc.SendAsync("G0 X10 Y5 Z2");
 
@@ -76,7 +83,7 @@ public class DemoGrblServiceTests
     [Fact]
     public async Task Jog_without_explicit_mode_uses_modal_distance_mode()
     {
-        var svc = new DemoGrblService(new AppSettings { DemoAxes = 3 });
+        var svc = new DemoGrblService(SettingsFor(3));
         await svc.ConnectAsync("demo");
 
         // G91 sets incremental mode modally; subsequent plain move is relative.
@@ -96,7 +103,7 @@ public class DemoGrblServiceTests
     [Fact]
     public async Task Jog_supports_A_and_B_axes_when_present()
     {
-        var svc = new DemoGrblService(new AppSettings { DemoAxes = 5 });
+        var svc = new DemoGrblService(SettingsFor(5));
         await svc.ConnectAsync("demo");
 
         await svc.SendAsync("$J=G91 G0 A1 B-1 F500");
@@ -109,7 +116,7 @@ public class DemoGrblServiceTests
     [Fact]
     public async Task Jog_ignores_axes_beyond_NumAxes()
     {
-        var svc = new DemoGrblService(new AppSettings { DemoAxes = 3 });
+        var svc = new DemoGrblService(SettingsFor(3));
         await svc.ConnectAsync("demo");
 
         await svc.SendAsync("$J=G91 G0 X1 A5 B7 F500");
@@ -124,7 +131,7 @@ public class DemoGrblServiceTests
     [Fact]
     public async Task Absolute_G1_move_still_sets_absolute_positions()
     {
-        var svc = new DemoGrblService(new AppSettings { DemoAxes = 3 });
+        var svc = new DemoGrblService(SettingsFor(3));
         await svc.ConnectAsync("demo");
 
         await svc.SendAsync("G1 X4 Y4 F200");
@@ -137,10 +144,17 @@ public class DemoGrblServiceTests
 
 public class DemoGrblServiceG92Tests
 {
+    private static AppSettings SettingsFor(int demoAxes)
+    {
+        var s = new AppSettings();
+        s.Current.DemoAxes = demoAxes;
+        return s;
+    }
+
     [Fact]
     public async Task G92_zeroes_listed_axes_only()
     {
-        var svc = new DemoGrblService(new AppSettings { DemoAxes = 3 });
+        var svc = new DemoGrblService(SettingsFor(3));
         await svc.ConnectAsync("demo");
         await svc.SendAsync("G1 X10 Y20 Z30");
 
@@ -155,7 +169,7 @@ public class DemoGrblServiceG92Tests
     [Fact]
     public async Task G92_sets_axis_to_given_value()
     {
-        var svc = new DemoGrblService(new AppSettings { DemoAxes = 3 });
+        var svc = new DemoGrblService(SettingsFor(3));
         await svc.ConnectAsync("demo");
         await svc.SendAsync("G1 X50");
 
