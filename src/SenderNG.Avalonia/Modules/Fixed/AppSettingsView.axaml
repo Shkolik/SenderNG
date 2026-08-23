@@ -1,0 +1,77 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:CNC.Core.ViewModels;assembly=SenderNG.Core"
+             mc:Ignorable="d" d:DesignWidth="480" d:DesignHeight="420"
+             x:Class="SenderNG.Avalonia.Modules.Fixed.AppSettingsView"
+             x:DataType="vm:AppSettingsViewModel">
+
+    <UserControl.Styles>
+        <!-- Mode buttons: RadioButtons templated as flat buttons; checked swaps bg/border. -->
+        <Style Selector="RadioButton.mode">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border x:Name="Root" CornerRadius="0" BorderThickness="1"
+                            Padding="10,8" Background="#eee" BorderBrush="#999">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <ContentPresenter Content="{TemplateBinding Content}" />
+                        </StackPanel>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="RadioButton.mode:checked /template/ Border#Root">
+            <Setter Property="Background" Value="#ddd" />
+            <Setter Property="BorderBrush" Value="#666" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Width="480" Padding="12" Background="#f6f6f6">
+        <StackPanel Spacing="8">
+            <TextBlock Text="Select a mode" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <RadioButton Classes="mode" GroupName="Mode"
+                             IsChecked="{Binding IsMill, Mode=TwoWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <!-- End mill outline -->
+                        <PathIcon Data="M4 12 L4 6 L8 6 L8 3 L12 3 L12 6 L16 6 L16 12 Z M10 12 L10 18"
+                                  Width="16" Height="16" Foreground="Black" VerticalAlignment="Center" />
+                        <TextBlock Text="Mill" VerticalAlignment="Center" />
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton Classes="mode" GroupName="Mode"
+                             IsChecked="{Binding IsFoam, Mode=TwoWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <!-- Hot wire over foam block outline -->
+                        <PathIcon Data="M3 14 L17 14 M5 18 L15 18 M3 14 L5 18 M15 18 L17 14 M6 14 L10 4 L10 14"
+                                  Width="16" Height="16" Foreground="Black" VerticalAlignment="Center" />
+                        <TextBlock Text="Foam CNC" VerticalAlignment="Center" />
+                    </StackPanel>
+                </RadioButton>
+            </StackPanel>
+
+            <TextBlock Text="Modules" FontWeight="SemiBold" Margin="0,8,0,0" />
+            <ItemsControl ItemsSource="{Binding ModuleSections}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ModuleSettingsEntry">
+                        <Border CornerRadius="0" BorderBrush="#aaa" BorderThickness="1"
+                                Background="#fafafa" Margin="0,0,0,8" Padding="8,6">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11" />
+                                <CheckBox Content="Visible" IsChecked="{Binding IsVisible, Mode=TwoWay}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,8,0,0">
+                <Button Content="Close" Command="{Binding CloseCommand}"
+                        Height="28" MinHeight="28" CornerRadius="0"
+                        Background="#eee" BorderBrush="#999" BorderThickness="1"
+                        Padding="12,0" VerticalContentAlignment="Center" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

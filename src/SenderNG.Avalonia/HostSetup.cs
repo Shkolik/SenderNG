@@ -28,6 +28,7 @@ public static class HostSetup
             vm => vm switch
             {
                 CNC.Core.ViewModels.DemoMachineSettingsViewModel v => new Views.DemoMachineSettingsView { DataContext = v },
+                CNC.Core.ViewModels.AppSettingsViewModel v => new Modules.Fixed.AppSettingsView { DataContext = v },
                 Modules.Fixed.GrblSettingsViewModel v => new Modules.Fixed.GrblSettingsView { DataContext = v },
                 _ => throw new NotSupportedException($"No view registered for {vm.GetType().Name}")
             });
@@ -47,6 +48,7 @@ public static class HostSetup
         RegisterModule(builder.Services, new Modules.Fixed.ProgramModule());
         RegisterModule(builder.Services, new Modules.Fixed.ConsoleModule());
         RegisterModule(builder.Services, new Modules.Fixed.GrblSettingsModule());
+        RegisterModule(builder.Services, new Modules.Fixed.AppSettingsModule());
 
         // Plugin modules (jog / cutting / coolant / macro).
         RegisterModule(builder.Services, new Modules.Plugins.JogModule());

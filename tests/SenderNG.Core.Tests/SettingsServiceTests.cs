@@ -13,7 +13,7 @@ public class SettingsServiceTests
         var s = new SettingsService(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()));
         var a = s.Load();
         Assert.NotNull(a);
-        Assert.Equal(3, a.DemoAxes);
+        Assert.Equal(3, a.Current.DemoAxes);
     }
 
     [Fact]
@@ -22,7 +22,8 @@ public class SettingsServiceTests
         var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(tmp);
         var svc = new SettingsService(tmp);
-        var a = new AppSettings { DemoAxes = 5 };
+        var a = new AppSettings();
+        a.Current.DemoAxes = 5;
         svc.Save(a);
         Assert.True(File.Exists(Path.Combine(tmp, "settings.json")));
     }
@@ -33,10 +34,14 @@ public class SettingsServiceTests
         var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(tmp);
         var svc = new SettingsService(tmp);
-        svc.Save(new AppSettings { DemoAxes = 4, Mode = "Laser" });
+        var saved = new AppSettings { Mode = "Foam" };
+        saved.Current.DemoAxes = 4;
+        saved.Current.Port = "COM9";
+        svc.Save(saved);
         var loaded = svc.Load();
-        Assert.Equal(4, loaded.DemoAxes);
-        Assert.Equal("Laser", loaded.Mode);
+        Assert.Equal("Foam", loaded.Mode);
+        Assert.Equal(4, loaded.Current.DemoAxes);
+        Assert.Equal("COM9", loaded.Current.Port);
     }
 
     [Fact]
@@ -60,7 +65,8 @@ public class SettingsServiceTests
         var svc = new SettingsService(tmp);
 
         var cached = svc.Load();
-        var replacement = new AppSettings { DemoAxes = 5 };
+        var replacement = new AppSettings();
+        replacement.Current.DemoAxes = 5;
         svc.Save(replacement);
 
         Assert.Same(replacement, svc.Load());

@@ -26,6 +26,8 @@ public sealed class AxisSignal : ViewModelBase
 
 public sealed record CenterTab(IModule Module, object? View);
 
+public sealed record MenuEntry(string Header, ICommand Command, object? Parameter);
+
 public class MainViewModel : ViewModelBase
 {
     private readonly IServiceProvider _services;
@@ -83,7 +85,7 @@ public class MainViewModel : ViewModelBase
 
         // Seed dynamic signals from initial state (DemoAxes) so UI shows X0 Y0 without connecting
         // Use settings DemoAxes as fallback; live State subscription will correct it immediately if BehaviourSubject replays
-        var seedAxes = _settingsService.Load().DemoAxes;
+        var seedAxes = _settingsService.Load().Current.DemoAxes;
         seedAxes = Math.Min(seedAxes, CNC.Core.GrblInfo.AxisLetters.Length);
         seedAxes = Math.Max(1, seedAxes);
         for (var i = 0; i < seedAxes; i++)
@@ -114,7 +116,6 @@ public class MainViewModel : ViewModelBase
         MachineSettingsCommand = new DelegateCommand(_ => Status = "Machine settings (placeholder)");
         DemoMachineSettingsCommand = new DelegateCommand(_ => _ = ShowDemoMachineSettingsAsync());
         OpenMenuModuleCommand = new DelegateCommand(p => _ = OpenMenuModuleAsync(p as IModule));
-        AppSettingsCommand = new DelegateCommand(_ => Status = "App settings (placeholder)");
         AboutCommand = new DelegateCommand(_ => Status = "SenderNG — About (placeholder)");
         LibrariesCommand = new DelegateCommand(_ => Status = "Libraries (placeholder)");
         _mdiHistoryIndex = MdiHistory.Count;
@@ -143,7 +144,10 @@ public class MainViewModel : ViewModelBase
             if (SetField(ref _grbl, value))
             {
                 _stateSubscription?.Dispose();
-                _stateSubscription = _grbl.State.Subscribe(s => ApplyState(s));
+        _stateSubscription = _grbl.State.Subscribe(s => ApplyState(s));
+
+        // Live-apply visibility/mode changes: AppSettings dialog saves -> Changed fires.
+        _settingsService.Changed += OnSettingsChanged;
             }
         }
     }
@@ -199,7 +203,7 @@ public class MainViewModel : ViewModelBase
     public ObservableCollection<IModule> Modules { get; } = new();
 
     public bool IsModuleVisible(IModule m) =>
-        _settingsService.Load().ModulesVisibility.TryGetValue(m.Id, out var v) ? v : m.IsVisibleByDefault;
+        _settingsService.Load().Current.ModulesVisibility.TryGetValue(m.Id, out var v) ? v : m.IsVisibleByDefault;
 
     public IEnumerable<IModule> LeftModules =>
         Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Left).OrderBy(m => m.Order);
@@ -216,7 +220,13 @@ public class MainViewModel : ViewModelBase
     public IEnumerable<IModule> MenuModules =>
         Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Menu).OrderBy(m => m.Order);
 
-    public IModule? FirstMenuModule => MenuModules.FirstOrDefault();
+    /// <summary>Settings menu entries: fixed items plus one per Menu-claiming module.</summary>
+    public IReadOnlyList<MenuEntry> SettingsMenu =>
+        [
+            new MenuEntry("Machine", MachineSettingsCommand, null),
+            new MenuEntry("Demo machine", DemoMachineSettingsCommand, null),
+            ..MenuModules.Select(m => new MenuEntry(m.Name, OpenMenuModuleCommand, m)),
+        ];
 
     private bool _hasProgramLimits;
 
@@ -303,8 +313,6 @@ public class MainViewModel : ViewModelBase
     public ICommand DemoMachineSettingsCommand { get; }
 
     public DelegateCommand OpenMenuModuleCommand { get; }
-
-    public ICommand AppSettingsCommand { get; }
 
     public ICommand AboutCommand { get; }
 
@@ -511,7 +519,19 @@ public class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(RightModules));
         OnPropertyChanged(nameof(FlyoutModules));
         OnPropertyChanged(nameof(MenuModules));
-        OnPropertyChanged(nameof(FirstMenuModule));
+        OnPropertyChanged(nameof(SettingsMenu));
+        OnPropertyChanged(nameof(CenterTabs));
+    }
+
+    // Raised when any consumer saves settings: visibility toggles and mode
+    // switches from the App Settings dialog apply live.
+    private void OnSettingsChanged()
+    {
+        OnPropertyChanged(nameof(LeftModules));
+        OnPropertyChanged(nameof(RightModules));
+        OnPropertyChanged(nameof(FlyoutModules));
+        OnPropertyChanged(nameof(MenuModules));
+        OnPropertyChanged(nameof(SettingsMenu));
         OnPropertyChanged(nameof(CenterTabs));
     }
 
@@ -576,7 +596,7 @@ public class MainViewModel : ViewModelBase
     {
         try
         {
-            var port = _settingsService.Load().Port;
+            var port = _settingsService.Load().Current.Port;
             if (port == "auto" && _comPorts is not null)
             {
                 var ports = _comPorts?.GetPorts() ?? [];

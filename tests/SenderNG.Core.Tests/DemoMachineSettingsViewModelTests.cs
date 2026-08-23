@@ -7,6 +7,15 @@ namespace SenderNG.Core.Tests;
 
 public class DemoMachineSettingsViewModelTests
 {
+    private static AppSettings SettingsWithAxes(int demoAxes, string mode = "Mill")
+    {
+        var s = new AppSettings { Mode = mode };
+        s.Current.DemoAxes = demoAxes;
+        return s;
+    }
+
+    private static AppSettings SettingsWithMode(string mode) => new() { Mode = mode };
+
     [Theory]
     [InlineData(0, 1)]
     [InlineData(-3, 1)]
@@ -19,14 +28,14 @@ public class DemoMachineSettingsViewModelTests
 
         vm.OkCommand.Execute(null);
 
-        Assert.Equal(expected, settings.DemoAxes);
+        Assert.Equal(expected, settings.Current.DemoAxes);
         Assert.Equal(expected, vm.NumAxes);
     }
 
     [Fact]
     public void Ok_saves_settings_and_applies_to_demo_service()
     {
-        var settings = new AppSettings { DemoAxes = 3 };
+        var settings = SettingsWithAxes(3);
         var demo = new DemoGrblService(settings);
         MachineState? received = null;
         using var sub = demo.State.Subscribe(s => received = s);
@@ -38,7 +47,7 @@ public class DemoMachineSettingsViewModelTests
 
         vm.OkCommand.Execute(null);
 
-        Assert.Equal(5, settings.DemoAxes);
+        Assert.Equal(5, settings.Current.DemoAxes);
         Assert.Equal("Foam", settings.Mode);
         Assert.NotNull(received);
         Assert.Equal(5, received.NumAxes);
@@ -60,7 +69,7 @@ public class DemoMachineSettingsViewModelTests
     [Fact]
     public void Cancel_does_not_save_or_apply()
     {
-        var settings = new AppSettings { DemoAxes = 3, Mode = "Mill" };
+        var settings = SettingsWithAxes(3, "Mill");
         var demo = new DemoGrblService(settings);
         var pushes = 0;
         using var sub = demo.State.Subscribe(_ => pushes++);
@@ -72,7 +81,7 @@ public class DemoMachineSettingsViewModelTests
         vm.IsFoam = true;
         vm.CancelCommand.Execute(null);
 
-        Assert.Equal(3, settings.DemoAxes);
+        Assert.Equal(3, settings.Current.DemoAxes);
         Assert.Equal("Mill", settings.Mode);
         Assert.False(settings.Mode == "Foam");
         Assert.Equal(1, pushes);
@@ -82,7 +91,7 @@ public class DemoMachineSettingsViewModelTests
     [Fact]
     public void Mode_radios_are_mutually_exclusive()
     {
-        var settings = new AppSettings { Mode = "Mill" };
+        var settings = SettingsWithMode("Mill");
         var demo = new DemoGrblService(settings);
         var vm = new DemoMachineSettingsViewModel(settings, demo);
 

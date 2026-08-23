@@ -7,6 +7,9 @@ public class SettingsService
     private readonly string _dir;
     private AppSettings? _current;
 
+    /// <summary>Raised at the end of every Save so UI can re-read live visibility/mode state.</summary>
+    public event System.Action? Changed;
+
     public SettingsService(string? dir = null)
     {
         _dir = dir ?? DefaultDir();
@@ -30,6 +33,20 @@ public class SettingsService
         _current = File.Exists(p)
             ? JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(p)) ?? new AppSettings()
             : new AppSettings();
+
+        // Legacy flat settings.json (no per-mode sections): seed Mill with the
+        // user's existing values and give Foam fresh defaults.
+        if (_current.Modes.Count == 0)
+        {
+            _current.Modes[AppSettings.MillMode] = new ModeSettings
+            {
+                DemoAxes = _current.DemoAxes,
+                Port = _current.Port,
+                ModulesVisibility = _current.ModulesVisibility,
+            };
+            _current.Modes[AppSettings.FoamMode] = new ModeSettings();
+        }
+
         return _current;
     }
 
@@ -39,6 +56,7 @@ public class SettingsService
         Directory.CreateDirectory(_dir);
         File.WriteAllText(Path.Combine(_dir, "settings.json"),
             JsonSerializer.Serialize(s, new JsonSerializerOptions { WriteIndented = true }));
+        Changed?.Invoke();
     }
 
     static bool IsWritable(string d)
