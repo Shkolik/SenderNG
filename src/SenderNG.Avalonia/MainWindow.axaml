@@ -32,11 +32,13 @@
                     <MenuItem Header="_File">
                         <MenuItem Header="_Open" Command="{Binding OpenFileCommand}" />
                         <MenuItem Header="_Recent" ItemsSource="{Binding RecentFiles}">
-                            <MenuItem.ItemTemplate>
-                                <DataTemplate>
-                                    <MenuItem Header="{Binding}" Command="{Binding $parent[Window].DataContext.SelectRecentCommand}" CommandParameter="{Binding}" />
-                                </DataTemplate>
-                            </MenuItem.ItemTemplate>
+                            <MenuItem.ItemContainerTheme>
+                                <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Header" Value="{Binding}" />
+                                    <Setter Property="Command" Value="{Binding $parent[Window].DataContext.SelectRecentCommand}" />
+                                    <Setter Property="CommandParameter" Value="{Binding}" />
+                                </ControlTheme>
+                            </MenuItem.ItemContainerTheme>
                         </MenuItem>
                         <Separator />
                         <MenuItem Header="_Connect" Command="{Binding ConnectCommand}" />
@@ -44,12 +46,14 @@
                         <Separator />
                         <MenuItem Header="E_xit" Command="{Binding $parent[Window].Close}" />
                     </MenuItem>
-                    <MenuItem Header="_Settings" ItemsSource="{Binding SettingsMenu}">
-                        <MenuItem.ItemTemplate>
-                            <DataTemplate x:DataType="vm:MenuEntry">
-                                <MenuItem Header="{Binding Header}" Command="{Binding Command}" CommandParameter="{Binding Parameter}" />
-                            </DataTemplate>
-                        </MenuItem.ItemTemplate>
+                    <MenuItem Header="_Settings" ItemsSource="{Binding SettingsMenu}" x:CompileBindings="False">
+                        <MenuItem.ItemContainerTheme>
+                            <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                <Setter Property="Header" Value="{Binding Header}" />
+                                <Setter Property="Command" Value="{Binding Command}" />
+                                <Setter Property="CommandParameter" Value="{Binding Parameter}" />
+                            </ControlTheme>
+                        </MenuItem.ItemContainerTheme>
                     </MenuItem>
                     <MenuItem Header="_Help">
                         <MenuItem Header="_About" Command="{Binding AboutCommand}" />
@@ -252,16 +256,16 @@
             <Border Background="White" BorderBrush="#aaa" BorderThickness="1,0,0,0" HorizontalAlignment="Stretch" Margin="0,0,0,0">
                 <ScrollViewer HorizontalAlignment="Stretch" Margin="0,0,0,0">
                     <StackPanel Spacing="2" Margin="4" HorizontalAlignment="Stretch">
-                        <ItemsControl ItemsSource="{Binding RightModules}" HorizontalAlignment="Stretch">
+                        <ItemsControl ItemsSource="{Binding RightModuleViews}" HorizontalAlignment="Stretch">
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="m:IModule">
+                                <DataTemplate x:DataType="vm:ModuleView">
                                     <Expander IsExpanded="True" CornerRadius="0" Background="White"
                                               BorderBrush="#aaa" BorderThickness="1" Margin="0,2" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                         <Expander.Header>
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11" />
+                                            <TextBlock Text="{Binding Module.Name}" FontWeight="SemiBold" FontSize="11" />
                                         </Expander.Header>
-                                        <Border Padding="6" HorizontalAlignment="Stretch">
-                                            <TextBlock Text="{Binding Name, StringFormat='{}{0} content — placeholder'}" Foreground="#888" FontSize="11" />
+                                        <Border Padding="4" HorizontalAlignment="Stretch">
+                                            <ContentControl Content="{Binding View}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" />
                                         </Border>
                                     </Expander>
                                 </DataTemplate>
