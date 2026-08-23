@@ -32,6 +32,7 @@ public class MainViewModel : ViewModelBase
     private readonly SettingsService _settingsService;
     private readonly IComPortService? _comPorts;
     private readonly IFileDialogService? _fileDialogs;
+    private readonly IDialogService? _dialogs;
     private readonly Func<IModule, object>? _viewFactory;
     private bool _isDemo;
     private IGrblService _grbl;
@@ -53,7 +54,8 @@ public class MainViewModel : ViewModelBase
         IEnumerable<IModule>? modules = null,
         IComPortService? comPorts = null,
         Func<IModule, object>? viewFactory = null,
-        IFileDialogService? fileDialogs = null)
+        IFileDialogService? fileDialogs = null,
+        IDialogService? dialogs = null)
     {
         ArgumentNullException.ThrowIfNull(grbl);
         ArgumentNullException.ThrowIfNull(settings);
@@ -65,6 +67,7 @@ public class MainViewModel : ViewModelBase
         _services = services;
         _comPorts = comPorts;
         _fileDialogs = fileDialogs;
+        _dialogs = dialogs;
         _viewFactory = viewFactory;
         _isDemo = ResolveInner(grbl) is DemoGrblService;
 
@@ -104,6 +107,7 @@ public class MainViewModel : ViewModelBase
         MdiHistoryNextCommand = new DelegateCommand(_ => MdiHistoryNext());
         // placeholder Help/Settings delegates keep Status
         MachineSettingsCommand = new DelegateCommand(_ => Status = "Machine settings (placeholder)");
+        DemoMachineSettingsCommand = new DelegateCommand(_ => _ = ShowDemoMachineSettingsAsync());
         AppSettingsCommand = new DelegateCommand(_ => Status = "App settings (placeholder)");
         AboutCommand = new DelegateCommand(_ => Status = "SenderNG — About (placeholder)");
         LibrariesCommand = new DelegateCommand(_ => Status = "Libraries (placeholder)");
@@ -237,6 +241,8 @@ public class MainViewModel : ViewModelBase
 
     public ICommand MachineSettingsCommand { get; }
 
+    public ICommand DemoMachineSettingsCommand { get; }
+
     public ICommand AppSettingsCommand { get; }
 
     public ICommand AboutCommand { get; }
@@ -356,6 +362,22 @@ public class MainViewModel : ViewModelBase
             if (_fileDialogs is not null)
                 await _fileDialogs.ShowErrorAsync("Open failed", ex.Message);
         }
+    }
+
+    private async Task ShowDemoMachineSettingsAsync()
+    {
+        if (_dialogs is null)
+        {
+            Status = "Demo machine settings: no dialog service available";
+            return;
+        }
+
+        var vm = new CNC.Core.ViewModels.DemoMachineSettingsViewModel(
+            _settingsService.Load(),
+            _services.GetRequiredService<DemoGrblService>());
+        var result = await _dialogs.ShowDialogAsync("Demo machine", vm);
+        if (result == true)
+            Status = "Demo machine settings updated";
     }
 
     private void Disconnect()

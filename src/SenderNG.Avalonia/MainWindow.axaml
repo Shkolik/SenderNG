@@ -46,6 +46,7 @@
                     </MenuItem>
                     <MenuItem Header="_Settings">
                         <MenuItem Header="_Machine" Command="{Binding MachineSettingsCommand}" />
+                        <MenuItem Header="_Demo machine" Command="{Binding DemoMachineSettingsCommand}" />
                         <MenuItem Header="_App settings" Command="{Binding AppSettingsCommand}" />
                     </MenuItem>
                     <MenuItem Header="_Help">
