@@ -3,46 +3,119 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
-             mc:Ignorable="d" d:DesignWidth="420" d:DesignHeight="360"
+             mc:Ignorable="d" d:DesignWidth="420" d:DesignHeight="220"
              x:Class="SenderNG.Avalonia.Modules.Plugins.JogView"
              x:DataType="vm:JogViewModel">
 
-    <StackPanel Margin="8">
-        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
-            <TextBlock Text="Step:" VerticalAlignment="Center" FontSize="11" Foreground="#333" />
-            <ComboBox ItemsSource="{Binding StepDistances}"
-                      SelectedIndex="{Binding SelectedStepIndex}" MinWidth="80" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-            <TextBlock Text="XY F:" VerticalAlignment="Center" FontSize="11" Foreground="#333" />
-            <TextBox Text="{Binding XySpeed}" MinWidth="70" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-            <TextBlock Text="Z F:" VerticalAlignment="Center" FontSize="11" Foreground="#333" />
-            <TextBox Text="{Binding ZSpeed}" MinWidth="70" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+    <UserControl.Styles>
+        <Style Selector="Button.jog">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Margin" Value="1" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Background" Value="#eee" />
+            <Setter Property="BorderBrush" Value="#999" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.jog.diag">
+            <Setter Property="FontSize" Value="16" />
+        </Style>
+        <Style Selector="RadioButton.option">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Margin" Value="0,1,0,0" />
+        </Style>
+        <Style Selector="TextBlock.caption">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#333" />
+        </Style>
+        <Style Selector="TextBlock.unit">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="#666" />
+            <Setter Property="Margin" Value="14,0,0,0" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Orientation="Horizontal" Margin="8" Spacing="8">
+
+        <!-- Selectors -->
+        <StackPanel Width="70">
+            <TextBlock Classes="caption" Text="Distance" />
+            <StackPanel Margin="0,2,0,0">
+                <RadioButton Classes="option" GroupName="Dist" Content="{Binding Config.Distances[0]}" IsChecked="{Binding IsDistance0}" />
+                <RadioButton Classes="option" GroupName="Dist" Content="{Binding Config.Distances[1]}" IsChecked="{Binding IsDistance1}" />
+                <RadioButton Classes="option" GroupName="Dist" Content="{Binding Config.Distances[2]}" IsChecked="{Binding IsDistance2}" />
+                <RadioButton Classes="option" GroupName="Dist" Content="{Binding Config.Distances[3]}" IsChecked="{Binding IsDistance3}" />
+                <TextBlock Classes="unit" Text="mm" />
+            </StackPanel>
+            <TextBlock Classes="caption" Text="Speed" Margin="0,6,0,0" />
+            <StackPanel Margin="0,2,0,0">
+                <RadioButton Classes="option" GroupName="Spd" Content="{Binding Config.Speeds[0]}" IsChecked="{Binding IsSpeed0}" />
+                <RadioButton Classes="option" GroupName="Spd" Content="{Binding Config.Speeds[1]}" IsChecked="{Binding IsSpeed1}" />
+                <RadioButton Classes="option" GroupName="Spd" Content="{Binding Config.Speeds[2]}" IsChecked="{Binding IsSpeed2}" />
+                <RadioButton Classes="option" GroupName="Spd" Content="{Binding Config.Speeds[3]}" IsChecked="{Binding IsSpeed3}" />
+                <TextBlock Classes="unit" Text="mm/min" />
+            </StackPanel>
         </StackPanel>
 
-        <UniformGrid Rows="3" Columns="3" Margin="0,0,0,8">
-            <Button Content="NW ↖" Command="{Binding JogXYNwSeCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
-            <Button Content="Y+" Command="{Binding JogYPlusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
-            <Button Content="NE ↗" Command="{Binding JogXYSwNECommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
-            <Button Content="X−" Command="{Binding JogXMinusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
-            <Button Content="•" IsEnabled="False" Margin="2" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-            <Button Content="X+" Command="{Binding JogXPlusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
-            <Button Content="SW ↙" Command="{Binding JogXYNEswCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
-            <Button Content="Y−" Command="{Binding JogYMinusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
-            <Button Content="SE ↘" Command="{Binding JogXYSeNwCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
+        <!-- XY cross (both modes); in Foam+Together it jogs both gantries mirrored -->
+        <UniformGrid Rows="3" Columns="3">
+            <Button Classes="jog diag" Content="◰" Command="{Binding JogCommand}" CommandParameter="X-,Y+|Z-,A+" />
+            <Button Classes="jog" Content="Y+" Command="{Binding JogCommand}" CommandParameter="Y+|A+" />
+            <Button Classes="jog diag" Content="◳" Command="{Binding JogCommand}" CommandParameter="X+,Y+|Z+,A+" />
+            <Button Classes="jog" Content="X-" Command="{Binding JogCommand}" CommandParameter="X-|Z-" />
+            <Button Classes="jog" Content="Stop" Background="#e04545" BorderBrush="#b03535" Foreground="White" FontSize="11"
+                    Command="{Binding StopCommand}" ToolTip.Tip="Feed hold" />
+            <Button Classes="jog" Content="X+" Command="{Binding JogCommand}" CommandParameter="X+|Z+" />
+            <Button Classes="jog diag" Content="◲" Command="{Binding JogCommand}" CommandParameter="X-,Y-|Z-,A-" />
+            <Button Classes="jog" Content="Y-" Command="{Binding JogCommand}" CommandParameter="Y-|A-" />
+            <Button Classes="jog diag" Content="◱" Command="{Binding JogCommand}" CommandParameter="X+,Y-|Z+,A-" />
         </UniformGrid>
 
-        <UniformGrid Rows="1" Columns="4" Margin="0,0,0,8">
-            <Button Content="Z+" Command="{Binding JogZPlusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
-            <Button Content="Z−" Command="{Binding JogZMinusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
-            <Button Content="B+" Command="{Binding JogBPlusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
-            <Button Content="B−" Command="{Binding JogBMinusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
-        </UniformGrid>
+        <!-- Foam only: together padlock + independent ZA cross -->
+        <StackPanel IsVisible="{Binding IsFoam}" Spacing="2">
+            <CheckBox IsChecked="{Binding Together}" HorizontalAlignment="Center"
+                      ToolTip.Tip="Synchronize both gantries" Padding="2,0" MinHeight="18" />
+            <UniformGrid Rows="3" Columns="3">
+                <Button Classes="jog diag" Content="◰" Command="{Binding JogCommand}" CommandParameter="Z-,A+"
+                        IsEnabled="{Binding ZaCrossEnabled}" />
+                <Button Classes="jog" Content="A+" Command="{Binding JogCommand}" CommandParameter="A+"
+                        IsEnabled="{Binding ZaCrossEnabled}" />
+                <Button Classes="jog diag" Content="◳" Command="{Binding JogCommand}" CommandParameter="Z+,A+"
+                        IsEnabled="{Binding ZaCrossEnabled}" />
+                <Button Classes="jog" Content="Z-" Command="{Binding JogCommand}" CommandParameter="Z-"
+                        IsEnabled="{Binding ZaCrossEnabled}" />
+                <Button Classes="jog" Content="•" IsEnabled="False" FontSize="11" />
+                <Button Classes="jog" Content="Z+" Command="{Binding JogCommand}" CommandParameter="Z+"
+                        IsEnabled="{Binding ZaCrossEnabled}" />
+                <Button Classes="jog diag" Content="◲" Command="{Binding JogCommand}" CommandParameter="Z-,A-"
+                        IsEnabled="{Binding ZaCrossEnabled}" />
+                <Button Classes="jog" Content="A-" Command="{Binding JogCommand}" CommandParameter="A-"
+                        IsEnabled="{Binding ZaCrossEnabled}" />
+                <Button Classes="jog diag" Content="◱" Command="{Binding JogCommand}" CommandParameter="Z+,A-"
+                        IsEnabled="{Binding ZaCrossEnabled}" />
+            </UniformGrid>
+        </StackPanel>
 
-        <CheckBox IsChecked="{Binding PadlockEngaged}"
-                  Content="Padlock Z↔A (Foam)" Margin="0,0,0,8" CornerRadius="0" />
+        <!-- Mill only: linear rows for axes beyond X/Y -->
+        <ItemsControl IsVisible="{Binding !IsFoam}" ItemsSource="{Binding LinearAxisLetters}"
+                      VerticalAlignment="Top" Margin="6,0,0,0">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:LinearAxisRow">
+                    <StackPanel Orientation="Horizontal" Margin="0,1,0,0">
+                        <TextBlock Text="{Binding Letter}" Width="16" VerticalAlignment="Center"
+                                   HorizontalAlignment="Center" FontWeight="SemiBold" FontSize="11" />
+                        <Button Classes="jog" Width="30" Content="+" Command="{Binding $parent[UserControl].DataContext.JogCommand}"
+                                CommandParameter="{Binding PlusTag}" />
+                        <Button Classes="jog" Width="30" Content="-" Command="{Binding $parent[UserControl].DataContext.JogCommand}"
+                                CommandParameter="{Binding MinusTag}" />
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
 
-        <UniformGrid Rows="1" Columns="2">
-            <Button Content="A+" Command="{Binding JogAPlusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
-            <Button Content="A−" Command="{Binding JogAMinusCommand}" Margin="2" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,4" />
-        </UniformGrid>
     </StackPanel>
 </UserControl>

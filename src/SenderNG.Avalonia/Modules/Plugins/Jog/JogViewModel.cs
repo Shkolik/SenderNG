@@ -7,62 +7,23 @@ using SenderNG.Avalonia.ViewModels;
 
 namespace SenderNG.Avalonia.Modules.Plugins;
 
+public sealed class LinearAxisRow
+{
+    public LinearAxisRow(string letter) => Letter = letter;
+    public string Letter { get; }
+    public string PlusTag => Letter + "+";
+    public string MinusTag => Letter + "-";
+}
+
 public class JogViewModel : ViewModelBase
 {
+    private static readonly string[] Letters = "XYZABCUVW".Select(c => c.ToString()).ToArray();
+
     private readonly IGrblService _grbl;
     private readonly SettingsService _settingsService;
     private readonly AppSettings _appSettings;
-
-    public ObservableCollection<double> StepDistances { get; } = new([0.1, 1, 10]);
-
-    private int _selectedStepIndex = 1;
-    public int SelectedStepIndex
-    {
-        get => _selectedStepIndex;
-        set => SetField(ref _selectedStepIndex, Math.Clamp(value, 0, StepDistances.Count - 1));
-    }
-
-    public double SelectedStep =>
-        StepDistances.Count == 0 ? 0 : StepDistances[SelectedStepIndex];
-
-    private double _xySpeed = 1000;
-    public double XySpeed
-    {
-        get => _xySpeed;
-        set => SetField(ref _xySpeed, value);
-    }
-
-    private double _zSpeed = 500;
-    public double ZSpeed
-    {
-        get => _zSpeed;
-        set => SetField(ref _zSpeed, value);
-    }
-
-    private bool _padlockEngaged;
-    public bool PadlockEngaged
-    {
-        get => _padlockEngaged;
-        set => SetField(ref _padlockEngaged, value);
-    }
-
-    // TODO: stale snapshot — does not refresh when settings mode changes; revisit when mode-switch restart is implemented.
-    public string Mode => _appSettings.Mode;
-
-    public DelegateCommand JogXPlusCommand { get; }
-    public DelegateCommand JogXMinusCommand { get; }
-    public DelegateCommand JogYPlusCommand { get; }
-    public DelegateCommand JogYMinusCommand { get; }
-    public DelegateCommand JogZPlusCommand { get; }
-    public DelegateCommand JogZMinusCommand { get; }
-    public DelegateCommand JogAPlusCommand { get; }
-    public DelegateCommand JogAMinusCommand { get; }
-    public DelegateCommand JogBPlusCommand { get; }
-    public DelegateCommand JogBMinusCommand { get; }
-    public DelegateCommand JogXYSwNECommand { get; }
-    public DelegateCommand JogXYNEswCommand { get; }
-    public DelegateCommand JogXYNwSeCommand { get; }
-    public DelegateCommand JogXYSeNwCommand { get; }
+    private int _numAxes = 2;
+    private bool _suppressReload;
 
     public JogViewModel(IGrblService grbl, SettingsService settingsService)
     {
@@ -70,115 +31,208 @@ public class JogViewModel : ViewModelBase
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _appSettings = _settingsService.Load();
 
-        Load();
+        Config = JogConfigStore.Load(_appSettings);
+        RefreshLinearAxes();
 
-        JogXPlusCommand = new DelegateCommand(_ => _ = JogAsync("X", +1));
-        JogXMinusCommand = new DelegateCommand(_ => _ = JogAsync("X", -1));
-        JogYPlusCommand = new DelegateCommand(_ => _ = JogAsync("Y", +1));
-        JogYMinusCommand = new DelegateCommand(_ => _ = JogAsync("Y", -1));
-        JogZPlusCommand = new DelegateCommand(_ => _ = JogAsync("Z", +1));
-        JogZMinusCommand = new DelegateCommand(_ => _ = JogAsync("Z", -1));
-        JogAPlusCommand = new DelegateCommand(_ => _ = JogAsync("A", +1));
-        JogAMinusCommand = new DelegateCommand(_ => _ = JogAsync("A", -1));
-        JogBPlusCommand = new DelegateCommand(_ => _ = JogAsync("B", +1));
-        JogBMinusCommand = new DelegateCommand(_ => _ = JogAsync("B", -1));
+        JogCommand = new DelegateCommand(p => _ = JogAsync(p as string));
+        StopCommand = new DelegateCommand(_ => _ = _grbl.SendAsync("!"));
 
-        JogXYSwNECommand = new DelegateCommand(_ => _ = JogDiagonalAsync(+1, +1));
-        JogXYNEswCommand = new DelegateCommand(_ => _ = JogDiagonalAsync(-1, -1));
-        JogXYNwSeCommand = new DelegateCommand(_ => _ = JogDiagonalAsync(-1, +1));
-        JogXYSeNwCommand = new DelegateCommand(_ => _ = JogDiagonalAsync(+1, -1));
+        _grbl.State.Subscribe(ApplyState);
+        _settingsService.Changed += OnSettingsChanged;
     }
 
-    public async Task JogAsync(string axis, int sign)
-    {
-        var step = sign * SelectedStep;
-        var speed = axis is "X" or "Y" ? XySpeed : ZSpeed;
+    public JogConfig Config { get; private set; }
 
-        // Foam mode padlock: Z is slaved to A while engaged.
-        if (axis == "Z" && Mode == "Foam" && PadlockEngaged)
+    public ObservableCollection<LinearAxisRow> LinearAxisLetters { get; } = new();
+
+    public bool IsFoam => _appSettings.Mode == AppSettings.FoamMode;
+    public bool IsMill => !IsFoam;
+
+    // Session-only padlock: while engaged the XY cross jogs both gantries mirrored.
+    private bool _together;
+    public bool Together
+    {
+        get => _together;
+        set
         {
-            await SendJog($"Z{Fmt(step)} A{Fmt(step)}", speed);
+            if (SetField(ref _together, value))
+                OnPropertyChanged(nameof(ZaCrossEnabled));
+        }
+    }
+
+    public bool ZaCrossEnabled => !Together;
+
+    public DelegateCommand JogCommand { get; }
+    public DelegateCommand StopCommand { get; }
+
+    public double SelectedDistance =>
+        Config.Distances[Math.Clamp(Config.DistanceIndex, 0, Config.Distances.Length - 1)];
+
+    public double SelectedSpeed =>
+        Config.Speeds[Math.Clamp(Config.SpeedIndex, 0, Config.Speeds.Length - 1)];
+
+    public int SelectedDistanceIndex
+    {
+        get => Config.DistanceIndex;
+        set
+        {
+            var v = Math.Clamp(value, 0, 3);
+            if (Config.DistanceIndex == v)
+                return;
+            Config.DistanceIndex = v;
+            OnPropertyChanged();
+            RaiseDistanceFlags();
+            OnPropertyChanged(nameof(SelectedDistance));
+            Save();
+        }
+    }
+
+    public int SelectedSpeedIndex
+    {
+        get => Config.SpeedIndex;
+        set
+        {
+            var v = Math.Clamp(value, 0, 3);
+            if (Config.SpeedIndex == v)
+                return;
+            Config.SpeedIndex = v;
+            OnPropertyChanged();
+            RaiseSpeedFlags();
+            OnPropertyChanged(nameof(SelectedSpeed));
+            Save();
+        }
+    }
+
+    private bool GetDistanceFlag(int i) => Config.DistanceIndex == i;
+    private void SetDistanceFlag(int i, bool value)
+    {
+        if (value)
+            SelectedDistanceIndex = i;
+        else
+            OnPropertyChanged($"IsDistance{i}");
+    }
+
+    private bool GetSpeedFlag(int i) => Config.SpeedIndex == i;
+    private void SetSpeedFlag(int i, bool value)
+    {
+        if (value)
+            SelectedSpeedIndex = i;
+        else
+            OnPropertyChanged($"IsSpeed{i}");
+    }
+
+    public bool IsDistance0 { get => GetDistanceFlag(0); set => SetDistanceFlag(0, value); }
+    public bool IsDistance1 { get => GetDistanceFlag(1); set => SetDistanceFlag(1, value); }
+    public bool IsDistance2 { get => GetDistanceFlag(2); set => SetDistanceFlag(2, value); }
+    public bool IsDistance3 { get => GetDistanceFlag(3); set => SetDistanceFlag(3, value); }
+    public bool IsSpeed0 { get => GetSpeedFlag(0); set => SetSpeedFlag(0, value); }
+    public bool IsSpeed1 { get => GetSpeedFlag(1); set => SetSpeedFlag(1, value); }
+    public bool IsSpeed2 { get => GetSpeedFlag(2); set => SetSpeedFlag(2, value); }
+    public bool IsSpeed3 { get => GetSpeedFlag(3); set => SetSpeedFlag(3, value); }
+
+    private void RaiseDistanceFlags()
+    {
+        for (var i = 0; i < 4; i++)
+            OnPropertyChanged($"IsDistance{i}");
+    }
+
+    private void RaiseSpeedFlags()
+    {
+        for (var i = 0; i < 4; i++)
+            OnPropertyChanged($"IsSpeed{i}");
+    }
+
+    private async Task JogAsync(string? tag)
+    {
+        if (string.IsNullOrWhiteSpace(tag))
             return;
+
+        // Tag parts look like "X-,Y+" / "Z-,A+"; each word carries an axis and a
+        // sign which we scale by the selected distance.
+        var parts = tag.Split('|');
+        IEnumerable<string> SelectWords(string part) => part
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => w.Trim())
+            .Select(ToWord);
+
+        string words;
+        if (IsFoam && Together && parts.Length == 2)
+        {
+            // Mirrored gantries: send both pairs in one jog command.
+            words = string.Join(" ", parts.SelectMany(SelectWords));
+        }
+        else
+        {
+            words = string.Join(" ", SelectWords(parts[0]));
         }
 
-        await SendJog($"{axis}{Fmt(step)}", speed);
+        await _grbl.SendAsync($"$J=G91 G0 {words} F{Fmt(SelectedSpeed)}");
     }
 
-    public async Task JogDiagonalAsync(int xSign, int ySign)
+    private string ToWord(string token)
     {
-        await SendJog($"X{Fmt(xSign * SelectedStep)} Y{Fmt(ySign * SelectedStep)}", XySpeed);
+        if (token.Length >= 2 && token[^1] is '+' or '-')
+        {
+            var sign = token[^1] == '+' ? 1 : -1;
+            return $"{token[..^1]}{Fmt(sign * SelectedDistance)}";
+        }
+        return token;
     }
 
     public void Save()
     {
-        _appSettings.Modules["Jog"] = new Dictionary<string, object>
+        _suppressReload = true;
+        try
         {
-            ["XySpeed"] = XySpeed,
-            ["ZSpeed"] = ZSpeed,
-            ["Steps"] = StepDistances.ToList(),
-            ["SelectedStepIndex"] = SelectedStepIndex,
-        };
-        _settingsService.Save(_appSettings);
-    }
-
-    private void Load()
-    {
-        if (!_appSettings.Modules.TryGetValue("Jog", out var raw))
-            return;
-
-        Dictionary<string, object?>? section = raw switch
+            JogConfigStore.Save(_appSettings, Config);
+            _settingsService.Save(_appSettings);
+        }
+        finally
         {
-            Dictionary<string, object> typed => typed,
-            System.Text.Json.JsonElement { ValueKind: System.Text.Json.JsonValueKind.Object } el => ReadObject(el),
-            _ => null,
-        };
-
-        if (section is null)
-            return;
-
-        if (section.TryGetValue("XySpeed", out var xy) && ToDouble(xy) is { } xySpeed)
-            XySpeed = xySpeed;
-        if (section.TryGetValue("ZSpeed", out var z) && ToDouble(z) is { } zSpeed)
-            ZSpeed = zSpeed;
-        if (section.TryGetValue("SelectedStepIndex", out var idx) && ToDouble(idx) is { } index)
-            SelectedStepIndex = (int)index;
-        if (section.TryGetValue("Steps", out var steps))
-        {
-            var list = steps switch
-            {
-                IEnumerable<double> doubles => doubles.ToList(),
-                System.Text.Json.JsonElement { ValueKind: System.Text.Json.JsonValueKind.Array } arr =>
-                    arr.EnumerateArray().Select(e => e.TryGetDouble(out var d) ? d : 0).ToList(),
-                _ => null,
-            };
-            if (list is { Count: > 0 })
-            {
-                StepDistances.Clear();
-                foreach (var step in list)
-                    StepDistances.Add(step);
-            }
+            _suppressReload = false;
         }
     }
 
-    private static Dictionary<string, object?> ReadObject(System.Text.Json.JsonElement el)
+    private void OnSettingsChanged()
     {
-        var result = new Dictionary<string, object?>();
-        foreach (var prop in el.EnumerateObject())
-            result[prop.Name] = prop.Value;
-        return result;
+        if (_suppressReload)
+            return;
+
+        Config = JogConfigStore.Load(_appSettings);
+        OnPropertyChanged(nameof(Config));
+        OnPropertyChanged(nameof(IsFoam));
+        OnPropertyChanged(nameof(IsMill));
+        OnPropertyChanged(nameof(SelectedDistanceIndex));
+        OnPropertyChanged(nameof(SelectedSpeedIndex));
+        OnPropertyChanged(nameof(SelectedDistance));
+        OnPropertyChanged(nameof(SelectedSpeed));
+        RaiseDistanceFlags();
+        RaiseSpeedFlags();
     }
 
-    private static double? ToDouble(object? value) => value switch
+    private void ApplyState(MachineState state)
     {
-        double d => d,
-        int i => i,
-        long l => l,
-        System.Text.Json.JsonElement { ValueKind: System.Text.Json.JsonValueKind.Number } e when e.TryGetDouble(out var d) => d,
-        _ => null,
-    };
+        if (state is null)
+            return;
 
-    private Task SendJog(string axes, double speed) =>
-        _grbl.SendAsync($"$J=G91 G0 {axes} F{Fmt(speed)}");
+        var n = Math.Clamp(state.NumAxes, 2, Letters.Length);
+        if (n == _numAxes)
+            return;
+
+        _numAxes = n;
+        RefreshLinearAxes();
+    }
+
+    // Axes beyond X/Y (Z, A, B...) rendered as linear rows. In Foam mode the view
+    // hides them because Z/A live in the second cross.
+    private void RefreshLinearAxes()
+    {
+        var count = Math.Max(0, _numAxes - 2);
+        while (LinearAxisLetters.Count > count)
+            LinearAxisLetters.RemoveAt(LinearAxisLetters.Count - 1);
+        while (LinearAxisLetters.Count < count)
+            LinearAxisLetters.Add(new LinearAxisRow(Letters[2 + LinearAxisLetters.Count]));
+    }
 
     private static string Fmt(double value) =>
         value.ToString("0.###", CultureInfo.InvariantCulture);

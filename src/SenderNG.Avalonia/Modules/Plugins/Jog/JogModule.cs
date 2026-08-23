@@ -5,8 +5,10 @@ using SenderNG.Core.Modules;
 
 namespace SenderNG.Avalonia.Modules.Plugins;
 
-public class JogModule : IModule
+public class JogModule : IModule, IModuleSettingsProvider
 {
+    private SettingsService? _settingsService;
+
     public string Id => "jog";
     public string Name => "Jog";
     public int Order => 15;
@@ -17,21 +19,51 @@ public class JogModule : IModule
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<JogViewModel>();
 
-    public void RegisterSettings(AppSettings settings)
-    {
-        if (!settings.Modules.ContainsKey("Jog"))
-            settings.Modules["Jog"] = new Dictionary<string, object>
-            {
-                ["XySpeed"] = 1000.0,
-                ["ZSpeed"] = 500.0,
-                ["Steps"] = new List<double> { 0.1, 1, 10 },
-                ["SelectedStepIndex"] = 1,
-            };
-    }
+    // No seeding needed: JogConfigStore supplies defaults for both modes.
+    public void RegisterSettings(AppSettings settings) { }
 
-    public object CreateViewModel(IServiceProvider serviceProvider) =>
-        serviceProvider.GetRequiredService<JogViewModel>();
+    public object CreateViewModel(IServiceProvider serviceProvider)
+    {
+        _settingsService = serviceProvider.GetRequiredService<SettingsService>();
+        return serviceProvider.GetRequiredService<JogViewModel>();
+    }
 
     public object CreateView(object viewModel) =>
         new JogView { DataContext = viewModel };
+
+    public IEnumerable<ModuleSettingField> GetSettingFields()
+    {
+        if (_settingsService is null)
+            yield break;
+
+        for (var i = 1; i <= 4; i++)
+        {
+            var index = i - 1;
+            yield return new ModuleSettingField(
+                $"Distance {i}",
+                () => LoadConfig().Distances[index],
+                v => UpdateConfig(c => c.Distances[index] = v));
+        }
+
+        for (var i = 1; i <= 4; i++)
+        {
+            var index = i - 1;
+            yield return new ModuleSettingField(
+                $"Speed {i}",
+                () => LoadConfig().Speeds[index],
+                v => UpdateConfig(c => c.Speeds[index] = v));
+        }
+    }
+
+    private JogConfig LoadConfig() =>
+        JogConfigStore.Load(_settingsService!.Load());
+
+    private void UpdateConfig(Action<JogConfig> update)
+    {
+        var settings = _settingsService!.Load();
+        var config = JogConfigStore.Load(settings);
+        update(config);
+        JogConfigStore.Save(settings, config);
+        _settingsService.Save(settings);
+    }
 }

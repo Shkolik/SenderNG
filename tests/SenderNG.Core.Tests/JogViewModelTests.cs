@@ -17,9 +17,9 @@ public class JogViewModelTests
         return settings;
     }
 
-    private sealed class RecordingGrbl(List<string> sent) : IGrblService
+    private sealed class RecordingGrbl(List<string> sent, int numAxes = 4) : IGrblService
     {
-        private readonly BehaviorSubject<MachineState> _subject = new(new MachineState(4));
+        private readonly BehaviorSubject<MachineState> _subject = new(new MachineState(numAxes));
         public bool IsConnected => true;
         public IObservable<MachineState> State => _subject;
         public Task ConnectAsync(string port) => Task.CompletedTask;
@@ -29,143 +29,141 @@ public class JogViewModelTests
             sent.Add(line);
             return Task.CompletedTask;
         }
+        public void Push(MachineState state) => _subject.OnNext(state);
     }
 
     [Fact]
-    public void Default_steps_and_speeds_are_populated()
+    public void Default_distances_speeds_and_indexes_are_populated()
     {
         var vm = new JogViewModel(new RecordingGrbl([]), MakeSettings());
 
-        Assert.Equal([0.1, 1, 10], vm.StepDistances);
-        Assert.Equal(1000, vm.XySpeed);
-        Assert.Equal(500, vm.ZSpeed);
-        Assert.Equal(1, vm.SelectedStep);
+        Assert.Equal([0.1, 1.0, 10.0, 50.0], vm.Config.Distances);
+        Assert.Equal([500.0, 1000.0, 2000.0, 3000.0], vm.Config.Speeds);
+        Assert.Equal(1, vm.SelectedDistanceIndex);
+        Assert.Equal(1, vm.SelectedSpeedIndex);
+        Assert.Equal(1.0, vm.SelectedDistance);
+        Assert.Equal(1000.0, vm.SelectedSpeed);
     }
 
     [Fact]
-    public void Mill_jog_XPlus_sends_single_axis_jog()
+    public void Mill_axis_jog_applies_selected_distance()
     {
         var sent = new List<string>();
         var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings());
-        vm.SelectedStepIndex = 2; // 10
+        vm.IsDistance2 = true; // 10
 
-        vm.JogXPlusCommand.Execute(null);
+        vm.JogCommand.Execute("X+");
 
-        var line = Assert.Single(sent);
-        Assert.Equal("$J=G91 G0 X10 F1000", line);
+        Assert.Equal(["$J=G91 G0 X10 F1000"], sent);
     }
 
     [Fact]
-    public void Mill_diagonal_moves_XY_together()
+    public void Mill_diagonal_sends_both_axes()
     {
         var sent = new List<string>();
         var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings());
-        vm.SelectedStepIndex = 1; // 1
+        vm.IsSpeed2 = true; // 2000
 
-        vm.JogXYSwNECommand.Execute(null); // X+ Y+
+        vm.JogCommand.Execute("X-,Y+");
 
-        var line = Assert.Single(sent);
-        Assert.Contains("X1", line);
-        Assert.Contains("Y1", line);
-        Assert.StartsWith("$J=G91 G0", line);
-        Assert.Contains("F1000", line);
+        Assert.Equal(["$J=G91 G0 X-1 Y1 F2000"], sent);
     }
 
     [Fact]
-    public void Mill_Z_jog_uses_Z_speed()
+    public void Foam_together_jogs_both_gantries_mirrored()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings("Foam"));
+        vm.Together = true;
+
+        vm.JogCommand.Execute("X-,Y+|Z-,A+");
+
+        Assert.Equal(["$J=G91 G0 X-1 Y1 Z-1 A1 F1000"], sent);
+    }
+
+    [Fact]
+    public void Foam_not_together_ignores_second_pair()
     {
         var sent = new List<string>();
         var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings());
 
-        vm.JogZPlusCommand.Execute(null);
+        vm.JogCommand.Execute("X+,Y-|Z+,A-");
 
-        var line = Assert.Single(sent);
-        Assert.Equal("$J=G91 G0 Z1 F500", line);
+        Assert.Equal(["$J=G91 G0 X1 Y-1 F1000"], sent);
     }
 
     [Fact]
-    public async Task Speeds_are_loaded_from_settings()
+    public void Together_lock_disables_ZA_cross()
+    {
+        var vm = new JogViewModel(new RecordingGrbl([]), MakeSettings("Foam"));
+
+        Assert.True(vm.ZaCrossEnabled);
+        vm.Together = true;
+        Assert.False(vm.ZaCrossEnabled);
+        vm.Together = false;
+        Assert.True(vm.ZaCrossEnabled);
+    }
+
+    [Fact]
+    public void Distance_selection_persists_and_reloads()
     {
         var settings = MakeSettings();
         var first = new JogViewModel(new RecordingGrbl([]), settings);
-        first.XySpeed = 2500;
-        first.ZSpeed = 750;
-        first.Save();
+        first.IsDistance3 = true;
+        first.IsSpeed0 = true;
 
         var second = new JogViewModel(new RecordingGrbl([]), settings);
 
-        Assert.Equal(2500, second.XySpeed);
-        Assert.Equal(750, second.ZSpeed);
-        await Task.CompletedTask;
+        Assert.Equal(3, second.SelectedDistanceIndex);
+        Assert.Equal(50.0, second.SelectedDistance);
+        Assert.Equal(0, second.SelectedSpeedIndex);
+        Assert.Equal(500.0, second.SelectedSpeed);
     }
 
     [Fact]
-    public void Foam_padlock_ZA_sync()
+    public void Configs_are_mode_aware()
     {
-        var sent = new List<string>();
-        var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings("Foam"));
-        vm.PadlockEngaged = true;
+        var settings = MakeSettings("Mill");
+        var millVm = new JogViewModel(new RecordingGrbl([]), settings);
+        millVm.Config.Distances[0] = 0.05;
+        millVm.Save();
 
-        vm.JogZPlusCommand.Execute(null);
+        settings.Load().Mode = AppSettings.FoamMode;
+        var foamVm = new JogViewModel(new RecordingGrbl([]), settings);
 
-        var line = Assert.Single(sent);
-        Assert.Contains("Z1", line);
-        Assert.Contains("A1", line);
+        Assert.Equal(0.1, foamVm.Config.Distances[0]); // Foam untouched
+        var millView = new AppSettings { Mode = AppSettings.MillMode, Modules = settings.Load().Modules };
+        Assert.Equal(0.05, JogConfigStore.Load(millView).Distances[0]); // Mill custom
     }
 
     [Fact]
-    public void Foam_without_padlock_Z_moves_alone()
+    public void Linear_rows_track_machine_num_axes()
     {
-        var sent = new List<string>();
-        var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings("Foam"));
-        vm.PadlockEngaged = false;
+        var grbl = new RecordingGrbl([], numAxes: 4);
+        var vm = new JogViewModel(grbl, MakeSettings());
 
-        vm.JogZMinusCommand.Execute(null);
+        Assert.Equal(["Z", "A"], vm.LinearAxisLetters.Select(r => r.Letter));
 
-        var line = Assert.Single(sent);
-        Assert.Contains("Z-1", line);
-        Assert.DoesNotContain("A", line);
+        grbl.Push(new MachineState(5));
+        Assert.Equal(["Z", "A", "B"], vm.LinearAxisLetters.Select(r => r.Letter));
     }
 
     [Fact]
-    public void Foam_B_is_linear_and_independent_of_padlock()
+    public void Row_tags_combine_letter_and_sign()
     {
-        var sent = new List<string>();
-        var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings("Foam"));
-        vm.PadlockEngaged = true;
-
-        vm.JogBPlusCommand.Execute(null);
-
-        var line = Assert.Single(sent);
-        Assert.Contains("B1", line);
-        Assert.DoesNotContain("A", line);
-        Assert.DoesNotContain("Z", line);
+        var row = new LinearAxisRow("B");
+        Assert.Equal("B+", row.PlusTag);
+        Assert.Equal("B-", row.MinusTag);
     }
 
     [Fact]
-    public void Foam_A_jog_does_not_drag_Z()
+    public void Stop_command_sends_feed_hold()
     {
         var sent = new List<string>();
-        var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings("Foam"));
-        vm.PadlockEngaged = true;
+        var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings());
 
-        vm.JogAMinusCommand.Execute(null);
+        vm.StopCommand.Execute(null);
 
-        var line = Assert.Single(sent);
-        Assert.Contains("A-1", line);
-        Assert.DoesNotContain("Z", line);
-    }
-
-    [Fact]
-    public void Diagonal_available_in_foam_mode_too()
-    {
-        var sent = new List<string>();
-        var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings("Foam"));
-
-        vm.JogXYNEswCommand.Execute(null); // X- Y-
-
-        var line = Assert.Single(sent);
-        Assert.Contains("X-1", line);
-        Assert.Contains("Y-1", line);
+        Assert.Equal(["!"], sent);
     }
 }

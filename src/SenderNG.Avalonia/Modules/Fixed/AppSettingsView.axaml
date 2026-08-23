@@ -60,6 +60,18 @@
                             <StackPanel Spacing="4">
                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11" />
                                 <CheckBox Content="Visible" IsChecked="{Binding IsVisible, Mode=TwoWay}" />
+                                <ItemsControl ItemsSource="{Binding Fields}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:NumericSettingEntry">
+                                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                <TextBlock Text="{Binding Label}" Width="110" FontSize="11"
+                                                           VerticalAlignment="Center" />
+                                                <TextBox Text="{Binding Value}" Width="70" CornerRadius="0"
+                                                         BorderBrush="#999" BorderThickness="1" Height="24" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
                         </Border>
                     </DataTemplate>
