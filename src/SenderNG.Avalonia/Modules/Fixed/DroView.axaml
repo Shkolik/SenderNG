@@ -16,7 +16,7 @@
                                    VerticalAlignment="Center" Width="14" TextAlignment="Center" />
                         <TextBox Grid.Column="1" Text="{Binding Position, StringFormat={}{0:F3}, Mode=OneWay}"
                                  IsReadOnly="True" Height="24" MinHeight="24" CornerRadius="0"
-                                 BorderBrush="#999" BorderThickness="1" Margin="4,0"
+                                 BorderBrush="#999" BorderThickness="1" Margin="4,0" Padding="0"
                                  VerticalContentAlignment="Center" FontSize="11" />
                         <Button Grid.Column="2" Content="0" Command="{Binding $parent[UserControl].((vm:DroViewModel)DataContext).ZeroAxisCommand}"
                                 CommandParameter="{Binding Letter}"
