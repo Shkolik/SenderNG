@@ -28,6 +28,7 @@ public static class HostSetup
             vm => vm switch
             {
                 CNC.Core.ViewModels.DemoMachineSettingsViewModel v => new Views.DemoMachineSettingsView { DataContext = v },
+                Modules.Fixed.GrblSettingsViewModel v => new Modules.Fixed.GrblSettingsView { DataContext = v },
                 _ => throw new NotSupportedException($"No view registered for {vm.GetType().Name}")
             });
         builder.Services.AddSingleton<DemoGrblService>();

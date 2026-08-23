@@ -38,7 +38,8 @@ public class ModulePanelTests
         Assert.Equal(PanelHint.Left, new OffsetsModule().Panel);
         Assert.Equal(30, new OffsetsModule().Order);
 
-        Assert.Equal(PanelHint.Right, new GrblSettingsModule().Panel);
+        // First menu-claiming module: opens as a modal dialog from Settings.
+        Assert.Equal(PanelHint.Menu, new GrblSettingsModule().Panel);
         Assert.Equal(40, new GrblSettingsModule().Order);
 
         Assert.Equal(PanelHint.Right, new JogModule().Panel);

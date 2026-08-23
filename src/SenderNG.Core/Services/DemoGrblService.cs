@@ -3,11 +3,12 @@ using CNC.Core.Abstractions;
 
 namespace CNC.Core.Services;
 
-public class DemoGrblService : IGrblService
+public class DemoGrblService : IGrblService, IGrblSettingsProvider
 {
     private readonly BehaviorSubject<MachineState> _subject;
     private readonly object _lock = new();
     private int _distanceMode = 90; // modal G90/G91
+    private readonly Dictionary<int, string> _settings = CreateDefaultSettings();
 
     public bool IsConnected { get; private set; }
 
@@ -29,6 +30,61 @@ public class DemoGrblService : IGrblService
         }
     }
 
+    public Task<IReadOnlyList<string>> GetSettingLinesAsync()
+    {
+        lock (_lock)
+        {
+            return Task.FromResult<IReadOnlyList<string>>(
+                _settings.OrderBy(kv => kv.Key).Select(kv => $"${kv.Key}={kv.Value}").ToList());
+        }
+    }
+
+    private static bool TryParseSetting(string line, out int number, out string value)
+    {
+        number = 0;
+        value = string.Empty;
+        var eq = line.IndexOf('=');
+        if (eq <= 1 || !int.TryParse(line[1..eq], out number))
+            return false;
+        value = line[(eq + 1)..].Trim();
+        return value.Length > 0;
+    }
+
+    private static Dictionary<int, string> CreateDefaultSettings() => new()
+    {
+        [0] = "10",       // step pulse, us
+        [1] = "25",       // step idle delay, ms
+        [2] = "0",        // step port invert
+        [3] = "0",        // direction port invert
+        [4] = "0",        // step enable invert
+        [5] = "0",        // limit pins invert
+        [6] = "0",        // probe pin invert
+        [10] = "1",       // status report mask
+        [11] = "0.010",   // junction deviation, mm
+        [12] = "0.002",   // arc tolerance, mm
+        [13] = "0",       // report inches
+        [20] = "0",       // soft limits
+        [21] = "0",       // hard limits
+        [22] = "0",       // homing cycle
+        [23] = "0",       // homing dir invert
+        [24] = "25.000",  // homing feed, mm/min
+        [25] = "500.000", // homing seek, mm/min
+        [26] = "250",     // homing debounce, ms
+        [27] = "1.000",   // homing pull-off, mm
+        [30] = "1000.000",// max spindle speed
+        [31] = "0.000",   // min spindle speed
+        [32] = "0",       // laser mode
+        [100] = "250.000",// x steps/mm
+        [101] = "250.000",// y steps/mm
+        [102] = "250.000",// z steps/mm
+        [110] = "500.000",// x max rate
+        [111] = "500.000",// y max rate
+        [112] = "500.000",// z max rate
+        [120] = "10.000", // x acceleration
+        [121] = "10.000", // y acceleration
+        [122] = "10.000", // z acceleration
+    };
+
     public Task ConnectAsync(string port)
     {
         IsConnected = true;
@@ -49,6 +105,14 @@ public class DemoGrblService : IGrblService
 
         lock (_lock)
         {
+            // $N=value setting assignment: update the demo settings store.
+            var assign = trimmed.Length > 2 && trimmed[0] == '$' && !trimmed.StartsWith("$$") && !trimmed.StartsWith("$J");
+            if (assign && TryParseSetting(trimmed, out var number, out var value))
+            {
+                _settings[number] = value;
+                return Task.CompletedTask;
+            }
+
             var state = _subject.Value;
 
             if (trimmed == "?")

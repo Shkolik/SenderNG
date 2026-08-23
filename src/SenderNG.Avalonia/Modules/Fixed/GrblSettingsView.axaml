@@ -3,27 +3,42 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Fixed"
-             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="400"
+             mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="480"
              x:Class="SenderNG.Avalonia.Modules.Fixed.GrblSettingsView"
              x:DataType="vm:GrblSettingsViewModel">
 
-    <DockPanel Background="#f6f6f6">
-        <Button DockPanel.Dock="Top" Content="Load Settings"
-                 Command="{Binding LoadCommand}" Margin="8" HorizontalAlignment="Left"
-                 CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
-        <ItemsControl ItemsSource="{Binding Settings}">
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:SettingRow">
-                    <Grid ColumnDefinitions="60,120,*" Margin="8,2">
-                        <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat=${0}}"
-                                   VerticalAlignment="Center" FontWeight="Bold" FontSize="11" Foreground="#333" />
-                        <TextBox Grid.Column="1" Text="{Binding Value}" Margin="4,2" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                        <TextBlock Grid.Column="2" Text="{Binding Comment}"
-                                   VerticalAlignment="Center" Margin="8,0,0,0"
-                                   Opacity="0.7" FontSize="11" Foreground="#666" />
-                    </Grid>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+    <DockPanel Width="560" Background="#f6f6f6">
+        <Border DockPanel.Dock="Bottom" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="8,6">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding Status}" FontSize="10" Foreground="#666"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <Button Grid.Column="1" Content="Load" Command="{Binding LoadCommand}"
+                        Height="28" MinHeight="28" CornerRadius="0"
+                        Background="#eee" BorderBrush="#999" BorderThickness="1"
+                        Padding="12,0" VerticalContentAlignment="Center" Margin="0,0,6,0" />
+                <Button Grid.Column="2" Content="Save changes" Command="{Binding SaveCommand}"
+                        Height="28" MinHeight="28" CornerRadius="0"
+                        Background="#eee" BorderBrush="#999" BorderThickness="1"
+                        Padding="12,0" VerticalContentAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <ScrollViewer MaxHeight="420">
+            <ItemsControl ItemsSource="{Binding Settings}" Margin="8,6">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SettingRow">
+                        <Grid ColumnDefinitions="56,110,*" Margin="0,2">
+                            <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat=${0}}"
+                                       VerticalAlignment="Center" FontWeight="SemiBold" FontSize="11" Foreground="#333" />
+                            <TextBox Grid.Column="1" Text="{Binding Value}" Height="24" MinHeight="24"
+                                     VerticalContentAlignment="Center" FontSize="11"
+                                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" Margin="0,0,8,0" />
+                            <TextBlock Grid.Column="2" Text="{Binding Comment}"
+                                       VerticalAlignment="Center" FontSize="10" Foreground="#888" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
     </DockPanel>
 </UserControl>

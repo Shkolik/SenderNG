@@ -48,6 +48,10 @@
                         <MenuItem Header="_Machine" Command="{Binding MachineSettingsCommand}" />
                         <MenuItem Header="_Demo machine" Command="{Binding DemoMachineSettingsCommand}" />
                         <MenuItem Header="_App settings" Command="{Binding AppSettingsCommand}" />
+                        <Separator />
+                        <MenuItem Header="{Binding FirstMenuModule.Name, FallbackValue=GRBL Settings}"
+                                  Command="{Binding OpenMenuModuleCommand}"
+                                  CommandParameter="{Binding FirstMenuModule}" />
                     </MenuItem>
                     <MenuItem Header="_Help">
                         <MenuItem Header="_About" Command="{Binding AboutCommand}" />

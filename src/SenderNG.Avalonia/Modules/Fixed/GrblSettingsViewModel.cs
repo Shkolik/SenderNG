@@ -25,6 +25,8 @@ public class GrblSettingsViewModel : ViewModelBase
         new(@"^\$(\d+)=([^\s(]+)\s*(?:\(([^)]*)\))?\s*$", RegexOptions.Compiled);
 
     private readonly Func<Task<IEnumerable<string>>> _provider;
+    private readonly Func<string, Task>? _send;
+    private readonly Dictionary<string, string> _originals = new();
 
     public ObservableCollection<SettingRow> Settings { get; } = new();
 
@@ -37,10 +39,16 @@ public class GrblSettingsViewModel : ViewModelBase
 
     public DelegateCommand LoadCommand { get; }
 
-    public GrblSettingsViewModel(Func<Task<IEnumerable<string>>> provider)
+    public DelegateCommand SaveCommand { get; }
+
+    public GrblSettingsViewModel(Func<Task<IEnumerable<string>>> provider, Func<string, Task>? send = null)
     {
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        _send = send;
         LoadCommand = new DelegateCommand(_ => _ = LoadAsync());
+        SaveCommand = new DelegateCommand(_ => _ = SaveAsync(), _ => _send is not null);
+        // Fill on open; failures surface via Status.
+        _ = LoadAsync();
     }
 
     public async Task LoadAsync()
@@ -58,11 +66,38 @@ public class GrblSettingsViewModel : ViewModelBase
             foreach (var row in rows)
                 Settings.Add(row);
 
+            _originals.Clear();
+            foreach (var row in rows)
+                _originals[row.Key] = row.Value;
+
             Status = $"Loaded {rows.Count} settings";
         }
         catch (Exception ex)
         {
             Status = $"Load failed: {ex.Message}";
+        }
+    }
+
+    public async Task SaveAsync()
+    {
+        if (_send is null)
+            return;
+        try
+        {
+            var changed = 0;
+            foreach (var row in Settings)
+            {
+                if (!_originals.TryGetValue(row.Key, out var original) || original == row.Value)
+                    continue;
+                await _send($"${row.Key}={row.Value}");
+                _originals[row.Key] = row.Value;
+                changed++;
+            }
+            Status = changed == 0 ? "No changes" : $"Saved {changed} setting(s)";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Save failed: {ex.Message}";
         }
     }
 

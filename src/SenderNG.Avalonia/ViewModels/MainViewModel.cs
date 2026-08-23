@@ -113,6 +113,7 @@ public class MainViewModel : ViewModelBase
         // placeholder Help/Settings delegates keep Status
         MachineSettingsCommand = new DelegateCommand(_ => Status = "Machine settings (placeholder)");
         DemoMachineSettingsCommand = new DelegateCommand(_ => _ = ShowDemoMachineSettingsAsync());
+        OpenMenuModuleCommand = new DelegateCommand(p => _ = OpenMenuModuleAsync(p as IModule));
         AppSettingsCommand = new DelegateCommand(_ => Status = "App settings (placeholder)");
         AboutCommand = new DelegateCommand(_ => Status = "SenderNG — About (placeholder)");
         LibrariesCommand = new DelegateCommand(_ => Status = "Libraries (placeholder)");
@@ -212,6 +213,11 @@ public class MainViewModel : ViewModelBase
     public IEnumerable<IModule> FlyoutModules =>
         Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Flyout).OrderBy(m => m.Order);
 
+    public IEnumerable<IModule> MenuModules =>
+        Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Menu).OrderBy(m => m.Order);
+
+    public IModule? FirstMenuModule => MenuModules.FirstOrDefault();
+
     public ObservableCollection<AxisSignal> AxisSignals { get; } = new();
 
     public bool ProbeActive
@@ -279,6 +285,8 @@ public class MainViewModel : ViewModelBase
     public ICommand MachineSettingsCommand { get; }
 
     public ICommand DemoMachineSettingsCommand { get; }
+
+    public DelegateCommand OpenMenuModuleCommand { get; }
 
     public ICommand AppSettingsCommand { get; }
 
@@ -438,6 +446,26 @@ public class MainViewModel : ViewModelBase
             Status = "Demo machine settings updated";
     }
 
+    // Menu-claiming modules (PanelHint.Menu) open as modal dialogs.
+    private async Task OpenMenuModuleAsync(IModule? module)
+    {
+        if (module is null)
+            return;
+        if (_dialogs is null)
+        {
+            Status = $"{module.Name}: no dialog service available";
+            return;
+        }
+        try
+        {
+            await _dialogs.ShowDialogAsync(module.Name, module.CreateViewModel(_services));
+        }
+        catch (Exception ex)
+        {
+            Status = $"{module.Name} failed: {ex.Message}";
+        }
+    }
+
     private void Disconnect()
     {
         try { Grbl.Disconnect(); Status = "Disconnected"; }
@@ -464,6 +492,8 @@ public class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(CenterModules));
         OnPropertyChanged(nameof(RightModules));
         OnPropertyChanged(nameof(FlyoutModules));
+        OnPropertyChanged(nameof(MenuModules));
+        OnPropertyChanged(nameof(FirstMenuModule));
         OnPropertyChanged(nameof(CenterTabs));
     }
 
