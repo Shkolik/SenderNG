@@ -23,6 +23,13 @@ public static class HostSetup
         builder.Services.AddSingleton(sp => sp.GetRequiredService<SettingsService>().Load());
         builder.Services.AddSingleton<IComPortService, SerialComPortService>();
         builder.Services.AddSingleton<IFileDialogService, AvaloniaFileDialogService>();
+        builder.Services.AddSingleton<IDialogService, AvaloniaDialogService>();
+        builder.Services.AddSingleton<Func<object, object>>(sp =>
+            vm => vm switch
+            {
+                CNC.Core.ViewModels.DemoMachineSettingsViewModel v => new Views.DemoMachineSettingsView { DataContext = v },
+                _ => throw new NotSupportedException($"No view registered for {vm.GetType().Name}")
+            });
         builder.Services.AddSingleton<DemoGrblService>();
         builder.Services.AddSingleton<RealGrblService>();
         // The proxy is THE IGrblService singleton: consumers subscribe once and
@@ -59,6 +66,7 @@ public static class HostSetup
                 sp,
                 comPorts: sp.GetRequiredService<IComPortService>(),
                 fileDialogs: sp.GetRequiredService<IFileDialogService>(),
+                dialogs: sp.GetRequiredService<IDialogService>(),
                 modules: sp.GetServices<IModule>(),
                 viewFactory: sp.GetRequiredService<Func<IModule, object>>()));
 

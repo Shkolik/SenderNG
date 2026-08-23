@@ -18,6 +18,17 @@ public class DemoGrblService : IGrblService
         _subject = new BehaviorSubject<MachineState>(new MachineState(settings.DemoAxes));
     }
 
+    // Fresh state resets positions — acceptable when reconfiguring the machine.
+    public void SetNumAxes(int numAxes)
+    {
+        var clamped = Math.Clamp(numAxes, 1, CNC.Core.GrblInfo.AxisLetters.Length);
+
+        lock (_lock)
+        {
+            _subject.OnNext(new MachineState(clamped));
+        }
+    }
+
     public Task ConnectAsync(string port)
     {
         IsConnected = true;

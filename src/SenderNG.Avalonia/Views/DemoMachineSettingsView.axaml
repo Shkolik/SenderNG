@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:CNC.Core.ViewModels;assembly=SenderNG.Core"
+             mc:Ignorable="d" d:DesignWidth="280" d:DesignHeight="220"
+             x:Class="SenderNG.Avalonia.Views.DemoMachineSettingsView"
+             x:DataType="vm:DemoMachineSettingsViewModel">
+
+    <Border Width="280" Padding="12" Background="#f6f6f6">
+        <StackPanel Spacing="8">
+            <TextBlock Text="Number of axes" FontWeight="SemiBold" />
+            <NumericUpDown Value="{Binding NumAxes}" Minimum="1" Maximum="9" Increment="1"
+                           CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                           HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+            <TextBlock Text="Mode" FontWeight="SemiBold" Margin="0,4,0,0" />
+            <RadioButton Content="CNC Mill" GroupName="Mode" CornerRadius="0"
+                         IsChecked="{Binding IsMill, Mode=TwoWay}" />
+            <RadioButton Content="Foam CNC" GroupName="Mode" CornerRadius="0"
+                         IsChecked="{Binding IsFoam, Mode=TwoWay}" />
+            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,8,0,0">
+                <Button Content="OK" Command="{Binding OkCommand}"
+                        Height="28" MinHeight="28" CornerRadius="0"
+                        Background="#eee" BorderBrush="#999" BorderThickness="1"
+                        Padding="12,0" VerticalContentAlignment="Center" />
+                <Button Content="Cancel" Command="{Binding CancelCommand}"
+                        Height="28" MinHeight="28" CornerRadius="0"
+                        Background="#eee" BorderBrush="#999" BorderThickness="1"
+                        Padding="12,0" VerticalContentAlignment="Center" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>
