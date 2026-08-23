@@ -218,6 +218,22 @@ public class MainViewModel : ViewModelBase
 
     public IModule? FirstMenuModule => MenuModules.FirstOrDefault();
 
+    private bool _hasProgramLimits;
+
+    /// <summary>Program limits panel is only shown when a program with motion is loaded.</summary>
+    public bool HasProgramLimits
+    {
+        get => _hasProgramLimits;
+        private set
+        {
+            if (SetField(ref _hasProgramLimits, value))
+                OnPropertyChanged(nameof(ProgramLimitRows));
+        }
+    }
+
+    public IEnumerable<ProgramLimitRow>? ProgramLimitRows =>
+        _services.GetService<ProgramViewModel>()?.LimitRows;
+
     public ObservableCollection<AxisSignal> AxisSignals { get; } = new();
 
     public bool ProbeActive
@@ -415,7 +431,9 @@ public class MainViewModel : ViewModelBase
             }
 
             var blocks = text.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries).Length;
-            _services.GetRequiredService<ProgramViewModel>().LoadGCode(text);
+            var program = _services.GetRequiredService<ProgramViewModel>();
+            program.LoadGCode(text);
+            HasProgramLimits = program.HasLimits;
             CurrentFileName = Path.GetFileName(path);
 
             RecentFiles.Remove(path);
