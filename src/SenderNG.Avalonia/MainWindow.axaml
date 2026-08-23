@@ -9,7 +9,7 @@
         mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="600"
         x:Class="SenderNG.Avalonia.MainWindow"
         x:DataType="vm:MainViewModel"
-         Title="SenderNG" Width="1000" Height="600"
+         Title="{Binding Title, FallbackValue=SenderNG}" Width="1000" Height="600"
          Background="#f6f6f6">
 
     <!-- Flyout strip buttons: width stays 32, height adapts to rotated text.

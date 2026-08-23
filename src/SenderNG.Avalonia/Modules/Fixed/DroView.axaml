@@ -22,7 +22,8 @@
                                 CommandParameter="{Binding Letter}"
                                 Width="24" Height="24" MinHeight="24" CornerRadius="0"
                                 Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0"
-                                FontSize="11" VerticalContentAlignment="Center" ToolTip.Tip="Zero axis" />
+                                FontSize="11" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                ToolTip.Tip="Zero axis" />
                     </Grid>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
