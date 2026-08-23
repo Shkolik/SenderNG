@@ -114,12 +114,12 @@
                                         <TextBlock Grid.Column="0" Text="{Binding Letter}" FontSize="11" FontWeight="SemiBold"
                                                    VerticalAlignment="Center" TextAlignment="Center" />
                                         <TextBox Grid.Column="1" Text="{Binding Min, StringFormat={}{0:F3}, Mode=OneWay}" IsReadOnly="True"
-                                                 Height="22" MinHeight="22" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                                                 FontSize="10" VerticalContentAlignment="Center" Margin="2,0" />
+                                                 Height="22" MinHeight="22" CornerRadius="0" BorderBrush="#999" BorderThickness="1" Padding="0"
+                                                 FontSize="10" VerticalContentAlignment="Center" VerticalAlignment="Center" Margin="2,0" />
                                         <TextBlock Grid.Column="2" Text="-" VerticalAlignment="Center" TextAlignment="Center" FontSize="10" Foreground="#666" />
                                         <TextBox Grid.Column="3" Text="{Binding Max, StringFormat={}{0:F3}, Mode=OneWay}" IsReadOnly="True"
-                                                 Height="22" MinHeight="22" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                                                 FontSize="10" VerticalContentAlignment="Center" Margin="2,0" />
+                                                 Height="22" MinHeight="22" CornerRadius="0" BorderBrush="#999" BorderThickness="1" Padding="0"
+                                                 FontSize="10" VerticalContentAlignment="Center" VerticalAlignment="Center" Margin="2,0" />
                                         <TextBlock Grid.Column="4" Text="mm" VerticalAlignment="Center" FontSize="10" Foreground="#888" Margin="4,0,0,0" />
                                     </Grid>
                                 </DataTemplate>
