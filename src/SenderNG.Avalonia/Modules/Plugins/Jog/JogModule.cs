@@ -12,7 +12,8 @@ public class JogModule : IModule, IModuleSettingsProvider
     public string Id => "jog";
     public string Name => "Jog";
     public int Order => 15;
-    public PanelHint Panel => PanelHint.Right;
+    // Flyout: the widget is wide in foam/multiaxis layouts — drawer overlay suits it better.
+    public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 

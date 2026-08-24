@@ -8,7 +8,7 @@
              x:DataType="vm:ConsoleViewModel">
 
     <Border BorderBrush="#aaa" BorderThickness="1" CornerRadius="0" Background="#f6f6f6">
-        <ListBox ItemsSource="{Binding ConsoleLines}" CornerRadius="0" BorderBrush="#aaa" BorderThickness="0"
+        <ListBox x:Name="ConsoleList" ItemsSource="{Binding ConsoleLines}" CornerRadius="0" BorderBrush="#aaa" BorderThickness="0"
                  HorizontalAlignment="Stretch" />
     </Border>
 </UserControl>

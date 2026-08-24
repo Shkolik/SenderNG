@@ -9,19 +9,20 @@
 
     <UserControl.Styles>
         <Style Selector="Button.jog">
-            <Setter Property="Width" Value="44" />
-            <Setter Property="Height" Value="34" />
+            <Setter Property="MinHeight" Value="30" />
             <Setter Property="Margin" Value="1" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="CornerRadius" Value="0" />
             <Setter Property="Background" Value="#eee" />
             <Setter Property="BorderBrush" Value="#999" />
             <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.jog.diag">
-            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontSize" Value="15" />
         </Style>
         <Style Selector="RadioButton.option">
             <Setter Property="FontSize" Value="11" />
@@ -112,9 +113,9 @@
                     <StackPanel Orientation="Horizontal" Margin="0,1,0,0">
                         <TextBlock Text="{Binding Letter}" Width="16" VerticalAlignment="Center"
                                    HorizontalAlignment="Center" FontWeight="SemiBold" FontSize="11" />
-                        <Button Classes="jog" Width="30" Content="+" Command="{Binding $parent[UserControl].DataContext.JogCommand}"
+                        <Button Classes="jog" Width="30" MinHeight="24" Content="+" Command="{Binding $parent[UserControl].DataContext.JogCommand}"
                                 CommandParameter="{Binding PlusTag}" />
-                        <Button Classes="jog" Width="30" Content="-" Command="{Binding $parent[UserControl].DataContext.JogCommand}"
+                        <Button Classes="jog" Width="30" MinHeight="24" Content="-" Command="{Binding $parent[UserControl].DataContext.JogCommand}"
                                 CommandParameter="{Binding MinusTag}" />
                     </StackPanel>
                 </DataTemplate>
