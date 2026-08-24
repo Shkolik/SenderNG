@@ -21,7 +21,10 @@ public class AvaloniaDialogService : IDialogService
         {
             Title = title,
             SizeToContent = SizeToContent.WidthAndHeight,
-            CanResize = false,
+            // Resizable so users can enlarge content-heavy dialogs; content still sizes initially.
+            CanResize = true,
+            MinWidth = 480,
+            MinHeight = 320,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Background = new SolidColorBrush(Color.Parse("#f6f6f6")),
             Content = _viewResolver(viewModel),
