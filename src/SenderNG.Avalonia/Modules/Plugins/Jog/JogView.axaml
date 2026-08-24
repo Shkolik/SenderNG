@@ -27,11 +27,21 @@
         <Style Selector="Button.jog.diag">
             <Setter Property="FontSize" Value="18" />
         </Style>
-        <Style Selector="RadioButton.option">
-            <Setter Property="FontSize" Value="10" />
-            <Setter Property="Margin" Value="0,0,0,0" />
-            <Setter Property="Height" Value="22" />
-            <Setter Property="Padding" Value="4,0" />
+        <!-- Step selector toggles: own flat template, guaranteed 22px, checked = highlighted -->
+        <Style Selector="ToggleButton.step">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border x:Name="Root" Background="#eee" BorderBrush="#999" BorderThickness="1"
+                            Height="22" Margin="0,1,0,0" Padding="6,0">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          FontSize="10" Foreground="#333" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="ToggleButton.step:checked /template/ Border#Root">
+            <Setter Property="Background" Value="#ddd" />
+            <Setter Property="BorderBrush" Value="#666" />
         </Style>
         <Style Selector="TextBlock.caption">
             <Setter Property="FontSize" Value="10" />
@@ -76,30 +86,37 @@
         </Style>
     </UserControl.Styles>
 
-    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-    <StackPanel Orientation="Horizontal" Margin="8,8,14,8" Spacing="6" VerticalAlignment="Top">
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="8,8,8,8">
+    <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,22,0" VerticalAlignment="Top">
 
-        <!-- Selectors: bordered box (ioSender GroupBox style); height wraps content -->
-        <Border Width="72" BorderBrush="#999" BorderThickness="1" Background="#f6f6f6"
+        <!-- Distance selector: own bordered box -->
+        <Border Width="72" BorderBrush="#999" BorderThickness="1"
                 Padding="6,4" VerticalAlignment="Top">
             <StackPanel>
                 <TextBlock Classes="caption" Text="Distance" />
-                <RadioButton Classes="option" GroupName="Dist" Content="{Binding Config.Distances[0]}" IsChecked="{Binding IsDistance0}" />
-                <RadioButton Classes="option" GroupName="Dist" Content="{Binding Config.Distances[1]}" IsChecked="{Binding IsDistance1}" />
-                <RadioButton Classes="option" GroupName="Dist" Content="{Binding Config.Distances[2]}" IsChecked="{Binding IsDistance2}" />
-                <TextBlock Classes="unit" Text="mm" Margin="14,0,0,0" />
-                <TextBlock Classes="caption" Text="Speed" Margin="0,4,0,0" />
-                <RadioButton Classes="option" GroupName="Spd" Content="{Binding Config.Speeds[0]}" IsChecked="{Binding IsSpeed0}" />
-                <RadioButton Classes="option" GroupName="Spd" Content="{Binding Config.Speeds[1]}" IsChecked="{Binding IsSpeed1}" />
-                <RadioButton Classes="option" GroupName="Spd" Content="{Binding Config.Speeds[2]}" IsChecked="{Binding IsSpeed2}" />
-                <TextBlock Classes="unit" Text="mm/min" Margin="14,0,0,0" />
+                <ToggleButton Classes="step" Content="{Binding Config.Distances[0]}" IsChecked="{Binding IsDistance0}" />
+                <ToggleButton Classes="step" Content="{Binding Config.Distances[1]}" IsChecked="{Binding IsDistance1}" />
+                <ToggleButton Classes="step" Content="{Binding Config.Distances[2]}" IsChecked="{Binding IsDistance2}" />
+                <TextBlock Classes="unit" Text="mm" Margin="14,1,0,0" />
+            </StackPanel>
+        </Border>
+
+        <!-- Speed selector: own bordered box -->
+        <Border Width="72" BorderBrush="#999" BorderThickness="1"
+                Padding="6,4" VerticalAlignment="Top">
+            <StackPanel>
+                <TextBlock Classes="caption" Text="Speed" />
+                <ToggleButton Classes="step" Content="{Binding Config.Speeds[0]}" IsChecked="{Binding IsSpeed0}" />
+                <ToggleButton Classes="step" Content="{Binding Config.Speeds[1]}" IsChecked="{Binding IsSpeed1}" />
+                <ToggleButton Classes="step" Content="{Binding Config.Speeds[2]}" IsChecked="{Binding IsSpeed2}" />
+                <TextBlock Classes="unit" Text="mm/min" Margin="14,1,0,0" />
             </StackPanel>
         </Border>
 
         <!-- XY cross (both modes); in Foam+Together it jogs both gantries mirrored.
              Explicit 3x3 Grid (not UniformGrid): hidden diagonal cells stay reserved,
              so toggling diagonals never reflows the layout. -->
-        <Grid Width="174" Height="174" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Top">
+        <Grid Width="174" Height="174" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Center">
             <Button Grid.Row="0" Grid.Column="0" Classes="jog diag" Content="↖" Command="{Binding JogCommand}" CommandParameter="X-,Y+|Z-,A+"
                     IsVisible="{Binding ShowDiagonals}" />
             <Button Grid.Row="0" Grid.Column="1" Classes="jog" Content="Y+" Command="{Binding JogCommand}" CommandParameter="Y+|A+" />
@@ -118,10 +135,10 @@
 
         <!-- Foam only: padlock between the crosses, vertically centered on the middle row -->
         <CheckBox IsVisible="{Binding IsFoam}" Classes="padlock" IsChecked="{Binding Together}"
-                  ToolTip.Tip="Synchronize both gantries" VerticalAlignment="Top" Margin="0,70,0,0" />
+                  ToolTip.Tip="Synchronize both gantries" VerticalAlignment="Center" Margin="0,0,0,0" />
 
         <!-- Foam only: ZA cross -->
-        <Grid IsVisible="{Binding IsFoam}" Width="174" Height="174" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Top">
+        <Grid IsVisible="{Binding IsFoam}" Width="174" Height="174" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Center">
             <Button Grid.Row="0" Grid.Column="0" Classes="jog diag" Content="↖" Command="{Binding JogCommand}" CommandParameter="Z-,A+"
                     IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
             <Button Grid.Row="0" Grid.Column="1" Classes="jog" Content="A+" Command="{Binding JogCommand}" CommandParameter="A+"
@@ -142,7 +159,7 @@
         </Grid>
 
         <!-- Linear axes: one column per axis, +/- aligned with cross rows, letter in the middle -->
-        <ItemsControl ItemsSource="{Binding LinearAxisLetters}" VerticalAlignment="Top" Margin="4,0,0,0">
+        <ItemsControl ItemsSource="{Binding LinearAxisLetters}" VerticalAlignment="Center" Margin="4,0,8,0">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <StackPanel Orientation="Horizontal" Spacing="2" />
