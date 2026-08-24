@@ -33,7 +33,9 @@
                 <ControlTemplate>
                     <Border x:Name="Root" Background="#eee" BorderBrush="#999" BorderThickness="1"
                             Height="22" Margin="0,1,0,0" Padding="6,0">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
                                           FontSize="10" Foreground="#333" />
                     </Border>
                 </ControlTemplate>
