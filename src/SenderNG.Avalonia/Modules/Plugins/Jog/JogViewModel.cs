@@ -232,10 +232,11 @@ public class JogViewModel : ViewModelBase
     private void RefreshLinearAxes()
     {
         var count = Math.Max(0, _numAxes - CrossedAxes);
-        while (LinearAxisLetters.Count > count)
-            LinearAxisLetters.RemoveAt(LinearAxisLetters.Count - 1);
-        while (LinearAxisLetters.Count < count)
-            LinearAxisLetters.Add(new LinearAxisRow(Letters[CrossedAxes + LinearAxisLetters.Count]));
+        // Rebuild (not just resize): the crossed-axis count changes with mode,
+        // so existing rows must be re-lettered (foam starts at B, mill at Z).
+        LinearAxisLetters.Clear();
+        for (var i = 0; i < count; i++)
+            LinearAxisLetters.Add(new LinearAxisRow(Letters[CrossedAxes + i]));
     }
 
     private static string Fmt(double value) =>
