@@ -11,6 +11,7 @@ public class ProgramModule : IModule
     public int Order => 20;
     public PanelHint Panel => PanelHint.Center;
     public bool IsVisibleByDefault => true;
+    public bool CanHide => false;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>

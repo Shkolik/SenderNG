@@ -53,14 +53,24 @@
 
             <TextBlock Text="Modules" FontWeight="SemiBold" Margin="0,8,0,0" />
             <ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto">
+                <!-- Wrap layout: max 3 cards per row (card width 148 + 8 gap in a 480 dialog) -->
                 <ItemsControl ItemsSource="{Binding ModuleSections}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:ModuleSettingsEntry">
-                            <Border CornerRadius="0" BorderBrush="#aaa" BorderThickness="1"
-                                    Background="#fafafa" Margin="0,0,0,8" Padding="8,6">
+                            <Border Width="148" CornerRadius="0" BorderBrush="#aaa" BorderThickness="1"
+                                    Background="#fafafa" Margin="0,0,8,8" Padding="8,6">
                                 <StackPanel Spacing="4">
-                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11" />
-                                    <CheckBox Content="Visible" IsChecked="{Binding IsVisible, Mode=TwoWay}" />
+                                    <!-- Header: checkbox-as-header for hideable modules, plain name for fixed ones -->
+                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsVisible, Mode=TwoWay}"
+                                              FontWeight="SemiBold" FontSize="11"
+                                              IsVisible="{Binding CanHide}" />
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11"
+                                               IsVisible="{Binding !CanHide}" />
                                     <ItemsControl ItemsSource="{Binding BoolFields}" Margin="12,0,0,0">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:BoolSettingEntry">
@@ -73,10 +83,11 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:NumericSettingEntry">
                                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                                    <TextBlock Text="{Binding Label}" Width="110" FontSize="11"
+                                                    <TextBlock Text="{Binding Label}" Width="60" FontSize="10"
                                                                VerticalAlignment="Center" />
-                                                    <TextBox Text="{Binding Value}" Width="70" CornerRadius="0"
-                                                             BorderBrush="#999" BorderThickness="1" Height="24" />
+                                                    <TextBox Text="{Binding Value}" Width="62" CornerRadius="0"
+                                                             BorderBrush="#999" BorderThickness="1" Height="22" FontSize="10"
+                                                             VerticalContentAlignment="Center" Padding="4,0" />
                                                 </StackPanel>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>

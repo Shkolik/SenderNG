@@ -95,12 +95,12 @@ public sealed class BoolSettingEntry : ViewModelBase
     }
 }
 
-/// <summary>One module row in the App Settings dialog: name + visibility checkbox.</summary>
+/// <summary>One module card in the App Settings dialog: header checkbox (when hideable) + fields.</summary>
 public sealed class ModuleSettingsEntry : ViewModelBase
 {
     private bool _isVisible;
 
-    public ModuleSettingsEntry(string id, string name, bool isVisible,
+    public ModuleSettingsEntry(string id, string name, bool isVisible, bool canHide,
         System.Action<string, bool> visibilityChanged,
         IEnumerable<NumericSettingEntry>? fields = null,
         IEnumerable<BoolSettingEntry>? boolFields = null)
@@ -108,7 +108,8 @@ public sealed class ModuleSettingsEntry : ViewModelBase
         ArgumentNullException.ThrowIfNull(visibilityChanged);
         Id = id;
         Name = name;
-        _isVisible = isVisible;
+        _isVisible = canHide ? isVisible : true;
+        CanHide = canHide;
         _visibilityChanged = visibilityChanged;
         if (fields is not null)
             foreach (var f in fields)
@@ -123,6 +124,9 @@ public sealed class ModuleSettingsEntry : ViewModelBase
     public string Id { get; }
 
     public string Name { get; }
+
+    /// <summary>Fixed modules (DRO, Program, Console, Jog) show no visibility checkbox.</summary>
+    public bool CanHide { get; }
 
     public ObservableCollection<NumericSettingEntry> Fields { get; } = new();
 
@@ -188,6 +192,7 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
                 module.Id,
                 module.Name,
                 IsModuleVisible(module),
+                module.CanHide,
                 VisibilityChanged,
                 fields,
                 boolFields));
