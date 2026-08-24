@@ -29,6 +29,7 @@
         </Style>
         <!-- Step selector toggles: own flat template, guaranteed 22px, checked = highlighted -->
         <Style Selector="ToggleButton.step">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border x:Name="Root" Background="#eee" BorderBrush="#999" BorderThickness="1"
@@ -91,29 +92,30 @@
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="8,8,8,8">
     <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,22,0" VerticalAlignment="Top">
 
-        <!-- Distance selector: own bordered box -->
-        <Border Width="72" BorderBrush="#999" BorderThickness="1"
-                Padding="6,4" VerticalAlignment="Top">
-            <StackPanel>
-                <TextBlock Classes="caption" Text="Distance" />
-                <ToggleButton Classes="step" Content="{Binding Config.Distances[0]}" IsChecked="{Binding IsDistance0}" />
-                <ToggleButton Classes="step" Content="{Binding Config.Distances[1]}" IsChecked="{Binding IsDistance1}" />
-                <ToggleButton Classes="step" Content="{Binding Config.Distances[2]}" IsChecked="{Binding IsDistance2}" />
-                <TextBlock Classes="unit" Text="mm" Margin="14,1,0,0" />
-            </StackPanel>
-        </Border>
+        <!-- Selectors stacked vertically with a small gap -->
+        <StackPanel Spacing="6" VerticalAlignment="Top">
+            <!-- Distance selector: own bordered box -->
+            <Border Width="72" BorderBrush="#999" BorderThickness="1"
+                    Padding="6,4" VerticalAlignment="Top">
+                <StackPanel>
+                    <TextBlock Classes="caption" Text="Distance (mm)" />
+                    <ToggleButton Classes="step" Content="{Binding Config.Distances[0]}" IsChecked="{Binding IsDistance0}" />
+                    <ToggleButton Classes="step" Content="{Binding Config.Distances[1]}" IsChecked="{Binding IsDistance1}" />
+                    <ToggleButton Classes="step" Content="{Binding Config.Distances[2]}" IsChecked="{Binding IsDistance2}" />
+                </StackPanel>
+            </Border>
 
-        <!-- Speed selector: own bordered box -->
-        <Border Width="72" BorderBrush="#999" BorderThickness="1"
-                Padding="6,4" VerticalAlignment="Top">
-            <StackPanel>
-                <TextBlock Classes="caption" Text="Speed" />
-                <ToggleButton Classes="step" Content="{Binding Config.Speeds[0]}" IsChecked="{Binding IsSpeed0}" />
-                <ToggleButton Classes="step" Content="{Binding Config.Speeds[1]}" IsChecked="{Binding IsSpeed1}" />
-                <ToggleButton Classes="step" Content="{Binding Config.Speeds[2]}" IsChecked="{Binding IsSpeed2}" />
-                <TextBlock Classes="unit" Text="mm/min" Margin="14,1,0,0" />
-            </StackPanel>
-        </Border>
+            <!-- Speed selector: own bordered box -->
+            <Border Width="72" BorderBrush="#999" BorderThickness="1"
+                    Padding="6,4" VerticalAlignment="Top">
+                <StackPanel>
+                    <TextBlock Classes="caption" Text="Speed (mm/min)" />
+                    <ToggleButton Classes="step" Content="{Binding Config.Speeds[0]}" IsChecked="{Binding IsSpeed0}" />
+                    <ToggleButton Classes="step" Content="{Binding Config.Speeds[1]}" IsChecked="{Binding IsSpeed1}" />
+                    <ToggleButton Classes="step" Content="{Binding Config.Speeds[2]}" IsChecked="{Binding IsSpeed2}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
 
         <!-- XY cross (both modes); in Foam+Together it jogs both gantries mirrored.
              Explicit 3x3 Grid (not UniformGrid): hidden diagonal cells stay reserved,
