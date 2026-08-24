@@ -2,7 +2,8 @@ namespace CNC.Core.Abstractions;
 
 public interface IDialogService
 {
-    Task<bool?> ShowDialogAsync(string title, object viewModel);
+    /// <summary>preferredSize: explicit window size -> manually resizable; null -> size to content.</summary>
+    Task<bool?> ShowDialogAsync(string title, object viewModel, (double Width, double Height)? preferredSize = null);
 }
 
 /// <summary>

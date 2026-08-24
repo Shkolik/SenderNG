@@ -490,7 +490,7 @@ public class MainViewModel : ViewModelBase
         }
         try
         {
-            await _dialogs.ShowDialogAsync(module.Name, module.CreateViewModel(_services));
+            await _dialogs.ShowDialogAsync(module.Name, module.CreateViewModel(_services), module.DialogPreferredSize);
         }
         catch (Exception ex)
         {

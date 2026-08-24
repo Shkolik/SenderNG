@@ -30,6 +30,10 @@ public class JogModule : IModule, IModuleSettingsProvider
         return serviceProvider.GetRequiredService<JogViewModel>();
     }
 
+    // Fields must work before the Jog view is ever opened (App Settings dialog).
+    public void AttachServices(IServiceProvider services) =>
+        _settingsService ??= services.GetRequiredService<SettingsService>();
+
     public object CreateView(object viewModel) =>
         new JogView { DataContext = viewModel };
 

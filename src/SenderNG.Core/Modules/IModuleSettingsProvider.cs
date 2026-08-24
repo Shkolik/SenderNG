@@ -7,6 +7,10 @@ public interface IModuleSettingsProvider
 
     /// <summary>Optional boolean fields (checkboxes); default none.</summary>
     IEnumerable<ModuleSettingBool> GetBoolSettingFields() => [];
+
+    /// <summary>Called once after host build so the module can resolve services
+    /// (settings fields may be read before the module's own UI is ever opened).</summary>
+    void AttachServices(IServiceProvider services) { }
 }
 
 public sealed class ModuleSettingField(string label, Func<double> get, Action<double> set)
