@@ -65,6 +65,36 @@ public class JogViewModel : ViewModelBase
         }
     }
 
+    // Editable per-step values for the settings card.
+    public double Distance0 { get => Config.Distances[0]; set => SetDistance(0, value); }
+    public double Distance1 { get => Config.Distances[1]; set => SetDistance(1, value); }
+    public double Distance2 { get => Config.Distances[2]; set => SetDistance(2, value); }
+    public double Speed0 { get => Config.Speeds[0]; set => SetSpeed(0, value); }
+    public double Speed1 { get => Config.Speeds[1]; set => SetSpeed(1, value); }
+    public double Speed2 { get => Config.Speeds[2]; set => SetSpeed(2, value); }
+
+    private void SetDistance(int i, double value)
+    {
+        if (Config.Distances[i] == value)
+            return;
+        Config.Distances[i] = value;
+        Save();
+        RaiseDistanceFlags();
+        OnPropertyChanged($"Distance{i}");
+        OnPropertyChanged(nameof(SelectedDistance));
+    }
+
+    private void SetSpeed(int i, double value)
+    {
+        if (Config.Speeds[i] == value)
+            return;
+        Config.Speeds[i] = value;
+        Save();
+        RaiseSpeedFlags();
+        OnPropertyChanged($"Speed{i}");
+        OnPropertyChanged(nameof(SelectedSpeed));
+    }
+
     // Session-only padlock: while engaged the XY cross jogs both gantries mirrored.
     private bool _together;
     public bool Together

@@ -3,49 +3,38 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
-             mc:Ignorable="d" d:DesignWidth="130" d:DesignHeight="150"
+             mc:Ignorable="d" d:DesignWidth="130" d:DesignHeight="170"
              x:Class="SenderNG.Avalonia.Modules.Plugins.JogSettingsView"
              x:DataType="vm:JogViewModel">
 
     <UserControl.Styles>
-        <Style Selector="ToggleButton.step">
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#444" />
-            <Setter Property="Template">
-                <ControlTemplate>
-                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="1" Height="20" Margin="0,1,0,0" Padding="6,0">
-                        <ContentPresenter Content="{TemplateBinding Content}"
-                                          ContentTemplate="{TemplateBinding ContentTemplate}"
-                                          HorizontalAlignment="Center" VerticalAlignment="Center"
-                                          FontSize="10" Foreground="{TemplateBinding Foreground}" />
-                    </Border>
-                </ControlTemplate>
-            </Setter>
-        </Style>
-        <Style Selector="ToggleButton.step:checked">
-            <Setter Property="Background" Value="#bdbdbd" />
-            <Setter Property="BorderBrush" Value="#999" />
-            <Setter Property="Foreground" Value="#111" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
         <Style Selector="TextBlock.caption">
             <Setter Property="FontSize" Value="10" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="#333" />
         </Style>
+        <Style Selector="TextBox.stepValue">
+            <Setter Property="Height" Value="22" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="BorderBrush" Value="#999" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
     </UserControl.Styles>
 
+    <!-- Editor inputs: values apply on focus loss / Enter -->
     <StackPanel>
-        <TextBlock Classes="caption" Text="Distance (mm)" />
-        <ToggleButton Classes="step" Content="{Binding Config.Distances[0]}" IsChecked="{Binding IsDistance0}" />
-        <ToggleButton Classes="step" Content="{Binding Config.Distances[1]}" IsChecked="{Binding IsDistance1}" />
-        <ToggleButton Classes="step" Content="{Binding Config.Distances[2]}" IsChecked="{Binding IsDistance2}" />
-        <TextBlock Classes="caption" Text="Speed (mm/min)" Margin="0,6,0,0" />
-        <ToggleButton Classes="step" Content="{Binding Config.Speeds[0]}" IsChecked="{Binding IsSpeed0}" />
-        <ToggleButton Classes="step" Content="{Binding Config.Speeds[1]}" IsChecked="{Binding IsSpeed1}" />
-        <ToggleButton Classes="step" Content="{Binding Config.Speeds[2]}" IsChecked="{Binding IsSpeed2}" />
+        <TextBlock Classes="caption" Text="Distances (mm)" />
+        <TextBox Classes="stepValue" Text="{Binding Distance0}" Watermark="Step 1" />
+        <TextBox Classes="stepValue" Text="{Binding Distance1}" Watermark="Step 2" />
+        <TextBox Classes="stepValue" Text="{Binding Distance2}" Watermark="Step 3" />
+        <TextBlock Classes="caption" Text="Speeds (mm/min)" Margin="0,6,0,0" />
+        <TextBox Classes="stepValue" Text="{Binding Speed0}" Watermark="Speed 1" />
+        <TextBox Classes="stepValue" Text="{Binding Speed1}" Watermark="Speed 2" />
+        <TextBox Classes="stepValue" Text="{Binding Speed2}" Watermark="Speed 3" />
         <CheckBox Content="Diagonal buttons" IsChecked="{Binding Diagonals}" FontSize="10" Margin="0,6,0,0" />
     </StackPanel>
 </UserControl>
