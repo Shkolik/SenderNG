@@ -274,26 +274,28 @@
                     </StackPanel>
                 </ScrollViewer>
             </Border>
-
-            <!-- Flyout drawer overlay — opens on top of Right panel, left of the strip.
-                 Sizes to its content: capped by host panel height and window width. -->
-            <Border MinWidth="360" MaxWidth="{Binding $parent[Window].Width}"
-                    MaxHeight="{Binding #FlyoutHost.Bounds.Height}"
-                    HorizontalAlignment="Right" VerticalAlignment="Top"
-                    Background="White" BorderBrush="#aaa" BorderThickness="1"
-                    IsVisible="{Binding SelectedModule, Converter={x:Static conv:Converters.IsFlyout}}">
-                <Grid RowDefinitions="Auto,*">
-                    <Border Grid.Row="0" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,0,0,1" Padding="6,4">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="{Binding SelectedModule.Name, FallbackValue='Flyout'}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
-                            <Button Grid.Column="1" Content="✕" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,0" Height="22" MinHeight="22" FontSize="10"
-                                    Command="{Binding SelectModuleCommand}" CommandParameter="{x:Null}" />
-                        </Grid>
-                    </Border>
-                    <ContentControl Grid.Row="1" Content="{Binding CurrentModuleView}" Margin="4" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-                </Grid>
-            </Border>
         </Panel>
+
+        <!-- Flyout drawer overlay — spans the full row (so it can grow wider than the
+             right column), opens on top, left of the strip. Sizes to its content,
+             capped by the host panel height and window width. -->
+        <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4"
+                MinWidth="360" MaxWidth="{Binding $parent[Window].Width}"
+                MaxHeight="{Binding #FlyoutHost.Bounds.Height}"
+                HorizontalAlignment="Right" VerticalAlignment="Top"
+                Background="White" BorderBrush="#aaa" BorderThickness="1"
+                IsVisible="{Binding SelectedModule, Converter={x:Static conv:Converters.IsFlyout}}">
+            <Grid RowDefinitions="Auto,*">
+                <Border Grid.Row="0" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,0,0,1" Padding="6,4">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding SelectedModule.Name, FallbackValue='Flyout'}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Content="✕" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,0" Height="22" MinHeight="22" FontSize="10"
+                                Command="{Binding SelectModuleCommand}" CommandParameter="{x:Null}" />
+                    </Grid>
+                </Border>
+                <ContentControl Grid.Row="1" Content="{Binding CurrentModuleView}" Margin="4" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+            </Grid>
+        </Border>
 
         <!-- Col3 Row1: Flyout vertical 32px strip — dedicated column, never covers Right; Auto collapses when no Flyout claimants -->
         <Border Grid.Row="1" Grid.Column="3" Width="32"
