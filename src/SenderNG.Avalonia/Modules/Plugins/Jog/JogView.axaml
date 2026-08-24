@@ -8,8 +8,10 @@
              x:DataType="vm:JogViewModel">
 
     <UserControl.Styles>
+        <!-- Fixed cell size: UniformGrid cells must never stretch with the drawer height. -->
         <Style Selector="Button.jog">
-            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="32" />
             <Setter Property="Margin" Value="1" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="CornerRadius" Value="0" />
@@ -20,9 +22,10 @@
             <Setter Property="VerticalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="11" />
         </Style>
         <Style Selector="Button.jog.diag">
-            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontSize" Value="14" />
         </Style>
         <Style Selector="RadioButton.option">
             <Setter Property="FontSize" Value="11" />
@@ -40,10 +43,10 @@
         </Style>
     </UserControl.Styles>
 
-    <StackPanel Orientation="Horizontal" Margin="8" Spacing="8">
+    <StackPanel Orientation="Horizontal" Margin="8" Spacing="8" VerticalAlignment="Top">
 
         <!-- Selectors -->
-        <StackPanel Width="70">
+        <StackPanel Width="70" VerticalAlignment="Top">
             <TextBlock Classes="caption" Text="Distance" />
             <StackPanel Margin="0,2,0,0">
                 <RadioButton Classes="option" GroupName="Dist" Content="{Binding Config.Distances[0]}" IsChecked="{Binding IsDistance0}" />
@@ -62,45 +65,46 @@
             </StackPanel>
         </StackPanel>
 
-        <!-- XY cross (both modes); in Foam+Together it jogs both gantries mirrored -->
-        <UniformGrid Rows="3" Columns="3">
-            <Button Classes="jog diag" Content="◰" Command="{Binding JogCommand}" CommandParameter="X-,Y+|Z-,A+"
+        <!-- XY cross (both modes); in Foam+Together it jogs both gantries mirrored.
+             Fixed overall size so the tall drawer never stretches the cells. -->
+        <UniformGrid Rows="3" Columns="3" Width="126" Height="102" VerticalAlignment="Top">
+            <Button Classes="jog diag" Content="↖" Command="{Binding JogCommand}" CommandParameter="X-,Y+|Z-,A+"
                     IsVisible="{Binding ShowDiagonals}" />
             <Button Classes="jog" Content="Y+" Command="{Binding JogCommand}" CommandParameter="Y+|A+" />
-            <Button Classes="jog diag" Content="◳" Command="{Binding JogCommand}" CommandParameter="X+,Y+|Z+,A+"
+            <Button Classes="jog diag" Content="↗" Command="{Binding JogCommand}" CommandParameter="X+,Y+|Z+,A+"
                     IsVisible="{Binding ShowDiagonals}" />
             <Button Classes="jog" Content="X-" Command="{Binding JogCommand}" CommandParameter="X-|Z-" />
-            <Button Classes="jog" Content="Stop" Background="#e04545" BorderBrush="#b03535" Foreground="White" FontSize="11"
+            <Button Classes="jog" Content="Stop" Background="#e04545" BorderBrush="#b03535" Foreground="White" FontSize="10"
                     Command="{Binding StopCommand}" ToolTip.Tip="Feed hold" />
             <Button Classes="jog" Content="X+" Command="{Binding JogCommand}" CommandParameter="X+|Z+" />
-            <Button Classes="jog diag" Content="◲" Command="{Binding JogCommand}" CommandParameter="X-,Y-|Z-,A-"
+            <Button Classes="jog diag" Content="↙" Command="{Binding JogCommand}" CommandParameter="X-,Y-|Z-,A-"
                     IsVisible="{Binding ShowDiagonals}" />
             <Button Classes="jog" Content="Y-" Command="{Binding JogCommand}" CommandParameter="Y-|A-" />
-            <Button Classes="jog diag" Content="◱" Command="{Binding JogCommand}" CommandParameter="X+,Y-|Z+,A-"
+            <Button Classes="jog diag" Content="↘" Command="{Binding JogCommand}" CommandParameter="X+,Y-|Z+,A-"
                     IsVisible="{Binding ShowDiagonals}" />
         </UniformGrid>
 
-        <!-- Foam only: together padlock + independent ZA cross -->
-        <StackPanel IsVisible="{Binding IsFoam}" Spacing="2">
-            <CheckBox IsChecked="{Binding Together}" HorizontalAlignment="Center"
-                      ToolTip.Tip="Synchronize both gantries" Padding="2,0" MinHeight="18" />
-            <UniformGrid Rows="3" Columns="3">
-                <Button Classes="jog diag" Content="◰" Command="{Binding JogCommand}" CommandParameter="Z-,A+"
+        <!-- Foam only: together lock + independent ZA cross -->
+        <StackPanel IsVisible="{Binding IsFoam}" Spacing="2" VerticalAlignment="Top">
+            <CheckBox IsChecked="{Binding Together}" Content="Lock" HorizontalAlignment="Center"
+                      ToolTip.Tip="Synchronize both gantries" FontSize="10" Padding="2,0" MinHeight="18" />
+            <UniformGrid Rows="3" Columns="3" Width="126" Height="102" VerticalAlignment="Top">
+                <Button Classes="jog diag" Content="↖" Command="{Binding JogCommand}" CommandParameter="Z-,A+"
                         IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
                 <Button Classes="jog" Content="A+" Command="{Binding JogCommand}" CommandParameter="A+"
                         IsEnabled="{Binding ZaCrossEnabled}" />
-                <Button Classes="jog diag" Content="◳" Command="{Binding JogCommand}" CommandParameter="Z+,A+"
+                <Button Classes="jog diag" Content="↗" Command="{Binding JogCommand}" CommandParameter="Z+,A+"
                         IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
                 <Button Classes="jog" Content="Z-" Command="{Binding JogCommand}" CommandParameter="Z-"
                         IsEnabled="{Binding ZaCrossEnabled}" />
-                <Button Classes="jog" Content="•" IsEnabled="False" FontSize="11" />
+                <Button Classes="jog" Content="•" IsEnabled="False" />
                 <Button Classes="jog" Content="Z+" Command="{Binding JogCommand}" CommandParameter="Z+"
                         IsEnabled="{Binding ZaCrossEnabled}" />
-                <Button Classes="jog diag" Content="◲" Command="{Binding JogCommand}" CommandParameter="Z-,A-"
+                <Button Classes="jog diag" Content="↙" Command="{Binding JogCommand}" CommandParameter="Z-,A-"
                         IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
                 <Button Classes="jog" Content="A-" Command="{Binding JogCommand}" CommandParameter="A-"
                         IsEnabled="{Binding ZaCrossEnabled}" />
-                <Button Classes="jog diag" Content="◱" Command="{Binding JogCommand}" CommandParameter="Z+,A-"
+                <Button Classes="jog diag" Content="↘" Command="{Binding JogCommand}" CommandParameter="Z+,A-"
                         IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
             </UniformGrid>
         </StackPanel>
@@ -113,9 +117,9 @@
                     <StackPanel Orientation="Horizontal" Margin="0,1,0,0">
                         <TextBlock Text="{Binding Letter}" Width="16" VerticalAlignment="Center"
                                    HorizontalAlignment="Center" FontWeight="SemiBold" FontSize="11" />
-                        <Button Classes="jog" Width="30" MinHeight="24" Content="+" Command="{Binding $parent[UserControl].DataContext.JogCommand}"
+                        <Button Classes="jog" Width="30" Height="24" Content="+" Command="{Binding $parent[UserControl].DataContext.JogCommand}"
                                 CommandParameter="{Binding PlusTag}" />
-                        <Button Classes="jog" Width="30" MinHeight="24" Content="-" Command="{Binding $parent[UserControl].DataContext.JogCommand}"
+                        <Button Classes="jog" Width="30" Height="24" Content="-" Command="{Binding $parent[UserControl].DataContext.JogCommand}"
                                 CommandParameter="{Binding MinusTag}" />
                     </StackPanel>
                 </DataTemplate>
