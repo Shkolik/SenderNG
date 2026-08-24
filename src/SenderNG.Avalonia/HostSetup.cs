@@ -76,7 +76,14 @@ public static class HostSetup
                 modules: sp.GetServices<IModule>(),
                 viewFactory: sp.GetRequiredService<Func<IModule, object>>()));
 
-        return builder.Build();
+        var host = builder.Build();
+
+        // Settings fields may be read before a module's UI is ever opened.
+        foreach (var module in host.Services.GetServices<IModule>())
+            if (module is IModuleSettingsProvider provider)
+                provider.AttachServices(host.Services);
+
+        return host;
     }
 
     private static void RegisterModule(IServiceCollection services, IModule module)

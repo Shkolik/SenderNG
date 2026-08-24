@@ -27,12 +27,14 @@
         </Style>
     </UserControl.Styles>
 
-    <Border Width="640" MinHeight="420" Padding="12" Background="#f6f6f6">
-        <StackPanel Spacing="8">
-            <TextBlock Text="Select a mode" FontWeight="SemiBold" />
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <RadioButton Classes="mode" GroupName="Mode"
-                             IsChecked="{Binding IsMill, Mode=TwoWay}">
+    <!-- Fills the resizable window; the card grid row grows/shrinks with it -->
+    <Border Padding="12" Background="#f6f6f6">
+        <Grid RowDefinitions="Auto,Auto,*,Auto">
+            <StackPanel Grid.Row="0" Spacing="8">
+                <TextBlock Text="Select a mode" FontWeight="SemiBold" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <RadioButton Classes="mode" GroupName="Mode"
+                                 IsChecked="{Binding IsMill, Mode=TwoWay}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <!-- End mill outline -->
                         <PathIcon Data="M4 12 L4 6 L8 6 L8 3 L12 3 L12 6 L16 6 L16 12 Z M10 12 L10 18"
@@ -49,10 +51,11 @@
                         <TextBlock Text="Foam CNC" VerticalAlignment="Center" />
                     </StackPanel>
                 </RadioButton>
+                </StackPanel>
             </StackPanel>
 
-            <TextBlock Text="Modules" FontWeight="SemiBold" Margin="0,8,0,0" />
-            <ScrollViewer MaxHeight="480" VerticalScrollBarVisibility="Auto">
+            <TextBlock Grid.Row="1" Text="Modules" FontWeight="SemiBold" Margin="0,8,0,4" />
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
                 <!-- Wrap layout: max 3 cards per row (card width 148 + 8 gap in a 480 dialog) -->
                 <ItemsControl ItemsSource="{Binding ModuleSections}">
                     <ItemsControl.ItemsPanel>
@@ -101,12 +104,12 @@
                 </ItemsControl>
             </ScrollViewer>
 
-            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,8,0,0">
                 <Button Content="Close" Command="{Binding CloseCommand}"
                         Height="28" MinHeight="28" CornerRadius="0"
                         Background="#eee" BorderBrush="#999" BorderThickness="1"
                         Padding="12,0" VerticalContentAlignment="Center" />
             </StackPanel>
-        </StackPanel>
+        </Grid>
     </Border>
 </UserControl>

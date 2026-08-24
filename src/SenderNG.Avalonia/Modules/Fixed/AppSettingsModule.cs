@@ -26,4 +26,7 @@ public class AppSettingsModule : IModule
 
     public object CreateView(object viewModel) =>
         new AppSettingsView { DataContext = viewModel };
+
+    // Content-heavy wrap grid: fixed resizable window instead of size-to-content.
+    public (double Width, double Height)? DialogPreferredSize => (660.0, 520.0);
 }

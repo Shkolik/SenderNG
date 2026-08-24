@@ -43,4 +43,7 @@ public interface IModule
 
     /// <summary>Creates the module's view bound to the given view model. UI-agnostic.</summary>
     object CreateView(object viewModel);
+
+    /// <summary>Preferred (width, height) when the module opens as a dialog; null = size to content.</summary>
+    (double Width, double Height)? DialogPreferredSize => null;
 }
