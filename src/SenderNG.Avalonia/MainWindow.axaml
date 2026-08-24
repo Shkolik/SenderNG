@@ -276,7 +276,7 @@
             </Border>
 
             <!-- Flyout drawer overlay — opens on top of Right panel, left of the strip -->
-            <Border Width="500" HorizontalAlignment="Right" VerticalAlignment="Stretch"
+            <Border Width="560" HorizontalAlignment="Right" VerticalAlignment="Stretch"
                     Background="White" BorderBrush="#aaa" BorderThickness="1"
                     IsVisible="{Binding SelectedModule, Converter={x:Static conv:Converters.IsFlyout}}">
                 <Grid RowDefinitions="Auto,*">
