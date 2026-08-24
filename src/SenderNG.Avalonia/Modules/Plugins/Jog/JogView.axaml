@@ -27,24 +27,28 @@
         <Style Selector="Button.jog.diag">
             <Setter Property="FontSize" Value="18" />
         </Style>
-        <!-- Step selector toggles: own flat template, guaranteed 22px, checked = highlighted -->
+        <!-- Step selector toggles: own flat template; unchecked = plain text, checked = solid fill -->
         <Style Selector="ToggleButton.step">
             <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#444" />
             <Setter Property="Template">
                 <ControlTemplate>
-                    <Border x:Name="Root" Background="#eee" BorderBrush="#999" BorderThickness="1"
-                            Height="22" Margin="0,1,0,0" Padding="6,0">
+                    <Border x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1" Height="22" Margin="0,1,0,0" Padding="6,0">
                         <ContentPresenter Content="{TemplateBinding Content}"
                                           ContentTemplate="{TemplateBinding ContentTemplate}"
                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                          FontSize="10" Foreground="#333" />
+                                          FontSize="10" Foreground="{TemplateBinding Foreground}" />
                     </Border>
                 </ControlTemplate>
             </Setter>
         </Style>
-        <Style Selector="ToggleButton.step:checked /template/ Border#Root">
-            <Setter Property="Background" Value="#ddd" />
-            <Setter Property="BorderBrush" Value="#666" />
+        <Style Selector="ToggleButton.step:checked">
+            <Setter Property="Background" Value="#bdbdbd" />
+            <Setter Property="BorderBrush" Value="#999" />
+            <Setter Property="Foreground" Value="#111" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style Selector="TextBlock.caption">
             <Setter Property="FontSize" Value="10" />
@@ -92,29 +96,23 @@
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="8,8,8,8">
     <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,22,0" VerticalAlignment="Top">
 
-        <!-- Selectors stacked vertically with a small gap -->
-        <StackPanel Spacing="6" VerticalAlignment="Top">
-            <!-- Distance selector: own bordered box -->
-            <Border Width="72" BorderBrush="#999" BorderThickness="1"
-                    Padding="6,4" VerticalAlignment="Top">
-                <StackPanel>
-                    <TextBlock Classes="caption" Text="Distance (mm)" />
-                    <ToggleButton Classes="step" Content="{Binding Config.Distances[0]}" IsChecked="{Binding IsDistance0}" />
-                    <ToggleButton Classes="step" Content="{Binding Config.Distances[1]}" IsChecked="{Binding IsDistance1}" />
-                    <ToggleButton Classes="step" Content="{Binding Config.Distances[2]}" IsChecked="{Binding IsDistance2}" />
-                </StackPanel>
-            </Border>
+        <!-- Selectors stacked vertically with a small gap; no box outline -->
+        <StackPanel Spacing="8" VerticalAlignment="Top">
+            <!-- Distance selector -->
+            <StackPanel MinWidth="76" VerticalAlignment="Top">
+                <TextBlock Classes="caption" Text="Distance (mm)" Margin="0,0,0,2" />
+                <ToggleButton Classes="step" Content="{Binding Config.Distances[0]}" IsChecked="{Binding IsDistance0}" />
+                <ToggleButton Classes="step" Content="{Binding Config.Distances[1]}" IsChecked="{Binding IsDistance1}" />
+                <ToggleButton Classes="step" Content="{Binding Config.Distances[2]}" IsChecked="{Binding IsDistance2}" />
+            </StackPanel>
 
-            <!-- Speed selector: own bordered box -->
-            <Border Width="72" BorderBrush="#999" BorderThickness="1"
-                    Padding="6,4" VerticalAlignment="Top">
-                <StackPanel>
-                    <TextBlock Classes="caption" Text="Speed (mm/min)" />
-                    <ToggleButton Classes="step" Content="{Binding Config.Speeds[0]}" IsChecked="{Binding IsSpeed0}" />
-                    <ToggleButton Classes="step" Content="{Binding Config.Speeds[1]}" IsChecked="{Binding IsSpeed1}" />
-                    <ToggleButton Classes="step" Content="{Binding Config.Speeds[2]}" IsChecked="{Binding IsSpeed2}" />
-                </StackPanel>
-            </Border>
+            <!-- Speed selector -->
+            <StackPanel MinWidth="76" VerticalAlignment="Top">
+                <TextBlock Classes="caption" Text="Speed (mm/min)" Margin="0,0,0,2" />
+                <ToggleButton Classes="step" Content="{Binding Config.Speeds[0]}" IsChecked="{Binding IsSpeed0}" />
+                <ToggleButton Classes="step" Content="{Binding Config.Speeds[1]}" IsChecked="{Binding IsSpeed1}" />
+                <ToggleButton Classes="step" Content="{Binding Config.Speeds[2]}" IsChecked="{Binding IsSpeed2}" />
+            </StackPanel>
         </StackPanel>
 
         <!-- XY cross (both modes); in Foam+Together it jogs both gantries mirrored.
