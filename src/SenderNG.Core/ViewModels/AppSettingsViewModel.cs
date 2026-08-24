@@ -138,6 +138,9 @@ public sealed class ModuleSettingsEntry : ViewModelBase
 
     public bool ShowGenericFields => SettingsView is null;
 
+    /// <summary>"Always visible" caption only for fixed modules with nothing to configure.</summary>
+    public bool ShowAlwaysVisibleCaption => ShowNameOnly && SettingsView is null;
+
     public ObservableCollection<NumericSettingEntry> Fields { get; } = new();
 
     public ObservableCollection<BoolSettingEntry> BoolFields { get; } = new();
