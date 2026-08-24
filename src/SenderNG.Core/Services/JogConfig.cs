@@ -2,17 +2,33 @@ using System.Text.Json;
 
 namespace CNC.Core.Services;
 
-public class JogConfig
+/// <summary>Observable per-mode jog configuration: bindable directly from settings UIs.</summary>
+public class JogConfig : CNC.Core.ViewModelBase
 {
-    public double[] Distances { get; set; } = [0.1, 1.0, 10.0];
-    public double[] Speeds { get; set; } = [500.0, 1000.0, 2000.0];
-    public int DistanceIndex { get; set; } = 1;
-    public int SpeedIndex { get; set; } = 1;
-    public bool Diagonals { get; set; } = true;
-}
+    private double[] _distances = [0.1, 1.0, 10.0];
+    private double[] _speeds = [500.0, 1000.0, 2000.0];
+    private int _distanceIndex = 1;
+    private int _speedIndex = 1;
+    private bool _diagonals = true;
 
+    public double[] Distances { get => _distances; set => SetField(ref _distances, value); }
+    public double[] Speeds { get => _speeds; set => SetField(ref _speeds, value); }
+
+    public int DistanceIndex { get => _distanceIndex; set => SetField(ref _distanceIndex, value); }
+    public int SpeedIndex { get => _speedIndex; set => SetField(ref _speedIndex, value); }
+
+    public bool Diagonals { get => _diagonals; set => SetField(ref _diagonals, value); }
+
+    // Named per-step accessors for editors; write through to the serialized arrays.
+    public double Distance1 { get => Distances[0]; set { Distances[0] = value; OnPropertyChanged(); } }
+    public double Distance2 { get => Distances[1]; set { Distances[1] = value; OnPropertyChanged(); } }
+    public double Distance3 { get => Distances[2]; set { Distances[2] = value; OnPropertyChanged(); } }
+    public double Speed1 { get => Speeds[0]; set { Speeds[0] = value; OnPropertyChanged(); } }
+    public double Speed2 { get => Speeds[1]; set { Speeds[1] = value; OnPropertyChanged(); } }
+    public double Speed3 { get => Speeds[2]; set { Speeds[2] = value; OnPropertyChanged(); } }
+}
 // Reads/writes the "Jog" section of AppSettings.Modules:
-// { "Mill": { Distances, Speeds, DistanceIndex, SpeedIndex }, "Foam": {...} }.
+// { "Mill": { Distances, Speeds, DistanceIndex, SpeedIndex, Diagonals }, "Foam": {...} }.
 // The section may be a Dictionary<string,object> (in-memory) or a JsonElement
 // (freshly deserialized settings.json), so both shapes are handled defensively.
 public static class JogConfigStore
