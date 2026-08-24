@@ -4,8 +4,8 @@ namespace CNC.Core.Services;
 
 public class JogConfig
 {
-    public double[] Distances { get; set; } = [0.1, 1.0, 10.0, 50.0];
-    public double[] Speeds { get; set; } = [500.0, 1000.0, 2000.0, 3000.0];
+    public double[] Distances { get; set; } = [0.1, 1.0, 10.0];
+    public double[] Speeds { get; set; } = [500.0, 1000.0, 2000.0];
     public int DistanceIndex { get; set; } = 1;
     public int SpeedIndex { get; set; } = 1;
     public bool Diagonals { get; set; } = true;
@@ -18,7 +18,10 @@ public class JogConfig
 public static class JogConfigStore
 {
     private const string SectionKey = "Jog";
-    private const int Size = 4;
+    private const int Size = 3;
+
+    /// <summary>Number of distance/speed steps per selector.</summary>
+    public static int StepCount => Size;
 
     public static JogConfig Load(AppSettings settings)
     {
