@@ -25,16 +25,16 @@
         </Style>
     </UserControl.Styles>
 
-    <!-- Editor inputs: values apply on focus loss / Enter -->
+    <!-- Binds JogConfig directly; edits persist via the VM's config-change hook -->
     <StackPanel>
         <TextBlock Classes="caption" Text="Distances (mm)" />
-        <TextBox Classes="stepValue" Text="{Binding Distance0}" Watermark="Step 1" />
-        <TextBox Classes="stepValue" Text="{Binding Distance1}" Watermark="Step 2" />
-        <TextBox Classes="stepValue" Text="{Binding Distance2}" Watermark="Step 3" />
+        <TextBox Classes="stepValue" Text="{Binding Config.Distance1}" Watermark="Step 1" />
+        <TextBox Classes="stepValue" Text="{Binding Config.Distance2}" Watermark="Step 2" />
+        <TextBox Classes="stepValue" Text="{Binding Config.Distance3}" Watermark="Step 3" />
         <TextBlock Classes="caption" Text="Speeds (mm/min)" Margin="0,6,0,0" />
-        <TextBox Classes="stepValue" Text="{Binding Speed0}" Watermark="Speed 1" />
-        <TextBox Classes="stepValue" Text="{Binding Speed1}" Watermark="Speed 2" />
-        <TextBox Classes="stepValue" Text="{Binding Speed2}" Watermark="Speed 3" />
-        <CheckBox Content="Diagonal buttons" IsChecked="{Binding Diagonals}" FontSize="10" Margin="0,6,0,0" />
+        <TextBox Classes="stepValue" Text="{Binding Config.Speed1}" Watermark="Speed 1" />
+        <TextBox Classes="stepValue" Text="{Binding Config.Speed2}" Watermark="Speed 2" />
+        <TextBox Classes="stepValue" Text="{Binding Config.Speed3}" Watermark="Speed 3" />
+        <CheckBox Content="Diagonal buttons" IsChecked="{Binding Config.Diagonals}" FontSize="10" Margin="0,6,0,0" />
     </StackPanel>
 </UserControl>

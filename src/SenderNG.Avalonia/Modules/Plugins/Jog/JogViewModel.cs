@@ -32,6 +32,7 @@ public class JogViewModel : ViewModelBase
         _appSettings = _settingsService.Load();
 
         Config = JogConfigStore.Load(_appSettings);
+        Config.PropertyChanged += OnConfigPropertyChanged;
         RefreshLinearAxes();
 
         JogCommand = new DelegateCommand(p => _ = JogAsync(p as string));
@@ -43,57 +44,50 @@ public class JogViewModel : ViewModelBase
 
     public JogConfig Config { get; private set; }
 
+    // Single persistence point: ANY config edit (settings card, widget selectors)
+    // flows through here. The settings card binds Config directly.
+    // "Distances"/"Speeds" array-instance swaps come from Load/Normalize itself
+    // (not user edits) and must not re-persist.
+    private bool _saving;
+    private void OnConfigPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (_saving || e.PropertyName is nameof(JogConfig.Distances) or nameof(JogConfig.Speeds))
+            return;
+
+        _saving = true;
+        try
+        {
+            Save();
+        }
+        finally
+        {
+            _saving = false;
+        }
+
+        switch (e.PropertyName)
+        {
+            case nameof(JogConfig.DistanceIndex):
+                RaiseDistanceFlags();
+                OnPropertyChanged(nameof(SelectedDistanceIndex));
+                OnPropertyChanged(nameof(SelectedDistance));
+                break;
+            case nameof(JogConfig.SpeedIndex):
+                RaiseSpeedFlags();
+                OnPropertyChanged(nameof(SelectedSpeedIndex));
+                OnPropertyChanged(nameof(SelectedSpeed));
+                break;
+            case nameof(JogConfig.Diagonals):
+                OnPropertyChanged(nameof(ShowDiagonals));
+                break;
+        }
+    }
+
     public ObservableCollection<LinearAxisRow> LinearAxisLetters { get; } = new();
 
     public bool IsFoam => _appSettings.Mode == AppSettings.FoamMode;
     public bool IsMill => !IsFoam;
 
     public bool ShowDiagonals => Config.Diagonals;
-
-    private bool _diagonals;
-    public bool Diagonals
-    {
-        get => Config.Diagonals;
-        set
-        {
-            if (Config.Diagonals == value)
-                return;
-            Config.Diagonals = value;
-            OnPropertyChanged(nameof(Diagonals));
-            OnPropertyChanged(nameof(ShowDiagonals));
-            Save();
-        }
-    }
-
-    // Editable per-step values for the settings card.
-    public double Distance0 { get => Config.Distances[0]; set => SetDistance(0, value); }
-    public double Distance1 { get => Config.Distances[1]; set => SetDistance(1, value); }
-    public double Distance2 { get => Config.Distances[2]; set => SetDistance(2, value); }
-    public double Speed0 { get => Config.Speeds[0]; set => SetSpeed(0, value); }
-    public double Speed1 { get => Config.Speeds[1]; set => SetSpeed(1, value); }
-    public double Speed2 { get => Config.Speeds[2]; set => SetSpeed(2, value); }
-
-    private void SetDistance(int i, double value)
-    {
-        if (Config.Distances[i] == value)
-            return;
-        Config.Distances[i] = value;
-        Save();
-        RaiseDistanceFlags();
-        OnPropertyChanged($"Distance{i}");
-        OnPropertyChanged(nameof(SelectedDistance));
-    }
-
-    private void SetSpeed(int i, double value)
-    {
-        if (Config.Speeds[i] == value)
-            return;
-        Config.Speeds[i] = value;
-        Save();
-        RaiseSpeedFlags();
-        OnPropertyChanged($"Speed{i}");
-        OnPropertyChanged(nameof(SelectedSpeed));
-    }
 
     // Session-only padlock: while engaged the XY cross jogs both gantries mirrored.
     private bool _together;
@@ -123,14 +117,8 @@ public class JogViewModel : ViewModelBase
         get => Config.DistanceIndex;
         set
         {
-            var v = Math.Clamp(value, 0, JogConfigStore.StepCount - 1);
-            if (Config.DistanceIndex == v)
-                return;
-            Config.DistanceIndex = v;
-            OnPropertyChanged();
-            RaiseDistanceFlags();
-            OnPropertyChanged(nameof(SelectedDistance));
-            Save();
+            // Config.PropertyChanged persists + raises flags/derived values.
+            Config.DistanceIndex = Math.Clamp(value, 0, JogConfigStore.StepCount - 1);
         }
     }
 
@@ -139,14 +127,7 @@ public class JogViewModel : ViewModelBase
         get => Config.SpeedIndex;
         set
         {
-            var v = Math.Clamp(value, 0, JogConfigStore.StepCount - 1);
-            if (Config.SpeedIndex == v)
-                return;
-            Config.SpeedIndex = v;
-            OnPropertyChanged();
-            RaiseSpeedFlags();
-            OnPropertyChanged(nameof(SelectedSpeed));
-            Save();
+            Config.SpeedIndex = Math.Clamp(value, 0, JogConfigStore.StepCount - 1);
         }
     }
 
@@ -244,6 +225,7 @@ public class JogViewModel : ViewModelBase
             return;
 
         Config = JogConfigStore.Load(_appSettings);
+        Config.PropertyChanged += OnConfigPropertyChanged;
         OnPropertyChanged(nameof(Config));
         OnPropertyChanged(nameof(IsFoam));
         OnPropertyChanged(nameof(IsMill));
