@@ -15,6 +15,7 @@ public class JogModule : IModule, IModuleSettingsProvider
     // Flyout: the widget is wide in foam/multiaxis layouts — drawer overlay suits it better.
     public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;
+    public bool CanHide => false;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>

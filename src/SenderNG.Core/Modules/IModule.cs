@@ -26,6 +26,9 @@ public interface IModule
     /// <summary>Whether the module is visible by default (overridable via AppSettings.ModulesVisibility).</summary>
     bool IsVisibleByDefault => true;
 
+    /// <summary>Whether the user may hide this module. Fixed layout modules (DRO, Program, Console, Jog) cannot.</summary>
+    bool CanHide => true;
+
     /// <summary>Global hot keys provided by this module.</summary>
     IReadOnlyList<HotKey> HotKeys { get; }
 

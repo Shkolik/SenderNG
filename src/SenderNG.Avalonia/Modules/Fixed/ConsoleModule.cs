@@ -11,6 +11,7 @@ public class ConsoleModule : IModule
     public int Order => 21;
     public PanelHint Panel => PanelHint.Center;
     public bool IsVisibleByDefault => true;
+    public bool CanHide => false;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>

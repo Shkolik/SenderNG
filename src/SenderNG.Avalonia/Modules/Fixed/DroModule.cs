@@ -11,6 +11,7 @@ public class DroModule : IModule
     public int Order => 10;
     public PanelHint Panel => PanelHint.Left;
     public bool IsVisibleByDefault => true;
+    public bool CanHide => false;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>
