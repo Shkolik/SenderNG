@@ -78,7 +78,7 @@ public class JogViewModel : ViewModelBase
         get => Config.DistanceIndex;
         set
         {
-            var v = Math.Clamp(value, 0, 3);
+            var v = Math.Clamp(value, 0, JogConfigStore.StepCount - 1);
             if (Config.DistanceIndex == v)
                 return;
             Config.DistanceIndex = v;
@@ -94,7 +94,7 @@ public class JogViewModel : ViewModelBase
         get => Config.SpeedIndex;
         set
         {
-            var v = Math.Clamp(value, 0, 3);
+            var v = Math.Clamp(value, 0, JogConfigStore.StepCount - 1);
             if (Config.SpeedIndex == v)
                 return;
             Config.SpeedIndex = v;
@@ -126,21 +126,19 @@ public class JogViewModel : ViewModelBase
     public bool IsDistance0 { get => GetDistanceFlag(0); set => SetDistanceFlag(0, value); }
     public bool IsDistance1 { get => GetDistanceFlag(1); set => SetDistanceFlag(1, value); }
     public bool IsDistance2 { get => GetDistanceFlag(2); set => SetDistanceFlag(2, value); }
-    public bool IsDistance3 { get => GetDistanceFlag(3); set => SetDistanceFlag(3, value); }
     public bool IsSpeed0 { get => GetSpeedFlag(0); set => SetSpeedFlag(0, value); }
     public bool IsSpeed1 { get => GetSpeedFlag(1); set => SetSpeedFlag(1, value); }
     public bool IsSpeed2 { get => GetSpeedFlag(2); set => SetSpeedFlag(2, value); }
-    public bool IsSpeed3 { get => GetSpeedFlag(3); set => SetSpeedFlag(3, value); }
 
     private void RaiseDistanceFlags()
     {
-        for (var i = 0; i < 4; i++)
+        for (var i = 0; i < JogConfigStore.StepCount; i++)
             OnPropertyChanged($"IsDistance{i}");
     }
 
     private void RaiseSpeedFlags()
     {
-        for (var i = 0; i < 4; i++)
+        for (var i = 0; i < JogConfigStore.StepCount; i++)
             OnPropertyChanged($"IsSpeed{i}");
     }
 
@@ -211,6 +209,7 @@ public class JogViewModel : ViewModelBase
         OnPropertyChanged(nameof(SelectedSpeed));
         RaiseDistanceFlags();
         RaiseSpeedFlags();
+        RefreshLinearAxes();
     }
 
     private void ApplyState(MachineState state)
@@ -226,15 +225,17 @@ public class JogViewModel : ViewModelBase
         RefreshLinearAxes();
     }
 
-    // Axes beyond X/Y (Z, A, B...) rendered as linear rows. In Foam mode the view
-    // hides them because Z/A live in the second cross.
+    // Crossed axis count: Mill crosses the first 2 (X,Y), Foam the first 4 (X,Y,Z,A).
+    // The rest render as linear +/- rows.
+    private int CrossedAxes => IsFoam ? 4 : 2;
+
     private void RefreshLinearAxes()
     {
-        var count = Math.Max(0, _numAxes - 2);
+        var count = Math.Max(0, _numAxes - CrossedAxes);
         while (LinearAxisLetters.Count > count)
             LinearAxisLetters.RemoveAt(LinearAxisLetters.Count - 1);
         while (LinearAxisLetters.Count < count)
-            LinearAxisLetters.Add(new LinearAxisRow(Letters[2 + LinearAxisLetters.Count]));
+            LinearAxisLetters.Add(new LinearAxisRow(Letters[CrossedAxes + LinearAxisLetters.Count]));
     }
 
     private static string Fmt(double value) =>

@@ -37,8 +37,8 @@ public class JogViewModelTests
     {
         var vm = new JogViewModel(new RecordingGrbl([]), MakeSettings());
 
-        Assert.Equal([0.1, 1.0, 10.0, 50.0], vm.Config.Distances);
-        Assert.Equal([500.0, 1000.0, 2000.0, 3000.0], vm.Config.Speeds);
+        Assert.Equal([0.1, 1.0, 10.0], vm.Config.Distances);
+        Assert.Equal([500.0, 1000.0, 2000.0], vm.Config.Speeds);
         Assert.Equal(1, vm.SelectedDistanceIndex);
         Assert.Equal(1, vm.SelectedSpeedIndex);
         Assert.Equal(1.0, vm.SelectedDistance);
@@ -109,13 +109,13 @@ public class JogViewModelTests
     {
         var settings = MakeSettings();
         var first = new JogViewModel(new RecordingGrbl([]), settings);
-        first.IsDistance3 = true;
+        first.IsDistance2 = true;
         first.IsSpeed0 = true;
 
         var second = new JogViewModel(new RecordingGrbl([]), settings);
 
-        Assert.Equal(3, second.SelectedDistanceIndex);
-        Assert.Equal(50.0, second.SelectedDistance);
+        Assert.Equal(2, second.SelectedDistanceIndex);
+        Assert.Equal(10.0, second.SelectedDistance);
         Assert.Equal(0, second.SelectedSpeedIndex);
         Assert.Equal(500.0, second.SelectedSpeed);
     }

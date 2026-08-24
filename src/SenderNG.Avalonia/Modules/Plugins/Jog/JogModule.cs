@@ -37,7 +37,7 @@ public class JogModule : IModule, IModuleSettingsProvider
         if (_settingsService is null)
             yield break;
 
-        for (var i = 1; i <= 4; i++)
+        for (var i = 1; i <= JogConfigStore.StepCount; i++)
         {
             var index = i - 1;
             yield return new ModuleSettingField(
@@ -46,7 +46,7 @@ public class JogModule : IModule, IModuleSettingsProvider
                 v => UpdateConfig(c => c.Distances[index] = v));
         }
 
-        for (var i = 1; i <= 4; i++)
+        for (var i = 1; i <= JogConfigStore.StepCount; i++)
         {
             var index = i - 1;
             yield return new ModuleSettingField(
