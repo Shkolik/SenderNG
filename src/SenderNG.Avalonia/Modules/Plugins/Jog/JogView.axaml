@@ -30,7 +30,8 @@
         <Style Selector="RadioButton.option">
             <Setter Property="FontSize" Value="10" />
             <Setter Property="Margin" Value="0,0,0,0" />
-            <Setter Property="MinHeight" Value="16" />
+            <!-- Fixed height: Fluent's template ignores MinHeight and inflates to ~24px. -->
+            <Setter Property="Height" Value="18" />
             <Setter Property="Padding" Value="0" />
         </Style>
         <Style Selector="TextBlock.caption">
@@ -80,7 +81,7 @@
     <StackPanel Orientation="Horizontal" Margin="8" Spacing="6" VerticalAlignment="Top">
 
         <!-- Selectors: bordered box matching the cross height (ioSender GroupBox style) -->
-        <Border Width="72" Height="174" BorderBrush="#999" BorderThickness="1" Background="#f6f6f6"
+        <Border Width="72" Height="174" BorderBrush="#999" BorderThickness="1" 
                 Padding="6,4" VerticalAlignment="Top">
             <StackPanel>
                 <TextBlock Classes="caption" Text="Distance" />
