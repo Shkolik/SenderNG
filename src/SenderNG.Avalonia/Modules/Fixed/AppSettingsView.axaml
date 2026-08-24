@@ -27,7 +27,7 @@
         </Style>
     </UserControl.Styles>
 
-    <Border Width="480" Padding="12" Background="#f6f6f6">
+    <Border Width="640" MinHeight="420" Padding="12" Background="#f6f6f6">
         <StackPanel Spacing="8">
             <TextBlock Text="Select a mode" FontWeight="SemiBold" />
             <StackPanel Orientation="Horizontal" Spacing="8">
@@ -52,7 +52,7 @@
             </StackPanel>
 
             <TextBlock Text="Modules" FontWeight="SemiBold" Margin="0,8,0,0" />
-            <ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer MaxHeight="480" VerticalScrollBarVisibility="Auto">
                 <!-- Wrap layout: max 3 cards per row (card width 148 + 8 gap in a 480 dialog) -->
                 <ItemsControl ItemsSource="{Binding ModuleSections}">
                     <ItemsControl.ItemsPanel>
@@ -70,7 +70,9 @@
                                               FontWeight="SemiBold" FontSize="11"
                                               IsVisible="{Binding CanHide}" />
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11"
-                                               IsVisible="{Binding !CanHide}" />
+                                               IsVisible="{Binding ShowNameOnly}" />
+                                    <TextBlock Text="Always visible" FontSize="9" Foreground="#999"
+                                               IsVisible="{Binding ShowNameOnly}" />
                                     <ItemsControl ItemsSource="{Binding BoolFields}" Margin="12,0,0,0">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:BoolSettingEntry">

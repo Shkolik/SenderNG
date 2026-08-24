@@ -128,6 +128,9 @@ public sealed class ModuleSettingsEntry : ViewModelBase
     /// <summary>Fixed modules (DRO, Program, Console, Jog) show no visibility checkbox.</summary>
     public bool CanHide { get; }
 
+    /// <summary>Fixed modules render a plain-name header (no checkbox).</summary>
+    public bool ShowNameOnly => !CanHide;
+
     public ObservableCollection<NumericSettingEntry> Fields { get; } = new();
 
     public ObservableCollection<BoolSettingEntry> BoolFields { get; } = new();
