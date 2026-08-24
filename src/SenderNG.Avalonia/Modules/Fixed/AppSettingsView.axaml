@@ -65,7 +65,9 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:ModuleSettingsEntry">
-                            <Border Width="148" CornerRadius="0" BorderBrush="#aaa" BorderThickness="1"
+                            <!-- Uniform height: WrapPanel sizes rows by tallest item, so fixed
+                                 height keeps rows even instead of gapping after short cards -->
+                            <Border Width="148" Height="190" CornerRadius="0" BorderBrush="#aaa" BorderThickness="1"
                                     Background="#fafafa" Margin="0,0,8,8" Padding="8,6">
                                 <StackPanel Spacing="4">
                                     <!-- Header: checkbox-as-header for hideable modules, plain name for fixed ones -->
@@ -76,7 +78,13 @@
                                                IsVisible="{Binding ShowNameOnly}" />
                                     <TextBlock Text="Always visible" FontSize="9" Foreground="#999"
                                                IsVisible="{Binding ShowNameOnly}" />
-                                    <ItemsControl ItemsSource="{Binding BoolFields}" Margin="12,0,0,0">
+                                    <!-- Module-provided settings UI (preferred) -->
+                                    <ContentControl Content="{Binding SettingsView}"
+                                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                    IsVisible="{Binding SettingsView, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                    <!-- Generic field lists (fallback for modules without a settings view) -->
+                                    <ItemsControl ItemsSource="{Binding BoolFields}" Margin="12,0,0,0"
+                                                  IsVisible="{Binding ShowGenericFields}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:BoolSettingEntry">
                                                 <CheckBox Content="{Binding Label}" IsChecked="{Binding Value, Mode=TwoWay}"
@@ -84,7 +92,8 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-                                    <ItemsControl ItemsSource="{Binding Fields}" Margin="12,0,0,0">
+                                    <ItemsControl ItemsSource="{Binding Fields}" Margin="12,0,0,0"
+                                                  IsVisible="{Binding ShowGenericFields}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:NumericSettingEntry">
                                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
