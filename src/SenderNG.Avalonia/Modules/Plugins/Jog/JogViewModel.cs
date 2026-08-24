@@ -50,6 +50,21 @@ public class JogViewModel : ViewModelBase
 
     public bool ShowDiagonals => Config.Diagonals;
 
+    private bool _diagonals;
+    public bool Diagonals
+    {
+        get => Config.Diagonals;
+        set
+        {
+            if (Config.Diagonals == value)
+                return;
+            Config.Diagonals = value;
+            OnPropertyChanged(nameof(Diagonals));
+            OnPropertyChanged(nameof(ShowDiagonals));
+            Save();
+        }
+    }
+
     // Session-only padlock: while engaged the XY cross jogs both gantries mirrored.
     private bool _together;
     public bool Together

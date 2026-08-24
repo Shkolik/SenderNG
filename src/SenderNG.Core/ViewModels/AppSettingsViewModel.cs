@@ -102,6 +102,7 @@ public sealed class ModuleSettingsEntry : ViewModelBase
 
     public ModuleSettingsEntry(string id, string name, bool isVisible, bool canHide,
         System.Action<string, bool> visibilityChanged,
+        object? settingsView = null,
         IEnumerable<NumericSettingEntry>? fields = null,
         IEnumerable<BoolSettingEntry>? boolFields = null)
     {
@@ -111,6 +112,7 @@ public sealed class ModuleSettingsEntry : ViewModelBase
         _isVisible = canHide ? isVisible : true;
         CanHide = canHide;
         _visibilityChanged = visibilityChanged;
+        SettingsView = settingsView;
         if (fields is not null)
             foreach (var f in fields)
                 Fields.Add(f);
@@ -130,6 +132,11 @@ public sealed class ModuleSettingsEntry : ViewModelBase
 
     /// <summary>Fixed modules render a plain-name header (no checkbox).</summary>
     public bool ShowNameOnly => !CanHide;
+
+    /// <summary>Module-provided settings UI; when set it replaces the generic field lists.</summary>
+    public object? SettingsView { get; }
+
+    public bool ShowGenericFields => SettingsView is null;
 
     public ObservableCollection<NumericSettingEntry> Fields { get; } = new();
 
@@ -182,21 +189,32 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
             _defaults[module.Id] = module.IsVisibleByDefault;
             IEnumerable<NumericSettingEntry>? fields = null;
             IEnumerable<BoolSettingEntry>? boolFields = null;
+            object? settingsView = null;
             if (module is IModuleSettingsProvider provider)
             {
-                fields = provider.GetSettingFields()
-                    .Select(f => new NumericSettingEntry(f.Label, f.Get, f.Set))
-                    .ToList();
-                boolFields = provider.GetBoolSettingFields()
-                    .Select(f => new BoolSettingEntry(f.Label, f.Get, f.Set))
-                    .ToList();
+                settingsView = provider.CreateSettingsView();
+                if (settingsView is null)
+                {
+                    fields = provider.GetSettingFields()
+                        .Select(f => new NumericSettingEntry(f.Label, f.Get, f.Set))
+                        .ToList();
+                    boolFields = provider.GetBoolSettingFields()
+                        .Select(f => new BoolSettingEntry(f.Label, f.Get, f.Set))
+                        .ToList();
+                }
             }
+
+            // Fixed modules with nothing to configure have no card at all.
+            if (!module.CanHide && settingsView is null && fields is null && boolFields is null)
+                continue;
+
             ModuleSections.Add(new ModuleSettingsEntry(
                 module.Id,
                 module.Name,
                 IsModuleVisible(module),
                 module.CanHide,
                 VisibilityChanged,
+                settingsView,
                 fields,
                 boolFields));
         }

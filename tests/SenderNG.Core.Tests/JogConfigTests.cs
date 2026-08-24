@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
+using SenderNG.Avalonia.Modules.Plugins;
 
 namespace SenderNG.Core.Tests;
 
@@ -135,19 +136,24 @@ public class JogDiagonalsConfigTests
 public class JogModuleSettingsFieldsTests
 {
     [Fact]
-    public void Fields_available_after_attach_services()
+    public void Settings_view_available_after_attach_services()
     {
         var module = new SenderNG.Avalonia.Modules.Plugins.JogModule();
-        Assert.Empty(module.GetSettingFields()); // not attached yet
+        Assert.Null(module.CreateSettingsView()); // not attached yet
 
         var dir = Path.Combine(Path.GetTempPath(), "senderng-tests-" + Guid.NewGuid().ToString("N"));
         try
         {
-            var services = new ServiceCollection().AddSingleton(new SettingsService(dir)).BuildServiceProvider();
+            var settingsService = new SettingsService(dir);
+            var services = new ServiceCollection()
+                .AddSingleton(settingsService)
+                .AddSingleton(settingsService.Load())
+                .AddSingleton<CNC.Core.Abstractions.IGrblService>(new JogViewModelTests.RecordingGrbl([]))
+                .AddSingleton<JogViewModel>()
+                .BuildServiceProvider();
             module.AttachServices(services);
 
-            Assert.Equal(6, module.GetSettingFields().Count());
-            Assert.Single(module.GetBoolSettingFields());
+            Assert.NotNull(module.CreateSettingsView());
         }
         finally
         {

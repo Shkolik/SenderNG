@@ -10,17 +10,19 @@ public class AppSettingsViewModelTests
 {
     private sealed class StubModule : IModule
     {
-        public StubModule(string id, string name, int order, bool visibleByDefault = true)
+        public StubModule(string id, string name, int order, bool visibleByDefault = true, bool canHide = true)
         {
             Id = id;
             Name = name;
             Order = order;
             IsVisibleByDefault = visibleByDefault;
+            CanHide = canHide;
         }
         public string Id { get; }
         public string Name { get; }
         public int Order { get; }
         public bool IsVisibleByDefault { get; }
+        public bool CanHide { get; }
         public IReadOnlyList<HotKey> HotKeys => [];
         public void RegisterServices(IServiceCollection services) { }
         public void RegisterSettings(AppSettings settings) { }
@@ -101,6 +103,21 @@ public class AppSettingsViewModelTests
         var vm = new AppSettingsViewModel(settings, Modules);
 
         Assert.Equal(new[] { "dro", "jog", "console" }, vm.ModuleSections.Select(e => e.Id).ToArray());
+    }
+
+    [Fact]
+    public void Fixed_modules_without_settings_are_excluded()
+    {
+        var (_, settings) = MakeSettings();
+        var modules = new IModule[]
+        {
+            new StubModule("dro", "DRO", 10, canHide: false),
+            new StubModule("jog", "Jog", 20),
+        };
+
+        var vm = new AppSettingsViewModel(settings, modules);
+
+        Assert.Equal(new[] { "jog" }, vm.ModuleSections.Select(e => e.Id).ToArray());
     }
 
     [Fact]
