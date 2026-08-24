@@ -7,7 +7,7 @@ namespace SenderNG.Core.Tests;
 
 public class JogViewModelTests
 {
-    private static SettingsService MakeSettings(string mode = "Mill")
+    internal static SettingsService MakeSettings(string mode = "Mill")
     {
         var dir = Path.Combine(Path.GetTempPath(), "senderng-tests-" + Guid.NewGuid().ToString("N"));
         var settings = new SettingsService(dir);
@@ -17,7 +17,7 @@ public class JogViewModelTests
         return settings;
     }
 
-    private sealed class RecordingGrbl(List<string> sent, int numAxes = 4) : IGrblService
+    internal sealed class RecordingGrbl(List<string> sent, int numAxes = 4) : IGrblService
     {
         private readonly BehaviorSubject<MachineState> _subject = new(new MachineState(numAxes));
         public bool IsConnected => true;
@@ -165,5 +165,39 @@ public class JogViewModelTests
         vm.StopCommand.Execute(null);
 
         Assert.Equal(["!"], sent);
+    }
+}
+
+public class JogLinearAxesTests
+{
+    [Fact]
+    public void Mill_5axes_linear_rows_start_at_Z()
+    {
+        var vm = new JogViewModel(new JogViewModelTests.RecordingGrbl([], numAxes: 5), JogViewModelTests.MakeSettings());
+        Assert.Equal(["Z", "A", "B"], vm.LinearAxisLetters.Select(a => a.Letter));
+    }
+
+    [Fact]
+    public void Foam_5axes_linear_rows_start_at_B()
+    {
+        var vm = new JogViewModel(new JogViewModelTests.RecordingGrbl([], numAxes: 5), JogViewModelTests.MakeSettings("Foam"));
+        var letters = vm.LinearAxisLetters.Select(a => a.Letter).ToList();
+        Assert.Single(letters);
+        Assert.Equal("B", letters[0]);
+    }
+
+    [Fact]
+    public void Linear_rows_refresh_on_mode_switch()
+    {
+        var settings = JogViewModelTests.MakeSettings("Mill");
+        var vm = new JogViewModel(new JogViewModelTests.RecordingGrbl([], numAxes: 5), settings);
+        Assert.Equal(3, vm.LinearAxisLetters.Count);
+
+        var app = settings.Load();
+        app.Mode = AppSettings.FoamMode;
+        settings.Save(app);
+
+        Assert.Single(vm.LinearAxisLetters);
+        Assert.Equal("B", vm.LinearAxisLetters[0].Letter);
     }
 }
