@@ -252,7 +252,7 @@
         </Border>
 
         <!-- Col2 Row1: Right panel (own column — flyout strip never covers it); flyout drawer overlays on top -->
-        <Panel Grid.Row="1" Grid.Column="2">
+        <Panel x:Name="FlyoutHost" Grid.Row="1" Grid.Column="2">
             <Border Background="White" BorderBrush="#aaa" BorderThickness="1,0,0,0" HorizontalAlignment="Stretch" Margin="0,0,0,0">
                 <ScrollViewer HorizontalAlignment="Stretch" Margin="0,0,0,0">
                     <StackPanel Spacing="2" Margin="4" HorizontalAlignment="Stretch">
@@ -275,8 +275,11 @@
                 </ScrollViewer>
             </Border>
 
-            <!-- Flyout drawer overlay — opens on top of Right panel, left of the strip -->
-            <Border Width="560" HorizontalAlignment="Right" VerticalAlignment="Stretch"
+            <!-- Flyout drawer overlay — opens on top of Right panel, left of the strip.
+                 Sizes to its content: capped by host panel height and window width. -->
+            <Border MinWidth="360" MaxWidth="{Binding $parent[Window].Width}"
+                    MaxHeight="{Binding #FlyoutHost.Bounds.Height}"
+                    HorizontalAlignment="Right" VerticalAlignment="Top"
                     Background="White" BorderBrush="#aaa" BorderThickness="1"
                     IsVisible="{Binding SelectedModule, Converter={x:Static conv:Converters.IsFlyout}}">
                 <Grid RowDefinitions="Auto,*">
