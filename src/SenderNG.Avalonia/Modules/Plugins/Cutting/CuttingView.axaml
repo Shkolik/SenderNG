@@ -124,10 +124,9 @@
                          ToolTip.Tip="Spindle speed (RPM) used by CW/CCW" />
                 <Button Classes="ovr" Content="CW" Command="{Binding SpindleCwCommand}" ToolTip.Tip="Spindle on, clockwise (M3)" />
                 <Button Classes="ovr" Content="CCW" Command="{Binding SpindleCcwCommand}" ToolTip.Tip="Spindle on, counter-clockwise (M4)" />
-                <ToggleButton Classes="ovrToggle" Content="Spindle On/Off" Command="{Binding SpindleToggleCommand}"
-                              IsChecked="{Binding IsSpindleOn, Mode=OneWay}"
-                              ToolTip.Tip="Realtime spindle stop toggle"
-                              Margin="6,0,0,0" />
+                <Button Classes="ovr" Content="Off" Command="{Binding SpindleOffCommand}"
+                        ToolTip.Tip="Spindle off (M5)"
+                        Margin="6,0,0,0" />
             </StackPanel>
         </StackPanel>
 

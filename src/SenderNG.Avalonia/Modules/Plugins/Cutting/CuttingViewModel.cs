@@ -62,6 +62,10 @@ public class CuttingViewModel : ViewModelBase
                 // Direction buttons only make sense while the spindle is stopped.
                 SpindleCwCommand?.RaiseCanExecuteChanged();
                 SpindleCcwCommand?.RaiseCanExecuteChanged();
+                // The RPM input mirrors the last commanded speed (S word); keep
+                // it when the spindle stops instead of dropping to 0.
+                if (value > 0)
+                    SpindleRpm = (int)Math.Round(value);
             }
         }
     }
@@ -93,7 +97,7 @@ public class CuttingViewModel : ViewModelBase
     public DelegateCommand SpeedFinePlusCommand { get; }
     public DelegateCommand SpeedFineMinusCommand { get; }
 
-    public DelegateCommand SpindleToggleCommand { get; }
+    public DelegateCommand SpindleOffCommand { get; }
 
     public DelegateCommand SpindleCwCommand { get; }
 
@@ -119,7 +123,8 @@ public class CuttingViewModel : ViewModelBase
         SpeedFinePlusCommand = new DelegateCommand(_ => Send(GrblRealtime.SpindleOvrFinePlus));
         SpeedFineMinusCommand = new DelegateCommand(_ => Send(GrblRealtime.SpindleOvrFineMinus));
 
-        SpindleToggleCommand = new DelegateCommand(_ => Send(GrblRealtime.SpindleStopToggle));
+        // Off stops the spindle with a line command (ioSender: M5), never restarts it.
+        SpindleOffCommand = new DelegateCommand(_ => SendLine("M5"));
         // CW/CCW start the spindle with the entered RPM (ioSender: M3/M4 + S value).
         SpindleCwCommand = new DelegateCommand(_ => StartSpindle("M3"), _ => !IsSpindleOn);
         SpindleCcwCommand = new DelegateCommand(_ => StartSpindle("M4"), _ => !IsSpindleOn);
@@ -149,6 +154,18 @@ public class CuttingViewModel : ViewModelBase
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Spindle start failed: {ex.Message}");
+        }
+    }
+
+    private void SendLine(string line)
+    {
+        try
+        {
+            _ = _grbl.SendAsync(line);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Spindle command failed: {ex.Message}");
         }
     }
 

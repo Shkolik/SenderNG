@@ -63,7 +63,7 @@ public class CuttingViewModelTests
     }
 
     [Fact]
-    public void Speed_override_and_spindle_toggle_sends_realtime_bytes()
+    public void Speed_override_sends_realtime_bytes()
     {
         var sent = new List<string>();
         var vm = new CuttingViewModel(new RecordingGrbl(sent));
@@ -71,9 +71,8 @@ public class CuttingViewModelTests
         vm.SpeedCoarseMinusCommand.Execute(null);
         vm.SpeedFinePlusCommand.Execute(null);
         vm.SpeedResetCommand.Execute(null);
-        vm.SpindleToggleCommand.Execute(null);
 
-        Assert.Equal(["RT:9B", "RT:9C", "RT:99", "RT:9E"], sent);
+        Assert.Equal(["RT:9B", "RT:9C", "RT:99"], sent);
     }
 
     [Fact]
@@ -199,5 +198,36 @@ public class CuttingViewModelSpindleTests
         Assert.False(vm.IsSpindleOn);
         Assert.True(vm.SpindleCwCommand.CanExecute(null));
         Assert.True(vm.SpindleCcwCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Off_command_sends_m5()
+    {
+        var sent = new List<string>();
+        var vm = new CuttingViewModel(new RecordingGrbl(sent));
+
+        vm.SpindleOffCommand.Execute(null);
+
+        Assert.Equal(["M5"], sent);
+    }
+
+    [Fact]
+    public void Spindle_rpm_tracks_last_speed_with_1000_fallback()
+    {
+        var grbl = new RecordingGrbl([]);
+        var vm = new CuttingViewModel(grbl);
+
+        // Fallback before any S word is seen.
+        Assert.Equal(1000, vm.SpindleRpm);
+
+        grbl.Push(new MachineState(3) { Speed = 12000 });
+        Assert.Equal(12000, vm.SpindleRpm);
+
+        // Spindle stopped: keep the last commanded speed, don't drop to 0.
+        grbl.Push(new MachineState(3) { Speed = 0 });
+        Assert.Equal(12000, vm.SpindleRpm);
+
+        grbl.Push(new MachineState(3) { Speed = 8000 });
+        Assert.Equal(8000, vm.SpindleRpm);
     }
 }
