@@ -68,7 +68,7 @@
                 </Grid>
                 <Grid ColumnDefinitions="*,*" Margin="0,1,0,0">
                     <TextBlock Grid.Column="0" Text="{Binding Feed, StringFormat={}{0:F0} mm/min}" FontSize="13" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="1" Text="{Binding Speed, StringFormat={}{0:F0} rpm}" FontSize="13" FontWeight="SemiBold" />
+                    <TextBlock Grid.Column="1" Text="{Binding Speed, StringFormat={}{0:F0}}" FontSize="13" FontWeight="SemiBold" />
                 </Grid>
             </StackPanel>
         </Border>
@@ -76,13 +76,13 @@
         <!-- Feed override: reset pinned to the right edge, value centered -->
         <StackPanel>
             <TextBlock Classes="caption" Text="Feed override" />
-            <Grid ColumnDefinitions="Auto,4,Auto,*,Auto,4,Auto,Auto" Margin="0,2,0,0">
+            <Grid ColumnDefinitions="Auto,4,Auto,*,Auto,4,Auto, 10, Auto" Margin="0,2,0,0">
                 <Button Grid.Column="0" Classes="ovr" Content="-10" Command="{Binding FeedCoarseMinusCommand}" />
                 <Button Grid.Column="2" Classes="ovr" Content="-1" Command="{Binding FeedFineMinusCommand}" />
                 <TextBlock Grid.Column="3" Classes="ovrValue" Text="{Binding FeedOvr, StringFormat={}{0}%}" />
                 <Button Grid.Column="4" Classes="ovr" Content="+1" Command="{Binding FeedFinePlusCommand}" />
                 <Button Grid.Column="6" Classes="ovr" Content="+10" Command="{Binding FeedCoarsePlusCommand}" />
-                <Button Grid.Column="7" Classes="ovr" Content="100" Command="{Binding FeedResetCommand}" ToolTip.Tip="Reset to 100%" />
+                <Button Grid.Column="8" Classes="ovr" Content="100" Command="{Binding FeedResetCommand}" ToolTip.Tip="Reset to 100%" />
             </Grid>
         </StackPanel>
 
@@ -105,18 +105,18 @@
         <!-- Speed override + spindle on/off -->
         <StackPanel Margin="0,8,0,0">
             <TextBlock Classes="caption" Text="Speed override" />
-            <Grid ColumnDefinitions="Auto,4,Auto,*,Auto,4,Auto,Auto" Margin="0,2,0,0">
+            <Grid ColumnDefinitions="Auto,4,Auto,*,Auto,4,Auto, 10, Auto" Margin="0,2,0,0">
                 <Button Grid.Column="0" Classes="ovr" Content="-10" Command="{Binding SpeedCoarseMinusCommand}" />
                 <Button Grid.Column="2" Classes="ovr" Content="-1" Command="{Binding SpeedFineMinusCommand}" />
                 <TextBlock Grid.Column="3" Classes="ovrValue" Text="{Binding SpindleOvr, StringFormat={}{0}%}" />
                 <Button Grid.Column="4" Classes="ovr" Content="+1" Command="{Binding SpeedFinePlusCommand}" />
                 <Button Grid.Column="6" Classes="ovr" Content="+10" Command="{Binding SpeedCoarsePlusCommand}" />
-                <Button Grid.Column="7" Classes="ovr" Content="100" Command="{Binding SpeedResetCommand}" ToolTip.Tip="Reset to 100%" />
+                <Button Grid.Column="8" Classes="ovr" Content="100" Command="{Binding SpeedResetCommand}" ToolTip.Tip="Reset to 100%" />
             </Grid>
             <ToggleButton Classes="ovrToggle" Content="Spindle On/Off" Command="{Binding SpindleToggleCommand}"
                           IsChecked="{Binding IsSpindleOn, Mode=OneWay}"
                           ToolTip.Tip="Realtime spindle stop toggle"
-                          HorizontalAlignment="Center" Margin="0,8,0,0" />
+                          HorizontalAlignment="Center" Margin="0,12,0,0" />
         </StackPanel>
 
     </StackPanel>
