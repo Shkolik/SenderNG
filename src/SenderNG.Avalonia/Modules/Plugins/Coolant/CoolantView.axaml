@@ -3,16 +3,47 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
-             mc:Ignorable="d" d:DesignWidth="260" d:DesignHeight="140"
+             mc:Ignorable="d" d:DesignWidth="260" d:DesignHeight="120"
              x:Class="SenderNG.Avalonia.Modules.Plugins.CoolantView"
              x:DataType="vm:CoolantViewModel">
 
-    <StackPanel Margin="8" Spacing="8">
-        <CheckBox IsChecked="{Binding IsFlood, Mode=OneWay}" Content="Flood (M8)" CornerRadius="0" />
-        <CheckBox IsChecked="{Binding IsMist, Mode=OneWay}" Content="Mist (M7)" CornerRadius="0" />
-        <StackPanel Orientation="Horizontal" Spacing="6">
-            <Button Content="Toggle Flood" Command="{Binding FloodCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
-            <Button Content="Toggle Mist" Command="{Binding MistCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
-        </StackPanel>
+    <UserControl.Styles>
+        <!-- Same flat toggle look as the jog step selectors, normal size -->
+        <Style Selector="ToggleButton.coolant">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#444" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1" CornerRadius="0">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          FontSize="{TemplateBinding FontSize}"
+                                          Foreground="{TemplateBinding Foreground}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="ToggleButton.coolant:checked">
+            <Setter Property="Background" Value="#bdbdbd" />
+            <Setter Property="BorderBrush" Value="#999" />
+            <Setter Property="Foreground" Value="#111" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- Independent toggles: grblHAL realtime overrides (0xA2/0xA3) let both run together -->
+    <StackPanel Margin="8">
+        <ToggleButton Classes="coolant" Content="Flood (M8)"
+                      IsChecked="{Binding IsFlood, Mode=OneWay}"
+                      Command="{Binding ToggleFloodCommand}" />
+        <ToggleButton Classes="coolant" Content="Mist (M7)"
+                      IsChecked="{Binding IsMist, Mode=OneWay}"
+                      Command="{Binding ToggleMistCommand}" />
     </StackPanel>
 </UserControl>

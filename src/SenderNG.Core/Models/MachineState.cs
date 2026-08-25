@@ -8,6 +8,8 @@ public class MachineState
     public string Status { get; set; } = "Idle";
     public double[] Positions { get; set; } = new double[3];
     public Signals Signals { get; set; } = Signals.Off;
+    public bool Flood { get; set; }
+    public bool Mist { get; set; }
 
     public MachineState() { }
 

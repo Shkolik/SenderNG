@@ -285,5 +285,6 @@ public class GrblSettingsProxyRoutingTests
         public Task ConnectAsync(string port) => Task.CompletedTask;
         public void Disconnect() { }
         public Task SendAsync(string line) => Task.CompletedTask;
+        public void SendRealtime(byte code) { }
     }
 }

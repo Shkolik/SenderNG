@@ -24,7 +24,9 @@ public class JogViewModelTests
         public IObservable<MachineState> State => _subject;
         public Task ConnectAsync(string port) => Task.CompletedTask;
         public void Disconnect() { }
-        public Task SendAsync(string line)
+        public void SendRealtime(byte code) => sent.Add($"RT:{code:X2}");
+        
+public Task SendAsync(string line)
         {
             sent.Add(line);
             return Task.CompletedTask;

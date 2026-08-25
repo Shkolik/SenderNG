@@ -71,6 +71,29 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider
         }
     }
 
+    public void SendRealtime(byte code)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Not connected.");
+
+        lock (_lock)
+        {
+            var state = _subject.Value;
+            switch (code)
+            {
+                case GrblRealtime.CoolantFloodToggle:
+                    state.Flood = !state.Flood;
+                    break;
+                case GrblRealtime.CoolantMistToggle:
+                    state.Mist = !state.Mist;
+                    break;
+                default:
+                    return;
+            }
+            _subject.OnNext(state);
+        }
+    }
+
     public Task<IReadOnlyList<string>> GetSettingLinesAsync()
     {
         lock (_lock)

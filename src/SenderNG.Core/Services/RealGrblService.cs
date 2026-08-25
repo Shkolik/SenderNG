@@ -87,6 +87,14 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider
         return Task.CompletedTask;
     }
 
+    public void SendRealtime(byte code)
+    {
+        if (!IsConnected || _port is not { IsOpen: true })
+            throw new InvalidOperationException("Not connected.");
+        // Realtime bytes bypass the line protocol - no response is sent.
+        _port.Write(new[] { code }, 0, 1);
+    }
+
     // $$ report: collect "$N=value" lines until the trailing "ok".
     public Task<IReadOnlyList<string>> GetSettingLinesAsync()
     {
