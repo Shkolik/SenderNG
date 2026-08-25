@@ -8,6 +8,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider
     private readonly BehaviorSubject<MachineState> _subject;
     private readonly object _lock = new();
     private int _distanceMode = 90; // modal G90/G91
+    private double _lastSpeed;
     private readonly string? _settingsFilePath;
     private Dictionary<int, string> _settings;
 
@@ -86,6 +87,22 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider
                     break;
                 case GrblRealtime.CoolantMistToggle:
                     state.Mist = !state.Mist;
+                    break;
+                case GrblRealtime.FeedOvrReset: state.FeedOvr = 100; break;
+                case GrblRealtime.FeedOvrCoarsePlus: state.FeedOvr = Math.Min(200, state.FeedOvr + 10); break;
+                case GrblRealtime.FeedOvrCoarseMinus: state.FeedOvr = Math.Max(10, state.FeedOvr - 10); break;
+                case GrblRealtime.FeedOvrFinePlus: state.FeedOvr = Math.Min(200, state.FeedOvr + 1); break;
+                case GrblRealtime.FeedOvrFineMinus: state.FeedOvr = Math.Max(10, state.FeedOvr - 1); break;
+                case GrblRealtime.RapidOvrReset: state.RapidOvr = 100; break;
+                case GrblRealtime.RapidOvrMedium: state.RapidOvr = 50; break;
+                case GrblRealtime.RapidOvrLow: state.RapidOvr = 25; break;
+                case GrblRealtime.SpindleOvrReset: state.SpindleOvr = 100; break;
+                case GrblRealtime.SpindleOvrCoarsePlus: state.SpindleOvr = Math.Min(200, state.SpindleOvr + 10); break;
+                case GrblRealtime.SpindleOvrCoarseMinus: state.SpindleOvr = Math.Max(10, state.SpindleOvr - 10); break;
+                case GrblRealtime.SpindleOvrFinePlus: state.SpindleOvr = Math.Min(200, state.SpindleOvr + 1); break;
+                case GrblRealtime.SpindleOvrFineMinus: state.SpindleOvr = Math.Max(10, state.SpindleOvr - 1); break;
+                case GrblRealtime.SpindleStopToggle:
+                    state.Speed = state.Speed > 0 ? 0 : _lastSpeed;
                     break;
                 default:
                     return;
@@ -189,8 +206,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider
 
             ApplyMotion(trimmed, state);
             state.Status = "Idle";
-            _subject.OnNext(state);
-        }
+            _subject.OnNext(state);        }
 
         return Task.CompletedTask;
     }
@@ -213,6 +229,36 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider
                 continue;
 
             var letter = char.ToUpperInvariant(part[0]);
+
+            if (letter == 'F' && double.TryParse(part[1..], System.Globalization.CultureInfo.InvariantCulture, out var feed))
+            {
+                state.Feed = feed;
+                continue;
+            }
+
+            if (letter == 'S' && double.TryParse(part[1..], System.Globalization.CultureInfo.InvariantCulture, out var speed))
+            {
+                state.Speed = speed;
+                _lastSpeed = speed;
+                continue;
+            }
+
+            if (letter == 'M')
+            {
+                // M3/M4 spindle on (restore last speed if S omitted), M5 off.
+                switch (part[1..])
+                {
+                    case "3":
+                    case "4":
+                        if (state.Speed == 0)
+                            state.Speed = _lastSpeed > 0 ? _lastSpeed : 1000;
+                        break;
+                    case "5":
+                        state.Speed = 0;
+                        break;
+                }
+                continue;
+            }
 
             if (letter == 'G')
             {

@@ -135,14 +135,40 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider
         if (string.IsNullOrEmpty(response) || !response.StartsWith('<') || !response.EndsWith('>'))
             return;
 
-        var fields = response[1..^1].Split(',');
+        // Report format: <Status|WPos:x,y,z|FS:feed,speed|Ov:feed,rapid,spindle|...>
+        var fields = response[1..^1].Split('|');
         var state = _subject.Value;
         state.Status = fields[0];
 
-        for (var i = 1; i < fields.Length && i <= state.Positions.Length; i++)
+        foreach (var field in fields.Skip(1))
         {
-            if (double.TryParse(fields[i], System.Globalization.CultureInfo.InvariantCulture, out var value))
-                state.Positions[i - 1] = value;
+            if (field.StartsWith("WPos:", StringComparison.Ordinal) || field.StartsWith("MPos:", StringComparison.Ordinal))
+            {
+                var pos = field[5..].Split(',');
+                for (var i = 0; i < pos.Length && i < state.Positions.Length; i++)
+                {
+                    if (double.TryParse(pos[i], System.Globalization.CultureInfo.InvariantCulture, out var value))
+                        state.Positions[i] = value;
+                }
+            }
+            else if (field.StartsWith("FS:", StringComparison.Ordinal))
+            {
+                var fs = field[3..].Split(',');
+                if (fs.Length >= 1 && double.TryParse(fs[0], System.Globalization.CultureInfo.InvariantCulture, out var feed))
+                    state.Feed = feed;
+                if (fs.Length >= 2 && double.TryParse(fs[1], System.Globalization.CultureInfo.InvariantCulture, out var speed))
+                    state.Speed = speed;
+            }
+            else if (field.StartsWith("Ov:", StringComparison.Ordinal))
+            {
+                var ov = field[3..].Split(',');
+                if (ov.Length >= 1 && int.TryParse(ov[0], out var feedOvr))
+                    state.FeedOvr = feedOvr;
+                if (ov.Length >= 2 && int.TryParse(ov[1], out var rapidOvr))
+                    state.RapidOvr = rapidOvr;
+                if (ov.Length >= 3 && int.TryParse(ov[2], out var spindleOvr))
+                    state.SpindleOvr = spindleOvr;
+            }
         }
 
         _subject.OnNext(state);
