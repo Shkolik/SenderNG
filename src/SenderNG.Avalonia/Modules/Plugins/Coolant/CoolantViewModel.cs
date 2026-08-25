@@ -1,4 +1,5 @@
 using CNC.Core.Abstractions;
+using CNC.Core.Services;
 using SenderNG.Core.Commands;
 using SenderNG.Avalonia.ViewModels;
 
@@ -12,35 +13,47 @@ public class CoolantViewModel : ViewModelBase
     public bool IsFlood
     {
         get => _isFlood;
-        set => SetField(ref _isFlood, value);
+        private set => SetField(ref _isFlood, value);
     }
 
     private bool _isMist;
     public bool IsMist
     {
         get => _isMist;
-        set => SetField(ref _isMist, value);
+        private set => SetField(ref _isMist, value);
     }
 
-    public DelegateCommand FloodCommand { get; }
-    public DelegateCommand MistCommand { get; }
+    public DelegateCommand ToggleFloodCommand { get; }
+    public DelegateCommand ToggleMistCommand { get; }
 
     public CoolantViewModel(IGrblService grbl)
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
-        FloodCommand = new DelegateCommand(_ => _ = ToggleFloodAsync());
-        MistCommand = new DelegateCommand(_ => _ = ToggleMistAsync());
+        ToggleFloodCommand = new DelegateCommand(_ => Toggle(GrblRealtime.CoolantFloodToggle));
+        ToggleMistCommand = new DelegateCommand(_ => Toggle(GrblRealtime.CoolantMistToggle));
+
+        // State mirrors the machine (override toggles are echoed back via State).
+        grbl.State.Subscribe(ApplyState);
     }
 
-    public async Task ToggleFloodAsync()
+    private void Toggle(byte realtimeCode)
     {
-        IsFlood = !IsFlood;
-        await _grbl.SendAsync(IsFlood ? "M8" : "M9");
+        try
+        {
+            _grbl.SendRealtime(realtimeCode);
+        }
+        catch (Exception ex)
+        {
+            // Not connected etc. - state stays as reported by the machine.
+            System.Diagnostics.Debug.WriteLine($"Coolant toggle failed: {ex.Message}");
+        }
     }
 
-    public async Task ToggleMistAsync()
+    private void ApplyState(MachineState state)
     {
-        IsMist = !IsMist;
-        await _grbl.SendAsync(IsMist ? "M7" : "M9");
+        if (state is null)
+            return;
+        IsFlood = state.Flood;
+        IsMist = state.Mist;
     }
 }

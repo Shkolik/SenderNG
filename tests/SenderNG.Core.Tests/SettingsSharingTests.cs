@@ -27,7 +27,9 @@ public class SettingsSharingTests
         public IObservable<MachineState> State => _subject;
         public Task ConnectAsync(string port) => Task.CompletedTask;
         public void Disconnect() { }
-        public Task SendAsync(string line)
+        public void SendRealtime(byte code) => Sent.Add($"RT:{code:X2}");
+        
+public Task SendAsync(string line)
         {
             Sent.Add(line);
             return Task.CompletedTask;

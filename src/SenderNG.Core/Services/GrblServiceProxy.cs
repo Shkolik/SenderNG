@@ -35,6 +35,8 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
 
     public Task SendAsync(string line) => _inner.SendAsync(line);
 
+    public void SendRealtime(byte code) => _inner.SendRealtime(code);
+
     public Task<IReadOnlyList<string>> GetSettingLinesAsync() =>
         _inner is IGrblSettingsProvider provider
             ? provider.GetSettingLinesAsync()

@@ -14,7 +14,9 @@ public class GrblServiceProxyTests
         public IObservable<MachineState> State => Subject;
         public Task ConnectAsync(string port) { IsConnected = true; return Task.CompletedTask; }
         public void Disconnect() => IsConnected = false;
-        public Task SendAsync(string line)
+        public void SendRealtime(byte code) => Sent.Add($"RT:{code:X2}");
+        
+public Task SendAsync(string line)
         {
             Sent.Add(line);
             return Task.CompletedTask;

@@ -1,3 +1,4 @@
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
@@ -14,11 +15,15 @@ public class CoolantViewModelTests
         public IObservable<MachineState> State => _subject;
         public Task ConnectAsync(string port) => Task.CompletedTask;
         public void Disconnect() { }
+        public void SendRealtime(byte code) => sent.Add($"RT:{code:X2}");
+
         public Task SendAsync(string line)
         {
             sent.Add(line);
             return Task.CompletedTask;
         }
+
+        public void Push(MachineState state) => _subject.OnNext(state);
     }
 
     [Fact]
@@ -31,45 +36,60 @@ public class CoolantViewModelTests
     }
 
     [Fact]
-    public async Task Flood_toggle_sends_M8_then_M9()
+    public void Toggle_commands_send_realtime_override_bytes()
     {
         var sent = new List<string>();
         var vm = new CoolantViewModel(new RecordingGrbl(sent));
 
-        await vm.ToggleFloodAsync();
-        Assert.True(vm.IsFlood);
+        vm.ToggleFloodCommand.Execute(null);
+        vm.ToggleMistCommand.Execute(null);
 
-        await vm.ToggleFloodAsync();
-
-        Assert.False(vm.IsFlood);
-        Assert.Equal(["M8", "M9"], sent);
+        Assert.Equal(["RT:A2", "RT:A3"], sent);
     }
 
     [Fact]
-    public async Task Mist_toggle_sends_M7_then_M9()
+    public void State_subscription_mirrors_machine_coolant()
     {
-        var sent = new List<string>();
-        var vm = new CoolantViewModel(new RecordingGrbl(sent));
+        var grbl = new RecordingGrbl([]);
+        var vm = new CoolantViewModel(grbl);
 
-        await vm.ToggleMistAsync();
-        Assert.True(vm.IsMist);
-
-        await vm.ToggleMistAsync();
-
+        grbl.Push(new MachineState(3) { Flood = true });
+        Assert.True(vm.IsFlood);
         Assert.False(vm.IsMist);
-        Assert.Equal(["M7", "M9"], sent);
-    }
 
-    [Fact]
-    public void Commands_are_wired()
-    {
-        var sent = new List<string>();
-        var vm = new CoolantViewModel(new RecordingGrbl(sent));
-
-        vm.FloodCommand.Execute(null);
-        vm.MistCommand.Execute(null);
-
+        grbl.Push(new MachineState(3) { Flood = true, Mist = true });
         Assert.True(vm.IsFlood);
         Assert.True(vm.IsMist);
+
+        grbl.Push(new MachineState(3) { Mist = true });
+        Assert.False(vm.IsFlood);
+        Assert.True(vm.IsMist);
+    }
+}
+
+public class DemoGrblServiceCoolantTests
+{
+    [Fact]
+    public async Task Realtime_overrides_toggle_flood_and_mist_independently()
+    {
+        var svc = new DemoGrblService(new AppSettings());
+        await svc.ConnectAsync("demo");
+
+        svc.SendRealtime(GrblRealtime.CoolantFloodToggle);
+        var st = await svc.State.FirstAsync();
+        Assert.True(st.Flood);
+        Assert.False(st.Mist);
+
+        // Mist on while flood stays on (M9's both-off problem avoided).
+        svc.SendRealtime(GrblRealtime.CoolantMistToggle);
+        st = await svc.State.FirstAsync();
+        Assert.True(st.Flood);
+        Assert.True(st.Mist);
+
+        // Flood off alone.
+        svc.SendRealtime(GrblRealtime.CoolantFloodToggle);
+        st = await svc.State.FirstAsync();
+        Assert.False(st.Flood);
+        Assert.True(st.Mist);
     }
 }
