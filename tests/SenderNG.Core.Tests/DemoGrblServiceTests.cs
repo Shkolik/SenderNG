@@ -397,3 +397,27 @@ public class DemoGrblServicePollingTests
         Assert.Equal(after, Volatile.Read(ref emissions));
     }
 }
+
+public class DemoGrblServiceStatusCommandTests
+{
+    private static AppSettings SettingsFor(int demoAxes)
+    {
+        var s = new AppSettings();
+        s.Current.DemoAxes = demoAxes;
+        return s;
+    }
+
+    [Fact]
+    public async Task Send_unlock_and_home_commands_are_accepted()
+    {
+        var svc = new DemoGrblService(SettingsFor(3));
+        await svc.ConnectAsync("demo");
+
+        await svc.SendAsync("$X");
+        await svc.SendAsync("$H");
+
+        var st = await svc.State.FirstAsync();
+        Assert.Equal("Idle", st.Status);
+        Assert.Equal(3, st.NumAxes);
+    }
+}

@@ -117,7 +117,11 @@ public class MainViewModel : ViewModelBase
         CycleStartCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.CycleStart, "Cycle Start"), _ => HasProgram);
         FeedHoldCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.FeedHold, "Feed Hold"), _ => IsMachineState("Run"));
         StopCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.Reset, "Stop"), _ => IsMachineState("Hold"));
-        RewindCommand = new DelegateCommand(_ => Rewind(), _ => HasProgram);
+        RewindCommand = new DelegateCommand(_ => Rewind(), _ => HasProgram && IsMachineState("Idle"));
+        // Status bar buttons (ioSender semantics): Home -> $H, Unlock -> $X, Reset -> realtime 0x18.
+        HomeCommand = new DelegateCommand(_ => SendLine("$H", "Home"));
+        UnlockCommand = new DelegateCommand(_ => SendLine("$X", "Unlock"));
+        ResetCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.Reset, "Reset"));
         MdiHistoryPrevCommand = new DelegateCommand(_ => MdiHistoryPrev());
         MdiHistoryNextCommand = new DelegateCommand(_ => MdiHistoryNext());
         // placeholder Help/Settings delegates keep Status
@@ -323,6 +327,12 @@ public class MainViewModel : ViewModelBase
     public ICommand StopCommand { get; }
 
     public ICommand RewindCommand { get; }
+
+    public ICommand HomeCommand { get; }
+
+    public ICommand UnlockCommand { get; }
+
+    public ICommand ResetCommand { get; }
 
     public ICommand MdiHistoryPrevCommand { get; }
 
@@ -536,6 +546,12 @@ public class MainViewModel : ViewModelBase
         catch (Exception ex) { Status = $"{label} failed: {ex.Message}"; }
     }
 
+    private void SendLine(string line, string label)
+    {
+        try { Grbl.SendAsync(line); Status = $"{label} sent"; }
+        catch (Exception ex) { Status = $"{label} failed: {ex.Message}"; }
+    }
+
     /// <summary>Rewind the loaded program to the start (local reset, no byte sent - mirrors ioSender RewindFile).</summary>
     private void Rewind()
     {
@@ -626,9 +642,11 @@ public class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(StateBrush));
         OnPropertyChanged(nameof(StateForeground));
 
-        // Cycle bar enablement follows the machine state: Stop in Hold, Feed Hold in Run.
+        // Cycle bar enablement follows the machine state: Stop in Hold, Feed Hold in Run,
+        // Rewind only when Idle.
         (FeedHoldCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (StopCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        (RewindCommand as DelegateCommand)?.RaiseCanExecuteChanged();
     }
 
     private static IBrush ResolveStateBrush(string status)

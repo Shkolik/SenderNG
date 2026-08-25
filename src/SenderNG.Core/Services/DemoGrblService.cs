@@ -229,6 +229,23 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 return Task.CompletedTask;
             }
 
+            if (trimmed == "$X")
+            {
+                // Unlock: clear an alarm so the machine can be homed again.
+                if (state.Status.Contains("Alarm", StringComparison.OrdinalIgnoreCase))
+                    state.Status = "Idle";
+                _subject.OnNext(state);
+                return Task.CompletedTask;
+            }
+
+            if (trimmed == "$H")
+            {
+                // Homing completes instantly in the demo (Home -> Idle).
+                state.Status = "Idle";
+                _subject.OnNext(state);
+                return Task.CompletedTask;
+            }
+
             ApplyMotion(trimmed, state);
             state.Status = "Idle";
             _subject.OnNext(state);        }

@@ -402,3 +402,74 @@ public class MainViewModelCycleEnablementTests
         Assert.Equal("Run", vm.MachineState);
     }
 }
+
+public class MainViewModelStatusButtonsTests
+{
+    private sealed class RecordingGrbl : IGrblService
+    {
+        public List<string> Lines { get; } = [];
+        public List<byte> Realtime { get; } = [];
+        public bool IsConnected => true;
+        public IObservable<MachineState> State => System.Reactive.Linq.Observable.Empty<MachineState>();
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public Task SendAsync(string line) { Lines.Add(line); return Task.CompletedTask; }
+        public void SendRealtime(byte code) => Realtime.Add(code);
+    }
+
+    private static SettingsService MakeSettings()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-tests-" + Guid.NewGuid().ToString("N"));
+        return new SettingsService(dir);
+    }
+
+    private static ServiceProvider MakeProvider(SettingsService settings)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(settings);
+        services.AddSingleton(_ => new DemoGrblService(settings.Load()));
+        services.AddSingleton<RealGrblService>();
+        services.AddSingleton<SenderNG.Avalonia.Modules.Fixed.ProgramViewModel>();
+        return services.BuildServiceProvider();
+    }
+
+    [Fact]
+    public void Home_unlock_reset_send_expected_commands()
+    {
+        var settings = MakeSettings();
+        var grbl = new RecordingGrbl();
+        var vm = new MainViewModel(grbl, settings, MakeProvider(settings));
+
+        vm.HomeCommand.Execute(null);
+        vm.UnlockCommand.Execute(null);
+        vm.ResetCommand.Execute(null);
+
+        Assert.Equal(["$H", "$X"], grbl.Lines);
+        Assert.Equal([GrblRealtime.Reset], grbl.Realtime);
+    }
+
+    [Fact]
+    public async Task Rewind_enabled_only_when_idle()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings);
+        var svc = new DemoGrblService(settings.Load());
+        var vm = new MainViewModel(svc, settings, provider);
+        await svc.ConnectAsync("demo");
+
+        var program = provider.GetRequiredService<SenderNG.Avalonia.Modules.Fixed.ProgramViewModel>();
+        program.LoadGCode("G0 X0");
+
+        // Idle: rewind makes sense (ioSender enables it when streaming is idle).
+        Assert.True(vm.RewindCommand.CanExecute(null));
+
+        svc.SendRealtime(GrblRealtime.FeedHold); // -> Hold
+        Assert.False(vm.RewindCommand.CanExecute(null));
+
+        svc.SendRealtime(GrblRealtime.CycleStart); // -> Run
+        Assert.False(vm.RewindCommand.CanExecute(null));
+
+        svc.SendRealtime(GrblRealtime.Reset); // -> Idle
+        Assert.True(vm.RewindCommand.CanExecute(null));
+    }
+}
