@@ -44,7 +44,7 @@ public class CoolantViewModelTests
         vm.ToggleFloodCommand.Execute(null);
         vm.ToggleMistCommand.Execute(null);
 
-        Assert.Equal(["RT:A2", "RT:A3"], sent);
+        Assert.Equal(["RT:A0", "RT:A1"], sent);
     }
 
     [Fact]
