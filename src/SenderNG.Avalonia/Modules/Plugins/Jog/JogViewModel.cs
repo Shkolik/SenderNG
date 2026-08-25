@@ -38,7 +38,7 @@ public class JogViewModel : ViewModelBase
         JogCommand = new DelegateCommand(p => _ = JogAsync(p as string));
         StopCommand = new DelegateCommand(_ => _ = _grbl.SendAsync("!"));
 
-        _grbl.State.Subscribe(ApplyState);
+        _grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
         _settingsService.Changed += OnSettingsChanged;
     }
 

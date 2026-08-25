@@ -105,7 +105,7 @@ public class CuttingViewModel : ViewModelBase
         SpindleToggleCommand = new DelegateCommand(_ => Send(GrblRealtime.SpindleStopToggle));
 
         // Live values mirror the machine (FS:/Ov: report fields; demo simulation).
-        grbl.State.Subscribe(ApplyState);
+        grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
     }
 
     private void Send(byte code)

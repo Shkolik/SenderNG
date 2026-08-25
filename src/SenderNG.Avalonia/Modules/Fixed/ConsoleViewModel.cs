@@ -16,12 +16,12 @@ public class ConsoleViewModel : ViewModelBase
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
 
         // Received lines from the controller: state reports like "< Idle|WPos X0 Y0 Z0"
-        _grbl.State.Subscribe(s =>
+        _grbl.State.Subscribe(s => UiThread.Post(() =>
         {
             if (s is null) return;
             var pos = string.Join(" ", s.Positions.Select(p => p.ToString("0.###")));
             Log($"< {s.Status}|WPos {pos}".TrimEnd());
-        });
+        }));
     }
 
     public void Log(string line) => ConsoleLines.Add(line);

@@ -18,6 +18,9 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // State emissions can arrive on background threads (demo poll timer,
+        // serial reads); capture the UI dispatcher so UiThread can marshal them.
+        UiThread.Initialize();
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             Host = HostSetup.BuildHost([]);

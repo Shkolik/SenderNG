@@ -35,7 +35,7 @@ public class DroViewModel : ViewModelBase
     {
         ArgumentNullException.ThrowIfNull(grbl);
         _grbl = grbl;
-        grbl.State.Subscribe(ApplyState);
+        grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
 
         ZeroAxisCommand = new DelegateCommand(p => _ = ZeroAxisAsync(p as string));
         ZeroAllCommand = new DelegateCommand(_ => _ = ZeroAllAsync());

@@ -135,7 +135,7 @@ public class MainViewModel : ViewModelBase
 
         // State indicator: subscribe to grbl State and expose MachineState + StateBrush (RUN green #c8e8c8, IDLE yellow #ffe8a0, ALARM red #e04545, Height 28)
         // Also drives dynamic Signals panel (AxisSignals + ProbeActive) from MachineState.NumAxes / Signals
-        _stateSubscription = _grbl.State.Subscribe(s => ApplyState(s));
+        _stateSubscription = _grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
 
         // Demo mode connects automatically so commands work without manual Connect.
         if (_isDemo)
@@ -157,7 +157,7 @@ public class MainViewModel : ViewModelBase
             if (SetField(ref _grbl, value))
             {
                 _stateSubscription?.Dispose();
-        _stateSubscription = _grbl.State.Subscribe(s => ApplyState(s));
+        _stateSubscription = _grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
 
         // Live-apply visibility/mode changes: AppSettings dialog saves -> Changed fires.
         _settingsService.Changed += OnSettingsChanged;

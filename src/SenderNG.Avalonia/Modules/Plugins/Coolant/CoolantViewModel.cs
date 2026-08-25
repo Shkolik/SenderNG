@@ -33,7 +33,7 @@ public class CoolantViewModel : ViewModelBase
         ToggleMistCommand = new DelegateCommand(_ => Toggle(GrblRealtime.CoolantMistToggle));
 
         // State mirrors the machine (override toggles are echoed back via State).
-        grbl.State.Subscribe(ApplyState);
+        grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
     }
 
     private void Toggle(byte realtimeCode)
