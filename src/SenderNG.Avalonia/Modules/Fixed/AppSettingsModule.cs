@@ -15,7 +15,9 @@ public class AppSettingsModule : IModule
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>
-        services.AddSingleton(sp => new AppSettingsViewModel(
+        // Transient: each dialog open builds fresh cards and fresh module settings
+        // views (a view instance cannot be attached to a new visual parent twice).
+        services.AddTransient(sp => new AppSettingsViewModel(
             sp.GetRequiredService<SettingsService>(),
             sp.GetServices<IModule>()));
 
