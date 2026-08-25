@@ -66,7 +66,9 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:ModuleSettingsEntry">
                             <!-- Natural height (WrapPanel rows size to tallest card) -->
-                            <Border Width="148" CornerRadius="0" BorderBrush="#aaa" BorderThickness="1"
+                            <!-- Natural size: min width for uniformity, wider when a module's
+                                 settings view needs the room -->
+                            <Border MinWidth="148" CornerRadius="0" BorderBrush="#aaa" BorderThickness="1"
                                     Background="#fafafa" Margin="0,0,8,8" Padding="8,6">
                                 <StackPanel Spacing="4">
                                     <!-- Header: checkbox-as-header for hideable modules, plain name for fixed ones -->
