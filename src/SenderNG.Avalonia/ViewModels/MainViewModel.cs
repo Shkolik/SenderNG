@@ -106,11 +106,10 @@ public class MainViewModel : ViewModelBase
         SendMdiCommand = new DelegateCommand(_ => _ = SendMdiAsync(), _ => !string.IsNullOrWhiteSpace(MdiInput));
         OpenFileCommand = new DelegateCommand(_ => _ = OpenFileAsync());
         SelectRecentCommand = new DelegateCommand(p => _ = LoadGCodeFileAsync(p as string));
-        // Cycle bar delegates (grblHAL realtime)
-        // TODO: Cycle commands currently use SendAsync(string) placeholder; future: use realtime byte API (e.g., SendRealtime) for "~", "!", 0x18
-        CycleStartCommand = new DelegateCommand(_ => _ = CycleAsync("~", "Cycle Start"));
-        FeedHoldCommand = new DelegateCommand(_ => _ = CycleAsync("!", "Feed Hold"));
-        StopCommand = new DelegateCommand(_ => _ = CycleAsync("\x18", "Stop"));
+        // Cycle bar: raw grbl realtime bytes (classic 0x7E/0x21/0x18, grblHAL compatible).
+        CycleStartCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.CycleStart, "Cycle Start"));
+        FeedHoldCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.FeedHold, "Feed Hold"));
+        StopCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.Reset, "Stop"));
         RewindCommand = new DelegateCommand(_ => Rewind());
         MdiHistoryPrevCommand = new DelegateCommand(_ => MdiHistoryPrev());
         MdiHistoryNextCommand = new DelegateCommand(_ => MdiHistoryNext());
@@ -510,18 +509,24 @@ public class MainViewModel : ViewModelBase
         catch (Exception ex) { Status = $"Disconnect failed: {ex.Message}"; }
     }
 
-    // TODO: Cycle commands via SendAsync(string) placeholder; future: use realtime byte API (e.g., SendRealtime) for grblHAL realtime commands
-    private async Task CycleAsync(string payload, string label)
+    private void SendRealtime(byte code, string label)
     {
-        // TODO: replace SendAsync(string) with SendRealtime(byte) for "~" (Cycle Start), "!" (Feed Hold), 0x18 (Reset/Stop)
-        try { await Grbl.SendAsync(payload); Status = label; }
+        try { Grbl.SendRealtime(code); Status = $"{label} sent"; }
         catch (Exception ex) { Status = $"{label} failed: {ex.Message}"; }
     }
 
-    // TODO: Rewind should use realtime/control API if applicable; placeholder Status for now
+    /// <summary>Rewind the loaded program to the start (local reset, no byte sent - mirrors ioSender RewindFile).</summary>
     private void Rewind()
     {
-        Status = "Rewind (placeholder)";
+        var program = _services.GetService<ProgramViewModel>();
+        if (program is null || program.ProgramRows.Count == 0)
+        {
+            Status = "Rewind: no program loaded";
+            return;
+        }
+
+        program.Rewind();
+        Status = "Program rewound";
     }
 
     private void OnModulesChanged(object? sender, NotifyCollectionChangedEventArgs e)

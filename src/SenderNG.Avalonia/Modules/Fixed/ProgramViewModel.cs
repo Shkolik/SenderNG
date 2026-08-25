@@ -40,4 +40,11 @@ public class ProgramViewModel : ViewModelBase
             OnPropertyChanged(nameof(HasLimits));
         }
     }
+
+    /// <summary>Reset the loaded program to the start: all rows return to the un-sent state.</summary>
+    public void Rewind()
+    {
+        for (var i = 0; i < ProgramRows.Count; i++)
+            ProgramRows[i] = ProgramRows[i] with { Status = "·" };
+    }
 }

@@ -104,6 +104,20 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider
                 case GrblRealtime.SpindleStopToggle:
                     state.Speed = state.Speed > 0 ? 0 : _lastSpeed;
                     break;
+                // Cycle controls: mirror the controller's state transitions so the
+                // demo responds visibly to the cycle bar (grbl soft-reset semantics).
+                case GrblRealtime.FeedHold:
+                    state.Status = "Hold";
+                    break;
+                case GrblRealtime.CycleStart:
+                    if (state.Status == "Hold")
+                        state.Status = "Run";
+                    break;
+                case GrblRealtime.Reset:
+                    state.Status = "Idle";
+                    for (var i = 0; i < state.Positions.Length; i++)
+                        state.Positions[i] = 0;
+                    break;
                 default:
                     return;
             }

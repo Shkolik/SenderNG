@@ -56,3 +56,29 @@ public class ProgramViewModelTests
         Assert.Empty(vm.ProgramRows);
     }
 }
+
+public class ProgramViewModelRewindTests
+{
+    [Fact]
+    public void Rewind_resets_row_statuses_to_un_sent()
+    {
+        var vm = new ProgramViewModel();
+        vm.LoadGCode("G0 X0\nG0 Y0\nM30");
+        vm.ProgramRows[0] = vm.ProgramRows[0] with { Status = "ok" };
+        vm.ProgramRows[1] = vm.ProgramRows[1] with { Status = "✓" };
+
+        vm.Rewind();
+
+        Assert.All(vm.ProgramRows, r => Assert.Equal("·", r.Status));
+    }
+
+    [Fact]
+    public void Rewind_without_program_does_not_throw()
+    {
+        var vm = new ProgramViewModel();
+
+        vm.Rewind();
+
+        Assert.Empty(vm.ProgramRows);
+    }
+}

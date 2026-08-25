@@ -230,3 +230,79 @@ public class MainViewModelLiveVisibilityTests
         Assert.DoesNotContain(vm.FlyoutModules, m => m.Id == "macro");
     }
 }
+
+public class MainViewModelCycleControlTests
+{
+    private sealed class RecordingRealtimeGrbl : IGrblService
+    {
+        public List<byte> Realtime { get; } = [];
+        public bool IsConnected => false;
+        public IObservable<MachineState> State => System.Reactive.Linq.Observable.Empty<MachineState>();
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public Task SendAsync(string line) => Task.CompletedTask;
+        public void SendRealtime(byte code) => Realtime.Add(code);
+    }
+
+    private static SettingsService MakeSettings()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-tests-" + Guid.NewGuid().ToString("N"));
+        return new SettingsService(dir);
+    }
+
+    private static ServiceProvider MakeProvider(SettingsService settings)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(settings);
+        services.AddSingleton(_ => new DemoGrblService(settings.Load()));
+        services.AddSingleton<RealGrblService>();
+        return services.BuildServiceProvider();
+    }
+
+    [Fact]
+    public void Cycle_controls_send_realtime_bytes()
+    {
+        var settings = MakeSettings();
+        var grbl = new RecordingRealtimeGrbl();
+        var vm = new MainViewModel(grbl, settings, MakeProvider(settings));
+
+        vm.CycleStartCommand.Execute(null);
+        vm.FeedHoldCommand.Execute(null);
+        vm.StopCommand.Execute(null);
+
+        Assert.Equal([GrblRealtime.CycleStart, GrblRealtime.FeedHold, GrblRealtime.Reset], grbl.Realtime);
+    }
+
+    [Fact]
+    public void Rewind_command_resets_loaded_program_rows()
+    {
+        var settings = MakeSettings();
+        var services = new ServiceCollection();
+        services.AddSingleton(settings);
+        services.AddSingleton(_ => new DemoGrblService(settings.Load()));
+        services.AddSingleton<RealGrblService>();
+        services.AddSingleton<SenderNG.Avalonia.Modules.Fixed.ProgramViewModel>();
+        var provider = services.BuildServiceProvider();
+
+        var program = provider.GetRequiredService<SenderNG.Avalonia.Modules.Fixed.ProgramViewModel>();
+        program.LoadGCode("G0 X0\nG0 Y0\nM30");
+        program.ProgramRows[0] = program.ProgramRows[0] with { Status = "\u2713" };
+
+        var vm = new MainViewModel(new DemoGrblService(settings.Load()), settings, provider);
+        vm.RewindCommand.Execute(null);
+
+        Assert.All(program.ProgramRows, r => Assert.Equal("\u00b7", r.Status));
+        Assert.Equal("Program rewound", vm.Status);
+    }
+
+    [Fact]
+    public void Rewind_command_without_program_reports_status()
+    {
+        var settings = MakeSettings();
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, MakeProvider(settings));
+
+        vm.RewindCommand.Execute(null);
+
+        Assert.Equal("Rewind: no program loaded", vm.Status);
+    }
+}

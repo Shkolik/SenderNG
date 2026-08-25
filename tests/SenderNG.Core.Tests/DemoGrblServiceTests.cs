@@ -288,3 +288,64 @@ public class GrblSettingsProxyRoutingTests
         public void SendRealtime(byte code) { }
     }
 }
+
+public class DemoGrblServiceRealtimeCycleTests
+{
+    private static AppSettings SettingsFor(int demoAxes)
+    {
+        var s = new AppSettings();
+        s.Current.DemoAxes = demoAxes;
+        return s;
+    }
+
+    [Fact]
+    public async Task Feed_hold_realtime_sets_status_hold()
+    {
+        var svc = new DemoGrblService(SettingsFor(3));
+        await svc.ConnectAsync("demo");
+
+        svc.SendRealtime(GrblRealtime.FeedHold);
+
+        var st = await svc.State.FirstAsync();
+        Assert.Equal("Hold", st.Status);
+    }
+
+    [Fact]
+    public async Task Cycle_start_realtime_resumes_from_hold()
+    {
+        var svc = new DemoGrblService(SettingsFor(3));
+        await svc.ConnectAsync("demo");
+        svc.SendRealtime(GrblRealtime.FeedHold);
+
+        svc.SendRealtime(GrblRealtime.CycleStart);
+
+        var st = await svc.State.FirstAsync();
+        Assert.Equal("Run", st.Status);
+    }
+
+    [Fact]
+    public async Task Cycle_start_realtime_ignored_when_idle()
+    {
+        var svc = new DemoGrblService(SettingsFor(3));
+        await svc.ConnectAsync("demo");
+
+        svc.SendRealtime(GrblRealtime.CycleStart);
+
+        var st = await svc.State.FirstAsync();
+        Assert.Equal("Idle", st.Status);
+    }
+
+    [Fact]
+    public async Task Reset_realtime_clears_positions_and_returns_to_idle()
+    {
+        var svc = new DemoGrblService(SettingsFor(3));
+        await svc.ConnectAsync("demo");
+        await svc.SendAsync("G0 X10 Y20 Z30");
+
+        svc.SendRealtime(GrblRealtime.Reset);
+
+        var st = await svc.State.FirstAsync();
+        Assert.Equal("Idle", st.Status);
+        Assert.Equal([0, 0, 0], st.Positions);
+    }
+}
