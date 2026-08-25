@@ -306,3 +306,99 @@ public class MainViewModelCycleControlTests
         Assert.Equal("Rewind: no program loaded", vm.Status);
     }
 }
+
+public class MainViewModelCycleEnablementTests
+{
+    private sealed class RecordingRealtimeGrbl : IGrblService
+    {
+        public bool IsConnected => false;
+        public IObservable<MachineState> State => System.Reactive.Linq.Observable.Empty<MachineState>();
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public Task SendAsync(string line) => Task.CompletedTask;
+        public void SendRealtime(byte code) { }
+    }
+
+    private static SettingsService MakeSettings()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-tests-" + Guid.NewGuid().ToString("N"));
+        return new SettingsService(dir);
+    }
+
+    private static ServiceProvider MakeProvider(SettingsService settings, bool withProgram = false)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(settings);
+        services.AddSingleton(_ => new DemoGrblService(settings.Load()));
+        services.AddSingleton<RealGrblService>();
+        if (withProgram)
+            services.AddSingleton<SenderNG.Avalonia.Modules.Fixed.ProgramViewModel>();
+        return services.BuildServiceProvider();
+    }
+
+    [Fact]
+    public void Start_and_Rewind_require_loaded_program()
+    {
+        var settings = MakeSettings();
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, MakeProvider(settings));
+
+        Assert.False(vm.CycleStartCommand.CanExecute(null));
+        Assert.False(vm.RewindCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Start_and_Rewind_enabled_after_program_loads()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings, withProgram: true);
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, provider);
+
+        var program = provider.GetRequiredService<SenderNG.Avalonia.Modules.Fixed.ProgramViewModel>();
+        program.LoadGCode("G0 X0" + "\nG0 Y0");
+
+        Assert.True(vm.CycleStartCommand.CanExecute(null));
+        Assert.True(vm.RewindCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Stop_enabled_only_in_hold_and_Hold_only_in_run()
+    {
+        var settings = MakeSettings();
+        var svc = new DemoGrblService(settings.Load());
+        var vm = new MainViewModel(svc, settings, MakeProvider(settings));
+        await svc.ConnectAsync("demo");
+
+        // Idle: neither makes sense.
+        Assert.False(vm.FeedHoldCommand.CanExecute(null));
+        Assert.False(vm.StopCommand.CanExecute(null));
+
+        svc.SendRealtime(GrblRealtime.FeedHold); // -> Hold
+        Assert.True(vm.StopCommand.CanExecute(null));
+        Assert.False(vm.FeedHoldCommand.CanExecute(null));
+
+        svc.SendRealtime(GrblRealtime.CycleStart); // -> Run
+        Assert.True(vm.FeedHoldCommand.CanExecute(null));
+        Assert.False(vm.StopCommand.CanExecute(null));
+
+        svc.SendRealtime(GrblRealtime.Reset); // -> Idle
+        Assert.False(vm.FeedHoldCommand.CanExecute(null));
+        Assert.False(vm.StopCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task State_indicator_tracks_machine_state()
+    {
+        var settings = MakeSettings();
+        var svc = new DemoGrblService(settings.Load());
+        var vm = new MainViewModel(svc, settings, MakeProvider(settings));
+        await svc.ConnectAsync("demo");
+
+        Assert.Equal("Idle", vm.MachineState);
+
+        svc.SendRealtime(GrblRealtime.FeedHold);
+        Assert.Equal("Hold", vm.MachineState);
+
+        svc.SendRealtime(GrblRealtime.CycleStart);
+        Assert.Equal("Run", vm.MachineState);
+    }
+}

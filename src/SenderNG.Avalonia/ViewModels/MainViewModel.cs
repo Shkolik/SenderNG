@@ -51,6 +51,7 @@ public class MainViewModel : ViewModelBase
     private IBrush _stateForeground = Brushes.Black;
     private IDisposable? _stateSubscription;
     private bool _probeActive;
+    private ProgramViewModel? _program;
 
     public MainViewModel(
         IGrblService grbl,
@@ -107,10 +108,11 @@ public class MainViewModel : ViewModelBase
         OpenFileCommand = new DelegateCommand(_ => _ = OpenFileAsync());
         SelectRecentCommand = new DelegateCommand(p => _ = LoadGCodeFileAsync(p as string));
         // Cycle bar: raw grbl realtime bytes (classic 0x7E/0x21/0x18, grblHAL compatible).
-        CycleStartCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.CycleStart, "Cycle Start"));
-        FeedHoldCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.FeedHold, "Feed Hold"));
-        StopCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.Reset, "Stop"));
-        RewindCommand = new DelegateCommand(_ => Rewind());
+        // Start/Rewind need a loaded program; Stop only from Hold; Feed Hold only while Run.
+        CycleStartCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.CycleStart, "Cycle Start"), _ => HasProgram);
+        FeedHoldCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.FeedHold, "Feed Hold"), _ => IsMachineState("Run"));
+        StopCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.Reset, "Stop"), _ => IsMachineState("Hold"));
+        RewindCommand = new DelegateCommand(_ => Rewind(), _ => HasProgram);
         MdiHistoryPrevCommand = new DelegateCommand(_ => MdiHistoryPrev());
         MdiHistoryNextCommand = new DelegateCommand(_ => MdiHistoryNext());
         // placeholder Help/Settings delegates keep Status
@@ -120,6 +122,11 @@ public class MainViewModel : ViewModelBase
         AboutCommand = new DelegateCommand(_ => Status = "SenderNG — About (placeholder)");
         LibrariesCommand = new DelegateCommand(_ => Status = "Libraries (placeholder)");
         _mdiHistoryIndex = MdiHistory.Count;
+
+        // Cycle bar Start/Rewind enablement follows the loaded program rows.
+        _program = _services.GetService<ProgramViewModel>();
+        if (_program is not null)
+            _program.ProgramRows.CollectionChanged += (_, _) => RaiseProgramCommands();
 
         // State indicator: subscribe to grbl State and expose MachineState + StateBrush (RUN green #c8e8c8, IDLE yellow #ffe8a0, ALARM red #e04545, Height 28)
         // Also drives dynamic Signals panel (AxisSignals + ProbeActive) from MachineState.NumAxes / Signals
@@ -554,6 +561,18 @@ public class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(CenterTabs));
     }
 
+    /// <summary>Cycle bar Start/Rewind only make sense once a program is loaded.</summary>
+    private bool HasProgram => _program is { ProgramRows.Count: > 0 };
+
+    private bool IsMachineState(string value) =>
+        _machineState.Contains(value, StringComparison.OrdinalIgnoreCase);
+
+    private void RaiseProgramCommands()
+    {
+        (CycleStartCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        (RewindCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+    }
+
     private void ApplyState(MachineState state)
     {
         if (state is null) return;
@@ -591,6 +610,10 @@ public class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(MachineState));
         OnPropertyChanged(nameof(StateBrush));
         OnPropertyChanged(nameof(StateForeground));
+
+        // Cycle bar enablement follows the machine state: Stop in Hold, Feed Hold in Run.
+        (FeedHoldCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        (StopCommand as DelegateCommand)?.RaiseCanExecuteChanged();
     }
 
     private static IBrush ResolveStateBrush(string status)
