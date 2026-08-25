@@ -19,7 +19,7 @@
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="1" CornerRadius="0">
+                            BorderThickness="1" CornerRadius="0" Padding="10,0">
                         <ContentPresenter Content="{TemplateBinding Content}"
                                           ContentTemplate="{TemplateBinding ContentTemplate}"
                                           HorizontalAlignment="Center" VerticalAlignment="Center"
