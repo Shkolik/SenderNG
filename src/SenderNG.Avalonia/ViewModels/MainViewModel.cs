@@ -496,6 +496,12 @@ public class MainViewModel : ViewModelBase
         {
             Status = $"{module.Name} failed: {ex.Message}";
         }
+        finally
+        {
+            // Modal loops can swallow change-driven layout updates; re-raise
+            // everything once the dialog closes so visibility applies immediately.
+            OnSettingsChanged();
+        }
     }
 
     private void Disconnect()

@@ -192,3 +192,41 @@ public class MainViewModelTests
         Assert.StartsWith("Connection failed", vm.Status);
     }
 }
+
+public class MainViewModelLiveVisibilityTests
+{
+    private sealed class FlyoutStub(string id) : IModule
+    {
+        public string Id => id;
+        public string Name => id;
+        public int Order => 0;
+        public PanelHint Panel => PanelHint.Flyout;
+        public IReadOnlyList<HotKey> HotKeys { get; } = [];
+        public void RegisterServices(IServiceCollection services) { }
+        public void RegisterSettings(AppSettings settings) { }
+        public object CreateViewModel(IServiceProvider serviceProvider) => new object();
+        public object CreateView(object viewModel) => new object();
+    }
+
+    [Fact]
+    public void Saving_hidden_module_removes_flyout_button_immediately()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-tests-" + Guid.NewGuid().ToString("N"));
+        var settings = new SettingsService(dir);
+        var services = new ServiceCollection();
+        services.AddSingleton(settings);
+        services.AddSingleton(_ => new DemoGrblService(settings.Load()));
+        services.AddSingleton<RealGrblService>();
+        var vm = new MainViewModel(
+            new DemoGrblService(settings.Load()), settings, services.BuildServiceProvider(),
+            modules: new IModule[] { new FlyoutStub("macro"), new FlyoutStub("dummy") });
+
+        Assert.Contains(vm.FlyoutModules, m => m.Id == "macro");
+
+        // App Settings dialog does exactly this: write map + Save.
+        settings.Load().Current.ModulesVisibility["macro"] = false;
+        settings.Save(settings.Load());
+
+        Assert.DoesNotContain(vm.FlyoutModules, m => m.Id == "macro");
+    }
+}
