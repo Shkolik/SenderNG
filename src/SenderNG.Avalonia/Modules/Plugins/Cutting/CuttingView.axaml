@@ -115,8 +115,10 @@
                 <Button Classes="ovr" Content="100" Command="{Binding SpeedResetCommand}" ToolTip.Tip="Reset to 100%" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
-                <ToggleButton Classes="ovrToggle" Content="Spindle On/Off" Command="{Binding SpindleToggleCommand}"
-                              ToolTip.Tip="Realtime spindle stop toggle" />
+            <ToggleButton Classes="ovrToggle" Content="Spindle On/Off" Command="{Binding SpindleToggleCommand}"
+                          IsChecked="{Binding IsSpindleOn, Mode=OneWay}"
+                          ToolTip.Tip="Realtime spindle stop toggle"
+                          HorizontalAlignment="Center" Margin="0,8,0,0" />
             </StackPanel>
         </StackPanel>
 
