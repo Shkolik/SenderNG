@@ -82,44 +82,42 @@
                 <Button Classes="ovr" Content="-1" Command="{Binding FeedFineMinusCommand}" />
                 <TextBlock Classes="ovrValue" Text="{Binding FeedOvr, StringFormat={}{0}%}" />
                 <Button Classes="ovr" Content="+1" Command="{Binding FeedFinePlusCommand}" />
-                <Button Classes="ovr" Content="+10" Command="{Binding FeedCoarsePlusCommand}" />
+                <Button Classes="ovr" Content="+10" Command="{Binding FeedCoarsePlusCommand}" Margin="0,0,6,0" />
                 <Button Classes="ovr" Content="100" Command="{Binding FeedResetCommand}" ToolTip.Tip="Reset to 100%" />
             </StackPanel>
         </StackPanel>
 
-        <!-- Rapids override -->
+        <!-- Rapids override: widths roughly proportional to the value -->
         <StackPanel>
             <TextBlock Classes="caption" Text="Rapids override" />
             <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,2,0,0">
-                <ToggleButton Classes="ovrToggle" Content="100%"
+                <ToggleButton Classes="ovrToggle" Content="100%" Width="56"
                               IsChecked="{Binding IsRapidFull, Mode=OneWay}"
                               Command="{Binding RapidFullCommand}" />
-                <ToggleButton Classes="ovrToggle" Content="50%"
+                <ToggleButton Classes="ovrToggle" Content="50%" Width="42"
                               IsChecked="{Binding IsRapidHalf, Mode=OneWay}"
                               Command="{Binding RapidHalfCommand}" />
-                <ToggleButton Classes="ovrToggle" Content="25%"
+                <ToggleButton Classes="ovrToggle" Content="25%" Width="34"
                               IsChecked="{Binding IsRapidQuarter, Mode=OneWay}"
                               Command="{Binding RapidQuarterCommand}" />
             </StackPanel>
         </StackPanel>
 
         <!-- Speed override + spindle on/off -->
-        <StackPanel>
+        <StackPanel Margin="0,8,0,0">
             <TextBlock Classes="caption" Text="Speed override" />
             <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,2,0,0">
                 <Button Classes="ovr" Content="-10" Command="{Binding SpeedCoarseMinusCommand}" />
                 <Button Classes="ovr" Content="-1" Command="{Binding SpeedFineMinusCommand}" />
                 <TextBlock Classes="ovrValue" Text="{Binding SpindleOvr, StringFormat={}{0}%}" />
                 <Button Classes="ovr" Content="+1" Command="{Binding SpeedFinePlusCommand}" />
-                <Button Classes="ovr" Content="+10" Command="{Binding SpeedCoarsePlusCommand}" />
+                <Button Classes="ovr" Content="+10" Command="{Binding SpeedCoarsePlusCommand}" Margin="0,0,6,0" />
                 <Button Classes="ovr" Content="100" Command="{Binding SpeedResetCommand}" ToolTip.Tip="Reset to 100%" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
             <ToggleButton Classes="ovrToggle" Content="Spindle On/Off" Command="{Binding SpindleToggleCommand}"
                           IsChecked="{Binding IsSpindleOn, Mode=OneWay}"
                           ToolTip.Tip="Realtime spindle stop toggle"
                           HorizontalAlignment="Center" Margin="0,8,0,0" />
-            </StackPanel>
         </StackPanel>
 
     </StackPanel>
