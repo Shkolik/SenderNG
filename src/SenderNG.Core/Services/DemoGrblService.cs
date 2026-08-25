@@ -3,10 +3,12 @@ using CNC.Core.Abstractions;
 
 namespace CNC.Core.Services;
 
-public class DemoGrblService : IGrblService, IGrblSettingsProvider
+public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 {
     private readonly BehaviorSubject<MachineState> _subject;
     private readonly object _lock = new();
+    private readonly int _pollIntervalMs;
+    private Timer? _pollTimer;
     private int _distanceMode = 90; // modal G90/G91
     private double _lastSpeed;
     private readonly string? _settingsFilePath;
@@ -16,9 +18,10 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider
 
     public IObservable<MachineState> State => _subject;
 
-    public DemoGrblService(AppSettings settings, string? settingsFilePath = null)
+    public DemoGrblService(AppSettings settings, string? settingsFilePath = null, int pollIntervalMs = 200)
     {
         _subject = new BehaviorSubject<MachineState>(new MachineState(settings.Current.DemoAxes));
+        _pollIntervalMs = Math.Max(10, pollIntervalMs);
         _settingsFilePath = settingsFilePath ??
             Path.Combine(SettingsService.DefaultDir(), "grbl-settings-demo.txt");
         _settings = LoadSettings(_settingsFilePath);
@@ -110,7 +113,8 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider
                     state.Status = "Hold";
                     break;
                 case GrblRealtime.CycleStart:
-                    if (state.Status == "Hold")
+                    // ~ starts a buffered program (Idle) or resumes from Feed Hold (Hold).
+                    if (state.Status is "Hold" or "Idle")
                         state.Status = "Run";
                     break;
                 case GrblRealtime.Reset:
@@ -183,12 +187,18 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider
     public Task ConnectAsync(string port)
     {
         IsConnected = true;
+        // Status polling: re-emit the current state on a timer, mirroring the
+        // controller answering the host's periodic '?' with a status report.
+        _pollTimer?.Dispose();
+        _pollTimer = new Timer(_ => PollTick(), null, _pollIntervalMs, _pollIntervalMs);
         return Task.CompletedTask;
     }
 
     public void Disconnect()
     {
         IsConnected = false;
+        _pollTimer?.Dispose();
+        _pollTimer = null;
     }
 
     public Task SendAsync(string line)
@@ -213,7 +223,8 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider
 
             if (trimmed == "?")
             {
-                state.Status = "Idle";
+                // A status query just echoes the current state - it must not
+                // clobber the live status (e.g. while emulating a running job).
                 _subject.OnNext(state);
                 return Task.CompletedTask;
             }
@@ -312,5 +323,20 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider
 
             state.Positions[index] = isG92 ? value : incremental ? state.Positions[index] + value : value;
         }
+    }
+
+    private void PollTick()
+    {
+        lock (_lock)
+        {
+            if (IsConnected)
+                _subject.OnNext(_subject.Value);
+        }
+    }
+
+    public void Dispose()
+    {
+        _pollTimer?.Dispose();
+        _pollTimer = null;
     }
 }

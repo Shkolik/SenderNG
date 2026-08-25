@@ -94,6 +94,11 @@ public class MainViewModel : ViewModelBase
         for (var i = 0; i < seedAxes; i++)
             AxisSignals.Add(new AxisSignal(CNC.Core.GrblInfo.AxisLetters[i].ToString()));
 
+        // Recent files persist across sessions via settings.json.
+        foreach (var f in _settingsService.Load().RecentFiles)
+            if (!string.IsNullOrWhiteSpace(f))
+                RecentFiles.Add(f);
+
         DemoToggleCommand = new DelegateCommand(_ => ToggleDemo());
         ConnectCommand = new DelegateCommand(_ => _ = ConnectAsync());
         DisconnectCommand = new DelegateCommand(_ => Disconnect());
@@ -204,6 +209,9 @@ public class MainViewModel : ViewModelBase
                 OnPropertyChanged(nameof(StateBrush));
         }
     }
+
+    /// <summary>State indicator text: machine state in all caps.</summary>
+    public string MachineStateDisplay => _machineState.ToUpperInvariant();
 
     public IBrush StateBrush => _stateBrush;
     public IBrush StateForeground => _stateForeground;
@@ -458,6 +466,12 @@ public class MainViewModel : ViewModelBase
 
             RecentFiles.Remove(path);
             RecentFiles.Insert(0, path);
+            const int MaxRecentFiles = 10;
+            while (RecentFiles.Count > MaxRecentFiles)
+                RecentFiles.RemoveAt(RecentFiles.Count - 1);
+            var appSettings = _settingsService.Load();
+            appSettings.RecentFiles = [.. RecentFiles];
+            _settingsService.Save(appSettings);
             Status = $"Loaded {Path.GetFileName(path)} ({blocks} blocks)";
         }
         catch (Exception ex)
@@ -608,6 +622,7 @@ public class MainViewModel : ViewModelBase
         _stateForeground = _machineState.Contains("alarm", StringComparison.OrdinalIgnoreCase)
             ? Brushes.White : Brushes.Black;
         OnPropertyChanged(nameof(MachineState));
+        OnPropertyChanged(nameof(MachineStateDisplay));
         OnPropertyChanged(nameof(StateBrush));
         OnPropertyChanged(nameof(StateForeground));
 

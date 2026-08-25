@@ -324,15 +324,16 @@ public class DemoGrblServiceRealtimeCycleTests
     }
 
     [Fact]
-    public async Task Cycle_start_realtime_ignored_when_idle()
+    public async Task Cycle_start_realtime_starts_run_from_idle()
     {
         var svc = new DemoGrblService(SettingsFor(3));
         await svc.ConnectAsync("demo");
 
+        // ~ with a loaded program starts the job: Idle -> Run (grbl semantics).
         svc.SendRealtime(GrblRealtime.CycleStart);
 
         var st = await svc.State.FirstAsync();
-        Assert.Equal("Idle", st.Status);
+        Assert.Equal("Run", st.Status);
     }
 
     [Fact]
@@ -347,5 +348,52 @@ public class DemoGrblServiceRealtimeCycleTests
         var st = await svc.State.FirstAsync();
         Assert.Equal("Idle", st.Status);
         Assert.Equal([0, 0, 0], st.Positions);
+    }
+}
+
+public class DemoGrblServicePollingTests
+{
+    private static AppSettings SettingsFor(int demoAxes)
+    {
+        var s = new AppSettings();
+        s.Current.DemoAxes = demoAxes;
+        return s;
+    }
+
+    [Fact]
+    public async Task Poll_loop_reemits_state_while_connected()
+    {
+        var svc = new DemoGrblService(SettingsFor(3), pollIntervalMs: 10);
+        var emissions = 0;
+        using var sub = svc.State.Subscribe(_ => Interlocked.Increment(ref emissions));
+
+        await svc.ConnectAsync("demo");
+
+        // BehaviorSubject replay gives one immediate emission; polling adds more.
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (Volatile.Read(ref emissions) < 3 && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+
+        svc.Disconnect();
+        Assert.True(Volatile.Read(ref emissions) >= 3, $"expected polled emissions, got {emissions}");
+    }
+
+    [Fact]
+    public async Task Poll_loop_stops_after_disconnect()
+    {
+        var svc = new DemoGrblService(SettingsFor(3), pollIntervalMs: 10);
+        var emissions = 0;
+        using var sub = svc.State.Subscribe(_ => Interlocked.Increment(ref emissions));
+
+        await svc.ConnectAsync("demo");
+
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (Volatile.Read(ref emissions) < 3 && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+
+        svc.Disconnect();
+        var after = Volatile.Read(ref emissions);
+        await Task.Delay(80); // several poll intervals must not emit
+        Assert.Equal(after, Volatile.Read(ref emissions));
     }
 }

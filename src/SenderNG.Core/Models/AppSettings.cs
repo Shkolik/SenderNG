@@ -8,6 +8,8 @@ public class AppSettings
 
     public string Mode { get; set; } = MillMode;
     public Dictionary<string, ModeSettings> Modes { get; set; } = new();
+    // Recent G-code files, most recent first; persists across app restarts.
+    public List<string> RecentFiles { get; set; } = new();
     // Global (not mode-aware) plugin data sections.
     public Dictionary<string, object> Modules { get; set; } = new();
 

@@ -188,8 +188,10 @@
                 <Border Grid.Row="4" Background="White" BorderBrush="#aaa" BorderThickness="0,1,0,0" Margin="0" Padding="4" HorizontalAlignment="Stretch">
                     <StackPanel Spacing="4" HorizontalAlignment="Stretch">
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                            <Border Height="28" MinHeight="28" VerticalAlignment="Center" HorizontalAlignment="Stretch" Background="{Binding StateBrush}" BorderBrush="#8a8" BorderThickness="1" CornerRadius="0" Padding="6,0">
-                                <TextBlock Text="{Binding MachineState, StringFormat='State: {0}'}" FontSize="10" VerticalAlignment="Center" Foreground="{Binding StateForeground}" />
+                            <!-- State label sits outside the indicator block -->
+                            <TextBlock Text="State" FontSize="12" FontWeight="SemiBold" Foreground="#333" VerticalAlignment="Center" />
+                            <Border Height="30" MinHeight="30" VerticalAlignment="Center" Background="{Binding StateBrush}" BorderBrush="#8a8" BorderThickness="1" CornerRadius="0" Padding="8,0">
+                                <TextBlock Text="{Binding MachineStateDisplay}" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" Foreground="{Binding StateForeground}" />
                             </Border>
                             <CheckBox Content="Check" FontSize="11" CornerRadius="0" VerticalAlignment="Center" />
                         </StackPanel>
