@@ -25,16 +25,21 @@
         </Style>
     </UserControl.Styles>
 
-    <!-- Binds JogConfig directly; edits persist via the VM's config-change hook -->
-    <StackPanel>
-        <TextBlock Classes="caption" Text="Distances (mm)" />
-        <TextBox Classes="stepValue" Text="{Binding Config.Distance1}" Watermark="Step 1" />
-        <TextBox Classes="stepValue" Text="{Binding Config.Distance2}" Watermark="Step 2" />
-        <TextBox Classes="stepValue" Text="{Binding Config.Distance3}" Watermark="Step 3" />
-        <TextBlock Classes="caption" Text="Speeds (mm/min)" Margin="0,6,0,0" />
-        <TextBox Classes="stepValue" Text="{Binding Config.Speed1}" Watermark="Speed 1" />
-        <TextBox Classes="stepValue" Text="{Binding Config.Speed2}" Watermark="Speed 2" />
-        <TextBox Classes="stepValue" Text="{Binding Config.Speed3}" Watermark="Speed 3" />
-        <CheckBox Content="Diagonal buttons" IsChecked="{Binding Config.Diagonals}" FontSize="10" Margin="0,6,0,0" />
+    <!-- Groups side by side; edits persist via the VM's config-change hook -->
+    <StackPanel Orientation="Horizontal" Spacing="12">
+        <StackPanel>
+            <TextBlock Classes="caption" Text="Distances (mm)" />
+            <TextBox Classes="stepValue" Text="{Binding Config.Distance1}" Watermark="Step 1" />
+            <TextBox Classes="stepValue" Text="{Binding Config.Distance2}" Watermark="Step 2" />
+            <TextBox Classes="stepValue" Text="{Binding Config.Distance3}" Watermark="Step 3" />
+        </StackPanel>
+        <StackPanel>
+            <TextBlock Classes="caption" Text="Speeds (mm/min)" />
+            <TextBox Classes="stepValue" Text="{Binding Config.Speed1}" Watermark="Speed 1" />
+            <TextBox Classes="stepValue" Text="{Binding Config.Speed2}" Watermark="Speed 2" />
+            <TextBox Classes="stepValue" Text="{Binding Config.Speed3}" Watermark="Speed 3" />
+        </StackPanel>
+        <CheckBox Content="Diagonal jogging" IsChecked="{Binding Config.Diagonals}" FontSize="10"
+                  VerticalAlignment="Top" Margin="0,14,0,0" />
     </StackPanel>
 </UserControl>
