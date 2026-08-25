@@ -49,4 +49,7 @@ PartingProfiles.xml
 ThreadingProfiles.xml
 TurningProfiles.xml
 
+.freebuff*
+.superpowers/*
+
 # SDD/brainstorm scratch.superpowers/.github/
