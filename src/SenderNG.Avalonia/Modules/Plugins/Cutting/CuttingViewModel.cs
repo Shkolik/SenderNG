@@ -1,4 +1,6 @@
+using System.Reactive.Linq;
 using CNC.Core.Abstractions;
+using CNC.Core.Services;
 using SenderNG.Core.Commands;
 using SenderNG.Avalonia.ViewModels;
 
@@ -6,57 +8,119 @@ namespace SenderNG.Avalonia.Modules.Plugins;
 
 public class CuttingViewModel : ViewModelBase
 {
-    private const int Min = 10;
-    private const int Max = 200;
-
     private readonly IGrblService _grbl;
 
-    private int _feedOverride = 100;
-    public int FeedOverride
+    private int _feedOvr = 100;
+    public int FeedOvr
     {
-        get => _feedOverride;
-        set => SetField(ref _feedOverride, Math.Clamp(value, Min, Max));
+        get => _feedOvr;
+        private set => SetField(ref _feedOvr, value);
     }
 
-    private int _spindleOverride = 100;
-    public int SpindleOverride
+    private int _rapidOvr = 100;
+    public int RapidOvr
     {
-        get => _spindleOverride;
-        set => SetField(ref _spindleOverride, Math.Clamp(value, Min, Max));
+        get => _rapidOvr;
+        private set
+        {
+            if (SetField(ref _rapidOvr, value))
+            {
+                OnPropertyChanged(nameof(IsRapidFull));
+                OnPropertyChanged(nameof(IsRapidHalf));
+                OnPropertyChanged(nameof(IsRapidQuarter));
+            }
+        }
     }
 
-    public DelegateCommand FeedUpCommand { get; }
-    public DelegateCommand FeedDownCommand { get; }
-    public DelegateCommand FeedUp10Command { get; }
-    public DelegateCommand FeedDown10Command { get; }
-    public DelegateCommand SpindleUpCommand { get; }
-    public DelegateCommand SpindleDownCommand { get; }
-    public DelegateCommand SpindleUp10Command { get; }
-    public DelegateCommand SpindleDown10Command { get; }
+    public bool IsRapidFull => RapidOvr == 100;
+    public bool IsRapidHalf => RapidOvr == 50;
+    public bool IsRapidQuarter => RapidOvr == 25;
+
+    private int _spindleOvr = 100;
+    public int SpindleOvr
+    {
+        get => _spindleOvr;
+        private set => SetField(ref _spindleOvr, value);
+    }
+
+    private double _feed;
+    public double Feed
+    {
+        get => _feed;
+        private set => SetField(ref _feed, value);
+    }
+
+    private double _speed;
+    public double Speed
+    {
+        get => _speed;
+        private set => SetField(ref _speed, value);
+    }
+
+    public DelegateCommand FeedResetCommand { get; }
+    public DelegateCommand FeedCoarsePlusCommand { get; }
+    public DelegateCommand FeedCoarseMinusCommand { get; }
+    public DelegateCommand FeedFinePlusCommand { get; }
+    public DelegateCommand FeedFineMinusCommand { get; }
+
+    public DelegateCommand RapidFullCommand { get; }
+    public DelegateCommand RapidHalfCommand { get; }
+    public DelegateCommand RapidQuarterCommand { get; }
+
+    public DelegateCommand SpeedResetCommand { get; }
+    public DelegateCommand SpeedCoarsePlusCommand { get; }
+    public DelegateCommand SpeedCoarseMinusCommand { get; }
+    public DelegateCommand SpeedFinePlusCommand { get; }
+    public DelegateCommand SpeedFineMinusCommand { get; }
+
+    public DelegateCommand SpindleToggleCommand { get; }
 
     public CuttingViewModel(IGrblService grbl)
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
 
-        FeedUpCommand = new DelegateCommand(_ => _ = AdjustFeedAsync(+1));
-        FeedDownCommand = new DelegateCommand(_ => _ = AdjustFeedAsync(-1));
-        FeedUp10Command = new DelegateCommand(_ => _ = AdjustFeedAsync(+10));
-        FeedDown10Command = new DelegateCommand(_ => _ = AdjustFeedAsync(-10));
-        SpindleUpCommand = new DelegateCommand(_ => _ = AdjustSpindleAsync(+1));
-        SpindleDownCommand = new DelegateCommand(_ => _ = AdjustSpindleAsync(-1));
-        SpindleUp10Command = new DelegateCommand(_ => _ = AdjustSpindleAsync(+10));
-        SpindleDown10Command = new DelegateCommand(_ => _ = AdjustSpindleAsync(-10));
+        FeedResetCommand = new DelegateCommand(_ => Send(GrblRealtime.FeedOvrReset));
+        FeedCoarsePlusCommand = new DelegateCommand(_ => Send(GrblRealtime.FeedOvrCoarsePlus));
+        FeedCoarseMinusCommand = new DelegateCommand(_ => Send(GrblRealtime.FeedOvrCoarseMinus));
+        FeedFinePlusCommand = new DelegateCommand(_ => Send(GrblRealtime.FeedOvrFinePlus));
+        FeedFineMinusCommand = new DelegateCommand(_ => Send(GrblRealtime.FeedOvrFineMinus));
+
+        RapidFullCommand = new DelegateCommand(_ => Send(GrblRealtime.RapidOvrReset));
+        RapidHalfCommand = new DelegateCommand(_ => Send(GrblRealtime.RapidOvrMedium));
+        RapidQuarterCommand = new DelegateCommand(_ => Send(GrblRealtime.RapidOvrLow));
+
+        SpeedResetCommand = new DelegateCommand(_ => Send(GrblRealtime.SpindleOvrReset));
+        SpeedCoarsePlusCommand = new DelegateCommand(_ => Send(GrblRealtime.SpindleOvrCoarsePlus));
+        SpeedCoarseMinusCommand = new DelegateCommand(_ => Send(GrblRealtime.SpindleOvrCoarseMinus));
+        SpeedFinePlusCommand = new DelegateCommand(_ => Send(GrblRealtime.SpindleOvrFinePlus));
+        SpeedFineMinusCommand = new DelegateCommand(_ => Send(GrblRealtime.SpindleOvrFineMinus));
+
+        SpindleToggleCommand = new DelegateCommand(_ => Send(GrblRealtime.SpindleStopToggle));
+
+        // Live values mirror the machine (FS:/Ov: report fields; demo simulation).
+        grbl.State.Subscribe(ApplyState);
     }
 
-    public async Task AdjustFeedAsync(int delta)
+    private void Send(byte code)
     {
-        FeedOverride += delta;
-        await _grbl.SendAsync($"$FV={FeedOverride}");
+        try
+        {
+            _grbl.SendRealtime(code);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Cutting override failed: {ex.Message}");
+        }
     }
 
-    public async Task AdjustSpindleAsync(int delta)
+    private void ApplyState(MachineState state)
     {
-        SpindleOverride += delta;
-        await _grbl.SendAsync($"$SV={SpindleOverride}");
+        if (state is null)
+            return;
+        Feed = state.Feed;
+        Speed = state.Speed;
+        FeedOvr = state.FeedOvr;
+        RapidOvr = state.RapidOvr;
+        SpindleOvr = state.SpindleOvr;
     }
 }
