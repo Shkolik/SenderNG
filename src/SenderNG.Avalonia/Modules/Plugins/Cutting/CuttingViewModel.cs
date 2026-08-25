@@ -54,8 +54,15 @@ public class CuttingViewModel : ViewModelBase
     public double Speed
     {
         get => _speed;
-        private set => SetField(ref _speed, value);
+        private set
+        {
+            if (SetField(ref _speed, value))
+                OnPropertyChanged(nameof(IsSpindleOn));
+        }
     }
+
+    /// <summary>Spindle is running (live Speed above zero).</summary>
+    public bool IsSpindleOn => Speed > 0;
 
     public DelegateCommand FeedResetCommand { get; }
     public DelegateCommand FeedCoarsePlusCommand { get; }
