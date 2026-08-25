@@ -12,7 +12,7 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
 {
     private IGrblService _inner;
     private IDisposable? _subscription;
-    private readonly Subject<MachineState> _subject = new();
+    private readonly BehaviorSubject<MachineState> _subject = new(new MachineState());
 
     public GrblServiceProxy(IGrblService inner) =>
         _inner = SetInner(inner);
@@ -25,8 +25,11 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
 
     public bool IsConnected => _inner.IsConnected;
 
-    // The relay subject, not the inner subject, so existing subscriptions
-    // survive an inner swap.
+    // BehaviorSubject: replays the current machine state, so subscribers that
+    // attach after construction (widgets, MainViewModel) immediately see the
+    // inner service's latest state instead of waiting for the next emission.
+    // The relay subscription in SetInner feeds the inner's replayed value
+    // through here on attach and on every demo/real swap.
     public IObservable<MachineState> State => _subject;
 
     public Task ConnectAsync(string port) => _inner.ConnectAsync(port);

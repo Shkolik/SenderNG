@@ -15,8 +15,8 @@ public class GrblServiceProxyTests
         public Task ConnectAsync(string port) { IsConnected = true; return Task.CompletedTask; }
         public void Disconnect() => IsConnected = false;
         public void SendRealtime(byte code) => Sent.Add($"RT:{code:X2}");
-        
-public Task SendAsync(string line)
+
+        public Task SendAsync(string line)
         {
             Sent.Add(line);
             return Task.CompletedTask;
@@ -43,6 +43,20 @@ public Task SendAsync(string line)
     }
 
     [Fact]
+    public void Subscriber_sees_inner_initial_state_on_construction()
+    {
+        var inner = new FakeGrbl("demo"); // BehaviorSubject seeded with MachineState(3)
+        var proxy = new GrblServiceProxy(inner);
+
+        var states = new List<string>();
+        using var sub = proxy.State.Subscribe(s => states.Add(s.Status));
+
+        // Regression: widgets stayed empty on startup because the proxy's State
+        // did not replay the inner service's current machine state.
+        Assert.Equal(["Idle"], states);
+    }
+
+    [Fact]
     public void Subscribers_keep_receiving_state_after_inner_swap()
     {
         var demo = new FakeGrbl("demo");
@@ -56,8 +70,8 @@ public Task SendAsync(string line)
         proxy.Inner = real;
         real.Subject.OnNext(new MachineState(3) { Status = "Real" });
 
-        // The swap itself replays the new inner's current (default) state,
-        // then live values flow through.
-        Assert.Equal(["Demo", "Idle", "Real"], states);
+        // The subscriber sees the inner's state immediately on attach, then
+        // live values; the swap replays the new inner's current state too.
+        Assert.Equal(["Idle", "Demo", "Idle", "Real"], states);
     }
 }

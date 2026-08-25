@@ -63,3 +63,30 @@ public class DroViewModelTests
         Assert.Equal(5, vm.Axes[0].Position);
     }
 }
+
+public class DroProxyInitialStateTests
+{
+    private sealed class FakeGrbl(BehaviorSubject<MachineState> subject) : IGrblService
+    {
+        public bool IsConnected => true;
+        public IObservable<MachineState> State => subject;
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public Task SendAsync(string line) => Task.CompletedTask;
+        public void SendRealtime(byte code) { }
+    }
+
+    [Fact]
+    public void Axes_populate_immediately_through_proxy()
+    {
+        // Regression: startup wiring routes the demo service through
+        // GrblServiceProxy; its State must replay the current machine state,
+        // otherwise the DRO shows no axis rows until the first real emission.
+        var inner = new FakeGrbl(new BehaviorSubject<MachineState>(new MachineState(6)));
+        var proxy = new GrblServiceProxy(inner);
+
+        var vm = new DroViewModel(proxy);
+
+        Assert.Equal(6, vm.Axes.Count);
+    }
+}

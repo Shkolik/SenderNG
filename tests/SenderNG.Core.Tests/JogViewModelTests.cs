@@ -203,3 +203,18 @@ public class JogLinearAxesTests
         Assert.Equal("B", vm.LinearAxisLetters[0].Letter);
     }
 }
+
+public class JogProxyInitialStateTests
+{
+    [Fact]
+    public void Foam_axes_populate_immediately_through_proxy()
+    {
+        // Regression: through the proxy, the jog widget must see the machine's
+        // axis count right away (foam 6 axes => crossed X/Y/Z/A + linear B/C),
+        // not only after the first state emission.
+        var proxy = new GrblServiceProxy(new JogViewModelTests.RecordingGrbl([], numAxes: 6));
+        var vm = new JogViewModel(proxy, JogViewModelTests.MakeSettings("Foam"));
+
+        Assert.Equal(["B", "C"], vm.LinearAxisLetters.Select(r => r.Letter));
+    }
+}
