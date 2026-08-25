@@ -132,3 +132,72 @@ public class DemoGrblServiceCuttingTests
         Assert.Equal(12000, st.Speed);
     }
 }
+
+public class CuttingViewModelSpindleTests
+{
+    private sealed class RecordingGrbl(List<string> sent) : IGrblService
+    {
+        private readonly BehaviorSubject<MachineState> _subject = new(new MachineState(3));
+        public bool IsConnected => true;
+        public IObservable<MachineState> State => _subject;
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public void SendRealtime(byte code) => sent.Add($"RT:{code:X2}");
+        public Task SendAsync(string line) { sent.Add(line); return Task.CompletedTask; }
+        public void Push(MachineState state) => _subject.OnNext(state);
+    }
+
+    [Fact]
+    public void Spindle_rpm_defaults_to_1000()
+    {
+        var vm = new CuttingViewModel(new RecordingGrbl([]));
+
+        Assert.Equal(1000, vm.SpindleRpm);
+    }
+
+    [Fact]
+    public void Cw_command_sends_m3_with_rpm()
+    {
+        var sent = new List<string>();
+        var vm = new CuttingViewModel(new RecordingGrbl(sent));
+        vm.SpindleRpm = 1500;
+
+        vm.SpindleCwCommand.Execute(null);
+
+        Assert.Equal(["M3 S1500"], sent);
+    }
+
+    [Fact]
+    public void Ccw_command_sends_m4_with_rpm()
+    {
+        var sent = new List<string>();
+        var vm = new CuttingViewModel(new RecordingGrbl(sent));
+        vm.SpindleRpm = 2500;
+
+        vm.SpindleCcwCommand.Execute(null);
+
+        Assert.Equal(["M4 S2500"], sent);
+    }
+
+    [Fact]
+    public void Direction_commands_and_input_disabled_while_spindle_running()
+    {
+        var grbl = new RecordingGrbl([]);
+        var vm = new CuttingViewModel(grbl);
+
+        Assert.True(vm.SpindleCwCommand.CanExecute(null));
+        Assert.True(vm.SpindleCcwCommand.CanExecute(null));
+
+        grbl.Push(new MachineState(3) { Speed = 12000 });
+
+        Assert.True(vm.IsSpindleOn);
+        Assert.False(vm.SpindleCwCommand.CanExecute(null));
+        Assert.False(vm.SpindleCcwCommand.CanExecute(null));
+
+        grbl.Push(new MachineState(3) { Speed = 0 });
+
+        Assert.False(vm.IsSpindleOn);
+        Assert.True(vm.SpindleCwCommand.CanExecute(null));
+        Assert.True(vm.SpindleCcwCommand.CanExecute(null));
+    }
+}

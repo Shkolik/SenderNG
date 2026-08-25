@@ -113,10 +113,22 @@
                 <Button Grid.Column="6" Classes="ovr" Content="+10" Command="{Binding SpeedCoarsePlusCommand}" />
                 <Button Grid.Column="8" Classes="ovr" Content="100" Command="{Binding SpeedResetCommand}" ToolTip.Tip="Reset to 100%" />
             </Grid>
-            <ToggleButton Classes="ovrToggle" Content="Spindle On/Off" Command="{Binding SpindleToggleCommand}"
-                          IsChecked="{Binding IsSpindleOn, Mode=OneWay}"
-                          ToolTip.Tip="Realtime spindle stop toggle"
-                          HorizontalAlignment="Center" Margin="0,12,0,0" />
+            
+            <!-- Spindle control row: [rpm input] [CW] [CCW] [On/Off]; input and
+                 direction buttons are disabled while the spindle is running. -->
+            <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,8,0,0">
+                <TextBox Width="64" Height="26" MinHeight="26" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                         Padding="4,0" FontSize="11" VerticalContentAlignment="Center"
+                         Text="{Binding SpindleRpm, Mode=TwoWay}"
+                         IsEnabled="{Binding !IsSpindleOn}"
+                         ToolTip.Tip="Spindle speed (RPM) used by CW/CCW" />
+                <Button Classes="ovr" Content="CW" Command="{Binding SpindleCwCommand}" ToolTip.Tip="Spindle on, clockwise (M3)" />
+                <Button Classes="ovr" Content="CCW" Command="{Binding SpindleCcwCommand}" ToolTip.Tip="Spindle on, counter-clockwise (M4)" />
+                <ToggleButton Classes="ovrToggle" Content="Spindle On/Off" Command="{Binding SpindleToggleCommand}"
+                              IsChecked="{Binding IsSpindleOn, Mode=OneWay}"
+                              ToolTip.Tip="Realtime spindle stop toggle"
+                              Margin="6,0,0,0" />
+            </StackPanel>
         </StackPanel>
 
     </StackPanel>

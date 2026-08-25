@@ -57,8 +57,21 @@ public class CuttingViewModel : ViewModelBase
         private set
         {
             if (SetField(ref _speed, value))
+            {
                 OnPropertyChanged(nameof(IsSpindleOn));
+                // Direction buttons only make sense while the spindle is stopped.
+                SpindleCwCommand?.RaiseCanExecuteChanged();
+                SpindleCcwCommand?.RaiseCanExecuteChanged();
+            }
         }
+    }
+
+    private int _spindleRpm = 1000;
+    /// <summary>Requested spindle speed (RPM) used by the CW/CCW start commands.</summary>
+    public int SpindleRpm
+    {
+        get => _spindleRpm;
+        set => SetField(ref _spindleRpm, value);
     }
 
     /// <summary>Spindle is running (live Speed above zero).</summary>
@@ -82,6 +95,10 @@ public class CuttingViewModel : ViewModelBase
 
     public DelegateCommand SpindleToggleCommand { get; }
 
+    public DelegateCommand SpindleCwCommand { get; }
+
+    public DelegateCommand SpindleCcwCommand { get; }
+
     public CuttingViewModel(IGrblService grbl)
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
@@ -103,6 +120,9 @@ public class CuttingViewModel : ViewModelBase
         SpeedFineMinusCommand = new DelegateCommand(_ => Send(GrblRealtime.SpindleOvrFineMinus));
 
         SpindleToggleCommand = new DelegateCommand(_ => Send(GrblRealtime.SpindleStopToggle));
+        // CW/CCW start the spindle with the entered RPM (ioSender: M3/M4 + S value).
+        SpindleCwCommand = new DelegateCommand(_ => StartSpindle("M3"), _ => !IsSpindleOn);
+        SpindleCcwCommand = new DelegateCommand(_ => StartSpindle("M4"), _ => !IsSpindleOn);
 
         // Live values mirror the machine (FS:/Ov: report fields; demo simulation).
         grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
@@ -117,6 +137,18 @@ public class CuttingViewModel : ViewModelBase
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Cutting override failed: {ex.Message}");
+        }
+    }
+
+    private void StartSpindle(string mode)
+    {
+        try
+        {
+            _ = _grbl.SendAsync($"{mode} S{SpindleRpm}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Spindle start failed: {ex.Message}");
         }
     }
 
