@@ -12,9 +12,9 @@
         <Style Selector="ToggleButton.coolant">
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="Height" Value="32" />
-            <Setter Property="Margin" Value="0,0,0,4" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="#999" />
             <Setter Property="Foreground" Value="#444" />
             <Setter Property="Template">
                 <ControlTemplate>
@@ -31,19 +31,21 @@
         </Style>
         <Style Selector="ToggleButton.coolant:checked">
             <Setter Property="Background" Value="#bdbdbd" />
-            <Setter Property="BorderBrush" Value="#999" />
+            <Setter Property="BorderBrush" Value="#666" />
             <Setter Property="Foreground" Value="#111" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
     </UserControl.Styles>
 
-    <!-- Independent toggles: grblHAL realtime overrides (0xA2/0xA3) let both run together -->
+    <!-- Independent toggles: grblHAL realtime overrides (0xA0/0xA1) let both run together -->
     <StackPanel Margin="8">
-        <ToggleButton Classes="coolant" Content="Flood"
-                      IsChecked="{Binding IsFlood, Mode=OneWay}"
-                      Command="{Binding ToggleFloodCommand}" />
-        <ToggleButton Classes="coolant" Content="Mist"
-                      IsChecked="{Binding IsMist, Mode=OneWay}"
-                      Command="{Binding ToggleMistCommand}" />
+        <StackPanel Orientation="Horizontal" Spacing="4">
+            <ToggleButton Classes="coolant" Content="Flood"
+                          IsChecked="{Binding IsFlood, Mode=OneWay}"
+                          Command="{Binding ToggleFloodCommand}" />
+            <ToggleButton Classes="coolant" Content="Mist"
+                          IsChecked="{Binding IsMist, Mode=OneWay}"
+                          Command="{Binding ToggleMistCommand}" />
+        </StackPanel>
     </StackPanel>
 </UserControl>
