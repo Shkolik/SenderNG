@@ -16,8 +16,12 @@ public class ProgramViewModel : ViewModelBase
 
     public bool HasLimits => LimitRows.Count > 0;
 
+    /// <summary>Raw program text as loaded (transforms such as height map/rotation rewrite it).</summary>
+    public string? LoadedText { get; private set; }
+
     public void LoadGCode(string? text)
     {
+        LoadedText = text;
         ProgramRows.Clear();
         LimitRows.Clear();
         OnPropertyChanged(nameof(HasLimits));

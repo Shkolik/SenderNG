@@ -15,6 +15,9 @@ public class SettingsService
         _dir = dir ?? DefaultDir();
     }
 
+    /// <summary>Writable directory used by this service (companion files live here too).</summary>
+    public string SettingsDir => _dir;
+
     // Writable base dir for all persisted app files (settings, demo machine data).
     public static string DefaultDir() =>
         IsWritable(AppContext.BaseDirectory)

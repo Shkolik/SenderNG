@@ -132,7 +132,33 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider
 
     private void ParseStatus(string response)
     {
-        if (string.IsNullOrEmpty(response) || !response.StartsWith('<') || !response.EndsWith('>'))
+        if (string.IsNullOrEmpty(response))
+            return;
+
+        // Probe completion report: [PRB:x,y,z:1] (grblHAL sends it as its own
+        // bracket line when a G38.x move finishes).
+        if (response.StartsWith("[PRB:", StringComparison.Ordinal) && response.EndsWith(']'))
+        {
+            var body = response[5..^1];
+            var colon = body.LastIndexOf(':');
+            var ok = false;
+            if (colon > 0 && bool.TryParse(body[(colon + 1)..], out var success))
+                ok = success;
+
+            var probeState = _subject.Value;
+            var pos = (colon > 0 ? body[..colon] : body).Split(',');
+            probeState.ProbePosition = new double[probeState.Positions.Length];
+            for (var i = 0; i < pos.Length && i < probeState.ProbePosition.Length; i++)
+            {
+                if (double.TryParse(pos[i], System.Globalization.CultureInfo.InvariantCulture, out var value))
+                    probeState.ProbePosition[i] = value;
+            }
+            probeState.ProbeSuccess = ok;
+            _subject.OnNext(probeState);
+            return;
+        }
+
+        if (!response.StartsWith('<') || !response.EndsWith('>'))
             return;
 
         // Report format: <Status|WPos:x,y,z|FS:feed,speed|Ov:feed,rapid,spindle|...>
@@ -168,6 +194,15 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider
                     state.RapidOvr = rapidOvr;
                 if (ov.Length >= 3 && int.TryParse(ov[2], out var spindleOvr))
                     state.SpindleOvr = spindleOvr;
+            }
+            else if (field.StartsWith("Pn:", StringComparison.Ordinal))
+            {
+                // Probe pin state: 'P' asserted, 'O' probe disconnected.
+                var flags = field[3..];
+                if (flags.Contains('P'))
+                    state.Signals |= CNC.Core.Signals.Probe;
+                if (flags.Contains('O'))
+                    state.Signals |= CNC.Core.Signals.ProbeDisconnected;
             }
         }
 

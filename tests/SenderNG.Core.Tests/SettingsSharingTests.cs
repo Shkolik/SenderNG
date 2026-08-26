@@ -78,20 +78,22 @@ public Task SendAsync(string line)
     }
 
     [Fact]
-    public void Macro_save_after_probe_save_preserves_probe_section()
+    public void Macro_save_after_probe_profile_save_preserves_settings_sections()
     {
         var (dir, settings) = MakeSettings();
         var grbl = new RecordingGrbl();
 
+        // Probing persists profiles to its own probing.json and must not touch
+        // the shared settings.json graph (so a later macro save keeps both).
         var probeVm = new ProbeViewModel(grbl, settings);
-        probeVm.ProbeDepth = 7;
-        probeVm.Save();
+        probeVm.NewProfileName = "p";
+        probeVm.ProfileAddCommand.Execute(null);
 
         var macroVm = new MacroViewModel(settings, grbl);
         macroVm.AddMacroCommand.Execute(null);
 
         var json = File.ReadAllText(Path.Combine(dir, "settings.json"));
-        Assert.Contains("Probing", json);
         Assert.Contains("Macros", json);
+        Assert.True(File.Exists(Path.Combine(dir, "probing.json")));
     }
 }

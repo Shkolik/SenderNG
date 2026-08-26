@@ -1,87 +1,110 @@
-using System.Reactive.Subjects;
-using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Avalonia.Modules.Plugins;
+using SenderNG.Core.Modules.Probing;
+using Xunit;
 
 namespace SenderNG.Core.Tests;
 
 public class ProbeViewModelTests : IDisposable
 {
+    private readonly string _dir;
     private readonly SettingsService _settings;
 
     public ProbeViewModelTests()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "senderng-tests-" + Guid.NewGuid().ToString("N"));
-        _settings = new SettingsService(dir);
+        _dir = Path.Combine(Path.GetTempPath(), "senderng-tests-" + Guid.NewGuid().ToString("N"));
+        _settings = new SettingsService(_dir);
     }
 
-    private sealed class RecordingGrbl(List<string> sent) : IGrblService
+    private async Task<DemoGrblService> ConnectDemoAsync()
     {
-        private readonly BehaviorSubject<MachineState> _subject = new(new MachineState(3));
-        public bool IsConnected => true;
-        public IObservable<MachineState> State => _subject;
-        public Task ConnectAsync(string port) => Task.CompletedTask;
-        public void Disconnect() { }
-        public void SendRealtime(byte code) => sent.Add($"RT:{code:X2}");
-        
-public Task SendAsync(string line)
+        var demo = new DemoGrblService(_settings.Load());
+        await demo.ConnectAsync("demo");
+        return demo;
+    }
+
+    [Fact]
+    public async Task ToolLength_start_probes_Z_and_reports_offset()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+
+        await vm.StartAsync();
+
+        Assert.True(vm.LastResult.Contains("G43.1Z-11.5"), $"Unexpected result: {vm.LastResult}");
+    }
+
+    [Fact]
+    public async Task ToolLength_with_add_offset_writes_G10()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+        vm.AddAction = true;
+        vm.WorkpieceHeight = 20;
+        vm.TouchPlateHeight = 1;
+
+        await vm.StartAsync();
+
+        Assert.True(vm.LastResult.Contains("G10L2P1Z21"), $"Unexpected result: {vm.LastResult}");
+    }
+
+    [Fact]
+    public async Task Profile_add_persists_and_loads_in_new_instance()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+        vm.ProbeFeedRate = 250;
+        vm.NewProfileName = "fast";
+
+        vm.ProfileAddCommand.Execute(null);
+
+        var second = new ProbeViewModel(demo, _settings);
+        Assert.Equal(2, second.Profiles.Count);
+        var fast = second.Profiles.Single(p => p.Name == "fast");
+        Assert.Equal(250, fast.ProbeFeedRate);
+    }
+
+    [Fact]
+    public async Task Selected_profile_loads_its_values_into_working_fields()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+        vm.ProbeDiameter = 6;
+        vm.ProbeDistance = 25;
+        vm.NewProfileName = "big";
+        vm.ProfileAddCommand.Execute(null);
+
+        var second = new ProbeViewModel(demo, _settings);
+        second.SelectedProfile = second.Profiles.Single(p => p.Name == "big");
+
+        Assert.Equal(6, second.ProbeDiameter);
+        Assert.Equal(25, second.ProbeDistance);
+    }
+
+    [Fact]
+    public async Task Profiles_file_path_comes_from_module_settings()
+    {
+        var customPath = Path.Combine(_dir, "custom-probing.json");
+        var settings = _settings.Load();
+        settings.Modules["Probing"] = new Dictionary<string, object>
         {
-            sent.Add(line);
-            return Task.CompletedTask;
-        }
+            ["ProfilesFile"] = customPath,
+            ["EnabledTools"] = new Dictionary<string, object>(),
+        };
+        _settings.Save(settings);
+
+        var demo = new DemoGrblService(settings);
+        var vm = new ProbeViewModel(demo, _settings);
+        vm.ProbeFeedRate = 175;
+        vm.NewProfileName = "custom";
+        vm.ProfileAddCommand.Execute(null);
+
+        Assert.True(File.Exists(customPath));
+        Assert.Equal(2, new ProbeViewModel(demo, _settings).Profiles.Count);
     }
 
-    [Fact]
-    public void Z_probe_sends_G38_2_negative_Z_with_settings_depth_feed()
+    public void Dispose()
     {
-        var sent = new List<string>();
-        var vm = new ProbeViewModel(new RecordingGrbl(sent), _settings);
-
-        vm.ProbeZCommand.Execute(null);
-
-        Assert.Equal(["G38.2 Z-10 F100"], sent);
-        Assert.Equal("G38.2 Z-10 F100", vm.LastProbeResult);
+        try { Directory.Delete(_dir, recursive: true); } catch { }
     }
-
-    [Fact]
-    public void XMinus_sends_negative_X_direction()
-    {
-        var sent = new List<string>();
-        var vm = new ProbeViewModel(new RecordingGrbl(sent), _settings);
-
-        vm.ProbeXMinusCommand.Execute(null);
-
-        Assert.Equal(["G38.2 X-10 F100"], sent);
-    }
-
-    [Fact]
-    public void YPlus_sends_positive_Y_direction()
-    {
-        var sent = new List<string>();
-        var vm = new ProbeViewModel(new RecordingGrbl(sent), _settings);
-
-        vm.ProbeYPlusCommand.Execute(null);
-
-        Assert.Equal(["G38.2 Y10 F100"], sent);
-    }
-
-    [Fact]
-    public void Settings_roundtrip_persists_depth_and_feed()
-    {
-        var first = new ProbeViewModel(new RecordingGrbl([]), _settings);
-        first.ProbeDepth = 5.5;
-        first.ProbeFeed = 250;
-        first.Save();
-
-        var sent = new List<string>();
-        var second = new ProbeViewModel(new RecordingGrbl(sent), _settings);
-
-        Assert.Equal(5.5, second.ProbeDepth);
-        Assert.Equal(250, second.ProbeFeed);
-
-        second.ProbeZCommand.Execute(null);
-        Assert.Equal(["G38.2 Z-5.5 F250"], sent);
-    }
-
-    public void Dispose() => GC.SuppressFinalize(this);
 }

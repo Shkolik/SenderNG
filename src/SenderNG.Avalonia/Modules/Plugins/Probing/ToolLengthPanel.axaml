@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             x:Class="SenderNG.Avalonia.Modules.Plugins.ToolLengthPanel"
+             x:DataType="vm:ProbeViewModel">
+
+    <StackPanel Spacing="8" Margin="4">
+        <TextBlock Text="Probe Z downward onto the touch plate / fixture to establish the tool length offset."
+                   FontSize="11" Foreground="#333" TextWrapping="Wrap" />
+
+        <CheckBox Content="Probe fixture @ G59.3" IsChecked="{Binding ProbeFixture}" FontSize="11" />
+        <CheckBox Content="Establish reference offset" IsChecked="{Binding ReferenceToolOffset}" FontSize="11" />
+        <CheckBox Content="Set coordinate system or offset" IsChecked="{Binding AddAction}" FontSize="11" />
+
+        <StackPanel Spacing="4" IsVisible="{Binding ProbeFixture}">
+            <TextBlock Text="Fixture probing rapids to the fixture origin (0,0) and probes from there;"
+                       FontSize="10" Foreground="#888" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Spacing="4" IsVisible="{Binding AddAction}">
+            <TextBlock Text="Workpiece height" FontWeight="SemiBold" FontSize="11" />
+            <Grid ColumnDefinitions="110,*">
+                <TextBlock Text="Height:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBox Grid.Column="1" Text="{Binding WorkpieceHeight, Mode=TwoWay, StringFormat='0.###'}"
+                         Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                         FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
+            </Grid>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

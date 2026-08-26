@@ -20,6 +20,10 @@ public class MachineState
     public int RapidOvr { get; set; } = 100;
     public int SpindleOvr { get; set; } = 100;
 
+    // Probe touch position from a [PRB:...] report; null until a probe completes.
+    public double[]? ProbePosition { get; set; }
+    public bool ProbeSuccess { get; set; }
+
     public MachineState() { }
 
     public MachineState(int numAxes)

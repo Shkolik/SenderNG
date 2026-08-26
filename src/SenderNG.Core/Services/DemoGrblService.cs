@@ -248,6 +248,17 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
             ApplyMotion(trimmed, state);
             state.Status = "Idle";
+
+            // G38.x probing move: emulate the touch - record the position the
+            // move landed on and assert the probe signal (as a real controller
+            // would after a successful [PRB:...] report).
+            if (trimmed.Contains("G38", StringComparison.OrdinalIgnoreCase))
+            {
+                state.ProbeSuccess = true;
+                state.ProbePosition = (double[])state.Positions.Clone();
+                state.Signals |= CNC.Core.Signals.Probe;
+            }
+
             _subject.OnNext(state);        }
 
         return Task.CompletedTask;
@@ -264,8 +275,11 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
         var incremental = _distanceMode == 91;
         var isG92 = false;
+        var g53 = false;
 
-        foreach (var part in rest.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        // G-code words may be space-separated or packed ("G38.3F100Z-10");
+        // tokenize on letter boundaries so both forms parse.
+        foreach (var part in TokenizeWords(rest))
         {
             if (part.Length < 2)
                 continue;
@@ -317,6 +331,9 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                     case "92":
                         isG92 = true;
                         break;
+                    case "53":
+                        g53 = true; // G53 forces absolute machine coordinates.
+                        break;
                     // G0/G1/other G-words: motion mode only, no position effect here.
                 }
                 continue;
@@ -338,8 +355,23 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             if (!double.TryParse(part[1..], System.Globalization.CultureInfo.InvariantCulture, out var value))
                 continue;
 
-            state.Positions[index] = isG92 ? value : incremental ? state.Positions[index] + value : value;
+            state.Positions[index] = isG92 ? value : incremental && !g53 ? state.Positions[index] + value : value;
         }
+    }
+
+    private static IEnumerable<string> TokenizeWords(string s)
+    {
+        var start = -1;
+        for (var i = 0; i < s.Length; i++)
+        {
+            if (!char.IsLetter(s[i]))
+                continue;
+            if (start >= 0)
+                yield return s[start..i].Trim();
+            start = i;
+        }
+        if (start >= 0)
+            yield return s[start..].Trim();
     }
 
     private void PollTick()

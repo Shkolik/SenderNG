@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             xmlns:conv="clr-namespace:SenderNG.Avalonia.Converters"
+             x:Class="SenderNG.Avalonia.Modules.Plugins.EdgeFinderPanel"
+             x:DataType="vm:ProbeViewModel">
+
+    <StackPanel Spacing="8" Margin="4">
+        <StackPanel Orientation="Horizontal" Spacing="24">
+            <!-- Edge/corner selector (diagram: D top-left, C top-right, A bottom-left, B bottom-right) -->
+            <UniformGrid Rows="3" Columns="3" Width="132">
+                <RadioButton Classes="edge" GroupName="edge" Content="D"
+                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=D}" />
+                <RadioButton Classes="edge" GroupName="edge" Content="CD"
+                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CD}" />
+                <RadioButton Classes="edge" GroupName="edge" Content="C"
+                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=C}" />
+                <RadioButton Classes="edge" GroupName="edge" Content="AD"
+                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AD}" />
+                <RadioButton Classes="edge" GroupName="edge" Content="Z"
+                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Z}" />
+                <RadioButton Classes="edge" GroupName="edge" Content="CB"
+                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CB}" />
+                <RadioButton Classes="edge" GroupName="edge" Content="A"
+                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=A}" />
+                <RadioButton Classes="edge" GroupName="edge" Content="AB"
+                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AB}" />
+                <RadioButton Classes="edge" GroupName="edge" Content="B"
+                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=B}" />
+            </UniformGrid>
+
+            <StackPanel Spacing="4" VerticalAlignment="Top">
+                <CheckBox Content="Probe Z" IsChecked="{Binding ProbeZ}" FontSize="11" />
+                <Grid ColumnDefinitions="100,*">
+                    <TextBlock Text="Workpiece height:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBox Grid.Column="1" Text="{Binding WorkpieceHeight, Mode=TwoWay, StringFormat='0.###'}"
+                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
+                             IsEnabled="{Binding ProbeZ}" />
+                </Grid>
+                <Grid ColumnDefinitions="100,*">
+                    <TextBlock Text="Edge offset:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
+                               ToolTip.Tip="0 uses half the probe diameter" />
+                    <TextBox Grid.Column="1" Text="{Binding WorkpieceXYEdgeOffset, Mode=TwoWay, StringFormat='0.###'}"
+                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
+                             IsEnabled="{Binding ProbeZ}" />
+                </Grid>
+            </StackPanel>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

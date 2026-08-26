@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             xmlns:conv="clr-namespace:SenderNG.Avalonia.Converters"
+             x:Class="SenderNG.Avalonia.Modules.Plugins.RotationPanel"
+             x:DataType="vm:ProbeViewModel">
+
+    <StackPanel Spacing="10" Margin="4" HorizontalAlignment="Stretch">
+        <TextBlock Text="Probe two points along an edge to measure the angle of the workpiece."
+                   FontSize="11" Foreground="#333" TextWrapping="Wrap" />
+
+        <StackPanel Orientation="Horizontal" Spacing="16">
+            <TextBlock Text="Edge:" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <UniformGrid Rows="1" Columns="4" Width="180">
+                <RadioButton Content="AD" GroupName="redge" VerticalAlignment="Center"
+                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AD}" />
+                <RadioButton Content="AB" GroupName="redge" VerticalAlignment="Center"
+                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AB}" />
+                <RadioButton Content="CB" GroupName="redge" VerticalAlignment="Center"
+                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CB}" />
+                <RadioButton Content="CD" GroupName="redge" VerticalAlignment="Center"
+                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CD}" />
+            </UniformGrid>
+        </StackPanel>
+
+        <Button Content="Apply rotation to loaded program" Command="{Binding RotationApplyCommand}"
+                HorizontalAlignment="Left" Padding="12,6" Height="30" MinHeight="30"
+                CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1"
+                FontSize="11" VerticalContentAlignment="Center"
+                ToolTip.Tip="Rotates the loaded program's X/Y coordinates by the probed angle" />
+    </StackPanel>
+</UserControl>

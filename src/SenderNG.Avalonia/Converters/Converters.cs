@@ -13,6 +13,31 @@ public static class Converters
     public static BoolToSignalBrushConverter SignalBrush => BoolToSignalBrushConverter.Instance;
     public static IsNotNullConverter IsNotNull => IsNotNullConverter.Instance;
     public static IsFlyoutModuleConverter IsFlyout => IsFlyoutModuleConverter.Instance;
+    public static EnumToBoolConverter EnumToBool => EnumToBoolConverter.Instance;
+}
+
+/// <summary>
+/// Compares an enum property with a ConverterParameter (the enum member name);
+/// used to drive RadioButton/toggle selection from a single enum property.
+/// </summary>
+public sealed class EnumToBoolConverter : IValueConverter
+{
+    public static readonly EnumToBoolConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is null || parameter is null)
+            return false;
+        var target = Enum.Parse(value.GetType(), parameter.ToString()!, ignoreCase: true);
+        return value.Equals(target);
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is true && parameter is not null)
+            return Enum.Parse(targetType, parameter.ToString()!, ignoreCase: true);
+        return global::Avalonia.Data.BindingOperations.DoNothing;
+    }
 }
 
 public sealed class HasElementsConverter : IValueConverter

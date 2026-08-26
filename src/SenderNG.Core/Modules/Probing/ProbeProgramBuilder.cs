@@ -1,0 +1,437 @@
+using System.Globalization;
+
+namespace SenderNG.Core.Modules.Probing;
+
+/// <summary>
+/// A position in machine coordinates used by probe program generation.
+/// </summary>
+public readonly struct Pos(double x, double y, double z)
+{
+    public double X { get; } = x;
+    public double Y { get; } = y;
+    public double Z { get; } = z;
+
+    public double Get(int axis) => axis switch { 0 => X, 1 => Y, _ => Z };
+
+    public Pos With(int axis, double value) => axis switch
+    {
+        0 => new Pos(value, Y, Z),
+        1 => new Pos(X, value, Z),
+        _ => new Pos(X, Y, value),
+    };
+
+    public static Pos From(double[] values) => new(
+        values.Length > 0 ? values[0] : 0d,
+        values.Length > 1 ? values[1] : 0d,
+        values.Length > 2 ? values[2] : 0d);
+
+    /// <summary>"X1.5Y2.5" for the requested axis letters (e.g. "XY"), invariant formatting.</summary>
+    public string ToString(string axes)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var ch in axes)
+        {
+            var v = ch switch { 'X' => X, 'Y' => Y, 'Z' => Z, _ => double.NaN };
+            if (!double.IsNaN(v))
+                sb.Append(ch).Append(v.ToString("0.###", CultureInfo.InvariantCulture));
+        }
+        return sb.ToString();
+    }
+}
+
+/// <summary>
+/// Builds the gcode program for a probing run, ported from ioSender's
+/// <c>CNC.Controls.Probing</c> control code-behinds (ToolLength/EdgeFinder/
+/// EdgeFinderInt/CenterFinder/Rotation/HeightMap). Produces the motion+probe
+/// moves only; offset writing (G10/G92) happens after the run on the captured
+/// probe positions (see <see cref="ProbeMath"/>).
+/// </summary>
+public sealed class ProbeProgramBuilder
+{
+    private readonly List<string> _program = [];
+
+    public ProbeProgramBuilder(ProbingProfile profile, string probeCommand = "G38.3", double unitFactor = 1d)
+    {
+        Profile = profile ?? throw new ArgumentNullException(nameof(profile));
+        ProbeCommand = probeCommand;
+        UnitFactor = unitFactor;
+    }
+
+    public ProbingProfile Profile { get; }
+    public string ProbeCommand { get; }
+    public double UnitFactor { get; }
+
+    /// <summary>The generated program (also exposed for preview).</summary>
+    public IReadOnlyList<string> Lines => _program;
+
+    public override string ToString() => string.Join("\n", _program);
+
+    public void Clear() => _program.Clear();
+
+    private double RapidsFeedRate => Profile.RapidsFeedRate;
+    private double ProbeFeedRate => Profile.ProbeFeedRate;
+    private double LatchFeedRate => Profile.LatchFeedRate;
+    private double ProbeDistance => Profile.ProbeDistance;
+    private double LatchDistance => Profile.LatchDistance;
+    private double ProbeDiameter => Profile.ProbeDiameter;
+    private double ProbeRadius => ProbeDiameter / 2d;
+    private double XYClearance => Profile.XYClearance;
+    private double Offset => Profile.Offset;
+    private double Depth => Profile.Depth;
+
+    /// <summary>Rapid move command: G0, or G1 with an explicit feed rate when one is set.</summary>
+    private string RapidCommand =>
+        RapidsFeedRate == 0d ? "G0" : $"G1F{RapidsFeedRate.ToString("0.###", CultureInfo.InvariantCulture)}";
+
+    private void Add(string cmd) => _program.Add(cmd);
+
+    private void AddMessage(string msg) => _program.Add("#" + msg);
+
+    private void AddRapid(string cmd) => _program.Add(RapidCommand + cmd);
+
+    private void AddRapidToMPos(string cmd) => _program.Add("G53" + RapidCommand + cmd);
+
+    private void AddRapidToMPos(Pos pos, string axes) =>
+        _program.Add("G53" + RapidCommand + pos.ToString(axes));
+
+    /// <summary>Fast search probe + optional retract and slow latch probe (ioSender AddProbingAction).</summary>
+    private void AddProbingAction(string axisLetter, bool negative)
+    {
+        var dir = negative ? "-" : "";
+        _program.Add($"{ProbeCommand}F{ProbeFeedRate.ToString("0.###", CultureInfo.InvariantCulture)}{axisLetter}{dir}{ProbeDistance.ToString("0.###", CultureInfo.InvariantCulture)}");
+        if (LatchDistance > 0d)
+        {
+            // Retract away from the workpiece, dropping the search-probe position.
+            _program.Add("!" + RapidCommand + axisLetter + (negative ? "" : "-") + LatchDistance.ToString("0.###", CultureInfo.InvariantCulture));
+            var slow = Math.Max(LatchDistance * 1.5d, 2d / UnitFactor);
+            _program.Add($"{ProbeCommand}F{LatchFeedRate.ToString("0.###", CultureInfo.InvariantCulture)}{axisLetter}{dir}{slow.ToString("0.###", CultureInfo.InvariantCulture)}");
+        }
+    }
+
+    private void AddPause() => _program.Add("pause");
+
+    /// <summary>
+    /// Tool length offset probe: probe Z down from the current position. When
+    /// probing a fixture the program first rapids to the fixture origin.
+    /// </summary>
+    public ProbeProgramBuilder BuildToolLength(bool probeFixture, double homeZ = double.NaN,
+        double fixtureX = 0d, double fixtureY = 0d, double fixtureZ = 0d)
+    {
+        _program.Clear();
+        Add($"G91F{ProbeFeedRate.ToString("0.###", CultureInfo.InvariantCulture)}");
+
+        if (probeFixture)
+        {
+            // ioSender: rapid to home Z, then the fixture origin, then to the
+            // probing depth (capped by home Z). G59.3 offsets are not parsed yet,
+            // so the fixture origin comes from the caller (defaults to 0,0).
+            var zSafe = double.IsNaN(homeZ) ? fixtureZ : homeZ;
+            var zTarget = Math.Min(zSafe, fixtureZ + Depth);
+            AddRapidToMPos(new Pos(fixtureX, fixtureY, zSafe), "Z");
+            AddRapidToMPos(new Pos(fixtureX, fixtureY, 0d), "XY");
+            AddRapidToMPos(new Pos(fixtureX, fixtureY, zTarget), "Z");
+        }
+
+        AddProbingAction("Z", true);
+        return this;
+    }
+
+    /// <summary>
+    /// Edge finder program (external or internal) for the selected edge/corner.
+    /// </summary>
+    public ProbeProgramBuilder BuildEdgeFinder(Edge edge, Pos start, bool internalFinder)
+    {
+        _program.Clear();
+        Add($"G91F{ProbeFeedRate.ToString("0.###", CultureInfo.InvariantCulture)}");
+
+        var xyClearance = XYClearance + ProbeRadius;
+        var af = new double[3];
+
+        void SetAf(int axis, bool negative) => af[axis] = negative ? -1d : 1d;
+
+        void AddEdge(char axisLetter, bool negative)
+        {
+            var axis = axisLetter switch { 'X' => 0, 'Y' => 1, _ => 2 };
+            var axes = axisLetter.ToString();
+            SetAf(axis, negative);
+
+            var rapidto = start.With(axis, start.Get(axis) - xyClearance * af[axis]).With(2, start.Z - Depth);
+            AddRapidToMPos(rapidto, axes);
+            AddRapidToMPos(rapidto, "Z");
+
+            AddProbingAction(axes, negative);
+
+            rapidto = rapidto.With(axis, start.Get(axis) - xyClearance * af[axis]);
+            AddRapidToMPos(rapidto, axes);
+            AddRapidToMPos(start, "Z");
+        }
+
+        void AddCornerExternal(bool negx, bool negy)
+        {
+            SetAf(0, negx);
+            SetAf(1, negy);
+
+            var rapidto = start.With(0, start.X - xyClearance * af[0])
+                               .With(1, start.Y + Offset * af[1])
+                               .With(2, start.Z - Depth);
+
+            AddRapidToMPos(rapidto, "Y");
+            AddRapidToMPos(rapidto, "X");
+            AddRapidToMPos(rapidto, "Z");
+
+            AddProbingAction("X", negx);
+
+            AddRapidToMPos(rapidto, "X");
+            AddRapidToMPos(start, "Z");
+            AddRapidToMPos(start, "X");
+
+            rapidto = rapidto.With(0, start.X + Offset * af[0]).With(1, start.Y);
+            AddRapidToMPos(rapidto, "XY");
+            rapidto = rapidto.With(1, start.Y - xyClearance * af[1]);
+            AddRapidToMPos(rapidto, "Y");
+            AddRapidToMPos(rapidto, "Z");
+
+            AddProbingAction("Y", negy);
+
+            AddRapidToMPos(rapidto, "Y");
+            AddRapidToMPos(start, "Z");
+        }
+
+        void AddCornerInternal(bool negx, bool negy)
+        {
+            SetAf(0, negx);
+            SetAf(1, negy);
+
+            var clearance = Math.Min(xyClearance, Offset);
+
+            var rapidto = start.With(0, start.X - clearance * af[0])
+                               .With(1, start.Y - Offset * af[1])
+                               .With(2, start.Z - Depth);
+
+            AddRapidToMPos(rapidto, "XY");
+            AddRapidToMPos(rapidto, "Z");
+
+            AddProbingAction("X", negx);
+
+            AddRapidToMPos(rapidto, "X");
+            rapidto = rapidto.With(0, start.X - Offset * af[0])
+                             .With(1, start.Y - clearance * af[1]);
+            AddRapidToMPos(rapidto, "XY");
+
+            AddProbingAction("Y", negy);
+
+            AddRapidToMPos(rapidto, "Y");
+            AddRapidToMPos(start, "Z");
+        }
+
+        switch (edge)
+        {
+            case Edge.A:
+                if (internalFinder) AddCornerInternal(true, true); else AddCornerExternal(false, false);
+                break;
+            case Edge.B:
+                if (internalFinder) AddCornerInternal(false, true); else AddCornerExternal(true, false);
+                break;
+            case Edge.C:
+                if (internalFinder) AddCornerInternal(false, false); else AddCornerExternal(true, true);
+                break;
+            case Edge.D:
+                if (internalFinder) AddCornerInternal(true, false); else AddCornerExternal(false, true);
+                break;
+            case Edge.Z:
+                SetAf(2, true);
+                AddProbingAction("Z", true);
+                if (!internalFinder)
+                    AddRapidToMPos(start, "Z");
+                break;
+            case Edge.AD:
+                AddEdge('X', false);
+                break;
+            case Edge.AB:
+                AddEdge('Y', false);
+                break;
+            case Edge.CB:
+                AddEdge('X', true);
+                break;
+            case Edge.CD:
+                AddEdge('Y', true);
+                break;
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// Center finder program for one pass. <paramref name="sizeX"/>/<paramref name="sizeY"/>
+    /// of 0 probe that axis only (mirrors ioSender's FindMode).
+    /// </summary>
+    public ProbeProgramBuilder BuildCenterFinder(Center center, Pos start, double sizeX, double sizeY)
+    {
+        _program.Clear();
+        Add($"G91F{ProbeFeedRate.ToString("0.###", CultureInfo.InvariantCulture)}");
+
+        var xyClearance = XYClearance + ProbeRadius;
+        var rapidto = start.With(2, start.Z - Depth);
+
+        switch (center)
+        {
+            case Center.Inside:
+                AddRapidToMPos(rapidto, "Z");
+
+                if (sizeY > 0d)
+                {
+                    var rapid = sizeX / 2d - xyClearance;
+                    if (rapid > 1d)
+                    {
+                        rapidto = rapidto.With(0, start.X - rapid);
+                        AddRapidToMPos(rapidto, "X");
+                        rapidto = rapidto.With(0, start.X + rapid);
+                    }
+
+                    AddProbingAction("X", true);
+                    AddRapidToMPos(rapidto, "X");
+                    AddProbingAction("X", false);
+                    AddRapidToMPos(start, "X");
+                }
+
+                if (sizeX > 0d)
+                {
+                    var rapid = sizeY / 2d - xyClearance;
+                    if (rapid > 1d)
+                    {
+                        rapidto = rapidto.With(1, start.Y - rapid);
+                        AddRapidToMPos(rapidto, "Y");
+                        rapidto = rapidto.With(1, start.Y + rapid);
+                    }
+
+                    AddProbingAction("Y", true);
+                    AddRapidToMPos(rapidto, "Y");
+                    AddProbingAction("Y", false);
+                    AddRapidToMPos(start, "Y");
+                }
+
+                AddRapidToMPos(start, "Z");
+                break;
+
+            case Center.Outside:
+                rapidto = rapidto.With(0, start.X - (sizeX / 2d + xyClearance))
+                                 .With(1, start.Y - (sizeY / 2d + xyClearance));
+
+                if (sizeY > 0d)
+                {
+                    AddRapidToMPos(rapidto, "X");
+                    AddRapidToMPos(rapidto, "Z");
+                    AddProbingAction("X", false);
+                    AddRapidToMPos(rapidto, "X");
+                    AddRapidToMPos(start, "Z");
+                    rapidto = rapidto.With(0, rapidto.X + sizeX + xyClearance * 2d);
+                    AddRapidToMPos(rapidto, "X");
+                    AddRapidToMPos(rapidto, "Z");
+                    AddProbingAction("X", true);
+                    AddRapidToMPos(rapidto, "X");
+                    AddRapidToMPos(start, "Z");
+                    AddRapidToMPos(start, "X");
+                }
+
+                if (sizeX > 0d)
+                {
+                    AddRapidToMPos(rapidto, "Y");
+                    AddRapidToMPos(rapidto, "Z");
+                    AddProbingAction("Y", false);
+                    AddRapidToMPos(rapidto, "Y");
+                    AddRapidToMPos(start, "Z");
+                    rapidto = rapidto.With(1, rapidto.Y + sizeY + xyClearance * 2d);
+                    AddRapidToMPos(rapidto, "Y");
+                    AddRapidToMPos(rapidto, "Z");
+                    AddProbingAction("Y", true);
+                    AddRapidToMPos(rapidto, "Y");
+                }
+
+                AddRapidToMPos(start, "Z");
+                break;
+        }
+
+        return this;
+    }
+
+    /// <summary>Rotation probe: two probe points along the selected edge.</summary>
+    public ProbeProgramBuilder BuildRotation(Edge edge, Pos start)
+    {
+        _program.Clear();
+        Add($"G91F{ProbeFeedRate.ToString("0.###", CultureInfo.InvariantCulture)}");
+
+        var xyClearance = XYClearance + ProbeRadius;
+        var af = new double[3];
+
+        switch (edge)
+        {
+            case Edge.AD: af[0] = 1.0d; af[1] = -1.0d; break;
+            case Edge.AB: af[0] = 1.0d; af[1] = 1.0d; break;
+            case Edge.CB: af[0] = -1.0d; af[1] = 1.0d; break;
+            case Edge.CD: af[0] = -1.0d; af[1] = -1.0d; break;
+            default: return this;
+        }
+
+        var offsetAxis = edge is Edge.AD or Edge.CB ? 1 : 0;
+        var clearanceAxis = edge is Edge.AD or Edge.CB ? 0 : 1;
+        var probeAxes = clearanceAxis == 0 ? "X" : "Y";
+        var offsetAxes = offsetAxis == 0 ? "X" : "Y";
+
+        var rapidto = start.With(clearanceAxis, start.Get(clearanceAxis) - xyClearance * af[clearanceAxis])
+                           .With(2, start.Z - Depth);
+
+        AddRapidToMPos(rapidto, probeAxes);
+        AddRapidToMPos(rapidto, "Z");
+
+        AddProbingAction(probeAxes, af[clearanceAxis] == -1.0d);
+
+        AddRapidToMPos(rapidto, probeAxes);
+        rapidto = rapidto.With(offsetAxis, start.Get(offsetAxis) + Offset * af[offsetAxis]);
+        AddRapidToMPos(rapidto, offsetAxes);
+
+        AddProbingAction(probeAxes, af[clearanceAxis] == -1.0d);
+
+        AddRapidToMPos(rapidto, probeAxes);
+        AddRapidToMPos(start, "Z");
+        AddRapidToMPos(start, "XY");
+
+        return this;
+    }
+
+    /// <summary>
+    /// Height map program: probe a Z grid row by row in a boustrophedon (snake)
+    /// path, retracting to the start Z between points.
+    /// </summary>
+    public ProbeProgramBuilder BuildHeightMap(HeightMap map, Pos start, bool addPause)
+    {
+        _program.Clear();
+        Add($"G91F{ProbeFeedRate.ToString("0.###", CultureInfo.InvariantCulture)}");
+
+        var dir = 1d;
+        var point = 0;
+        var points = map.SizeX * map.SizeY;
+
+        for (var x = 0; x < map.SizeX; x++)
+        {
+            for (var y = 0; y < map.SizeY; y++)
+            {
+                AddMessage($"Probing point {++point} of {points}");
+                if (addPause && (x > 0 || y > 0))
+                    AddPause();
+
+                AddProbingAction("Z", true);
+                AddRapidToMPos(start, "Z");
+
+                if (y < map.SizeY - 1)
+                    AddRapid($"Y{(map.GridY * dir).ToString("0.###", CultureInfo.InvariantCulture)}");
+            }
+
+            if (x < map.SizeX - 1)
+                AddRapid($"X{map.GridX.ToString("0.###", CultureInfo.InvariantCulture)}");
+
+            dir *= -1d;
+        }
+
+        return this;
+    }
+}

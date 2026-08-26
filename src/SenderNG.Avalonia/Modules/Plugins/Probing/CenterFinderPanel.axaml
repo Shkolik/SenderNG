@@ -1,0 +1,43 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             xmlns:conv="clr-namespace:SenderNG.Avalonia.Converters"
+             x:Class="SenderNG.Avalonia.Modules.Plugins.CenterFinderPanel"
+             x:DataType="vm:ProbeViewModel">
+
+    <StackPanel Spacing="10" Margin="4" HorizontalAlignment="Stretch">
+        <StackPanel Orientation="Horizontal" Spacing="16">
+            <RadioButton Content="Inside" FontSize="12" GroupName="center"
+                         IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Inside}" />
+            <RadioButton Content="Outside" FontSize="12" GroupName="center"
+                         IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Outside}" />
+        </StackPanel>
+
+        <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6">
+            <StackPanel Spacing="4">
+                <TextBlock Text="Workpiece dimensions" FontWeight="SemiBold" FontSize="11" />
+                <Grid ColumnDefinitions="100,*,60" RowDefinitions="Auto,Auto">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="X size:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding WorkpieceSizeX, Mode=TwoWay, StringFormat='0.###'}"
+                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,0,4" />
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Y size:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding WorkpieceSizeY, Mode=TwoWay, StringFormat='0.###'}"
+                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
+                    <CheckBox Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Content="Lock" FontSize="11"
+                              VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="{Binding WorkpieceLockXY}"
+                              ToolTip.Tip="Unlock and set X or Y size to 0 to probe in one direction only" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="100,*">
+            <TextBlock Text="Passes:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
+                       ToolTip.Tip="More than one pass is usually needed for accurate dimensions" />
+            <TextBox Grid.Column="1" Text="{Binding Passes, Mode=TwoWay}"
+                     Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                     FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
+        </Grid>
+    </StackPanel>
+</UserControl>
