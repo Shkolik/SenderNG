@@ -13,6 +13,7 @@ Guidance for AI agents (and human contributors) making changes to SenderNG. This
    - Build: `dotnet build SenderNG.sln`
    - Tests: `dotnet test SenderNG.sln` (or `dotnet test --filter <name>` for a targeted run)
 7. **Review the final diff.** Re-read the change (`git diff`) for correctness and unintended edits before finishing.
+8. **Commit and merge.** After each successfully finished turn, commit the change on the feature branch and merge it into `main` before ending the turn. From the main worktree, merge the feature-branch tip by explicit commit hash — `@`/`HEAD` resolve to main's own HEAD there and silently no-op. Use conventional commit messages. Re-verify build and tests at the merged state when the binaries are not locked by a running app; if they are, state that the identical commit already passed in the worktree.
 
 ## Project facts
 
