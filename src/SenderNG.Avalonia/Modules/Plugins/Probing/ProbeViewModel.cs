@@ -424,15 +424,15 @@ public class ProbeViewModel : ViewModelBase
 
     private void ApplyToolInstructions() => Instructions = SelectedTool switch
     {
-        ProbingType.ToolLength => "Probe the touch plate/fixture to set the tool length offset.\nWarning! Use with care - incorrect parameters may damage your probe!",
+        ProbingType.ToolLength => "Probe the touch plate/fixture to set the tool length offset.",
         ProbingType.EdgeFinderExternal or ProbingType.EdgeFinderInternal =>
-            "Click an edge, corner or Z in the diagram to select the probing action.\nMove the probe above the indicated position before Start.\nWarning! Use with care - incorrect parameters may damage your probe!",
+            "Click an edge, corner or Z in the diagram to select the probing action.\nMove the probe above the indicated position before Start.",
         ProbingType.CenterFinder =>
-            "Place the probe above the approximate center of the workpiece before Start.\nSelect inside or outside probing first.\nWarning! Use with care - incorrect parameters may damage your probe!",
+            "Place the probe above the approximate center of the workpiece before Start.\nSelect inside or outside probing first.",
         ProbingType.Rotation =>
-            "Select an edge to probe two points along, then Start to measure the angle.\nWarning! Use with care - incorrect parameters may damage your probe!",
+            "Select an edge to probe two points along, then Start to measure the angle.",
         ProbingType.HeightMap =>
-            "Set the map area and grid size, then Start to probe the grid.\nWarning! Use with care - incorrect parameters may damage your probe!",
+            "Set the map area and grid size, then Start to probe the grid.",
         _ => string.Empty,
     };
 

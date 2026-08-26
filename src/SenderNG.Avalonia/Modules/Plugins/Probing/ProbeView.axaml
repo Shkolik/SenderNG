@@ -130,7 +130,8 @@
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
-                    <Button Grid.Column="1" Content="..." Height="24" MinHeight="24" Padding="4,0" Margin="4,0,0,0"
+                    <Button Grid.Column="1" Content="..." Height="24" MinHeight="24" Padding="0" Margin="4,0,0,0"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                             CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" FontSize="11"
                             ToolTip.Tip="Profile actions" Click="ProfileMenu_Click">
                         <Button.ContextMenu>
@@ -235,7 +236,7 @@
                 <Border Grid.Row="6" Classes="group">
                     <StackPanel Spacing="3">
                         <TextBlock Text="Set offset" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3" />
-                        <StackPanel Orientation="Horizontal" Spacing="4">
+                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,0,8">
                             <RadioButton Classes="tool" Content="G10" FontSize="11" GroupName="cmode" IsChecked="{Binding IsCoordG10}" />
                             <RadioButton Classes="tool" Content="G92" FontSize="11" GroupName="cmode" IsChecked="{Binding IsCoordG92}" />
                             <RadioButton Classes="tool" Content="Measure" FontSize="11" GroupName="cmode" IsChecked="{Binding IsCoordMeasure}" />
@@ -282,8 +283,9 @@
                              IsVisible="{Binding HeightMapEnabled}" />
             </StackPanel>
 
-            <!-- Instructions + warning -->
-            <Border Grid.Row="1" Margin="6,6,6,0" Padding="6" Background="#fff8e1" BorderBrush="#e0c060" BorderThickness="1">
+            <!-- Instructions + warning (fixed-width card matching the Height map group borders) -->
+            <Border Grid.Row="1" Margin="6,6,0,0" Padding="6" Width="444" HorizontalAlignment="Left"
+                    Background="#fff8e1" BorderBrush="#e0c060" BorderThickness="1">
                 <StackPanel>
                     <TextBlock Text="{Binding Instructions}" TextWrapping="Wrap" FontSize="11" Foreground="#333" />
                     <TextBlock Text="Warning! Use with care - incorrect parameters may damage your probe!"
