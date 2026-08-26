@@ -31,15 +31,15 @@
         <StackPanel Orientation="Horizontal" Spacing="12">
             <StackPanel>
                 <TextBlock Classes="caption" Text="Distances (mm)" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Distance1}" Watermark="Step 1" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Distance2}" Watermark="Step 2" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Distance3}" Watermark="Step 3" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Distance1}" PlaceholderText="Step 1" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Distance2}" PlaceholderText="Step 2" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Distance3}" PlaceholderText="Step 3" />
             </StackPanel>
             <StackPanel>
                 <TextBlock Classes="caption" Text="Speeds (mm/min)" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Speed1}" Watermark="Speed 1" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Speed2}" Watermark="Speed 2" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Speed3}" Watermark="Speed 3" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Speed1}" PlaceholderText="Speed 1" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Speed2}" PlaceholderText="Speed 2" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Speed3}" PlaceholderText="Speed 3" />
             </StackPanel>
         </StackPanel>
         <CheckBox Content="Diagonal jogging" IsChecked="{Binding Config.Diagonals}" FontSize="10" Margin="0,6,0,0" />
