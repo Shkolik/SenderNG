@@ -7,6 +7,11 @@ public class MachineState
     public int NumAxes { get; set; } = 3;
     public string Status { get; set; } = "Idle";
     public double[] Positions { get; set; } = new double[3];
+
+    // Machine coordinates (MPos:) — independent of work offsets. Null until the
+    // controller reports them (grblHAL status reports carry both WPos and MPos).
+    public double[]? MachinePositions { get; set; }
+
     public Signals Signals { get; set; } = Signals.Off;
     public bool Flood { get; set; }
     public bool Mist { get; set; }
@@ -24,11 +29,15 @@ public class MachineState
     public double[]? ProbePosition { get; set; }
     public bool ProbeSuccess { get; set; }
 
-    public MachineState() { }
+    public MachineState()
+    {
+        MachinePositions = new double[Positions.Length];
+    }
 
     public MachineState(int numAxes)
     {
         NumAxes = numAxes;
         Positions = new double[numAxes];
+        MachinePositions = new double[numAxes];
     }
 }

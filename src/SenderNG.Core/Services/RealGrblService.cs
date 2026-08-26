@@ -168,13 +168,23 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider
 
         foreach (var field in fields.Skip(1))
         {
-            if (field.StartsWith("WPos:", StringComparison.Ordinal) || field.StartsWith("MPos:", StringComparison.Ordinal))
+            if (field.StartsWith("WPos:", StringComparison.Ordinal))
             {
                 var pos = field[5..].Split(',');
                 for (var i = 0; i < pos.Length && i < state.Positions.Length; i++)
                 {
                     if (double.TryParse(pos[i], System.Globalization.CultureInfo.InvariantCulture, out var value))
                         state.Positions[i] = value;
+                }
+            }
+            else if (field.StartsWith("MPos:", StringComparison.Ordinal))
+            {
+                state.MachinePositions ??= new double[state.Positions.Length];
+                var pos = field[5..].Split(',');
+                for (var i = 0; i < pos.Length && i < state.MachinePositions.Length; i++)
+                {
+                    if (double.TryParse(pos[i], System.Globalization.CultureInfo.InvariantCulture, out var value))
+                        state.MachinePositions[i] = value;
                 }
             }
             else if (field.StartsWith("FS:", StringComparison.Ordinal))

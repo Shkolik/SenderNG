@@ -50,12 +50,14 @@ public static class HostSetup
         RegisterModule(builder.Services, new Modules.Fixed.GrblSettingsModule());
         RegisterModule(builder.Services, new Modules.Fixed.AppSettingsModule());
 
-        // Plugin modules (jog / cutting / coolant / macro).
+        // Plugin modules (jog / cutting / coolant / macro / mpos / outline).
         RegisterModule(builder.Services, new Modules.Plugins.JogModule());
         RegisterModule(builder.Services, new Modules.Plugins.CuttingModule());
         RegisterModule(builder.Services, new Modules.Plugins.CoolantModule());
         RegisterModule(builder.Services, new Modules.Plugins.MacroModule());
         RegisterModule(builder.Services, new Modules.Plugins.ProbingModule());
+        RegisterModule(builder.Services, new Modules.Plugins.MposModule());
+        RegisterModule(builder.Services, new Modules.Plugins.OutlineModule());
 
         // External module assemblies: discovered via ModuleCatalog assembly scan
         // (proves the plugin discovery path — Dummy lives in its own project).

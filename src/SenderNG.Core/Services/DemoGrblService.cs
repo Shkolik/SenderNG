@@ -11,6 +11,9 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     private Timer? _pollTimer;
     private int _distanceMode = 90; // modal G90/G91
     private double _lastSpeed;
+    // Per-axis work offset: machine = work + offset. G92 shifts this so the
+    // work coordinate takes the requested value while the machine stays put.
+    private double[] _workOffset = [];
     private readonly string? _settingsFilePath;
     private Dictionary<int, string> _settings;
 
@@ -21,6 +24,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     public DemoGrblService(AppSettings settings, string? settingsFilePath = null, int pollIntervalMs = 200)
     {
         _subject = new BehaviorSubject<MachineState>(new MachineState(settings.Current.DemoAxes));
+        _workOffset = new double[Math.Max(1, settings.Current.DemoAxes)];
         _pollIntervalMs = Math.Max(10, pollIntervalMs);
         _settingsFilePath = settingsFilePath ??
             Path.Combine(SettingsService.DefaultDir(), "grbl-settings-demo.txt");
@@ -71,6 +75,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
         lock (_lock)
         {
+            _workOffset = new double[clamped];
             _subject.OnNext(new MachineState(clamped));
         }
     }
@@ -118,9 +123,14 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                         state.Status = "Run";
                     break;
                 case GrblRealtime.Reset:
+                    // Soft reset returns to Idle and loses position (until re-homed).
                     state.Status = "Idle";
                     for (var i = 0; i < state.Positions.Length; i++)
                         state.Positions[i] = 0;
+                    if (state.MachinePositions is not null)
+                        for (var i = 0; i < state.MachinePositions.Length; i++)
+                            state.MachinePositions[i] = 0;
+                    _workOffset = new double[state.Positions.Length];
                     break;
                 default:
                     return;
@@ -240,8 +250,17 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
             if (trimmed == "$H")
             {
-                // Homing completes instantly in the demo (Home -> Idle).
+                // Homing completes instantly in the demo (Home -> Idle). Machine
+                // coordinates return to zero; work = machine - offset stays
+                // shifted by any active G92 offset (as on a real controller).
                 state.Status = "Idle";
+                EnsureMachinePositions(state);
+                for (var i = 0; i < state.MachinePositions.Length; i++)
+                {
+                    state.MachinePositions[i] = 0;
+                    if (i < state.Positions.Length)
+                        state.Positions[i] = -_workOffset[i];
+                }
                 _subject.OnNext(state);
                 return Task.CompletedTask;
             }
@@ -355,8 +374,34 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             if (!double.TryParse(part[1..], System.Globalization.CultureInfo.InvariantCulture, out var value))
                 continue;
 
-            state.Positions[index] = isG92 ? value : incremental && !g53 ? state.Positions[index] + value : value;
+            EnsureMachinePositions(state);
+
+            if (isG92)
+            {
+                // G92 sets the work coordinate; the machine coordinate is
+                // unchanged, so the offset absorbs the difference.
+                state.Positions[index] = value;
+                _workOffset[index] = state.MachinePositions[index] - value;
+            }
+            else if (g53)
+            {
+                // G53 is always absolute machine coordinates.
+                state.MachinePositions[index] = value;
+                state.Positions[index] = value - _workOffset[index];
+            }
+            else
+            {
+                var work = incremental ? state.Positions[index] + value : value;
+                state.Positions[index] = work;
+                state.MachinePositions[index] = work + _workOffset[index];
+            }
         }
+    }
+
+    private static void EnsureMachinePositions(MachineState state)
+    {
+        if (state.MachinePositions is null || state.MachinePositions.Length != state.Positions.Length)
+            state.MachinePositions = new double[state.Positions.Length];
     }
 
     private static IEnumerable<string> TokenizeWords(string s)
