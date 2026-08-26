@@ -106,10 +106,10 @@
     <!-- Horizontal ScrollViewer wraps the whole probing tab: the right column is a fixed
          600px (widest row = the six tool-toggle buttons on one line) because a star column
          is measured with infinite width inside a scrolling container and would collapse/
-         balloon. A horizontal scrollbar appears when the center tab is narrower than
-         252 + 600. -->
+         balloon. A horizontal scrollbar appears when the hosting panel is narrower than
+         176 + 600. -->
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-    <Grid ColumnDefinitions="252,600">
+    <Grid ColumnDefinitions="176,600">
 
         <!-- ============================ Left: profiles + settings ============================ -->
         <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Disabled">
