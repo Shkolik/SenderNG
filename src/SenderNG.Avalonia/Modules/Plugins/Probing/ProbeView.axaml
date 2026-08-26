@@ -104,11 +104,12 @@
     </UserControl.Styles>
 
     <!-- Horizontal ScrollViewer wraps the whole probing tab: the right column is a fixed
-         470px (widest tool = Height map area grid) because a star column is measured with
-         infinite width inside a scrolling container and would collapse/balloon. A horizontal
-         scrollbar appears when the center tab is narrower than 252 + 470. -->
+         600px (widest row = the six tool-toggle buttons on one line) because a star column
+         is measured with infinite width inside a scrolling container and would collapse/
+         balloon. A horizontal scrollbar appears when the center tab is narrower than
+         252 + 600. -->
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-    <Grid ColumnDefinitions="252,470">
+    <Grid ColumnDefinitions="252,600">
 
         <!-- ============================ Left: profiles + settings ============================ -->
         <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Disabled">
@@ -259,8 +260,8 @@
         <!-- ============================ Right: tool strip + panel ============================ -->
         <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto">
 
-            <!-- Tool toggle strip (ioSender's inner TabControl as buttons) -->
-            <WrapPanel Grid.Row="0" Margin="6,6,6,0">
+            <!-- Tool toggle strip (ioSender's inner TabControl as buttons, one row) -->
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="6,6,6,0">
                 <RadioButton Classes="tool" GroupName="tool" Content="Tool length"
                              IsChecked="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=ToolLength}"
                              IsVisible="{Binding ToolLengthEnabled}" />
@@ -279,7 +280,7 @@
                 <RadioButton Classes="tool" GroupName="tool" Content="Height map"
                              IsChecked="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=HeightMap}"
                              IsVisible="{Binding HeightMapEnabled}" />
-            </WrapPanel>
+            </StackPanel>
 
             <!-- Instructions + warning -->
             <Border Grid.Row="1" Margin="6,6,6,0" Padding="6" Background="#fff8e1" BorderBrush="#e0c060" BorderThickness="1">
