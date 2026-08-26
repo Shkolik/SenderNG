@@ -10,7 +10,7 @@ public class ProbingModule : IModule, IModuleSettingsProvider
     public string Id => "probing";
     public string Name => "Probing";
     public int Order => 50;
-    public PanelHint Panel => PanelHint.Center;
+    public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 

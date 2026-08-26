@@ -278,11 +278,12 @@
             </Border>
         </Panel>
 
-        <!-- Flyout drawer overlay — anchored right at the flyout strip's left edge
-             (columns 0-2, never covering the strip), grows wider than the right
-             column as needed. Sizes to its content, capped by the host panel
-             height and window width. -->
-        <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+        <!-- Flyout drawer overlay — spans only the center + right columns (never
+             covering the left DRO panel or the strip), anchored right at the
+             strip's left edge. The column span caps its width at center + right
+             so the DRO stays visible. Content scrolls vertically when taller
+             than the row. -->
+        <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
                 MinWidth="360" MaxWidth="{Binding $parent[Window].Width}"
                 MaxHeight="{Binding #FlyoutHost.Bounds.Height}"
                 HorizontalAlignment="Right" VerticalAlignment="Top"
@@ -296,7 +297,9 @@
                                 Command="{Binding SelectModuleCommand}" CommandParameter="{x:Null}" />
                     </Grid>
                 </Border>
-                <ContentControl Grid.Row="1" Content="{Binding CurrentModuleView}" Margin="4" Padding="0,0,4,0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <ContentControl Content="{Binding CurrentModuleView}" Margin="4" Padding="0,0,4,0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                </ScrollViewer>
             </Grid>
         </Border>
 

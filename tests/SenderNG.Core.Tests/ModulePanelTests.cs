@@ -55,7 +55,7 @@ public class ModulePanelTests
         Assert.Equal(PanelHint.Flyout, new MacroModule().Panel);
         Assert.Equal(45, new MacroModule().Order);
 
-        Assert.Equal(PanelHint.Center, new ProbingModule().Panel);
+        Assert.Equal(PanelHint.Flyout, new ProbingModule().Panel);
         Assert.Equal(50, new ProbingModule().Order);
 
         Assert.Equal(PanelHint.Flyout, new MposModule().Panel);
