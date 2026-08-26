@@ -11,14 +11,15 @@
 
         <StackPanel Orientation="Horizontal" Spacing="16">
             <TextBlock Text="Edge:" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-            <UniformGrid Rows="1" Columns="4" Width="180">
-                <RadioButton Content="AD" GroupName="redge" VerticalAlignment="Center"
+            <!-- Same flat button style as the edge finder selector -->
+            <UniformGrid Rows="1" Columns="4" Width="184">
+                <RadioButton Classes="edge" GroupName="redge" Content="AD"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AD}" />
-                <RadioButton Content="AB" GroupName="redge" VerticalAlignment="Center"
+                <RadioButton Classes="edge" GroupName="redge" Content="AB"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AB}" />
-                <RadioButton Content="CB" GroupName="redge" VerticalAlignment="Center"
+                <RadioButton Classes="edge" GroupName="redge" Content="CB"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CB}" />
-                <RadioButton Content="CD" GroupName="redge" VerticalAlignment="Center"
+                <RadioButton Classes="edge" GroupName="redge" Content="CD"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CD}" />
             </UniformGrid>
         </StackPanel>

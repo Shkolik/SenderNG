@@ -11,7 +11,7 @@
         <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6">
             <StackPanel Spacing="4">
                 <TextBlock Text="Area" FontWeight="SemiBold" FontSize="11" />
-                <Grid ColumnDefinitions="90,*,90,*" RowDefinitions="Auto,Auto">
+                <Grid ColumnDefinitions="90,*,90,*" RowDefinitions="Auto,Auto" Width="430" HorizontalAlignment="Left">
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Min X:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
                     <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding HmMinX, Mode=TwoWay, StringFormat='0.###'}"
                              Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
@@ -35,7 +35,7 @@
         <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6">
             <StackPanel Spacing="4">
                 <TextBlock Text="Grid" FontWeight="SemiBold" FontSize="11" />
-                <Grid ColumnDefinitions="90,*,90,*">
+                <Grid ColumnDefinitions="90,*,90,*" Width="360" HorizontalAlignment="Left">
                     <TextBlock Grid.Column="0" Text="Grid X:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
                     <TextBox Grid.Column="1" Text="{Binding HmGridSizeX, Mode=TwoWay, StringFormat='0.###'}"
                              Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
