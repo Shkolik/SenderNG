@@ -9,13 +9,13 @@
              x:DataType="vm:OutlineViewModel">
 
     <StackPanel Margin="8" Spacing="6">
-        <TextBlock TextWrapping="Wrap" FontSize="10" Foreground="#444">
+        <TextBlock TextWrapping="Wrap" FontSize="10" Foreground="#444" Margin="0,0,22,0">
             <Run Text="Moves the tool around the X/Y outline of the loaded program's limits." />
             <LineBreak />
             <Run Text="Ensure the tool tip is clear of any obstructions!" Foreground="#c03030" FontWeight="Bold" />
         </TextBlock>
 
-        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2,0,0">
+        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2,22,0">
             <TextBlock Grid.Column="0" Text="Feed rate:" FontSize="11" VerticalAlignment="Center" />
             <TextBox Grid.Column="1" Text="{Binding FeedRate, Converter={x:Static conv:Converters.NumericText}}"
                      Height="28" MinHeight="28" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
@@ -29,7 +29,7 @@
                 Background="#eee" BorderBrush="#999" BorderThickness="1"
                 FontSize="12" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
 
-        <TextBlock Text="{Binding Status}" FontSize="9" Foreground="#888"
+        <TextBlock Text="{Binding Status}" FontSize="9" Foreground="#888" Margin="0,0,22,0"
                    TextTrimming="CharacterEllipsis" />
     </StackPanel>
 </UserControl>
