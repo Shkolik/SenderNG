@@ -82,6 +82,23 @@ public class ProbeViewModelTests : IDisposable
     }
 
     [Fact]
+    public void SelectedProfile_ignores_null_keeps_previous_while_typing_new_name()
+    {
+        var demo = ConnectDemoAsync().Result;
+        var vm = new ProbeViewModel(demo, _settings);
+        var original = vm.SelectedProfile!;
+
+        // The editable combo nulls the selection while a typed name does not
+        // match a profile; the VM must keep the previous profile so Update/Add
+        // still know what is being edited.
+        vm.SelectedProfile = null;
+        vm.NewProfileName = "renamed";
+
+        Assert.Same(original, vm.SelectedProfile);
+        Assert.Equal("renamed", vm.NewProfileName);
+    }
+
+    [Fact]
     public async Task Profiles_file_path_comes_from_module_settings()
     {
         var customPath = Path.Combine(_dir, "custom-probing.json");

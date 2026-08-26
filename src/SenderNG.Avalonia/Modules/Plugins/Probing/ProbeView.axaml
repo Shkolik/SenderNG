@@ -5,6 +5,7 @@
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
              xmlns:panels="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
              xmlns:conv="clr-namespace:SenderNG.Avalonia.Converters"
+             xmlns:prims="using:Avalonia.Controls.Primitives"
              xmlns:probing="clr-namespace:SenderNG.Core.Modules.Probing;assembly=SenderNG.Core"
              mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="560"
              x:Class="SenderNG.Avalonia.Modules.Plugins.ProbeView"
@@ -114,6 +115,7 @@
                               BorderThickness="1" FontSize="11"
                               ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}"
                               IsEditable="True"
+                              prims:TextSearch.TextBinding="{ReflectionBinding Name}"
                               Text="{Binding NewProfileName, Mode=TwoWay}">
                         <ComboBox.ItemTemplate>
                             <DataTemplate x:DataType="probing:ProbingProfile">
@@ -140,7 +142,7 @@
                         <TextBlock Text="Probe tip/tool" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3" />
                         <Grid ColumnDefinitions="110,*">
                             <TextBlock Classes="fld" Text="Diameter:" />
-                            <TextBox Grid.Column="1" Classes="num" Text="{Binding ProbeDiameter, Mode=TwoWay, StringFormat='0.###'}" />
+                            <TextBox Grid.Column="1" Classes="num" Text="{Binding ProbeDiameter, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
                         </Grid>
                     </StackPanel>
                 </Border>
@@ -151,11 +153,11 @@
                         <TextBlock Text="Touch plate/fixture height" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3" />
                         <Grid ColumnDefinitions="110,*">
                             <TextBlock Classes="fld" Text="Touch plate:" />
-                            <TextBox Grid.Column="1" Classes="num" Text="{Binding TouchPlateHeight, Mode=TwoWay, StringFormat='0.###'}" />
+                            <TextBox Grid.Column="1" Classes="num" Text="{Binding TouchPlateHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
                         </Grid>
                         <Grid ColumnDefinitions="110,*">
                             <TextBlock Classes="fld" Text="Fixture:" />
-                            <TextBox Grid.Column="1" Classes="num" Text="{Binding FixtureHeight, Mode=TwoWay, StringFormat='0.###'}" />
+                            <TextBox Grid.Column="1" Classes="num" Text="{Binding FixtureHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
                         </Grid>
                     </StackPanel>
                 </Border>
@@ -166,23 +168,23 @@
                         <TextBlock Text="Probing distances and speed" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3" />
                         <Grid ColumnDefinitions="110,*">
                             <TextBlock Classes="fld" Text="Rapids feed rate:" ToolTip.Tip="Feed for rapid moves; 0 uses the controller setting" />
-                            <TextBox Grid.Column="1" Classes="num" Text="{Binding RapidsFeedRate, Mode=TwoWay, StringFormat='0.###'}" />
+                            <TextBox Grid.Column="1" Classes="num" Text="{Binding RapidsFeedRate, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
                         </Grid>
                         <Grid ColumnDefinitions="110,*">
                             <TextBlock Classes="fld" Text="Search feed rate:" ToolTip.Tip="Feed rate for the initial probing move" />
-                            <TextBox Grid.Column="1" Classes="num" Text="{Binding ProbeFeedRate, Mode=TwoWay, StringFormat='0.###'}" />
+                            <TextBox Grid.Column="1" Classes="num" Text="{Binding ProbeFeedRate, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
                         </Grid>
                         <Grid ColumnDefinitions="110,*">
                             <TextBlock Classes="fld" Text="Latch feed rate:" ToolTip.Tip="Feed rate for the second slow probing move" />
-                            <TextBox Grid.Column="1" Classes="num" Text="{Binding LatchFeedRate, Mode=TwoWay, StringFormat='0.###'}" />
+                            <TextBox Grid.Column="1" Classes="num" Text="{Binding LatchFeedRate, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
                         </Grid>
                         <Grid ColumnDefinitions="110,*">
                             <TextBlock Classes="fld" Text="Probing distance:" ToolTip.Tip="Maximum distance of a probing move" />
-                            <TextBox Grid.Column="1" Classes="num" Text="{Binding ProbeDistance, Mode=TwoWay, StringFormat='0.###'}" />
+                            <TextBox Grid.Column="1" Classes="num" Text="{Binding ProbeDistance, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
                         </Grid>
                         <Grid ColumnDefinitions="110,*">
                             <TextBlock Classes="fld" Text="Latch distance:" ToolTip.Tip="Retract before the slow probe; 0 skips it" />
-                            <TextBox Grid.Column="1" Classes="num" Text="{Binding LatchDistance, Mode=TwoWay, StringFormat='0.###'}" />
+                            <TextBox Grid.Column="1" Classes="num" Text="{Binding LatchDistance, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
                         </Grid>
                     </StackPanel>
                 </Border>
@@ -193,15 +195,15 @@
                         <TextBlock Text="Probing clearances" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3" />
                         <Grid ColumnDefinitions="110,*">
                             <TextBlock Classes="fld" Text="XY Clearance:" ToolTip.Tip="Initial distance away from the face to probe" />
-                            <TextBox Grid.Column="1" Classes="num" Text="{Binding XYClearance, Mode=TwoWay, StringFormat='0.###'}" />
+                            <TextBox Grid.Column="1" Classes="num" Text="{Binding XYClearance, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
                         </Grid>
                         <Grid ColumnDefinitions="110,*">
                             <TextBlock Classes="fld" Text="Offset:" ToolTip.Tip="Distance from the corner to the probe point" />
-                            <TextBox Grid.Column="1" Classes="num" Text="{Binding Offset, Mode=TwoWay, StringFormat='0.###'}" />
+                            <TextBox Grid.Column="1" Classes="num" Text="{Binding Offset, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
                         </Grid>
                         <Grid ColumnDefinitions="110,*">
                             <TextBlock Classes="fld" Text="Depth:" ToolTip.Tip="Z below the start position where XY probing happens" />
-                            <TextBox Grid.Column="1" Classes="num" Text="{Binding Depth, Mode=TwoWay, StringFormat='0.###'}" />
+                            <TextBox Grid.Column="1" Classes="num" Text="{Binding Depth, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
                         </Grid>
                     </StackPanel>
                 </Border>
@@ -212,11 +214,11 @@
                         <TextBlock Text="Probe/touchplate XY offsets" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3" />
                         <Grid ColumnDefinitions="110,*">
                             <TextBlock Classes="fld" Text="X:" ToolTip.Tip="X offset from the probe to the controlled point" />
-                            <TextBox Grid.Column="1" Classes="num" Text="{Binding ProbeOffsetX, Mode=TwoWay, StringFormat='0.###'}" />
+                            <TextBox Grid.Column="1" Classes="num" Text="{Binding ProbeOffsetX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
                         </Grid>
                         <Grid ColumnDefinitions="110,*">
                             <TextBlock Classes="fld" Text="Y:" ToolTip.Tip="Y offset from the probe to the controlled point" />
-                            <TextBox Grid.Column="1" Classes="num" Text="{Binding ProbeOffsetY, Mode=TwoWay, StringFormat='0.###'}" />
+                            <TextBox Grid.Column="1" Classes="num" Text="{Binding ProbeOffsetY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
                         </Grid>
                         <CheckBox Content="Is touch plate" FontSize="11" IsChecked="{Binding TouchPlateIsXY}" />
                     </StackPanel>

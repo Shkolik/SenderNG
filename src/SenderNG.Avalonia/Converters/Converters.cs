@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Globalization;
+using Avalonia.Data;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 
@@ -14,6 +15,39 @@ public static class Converters
     public static IsNotNullConverter IsNotNull => IsNotNullConverter.Instance;
     public static IsFlyoutModuleConverter IsFlyout => IsFlyoutModuleConverter.Instance;
     public static EnumToBoolConverter EnumToBool => EnumToBoolConverter.Instance;
+    public static NumericTextConverter NumericText => NumericTextConverter.Instance;
+}
+
+/// <summary>
+/// Two-way string&lt;-&gt;number converter for numeric text fields. Formats
+/// doubles with "0.###" and silently ignores text that cannot be parsed
+/// (returns <see cref="BindingOperations.DoNothing"/>), so partial or invalid
+/// input never raises a binding validation error (red border) or an exception.
+/// </summary>
+public sealed class NumericTextConverter : IValueConverter
+{
+    public static readonly NumericTextConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        return value switch
+        {
+            double d => d.ToString("0.###", culture),
+            int i => i.ToString(culture),
+            _ => string.Empty,
+        };
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is not string s)
+            return BindingOperations.DoNothing;
+        if (targetType == typeof(int))
+            return int.TryParse(s, NumberStyles.Integer, culture, out var i) ? i : BindingOperations.DoNothing;
+        if (double.TryParse(s, NumberStyles.Float, culture, out var d))
+            return d;
+        return BindingOperations.DoNothing;
+    }
 }
 
 /// <summary>

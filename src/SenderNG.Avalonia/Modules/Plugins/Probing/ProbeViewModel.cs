@@ -84,7 +84,12 @@ public class ProbeViewModel : ViewModelBase
         get => _selectedProfile;
         set
         {
-            if (SetField(ref _selectedProfile, value) && value is not null)
+            // The editable ComboBox nulls the selection while a typed name does
+            // not match a profile; keep the previous selection so Add/Update
+            // still know which profile is being edited.
+            if (value is null || value == _selectedProfile)
+                return;
+            if (SetField(ref _selectedProfile, value))
             {
                 ProbeDiameter = value.ProbeDiameter;
                 TouchPlateHeight = value.TouchPlateHeight;

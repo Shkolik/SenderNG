@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             xmlns:conv="clr-namespace:SenderNG.Avalonia.Converters"
              x:Class="SenderNG.Avalonia.Modules.Plugins.HeightMapPanel"
              x:DataType="vm:ProbeViewModel">
 
@@ -13,19 +14,19 @@
                 <TextBlock Text="Area" FontWeight="SemiBold" FontSize="11" />
                 <Grid ColumnDefinitions="90,*,90,*" RowDefinitions="Auto,Auto" Width="430" HorizontalAlignment="Left">
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Min X:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding HmMinX, Mode=TwoWay, StringFormat='0.###'}"
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding HmMinX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                              Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                              FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,12,4" />
                     <TextBlock Grid.Row="0" Grid.Column="2" Text="Max X:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding HmMaxX, Mode=TwoWay, StringFormat='0.###'}"
+                    <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding HmMaxX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                              Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                              FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,0,4" />
                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Min Y:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding HmMinY, Mode=TwoWay, StringFormat='0.###'}"
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding HmMinY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                              Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                              FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,12,0" />
                     <TextBlock Grid.Row="1" Grid.Column="2" Text="Max Y:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding HmMaxY, Mode=TwoWay, StringFormat='0.###'}"
+                    <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding HmMaxY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                              Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                              FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
                 </Grid>
@@ -37,11 +38,11 @@
                 <TextBlock Text="Grid" FontWeight="SemiBold" FontSize="11" />
                 <Grid ColumnDefinitions="90,*,90,*" Width="360" HorizontalAlignment="Left">
                     <TextBlock Grid.Column="0" Text="Grid X:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Column="1" Text="{Binding HmGridSizeX, Mode=TwoWay, StringFormat='0.###'}"
+                    <TextBox Grid.Column="1" Text="{Binding HmGridSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                              Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                              FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,12,0" />
                     <TextBlock Grid.Column="2" Text="Grid Y:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Column="3" Text="{Binding HmGridSizeY, Mode=TwoWay, StringFormat='0.###'}"
+                    <TextBox Grid.Column="3" Text="{Binding HmGridSizeY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                              Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                              FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
                 </Grid>

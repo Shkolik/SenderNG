@@ -18,11 +18,11 @@
                 <TextBlock Text="Workpiece dimensions" FontWeight="SemiBold" FontSize="11" />
                 <Grid ColumnDefinitions="100,100,60" RowDefinitions="Auto,Auto" Width="270" HorizontalAlignment="Left">
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="X size:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding WorkpieceSizeX, Mode=TwoWay, StringFormat='0.###'}"
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding WorkpieceSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                              Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                              FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,0,4" />
                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Y size:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding WorkpieceSizeY, Mode=TwoWay, StringFormat='0.###'}"
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding WorkpieceSizeY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                              Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                              FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
                     <CheckBox Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Classes="padlock"
@@ -35,7 +35,7 @@
         <Grid ColumnDefinitions="100,*" Width="210" HorizontalAlignment="Left">
             <TextBlock Text="Passes:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
                        ToolTip.Tip="More than one pass is usually needed for accurate dimensions" />
-            <TextBox Grid.Column="1" Text="{Binding Passes, Mode=TwoWay}"
+            <TextBox Grid.Column="1" Classes="int" Text="{Binding Passes, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                      Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                      FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
         </Grid>

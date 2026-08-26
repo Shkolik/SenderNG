@@ -34,7 +34,7 @@
                 <CheckBox Content="Probe Z" IsChecked="{Binding ProbeZ}" FontSize="11" />
                 <Grid ColumnDefinitions="100,*">
                     <TextBlock Text="Workpiece height:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Column="1" Text="{Binding WorkpieceHeight, Mode=TwoWay, StringFormat='0.###'}"
+                    <TextBox Grid.Column="1" Text="{Binding WorkpieceHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                              Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                              FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
                              IsEnabled="{Binding ProbeZ}" />
@@ -42,7 +42,7 @@
                 <Grid ColumnDefinitions="100,*">
                     <TextBlock Text="Edge offset:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
                                ToolTip.Tip="0 uses half the probe diameter" />
-                    <TextBox Grid.Column="1" Text="{Binding WorkpieceXYEdgeOffset, Mode=TwoWay, StringFormat='0.###'}"
+                    <TextBox Grid.Column="1" Text="{Binding WorkpieceXYEdgeOffset, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                              Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                              FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
                              IsEnabled="{Binding ProbeZ}" />
