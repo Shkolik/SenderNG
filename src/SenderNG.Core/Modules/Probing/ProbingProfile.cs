@@ -1,14 +1,33 @@
 namespace SenderNG.Core.Modules.Probing;
 
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
 /// <summary>
 /// One named probing profile. Field set mirrors ioSender's
 /// <c>CNC.Controls.Probing.ProbingProfile</c> so a user's muscle memory and
 /// defaults carry over 1:1.
 /// </summary>
-public class ProbingProfile
+public class ProbingProfile : INotifyPropertyChanged
 {
+    private string _name = "<Default>";
+
     /// <summary>Display name, e.g. "&lt;Default&gt;".</summary>
-    public string Name { get; set; } = "<Default>";
+    public string Name
+    {
+        get => _name;
+        set => SetField(ref _name, value);
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value))
+            return;
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
 
     /// <summary>Probe/tool tip diameter (mm). Used for edge/corner compensation.</summary>
     public double ProbeDiameter { get; set; } = 2d;

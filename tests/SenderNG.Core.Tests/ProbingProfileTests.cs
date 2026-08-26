@@ -74,6 +74,33 @@ public class ProbingProfileTests
     }
 
     [Fact]
+    public void Renaming_profile_raises_property_changed_for_Name()
+    {
+        // The profile selector's dropdown binds to Name; renaming in place must
+        // notify so the UI updates without reopening the widget.
+        var p = ProbingProfile.CreateDefault();
+        var notified = new List<string>();
+        p.PropertyChanged += (_, e) => notified.Add(e.PropertyName ?? "");
+
+        p.Name = "foam";
+
+        Assert.Equal("foam", p.Name);
+        Assert.Contains(nameof(ProbingProfile.Name), notified);
+    }
+
+    [Fact]
+    public void Setting_same_name_does_not_raise_property_changed()
+    {
+        var p = ProbingProfile.CreateDefault();
+        var notified = new List<string>();
+        p.PropertyChanged += (_, e) => notified.Add(e.PropertyName ?? "");
+
+        p.Name = "<Default>"; // unchanged
+
+        Assert.Empty(notified);
+    }
+
+    [Fact]
     public void EnsureDefault_seeds_ioSender_default_when_empty()
     {
         var profiles = new ProbingProfiles();
