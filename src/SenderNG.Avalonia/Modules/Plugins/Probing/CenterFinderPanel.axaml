@@ -13,7 +13,8 @@
                          IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Outside}" />
         </StackPanel>
 
-        <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6">
+        <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6"
+                HorizontalAlignment="Left">
             <StackPanel Spacing="4">
                 <TextBlock Text="Workpiece dimensions" FontWeight="SemiBold" FontSize="11" />
                 <Grid ColumnDefinitions="100,100,60" RowDefinitions="Auto,Auto" Width="270" HorizontalAlignment="Left">

@@ -9,7 +9,8 @@
         <TextBlock Text="Probe a Z grid over the area. The map is stored relative to the first probed point."
                    FontSize="11" Foreground="#333" TextWrapping="Wrap" />
 
-        <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6">
+        <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6"
+                HorizontalAlignment="Left">
             <StackPanel Spacing="4">
                 <TextBlock Text="Area" FontWeight="SemiBold" FontSize="11" />
                 <Grid ColumnDefinitions="90,*,90,*" RowDefinitions="Auto,Auto" Width="430" HorizontalAlignment="Left">
@@ -33,7 +34,8 @@
             </StackPanel>
         </Border>
 
-        <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6">
+        <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6"
+                HorizontalAlignment="Left">
             <StackPanel Spacing="4">
                 <TextBlock Text="Grid" FontWeight="SemiBold" FontSize="11" />
                 <Grid ColumnDefinitions="90,*,90,*" Width="360" HorizontalAlignment="Left">

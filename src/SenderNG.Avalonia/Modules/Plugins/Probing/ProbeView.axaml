@@ -103,7 +103,12 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid ColumnDefinitions="252,*">
+    <!-- Horizontal ScrollViewer wraps the whole probing tab: the right column is a fixed
+         470px (widest tool = Height map area grid) because a star column is measured with
+         infinite width inside a scrolling container and would collapse/balloon. A horizontal
+         scrollbar appears when the center tab is narrower than 252 + 470. -->
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+    <Grid ColumnDefinitions="252,470">
 
         <!-- ============================ Left: profiles + settings ============================ -->
         <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Disabled">
@@ -306,4 +311,5 @@
             </StackPanel>
         </Grid>
     </Grid>
+    </ScrollViewer>
 </UserControl>

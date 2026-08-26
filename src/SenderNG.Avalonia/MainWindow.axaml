@@ -211,7 +211,7 @@
                 <TabControl Grid.Row="0" ItemsSource="{Binding CenterTabs}" CornerRadius="0" Background="White" Margin="4" HorizontalAlignment="Stretch">
                     <TabControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:CenterTab">
-                            <TextBlock Text="{Binding Module.Name}" FontSize="11" />
+                            <TextBlock Text="{Binding Module.Name}" FontSize="13" />
                         </DataTemplate>
                     </TabControl.ItemTemplate>
                     <TabControl.ContentTemplate>
