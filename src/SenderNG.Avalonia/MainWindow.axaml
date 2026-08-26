@@ -22,7 +22,7 @@
         </Style>
     </Window.Styles>
 
-    <Grid ColumnDefinitions="320,*,260,Auto" RowDefinitions="Auto,*,Auto,Auto">
+    <Grid ColumnDefinitions="280,*,260,Auto" RowDefinitions="Auto,*,Auto,Auto">
 
         <!-- Row0: Menu + Toolbar (grid-column 0/3) -->
         <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="4"
@@ -112,17 +112,17 @@
                         <ItemsControl ItemsSource="{Binding ProgramLimitRows}" HorizontalAlignment="Stretch">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="fixed:ProgramLimitRow">
-                                    <Grid ColumnDefinitions="14,*,10,*,Auto" Margin="0,1" HorizontalAlignment="Stretch">
-                                        <TextBlock Grid.Column="0" Text="{Binding Letter}" FontSize="11" FontWeight="SemiBold"
+                                    <Grid ColumnDefinitions="22,*,8,*,Auto" Margin="0,1" HorizontalAlignment="Stretch">
+                                        <TextBlock Grid.Column="0" Text="{Binding Letter}" FontSize="16" FontWeight="SemiBold"
                                                    VerticalAlignment="Center" TextAlignment="Center" />
                                         <TextBox Grid.Column="1" Text="{Binding Min, StringFormat={}{0:F3}, Mode=OneWay}" IsReadOnly="True"
-                                                 Height="22" MinHeight="22" CornerRadius="0" BorderBrush="#999" BorderThickness="1" Padding="0"
-                                                 FontSize="10" VerticalContentAlignment="Center" VerticalAlignment="Center" Margin="2,0" />
-                                        <TextBlock Grid.Column="2" Text="-" VerticalAlignment="Center" TextAlignment="Center" FontSize="10" Foreground="#666" />
+                                                 Height="32" MinHeight="32" CornerRadius="0" BorderBrush="#999" BorderThickness="1" Padding="6,0"
+                                                 FontSize="13" VerticalContentAlignment="Center" VerticalAlignment="Center" Margin="2,0" />
+                                        <TextBlock Grid.Column="2" Text="-" VerticalAlignment="Center" TextAlignment="Center" FontSize="11" Foreground="#666" />
                                         <TextBox Grid.Column="3" Text="{Binding Max, StringFormat={}{0:F3}, Mode=OneWay}" IsReadOnly="True"
-                                                 Height="22" MinHeight="22" CornerRadius="0" BorderBrush="#999" BorderThickness="1" Padding="0"
-                                                 FontSize="10" VerticalContentAlignment="Center" VerticalAlignment="Center" Margin="2,0" />
-                                        <TextBlock Grid.Column="4" Text="mm" VerticalAlignment="Center" FontSize="10" Foreground="#888" Margin="4,0,0,0" />
+                                                 Height="32" MinHeight="32" CornerRadius="0" BorderBrush="#999" BorderThickness="1" Padding="6,0"
+                                                 FontSize="13" VerticalContentAlignment="Center" VerticalAlignment="Center" Margin="2,0" />
+                                        <TextBlock Grid.Column="4" Text="mm" VerticalAlignment="Center" FontSize="11" Foreground="#888" Margin="4,0,0,0" />
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -295,7 +295,7 @@
                                 Command="{Binding SelectModuleCommand}" CommandParameter="{x:Null}" />
                     </Grid>
                 </Border>
-                <ContentControl Grid.Row="1" Content="{Binding CurrentModuleView}" Margin="4" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                <ContentControl Grid.Row="1" Content="{Binding CurrentModuleView}" Margin="4" Padding="0,0,10,0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
             </Grid>
         </Border>
 

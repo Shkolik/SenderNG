@@ -47,4 +47,31 @@ public class GCodeLimitsCalculatorTests
         Assert.Equal(462.6, limits[0].Max);
         Assert.Equal(0.4, limits[1].Min);
     }
+
+    [Fact]
+    public void Compute_reports_every_axis_present_not_only_xyz()
+    {
+        // Foam file moves X/Y/Z/A — A limits must be reported alongside XYZ.
+        var text = "G1 F100 X10 Y20 Z5 A15\r\nG1 X-5 Y2 Z12 A-3\r\n";
+        var limits = GCodeLimitsCalculator.Compute(text);
+
+        Assert.NotNull(limits);
+        Assert.Equal(4, limits.Count);
+        Assert.Equal(('X', -5.0, 10.0), (limits[0].Letter, limits[0].Min, limits[0].Max));
+        Assert.Equal(('Y', 2.0, 20.0), (limits[1].Letter, limits[1].Min, limits[1].Max));
+        Assert.Equal(('Z', 5.0, 12.0), (limits[2].Letter, limits[2].Min, limits[2].Max));
+        Assert.Equal(('A', -3.0, 15.0), (limits[3].Letter, limits[3].Min, limits[3].Max));
+    }
+
+    [Fact]
+    public void Compute_omits_axes_the_program_never_moves()
+    {
+        var text = "G1 F100 X10 Y10\r\n";
+        var limits = GCodeLimitsCalculator.Compute(text);
+
+        Assert.NotNull(limits);
+        Assert.Equal(2, limits.Count);
+        Assert.Equal('X', limits[0].Letter);
+        Assert.Equal('Y', limits[1].Letter);
+    }
 }

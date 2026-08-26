@@ -8,7 +8,8 @@ public sealed record AxisLimits(char Letter, double Min, double Max);
 /// Computes per-axis program limits (bounding box) for G-code text,
 /// mirroring ioSender's GCodeJob approach: parse all blocks, run the
 /// emulator, accumulate arc/spline bounding boxes and axis-word end points.
-/// Returns XYZ limits or null when the program contains no motion.
+/// Returns limits for every axis addressed by the program (XYZABCUVW), or
+/// null when the program contains no motion.
 /// </summary>
 public static class GCodeLimitsCalculator
 {
@@ -36,26 +37,64 @@ public static class GCodeLimitsCalculator
         if (parser.Tokens.Count == 0)
             return null;
 
-        var bbox = new GcodeBoundingBox();
+        // Per-axis bounding box across all machine axes (not just XYZ):
+        // foam/multiaxis programs move A/B/C alongside XYZ and those limits
+        // must be reported too.
+        var count = GrblInfo.AxisLetters.Length;
+        var min = Enumerable.Repeat(double.MaxValue, count).ToArray();
+        var max = Enumerable.Repeat(double.MinValue, count).ToArray();
+        var present = AxisFlags.None;
+
         var emu = new GCodeEmulator(true);
         foreach (var cmd in emu.Execute(parser.Tokens))
         {
-            if (cmd.Token is GCArc arc)
-                bbox.AddBoundingBox(arc.GetBoundingBox(emu.Plane, [cmd.Start.X, cmd.Start.Y, cmd.Start.Z], emu.DistanceMode == DistanceMode.Incremental));
-            else if (cmd.Token is GCCubicSpline cubic)
-                bbox.AddBoundingBox(cubic.GetBoundingBox(emu.Plane, [cmd.Start.X, cmd.Start.Y, cmd.Start.Z], emu.DistanceMode == DistanceMode.Incremental));
-            else if (cmd.Token is GCQuadraticSpline quad)
-                bbox.AddBoundingBox(quad.GetBoundingBox(emu.Plane, [cmd.Start.X, cmd.Start.Y, cmd.Start.Z], emu.DistanceMode == DistanceMode.Incremental));
-            else if (cmd.Token is GCAxisCommand9)
-                bbox.AddPoint(cmd.End, ((GCAxisCommand9)cmd.Token).AxisFlags);
-        }
-        bbox.Conclude();
+            switch (cmd.Token)
+            {
+                case GCAxisCommand9 axisCmd:
+                    // End position for each axis the block addressed — the
+                    // emulator already applied absolute/incremental math.
+                    foreach (var i in axisCmd.AxisFlags.ToIndices())
+                    {
+                        if (i >= count)
+                            continue;
+                        var pos = emu.GetPosition(i);
+                        min[i] = Math.Min(min[i], pos);
+                        max[i] = Math.Max(max[i], pos);
+                        present |= (AxisFlags)(1 << i);
+                    }
+                    break;
 
-        return
-        [
-            new AxisLimits('X', bbox.Min[0], bbox.Max[0]),
-            new AxisLimits('Y', bbox.Min[1], bbox.Max[1]),
-            new AxisLimits('Z', bbox.Min[2], bbox.Max[2]),
-        ];
+                case GCArc arc:
+                    AddBoundingBox(arc.GetBoundingBox(emu.Plane, [cmd.Start.X, cmd.Start.Y, cmd.Start.Z], emu.DistanceMode == DistanceMode.Incremental), min, max, ref present);
+                    break;
+
+                case GCCubicSpline cubic:
+                    AddBoundingBox(cubic.GetBoundingBox(emu.Plane, [cmd.Start.X, cmd.Start.Y, cmd.Start.Z], emu.DistanceMode == DistanceMode.Incremental), min, max, ref present);
+                    break;
+
+                case GCQuadraticSpline quad:
+                    AddBoundingBox(quad.GetBoundingBox(emu.Plane, [cmd.Start.X, cmd.Start.Y, cmd.Start.Z], emu.DistanceMode == DistanceMode.Incremental), min, max, ref present);
+                    break;
+            }
+        }
+
+        if (present == AxisFlags.None)
+            return null;
+
+        return Enumerable.Range(0, count)
+            .Where(i => ((AxisFlags)(1 << i) & present) != 0)
+            .Select(i => new AxisLimits(GrblInfo.AxisLetters[i], min[i], max[i]))
+            .ToList();
+    }
+
+    private static void AddBoundingBox(GcodeBoundingBox bbox, double[] min, double[] max, ref AxisFlags present)
+    {
+        // Arcs/splines run on the selected plane (XYZ) — fold their box in.
+        for (var i = 0; i < 3; i++)
+        {
+            min[i] = Math.Min(min[i], bbox.Min[i]);
+            max[i] = Math.Max(max[i], bbox.Max[i]);
+        }
+        present |= AxisFlags.X | AxisFlags.Y | AxisFlags.Z;
     }
 }
