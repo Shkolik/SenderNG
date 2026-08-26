@@ -58,10 +58,10 @@ public class ModulePanelTests
         Assert.Equal(PanelHint.Center, new ProbingModule().Panel);
         Assert.Equal(50, new ProbingModule().Order);
 
-        Assert.Equal(PanelHint.Right, new MposModule().Panel);
+        Assert.Equal(PanelHint.Flyout, new MposModule().Panel);
         Assert.Equal(20, new MposModule().Order);
 
-        Assert.Equal(PanelHint.Right, new OutlineModule().Panel);
+        Assert.Equal(PanelHint.Flyout, new OutlineModule().Panel);
         Assert.Equal(32, new OutlineModule().Order);
     }
 

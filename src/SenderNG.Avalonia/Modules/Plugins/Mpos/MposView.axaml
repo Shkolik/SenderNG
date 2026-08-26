@@ -8,7 +8,6 @@
              x:DataType="vm:MposViewModel">
 
     <StackPanel Margin="8" Spacing="4">
-        <TextBlock Text="Machine position (MPos)" FontSize="10" FontWeight="SemiBold" Foreground="#333" />
         <ItemsControl ItemsSource="{Binding Axes}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:MposAxis">

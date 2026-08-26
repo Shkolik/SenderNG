@@ -10,7 +10,7 @@ public class OutlineModule : IModule
     public string Id => "outline";
     public string Name => "Outline";
     public int Order => 32;
-    public PanelHint Panel => PanelHint.Right;
+    public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 

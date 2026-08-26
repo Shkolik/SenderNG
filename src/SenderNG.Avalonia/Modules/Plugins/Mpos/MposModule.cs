@@ -10,7 +10,7 @@ public class MposModule : IModule
     public string Id => "mpos";
     public string Name => "MPos";
     public int Order => 20;
-    public PanelHint Panel => PanelHint.Right;
+    public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
