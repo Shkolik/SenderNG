@@ -30,9 +30,11 @@ controller. Demo mode masks these gaps in day-to-day use.
 - [x] **Accessory-state parsing** — `StatusReportParser` reads the grblHAL `A:`
       accessory field into `MachineState.Flood`/`Mist`/spindle (cp. ioSender
       `GrblViewModel.cs`); classic grbl leaves them untouched.
-- [ ] **Connect dialog / port discovery polish** — baud-rate (D.1) and the `$I`
-      handshake are done, but the PortDialog-style UI itself (port list + refresh +
-      connect-on-open) is **not built** — remaining P0-D.2.
+- [x] **Connect dialog / port discovery polish** — a PortDialog-style `ConnectView`
+      (port list + refresh + baud, pre-selected persisted port/baud) replaces the old
+      auto/first-port string path. Network connect (TCP/Telnet/WebSocket) is **deferred**
+      — the dialog exposes a disabled section; `IGrblTransport` is ready for a network
+      backend. All port cross-platform (`System.IO.Ports` on Windows + Linux).
 
 ## Priority 1 — Base widgets and processes (mill + foam)
 

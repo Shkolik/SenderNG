@@ -21,10 +21,11 @@ classic grbl 1.1's `ENABLE_M7` isn't exposed via `$I`). Axis count comes from
 
 - Foam CNC mode: functional foam-specific behavior (mode is persisted but only
   changes jog layout today).
-- P0-D.2 connect dialog: port list + refresh + baud selector UI (D.1 baud
-  plumbing is done). See `docs/p0-controller-plumbing-plan.md`.
+- Network connect (TCP / Telnet / WebSocket): deferred. The connect dialog shows a
+  disabled Network section; `IGrblTransport` is the cross-platform seam a future
+  network backend will implement. See `docs/p0-controller-plumbing-plan.md` D.2.
 
 > The full ioSender gap map lives in `docs/iosender-gaps.md`. The cycle-bar
-> realtime bytes and Home/Unlock/Reset bindings are done, and the status read
-> loop / `$I` handshake / accessory parsing landed (P0-A/B/C); older notes
-> claiming otherwise are stale.
+> realtime bytes, Home/Unlock/Reset bindings, the status read loop / `$I` handshake /
+> accessory parsing (P0-A/B/C), and the connect dialog (P0-D) are all landed; older
+> notes claiming otherwise are stale.

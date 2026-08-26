@@ -69,11 +69,11 @@ tests/SenderNG.Core.Tests  xUnit suite (dotnet test)
 > `docs/iosender-gaps.md`; the P0 implementation plan (checkable items,
 > parallelization markers) lives in `docs/p0-controller-plumbing-plan.md`.
 
-- **P0 controller plumbing is done**: `RealGrblService` owns a background reader + suspendable `?` poller feeding `StatusReportParser`; the `$I` handshake fills an immutable `ControllerCapabilities` (exposed on `IGrblService`) that drives Coolant Mist visibility. The connect-time `$I` exchange and baud setting are in (D.1). Remaining P0: **D.2 connect dialog UI.**
+- **P0 controller plumbing is done**: `RealGrblService` owns a background reader + suspendable `?` poller feeding `StatusReportParser`; the `$I` handshake fills an immutable `ControllerCapabilities` (exposed on `IGrblService`) that drives Coolant Mist visibility. The connect dialog (`ConnectView`, port list + refresh + baud) is in; network connect is deferred with a disabled section (transport seam: `IGrblTransport`, cross-platform).
 - **Cycle bar** uses `SendRealtime` (`0x7E` / `0x21` / `0x18`); Home/Unlock/Reset are bound (`$H`/`$X`/realtime reset).
 - **Accessory-state parsing** — `StatusReportParser` reads the grblHAL `A:` field into `MachineState.Flood`/`Mist`/spindle; classic grbl leaves it untouched.
 - **Foam CNC mode** is persisted but only changes the jog layout today — no functional foam behavior yet.
-- **Unbound UI:** Home / Unlock / Reset buttons and the Check checkbox in `MainWindow.axaml` have no commands; status-bar Block/Ready/Jog-step values are hardcoded placeholders.
+- **Unbound UI:** Home / Unlock / Reset are bound, but the **Check checkbox** in `MainWindow.axaml` still has no command; status-bar Block/Ready/Jog-step values are hardcoded placeholders.
 - **Grbl.cs stubs** are compile-only; `GrblInfo` static state is global (partly mitigated by pure `ParseCaps`).
 
 ## 9. Verification

@@ -27,6 +27,7 @@ public static class HostSetup
         builder.Services.AddSingleton<Func<object, object>>(sp =>
             vm => vm switch
             {
+                CNC.Core.ViewModels.ConnectViewModel v => new Views.ConnectView { DataContext = v },
                 CNC.Core.ViewModels.DemoMachineSettingsViewModel v => new Views.DemoMachineSettingsView { DataContext = v },
                 CNC.Core.ViewModels.AppSettingsViewModel v => new Modules.Fixed.AppSettingsView { DataContext = v },
                 Modules.Fixed.GrblSettingsViewModel v => new Modules.Fixed.GrblSettingsView { DataContext = v },

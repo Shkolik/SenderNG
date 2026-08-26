@@ -146,37 +146,19 @@ public class MainViewModelTests
         Assert.Contains("Connected", vm.Status);
     }
 
-    private sealed class StubComPorts(string[] ports) : IComPortService
-    {
-        public string[] GetPorts() => ports;
-    }
-
     [Fact]
-    public async Task ConnectAsync_with_auto_port_picks_first_enumerated_port()
+    public async Task Connect_without_dialog_connects_to_persisted_port()
     {
+        // With no dialog service (unit tests) Connect falls back to the persisted
+        // port directly; port selection moved into the ConnectViewModel dialog.
         var settings = MakeSettings();
-        var vm = new MainViewModel(
-            new DemoGrblService(new AppSettings()), settings, MakeProvider(settings),
-            comPorts: new StubComPorts(["COM3", "COM7"]));
+        settings.Save(PortSettings("COM7"));
+        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings));
 
         vm.ConnectCommand.Execute(null);
         await Task.Yield();
 
-        Assert.Contains("COM3", vm.Status);
-    }
-
-    [Fact]
-    public async Task ConnectAsync_with_auto_port_and_no_ports_reports_no_ports_found()
-    {
-        var settings = MakeSettings();
-        var vm = new MainViewModel(
-            new DemoGrblService(new AppSettings()), settings, MakeProvider(settings),
-            comPorts: new StubComPorts([]));
-
-        vm.ConnectCommand.Execute(null);
-        await Task.Yield();
-
-        Assert.Equal("No ports found", vm.Status);
+        Assert.Contains("COM7", vm.Status);
     }
 
     [Fact]

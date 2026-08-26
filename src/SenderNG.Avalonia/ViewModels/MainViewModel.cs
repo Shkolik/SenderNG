@@ -671,27 +671,55 @@ public class MainViewModel : ViewModelBase
     {
         try
         {
-            var port = _settingsService.Load().Current.Port;
-            if (port == "auto" && _comPorts is not null)
-            {
-                var ports = _comPorts?.GetPorts() ?? [];
-                if (ports.Length == 0)
-                {
-                    Status = "No ports found";
-                    return;
-                }
-                port = ports[0];
-            }
-            Status = $"Connecting to {port}...";
-            // Apply the profile's serial baud rate to the real service before opening.
-            if (ResolveInner(Grbl) is RealGrblService real)
-                real.BaudRate = _settingsService.Load().Current.BaudRate;
-            await Grbl.ConnectAsync(port);
-            Status = $"Connected: {port}";
+            await ConnectWithDialogAsync();
         }
         catch (Exception ex)
         {
             Status = $"Connection failed: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// Opens the connect dialog (port list + refresh + baud) and, on confirm,
+    /// connects the real service with the chosen port/baud. When dialog infra is
+    /// unavailable (unit tests) it falls back to the persisted port directly.
+    /// </summary>
+    private async Task ConnectWithDialogAsync()
+    {
+        // Unit tests build MainViewModel without a dialog service: connect straight
+        // to the persisted port (no auto/first-port magic - that moved into ConnectViewModel).
+        if (_dialogs is null)
+        {
+            await ConnectToAsync(_settingsService.Load().Current.Port);
+            return;
+        }
+
+        var settings = _settingsService.Load();
+        var vm = new CNC.Core.ViewModels.ConnectViewModel(settings, _comPorts);
+        var result = await _dialogs.ShowDialogAsync("Connect", vm, (300, 340));
+        if (result == true)
+        {
+            await ConnectToAsync(vm.ResultPort, vm.ResultBaudRate);
+        }
+        else
+        {
+            Status = "Connect cancelled";
+        }
+    }
+
+    private async Task ConnectToAsync(string port, int? baud = null)
+    {
+        if (string.IsNullOrWhiteSpace(port))
+        {
+            Status = "No port selected";
+            return;
+        }
+
+        Status = $"Connecting to {port}...";
+        // Apply the chosen (or profile default) serial baud to the real service.
+        if (ResolveInner(Grbl) is RealGrblService real)
+            real.BaudRate = baud ?? _settingsService.Load().Current.BaudRate;
+        await Grbl.ConnectAsync(port);
+        Status = $"Connected: {port}";
     }
 }
