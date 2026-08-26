@@ -25,9 +25,11 @@ hide unsupported toggles. Same capability data will drive other UI decisions
 
 ## Other known deferred items
 
-- Cycle bar (Cycle Start / Feed Hold / Stop) still sends placeholder strings
-  via `SendAsync` - should use `SendRealtime` (`0x7E`, `0x21`, `0x18`).
 - Real machine `MachineState` parsing: `Flood`/`Mist` flags are demo-only until
   the status-report parser reads the accessory-state field.
 - Foam CNC mode: functional foam-specific behavior (mode is persisted but only
   changes jog layout today).
+
+> The full ioSender gap map lives in `docs/iosender-gaps.md`. The cycle-bar
+> realtime bytes and Home/Unlock/Reset bindings are done (older notes claiming
+> otherwise are stale).

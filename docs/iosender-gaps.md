@@ -1,0 +1,187 @@
+# SenderNG ↔ ioSender — Gap Map & Checkable Plan
+
+> This is the high-level, checkable plan for closing the gap to the original
+> ioSender (`terjeio/ioSender` `master` @ `3a817cf`, plus the `foamcut` branch
+> `8ea54fb`). Priorities come from `docs/architecture.md` §3 and
+> `docs/ROADMAP.md`. Detailed per-module deviations live in
+> `docs/probing-gaps.md`; this document is the umbrella view.
+>
+> **How to use:** tick a box when the item is *done and verified*. "Partial"
+> items list exactly what exists today; finish them or explicitly mark them
+> won't-fix with a note.
+
+## Priority 0 — Real-controller plumbing (gates everything)
+
+Nothing on a real machine works reliably until `RealGrblService` can talk to a
+controller. Demo mode masks these gaps in day-to-day use.
+
+- [ ] **Status-report read loop** — `RealGrblService` has no background read /
+      status-polling loop. It parses `WPos:/MPos:`, `[PRB:...]`, `Pn:`,
+      `FS:/Ov:` etc. (unit-tested) but nothing feeds them in from a serial port.
+      Blocks: live DRO/MPos on real hardware, real probing (`ProbeRunner` waits
+      for Idle + `[PRB:]`), state indicator, signals.
+- [ ] **Full grbl handshake** (`$I` + `[OPT:...]`, grblHAL build/version
+      detection) and an exposed `ControllerCapabilities` on `IGrblService`
+      (ROADMAP top item). Currently only a minimal `$I` probe; axis count is
+      partially derived from `[OPT:...]`.
+- [ ] **Accessory-state parsing** — `Flood`/`Mist` in `MachineState` are
+      demo-only; the real status-report parser must read the accessory-state
+      field (drives Coolant toggles on real hardware).
+- [ ] **Connect dialog / port discovery polish** — ioSender has a PortDialog
+      with refresh + connect on open; SenderNG uses a settings string (auto /
+      first port). Parity only matters once the read loop exists.
+
+## Priority 1 — Base widgets and processes (mill + foam)
+
+The core UI widgets and the processes behind them, per architecture §3.1.
+Many already exist; the gaps are listed per widget.
+
+### Done / largely done (maintained, verify occasionally)
+
+- [x] DRO (`Modules/Fixed/DroView`) — positions + zero buttons.
+- [x] Jog widget (`Modules/Plugins/Jog`) — cross + linear axes, distances/speeds,
+      foam Z/A cross, padlock.
+- [x] MPos widget (`Modules/Plugins/Mpos`) — machine-position readouts.
+- [x] Outline widget (`Modules/Plugins/Outline`) — feed rate + Go perimeter.
+- [x] Coolant (`Modules/Plugins/Coolant`) — Flood/Mist toggles + overrides.
+- [x] Cutting (`Modules/Plugins/Cutting`) — Feed/Rapids/Speed overrides, spindle
+      CW/CCW/Off + RPM input.
+- [x] Program view (`Modules/Fixed/Program`) — line list with status, program
+      limits panel, load/send.
+- [x] Console (`Modules/Fixed/Console`).
+- [x] Offsets (`Modules/Fixed/Offsets`) — coordinate table + save.
+- [x] Grbl settings (`Modules/Fixed/GrblSettings`) — `$$` view/edit.
+- [x] App settings (`Modules/Fixed/AppSettings`).
+- [x] MDI row (editable combo + history + Send).
+- [x] Signals panel (axis indicators + probe state).
+- [x] State indicator (Idle/Run/Alarm/Hold + brush).
+- [x] Cycle bar: Cycle Start / Feed Hold / Stop / Rewind — already
+      `SendRealtime` (`0x7E`/`0x21`/`0x18`) as of `MainViewModel`; ROADMAP's
+      "placeholder strings" note is stale and should be removed.
+
+### Missing widgets (port from ioSender `CNC Controls`)
+
+- [ ] **Goto widget** (`GotoControl`/`GotoFlyoutControl`) — G28/G30 "goto
+      position" buttons + numeric X/Y/Z + Go, gated on homed state.
+- [ ] **Tool table / Tool view** (`ToolView`) — tool list with Get current
+      position / Set all / Clear all; feeds probing tool-length (`G10 L1 Pn` /
+      `G43 Hn`) and would close the probing tool-table gap.
+- [ ] **Work parameters** (`WorkParametersControl`) — ioSender's right-panel
+      group (work offset fields + tool-change state). Offsets module covers the
+      table; the "work parameters" quick fields are not ported.
+- [ ] **File actions** (`FileActionControl`) — Load / Save / Close / Run from a
+      toolbar; SenderNG has Open (menu + toolbar) and program send in the
+      Program view, but no Save/Close file actions.
+- [ ] **Status bar parity** — ioSender status bar shows Blocks, Message,
+      RunTime, JogStep; SenderNG's Block/Ready/Jog-step texts are hardcoded
+      placeholders (architecture §8 "unbound UI").
+
+### Deferred scope noted here for completeness (do not start without asking)
+
+- [ ] **Foam functional mode** — mode is persisted but only changes the jog
+      layout; foam-specific processes (mirrored dual-gantry jog beyond the
+      cross, foam probing semantics) are not implemented.
+- [ ] **Home / Unlock / Reset buttons** — now bound to `$H`/`$X`/realtime Reset
+      in `MainViewModel` (ROADMAP stale); the **Check checkbox** in the left
+      panel is still unbound.
+
+## Priority 2 — 3D view + advanced probing
+
+- [ ] **3D program view** — port ioSender's `GCodeViewer` (RenderControl /
+      HelixToolkit) as the third center tab (Program / 3D / Console) or a
+      flyout.
+- [ ] **Height-map 3D preview** — ioSender renders the probed grid as a mesh;
+      SenderNG has the map data + XML save/load but no 3D visualization.
+- [ ] **Probe-verification preflight** (`ProbeVerify` + `ConfigControl`
+      checkboxes) — "Manually validate probe is connected" and "Check probe
+      status before start (G59.3)" dialogs.
+- [ ] **Pre/post macros around probe runs** (`MacroDialog`, ioSender
+      `ProbingMacros`).
+- [ ] **Multi-probe selector** (`cbxProbe`) — physical probe vs toolsetter
+      (tool table entry), drives which probe the generated program uses.
+- [ ] **Preview of generated probe program** before running (program is
+      available via `ProbeProgramBuilder.Lines`).
+- [ ] **Height-map apply completeness** — line-based `ApplyHeightMap` currently
+      skips G91/incremental programs and arc Z correction (see probing-gaps.md
+      #5).
+- [ ] **Rotation apply origin** — `ProgramTransform.Rotate` always uses (0,0);
+      ioSender lets you pick a program-limit corner (probing-gaps.md #6).
+
+## Priority 3 — Steppers calibration
+
+- [ ] **Stepper calibration wizard** (`StepperCalibrationWizard`) — port the
+      full measurement/calibration flow.
+
+## Priority 4 — Everything else
+
+Explicitly deferred per architecture §3.4. Tick when deliberately started.
+
+- [ ] **Lathe wizards** (`CNC Controls Lathe`).
+- [ ] **DragKnife** (`CNC Controls Dragknife`) — transform + config.
+- [ ] **Converters** (`CNC Converters`) — Excellon / HPGL import.
+- [ ] **SD card view** (`SDCardView`).
+- [ ] **Camera** (`CNC Controls Camera`, AForge/V4L2) + Camera menu.
+- [ ] **THC monitor / PID log** (`THCMonitorControl`, `PIDLogView`).
+- [ ] **Trinamic view** (`TrinamicView`).
+- [ ] **MPG** (manual pulse generator) support.
+- [ ] **Errors & alarms dialogs** (`ErrorsAndAlarms`, `GrblAlarmList`,
+      `GrblErrorList`) — Help menu currently has About/Libraries placeholders.
+- [ ] **G-code transforms menu** (`GCodeRotate`, `ArcsToLines`, `GCodeCompress`,
+      `GCodeWrap`) — File → Transform submenu.
+- [ ] **Localization** — ioSender ships 9 locales; SenderNG is hardcoded
+      en-US (deliberate strip).
+- [ ] **Telnet / WebSocket transports** — `RealGrblService` is serial-only
+      (`System.IO.Ports`); Telnet/WebSocket stubbed (deliberate strip).
+
+## Cross-cutting tech debt (architecture §8)
+
+- [ ] **`Grbl.cs` stubs** — 288 lines vs upstream 3438; caps parsing ported,
+      rest compile-only stubs. Clean up as features touch them.
+- [ ] **`GrblInfo` static state** — global mutable static; partly mitigated by
+      pure `ParseCaps`.
+- [ ] **Build warnings** — CS8602 / CS8618 / xUnit1031 etc. remain; keep the
+      count flat while working (architecture §9).
+
+## Reference matrix (ioSender → SenderNG)
+
+| ioSender (CNC Controls) | SenderNG | Status |
+| --- | --- | --- |
+| DROControl / DROBaseControl | `Fixed/DroView` | done |
+| MachinePositionFlyout | `Plugins/Mpos` | done (flyout) |
+| OutlineControl / OutlineFlyout | `Plugins/Outline` | done (flyout) |
+| JogFlyoutControl | `Plugins/Jog` | done (flyout) |
+| CoolantControl | `Plugins/Coolant` | done |
+| SpindleControl + FeedControl + OverrideControl | `Plugins/Cutting` | done |
+| JobControl / GCodeListControl | `Fixed/Program` | done |
+| ConsoleControl | `Fixed/Console` | done |
+| OffsetView | `Fixed/Offsets` | done |
+| GrblConfigView | `Fixed/GrblSettings` | done |
+| AppConfigView | `Fixed/AppSettings` | done |
+| MDIControl | MDI row (`MainWindow`) | done |
+| SignalsControl / StatusControl | Signals + state indicator | done |
+| LimitsControl | Program limits panel | done |
+| MacroEditor / MacroExecuteControl | `Plugins/Macro` | done (flyout) |
+| ProbingView + 6 tool controls | `Plugins/Probing` | done (flyout) — see `probing-gaps.md` |
+| GotoControl / GotoFlyoutControl | — | **missing** (P1) |
+| ToolView | — | **missing** (P1) |
+| WorkParametersControl | — | **missing** (P1) |
+| FileActionControl | Open only | partial (P1) |
+| StepperCalibrationWizard | — | **missing** (P3) |
+| GCodeViewer / RenderControl | — | **missing** (P2) |
+| ProbeVerify / ConfigControl / MacroDialog | — | **missing** (P2) |
+| SDCardView | — | deferred (P4) |
+| Camera | — | deferred (P4) |
+| Lathe wizards | — | deferred (P4) |
+| Dragknife | — | deferred (P4) |
+| Converters | — | deferred (P4) |
+| THC monitor / PID log / Trinamic | — | deferred (P4) |
+
+## How this was produced
+
+- ioSender `master` (`3a817cf`) inspected at `MainWindow.xaml`, `JobView.xaml`,
+  `UIViewModel.cs` (sidebar/flyout registration), the `CNC Controls` widget
+  inventory, and the `CNC Controls Probing` module.
+- SenderNG current state read from `HostSetup.cs` (module registration),
+  `MainWindow.axaml`, and each module's view/VM.
+- ROADMAP/architecture items cross-referenced; stale claims (cycle bar bytes,
+  Home/Unlock/Reset unbound) corrected in this plan and in the source docs.
