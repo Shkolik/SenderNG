@@ -278,10 +278,11 @@
             </Border>
         </Panel>
 
-        <!-- Flyout drawer overlay — spans the full row (so it can grow wider than the
-             right column), opens on top, left of the strip. Sizes to its content,
-             capped by the host panel height and window width. -->
-        <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4"
+        <!-- Flyout drawer overlay — anchored right at the flyout strip's left edge
+             (columns 0-2, never covering the strip), grows wider than the right
+             column as needed. Sizes to its content, capped by the host panel
+             height and window width. -->
+        <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
                 MinWidth="360" MaxWidth="{Binding $parent[Window].Width}"
                 MaxHeight="{Binding #FlyoutHost.Bounds.Height}"
                 HorizontalAlignment="Right" VerticalAlignment="Top"
