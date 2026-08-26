@@ -6,10 +6,10 @@
              x:DataType="vm:ProbeViewModel">
 
     <StackPanel Spacing="10" Margin="4" HorizontalAlignment="Stretch">
-        <StackPanel Orientation="Horizontal" Spacing="16">
-            <RadioButton Content="Inside" FontSize="12" GroupName="center"
+        <StackPanel Orientation="Horizontal" Spacing="4">
+            <RadioButton Classes="tool" Content="Inside" FontSize="12" GroupName="center"
                          IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Inside}" />
-            <RadioButton Content="Outside" FontSize="12" GroupName="center"
+            <RadioButton Classes="tool" Content="Outside" FontSize="12" GroupName="center"
                          IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Outside}" />
         </StackPanel>
 

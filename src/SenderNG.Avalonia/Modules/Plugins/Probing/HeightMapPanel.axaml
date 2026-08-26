@@ -38,7 +38,7 @@
                 HorizontalAlignment="Left">
             <StackPanel Spacing="4">
                 <TextBlock Text="Grid" FontWeight="SemiBold" FontSize="11" />
-                <Grid ColumnDefinitions="90,*,90,*" Width="360" HorizontalAlignment="Left">
+                <Grid ColumnDefinitions="90,*,90,*" Width="430" HorizontalAlignment="Left">
                     <TextBlock Grid.Column="0" Text="Grid X:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
                     <TextBox Grid.Column="1" Text="{Binding HmGridSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                              Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"

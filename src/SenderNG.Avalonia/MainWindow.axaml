@@ -281,13 +281,17 @@
         <!-- Flyout drawer overlay — spans only the center + right columns (never
              covering the left DRO panel or the strip), anchored right at the
              strip's left edge. The column span caps its width at center + right
-             so the DRO stays visible. Content scrolls vertically when taller
-             than the row. -->
+             so the DRO stays visible. The flyout view is placed directly in the
+             star row (no wrapping ScrollViewer) so its height is clamped to the
+             row — this lets views with their own ScrollViewer (e.g. Probing)
+             pin their scrollbars to the viewport instead of the content bottom.
+             Tall views without an internal scrollbar clip to the row. -->
         <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
                 MinWidth="360" MaxWidth="{Binding $parent[Window].Width}"
                 MaxHeight="{Binding #FlyoutHost.Bounds.Height}"
                 HorizontalAlignment="Right" VerticalAlignment="Top"
                 Background="White" BorderBrush="#aaa" BorderThickness="1"
+                ClipToBounds="True"
                 IsVisible="{Binding SelectedModule, Converter={x:Static conv:Converters.IsFlyout}}">
             <Grid RowDefinitions="Auto,*">
                 <Border Grid.Row="0" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,0,0,1" Padding="6,4">
@@ -297,9 +301,8 @@
                                 Command="{Binding SelectModuleCommand}" CommandParameter="{x:Null}" />
                     </Grid>
                 </Border>
-                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                    <ContentControl Content="{Binding CurrentModuleView}" Margin="4" Padding="0,0,4,0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-                </ScrollViewer>
+                <ContentControl Grid.Row="1" Content="{Binding CurrentModuleView}" Margin="4" Padding="0,0,4,0"
+                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
             </Grid>
         </Border>
 

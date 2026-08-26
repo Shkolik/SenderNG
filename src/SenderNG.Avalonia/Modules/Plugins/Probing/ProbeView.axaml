@@ -235,10 +235,10 @@
                 <Border Grid.Row="6" Classes="group">
                     <StackPanel Spacing="3">
                         <TextBlock Text="Set offset" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3" />
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <RadioButton Content="G10" FontSize="11" GroupName="cmode" IsChecked="{Binding IsCoordG10}" />
-                            <RadioButton Content="G92" FontSize="11" GroupName="cmode" IsChecked="{Binding IsCoordG92}" />
-                            <RadioButton Content="Measure" FontSize="11" GroupName="cmode" IsChecked="{Binding IsCoordMeasure}" />
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <RadioButton Classes="tool" Content="G10" FontSize="11" GroupName="cmode" IsChecked="{Binding IsCoordG10}" />
+                            <RadioButton Classes="tool" Content="G92" FontSize="11" GroupName="cmode" IsChecked="{Binding IsCoordG92}" />
+                            <RadioButton Classes="tool" Content="Measure" FontSize="11" GroupName="cmode" IsChecked="{Binding IsCoordMeasure}" />
                         </StackPanel>
                         <Grid ColumnDefinitions="100,*">
                             <TextBlock Classes="fld" Text="System:" />

@@ -93,7 +93,7 @@
         </Style>
     </UserControl.Styles>
 
-    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="8,8,8,8">
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="8,8,8,8">
     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
 
         <!-- Selectors stacked vertically with a small gap; no box outline -->
