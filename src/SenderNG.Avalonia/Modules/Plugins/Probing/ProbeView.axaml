@@ -113,6 +113,7 @@
                 <Grid Grid.Row="0" ColumnDefinitions="*,32">
                     <ComboBox Grid.Column="0" Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999"
                               BorderThickness="1" FontSize="11"
+                              HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                               ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}"
                               IsEditable="True"
                               prims:TextSearch.TextBinding="{ReflectionBinding Name}"
@@ -237,6 +238,7 @@
                             <TextBlock Classes="fld" Text="System:" />
                             <ComboBox Grid.Column="1" Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999"
                                       BorderThickness="1" FontSize="11"
+                                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                       ItemsSource="{Binding CoordinateSystemNames}"
                                       SelectedIndex="{Binding CoordinateSystemIndex, Mode=TwoWay}" />
                         </Grid>
