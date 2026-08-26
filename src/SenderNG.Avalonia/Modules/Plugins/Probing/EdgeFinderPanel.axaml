@@ -5,7 +5,7 @@
              x:Class="SenderNG.Avalonia.Modules.Plugins.EdgeFinderPanel"
              x:DataType="vm:ProbeViewModel">
 
-    <StackPanel Spacing="8" Margin="4">
+    <StackPanel Spacing="8" Margin="0,4">
         <StackPanel Orientation="Horizontal" Spacing="24">
             <!-- Edge/corner selector (diagram: D top-left, C top-right, A bottom-left, B bottom-right).
                  Fixed-size grid with square cells that the buttons fill completely (jog-widget style). -->

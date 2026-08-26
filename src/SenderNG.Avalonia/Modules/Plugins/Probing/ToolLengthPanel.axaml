@@ -5,7 +5,7 @@
              x:Class="SenderNG.Avalonia.Modules.Plugins.ToolLengthPanel"
              x:DataType="vm:ProbeViewModel">
 
-    <StackPanel Spacing="8" Margin="4">
+    <StackPanel Spacing="8" Margin="0,4">
         <TextBlock Text="Probe Z downward onto the touch plate / fixture to establish the tool length offset."
                    FontSize="11" Foreground="#333" TextWrapping="Wrap" />
 

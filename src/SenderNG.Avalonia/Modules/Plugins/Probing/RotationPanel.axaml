@@ -5,7 +5,7 @@
              x:Class="SenderNG.Avalonia.Modules.Plugins.RotationPanel"
              x:DataType="vm:ProbeViewModel">
 
-    <StackPanel Spacing="10" Margin="4" HorizontalAlignment="Stretch">
+    <StackPanel Spacing="10" Margin="0,4" HorizontalAlignment="Stretch">
         <TextBlock Text="Probe two points along an edge to measure the angle of the workpiece."
                    FontSize="11" Foreground="#333" TextWrapping="Wrap" />
 

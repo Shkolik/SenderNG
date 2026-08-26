@@ -5,7 +5,7 @@
              x:Class="SenderNG.Avalonia.Modules.Plugins.CenterFinderPanel"
              x:DataType="vm:ProbeViewModel">
 
-    <StackPanel Spacing="10" Margin="4" HorizontalAlignment="Stretch">
+    <StackPanel Spacing="10" Margin="0,4" HorizontalAlignment="Stretch">
         <StackPanel Orientation="Horizontal" Spacing="4">
             <RadioButton Classes="tool" Content="Inside" FontSize="12" GroupName="center"
                          IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Inside}" />
