@@ -172,28 +172,6 @@ public class HeightMap
         w.WriteEndElement();
     }
 
-    /// <summary>
-    /// Exports the probed grid as a point cloud in XYZ format ("x y z" per
-    /// line, header comments first). Unprobed cells are skipped, so partial
-    /// maps export cleanly. Heights are the probed values (relative deltas).
-    /// </summary>
-    public void ExportPointsCloud(string path)
-    {
-        using var w = new StreamWriter(path);
-        w.WriteLine("# SenderNG height map point cloud");
-        w.WriteLine("# X Y Z");
-        for (var x = 0; x < SizeX; x++)
-        {
-            for (var y = 0; y < SizeY; y++)
-            {
-                if (!Points[x, y].HasValue)
-                    continue;
-                var c = GetCoordinates(x, y);
-                w.WriteLine($"{Fmt(c.X)} {Fmt(c.Y)} {Fmt(Points[x, y]!.Value)}");
-            }
-        }
-    }
-
     private static double Parse(string? s) =>
         double.TryParse(s, NumberStyles.Float, DecimalFormat, out var v) ? v : 0d;
 

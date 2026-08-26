@@ -25,9 +25,9 @@
                     <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding WorkpieceSizeY, Mode=TwoWay, StringFormat='0.###'}"
                              Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                              FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
-                    <CheckBox Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Content="Lock" FontSize="11"
+                    <CheckBox Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Classes="padlock"
                               VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="{Binding WorkpieceLockXY}"
-                              ToolTip.Tip="Unlock and set X or Y size to 0 to probe in one direction only" />
+                              ToolTip.Tip="Locked: X and Y sizes stay equal. Unlock to probe in one direction only." />
                 </Grid>
             </StackPanel>
         </Border>

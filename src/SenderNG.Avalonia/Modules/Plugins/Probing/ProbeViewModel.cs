@@ -68,10 +68,9 @@ public class ProbeViewModel : ViewModelBase
         ProfileAddCommand = new DelegateCommand(_ => AddProfile());
         ProfileUpdateCommand = new DelegateCommand(_ => UpdateProfile());
         ProfileDeleteCommand = new DelegateCommand(_ => DeleteProfile());
-        HeightMapSaveCommand = new DelegateCommand(_ => SaveHeightMap());
-        HeightMapLoadCommand = new DelegateCommand(_ => LoadHeightMap());
+        HeightMapSaveCommand = new DelegateCommand(_ => _ = SaveHeightMapAsync());
+        HeightMapLoadCommand = new DelegateCommand(_ => _ = LoadHeightMapAsync());
         HeightMapApplyCommand = new DelegateCommand(_ => ApplyHeightMapToProgram());
-        HeightMapExportCommand = new DelegateCommand(_ => ExportHeightMapPoints());
         RotationApplyCommand = new DelegateCommand(_ => ApplyRotationToProgram());
     }
 
@@ -110,7 +109,14 @@ public class ProbeViewModel : ViewModelBase
     public string NewProfileName
     {
         get => _newProfileName;
-        set => SetField(ref _newProfileName, value);
+        set
+        {
+            // Avalonia's editable ComboBox writes the selected item's ToString()
+            // (the full type name) into Text; translate that back to the profile name.
+            if ((value == typeof(ProbingProfile).FullName || value == nameof(ProbingProfile)) && _selectedProfile is not null)
+                value = _selectedProfile.Name;
+            SetField(ref _newProfileName, value);
+        }
     }
 
     public DelegateCommand ProfileAddCommand { get; private set; } = null!;
@@ -409,7 +415,6 @@ public class ProbeViewModel : ViewModelBase
     public DelegateCommand HeightMapSaveCommand { get; private set; } = null!;
     public DelegateCommand HeightMapLoadCommand { get; private set; } = null!;
     public DelegateCommand HeightMapApplyCommand { get; private set; } = null!;
-    public DelegateCommand HeightMapExportCommand { get; private set; } = null!;
     public DelegateCommand RotationApplyCommand { get; private set; } = null!;
 
     private void ApplyToolInstructions() => Instructions = SelectedTool switch
@@ -767,16 +772,24 @@ public class ProbeViewModel : ViewModelBase
 
     // ------------------------------------------------------ height map file io
 
-    private void SaveHeightMap()
+    private async Task SaveHeightMapAsync()
     {
         if (HeightMapData is null)
         {
             LastResult = "No height map to save";
             return;
         }
+
+        // Prefer a native save dialog; fall back to the settings dir when no UI is available.
+        var dialogs = _services?.GetService(typeof(IFileDialogService)) as IFileDialogService;
+        var path = dialogs is null
+            ? Path.Combine(SettingsService.DefaultDir(), "heightmap.map")
+            : await dialogs.SaveFileAsync("Save height map", "heightmap.map", "Height map (*.map)|*.map");
+        if (string.IsNullOrEmpty(path))
+            return; // cancelled
+
         try
         {
-            var path = Path.Combine(SettingsService.DefaultDir(), "heightmap.map");
             HeightMapData.Save(path);
             LastResult = $"Height map saved to {path}";
         }
@@ -786,11 +799,18 @@ public class ProbeViewModel : ViewModelBase
         }
     }
 
-    private void LoadHeightMap()
+    private async Task LoadHeightMapAsync()
     {
+        // Prefer a native open dialog; fall back to the settings dir when no UI is available.
+        var dialogs = _services?.GetService(typeof(IFileDialogService)) as IFileDialogService;
+        var path = dialogs is null
+            ? Path.Combine(SettingsService.DefaultDir(), "heightmap.map")
+            : await dialogs.OpenFileAsync("Load height map", "Height map (*.map)|*.map");
+        if (string.IsNullOrEmpty(path))
+            return; // cancelled
+
         try
         {
-            var path = Path.Combine(SettingsService.DefaultDir(), "heightmap.map");
             if (!File.Exists(path))
             {
                 LastResult = $"No height map at {path}";
@@ -802,31 +822,14 @@ public class ProbeViewModel : ViewModelBase
             HmMinY = map.Min.Y;
             HmMaxX = map.Max.X;
             HmMaxY = map.Max.Y;
+            HmGridSizeX = map.GridX;
+            HmGridSizeY = map.GridY;
             HasHeightMap = true;
             LastResult = $"Height map loaded from {path}";
         }
         catch (Exception ex)
         {
             LastResult = $"Load failed: {ex.Message}";
-        }
-    }
-
-    private void ExportHeightMapPoints()
-    {
-        if (HeightMapData is null)
-        {
-            LastResult = "No height map to export";
-            return;
-        }
-        try
-        {
-            var path = Path.Combine(_settingsService.SettingsDir, "heightmap-points.xyz");
-            HeightMapData.ExportPointsCloud(path);
-            LastResult = $"Point cloud exported to {path}";
-        }
-        catch (Exception ex)
-        {
-            LastResult = $"Export failed: {ex.Message}";
         }
     }
 

@@ -60,10 +60,6 @@
             <Button Content="Apply to program" Command="{Binding HeightMapApplyCommand}" Padding="12,5" Height="28" MinHeight="28"
                     CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" FontSize="11" VerticalContentAlignment="Center"
                     IsEnabled="{Binding HasHeightMap}" />
-            <Button Content="Export points" Command="{Binding HeightMapExportCommand}" Padding="12,5" Height="28" MinHeight="28"
-                    CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" FontSize="11" VerticalContentAlignment="Center"
-                    IsEnabled="{Binding HasHeightMap}"
-                    ToolTip.Tip="Export the probed grid as an XYZ point cloud" />
         </StackPanel>
     </StackPanel>
 </UserControl>

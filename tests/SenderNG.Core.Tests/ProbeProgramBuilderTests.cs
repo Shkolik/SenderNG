@@ -180,29 +180,6 @@ public class ProbeProgramBuilderTests
     }
 
     [Fact]
-    public void HeightMap_exports_probed_cells_as_xyz_point_cloud()
-    {
-        var map = new HeightMap(10, 10, new Vec2(0, 0), new Vec2(20, 10));
-        map.AddPoint(0, 0, 0);
-        map.AddPoint(1, 1, 2.5);
-        var path = Path.Combine(Path.GetTempPath(), $"hm-{Guid.NewGuid():N}.xyz");
-        try
-        {
-            map.ExportPointsCloud(path);
-            var lines = File.ReadAllLines(path);
-            Assert.Equal("# SenderNG height map point cloud", lines[0]);
-            Assert.Equal("# X Y Z", lines[1]);
-            Assert.Equal(2, lines.Length - 2); // only probed cells exported
-            Assert.Contains("10 10 2.5", lines); // GetCoordinates(1,1)
-            Assert.Contains("0 0 0", lines);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [Fact]
     public void HeightMap_probes_grid_in_snake_path()
     {
         var map = new HeightMap(10, 10, new Vec2(0, 0), new Vec2(20, 10));

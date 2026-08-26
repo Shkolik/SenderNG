@@ -44,6 +44,36 @@ public class AvaloniaFileDialogService : IFileDialogService
         return files.Count > 0 ? files[0].Path.LocalPath : null;
     }
 
+    public async Task<string?> SaveFileAsync(string title, string suggestedFileName, params string[] filters)
+    {
+        var provider = GetStorageProvider();
+        if (provider is null)
+            return null;
+
+        var options = new FilePickerSaveOptions
+        {
+            Title = title,
+            SuggestedFileName = suggestedFileName,
+        };
+
+        var fileTypes = new List<FilePickerFileType>();
+        foreach (var filter in filters)
+        {
+            // Filter format: "Name|*.a;*.b" (one '|' separator)
+            var parts = filter.Split('|', 2);
+            if (parts.Length != 2) continue;
+            fileTypes.Add(new FilePickerFileType(parts[0])
+            {
+                Patterns = parts[1].Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            });
+        }
+        if (fileTypes.Count > 0)
+            options.FileTypeChoices = fileTypes;
+
+        var file = await provider.SaveFilePickerAsync(options);
+        return file?.Path.LocalPath;
+    }
+
     public Task ShowErrorAsync(string title, string message)
     {
         var tcs = new TaskCompletionSource();

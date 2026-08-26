@@ -10,23 +10,23 @@
             <!-- Edge/corner selector (diagram: D top-left, C top-right, A bottom-left, B bottom-right).
                  Fixed-size grid with square cells that the buttons fill completely (jog-widget style). -->
             <Grid Width="132" Height="132" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Top">
-                <RadioButton Grid.Row="0" Grid.Column="0" Classes="edge" GroupName="edge" Content="D"
+                <RadioButton Grid.Row="0" Grid.Column="0" Classes="edge" Content="D"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=D}" />
-                <RadioButton Grid.Row="0" Grid.Column="1" Classes="edge" GroupName="edge" Content="CD"
+                <RadioButton Grid.Row="0" Grid.Column="1" Classes="edge" Content="CD"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CD}" />
-                <RadioButton Grid.Row="0" Grid.Column="2" Classes="edge" GroupName="edge" Content="C"
+                <RadioButton Grid.Row="0" Grid.Column="2" Classes="edge" Content="C"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=C}" />
-                <RadioButton Grid.Row="1" Grid.Column="0" Classes="edge" GroupName="edge" Content="AD"
+                <RadioButton Grid.Row="1" Grid.Column="0" Classes="edge" Content="AD"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AD}" />
-                <RadioButton Grid.Row="1" Grid.Column="1" Classes="edge" GroupName="edge" Content="Z"
+                <RadioButton Grid.Row="1" Grid.Column="1" Classes="edge" Content="Z"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Z}" />
-                <RadioButton Grid.Row="1" Grid.Column="2" Classes="edge" GroupName="edge" Content="CB"
+                <RadioButton Grid.Row="1" Grid.Column="2" Classes="edge" Content="CB"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CB}" />
-                <RadioButton Grid.Row="2" Grid.Column="0" Classes="edge" GroupName="edge" Content="A"
+                <RadioButton Grid.Row="2" Grid.Column="0" Classes="edge" Content="A"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=A}" />
-                <RadioButton Grid.Row="2" Grid.Column="1" Classes="edge" GroupName="edge" Content="AB"
+                <RadioButton Grid.Row="2" Grid.Column="1" Classes="edge" Content="AB"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AB}" />
-                <RadioButton Grid.Row="2" Grid.Column="2" Classes="edge" GroupName="edge" Content="B"
+                <RadioButton Grid.Row="2" Grid.Column="2" Classes="edge" Content="B"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=B}" />
             </Grid>
 
