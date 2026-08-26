@@ -91,13 +91,41 @@ public class CuttingViewModelTests
         });
 
         Assert.Equal(630, vm.Feed);
-        Assert.Equal(12000, vm.Speed);
+        Assert.Equal(10800, vm.Speed);
+        Assert.Equal(10800, vm.SpindleRpm);
         Assert.Equal(150, vm.FeedOvr);
         Assert.Equal(50, vm.RapidOvr);
         Assert.Equal(90, vm.SpindleOvr);
         Assert.False(vm.IsRapidFull);
         Assert.True(vm.IsRapidHalf);
         Assert.False(vm.IsRapidQuarter);
+    }
+
+    [Fact]
+    public void Speed_and_spindle_input_include_speed_override()
+    {
+        var sent = new List<string>();
+        var grbl = new RecordingGrbl(sent);
+        var vm = new CuttingViewModel(grbl);
+
+        grbl.Push(new MachineState(3) { Speed = 1000, SpindleOvr = 100 });
+        Assert.Equal(1000, vm.Speed);
+        Assert.Equal(1000, vm.SpindleRpm);
+
+        grbl.Push(new MachineState(3) { Speed = 1000, SpindleOvr = 110 });
+        Assert.Equal(1100, vm.Speed);
+        Assert.Equal(1100, vm.SpindleRpm);
+
+        grbl.Push(new MachineState(3) { Speed = 1000, SpindleOvr = 100 });
+        Assert.Equal(1000, vm.Speed);
+        Assert.Equal(1000, vm.SpindleRpm);
+
+        grbl.Push(new MachineState(3) { Speed = 0, SpindleOvr = 100 });
+        Assert.Equal(0, vm.Speed);
+        Assert.Equal(1000, vm.SpindleRpm);
+
+        vm.SpindleCwCommand.Execute(null);
+        Assert.Equal(["M3 S1000"], sent);
     }
 }
 
@@ -152,6 +180,20 @@ public class CuttingViewModelSpindleTests
         var vm = new CuttingViewModel(new RecordingGrbl([]));
 
         Assert.Equal(1000, vm.SpindleRpm);
+    }
+
+    [Fact]
+    public void Cw_command_sends_unoverridden_rpm_when_override_is_active()
+    {
+        var sent = new List<string>();
+        var grbl = new RecordingGrbl(sent);
+        var vm = new CuttingViewModel(grbl);
+
+        grbl.Push(new MachineState(3) { SpindleOvr = 110 });
+        vm.SpindleRpm = 1100;
+        vm.SpindleCwCommand.Execute(null);
+
+        Assert.Equal(["M3 S1000"], sent);
     }
 
     [Fact]

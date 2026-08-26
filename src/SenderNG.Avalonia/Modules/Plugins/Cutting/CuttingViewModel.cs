@@ -40,7 +40,14 @@ public class CuttingViewModel : ViewModelBase
     public int SpindleOvr
     {
         get => _spindleOvr;
-        private set => SetField(ref _spindleOvr, value);
+        private set
+        {
+            if (SetField(ref _spindleOvr, value))
+            {
+                OnPropertyChanged(nameof(Speed));
+                OnPropertyChanged(nameof(SpindleRpm));
+            }
+        }
     }
 
     private double _feed;
@@ -50,36 +57,45 @@ public class CuttingViewModel : ViewModelBase
         private set => SetField(ref _feed, value);
     }
 
-    private double _speed;
+    private double _rawSpeed;
     public double Speed
     {
-        get => _speed;
+        get => _rawSpeed * SpindleOvr / 100d;
         private set
         {
-            if (SetField(ref _speed, value))
+            if (SetField(ref _rawSpeed, value, nameof(Speed)))
             {
                 OnPropertyChanged(nameof(IsSpindleOn));
                 // Direction buttons only make sense while the spindle is stopped.
                 SpindleCwCommand?.RaiseCanExecuteChanged();
                 SpindleCcwCommand?.RaiseCanExecuteChanged();
-                // The RPM input mirrors the last commanded speed (S word); keep
-                // it when the spindle stops instead of dropping to 0.
+                // Keep the last commanded S word when the spindle stops instead
+                // of replacing the editable RPM with zero.
                 if (value > 0)
-                    SpindleRpm = (int)Math.Round(value);
+                    SetCommandedSpindleRpm((int)Math.Round(value));
             }
         }
     }
 
-    private int _spindleRpm = 1000;
-    /// <summary>Requested spindle speed (RPM) used by the CW/CCW start commands.</summary>
+    private int _commandedSpindleRpm = 1000;
+    /// <summary>Effective spindle speed shown in the header and RPM input.</summary>
     public int SpindleRpm
     {
-        get => _spindleRpm;
-        set => SetField(ref _spindleRpm, value);
+        get => (int)Math.Round(_commandedSpindleRpm * SpindleOvr / 100d);
+        set
+        {
+            var commanded = SpindleOvr == 0
+                ? value
+                : (int)Math.Round(value * 100d / SpindleOvr);
+            SetCommandedSpindleRpm(commanded);
+        }
     }
 
-    /// <summary>Spindle is running (live Speed above zero).</summary>
-    public bool IsSpindleOn => Speed > 0;
+    private void SetCommandedSpindleRpm(int value) =>
+        SetField(ref _commandedSpindleRpm, value, nameof(SpindleRpm));
+
+    /// <summary>Spindle is running (raw live speed above zero).</summary>
+    public bool IsSpindleOn => _rawSpeed > 0;
 
     public DelegateCommand FeedResetCommand { get; }
     public DelegateCommand FeedCoarsePlusCommand { get; }
@@ -149,7 +165,7 @@ public class CuttingViewModel : ViewModelBase
     {
         try
         {
-            _ = _grbl.SendAsync($"{mode} S{SpindleRpm}");
+            _ = _grbl.SendAsync($"{mode} S{_commandedSpindleRpm}");
         }
         catch (Exception ex)
         {
@@ -174,9 +190,9 @@ public class CuttingViewModel : ViewModelBase
         if (state is null)
             return;
         Feed = state.Feed;
+        SpindleOvr = state.SpindleOvr;
         Speed = state.Speed;
         FeedOvr = state.FeedOvr;
         RapidOvr = state.RapidOvr;
-        SpindleOvr = state.SpindleOvr;
     }
 }
