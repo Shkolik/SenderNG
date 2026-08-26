@@ -11,17 +11,17 @@
 
         <StackPanel Orientation="Horizontal" Spacing="16">
             <TextBlock Text="Edge:" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-            <!-- Same flat button style as the edge finder selector -->
-            <UniformGrid Rows="1" Columns="4" Width="184">
-                <RadioButton Classes="edge" GroupName="redge" Content="AD"
+            <!-- Same flat button style as the edge finder selector: fixed grid, square cells -->
+            <Grid Width="176" Height="44" ColumnDefinitions="*,*,*,*">
+                <RadioButton Grid.Column="0" Classes="edge" GroupName="redge" Content="AD"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AD}" />
-                <RadioButton Classes="edge" GroupName="redge" Content="AB"
+                <RadioButton Grid.Column="1" Classes="edge" GroupName="redge" Content="AB"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AB}" />
-                <RadioButton Classes="edge" GroupName="redge" Content="CB"
+                <RadioButton Grid.Column="2" Classes="edge" GroupName="redge" Content="CB"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CB}" />
-                <RadioButton Classes="edge" GroupName="redge" Content="CD"
+                <RadioButton Grid.Column="3" Classes="edge" GroupName="redge" Content="CD"
                              IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CD}" />
-            </UniformGrid>
+            </Grid>
         </StackPanel>
 
         <Button Content="Apply rotation to loaded program" Command="{Binding RotationApplyCommand}"

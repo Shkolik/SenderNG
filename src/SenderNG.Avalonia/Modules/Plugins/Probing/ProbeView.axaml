@@ -52,11 +52,14 @@
             <Setter Property="Background" Value="#ddd" />
             <Setter Property="BorderBrush" Value="#666" />
         </Style>
-        <!-- Edge/corner selector buttons: flat squares, content centered -->
+        <!-- Edge/corner selector buttons: flat squares filling their cell (jog-widget style) -->
         <Style Selector="RadioButton.edge">
             <Setter Property="Focusable" Value="False" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border x:Name="Root" CornerRadius="0" BorderThickness="1" Margin="1"
