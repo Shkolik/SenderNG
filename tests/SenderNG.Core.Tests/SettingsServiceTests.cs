@@ -37,11 +37,13 @@ public class SettingsServiceTests
         var saved = new AppSettings { Mode = "Foam" };
         saved.Current.DemoAxes = 4;
         saved.Current.Port = "COM9";
+        saved.Current.BaudRate = 250000;
         svc.Save(saved);
         var loaded = svc.Load();
         Assert.Equal("Foam", loaded.Mode);
         Assert.Equal(4, loaded.Current.DemoAxes);
         Assert.Equal("COM9", loaded.Current.Port);
+        Assert.Equal(250000, loaded.Current.BaudRate);
     }
 
     [Fact]

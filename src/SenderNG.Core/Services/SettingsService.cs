@@ -45,6 +45,7 @@ public class SettingsService
             {
                 DemoAxes = _current.DemoAxes,
                 Port = _current.Port,
+                BaudRate = _current.BaudRate,
                 ModulesVisibility = _current.ModulesVisibility,
             };
             _current.Modes[AppSettings.FoamMode] = new ModeSettings();

@@ -67,6 +67,43 @@ public class CoolantViewModelTests
     }
 }
 
+public class CoolantCapabilityVisibilityTests
+{
+    /// <summary>Test double that overrides Capabilities to simulate classic grbl (no M7).</summary>
+    private sealed class CapsGrbl(ControllerCapabilities caps) : IGrblService
+    {
+        private readonly System.Reactive.Subjects.BehaviorSubject<MachineState> _sub =
+            new(new MachineState(3));
+        public bool IsConnected => true;
+        public System.IObservable<MachineState> State => _sub;
+        public ControllerCapabilities Capabilities => caps;
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public void SendRealtime(byte code) { }
+        public Task SendAsync(string line) => Task.CompletedTask;
+    }
+
+    [Fact]
+    public void Classic_grbl_without_m7_hides_mist_toggle()
+    {
+        var grbl = new CapsGrbl(new ControllerCapabilities { IsGrblHAL = false, CoolantMist = false });
+        var vm = new CoolantViewModel(grbl);
+
+        Assert.True(vm.HasFlood);
+        Assert.False(vm.HasMist);
+    }
+
+    [Fact]
+    public void GrblHAL_shows_both_coolant_toggles()
+    {
+        var grbl = new CapsGrbl(ControllerCapabilities.Full);
+        var vm = new CoolantViewModel(grbl);
+
+        Assert.True(vm.HasFlood);
+        Assert.True(vm.HasMist);
+    }
+}
+
 public class DemoGrblServiceCoolantTests
 {
     [Fact]

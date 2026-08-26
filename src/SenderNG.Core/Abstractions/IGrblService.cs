@@ -13,6 +13,14 @@ public interface IGrblService
     void SendRealtime(byte code);
 
     IObservable<MachineState> State { get; }
+
+    /// <summary>
+    /// Controller capability snapshot from the connect-time handshake. Defaults to
+    /// <see cref="ControllerCapabilities.Unknown"/> so lightweight test doubles and
+    /// services that haven't handshaken still compile; <see cref="DemoGrblService"/>
+    /// and <see cref="RealGrblService"/>/<see cref="GrblServiceProxy"/> override it.
+    /// </summary>
+    ControllerCapabilities Capabilities => ControllerCapabilities.Unknown;
 }
 
 /// <summary>grblHAL realtime command bytes. Coolant toggle bytes are identical

@@ -21,6 +21,9 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
     public IObservable<MachineState> State => _subject;
 
+    // Demo reports a full capability set so both coolant modes stay visible.
+    public ControllerCapabilities Capabilities => ControllerCapabilities.Full;
+
     public DemoGrblService(AppSettings settings, string? settingsFilePath = null, int pollIntervalMs = 200)
     {
         _subject = new BehaviorSubject<MachineState>(new MachineState(settings.Current.DemoAxes));

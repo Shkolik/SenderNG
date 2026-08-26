@@ -683,6 +683,9 @@ public class MainViewModel : ViewModelBase
                 port = ports[0];
             }
             Status = $"Connecting to {port}...";
+            // Apply the profile's serial baud rate to the real service before opening.
+            if (ResolveInner(Grbl) is RealGrblService real)
+                real.BaudRate = _settingsService.Load().Current.BaudRate;
             await Grbl.ConnectAsync(port);
             Status = $"Connected: {port}";
         }

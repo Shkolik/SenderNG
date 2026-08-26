@@ -18,21 +18,21 @@
 Nothing on a real machine works reliably until `RealGrblService` can talk to a
 controller. Demo mode masks these gaps in day-to-day use.
 
-- [ ] **Status-report read loop** — `RealGrblService` has no background read /
-      status-polling loop. It parses `WPos:/MPos:`, `[PRB:...]`, `Pn:`,
-      `FS:/Ov:` etc. (unit-tested) but nothing feeds them in from a serial port.
-      Blocks: live DRO/MPos on real hardware, real probing (`ProbeRunner` waits
-      for Idle + `[PRB:]`), state indicator, signals.
-- [ ] **Full grbl handshake** (`$I` + `[OPT:...]`, grblHAL build/version
+- [x] **Status-report read loop** — `RealGrblService` now runs a background reader
+      (injectable `IGrblTransport`) that feeds status reports into
+      `StatusReportParser` continuously, plus a suspendable `?` poller
+      (ioSender `PollGrbl` semantics). Verified on a real grbl 1.2i board @ COM6
+      (live status, `$$`, `$I`).
+- [x] **Full grbl handshake** (`$I` + `[OPT:...]`, grblHAL build/version
       detection) and an exposed `ControllerCapabilities` on `IGrblService`
-      (ROADMAP top item). Currently only a minimal `$I` probe; axis count is
-      partially derived from `[OPT:...]`.
-- [ ] **Accessory-state parsing** — `Flood`/`Mist` in `MachineState` are
-      demo-only; the real status-report parser must read the accessory-state
-      field (drives Coolant toggles on real hardware).
-- [ ] **Connect dialog / port discovery polish** — ioSender has a PortDialog
-      with refresh + connect on open; SenderNG uses a settings string (auto /
-      first port). Parity only matters once the read loop exists.
+      (ROADMAP top item). `ControllerInfoParser` reads `[VER:]` / `[AXS:]` /
+      `[OPT:]` (real 1.2i output verified: axes from `[AXS:]`, tools from `[OPT:]`).
+- [x] **Accessory-state parsing** — `StatusReportParser` reads the grblHAL `A:`
+      accessory field into `MachineState.Flood`/`Mist`/spindle (cp. ioSender
+      `GrblViewModel.cs`); classic grbl leaves them untouched.
+- [ ] **Connect dialog / port discovery polish** — baud-rate (D.1) and the `$I`
+      handshake are done, but the PortDialog-style UI itself (port list + refresh +
+      connect-on-open) is **not built** — remaining P0-D.2.
 
 ## Priority 1 — Base widgets and processes (mill + foam)
 

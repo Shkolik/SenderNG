@@ -25,6 +25,8 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
 
     public bool IsConnected => _inner.IsConnected;
 
+    public ControllerCapabilities Capabilities => _inner.Capabilities;
+
     // BehaviorSubject: replays the current machine state, so subscribers that
     // attach after construction (widgets, MainViewModel) immediately see the
     // inner service's latest state instead of waiting for the next emission.

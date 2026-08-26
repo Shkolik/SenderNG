@@ -42,10 +42,12 @@
         <StackPanel Orientation="Horizontal" Spacing="4">
             <ToggleButton Classes="coolant" Content="Flood"
                           IsChecked="{Binding IsFlood, Mode=OneWay}"
-                          Command="{Binding ToggleFloodCommand}" />
+                          Command="{Binding ToggleFloodCommand}"
+                          IsVisible="{Binding HasFlood}" />
             <ToggleButton Classes="coolant" Content="Mist"
                           IsChecked="{Binding IsMist, Mode=OneWay}"
-                          Command="{Binding ToggleMistCommand}" />
+                          Command="{Binding ToggleMistCommand}"
+                          IsVisible="{Binding HasMist}" />
         </StackPanel>
     </StackPanel>
 </UserControl>

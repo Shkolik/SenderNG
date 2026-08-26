@@ -3,33 +3,28 @@
 Gaps and planned work, roughly in priority order. Items land here when a task
 surfaces a known limitation that we deliberately defer.
 
-## Controller capability detection (grbl handshake)
+## Controller capability detection (grbl handshake) — DONE
 
-**Gap:** the Coolant module always shows both Flood and Mist toggle buttons.
-Realtime coolant override toggles (`0xA0`/`0xA1`) are identical in classic
-grbl 1.1 and grblHAL, but:
+**Resolved (P0, WS-B):** the connect-time `$I` handshake is implemented and the
+Coolant module now hides the Mist toggle when unsupported. `RealGrblService`
+runs a `$I` exchange on connect; `ControllerInfoParser` reads `[VER:]`/
+`[AXS:]`/`[OPT:]` (verified against a real grbl 1.2i board) and fills an
+immutable `ControllerCapabilities` exposed on `IGrblService`. `CoolantViewModel`
+shows `HasFlood`/`HasMist` from `_grbl.Capabilities` and the XAML binds button
+visibility. Demo reports a full capability set so both toggles stay visible.
 
-- grbl 1.1: Mist exists only when the firmware was compiled with `ENABLE_M7`
-  (default off) - the toggle is silently ignored otherwise.
-- grblHAL: capability flags (`hal.coolant_cap.flood` / `.mist`) gate the
-  toggles; a controller without a coolant output ignores them.
-
-Until we parse capability flags from the controller, we cannot know whether
-Mist (or even Flood) is actually supported.
-
-**Plan:** implement the full grbl/grblHAL handshake (`$I` + `[OPT:...]` parsing,
-grblHAL build/version detection) in `RealGrblService`, expose a capability set
-on `IGrblService` (e.g. `ControllerCapabilities`), and let the Coolant module
-hide unsupported toggles. Same capability data will drive other UI decisions
-(axis count from `[OPT:...]` is already partially used).
+Note: the honest default is `CoolantMist = isGrblHAL` (a reliable signal for
+classic grbl 1.1's `ENABLE_M7` isn't exposed via `$I`). Axis count comes from
+`[AXS:]`, tool count from the 4th `[OPT:]` field.
 
 ## Other known deferred items
 
-- Real machine `MachineState` parsing: `Flood`/`Mist` flags are demo-only until
-  the status-report parser reads the accessory-state field.
 - Foam CNC mode: functional foam-specific behavior (mode is persisted but only
   changes jog layout today).
+- P0-D.2 connect dialog: port list + refresh + baud selector UI (D.1 baud
+  plumbing is done). See `docs/p0-controller-plumbing-plan.md`.
 
 > The full ioSender gap map lives in `docs/iosender-gaps.md`. The cycle-bar
-> realtime bytes and Home/Unlock/Reset bindings are done (older notes claiming
-> otherwise are stale).
+> realtime bytes and Home/Unlock/Reset bindings are done, and the status read
+> loop / `$I` handshake / accessory parsing landed (P0-A/B/C); older notes
+> claiming otherwise are stale.

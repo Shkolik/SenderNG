@@ -23,6 +23,11 @@ public class CoolantViewModel : ViewModelBase
         private set => SetField(ref _isMist, value);
     }
 
+    // Capability-driven visibility (B.3): the toggle is hidden when the connected
+    // firmware doesn't support the coolant mode. Unknown/defaults report available.
+    public bool HasFlood => _grbl.Capabilities.CoolantFlood;
+    public bool HasMist => _grbl.Capabilities.CoolantMist;
+
     public DelegateCommand ToggleFloodCommand { get; }
     public DelegateCommand ToggleMistCommand { get; }
 

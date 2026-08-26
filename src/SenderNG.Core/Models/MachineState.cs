@@ -2,6 +2,14 @@ using CNC.Core;
 
 namespace CNC.Core.Services;
 
+/// <summary>Spindle direction as reported by the grblHAL accessory ('A:') field.</summary>
+public enum SpindleDirection
+{
+    Off,
+    Forward, // 'S'
+    Reverse, // 'C'
+}
+
 public class MachineState
 {
     public int NumAxes { get; set; } = 3;
@@ -15,6 +23,10 @@ public class MachineState
     public Signals Signals { get; set; } = Signals.Off;
     public bool Flood { get; set; }
     public bool Mist { get; set; }
+
+    // Accessory state from the grblHAL 'A:' field (classic grbl has no field).
+    public bool IsToolChanging { get; set; }
+    public SpindleDirection SpindleState { get; set; } = SpindleDirection.Off;
 
     // Live values (grbl 1.1 / grblHAL status report FS: field).
     public double Feed { get; set; }

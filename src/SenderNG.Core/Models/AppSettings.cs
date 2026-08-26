@@ -16,6 +16,7 @@ public class AppSettings
     // Legacy flat fields kept ONLY for settings.json migration; not used after Load.
     public int DemoAxes { get; set; } = 3;
     public string Port { get; set; } = "auto";
+    public int BaudRate { get; set; } = 115200;
     public Dictionary<string, bool> ModulesVisibility { get; set; } = new();
 
     public ModeSettings Current
@@ -33,5 +34,6 @@ public class ModeSettings
 {
     public int DemoAxes { get; set; } = 3;
     public string Port { get; set; } = "auto";
+    public int BaudRate { get; set; } = 115200;
     public Dictionary<string, bool> ModulesVisibility { get; set; } = new();
 }
