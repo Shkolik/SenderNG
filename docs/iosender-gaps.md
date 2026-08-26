@@ -12,6 +12,9 @@
 
 ## Priority 0 — Real-controller plumbing (gates everything)
 
+> Implementation plan with checkable items, parallelization markers and a
+> sequencing summary: **`docs/p0-controller-plumbing-plan.md`**.
+
 Nothing on a real machine works reliably until `RealGrblService` can talk to a
 controller. Demo mode masks these gaps in day-to-day use.
 

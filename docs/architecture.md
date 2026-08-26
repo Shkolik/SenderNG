@@ -66,7 +66,8 @@ tests/SenderNG.Core.Tests  xUnit suite (dotnet test)
 ## 8. Known gaps and tech debt
 
 > The complete checkable gap map vs ioSender, organized by priority, lives in
-> `docs/iosender-gaps.md`.
+> `docs/iosender-gaps.md`; the P0 implementation plan (checkable items,
+> parallelization markers) lives in `docs/p0-controller-plumbing-plan.md`.
 
 - **Full grbl handshake** (`$I` + `[OPT:...]`, grblHAL build/version detection) missing; capability-driven UI (e.g. hiding unsupported coolant Mist) pending. `RealGrblService` does only a minimal `$I` probe, no status polling loop.
 - **Cycle bar** still sends placeholder strings via `SendAsync`; should use `SendRealtime` (`0x7E` / `0x21` / `0x18`).
