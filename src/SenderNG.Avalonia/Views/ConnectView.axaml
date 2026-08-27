@@ -10,9 +10,12 @@
     <Border Width="360" Padding="10" Background="#f6f6f6">
         <StackPanel Spacing="6">
 
+            <!-- MinHeight pins the dialog to the height of the (tallest) Serial tab
+                 so switching to the shorter Network/Demo tabs doesn't make the
+                 dialog jump; it can still grow if content needs more room. -->
             <TabControl SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
                         CornerRadius="0" Background="White"
-                        BorderBrush="#999" BorderThickness="1">
+                        BorderBrush="#999" BorderThickness="1" MinHeight="170">
 
                 <!-- Tab headers match the center-panel tab typography (13 SemiBold).
                      Serial is grayed out when no ports are found (port list + baud
@@ -37,24 +40,30 @@
                                   CornerRadius="0"
                                   BorderBrush="#999" BorderThickness="1" />
 
-                        <!-- Line: "Baud rate     On connect" -->
-                        <Grid ColumnDefinitions="*,*" Margin="0,2,0,0">
+                        <!-- Lines: "Baud rate      On connect" and the two selectors.
+                             Three-column grid: baud selector spans the first column's
+                             width, a ~30px empty middle column separates the two,
+                             and the On connect selector spans the third. The baud
+                             combo fills its cell so baud and On connect read equal.
+                             On-connect aligns flush with its label, no left margin. -->
+                        <Grid ColumnDefinitions="*,30,*" Margin="0,2,0,0">
                             <TextBlock Grid.Column="0" Text="Baud rate" FontWeight="SemiBold" FontSize="12" />
-                            <TextBlock Grid.Column="1" Text="On connect" FontWeight="SemiBold" FontSize="12" />
+                            <TextBlock Grid.Column="2" Text="On connect" FontWeight="SemiBold" FontSize="12" />
                         </Grid>
-                        <!-- Line: [baud_rate_dropdown] [on_connect_dropdown] -->
-                        <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                        <Grid ColumnDefinitions="*,30,*">
                             <ComboBox Grid.Column="0" ItemsSource="{Binding BaudRates}"
                                       SelectedItem="{Binding BaudRate, Mode=TwoWay}"
                                       IsEnabled="{Binding SerialEnabled}"
                                       FontSize="12" Height="24"
+                                      HorizontalAlignment="Stretch"
                                       CornerRadius="0"
                                       BorderBrush="#999" BorderThickness="1" />
-                            <ComboBox Grid.Column="1" ItemsSource="{Binding ResetModeOptions}"
+                            <ComboBox Grid.Column="2" ItemsSource="{Binding ResetModeOptions}"
                                       SelectedItem="{Binding SelectedResetModeOption, Mode=TwoWay}"
                                       DisplayMemberBinding="{Binding Name}"
                                       IsEnabled="{Binding SerialEnabled}"
                                       FontSize="12" Height="24"
+                                      HorizontalAlignment="Stretch"
                                       CornerRadius="0"
                                       BorderBrush="#999" BorderThickness="1" />
                         </Grid>
@@ -76,7 +85,7 @@
                         <TextBox Text="{Binding NetworkEndpoint, Mode=TwoWay}"
                                  FontSize="12" Height="24"
                                  CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                        <TextBlock Text="{Binding NetworkNote}" FontSize="11" Foreground="#a33"
+                        <TextBlock Text="{Binding NetworkNote}" FontSize="11" Foreground="#666"
                                    TextWrapping="Wrap" />
                     </StackPanel>
                 </TabItem>
@@ -87,11 +96,8 @@
                         <TextBlock Text="Demo" FontSize="13" FontWeight="SemiBold" />
                     </TabItem.Header>
                     <StackPanel Spacing="6" Margin="4,8,4,4">
-                        <Border Background="#fdf3d0" BorderBrush="#e0c060" BorderThickness="1"
-                                CornerRadius="0" Padding="8">
-                            <TextBlock Text="{Binding DemoDisclaimer}" FontSize="11"
-                                       Foreground="#5a4a10" TextWrapping="Wrap" />
-                        </Border>
+                        <TextBlock Text="{Binding DemoDisclaimer}" FontSize="11"
+                                   Foreground="#666" TextWrapping="Wrap" />
                     </StackPanel>
                 </TabItem>
             </TabControl>
