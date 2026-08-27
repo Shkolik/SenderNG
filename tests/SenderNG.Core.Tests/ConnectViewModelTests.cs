@@ -6,12 +6,13 @@ namespace SenderNG.Core.Tests;
 
 public class ConnectViewModelTests
 {
-    private sealed class StubComPorts(string[] ports) : IComPortService
+    private sealed class StubComPorts(string[] ports, string[]? preferred = null) : IComPortService
     {
+        private readonly string[] _preferred = preferred ?? [];
         public string[] GetPorts() => ports;
         // Mimic the real service: plain names in GetPorts, device descriptions in entries.
         public IReadOnlyList<SerialPortEntry> GetPortEntries() =>
-            ports.Select(p => new SerialPortEntry(p, $"{p} - USB Serial Device")).ToArray();
+            ports.Select(p => new SerialPortEntry(p, $"{p} - USB Serial Device", _preferred.Contains(p))).ToArray();
     }
 
     private static AppSettings SettingsWith(string? port = null, int baud = 115200)
@@ -46,6 +47,26 @@ public class ConnectViewModelTests
     {
         var vm = new ConnectViewModel(SettingsWith("COM9"), new StubComPorts(["COM3"]));
         Assert.Equal("COM3", vm.SelectedPort);
+    }
+
+    [Fact]
+    public void First_run_preselection_prefers_real_usb_ports_over_phantom()
+    {
+        // Bluetooth/phantom ports sort before the real one (COM4 < COM7); with
+        // nothing persisted the dialog must still pick the real USB device.
+        var vm = new ConnectViewModel(SettingsWith(),
+            new StubComPorts(["COM4", "COM5", "COM7"], preferred: ["COM7"]));
+
+        Assert.Equal("COM7", vm.SelectedPort);
+    }
+
+    [Fact]
+    public void First_run_preselection_falls_back_to_any_port_when_none_preferred()
+    {
+        var vm = new ConnectViewModel(SettingsWith(),
+            new StubComPorts(["COM4", "COM5"], preferred: []));
+
+        Assert.Equal("COM4", vm.SelectedPort);
     }
 
     [Fact]

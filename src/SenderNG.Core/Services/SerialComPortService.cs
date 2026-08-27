@@ -31,15 +31,25 @@ public class SerialComPortService : IComPortService
         if (names.Length == 0)
             return [];
 
-        var descriptions = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? WindowsPortDescriptions(names)
-            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (_linuxDevDir is null && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var details = WindowsPortDetails(names);
+            return [.. names.Select(n =>
+                details.TryGetValue(n, out var d) && !string.IsNullOrWhiteSpace(d.Description)
+                    ? new SerialPortEntry(n, $"{n} - {d.Description}", d.Preferred)
+                    : SerialPortEntry.Plain(n))];
+        }
 
-        return [.. names.Select(n =>
-            descriptions.TryGetValue(n, out var desc) && !string.IsNullOrWhiteSpace(desc)
-                ? new SerialPortEntry(n, $"{n} - {desc}")
-                : SerialPortEntry.Plain(n))];
+        // Non-Windows enumeration only lists real ttyUSB/ttyACM devices — every
+        // entry is preferred (there are no phantom/Bluetooth virtual ports).
+        return [.. names.Select(n => SerialPortEntry.Plain(n, preferred: true))];
     }
+
+    /// <summary>PnP enumerators that only produce virtual/phantom ports (Bluetooth
+    /// RFCOMM serial links) — never worth preselecting over a real device.</summary>
+    public static bool IsPhantomEnumerator(string className) =>
+        className.Equals("BTHENUM", StringComparison.OrdinalIgnoreCase) ||
+        className.Equals("BTH", StringComparison.OrdinalIgnoreCase);
 
     private string[] EnumerateNames()
     {
@@ -76,16 +86,18 @@ public class SerialComPortService : IComPortService
     }
 
     /// <summary>
-    /// Map each requested COM port to its device description by walking the PnP
-    /// device tree (<c>HKLM\SYSTEM\CurrentControlSet\Enum</c>). Serial devices
-    /// carry <c>Device Parameters\PortName</c> (e.g. "COM9") and the instance
-    /// key's <c>FriendlyName</c> (e.g. "USB Serial Device (COM9)"). The
-    /// <c>(COMx)</c> suffix is stripped, so the entry reads "COM9 - USB Serial
-    /// Device". The walk stops as soon as every requested port is resolved.
+    /// Map each requested COM port to its device description and preference by
+    /// walking the PnP device tree (<c>HKLM\SYSTEM\CurrentControlSet\Enum</c>).
+    /// Serial devices carry <c>Device Parameters\PortName</c> (e.g. "COM9") and
+    /// the instance key's <c>FriendlyName</c> (e.g. "USB Serial Device (COM9)").
+    /// The <c>(COMx)</c> suffix is stripped, so the entry reads "COM9 - USB Serial
+    /// Device". The top-level key is the enumerator (USB, BTHENUM, …), which
+    /// tells us whether the port is a real device or a virtual/phantom one. The
+    /// walk stops as soon as every requested port is resolved.
     /// </summary>
-    private static Dictionary<string, string> WindowsPortDescriptions(IReadOnlyCollection<string> ports)
+    private static Dictionary<string, (string Description, bool Preferred)> WindowsPortDetails(IReadOnlyCollection<string> ports)
     {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, (string, bool)>(StringComparer.OrdinalIgnoreCase);
         if (ports.Count == 0)
             return result;
 
@@ -148,7 +160,9 @@ public class SerialComPortService : IComPortService
                         if (paren > 0)
                             friendly = friendly[..paren].Trim();
 
-                        result.TryAdd(portName, friendly);
+                        // Real USB/PCI/etc. devices are preferred for first-run
+                        // preselection; Bluetooth virtual ports are not.
+                        result.TryAdd(portName, (friendly, !IsPhantomEnumerator(className)));
                     }
                 }
             }

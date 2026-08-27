@@ -269,11 +269,13 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
 
         var names = ports.Select(p => p.Name).ToArray();
         // Prefer the current selection, then the last successful port, then the
-        // legacy mode-scoped port, then the first enumerated one.
+        // legacy mode-scoped port. With nothing persisted, pick the first real
+        // (USB/PCI) port over phantom/Bluetooth entries so first-run doesn't
+        // default to a virtual port, falling back to any enumerated port.
         SelectedPort = names.Contains(previous) ? previous
             : names.Contains(_settings.LastSerialPort) ? _settings.LastSerialPort
             : names.Contains(_settings.Current.Port) ? _settings.Current.Port
-            : names.FirstOrDefault() ?? string.Empty;
+            : (ports.FirstOrDefault(p => p.Preferred)?.Name ?? names.FirstOrDefault()) ?? string.Empty;
 
         OnPropertyChanged(nameof(HasPorts));
         OnPropertyChanged(nameof(SerialEnabled));

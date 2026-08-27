@@ -51,7 +51,24 @@ public class SerialComPortServiceTests : IDisposable
 
         Assert.Equal(["ttyACM0", "ttyUSB0"], entries.Select(e => e.Name));
         Assert.All(entries, e => Assert.Equal(e.Name, e.FullName));
+        // Every enumerated ttyUSB/ttyACM device is real — all preferred.
+        Assert.All(entries, e => Assert.True(e.Preferred));
     }
+
+    [Theory]
+    [InlineData("BTHENUM")]
+    [InlineData("BTH")]
+    public void Bluetooth_enumerators_are_phantom(string className)
+        => Assert.True(SerialComPortService.IsPhantomEnumerator(className));
+
+    [Theory]
+    [InlineData("USB")]
+    [InlineData("FTDIBUS")]
+    [InlineData("PCI")]
+    [InlineData("HID")]
+    [InlineData("")]
+    public void Real_enumerators_are_not_phantom(string className)
+        => Assert.False(SerialComPortService.IsPhantomEnumerator(className));
 
     public void Dispose()
     {
