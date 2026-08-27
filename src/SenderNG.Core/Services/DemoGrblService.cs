@@ -19,6 +19,8 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
     public bool IsConnected { get; private set; }
 
+    public event EventHandler? ConnectionChanged;
+
     public IObservable<MachineState> State => _subject;
 
     // Demo reports a full capability set so both coolant modes stay visible.
@@ -200,6 +202,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     public Task ConnectAsync(string port)
     {
         IsConnected = true;
+        ConnectionChanged?.Invoke(this, EventArgs.Empty);
         // Status polling: re-emit the current state on a timer, mirroring the
         // controller answering the host's periodic '?' with a status report.
         _pollTimer?.Dispose();
@@ -210,6 +213,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     public void Disconnect()
     {
         IsConnected = false;
+        ConnectionChanged?.Invoke(this, EventArgs.Empty);
         _pollTimer?.Dispose();
         _pollTimer = null;
     }

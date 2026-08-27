@@ -13,6 +13,13 @@ public class AppSettings
     // Global (not mode-aware) plugin data sections.
     public Dictionary<string, object> Modules { get; set; } = new();
 
+    // Global (not mode-aware) connection settings. Network connect (grblHAL
+    // over TCP) is available when NetworkAvailable is true; the connect dialog's
+    // Network tab is enabled only then. These are intentionally global — a
+    // controller/network is a property of the machine setup, not of the mode.
+    public bool NetworkAvailable { get; set; } = true;
+    public string NetworkEndpoint { get; set; } = "192.168.1.100:23";
+
     // Legacy flat fields kept ONLY for settings.json migration; not used after Load.
     public int DemoAxes { get; set; } = 3;
     public string Port { get; set; } = "auto";

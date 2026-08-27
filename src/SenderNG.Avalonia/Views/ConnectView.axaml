@@ -3,47 +3,75 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:CNC.Core.ViewModels;assembly=SenderNG.Core"
-             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="300"
+             mc:Ignorable="d" d:DesignWidth="360" d:DesignHeight="360"
              x:Class="SenderNG.Avalonia.Views.ConnectView"
              x:DataType="vm:ConnectViewModel">
 
-    <Border Width="300" Padding="12" Background="#f6f6f6">
+    <Border Width="360" Padding="12" Background="#f6f6f6">
         <StackPanel Spacing="8">
 
-            <!-- Serial port + refresh -->
-            <TextBlock Text="Port" FontWeight="SemiBold" />
-            <StackPanel Orientation="Horizontal" Spacing="6">
-                <ComboBox ItemsSource="{Binding Ports}"
-                          SelectedItem="{Binding SelectedPort, Mode=TwoWay}"
-                          HorizontalAlignment="Stretch"
-                          MinWidth="180" Height="28" CornerRadius="0"
-                          BorderBrush="#999" BorderThickness="1" />
-                <Button Content="⟳" Command="{Binding RefreshCommand}"
-                        Width="28" Height="28" MinHeight="28" CornerRadius="0"
-                        Background="#eee" BorderBrush="#999" BorderThickness="1"
-                        ToolTip.Tip="Refresh port list" />
-            </StackPanel>
+            <TabControl SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
+                        CornerRadius="0" Background="White"
+                        BorderBrush="#999" BorderThickness="1">
 
-            <!-- Baud rate -->
-            <TextBlock Text="Baud rate" FontWeight="SemiBold" Margin="0,4,0,0" />
-            <ComboBox ItemsSource="{Binding BaudRates}"
-                      SelectedItem="{Binding BaudRate, Mode=TwoWay}"
-                      MinWidth="120" Height="28" CornerRadius="0"
-                      HorizontalAlignment="Left"
-                      BorderBrush="#999" BorderThickness="1" />
+                <!-- Serial: grayed out when no ports are found (port list + baud
+                     disabled; refresh stays usable so plugging in a controller
+                     and refreshing brings the tab to life). -->
+                <TabItem Header="Serial">
+                    <StackPanel Spacing="8" Margin="4,8,4,4">
+                        <TextBlock Text="Port" FontWeight="SemiBold" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <ComboBox ItemsSource="{Binding Ports}"
+                                      SelectedItem="{Binding SelectedPort, Mode=TwoWay}"
+                                      IsEnabled="{Binding SerialEnabled}"
+                                      HorizontalAlignment="Stretch"
+                                      MinWidth="180" Height="28" CornerRadius="0"
+                                      BorderBrush="#999" BorderThickness="1" />
+                            <Button Content="⟳" Command="{Binding RefreshCommand}"
+                                    Width="28" Height="28" MinHeight="28" CornerRadius="0"
+                                    Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                    ToolTip.Tip="Refresh port list" />
+                        </StackPanel>
 
-            <!-- Networking: deliberately deferred. Disabled but visible so the
-                 capability is discoverable (see P0 plan cross-platform note). -->
-            <TextBlock Text="Network" FontWeight="SemiBold" Margin="0,4,0,0" IsEnabled="False" />
-            <TextBlock Text="Address (host:port)"
-                       FontSize="12" Foreground="#777" IsEnabled="False" />
-            <TextBox Text="192.168.1.100:23" IsEnabled="False" CornerRadius="0"
-                     BorderBrush="#999" BorderThickness="1" Height="24" />
-            <TextBlock Text="{Binding NetworkNote}" FontSize="11" Foreground="#a33"
-                       TextWrapping="Wrap" />
+                        <TextBlock Text="Baud rate" FontWeight="SemiBold" Margin="0,4,0,0" />
+                        <ComboBox ItemsSource="{Binding BaudRates}"
+                                  SelectedItem="{Binding BaudRate, Mode=TwoWay}"
+                                  IsEnabled="{Binding SerialEnabled}"
+                                  MinWidth="120" Height="28" CornerRadius="0"
+                                  HorizontalAlignment="Left"
+                                  BorderBrush="#999" BorderThickness="1" />
+
+                        <TextBlock Text="{Binding NoPortsHint}" FontSize="11" Foreground="#a33"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </TabItem>
+
+                <!-- Network: only usable when the settings enable network connectivity. -->
+                <TabItem Header="Network">
+                    <StackPanel Spacing="8" Margin="4,8,4,4" IsEnabled="{Binding NetworkEnabled}">
+                        <TextBlock Text="Endpoint (host:port)" FontWeight="SemiBold" />
+                        <TextBox Text="{Binding NetworkEndpoint, Mode=TwoWay}"
+                                 CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                 Height="26" />
+                        <TextBlock Text="{Binding NetworkNote}" FontSize="11" Foreground="#a33"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </TabItem>
+
+                <!-- Demo: always available; the disclaimer explains what it is. -->
+                <TabItem Header="Demo">
+                    <StackPanel Spacing="8" Margin="4,8,4,4">
+                        <Border Background="#fdf3d0" BorderBrush="#e0c060" BorderThickness="1"
+                                CornerRadius="0" Padding="8">
+                            <TextBlock Text="{Binding DemoDisclaimer}" FontSize="11"
+                                       Foreground="#5a4a10" TextWrapping="Wrap" />
+                        </Border>
+                    </StackPanel>
+                </TabItem>
+            </TabControl>
 
             <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,10,0,0">
-                <Button Content="Connect" Command="{Binding ConnectCommand}"
+                <Button Content="{Binding ConnectButtonLabel}" Command="{Binding ConnectCommand}"
                         Height="28" MinHeight="28" CornerRadius="0"
                         Background="#eee" BorderBrush="#999" BorderThickness="1"
                         Padding="12,0" VerticalContentAlignment="Center" />

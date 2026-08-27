@@ -135,6 +135,116 @@ public class MainViewModelTests
     private sealed class ViewStub;
 
     [Fact]
+    public void Startup_state_is_not_connected_with_clear_indicators()
+    {
+        var settings = MakeSettings();
+        var vm = new MainViewModel(new RealGrblService(), settings, MakeProvider(settings));
+
+        Assert.False(vm.IsDemo);       // the app no longer starts in demo mode
+        Assert.False(vm.IsConnected);
+        Assert.Equal("NOT CONNECTED", vm.MachineStateDisplay);
+        Assert.Equal("Not connected", vm.ConnectionStatus);
+        Assert.Contains("Not connected", vm.Status);
+        Assert.Contains("Not connected", vm.Title);
+    }
+
+    [Fact]
+    public void Startup_with_proxy_on_real_service_is_not_demo()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings);
+        var proxy = new GrblServiceProxy(provider.GetRequiredService<RealGrblService>());
+        var vm = new MainViewModel(proxy, settings, provider);
+
+        Assert.False(vm.IsDemo);
+        Assert.False(vm.IsConnected);
+        Assert.Same(proxy, vm.Grbl);
+    }
+
+    [Fact]
+    public async Task Connect_dialog_demo_choice_activates_demo_mode()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings);
+        var dialogs = new StubDialogService();
+        var vm = new MainViewModel(provider.GetRequiredService<DemoGrblService>(), settings, provider, dialogs: dialogs);
+
+        Assert.False(vm.IsConnected);
+        Assert.Equal("NOT CONNECTED", vm.MachineStateDisplay);
+
+        var task = vm.ShowConnectDialogAsync();
+        var connectVm = Assert.IsType<CNC.Core.ViewModels.ConnectViewModel>(dialogs.LastVm);
+        connectVm.SelectedIndex = (int)CNC.Core.ViewModels.ConnectMode.Demo;
+        connectVm.ConnectCommand.Execute(null);
+        await task;
+
+        Assert.True(vm.IsDemo);
+        Assert.True(vm.IsConnected);
+        Assert.Contains("Demo mode", vm.Status);
+    }
+
+    [Fact]
+    public async Task Connect_dialog_cancel_leaves_app_disconnected()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings);
+        var dialogs = new StubDialogService();
+        var vm = new MainViewModel(provider.GetRequiredService<RealGrblService>(), settings, provider, dialogs: dialogs);
+
+        var task = vm.ShowConnectDialogAsync();
+        var connectVm = Assert.IsType<CNC.Core.ViewModels.ConnectViewModel>(dialogs.LastVm);
+        connectVm.CancelCommand.Execute(null);
+        await task;
+
+        Assert.False(vm.IsConnected);
+        Assert.Equal("Connect cancelled", vm.Status);
+    }
+
+    [Fact]
+    public async Task Connect_dialog_network_choice_connects_over_tcp()
+    {
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+            var settings = MakeSettings();
+            var provider = MakeProvider(settings);
+            var dialogs = new StubDialogService();
+            var vm = new MainViewModel(provider.GetRequiredService<RealGrblService>(), settings, provider, dialogs: dialogs);
+
+            var task = vm.ShowConnectDialogAsync();
+            var connectVm = Assert.IsType<CNC.Core.ViewModels.ConnectViewModel>(dialogs.LastVm);
+            connectVm.SelectedIndex = (int)CNC.Core.ViewModels.ConnectMode.Network;
+            connectVm.NetworkEndpoint = $"127.0.0.1:{port}";
+            connectVm.ConnectCommand.Execute(null);
+            await task;
+
+            Assert.False(vm.IsDemo);
+            Assert.True(vm.IsConnected);
+            Assert.Contains($"Connected: 127.0.0.1:{port}", vm.Status);
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    private sealed class StubDialogService : IDialogService
+    {
+        public object? LastVm { get; private set; }
+
+        public Task<bool?> ShowDialogAsync(string title, object viewModel, (double Width, double Height)? preferredSize = null)
+        {
+            LastVm = viewModel;
+            var tcs = new TaskCompletionSource<bool?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (viewModel is IClosableDialog closable)
+                closable.CloseRequested += (_, r) => tcs.TrySetResult(r);
+            return tcs.Task;
+        }
+    }
+
+    [Fact]
     public async Task ConnectCommand_sets_status_connected_on_success()
     {
         var settings = MakeSettings();

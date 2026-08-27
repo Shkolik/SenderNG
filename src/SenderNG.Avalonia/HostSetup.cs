@@ -36,9 +36,11 @@ public static class HostSetup
         builder.Services.AddSingleton<DemoGrblService>();
         builder.Services.AddSingleton<RealGrblService>();
         // The proxy is THE IGrblService singleton: consumers subscribe once and
-        // survive demo/real swaps via Inner reassignment.
+        // survive demo/real/network swaps via Inner reassignment. The app starts
+        // on the real (serial) service, disconnected — demo mode is only entered
+        // explicitly through the connect dialog, never at startup.
         builder.Services.AddSingleton<IGrblService>(sp =>
-            new GrblServiceProxy(sp.GetRequiredService<DemoGrblService>()));
+            new GrblServiceProxy(sp.GetRequiredService<RealGrblService>()));
         // Settings route through the proxy to whichever inner service is active.
         builder.Services.AddSingleton<IGrblSettingsProvider>(sp =>
             (IGrblSettingsProvider)sp.GetRequiredService<IGrblService>());

@@ -31,6 +31,8 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
     public bool IsConnected { get; private set; }
 
+    public event EventHandler? ConnectionChanged;
+
     public IObservable<MachineState> State => _subject;
 
     /// <summary>Serial baud rate used on connect. Default 115200, tunable per profile.</summary>
@@ -59,6 +61,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
         _transport.Open(port, BaudRate);
         IsConnected = true;
+        ConnectionChanged?.Invoke(this, EventArgs.Empty);
 
         _cts = new CancellationTokenSource();
         _consumerTask = Task.Run(() => ConsumerLoopAsync(_cts.Token));
@@ -254,6 +257,12 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             {
                 return;
             }
+            catch (OperationCanceledException)
+            {
+                // Transport signalled closure (e.g. a dropped TCP connection);
+                // end the reader cleanly instead of faulting the background task.
+                return;
+            }
 
             if (line is null)
                 continue; // adapter timeout; keep reading
@@ -323,6 +332,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         _cts = null;
 
         IsConnected = false;
+        ConnectionChanged?.Invoke(this, EventArgs.Empty);
         try
         {
             _transport.Close();

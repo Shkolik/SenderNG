@@ -27,6 +27,9 @@ public partial class App : Application
             var vm = Host.Services.GetRequiredService<MainViewModel>();
 
             desktop.MainWindow = new MainWindow { DataContext = vm };
+            // The app starts disconnected; open the connect dialog right after
+            // the window is shown so the user picks Serial / Network / Demo first.
+            desktop.MainWindow.Opened += (_, _) => _ = vm.ShowConnectDialogAsync();
         }
 
         base.OnFrameworkInitializationCompleted();

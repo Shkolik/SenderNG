@@ -5,6 +5,14 @@ namespace CNC.Core.Abstractions;
 public interface IGrblService
 {
     bool IsConnected { get; }
+
+    /// <summary>
+    /// Raised whenever the connection state changes (connect / disconnect / inner
+    /// swap through the proxy). Default no-op keeps lightweight test doubles
+    /// compiling while services that track connection state opt in.
+    /// </summary>
+    event EventHandler? ConnectionChanged { add { } remove { } }
+
     Task ConnectAsync(string port);
     void Disconnect();
     Task SendAsync(string line);

@@ -44,11 +44,26 @@ public class ConnectViewModelTests
     }
 
     [Fact]
-    public void No_ports_leaves_selection_empty_and_connect_disabled()
+    public void No_ports_greys_serial_tab()
     {
-        var vm = new ConnectViewModel(SettingsWith(), new StubComPorts([]));
+        var settings = SettingsWith();
+        settings.NetworkAvailable = false;
+        var vm = new ConnectViewModel(settings, new StubComPorts([]));
         Assert.Empty(vm.SelectedPort);
+        Assert.False(vm.SerialEnabled);
+
+        // Even when the (grayed) Serial tab is selected it cannot connect without a port.
+        vm.SelectedIndex = (int)ConnectMode.Serial;
         Assert.False(vm.ConnectCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void No_ports_defaults_to_demo_tab_when_network_off()
+    {
+        var settings = SettingsWith();
+        settings.NetworkAvailable = false;
+        var vm = new ConnectViewModel(settings, new StubComPorts([]));
+        Assert.Equal(ConnectMode.Demo, vm.SelectedTab);
     }
 
     [Fact]
@@ -92,11 +107,93 @@ public class ConnectViewModelTests
     }
 
     [Fact]
-    public void Network_connect_is_deferred_and_disabled()
+    public void Network_tab_follows_settings_availability()
     {
-        var vm = new ConnectViewModel(SettingsWith(), new StubComPorts(["COM3"]));
-        Assert.False(vm.NetworkEnabled);
-        Assert.Contains("deferred", vm.NetworkNote);
+        var settings = SettingsWith();
+        settings.NetworkAvailable = false;
+        var noNet = new ConnectViewModel(settings, new StubComPorts(["COM3"]));
+        Assert.False(noNet.NetworkEnabled);
+
+        settings.NetworkAvailable = true;
+        var yesNet = new ConnectViewModel(settings, new StubComPorts(["COM3"]));
+        Assert.True(yesNet.NetworkEnabled);
+    }
+
+    [Fact]
+    public void No_ports_defaults_to_network_tab_when_enabled()
+    {
+        var settings = SettingsWith();
+        settings.NetworkAvailable = true;
+        var vm = new ConnectViewModel(settings, new StubComPorts([]));
+        Assert.Equal(ConnectMode.Network, vm.SelectedTab);
+    }
+
+    [Fact]
+    public void Network_connect_requires_a_valid_endpoint()
+    {
+        var settings = SettingsWith();
+        settings.NetworkAvailable = true;
+        var vm = new ConnectViewModel(settings, new StubComPorts([]));
+        vm.SelectedIndex = (int)ConnectMode.Network;
+
+        vm.NetworkEndpoint = "not-an-endpoint:";
+        Assert.False(vm.ConnectCommand.CanExecute(null));
+
+        vm.NetworkEndpoint = "192.168.1.100:23";
+        Assert.True(vm.ConnectCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Network_connect_persists_endpoint_and_reports_result()
+    {
+        var settings = SettingsWith();
+        settings.NetworkAvailable = true;
+        var vm = new ConnectViewModel(settings, new StubComPorts([]));
+        vm.SelectedIndex = (int)ConnectMode.Network;
+        vm.NetworkEndpoint = "10.0.0.5:8080";
+
+        bool? result = null;
+        vm.CloseRequested += (_, r) => result = r;
+        vm.ConnectCommand.Execute(null);
+
+        Assert.True(result);
+        Assert.Equal(ConnectMode.Network, vm.Result!.Mode);
+        Assert.Equal("10.0.0.5:8080", vm.ResultEndpoint);
+        Assert.Equal("10.0.0.5:8080", settings.NetworkEndpoint);
+    }
+
+    [Fact]
+    public void Demo_tab_always_available_and_connectable()
+    {
+        var settings = SettingsWith();
+        settings.NetworkAvailable = false;
+        var vm = new ConnectViewModel(settings, new StubComPorts([]));
+        Assert.Equal(ConnectMode.Demo, vm.SelectedTab);
+        Assert.True(vm.ConnectCommand.CanExecute(null));
+
+        bool? result = null;
+        vm.CloseRequested += (_, r) => result = r;
+        vm.ConnectCommand.Execute(null);
+
+        Assert.True(result);
+        Assert.Equal(ConnectMode.Demo, vm.Result!.Mode);
+        Assert.Equal("Start demo", vm.ConnectButtonLabel);
+    }
+
+    [Fact]
+    public void Serial_connect_reports_serial_result()
+    {
+        var settings = SettingsWith("COM3", 115200);
+        var vm = new ConnectViewModel(settings, new StubComPorts(["COM3", "COM7"]));
+        vm.SelectedPort = "COM7";
+
+        bool? result = null;
+        vm.CloseRequested += (_, r) => result = r;
+        vm.ConnectCommand.Execute(null);
+
+        Assert.True(result);
+        Assert.Equal(ConnectMode.Serial, vm.Result!.Mode);
+        Assert.Equal("COM7", vm.ResultPort);
     }
 
     [Fact]

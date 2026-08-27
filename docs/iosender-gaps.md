@@ -31,10 +31,17 @@ controller. Demo mode masks these gaps in day-to-day use.
       accessory field into `MachineState.Flood`/`Mist`/spindle (cp. ioSender
       `GrblViewModel.cs`); classic grbl leaves them untouched.
 - [x] **Connect dialog / port discovery polish** — a PortDialog-style `ConnectView`
-      (port list + refresh + baud, pre-selected persisted port/baud) replaces the old
-      auto/first-port string path. Network connect (TCP/Telnet/WebSocket) is **deferred**
-      — the dialog exposes a disabled section; `IGrblTransport` is ready for a network
-      backend. All port cross-platform (`System.IO.Ports` on Windows + Linux).
+      with three tabs (Serial: port list + refresh + baud, grayed when no ports;
+      Network: TCP endpoint, enabled only when settings allow network connectivity;
+      Demo: simulated controller with disclaimer, always available) replaces the old
+      auto/first-port string path. The app starts disconnected (never in demo mode),
+      opens the connect dialog right after startup, and shows an obvious
+      "NOT CONNECTED" state until the user picks a mode.
+- [x] **Network (TCP) transport** — `TcpGrblTransport` implements `IGrblTransport`
+      over a plain TCP socket for grblHAL Ethernet boards (`host[:port]`, default
+      port 23); it plugs into the existing `RealGrblService`. `NetworkAvailable` /
+      `NetworkEndpoint` settings gate the dialog's Network tab. Telnet option
+      negotiation and WebSocket remain future work.
 
 ## Priority 1 — Base widgets and processes (mill + foam)
 
@@ -135,8 +142,9 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
       `GCodeWrap`) — File → Transform submenu.
 - [ ] **Localization** — ioSender ships 9 locales; SenderNG is hardcoded
       en-US (deliberate strip).
-- [ ] **Telnet / WebSocket transports** — `RealGrblService` is serial-only
-      (`System.IO.Ports`); Telnet/WebSocket stubbed (deliberate strip).
+- [ ] **Telnet / WebSocket transports** — `TcpGrblTransport` covers plain TCP
+      (grblHAL Ethernet); telnet option negotiation and WebSocket remain
+      deliberate stubs.
 
 ## Cross-cutting tech debt (architecture §8)
 

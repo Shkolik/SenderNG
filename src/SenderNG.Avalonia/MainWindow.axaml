@@ -365,7 +365,7 @@
                 Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="4,2" HorizontalAlignment="Stretch">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <TextBlock Grid.Column="0" Text="Block: --/--" FontSize="10" Foreground="#666" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="1" Text="Ready" FontSize="10" Foreground="#666" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding ConnectionStatus, FallbackValue='Ready'}" FontSize="10" Foreground="#666" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="2" Text="Jog step: 0.05" FontSize="10" Foreground="#666" VerticalAlignment="Center" />
             </Grid>
         </Border>

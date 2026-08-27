@@ -41,6 +41,10 @@ public class MainViewModel : ViewModelBase
     private bool _isDemo;
     private IGrblService _grbl;
     private string _status = string.Empty;
+    private bool _isConnected;
+    private string? _connectedTo;
+    private RealGrblService? _networkService;
+    private EventHandler? _connectionChangedHandler;
     private IModule? _selectedModule;
     private object? _currentModuleView;
     private string _mdiInput = string.Empty;
@@ -76,6 +80,8 @@ public class MainViewModel : ViewModelBase
         _dialogs = dialogs;
         _viewFactory = viewFactory;
         _isDemo = ResolveInner(grbl) is DemoGrblService;
+        _isConnected = grbl.IsConnected;
+        _connectedTo = _isDemo ? "demo" : null;
 
         // Tolerant resolve: unit tests construct MainViewModel with a minimal provider.
         var droVm = _services.GetService<Modules.Fixed.DroViewModel>();
@@ -100,7 +106,7 @@ public class MainViewModel : ViewModelBase
                 RecentFiles.Add(f);
 
         DemoToggleCommand = new DelegateCommand(_ => ToggleDemo());
-        ConnectCommand = new DelegateCommand(_ => _ = ConnectAsync());
+        ConnectCommand = new DelegateCommand(_ => _ = ShowConnectDialogAsync());
         DisconnectCommand = new DelegateCommand(_ => Disconnect());
         SelectModuleCommand = new DelegateCommand(p =>
         {
@@ -141,9 +147,12 @@ public class MainViewModel : ViewModelBase
         // Also drives dynamic Signals panel (AxisSignals + ProbeActive) from MachineState.NumAxes / Signals
         _stateSubscription = _grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
 
-        // Demo mode connects automatically so commands work without manual Connect.
-        if (_isDemo)
-            _ = AutoConnectDemoAsync();
+        // Connection state drives the "NOT CONNECTED" indicator and status bar.
+        _connectionChangedHandler = OnConnectionChanged;
+        _grbl.ConnectionChanged += _connectionChangedHandler;
+
+        // Seeded defaults: the app starts disconnected and makes that obvious.
+        Status = "Not connected — choose a controller via Connect (Serial, Network or Demo)";
     }
 
     public SettingsService SettingsService { get; }
@@ -158,13 +167,20 @@ public class MainViewModel : ViewModelBase
         get => _grbl;
         private set
         {
+            var previous = _grbl;
             if (SetField(ref _grbl, value))
             {
                 _stateSubscription?.Dispose();
-        _stateSubscription = _grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
+                _stateSubscription = _grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
 
-        // Live-apply visibility/mode changes: AppSettings dialog saves -> Changed fires.
-        _settingsService.Changed += OnSettingsChanged;
+                if (_connectionChangedHandler is not null)
+                {
+                    previous.ConnectionChanged -= _connectionChangedHandler;
+                    _grbl.ConnectionChanged += _connectionChangedHandler;
+                }
+
+                // Live-apply visibility/mode changes: AppSettings dialog saves -> Changed fires.
+                _settingsService.Changed += OnSettingsChanged;
             }
         }
     }
@@ -175,13 +191,38 @@ public class MainViewModel : ViewModelBase
         private set
         {
             if (SetField(ref _isDemo, value))
+            {
                 OnPropertyChanged(nameof(Title));
+                OnPropertyChanged(nameof(ConnectionStatus));
+            }
         }
     }
 
-    /// <summary>Window title: demo flag and loaded file name.</summary>
+    /// <summary>Whether the active controller connection is live (drives the state indicator).</summary>
+    public bool IsConnected => _isConnected;
+
+    /// <summary>Status-bar connection summary: which controller (if any) is active.</summary>
+    public string ConnectionStatus =>
+        !IsConnected ? "Not connected"
+        : IsDemo ? "Demo mode — controller simulated"
+        : string.IsNullOrEmpty(ConnectedTo) ? "Connected"
+        : $"Connected: {ConnectedTo}";
+
+    private string? ConnectedTo
+    {
+        get => _connectedTo;
+        set
+        {
+            if (SetField(ref _connectedTo, value))
+                OnPropertyChanged(nameof(ConnectionStatus));
+        }
+    }
+
+    /// <summary>Window title: demo flag, connection state and loaded file name.</summary>
     public string Title =>
-        IsDemo ? BaseTitleWithDemo + FileTitleSuffix : BaseTitleWithoutDemo + FileTitleSuffix;
+        (IsDemo ? BaseTitleWithDemo : BaseTitleWithoutDemo) + ConnectionTitleSuffix + FileTitleSuffix;
+
+    private string ConnectionTitleSuffix => IsConnected || IsDemo ? "" : " - Not connected";
 
     private static string BaseTitleWithDemo => "SenderNG (DEMO mode)";
     private static string BaseTitleWithoutDemo => "SenderNG";
@@ -214,11 +255,14 @@ public class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>State indicator text: machine state in all caps.</summary>
-    public string MachineStateDisplay => _machineState.ToUpperInvariant();
+    /// <summary>State indicator text: machine state in all caps, or NOT CONNECTED.</summary>
+    public string MachineStateDisplay =>
+        IsConnected ? _machineState.ToUpperInvariant() : "NOT CONNECTED";
 
-    public IBrush StateBrush => _stateBrush;
-    public IBrush StateForeground => _stateForeground;
+    public IBrush StateBrush => IsConnected ? _stateBrush : DisconnectedBrush;
+    public IBrush StateForeground => IsConnected ? _stateForeground : Brushes.Black;
+
+    private static readonly IBrush DisconnectedBrush = new SolidColorBrush(Color.Parse("#d8d8d8"));
 
     public ObservableCollection<IModule> Modules { get; } = new();
 
@@ -354,40 +398,57 @@ public class MainViewModel : ViewModelBase
 
     private void ToggleDemo()
     {
-        IsDemo = !IsDemo;
-        IGrblService target = IsDemo
-            ? _services.GetRequiredService<DemoGrblService>()
-            : _services.GetRequiredService<RealGrblService>();
-
-        if (Grbl is GrblServiceProxy proxy)
+        if (IsDemo)
         {
-            // Swap the inner service in place so existing subscribers keep working.
-            proxy.Inner = target;
+            // Leaving demo: back to the (disconnected) serial controller service.
+            SwitchToSerial();
+            ConnectedTo = null;
         }
         else
         {
-            Grbl = target;
+            _ = ActivateDemoAsync();
         }
-
-        if (IsDemo)
-            _ = AutoConnectDemoAsync();
     }
 
-    /// <summary>Demo mode needs no port - connect automatically so commands just work.</summary>
-    private async Task AutoConnectDemoAsync()
+    /// <summary>
+    /// Swap the active service (through the proxy when present) so subscribers
+    /// keep working across demo/real/network transitions. A service replaced by
+    /// this call is disconnected/disposed so its reader and poller never leak.
+    /// </summary>
+    private void SwapInner(IGrblService target)
+    {
+        var previous = ResolveInner(Grbl);
+        if (Grbl is GrblServiceProxy proxy)
+            proxy.Inner = target;
+        else
+            Grbl = target;
+
+        if (ReferenceEquals(previous, _networkService))
+            _networkService.Dispose();
+        if (!ReferenceEquals(target, _networkService))
+            _networkService = null;
+    }
+
+    /// <summary>Make the DI singleton serial service the active one (no-op when already active).</summary>
+    private void SwitchToSerial()
     {
         var inner = ResolveInner(Grbl);
-        if (inner is DemoGrblService demo && !demo.IsConnected)
-        {
-            try
-            {
-                await Grbl.ConnectAsync("demo");
-            }
-            catch
-            {
-                // Demo connect cannot realistically fail; ignore to keep ctor/toggle path safe.
-            }
-        }
+        if (inner is RealGrblService && !ReferenceEquals(inner, _networkService))
+            return;
+        SwapInner(_services.GetRequiredService<RealGrblService>());
+        IsDemo = false;
+    }
+
+    /// <summary>Switch the app into demo mode: simulated controller, no port needed.</summary>
+    private async Task ActivateDemoAsync()
+    {
+        var demo = _services.GetRequiredService<DemoGrblService>();
+        SwapInner(demo);
+        IsDemo = true;
+        ConnectedTo = "demo";
+        if (!demo.IsConnected)
+            await Grbl.ConnectAsync("demo");
+        Status = "Demo mode — controller simulated in software";
     }
 
     private void MdiHistoryPrev()
@@ -536,7 +597,12 @@ public class MainViewModel : ViewModelBase
 
     private void Disconnect()
     {
-        try { Grbl.Disconnect(); Status = "Disconnected"; }
+        try
+        {
+            Grbl.Disconnect();
+            ConnectedTo = null;
+            Status = "Disconnected";
+        }
         catch (Exception ex) { Status = $"Disconnect failed: {ex.Message}"; }
     }
 
@@ -667,7 +733,8 @@ public class MainViewModel : ViewModelBase
     private static IGrblService ResolveInner(IGrblService service) =>
         service is GrblServiceProxy proxy ? proxy.Inner : service;
 
-    private async Task ConnectAsync()
+    /// <summary>Opens the connect dialog. Public so the app can show it right after startup.</summary>
+    public async Task ShowConnectDialogAsync()
     {
         try
         {
@@ -680,8 +747,8 @@ public class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Opens the connect dialog (port list + refresh + baud) and, on confirm,
-    /// connects the real service with the chosen port/baud. When dialog infra is
+    /// Opens the connect dialog (Serial / Network / Demo tabs) and, on confirm,
+    /// switches the app to the chosen controller mode. When dialog infra is
     /// unavailable (unit tests) it falls back to the persisted port directly.
     /// </summary>
     private async Task ConnectWithDialogAsync()
@@ -696,15 +763,50 @@ public class MainViewModel : ViewModelBase
 
         var settings = _settingsService.Load();
         var vm = new CNC.Core.ViewModels.ConnectViewModel(settings, _comPorts);
-        var result = await _dialogs.ShowDialogAsync("Connect", vm, (300, 340));
-        if (result == true)
-        {
-            await ConnectToAsync(vm.ResultPort, vm.ResultBaudRate);
-        }
-        else
+        var result = await _dialogs.ShowDialogAsync("Connect", vm, (380, 430));
+        if (result != true)
         {
             Status = "Connect cancelled";
+            return;
         }
+
+        var choice = vm.Result
+            ?? new CNC.Core.ViewModels.ConnectResult(vm.ResultPort is { Length: > 0 }
+                    ? CNC.Core.ViewModels.ConnectMode.Serial
+                    : CNC.Core.ViewModels.ConnectMode.Demo,
+                vm.ResultPort, vm.ResultBaudRate, null);
+        switch (choice.Mode)
+        {
+            case CNC.Core.ViewModels.ConnectMode.Network:
+                await ConnectNetworkAsync(choice.Endpoint);
+                break;
+            case CNC.Core.ViewModels.ConnectMode.Demo:
+                await ActivateDemoAsync();
+                break;
+            default:
+                // Serial: make sure the DI serial service is active (a previous
+                // demo/network session may have swapped the proxy inner).
+                SwitchToSerial();
+                await ConnectToAsync(choice.Port ?? string.Empty, choice.BaudRate);
+                break;
+        }
+    }
+
+    /// <summary>Connect the network service to a grblHAL TCP endpoint (host[:port]).</summary>
+    private async Task ConnectNetworkAsync(string? endpoint)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint)
+            || !CNC.Core.Services.TcpGrblTransport.TryParseEndpoint(endpoint, out _, out _))
+        {
+            Status = "Invalid network endpoint";
+            return;
+        }
+
+        Status = $"Connecting to {endpoint}...";
+        var network = new RealGrblService(new CNC.Core.Services.TcpGrblTransport());
+        _networkService = network;
+        SwapInner(network);
+        await ConnectToAsync(endpoint, null);
     }
 
     private async Task ConnectToAsync(string port, int? baud = null)
@@ -717,9 +819,30 @@ public class MainViewModel : ViewModelBase
 
         Status = $"Connecting to {port}...";
         // Apply the chosen (or profile default) serial baud to the real service.
-        if (ResolveInner(Grbl) is RealGrblService real)
-            real.BaudRate = baud ?? _settingsService.Load().Current.BaudRate;
+        if (ResolveInner(Grbl) is RealGrblService real && baud is not null)
+            real.BaudRate = baud.Value;
         await Grbl.ConnectAsync(port);
+        ConnectedTo = port;
+        IsDemo = ResolveInner(Grbl) is DemoGrblService;
         Status = $"Connected: {port}";
+    }
+
+    /// <summary>Connection events (connect / disconnect / inner swap) refresh the UI state.</summary>
+    private void OnConnectionChanged(object? sender, EventArgs e) =>
+        UiThread.Post(UpdateConnectionState);
+
+    private void UpdateConnectionState()
+    {
+        var connected = Grbl.IsConnected;
+        if (!SetField(ref _isConnected, connected))
+            return;
+
+        OnPropertyChanged(nameof(MachineStateDisplay));
+        OnPropertyChanged(nameof(StateBrush));
+        OnPropertyChanged(nameof(StateForeground));
+        OnPropertyChanged(nameof(ConnectionStatus));
+        OnPropertyChanged(nameof(Title));
+        if (!connected)
+            Status = "Disconnected";
     }
 }

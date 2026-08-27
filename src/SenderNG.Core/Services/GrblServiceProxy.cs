@@ -12,10 +12,23 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
 {
     private IGrblService _inner;
     private IDisposable? _subscription;
+    private EventHandler? _innerConnectionHandler;
+    private EventHandler? _connectionChanged;
     private readonly BehaviorSubject<MachineState> _subject = new(new MachineState());
 
     public GrblServiceProxy(IGrblService inner) =>
         _inner = SetInner(inner);
+
+    /// <summary>
+    /// Forwards the inner service's connection events and also fires on every
+    /// inner swap (the new inner may already be connected). Subscribers survive
+    /// demo/real/network transitions, like the state relay.
+    /// </summary>
+    public event EventHandler? ConnectionChanged
+    {
+        add => _connectionChanged += value;
+        remove => _connectionChanged -= value;
+    }
 
     public IGrblService Inner
     {
@@ -52,6 +65,15 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
         ArgumentNullException.ThrowIfNull(value);
         _subscription?.Dispose();
         _subscription = value.State.Subscribe(_subject.OnNext);
+
+        if (_innerConnectionHandler is not null)
+            _inner.ConnectionChanged -= _innerConnectionHandler;
+        _innerConnectionHandler = (_, _) => _connectionChanged?.Invoke(this, EventArgs.Empty);
+        value.ConnectionChanged += _innerConnectionHandler;
+
+        // The new inner may already be connected/disconnected; tell subscribers
+        // so e.g. the state indicator updates without waiting for a state event.
+        _connectionChanged?.Invoke(this, EventArgs.Empty);
         return value;
     }
 }
