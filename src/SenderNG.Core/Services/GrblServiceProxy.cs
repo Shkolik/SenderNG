@@ -12,9 +12,11 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
 {
     private IGrblService _inner;
     private IDisposable? _subscription;
+    private IDisposable? _linesSubscription;
     private EventHandler? _innerConnectionHandler;
     private EventHandler? _connectionChanged;
     private readonly BehaviorSubject<MachineState> _subject = new(new MachineState());
+    private readonly Subject<string> _receivedLines = new();
 
     public GrblServiceProxy(IGrblService inner) =>
         _inner = SetInner(inner);
@@ -47,6 +49,10 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
     // through here on attach and on every demo/real swap.
     public IObservable<MachineState> State => _subject;
 
+    // Raw controller output is relayed the same way as state, so console
+    // subscribers keep receiving lines across demo/real/network inner swaps.
+    public IObservable<string> ReceivedLines => _receivedLines;
+
     public Task ConnectAsync(string port) => _inner.ConnectAsync(port);
 
     public void Disconnect() => _inner.Disconnect();
@@ -65,6 +71,8 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
         ArgumentNullException.ThrowIfNull(value);
         _subscription?.Dispose();
         _subscription = value.State.Subscribe(_subject.OnNext);
+        _linesSubscription?.Dispose();
+        _linesSubscription = value.ReceivedLines.Subscribe(_receivedLines.OnNext);
 
         if (_innerConnectionHandler is not null)
             _inner.ConnectionChanged -= _innerConnectionHandler;

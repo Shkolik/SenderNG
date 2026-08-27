@@ -8,7 +8,32 @@
              x:DataType="vm:ConsoleViewModel">
 
     <Border BorderBrush="#aaa" BorderThickness="1" CornerRadius="0" Background="#f6f6f6">
-        <ListBox x:Name="ConsoleList" ItemsSource="{Binding ConsoleLines}" CornerRadius="0" BorderBrush="#aaa" BorderThickness="0"
-                 HorizontalAlignment="Stretch" />
+        <Grid RowDefinitions="Auto,*">
+
+            <!-- Console settings (ioSender ConsoleControl parity): verbose output,
+                 filter realtime status reports, show all realtime responses. -->
+            <Border Grid.Row="0" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,0,0,1" Padding="4,3">
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <CheckBox Content="Verbose" IsChecked="{Binding Verbose, Mode=TwoWay}"
+                              FontSize="11" CornerRadius="0" VerticalAlignment="Center" />
+                    <CheckBox Content="Filter out realtime responses"
+                              IsChecked="{Binding FilterRealtime, Mode=TwoWay}"
+                              IsEnabled="{Binding Verbose}"
+                              FontSize="11" CornerRadius="0" VerticalAlignment="Center" />
+                    <CheckBox Content="Show all realtime responses"
+                              IsChecked="{Binding ShowAllRealtime, Mode=TwoWay}"
+                              IsEnabled="{Binding Verbose}"
+                              FontSize="11" CornerRadius="0" VerticalAlignment="Center" />
+                    <Button Content="Clear" Command="{Binding ClearCommand}"
+                            CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1"
+                            Padding="10,0" Height="24" FontSize="11" VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+
+            <ListBox x:Name="ConsoleList" Grid.Row="1" ItemsSource="{Binding ConsoleLines}"
+                     CornerRadius="0" BorderBrush="#aaa" BorderThickness="0"
+                     FontSize="11" ScrollViewer.HorizontalScrollBarVisibility="Visible"
+                     HorizontalAlignment="Stretch" />
+        </Grid>
     </Border>
 </UserControl>

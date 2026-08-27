@@ -175,6 +175,25 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    public async Task ReceivedLines_publish_raw_controller_output()
+    {
+        var transport = new FakeGrblTransport();
+        using var svc = new RealGrblService(transport);
+        var lines = new List<string>();
+        svc.ReceivedLines.Subscribe(lines.Add);
+
+        await svc.ConnectAsync("fake");
+        transport.Enqueue("<Idle|WPos:1,2,3>");
+        transport.Enqueue("ok");
+        transport.Enqueue("[PRB:1.5,2,3:1]");
+
+        await WaitUntil(() => lines.Count >= 3);
+        Assert.Contains("<Idle|WPos:1,2,3>", lines);
+        Assert.Contains("ok", lines);
+        Assert.Contains("[PRB:1.5,2,3:1]", lines);
+    }
+
+    [Fact]
     public async Task Realtime_write_goes_out_as_raw_byte()
     {
         var transport = new FakeGrblTransport();

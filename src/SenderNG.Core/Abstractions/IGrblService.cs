@@ -23,6 +23,14 @@ public interface IGrblService
     IObservable<MachineState> State { get; }
 
     /// <summary>
+    /// Raw lines received from the controller, before status parsing — the console
+    /// renders these with ioSender's filter settings. Defaults to an empty stream
+    /// so lightweight test doubles (and the demo service, which has no real port)
+    /// compile and simply show nothing.
+    /// </summary>
+    IObservable<string> ReceivedLines => System.Reactive.Linq.Observable.Empty<string>();
+
+    /// <summary>
     /// Controller capability snapshot from the connect-time handshake. Defaults to
     /// <see cref="ControllerCapabilities.Unknown"/> so lightweight test doubles and
     /// services that haven't handshaken still compile; <see cref="DemoGrblService"/>

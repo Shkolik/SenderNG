@@ -19,6 +19,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 {
     private const int DefaultBaudRate = 115200;
     private readonly BehaviorSubject<MachineState> _subject;
+    private readonly Subject<string> _receivedLines = new();
     private readonly IGrblTransport _transport;
     private readonly object _gate = new();
     private readonly Queue<IMessageWaiter> _waiters = new();
@@ -32,6 +33,9 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     public bool IsConnected { get; private set; }
 
     public event EventHandler? ConnectionChanged;
+
+    /// <summary>Every complete line read from the transport, before status parsing (the console renders these).</summary>
+    public IObservable<string> ReceivedLines => _receivedLines;
 
     public IObservable<MachineState> State => _subject;
 
@@ -266,6 +270,10 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
             if (line is null)
                 continue; // adapter timeout; keep reading
+
+            // Raw line first: the console shows actual controller output (status
+            // reports, ok/error replies, $I/$ settings dumps) unfiltered by parsing.
+            _receivedLines.OnNext(line);
 
             // Parse into a fresh snapshot so observers hold a stable instance that
             // later polls can't mutate out from under them (BehaviorSubject + in-place

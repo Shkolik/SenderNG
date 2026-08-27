@@ -60,7 +60,12 @@ Many already exist; the gaps are listed per widget.
       CW/CCW/Off + RPM input.
 - [x] Program view (`Modules/Fixed/Program`) — line list with status, program
       limits panel, load/send.
-- [x] Console (`Modules/Fixed/Console`).
+- [x] Console (`Modules/Fixed/Console`) — renders the controller's raw output
+      with ioSender console semantics: Verbose / Filter-out-realtime /
+      Show-all-realtime options (persisted), Clear button, 200-line cap. Demo
+      mode publishes no raw lines, so the console no longer shows mocked status
+      strings; connected to a real board it shows $I identity/options, $$ dumps,
+      `[PRB:...]` and `error:` replies as sent.
 - [x] Offsets (`Modules/Fixed/Offsets`) — coordinate table + save.
 - [x] Grbl settings (`Modules/Fixed/GrblSettings`) — `$$` view/edit.
 - [x] App settings (`Modules/Fixed/AppSettings`).
@@ -85,8 +90,9 @@ Many already exist; the gaps are listed per widget.
       toolbar; SenderNG has Open (menu + toolbar) and program send in the
       Program view, but no Save/Close file actions.
 - [ ] **Status bar parity** — ioSender status bar shows Blocks, Message,
-      RunTime, JogStep; SenderNG's Block/Ready/Jog-step texts are hardcoded
-      placeholders (architecture §8 "unbound UI").
+      RunTime, JogStep; SenderNG's Block/Jog-step texts are still hardcoded
+      placeholders and Ready is now bound to the connection status
+      (architecture §8 "unbound UI").
 
 ### Deferred scope noted here for completeness (do not start without asking)
 

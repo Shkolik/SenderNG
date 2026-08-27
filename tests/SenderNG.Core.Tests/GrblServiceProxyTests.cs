@@ -9,9 +9,11 @@ public class GrblServiceProxyTests
     private sealed class FakeGrbl(string name) : IGrblService
     {
         public BehaviorSubject<MachineState> Subject { get; } = new(new MachineState(3));
+        public Subject<string> Lines { get; } = new();
         public List<string> Sent { get; } = [];
         public bool IsConnected { get; private set; }
         public IObservable<MachineState> State => Subject;
+        public IObservable<string> ReceivedLines => Lines;
         public Task ConnectAsync(string port) { IsConnected = true; return Task.CompletedTask; }
         public void Disconnect() => IsConnected = false;
         public void SendRealtime(byte code) => Sent.Add($"RT:{code:X2}");
@@ -54,6 +56,24 @@ public class GrblServiceProxyTests
         // Regression: widgets stayed empty on startup because the proxy's State
         // did not replay the inner service's current machine state.
         Assert.Equal(["Idle"], states);
+    }
+
+    [Fact]
+    public void ReceivedLines_forward_from_inner_and_survive_swap()
+    {
+        var demo = new FakeGrbl("demo");
+        var real = new FakeGrbl("real");
+        var proxy = new GrblServiceProxy(demo);
+
+        var lines = new List<string>();
+        using var sub = proxy.ReceivedLines.Subscribe(lines.Add);
+
+        demo.Lines.OnNext("demo line");
+        proxy.Inner = real;
+        real.Lines.OnNext("real line");
+
+        // The console subscriber keeps receiving raw lines across inner swaps.
+        Assert.Equal(["demo line", "real line"], lines);
     }
 
     [Fact]
