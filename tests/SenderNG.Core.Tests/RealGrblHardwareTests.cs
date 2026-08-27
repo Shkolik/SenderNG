@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 
@@ -66,22 +67,24 @@ public class RealGrblHardwareTests
     /// the $I handshake identified a grbl / grblHAL controller. Any opened port is
     /// closed before returning (the caller only receives an owned, connected board).
     /// </summary>
-    private static bool TryIdentifyBoard(string port, out RealGrblService svc, out List<string> received)
+    private static bool TryIdentifyBoard(string port, out RealGrblService svc, out ConcurrentQueue<string> received)
     {
         // Hardware mutates the GrblInfo global (axis count, grblHAL flag); capture so a
         // real run can't leak those values into later unit tests in the same process.
         var savedAxes = CNC.Core.GrblInfo.NumAxes;
         var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
-        received = [];
+        received = new ConcurrentQueue<string>();
         var keep = false;
         var candidate = new RealGrblService();
         try
         {
             // Subscribe to the raw-line stream up front so the connect-time $I
             // identity/options burst (a non-replaying Subject) is captured here.
-            candidate.ReceivedLines.Subscribe(received.Add);
+            // The reader thread feeds lines while tests enumerate them, so the
+            // capture is a ConcurrentQueue (never a plain List).
+            candidate.ReceivedLines.Subscribe(received.Enqueue);
             candidate.ConnectAsync(port).GetAwaiter().GetResult();
-            if (candidate.Capabilities.IsGrblHAL)
+            if (candidate.Capabilities.IsKnown)
             {
                 // Keep the connected board for the caller; the poll loop continues.
                 svc = candidate;
@@ -110,7 +113,7 @@ public class RealGrblHardwareTests
     }
 
     private static async Task ExerciseBoard(
-        string port, RealGrblService svc, List<string> received, int preAxes, bool preHAL)
+        string port, RealGrblService svc, ConcurrentQueue<string> received, int preAxes, bool preHAL)
     {
         MachineState? latest = null;
         svc.State.Subscribe(s => latest = s);
@@ -130,10 +133,10 @@ public class RealGrblHardwareTests
             // the discovered axis count into both the legacy GrblInfo static and the
             // live MachineState (the DRO/signals rows).
             Console.WriteLine(
-                $"OK  $I handshake capabilities: IsGrblHAL={svc.Capabilities.IsGrblHAL}, " +
+                $"OK  $I handshake capabilities: known={svc.Capabilities.IsKnown}, " +
+                $"IsGrblHAL={svc.Capabilities.IsGrblHAL}, firmware='{svc.Capabilities.Firmware}', " +
                 $"version='{svc.Capabilities.Version}', axes={svc.Capabilities.NumAxes}");
             Assert.True(svc.Capabilities.IsKnown, "$I handshake should identify the controller");
-            Assert.True(svc.Capabilities.IsGrblHAL, "expected grblHAL board (user reported grbl 1.2i)");
             Assert.True(svc.Capabilities.NumAxes >= 3, "board should report at least 3 axes");
             Assert.Equal(svc.Capabilities.NumAxes, CNC.Core.GrblInfo.NumAxes);
             Assert.Equal(svc.Capabilities.NumAxes, latest!.NumAxes);
@@ -141,10 +144,11 @@ public class RealGrblHardwareTests
 
             // 1c) The raw-line stream must have carried the $I identity/options lines and
             // settings — this is what the Console tab renders.
+            var receivedLines = received.ToArray();
             Console.WriteLine(
-                $"OK  received {received.Count} raw lines; sample: " + string.Join(" | ", received.Take(4)));
-            Assert.Contains(received, l => l.StartsWith("[VER:") || l.StartsWith("Grbl") || l.StartsWith("grblHAL"));
-            Assert.Contains(received, l => l.StartsWith("[OPT:") || l.StartsWith("[AXS:"));
+                $"OK  received {receivedLines.Length} raw lines; sample: " + string.Join(" | ", receivedLines.Take(4)));
+            Assert.Contains(receivedLines, l => l.StartsWith("[VER:") || l.StartsWith("Grbl") || l.StartsWith("grblHAL"));
+            Assert.Contains(receivedLines, l => l.StartsWith("[OPT:") || l.StartsWith("[AXS:"));
 
             // 2) A $$ exchange proves the reader/routing round-trips command replies.
             var settings = await svc.GetSettingLinesAsync();
@@ -217,7 +221,7 @@ public class RealGrblHardwareTests
                     try
                     {
                         await svc.ConnectAsync(candidate);
-                        if (svc.IsConnected && svc.Capabilities.IsGrblHAL)
+                        if (svc.IsConnected && svc.Capabilities.IsKnown)
                         {
                             connectedPort = candidate;
                             reconnected = true;
@@ -236,7 +240,8 @@ public class RealGrblHardwareTests
             }
             Console.WriteLine(
                 reconnected
-                    ? $"OK  reconnected to {connectedPort}: {svc.Capabilities.Version}, axes={svc.Capabilities.NumAxes}"
+                    ? $"OK  reconnected to {connectedPort}: IsGrblHAL={svc.Capabilities.IsGrblHAL}, " +
+                      $"{svc.Capabilities.Version}, axes={svc.Capabilities.NumAxes}"
                     : $"FAIL reconnect failed: {last?.Message}");
             Assert.True(reconnected, "reconnect after re-plug must succeed");
             Assert.True(svc.Capabilities.IsKnown, "fresh $I handshake after reconnect");
@@ -323,6 +328,115 @@ public class RealGrblHardwareTests
         }
         finally
         {
+            CNC.Core.GrblInfo.NumAxes = savedAxes;
+            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+        }
+    }
+
+    /// <summary>
+    /// Interactive per-board triage (opt-in via SENDERNG_HW_PORT). Connect to ONE
+    /// board, report its identity and grbl/grblHAL classification, verify live status
+    /// reports and the console handshake content, then exercise the two machine
+    /// controls the user cares about: <c>Unlock</c> (<c>$X</c>) and <c>Reset</c>
+    /// (realtime 0x18 soft-reset, which re-prints the boot banner and re-arms the
+    /// alarm lock). Run it once per board: connect the board, run with
+    /// SENDERNG_HW_PORT=&lt;port&gt;, then swap to the next board.
+    /// </summary>
+    [Fact]
+    public async Task Triage_board_identity_unlock_reset_on_hardware()
+    {
+        var envPort = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
+        if (string.IsNullOrWhiteSpace(envPort))
+        {
+            Console.WriteLine("WARNING: board triage test skipped — set SENDERNG_HW_PORT to run it");
+            return;
+        }
+        var port = envPort.Trim();
+        if (!AvailablePorts.Contains(port, StringComparer.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"WARNING: board triage test skipped — '{port}' not enumerated");
+            return;
+        }
+
+        var savedAxes = CNC.Core.GrblInfo.NumAxes;
+        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        var received = new ConcurrentQueue<string>();
+        MachineState? latest = null;
+        using var svc = new RealGrblService();
+        try
+        {
+            svc.ReceivedLines.Subscribe(received.Enqueue);
+            svc.State.Subscribe(s => latest = s);
+
+            await svc.ConnectAsync(port);
+            Assert.True(svc.IsConnected);
+
+            var c = svc.Capabilities;
+            Console.WriteLine(
+                $"BOARD {port}: known={c.IsKnown} IsGrblHAL={c.IsGrblHAL} firmware='{c.Firmware}' " +
+                $"version='{c.Version}' build={c.Build} axes={c.NumAxes} " +
+                $"plan={c.PlanBufferSize} serial={c.SerialBufferSize} tools={c.NumTools}");
+            Assert.True(c.IsKnown, "$I handshake should identify the controller");
+
+            // 1) Live status reports must arrive with the handshake axis count.
+            var gotStatus = await WaitUntil(
+                () => latest is { NumAxes: > 0 } && latest.NumAxes >= c.NumAxes, HandshakeTimeoutMs);
+            Console.WriteLine(
+                gotStatus
+                    ? $"OK  live status: '{latest!.Status}' WPos=({string.Join(",", latest.Positions)})"
+                    : "WARN no live status arrived within timeout");
+            Assert.True(gotStatus, "status poll must produce reports");
+
+            // 2) Console content: raw lines must carry the $I identity/options burst.
+            var receivedLines = received.ToArray();
+            Console.WriteLine(
+                $"OK  console received {receivedLines.Length} raw lines; sample: " +
+                string.Join(" | ", receivedLines.Take(5)));
+            Assert.Contains(receivedLines, l => l.StartsWith("[VER:") || l.StartsWith("Grbl") || l.StartsWith("grblHAL"));
+            Assert.Contains(receivedLines, l => l.StartsWith("[OPT:") || l.StartsWith("[AXS:"));
+
+            // 3) Unlock: $X must be acknowledged; when the board boots into Alarm
+            //    (grbl with homing enabled) it must leave Alarm afterwards.
+            var statusBeforeUnlock = latest?.Status;
+            Console.WriteLine($"UNLOCK status-before='{statusBeforeUnlock}' — sending $X");
+            await svc.SendAsync("$X"); // throws on an error reply or disconnect
+            Console.WriteLine("OK  $X acknowledged (no error reply)");
+            var leftAlarm = await WaitUntil(
+                () => latest?.Status is not ("Alarm" or null) || statusBeforeUnlock is not "Alarm", 5000);
+            Console.WriteLine($"UNLOCK status-after='{latest?.Status}'");
+            if (statusBeforeUnlock == "Alarm")
+                Console.WriteLine(leftAlarm ? "OK  alarm cleared after $X" : "WARN still Alarm after $X");
+            else
+                Console.WriteLine($"INFO board was '{statusBeforeUnlock}' (not Alarm); $X accepted");
+
+            // 4) Reset: realtime 0x18 reboots the controller -> boot banner re-prints
+            //    and the alarm lock re-arms (grbl power-up state with homing enabled).
+            var countBefore = received.Count;
+            Console.WriteLine("RESET sending realtime 0x18 (soft reset)...");
+            svc.SendRealtime(0x18);
+            var rebanner = await WaitUntil(() => received
+                .Skip(countBefore)
+                .Any(l => l.Contains("Grbl", StringComparison.OrdinalIgnoreCase) && l.Contains("help")), 15_000);
+            var banner = rebanner
+                ? received.Skip(countBefore).FirstOrDefault(l =>
+                    l.Contains("Grbl", StringComparison.OrdinalIgnoreCase) && l.Contains("help"))
+                : null;
+            Console.WriteLine(
+                rebanner ? $"OK  reset: banner re-printed: '{banner}'" : "WARN no re-banner within 15s after reset");
+
+            var postReset = await WaitUntil(() => latest?.Status is "Idle" or "Alarm" or "Hold" or "Door", 10_000);
+            Console.WriteLine($"RESET post-reboot status='{latest?.Status}'");
+            Assert.True(postReset, "status poll must resume after reset");
+
+            // 5) Commands still flow after the reboot.
+            var settings = await svc.GetSettingLinesAsync();
+            Console.WriteLine($"OK  $$ after reset returned {settings.Count} setting lines");
+            Assert.NotEmpty(settings);
+        }
+        finally
+        {
+            svc.Disconnect();
+            // Restore the global static so a hardware run can't leak into later tests.
             CNC.Core.GrblInfo.NumAxes = savedAxes;
             CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
         }

@@ -10,11 +10,18 @@ namespace CNC.Core.Services;
 ///
 /// Handles the shapes SenderNG needs:
 ///   - Classic grbl identity:   <c>Grbl 1.1h ['$' for help]</c>
-///   - grblHAL version line:    <c>[VER:1.2i.20260521:]</c> (verified on a real board)
-///   - grblHAL axis line:       <c>[AXS:5:XYZAB]</c> — the authoritative axis count
-///   - grblHAL options line:    <c>[OPT:VNMGH,35,255,48]</c> → letters, plan, serial, tools
+///   - Version line:            <c>[VER:1.2i.20260521:]</c> (mega5x fork, verified on a real board)
+///   - Axis line:               <c>[AXS:5:XYZAB]</c> — the authoritative axis count
+///   - Options line:            <c>[OPT:VNMGH,35,255,48]</c> → letters, plan, serial, tools
+///   - Firmware line:           <c>[FIRMWARE:grblHAL]</c> — the ONLY reliable grblHAL signal
 /// The option letters are scanned for feature hints the same way ioSender reads build
 /// options.
+///
+/// grblHAL classification: a controller is grblHAL only when the reply contains the
+/// "grblHAL" marker (<c>[FIRMWARE:grblHAL]</c> or a <c>grblHAL 1.1h</c> banner) or a
+/// <c>[NAME:...]</c> line. Classic grbl 1.1 and 1.2i forks (mega5x) emit <c>[VER:]</c>,
+/// <c>[OPT:]</c>, <c>[FIRMWARE:grbl]</c> and even <c>[AXS:]</c>, so those lines do NOT
+/// imply grblHAL — the app must not "mix 1.2i with HAL" as it previously did.
 /// </summary>
 public static class ControllerInfoParser
 {
@@ -40,31 +47,47 @@ public static class ControllerInfoParser
             if (string.IsNullOrEmpty(line))
                 continue;
 
+            // The "grblHAL" marker string is the reliable HAL signal: grblHAL's $I
+            // carries [FIRMWARE:grblHAL] and its boot banner is "grblHAL 1.1h...".
+            // Classic grbl 1.1 and 1.2i forks (e.g. mega5x) emit [VER:...], [OPT:...],
+            // [FIRMWARE:grbl] and even [AXS:...] (mega5x is 5-axis) — so a bare
+            // [VER:]/[AXS:]/[FIRMWARE:...] line must NOT imply grblHAL.
+            if (line.Contains(GrblHALMarker, StringComparison.OrdinalIgnoreCase))
+            {
+                isHAL = true;
+                firmware = GrblHALMarker;
+            }
+
             if (line.StartsWith('[') && line.EndsWith(']'))
             {
                 var kv = line[1..^1].Split(':', 2);
                 switch (kv[0])
                 {
                     case "VER":
-                        // [VER:1.2i.20260521:] or [VER:1.1f.20230820:name]
+                        // [VER:1.2i.20260521:] or [VER:1.1f.20230820:grblHAL]
                         if (kv.Length > 1)
-                            ver = kv[1].Split(':')[0];
-                        if (kv.Length > 2 && kv[2].Length > 0)
-                            firmware = kv[2];
-                        isHAL = true;
+                        {
+                            var tail = kv[1].Split(':');
+                            ver = tail[0];
+                            if (tail.Length > 1 && tail[1].Length > 0)
+                                firmware = tail[1];
+                        }
                         break;
                     case "AXS":
                         // [AXS:5:XYZAB] — the number before the axis letters is axis count.
+                        // Not a HAL signal: the mega5x 1.2i fork emits it too.
                         axesLine = kv.Length > 1 ? kv[1].Split(':')[0] : string.Empty;
-                        isHAL = true;
                         break;
                     case "OPT":
                         if (kv.Length > 1)
                             opt = kv[1];
                         break;
-                    default:
-                        isHAL = true; // any [NAME:...] under $I implies grblHAL extended
+                    case "NAME":
+                        // [NAME:...] is grblHAL-specific; classic grbl never emits it.
+                        isHAL = true;
                         break;
+                    // [FIRMWARE:grbl] (classic), [FW_BUILD:...] and other lines carry
+                    // no HAL signal by themselves.
                 }
             }
             else if (line.StartsWith("Grbl ", StringComparison.OrdinalIgnoreCase))
@@ -72,19 +95,16 @@ public static class ControllerInfoParser
                 identity = line;
                 ver = line[5..].Split(' ')[0];
             }
-            else if (line.Contains(GrblHALMarker, StringComparison.OrdinalIgnoreCase))
-            {
-                isHAL = true;
-                firmware = GrblHALMarker;
-            }
         }
 
         if (string.IsNullOrEmpty(ver) && string.IsNullOrEmpty(opt) && !isHAL && string.IsNullOrEmpty(identity))
             return ControllerCapabilities.Unknown;
 
-        // grblHAL embeds a build number in the version tail: 1.1f.20230820 -> 20230820.
+        // grbl embeds a build date in the version tail: 1.1f.20230820 -> 20230820.
+        // Classic grbl 1.1h, grblHAL and the mega5x 1.2i fork all do this, so the
+        // strip is NOT gated on the HAL flag.
         var dot = ver.LastIndexOf('.');
-        if (isHAL && dot >= 0 && int.TryParse(ver[(dot + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture, out var b))
+        if (dot >= 0 && int.TryParse(ver[(dot + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture, out var b))
         {
             build = b;
             ver = ver[..dot];
