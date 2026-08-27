@@ -14,10 +14,14 @@
                         CornerRadius="0" Background="White"
                         BorderBrush="#999" BorderThickness="1">
 
-                <!-- Serial: grayed out when no ports are found (port list + baud
+                <!-- Tab headers match the center-panel tab typography (13 SemiBold).
+                     Serial is grayed out when no ports are found (port list + baud
                      disabled; refresh stays usable so plugging in a controller
                      and refreshing brings the tab to life). -->
-                <TabItem Header="Serial">
+                <TabItem>
+                    <TabItem.Header>
+                        <TextBlock Text="Serial" FontSize="13" FontWeight="SemiBold" />
+                    </TabItem.Header>
                     <StackPanel Spacing="6" Margin="4,8,4,4">
                         <TextBlock Text="Port" FontWeight="SemiBold" FontSize="12" />
                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -50,7 +54,10 @@
                 </TabItem>
 
                 <!-- Network: only usable when the settings enable network connectivity. -->
-                <TabItem Header="Network">
+                <TabItem>
+                    <TabItem.Header>
+                        <TextBlock Text="Network" FontSize="13" FontWeight="SemiBold" />
+                    </TabItem.Header>
                     <StackPanel Spacing="6" Margin="4,8,4,4" IsEnabled="{Binding NetworkEnabled}">
                         <TextBlock Text="Endpoint (host:port)" FontWeight="SemiBold" FontSize="12" />
                         <TextBox Text="{Binding NetworkEndpoint, Mode=TwoWay}"
@@ -62,7 +69,10 @@
                 </TabItem>
 
                 <!-- Demo: always available; the disclaimer explains what it is. -->
-                <TabItem Header="Demo">
+                <TabItem>
+                    <TabItem.Header>
+                        <TextBlock Text="Demo" FontSize="13" FontWeight="SemiBold" />
+                    </TabItem.Header>
                     <StackPanel Spacing="6" Margin="4,8,4,4">
                         <Border Background="#fdf3d0" BorderBrush="#e0c060" BorderThickness="1"
                                 CornerRadius="0" Padding="8">
