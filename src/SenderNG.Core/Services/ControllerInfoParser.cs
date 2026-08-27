@@ -116,8 +116,12 @@ public static class ControllerInfoParser
         var tools = 0;
         var optLetters = string.Empty;
 
-        // [OPT:letters,plan,serial,tools] — grblHAL 1.2i verified layout: the 4th field
-        // is the tool count, NOT axes. Axes come from [AXS:...] when present.
+        // [OPT:...] numeric layout varies by firmware:
+        //   classic grbl 1.1: [letters, plan, serial]                -> no tools
+        //   mega5x 1.2i fork: [letters, plan, serial, tools]         -> 4th field = tools
+        //   grblHAL 1.1f+:    [letters, plan, serial, axes, tools]   -> 5th field = tools, 4th = axes
+        // [AXS:...] is authoritative for the axis count; read tools from the
+        // firmware's tool slot (last numeric field).
         if (opt.Length > 0)
         {
             var parts = opt.TrimEnd(']').Split(',');
@@ -127,8 +131,10 @@ public static class ControllerInfoParser
                 planBuffers = p;
             if (parts.Length > 2 && int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var s))
                 serialBuffers = s;
-            if (parts.Length > 3 && int.TryParse(parts[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var t))
+            if (parts.Length > 4 && int.TryParse(parts[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out var t))
                 tools = t;
+            else if (parts.Length == 4 && int.TryParse(parts[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var t4))
+                tools = t4;
         }
 
         // [AXS:n:letters] is authoritative for the axis count when present.

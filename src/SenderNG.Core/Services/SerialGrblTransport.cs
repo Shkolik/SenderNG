@@ -36,13 +36,19 @@ public sealed class SerialGrblTransport : IGrblTransport, IPortPresenceCheck
             // is buffered), so no ReadTimeout is needed on the read path. Writes
             // keep a bounded timeout; grbl drains its RX buffer continuously.
             WriteTimeout = 2000,
+            // Assert DTR at open like ioSender does (SerialStream.cs). Two reasons:
+            //  1. Arduino-style auto-reset circuits (mega5x / Nano) reset the board
+            //     on the DTR edge at open — a clean boot; the $I retry absorbs it.
+            //  2. CDC boards whose output is gated on line state (RP2040 native USB)
+            //     deliver NOTHING for the '?' poll while DTR is de-asserted — verified
+            //     on hardware: status reports start flowing only once DTR is high.
+            DtrEnable = true,
         };
         _port.Open();
 
-        // ioSender leaves DTR asserted so a board isn't held in reset; the reset
-        // action is an explicit pulse after open (SerialStream.cs connect code):
-        //   - Toggle DTR  (Arduino): low for ~5 ms then high again -> bootloader reset.
-        //   - Toggle RTS  (ESP32):  assert, wait, no de-assert (ioSender leaves it on).
+        // The "On connect" reset action is an explicit pulse after open
+        // (SerialStream.cs connect code): Toggle DTR low ~5 ms then high again;
+        // Toggle RTS asserts and stays asserted (ioSender semantics).
         ApplyResetMode(resetMode);
 
         _line.Clear();

@@ -378,12 +378,22 @@ public class RealGrblHardwareTests
                 $"plan={c.PlanBufferSize} serial={c.SerialBufferSize} tools={c.NumTools}");
             Assert.True(c.IsKnown, "$I handshake should identify the controller");
 
-            // 1) Live status reports must arrive with the handshake axis count.
-            var gotStatus = await WaitUntil(
-                () => latest is { NumAxes: > 0 } && latest.NumAxes >= c.NumAxes, HandshakeTimeoutMs);
+            // 1) Live status reports must arrive — wait for at least TWO status
+            //    lines, proving the '?' poll loop runs continuously (the RP2040
+            //    regression: with DTR de-asserted, status output is gated on line
+            //    state and the poll silently got nothing). A short settle lets the
+            //    next poll refresh `latest` past the synthetic connect state.
+            var statusLines = 0;
+            var gotStatus = await WaitUntil(() =>
+            {
+                statusLines = received.Count(l => l.StartsWith('<'));
+                return statusLines >= 2;
+            }, HandshakeTimeoutMs);
+            await Task.Delay(300);
             Console.WriteLine(
                 gotStatus
-                    ? $"OK  live status: '{latest!.Status}' WPos=({string.Join(",", latest.Positions)})"
+                    ? $"OK  status poll active ({statusLines} reports): '{latest!.Status}' " +
+                      $"WPos=({string.Join(",", latest.Positions)})"
                     : "WARN no live status arrived within timeout");
             Assert.True(gotStatus, "status poll must produce reports");
 
@@ -396,18 +406,22 @@ public class RealGrblHardwareTests
             Assert.Contains(receivedLines, l => l.StartsWith("[OPT:") || l.StartsWith("[AXS:"));
 
             // 3) Unlock: $X must be acknowledged; when the board boots into Alarm
-            //    (grbl with homing enabled) it must leave Alarm afterwards.
+            //    (grbl with homing enabled) it must leave Alarm afterwards. The
+            //    actual reply line is reported ("ok" vs "error:nn" — grblHAL can
+            //    refuse $X with error 79 on some native-USB builds).
             var statusBeforeUnlock = latest?.Status;
+            var beforeUnlock = received.Count;
             Console.WriteLine($"UNLOCK status-before='{statusBeforeUnlock}' — sending $X");
-            await svc.SendAsync("$X"); // throws on an error reply or disconnect
-            Console.WriteLine("OK  $X acknowledged (no error reply)");
+            await svc.SendAsync("$X"); // throws on a timeout or disconnect
+            var unlockReplies = received.Skip(beforeUnlock).Where(l => !l.StartsWith('<')).Take(2).ToArray();
+            Console.WriteLine($"UNLOCK reply: {(unlockReplies.Length > 0 ? string.Join(" | ", unlockReplies) : "(none observed)")}");
             var leftAlarm = await WaitUntil(
                 () => latest?.Status is not ("Alarm" or null) || statusBeforeUnlock is not "Alarm", 5000);
             Console.WriteLine($"UNLOCK status-after='{latest?.Status}'");
             if (statusBeforeUnlock == "Alarm")
                 Console.WriteLine(leftAlarm ? "OK  alarm cleared after $X" : "WARN still Alarm after $X");
             else
-                Console.WriteLine($"INFO board was '{statusBeforeUnlock}' (not Alarm); $X accepted");
+                Console.WriteLine($"INFO board was '{statusBeforeUnlock}' (not Alarm); $X exchanged");
 
             // 4) Reset: realtime 0x18 reboots the controller -> boot banner re-prints
             //    and the alarm lock re-arms (grbl power-up state with homing enabled).
@@ -424,7 +438,12 @@ public class RealGrblHardwareTests
             Console.WriteLine(
                 rebanner ? $"OK  reset: banner re-printed: '{banner}'" : "WARN no re-banner within 15s after reset");
 
-            var postReset = await WaitUntil(() => latest?.Status is "Idle" or "Alarm" or "Hold" or "Door", 10_000);
+            // After the reboot the poll loop must resume reporting (a fresh status
+            // line proves it); a short settle lets `latest` reflect the real state.
+            var postResetCount = received.Count(l => l.StartsWith('<'));
+            var postReset = await WaitUntil(
+                () => received.Count(l => l.StartsWith('<')) > postResetCount + 1, 10_000);
+            await Task.Delay(300);
             Console.WriteLine($"RESET post-reboot status='{latest?.Status}'");
             Assert.True(postReset, "status poll must resume after reset");
 

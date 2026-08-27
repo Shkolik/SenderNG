@@ -54,6 +54,25 @@ public class ControllerInfoParserTests
     }
 
     [Fact]
+    public void R_P2040_grblHAL_reply_parses_5_field_opt_layout()
+    {
+        // Captured from a real RP2040 grblHAL board (COM9): [OPT:] has 5 fields
+        // (letters, plan, serial, AXES, tools) — the 4th field is axes, not tools.
+        var caps = ControllerInfoParser.ParseInfo(
+            ["GrblHAL 1.1f ['$' or '$HELP' for help]", "[VER:1.1f.20260827:]", "[OPT:VNMSL+,100,1024,4,32]", "[AXS:4:XYZA]", "[FIRMWARE:grblHAL]"]);
+        Assert.True(caps.IsKnown);
+        Assert.True(caps.IsGrblHAL);
+        Assert.Equal("1.1f", caps.Version);
+        Assert.Equal(20260827, caps.Build);
+        Assert.Equal("grblHAL", caps.Firmware);
+        Assert.Equal(4, caps.NumAxes);
+        Assert.Equal(100, caps.PlanBufferSize);
+        Assert.Equal(1024, caps.SerialBufferSize);
+        Assert.Equal(32, caps.NumTools);
+        Assert.True(caps.CoolantMist); // 'M' option present
+    }
+
+    [Fact]
     public void Classic_grbl_1_1_I_reply_is_not_grblHAL()
     {
         // Classic grbl 1.1 $I shape: [VER:]/[OPT:]/[FIRMWARE:grbl]/[FW_BUILD:...].
