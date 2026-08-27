@@ -763,7 +763,8 @@ public class MainViewModel : ViewModelBase
 
         var settings = _settingsService.Load();
         var vm = new CNC.Core.ViewModels.ConnectViewModel(settings, _comPorts);
-        var result = await _dialogs.ShowDialogAsync("Connect", vm, (380, 430));
+        // No fixed size: the dialog grows/shrinks with its tab content.
+        var result = await _dialogs.ShowDialogAsync("Connect", vm);
         if (result != true)
         {
             Status = "Connect cancelled";
@@ -825,6 +826,28 @@ public class MainViewModel : ViewModelBase
         ConnectedTo = port;
         IsDemo = ResolveInner(Grbl) is DemoGrblService;
         Status = $"Connected: {port}";
+
+        // Only a *successful* connection is persisted (global, per connect mode)
+        // so the connect dialog re-opens pre-filled with values that worked.
+        try
+        {
+            var app = _settingsService.Load();
+            if (ReferenceEquals(ResolveInner(Grbl), _networkService))
+            {
+                app.LastNetworkEndpoint = port;
+            }
+            else
+            {
+                app.LastSerialPort = port;
+                if (baud is not null)
+                    app.LastSerialBaudRate = baud.Value;
+            }
+            _settingsService.Save(app);
+        }
+        catch
+        {
+            // Best-effort persistence; the connection itself already succeeded.
+        }
     }
 
     /// <summary>Connection events (connect / disconnect / inner swap) refresh the UI state.</summary>

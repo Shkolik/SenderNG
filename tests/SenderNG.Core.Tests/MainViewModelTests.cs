@@ -223,6 +223,9 @@ public class MainViewModelTests
             Assert.False(vm.IsDemo);
             Assert.True(vm.IsConnected);
             Assert.Contains($"Connected: 127.0.0.1:{port}", vm.Status);
+            // Only successful connects are persisted, into the global settings.
+            var saved = new SettingsService(settings.SettingsDir).Load();
+            Assert.Equal($"127.0.0.1:{port}", saved.LastNetworkEndpoint);
         }
         finally
         {
@@ -269,6 +272,35 @@ public class MainViewModelTests
         await Task.Yield();
 
         Assert.Contains("COM7", vm.Status);
+    }
+
+    [Fact]
+    public async Task Successful_serial_connect_persists_globally()
+    {
+        var settings = MakeSettings();
+        settings.Save(PortSettings("COM7"));
+        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings));
+
+        vm.ConnectCommand.Execute(null);
+        await Task.Yield();
+
+        var saved = new SettingsService(settings.SettingsDir).Load();
+        Assert.Equal("COM7", saved.LastSerialPort);
+    }
+
+    [Fact]
+    public async Task Failed_connect_does_not_persist()
+    {
+        var settings = MakeSettings();
+        settings.Save(PortSettings("nonexistent-port-xyz"));
+        var vm = new MainViewModel(new RealGrblService(), settings, MakeProvider(settings));
+
+        vm.ConnectCommand.Execute(null);
+        await Task.Yield();
+
+        var saved = new SettingsService(settings.SettingsDir).Load();
+        Assert.Empty(saved.LastSerialPort);
+        Assert.StartsWith("Connection failed", vm.Status);
     }
 
     [Fact]

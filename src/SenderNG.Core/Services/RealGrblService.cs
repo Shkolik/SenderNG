@@ -29,6 +29,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     private Timer? _pollTimer;
     private volatile bool _pollerSuspended;
     private int _pollIntervalMs = 200;
+    private TimeSpan _commandTimeout = TimeSpan.FromSeconds(60);
 
     public bool IsConnected { get; private set; }
 
@@ -56,6 +57,20 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     {
         get => _pollIntervalMs;
         set => _pollIntervalMs = Math.Max(50, value);
+    }
+
+    /// <summary>
+    /// How long <see cref="SendAsync"/> waits for the command's "ok"/"error"
+    /// reply. grbl is a blocking controller: it answers only after the command
+    /// finishes, and long-running commands like <c>$H</c> (homing) or a slow MDI
+    /// move can take tens of seconds — a short timeout turns a normal cycle into
+    /// a spurious TimeoutException. The await is fully async (no UI blocking);
+    /// disconnects cancel it immediately via the token.
+    /// </summary>
+    public TimeSpan CommandTimeout
+    {
+        get => _commandTimeout;
+        set => _commandTimeout = value > TimeSpan.Zero ? value : TimeSpan.FromSeconds(60);
     }
 
     public async Task ConnectAsync(string port)
@@ -176,7 +191,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         var waiter = new ReplyWaiter();
         lock (_gate) _waiters.Enqueue(waiter);
         await _transport.WriteLineAsync(line);
-        await AwaitWaiterAsync(waiter, TimeSpan.FromSeconds(5), _cts.Token);
+        await AwaitWaiterAsync(waiter, _commandTimeout, _cts.Token);
     }
 
     public void SendRealtime(byte code)

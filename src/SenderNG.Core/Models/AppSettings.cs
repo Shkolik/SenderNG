@@ -20,6 +20,14 @@ public class AppSettings
     public bool NetworkAvailable { get; set; } = true;
     public string NetworkEndpoint { get; set; } = "192.168.1.100:23";
 
+    // Last *successful* connection per connect mode (serial / network), written
+    // only after a connect actually succeeds so the dialog re-opens pre-filled
+    // with values that are known to work. Distinct from the mode-scoped Port /
+    // BaudRate legacy fields above.
+    public string LastSerialPort { get; set; } = string.Empty;
+    public int LastSerialBaudRate { get; set; }
+    public string LastNetworkEndpoint { get; set; } = string.Empty;
+
     // Legacy flat fields kept ONLY for settings.json migration; not used after Load.
     public int DemoAxes { get; set; } = 3;
     public string Port { get; set; } = "auto";

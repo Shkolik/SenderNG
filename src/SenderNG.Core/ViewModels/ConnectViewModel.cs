@@ -46,12 +46,15 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog
         _settings = settings;
         _ports = comPorts;
 
-        // Persisted baud otherwise defaults to the standard grbl rate (115200).
-        var savedBaud = settings.Current.BaudRate;
+        // Pre-fill from the last *successful* connection (global settings),
+        // falling back to the legacy mode-scoped values, then the standard rate.
+        var savedBaud = settings.LastSerialBaudRate > 0 ? settings.LastSerialBaudRate : settings.Current.BaudRate;
         _baudRate = BaudRates.Contains(savedBaud) ? savedBaud : 115200;
-        _networkEndpoint = string.IsNullOrWhiteSpace(settings.NetworkEndpoint)
-            ? "192.168.1.100:23"
-            : settings.NetworkEndpoint;
+        _networkEndpoint = !string.IsNullOrWhiteSpace(settings.LastNetworkEndpoint)
+            ? settings.LastNetworkEndpoint
+            : string.IsNullOrWhiteSpace(settings.NetworkEndpoint)
+                ? "192.168.1.100:23"
+                : settings.NetworkEndpoint;
 
         ConnectCommand = new DelegateCommand(_ => Connect(), _ => CanConnect);
         CancelCommand = new DelegateCommand(_ => RequestClose(false));
@@ -175,13 +178,9 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog
         switch (SelectedTab)
         {
             case ConnectMode.Serial:
-                // Persist the chosen port + baud so the dialog re-opens pre-filled.
-                _settings.Current.Port = SelectedPort;
-                _settings.Current.BaudRate = BaudRate;
                 Result = new ConnectResult(ConnectMode.Serial, SelectedPort, BaudRate, null);
                 break;
             case ConnectMode.Network:
-                _settings.NetworkEndpoint = NetworkEndpoint?.Trim() ?? string.Empty;
                 Result = new ConnectResult(ConnectMode.Network, null, 0, NetworkEndpoint?.Trim());
                 break;
             default:
@@ -189,6 +188,8 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog
                 break;
         }
 
+        // Persistence of the last successful connection happens in the caller
+        // (MainViewModel) only after the connect actually succeeds.
         RequestClose(true);
     }
 
@@ -201,8 +202,10 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog
         foreach (var p in ports)
             Ports.Add(p);
 
-        // Prefer the persisted port, then the first enumerated one.
+        // Prefer the current selection, then the last successful port, then the
+        // legacy mode-scoped port, then the first enumerated one.
         SelectedPort = ports.Contains(previous) ? previous
+            : ports.Contains(_settings.LastSerialPort) ? _settings.LastSerialPort
             : ports.Contains(_settings.Current.Port) ? _settings.Current.Port
             : ports.FirstOrDefault() ?? string.Empty;
 

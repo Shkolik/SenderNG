@@ -130,6 +130,19 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    public async Task SendAsync_times_out_after_CommandTimeout_without_reply()
+    {
+        // Long-running blocking commands like $H (homing) may take tens of
+        // seconds; the timeout is configurable and only fires when the reply
+        // genuinely never arrives.
+        var transport = new FakeGrblTransport { AutoReply = false };
+        using var svc = new RealGrblService(transport) { CommandTimeout = TimeSpan.FromMilliseconds(100) };
+        await svc.ConnectAsync("fake");
+
+        await Assert.ThrowsAsync<TimeoutException>(async () => await svc.SendAsync("$H"));
+    }
+
+    [Fact]
     public async Task SendAsync_writes_line_and_returns_after_ok()
     {
         var transport = new FakeGrblTransport();

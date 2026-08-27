@@ -11,22 +11,24 @@
         <Grid RowDefinitions="Auto,*">
 
             <!-- Console settings (ioSender ConsoleControl parity): verbose output,
-                 filter realtime status reports, show all realtime responses. -->
+                 filter realtime status reports, show all realtime responses. The
+                 labels are long, so they stack vertically to fit the tab width. -->
             <Border Grid.Row="0" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,0,0,1" Padding="4,3">
-                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <StackPanel Orientation="Vertical" Spacing="1">
                     <CheckBox Content="Verbose" IsChecked="{Binding Verbose, Mode=TwoWay}"
-                              FontSize="11" CornerRadius="0" VerticalAlignment="Center" />
+                              FontSize="11" CornerRadius="0" />
                     <CheckBox Content="Filter out realtime responses"
                               IsChecked="{Binding FilterRealtime, Mode=TwoWay}"
                               IsEnabled="{Binding Verbose}"
-                              FontSize="11" CornerRadius="0" VerticalAlignment="Center" />
+                              FontSize="11" CornerRadius="0" />
                     <CheckBox Content="Show all realtime responses"
                               IsChecked="{Binding ShowAllRealtime, Mode=TwoWay}"
                               IsEnabled="{Binding Verbose}"
-                              FontSize="11" CornerRadius="0" VerticalAlignment="Center" />
+                              FontSize="11" CornerRadius="0" />
                     <Button Content="Clear" Command="{Binding ClearCommand}"
+                            HorizontalAlignment="Left"
                             CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1"
-                            Padding="10,0" Height="24" FontSize="11" VerticalAlignment="Center" />
+                            Padding="10,0" Height="22" FontSize="11" Margin="0,3,0,0" />
                 </StackPanel>
             </Border>
 

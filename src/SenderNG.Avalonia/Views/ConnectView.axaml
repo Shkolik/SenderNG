@@ -7,8 +7,8 @@
              x:Class="SenderNG.Avalonia.Views.ConnectView"
              x:DataType="vm:ConnectViewModel">
 
-    <Border Width="360" Padding="12" Background="#f6f6f6">
-        <StackPanel Spacing="8">
+    <Border Width="360" Padding="10" Background="#f6f6f6">
+        <StackPanel Spacing="6">
 
             <TabControl SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
                         CornerRadius="0" Background="White"
@@ -18,26 +18,29 @@
                      disabled; refresh stays usable so plugging in a controller
                      and refreshing brings the tab to life). -->
                 <TabItem Header="Serial">
-                    <StackPanel Spacing="8" Margin="4,8,4,4">
-                        <TextBlock Text="Port" FontWeight="SemiBold" />
+                    <StackPanel Spacing="6" Margin="4,8,4,4">
+                        <TextBlock Text="Port" FontWeight="SemiBold" FontSize="12" />
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <ComboBox ItemsSource="{Binding Ports}"
                                       SelectedItem="{Binding SelectedPort, Mode=TwoWay}"
                                       IsEnabled="{Binding SerialEnabled}"
+                                      FontSize="12" Height="24"
                                       HorizontalAlignment="Stretch"
-                                      MinWidth="180" Height="28" CornerRadius="0"
+                                      MinWidth="180" CornerRadius="0"
                                       BorderBrush="#999" BorderThickness="1" />
                             <Button Content="⟳" Command="{Binding RefreshCommand}"
-                                    Width="28" Height="28" MinHeight="28" CornerRadius="0"
+                                    Width="26" Height="26" MinHeight="26" CornerRadius="0"
+                                    FontSize="11"
                                     Background="#eee" BorderBrush="#999" BorderThickness="1"
                                     ToolTip.Tip="Refresh port list" />
                         </StackPanel>
 
-                        <TextBlock Text="Baud rate" FontWeight="SemiBold" Margin="0,4,0,0" />
+                        <TextBlock Text="Baud rate" FontWeight="SemiBold" FontSize="12" Margin="0,2,0,0" />
                         <ComboBox ItemsSource="{Binding BaudRates}"
                                   SelectedItem="{Binding BaudRate, Mode=TwoWay}"
                                   IsEnabled="{Binding SerialEnabled}"
-                                  MinWidth="120" Height="28" CornerRadius="0"
+                                  FontSize="12" Height="24"
+                                  MinWidth="120" CornerRadius="0"
                                   HorizontalAlignment="Left"
                                   BorderBrush="#999" BorderThickness="1" />
 
@@ -48,11 +51,11 @@
 
                 <!-- Network: only usable when the settings enable network connectivity. -->
                 <TabItem Header="Network">
-                    <StackPanel Spacing="8" Margin="4,8,4,4" IsEnabled="{Binding NetworkEnabled}">
-                        <TextBlock Text="Endpoint (host:port)" FontWeight="SemiBold" />
+                    <StackPanel Spacing="6" Margin="4,8,4,4" IsEnabled="{Binding NetworkEnabled}">
+                        <TextBlock Text="Endpoint (host:port)" FontWeight="SemiBold" FontSize="12" />
                         <TextBox Text="{Binding NetworkEndpoint, Mode=TwoWay}"
-                                 CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                                 Height="26" />
+                                 FontSize="12" Height="24"
+                                 CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
                         <TextBlock Text="{Binding NetworkNote}" FontSize="11" Foreground="#a33"
                                    TextWrapping="Wrap" />
                     </StackPanel>
@@ -60,7 +63,7 @@
 
                 <!-- Demo: always available; the disclaimer explains what it is. -->
                 <TabItem Header="Demo">
-                    <StackPanel Spacing="8" Margin="4,8,4,4">
+                    <StackPanel Spacing="6" Margin="4,8,4,4">
                         <Border Background="#fdf3d0" BorderBrush="#e0c060" BorderThickness="1"
                                 CornerRadius="0" Padding="8">
                             <TextBlock Text="{Binding DemoDisclaimer}" FontSize="11"
@@ -70,13 +73,13 @@
                 </TabItem>
             </TabControl>
 
-            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,8,0,0">
                 <Button Content="{Binding ConnectButtonLabel}" Command="{Binding ConnectCommand}"
-                        Height="28" MinHeight="28" CornerRadius="0"
+                        Height="26" MinHeight="26" CornerRadius="0" FontSize="11"
                         Background="#eee" BorderBrush="#999" BorderThickness="1"
                         Padding="12,0" VerticalContentAlignment="Center" />
                 <Button Content="Cancel" Command="{Binding CancelCommand}"
-                        Height="28" MinHeight="28" CornerRadius="0"
+                        Height="26" MinHeight="26" CornerRadius="0" FontSize="11"
                         Background="#eee" BorderBrush="#999" BorderThickness="1"
                         Padding="12,0" VerticalContentAlignment="Center" />
             </StackPanel>

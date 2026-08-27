@@ -75,7 +75,7 @@ public class ConnectViewModelTests
     }
 
     [Fact]
-    public void Connect_persists_selection_and_requests_close_true()
+    public void Connect_reports_serial_result_and_requests_close_true()
     {
         var settings = SettingsWith("COM3", 115200);
         var vm = new ConnectViewModel(settings, new StubComPorts(["COM3", "COM7"]));
@@ -88,10 +88,35 @@ public class ConnectViewModelTests
         vm.ConnectCommand.Execute(null);
 
         Assert.True(result);
-        Assert.Equal("COM7", settings.Current.Port);
-        Assert.Equal(250000, settings.Current.BaudRate);
+        Assert.Equal(ConnectMode.Serial, vm.Result!.Mode);
         Assert.Equal("COM7", vm.ResultPort);
         Assert.Equal(250000, vm.ResultBaudRate);
+        // Persistence of the last successful connection is the caller's job
+        // (MainViewModel, only after the connect succeeds) — the dialog must
+        // not write settings on click alone.
+        Assert.Equal("COM3", settings.Current.Port);
+    }
+
+    [Fact]
+    public void Prefills_from_last_successful_serial_connection()
+    {
+        var settings = SettingsWith("COM3", 115200);
+        settings.LastSerialPort = "COM7";
+        settings.LastSerialBaudRate = 250000;
+        var vm = new ConnectViewModel(settings, new StubComPorts(["COM3", "COM7"]));
+
+        Assert.Equal("COM7", vm.SelectedPort);
+        Assert.Equal(250000, vm.BaudRate);
+    }
+
+    [Fact]
+    public void Prefills_from_last_successful_network_endpoint()
+    {
+        var settings = SettingsWith();
+        settings.LastNetworkEndpoint = "10.0.0.9:23";
+        var vm = new ConnectViewModel(settings, new StubComPorts([]));
+
+        Assert.Equal("10.0.0.9:23", vm.NetworkEndpoint);
     }
 
     [Fact]
@@ -144,7 +169,7 @@ public class ConnectViewModelTests
     }
 
     [Fact]
-    public void Network_connect_persists_endpoint_and_reports_result()
+    public void Network_connect_reports_endpoint_result()
     {
         var settings = SettingsWith();
         settings.NetworkAvailable = true;
@@ -159,7 +184,6 @@ public class ConnectViewModelTests
         Assert.True(result);
         Assert.Equal(ConnectMode.Network, vm.Result!.Mode);
         Assert.Equal("10.0.0.5:8080", vm.ResultEndpoint);
-        Assert.Equal("10.0.0.5:8080", settings.NetworkEndpoint);
     }
 
     [Fact]
