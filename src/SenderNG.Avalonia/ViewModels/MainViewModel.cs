@@ -12,11 +12,26 @@ using SenderNG.Core.Modules;
 
 namespace SenderNG.Avalonia.ViewModels;
 
-public sealed class AxisSignal : ViewModelBase
+/// <summary>
+/// One LED in the signals strip: a colored dot above a letter, lit when the
+/// controller's current status report raises the tracked <see cref="Flag"/>.
+/// Mirrors ioSender's SignalControl (axis/limit LEDs on the left, machine
+/// control signals — probe, safety door, e-stop, hold, cycle start, reset —
+/// to the right). <see cref="ToolTip"/> names the signal for mouseover.
+/// </summary>
+public sealed class SignalIndicator : ViewModelBase
 {
     private bool _isActive;
-    public AxisSignal(string letter) => Letter = letter;
+    public SignalIndicator(string letter, CNC.Core.Signals flag, string toolTip)
+    {
+        Letter = letter;
+        Flag = flag;
+        ToolTip = toolTip;
+    }
+
     public string Letter { get; }
+    public CNC.Core.Signals Flag { get; }
+    public string ToolTip { get; }
     public bool IsActive
     {
         get => _isActive;
@@ -55,7 +70,7 @@ public class MainViewModel : ViewModelBase
     private IBrush _stateForeground = Brushes.Black;
     private IDisposable? _stateSubscription;
     private IDisposable? _linesSubscription;
-    private bool _probeActive;
+    private int _signalAxisCount = -1;
     private ProgramViewModel? _program;
 
     public MainViewModel(
@@ -96,10 +111,8 @@ public class MainViewModel : ViewModelBase
         // Seed dynamic signals from initial state (DemoAxes) so UI shows X0 Y0 without connecting
         // Use settings DemoAxes as fallback; live State subscription will correct it immediately if BehaviourSubject replays
         var seedAxes = _settingsService.Load().Current.DemoAxes;
-        seedAxes = Math.Min(seedAxes, CNC.Core.GrblInfo.AxisLetters.Length);
-        seedAxes = Math.Max(1, seedAxes);
-        for (var i = 0; i < seedAxes; i++)
-            AxisSignals.Add(new AxisSignal(CNC.Core.GrblInfo.AxisLetters[i].ToString()));
+        seedAxes = Math.Clamp(seedAxes, 1, CNC.Core.GrblInfo.AxisLetters.Length);
+        RebuildSignalStrip(seedAxes);
 
         // Recent files persist across sessions via settings.json.
         foreach (var f in _settingsService.Load().RecentFiles)
@@ -128,6 +141,9 @@ public class MainViewModel : ViewModelBase
         // Status bar buttons (ioSender semantics): Home -> $H, Unlock -> $X, Reset -> realtime 0x18.
         HomeCommand = new DelegateCommand(_ => SendLine("$H", "Home"));
         UnlockCommand = new DelegateCommand(_ => SendLine("$X", "Unlock"));
+        // Check toggles grbl check mode ($C): a dry run that verifies g-code and
+        // simulates motion without moving the machine. Enabled only when connected.
+        CheckCommand = new DelegateCommand(_ => SendLine("$C", "Check mode toggle"), _ => IsConnected);
         ResetCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.Reset, "Reset"));
         MdiHistoryPrevCommand = new DelegateCommand(_ => MdiHistoryPrev());
         MdiHistoryNextCommand = new DelegateCommand(_ => MdiHistoryNext());
@@ -329,13 +345,37 @@ public class MainViewModel : ViewModelBase
     public IEnumerable<ProgramLimitRow>? ProgramLimitRows =>
         _services.GetService<ProgramViewModel>()?.LimitRows;
 
-    public ObservableCollection<AxisSignal> AxisSignals { get; } = new();
+    /// <summary>Signal LEDs shown in the left panel — axis limits first, then the
+    /// machine control signals (probe, safety door, e-stop, hold, cycle start,
+    /// reset). Axis entries follow the controller's axis count; the control set is
+    /// fixed and matches classic grbl 1.1 + grblHAL pin reporting.</summary>
+    public ObservableCollection<SignalIndicator> SignalIndicators { get; } = new();
 
-    public bool ProbeActive
-    {
-        get => _probeActive;
-        private set => SetField(ref _probeActive, value);
-    }
+    /// <summary>Flags reported by the machine, in render order (axis first).</summary>
+    private static readonly CNC.Core.Signals[] ControlSignalFlags =
+    [
+        CNC.Core.Signals.Probe,
+        CNC.Core.Signals.SafetyDoor,
+        CNC.Core.Signals.EStop,
+        CNC.Core.Signals.Hold,
+        CNC.Core.Signals.CycleStart,
+        CNC.Core.Signals.Reset,
+        CNC.Core.Signals.MotorWarning,
+        CNC.Core.Signals.MotorFault,
+    ];
+
+    private static readonly (string Label, string Tip)[] ControlSignalMeta =
+    [
+        ("P", "Probe"),
+        ("D", "Safety door"),
+        ("E", "E-stop"),
+        ("H", "Feed hold"),
+        ("S", "Cycle start"),
+        ("R", "Reset"),
+        ("W", "Motor warning"),
+        ("F", "Motor fault"),
+    ];
+
 
     public IEnumerable<CenterTab> CenterTabs =>
         CenterModules.Select(m => new CenterTab(m, _viewFactory?.Invoke(m)));
@@ -393,7 +433,14 @@ public class MainViewModel : ViewModelBase
 
     public ICommand UnlockCommand { get; }
 
+    public ICommand CheckCommand { get; }
+
     public ICommand ResetCommand { get; }
+
+    /// <summary>True while grbl check mode is active (controller state "Check").
+    /// Drives the [x] Check checkbox next to the state indicator.</summary>
+    public bool IsCheckMode =>
+        _machineState.Contains("check", StringComparison.OrdinalIgnoreCase);
 
     public ICommand MdiHistoryPrevCommand { get; }
 
@@ -719,21 +766,36 @@ public class MainViewModel : ViewModelBase
     {
         var letters = CNC.Core.GrblInfo.AxisLetters;
         var num = state.NumAxes;
-        // Clamp to letters length
-        num = Math.Min(num, letters.Length);
+        num = Math.Clamp(num, 0, letters.Length);
 
-        while (AxisSignals.Count > num)
-            AxisSignals.RemoveAt(AxisSignals.Count - 1);
-        while (AxisSignals.Count < num)
-            AxisSignals.Add(new AxisSignal(letters[AxisSignals.Count].ToString()));
+        if (_signalAxisCount != num)
+            RebuildSignalStrip(num);
 
-        for (var i = 0; i < num; i++)
+        var sig = state.Signals;
+        for (var i = 0; i < SignalIndicators.Count; i++)
+            SignalIndicators[i].IsActive = (sig & SignalIndicators[i].Flag) != 0;
+    }
+
+    /// <summary>Rebuild the signal strip for a given axis count — axis/limit LEDs
+    /// first, then the fixed machine-control set (probe, door, e-stop, hold,
+    /// cycle start, reset, motor). Called on connect (axis count known) and on
+    /// startup seeding; kept idempotent so it only runs when the count changes.</summary>
+    private void RebuildSignalStrip(int numAxes)
+    {
+        SignalIndicators.Clear();
+        var letters = CNC.Core.GrblInfo.AxisLetters;
+        for (var i = 0; i < numAxes; i++)
         {
-            var flag = (CNC.Core.Signals)(1 << i);
-            AxisSignals[i].IsActive = (state.Signals & flag) != 0;
+            var letter = letters[i].ToString();
+            SignalIndicators.Add(new SignalIndicator(
+                letter, (CNC.Core.Signals)(1 << i), $"Limit {letter}"));
         }
-
-        ProbeActive = (state.Signals & CNC.Core.Signals.Probe) != 0;
+        for (var i = 0; i < ControlSignalFlags.Length; i++)
+        {
+            SignalIndicators.Add(new SignalIndicator(
+                ControlSignalMeta[i].Label, ControlSignalFlags[i], ControlSignalMeta[i].Tip));
+        }
+        _signalAxisCount = numAxes;
     }
 
     private void ApplyMachineState(string status)
@@ -744,6 +806,7 @@ public class MainViewModel : ViewModelBase
             ? Brushes.White : Brushes.Black;
         OnPropertyChanged(nameof(MachineState));
         OnPropertyChanged(nameof(MachineStateDisplay));
+        OnPropertyChanged(nameof(IsCheckMode));
         OnPropertyChanged(nameof(StateBrush));
         OnPropertyChanged(nameof(StateForeground));
 
@@ -906,10 +969,12 @@ public class MainViewModel : ViewModelBase
             return;
 
         OnPropertyChanged(nameof(MachineStateDisplay));
+        OnPropertyChanged(nameof(IsCheckMode));
         OnPropertyChanged(nameof(StateBrush));
         OnPropertyChanged(nameof(StateForeground));
         OnPropertyChanged(nameof(ConnectionStatus));
         OnPropertyChanged(nameof(Title));
+        (CheckCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         if (!connected)
             Status = "Controller disconnected — check the cable and reconnect";
     }

@@ -131,6 +131,42 @@ public class StatusReportParserTests
     }
 
     [Fact]
+    public void Pn_axis_letters_set_limit_signals()
+    {
+        var state = NewState();
+        StatusReportParser.Parse("<Idle|Pn:XY>", state);
+        Assert.True((state.Signals & CNC.Core.Signals.LimitX) != 0);
+        Assert.True((state.Signals & CNC.Core.Signals.LimitY) != 0);
+        Assert.False((state.Signals & CNC.Core.Signals.LimitZ) != 0);
+    }
+
+    [Theory]
+    [InlineData("R", CNC.Core.Signals.Reset)]
+    [InlineData("H", CNC.Core.Signals.Hold)]
+    [InlineData("S", CNC.Core.Signals.CycleStart)]
+    [InlineData("D", CNC.Core.Signals.SafetyDoor)]
+    [InlineData("E", CNC.Core.Signals.EStop)]
+    public void Pn_control_chars_set_corresponding_signal(string flag, CNC.Core.Signals expected)
+    {
+        var state = NewState();
+        StatusReportParser.Parse($"<Idle|Pn:{flag}>", state);
+        Assert.True((state.Signals & expected) != 0);
+    }
+
+    [Fact]
+    public void Pn_field_rebuilds_signals_each_report_not_sticky()
+    {
+        // A signal that clears must stop showing as active on the next report
+        // (the strip reflects live pin state, not accumulated peaks).
+        var state = NewState();
+        StatusReportParser.Parse("<Idle|Pn:X>", state);
+        Assert.True((state.Signals & CNC.Core.Signals.LimitX) != 0);
+
+        StatusReportParser.Parse("<Idle|WPos:1,2,3>", state);
+        Assert.False((state.Signals & CNC.Core.Signals.LimitX) != 0);
+    }
+
+    [Fact]
     public void PRB_report_updates_probe_position_and_success()
     {
         var state = NewState();

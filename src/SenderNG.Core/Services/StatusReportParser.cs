@@ -72,6 +72,13 @@ public static class StatusReportParser
         var fields = line[1..^1].Split('|');
         state.Status = fields[0];
 
+        // Each status report fully describes the current pin/switch state, so the
+        // accumulated signal flags are rebuilt from this report (Pn:/A:) rather than
+        // OR-ed onto whatever tripped earlier. This keeps the signal LEDs live: a
+        // limit that clears stops showing as active. Line-by-line runs keep the
+        // semantic that a report always sets the current state.
+        state.Signals = 0;
+
         // Classic grbl (default $10=1) reports MPos + WCO and no WPos; ioSender
         // derives the work position as MPos - WCO so the DRO moves on those boards.
         var sawWPos = false;
@@ -119,14 +126,7 @@ public static class StatusReportParser
             }
             else if (field.StartsWith("Pn:", StringComparison.Ordinal))
             {
-                // Probe pin state: 'P' asserted, 'O' probe disconnected. GPIO
-                // limit bits (X/Y/Z/...) are intentionally left unparsed for now —
-                // signals/limits are marked untested-on-hardware in the P0 plan.
-                var flags = field[3..];
-                if (flags.Contains('P'))
-                    state.Signals |= CNC.Core.Signals.Probe;
-                if (flags.Contains('O'))
-                    state.Signals |= CNC.Core.Signals.ProbeDisconnected;
+                ApplyPinField(field[3..], state);
             }
             else if (field.StartsWith("A:", StringComparison.Ordinal))
             {
@@ -163,6 +163,42 @@ public static class StatusReportParser
         {
             if (double.TryParse(pos[i], NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
                 target[i] = value;
+        }
+    }
+
+    /// <summary>
+    /// Parse the <c>Pn:</c> field — the controller's live limit/control pin state.
+    /// Both grbl 1.1 (report.c REPORT_FIELD_PIN_STATE) and grblHAL (report.c
+    /// axis/control_signals_tostring) emit the same convention: one axis letter per
+    /// active limit (X/Y/Z/A/B/C/U/V/W) plus control-state chars for probe and the
+    /// machine switches. The chars below map 1:1 onto <see cref="Signals"/> flags:
+    ///   P=probe, O=probe disconnected, R=reset, H=feed hold, S=cycle start, D=safety
+    ///   door, E=e-stop. Unknown/grblHAL-only chars are ignored. Axis letters map to the
+    ///   limit flag for that letter (X→LimitX, Y→LimitY, … mirroring axis order).
+    /// </summary>
+    private static void ApplyPinField(string flags, MachineState state)
+    {
+        foreach (var ch in flags)
+        {
+            switch (ch)
+            {
+                case 'X': state.Signals |= CNC.Core.Signals.LimitX; break;
+                case 'Y': state.Signals |= CNC.Core.Signals.LimitY; break;
+                case 'Z': state.Signals |= CNC.Core.Signals.LimitZ; break;
+                case 'A': state.Signals |= CNC.Core.Signals.LimitA; break;
+                case 'B': state.Signals |= CNC.Core.Signals.LimitB; break;
+                case 'C': state.Signals |= CNC.Core.Signals.LimitC; break;
+                case 'U': state.Signals |= CNC.Core.Signals.LimitU; break;
+                case 'V': state.Signals |= CNC.Core.Signals.LimitV; break;
+                case 'W': state.Signals |= CNC.Core.Signals.LimitW; break;
+                case 'P': state.Signals |= CNC.Core.Signals.Probe; break;
+                case 'O': state.Signals |= CNC.Core.Signals.ProbeDisconnected; break;
+                case 'D': state.Signals |= CNC.Core.Signals.SafetyDoor; break;
+                case 'R': state.Signals |= CNC.Core.Signals.Reset; break;
+                case 'H': state.Signals |= CNC.Core.Signals.Hold; break;
+                case 'S': state.Signals |= CNC.Core.Signals.CycleStart; break;
+                case 'E': state.Signals |= CNC.Core.Signals.EStop; break;
+            }
         }
     }
 

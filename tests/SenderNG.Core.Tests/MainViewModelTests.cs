@@ -1,3 +1,4 @@
+using System.Reactive.Subjects;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -570,6 +571,64 @@ public class MainViewModelStatusButtonsTests
 
         Assert.Equal(["$H", "$X"], grbl.Lines);
         Assert.Equal([GrblRealtime.Reset], grbl.Realtime);
+    }
+
+    [Fact]
+    public void Check_command_sends_dollar_C()
+    {
+        var settings = MakeSettings();
+        var grbl = new RecordingGrbl();
+        var vm = new MainViewModel(grbl, settings, MakeProvider(settings));
+
+        vm.CheckCommand.Execute(null);
+
+        Assert.Equal(["$C"], grbl.Lines);
+    }
+
+    [Fact]
+    public void Signal_strip_seeds_axes_and_control_set()
+    {
+        var settings = MakeSettings();
+        var loaded = settings.Load();
+        loaded.Current.DemoAxes = 3;
+        settings.Save(loaded);
+        var grbl = new RecordingGrbl();
+        var vm = new MainViewModel(grbl, settings, MakeProvider(settings));
+
+        // 3 axis/limit LEDs then the fixed machine-control set.
+        Assert.True(vm.SignalIndicators.Count >= 3 + 8);
+        Assert.Equal(["X", "Y", "Z"], vm.SignalIndicators.Take(3).Select(s => s.Letter));
+        Assert.Contains(vm.SignalIndicators, s => s.Letter == "D" && s.Flag == CNC.Core.Signals.SafetyDoor);
+        Assert.Contains(vm.SignalIndicators, s => s.Letter == "E" && s.Flag == CNC.Core.Signals.EStop);
+        Assert.Contains(vm.SignalIndicators, s => s.Letter == "P" && s.Flag == CNC.Core.Signals.Probe);
+    }
+
+    [Fact]
+    public void Signal_strip_lights_flags_from_live_state()
+    {
+        var settings = MakeSettings();
+        var subject = new System.Reactive.Subjects.BehaviorSubject<MachineState>(new MachineState(3));
+        var grbl = new BehaviorGrbl(subject);
+        var vm = new MainViewModel(grbl, settings, MakeProvider(settings));
+
+        subject.OnNext(new MachineState(3) { Signals = CNC.Core.Signals.SafetyDoor | CNC.Core.Signals.Probe });
+
+        var door = vm.SignalIndicators.Single(s => s.Flag == CNC.Core.Signals.SafetyDoor);
+        var probe = vm.SignalIndicators.Single(s => s.Flag == CNC.Core.Signals.Probe);
+        var estop = vm.SignalIndicators.Single(s => s.Flag == CNC.Core.Signals.EStop);
+        Assert.True(door.IsActive);
+        Assert.True(probe.IsActive);
+        Assert.False(estop.IsActive);
+    }
+
+    private sealed class BehaviorGrbl(BehaviorSubject<MachineState> state) : IGrblService
+    {
+        public bool IsConnected => true;
+        public IObservable<MachineState> State => state;
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public Task SendAsync(string line) => Task.CompletedTask;
+        public void SendRealtime(byte code) { }
     }
 
     [Fact]
