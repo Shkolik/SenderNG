@@ -22,7 +22,30 @@ public class SerialComPortService : IComPortService
     public string[] GetPorts()
     {
         var names = EnumerateNames();
-        return names.Distinct(StringComparer.OrdinalIgnoreCase).Order().ToArray();
+        var distinct = names.Distinct(StringComparer.OrdinalIgnoreCase).Order().ToArray();
+
+        // On Windows, drop entries that the PnP registry has no node for — these
+        // are ghost/phantom ports lingering at the OS level (e.g. after an abrupt
+        // unplug) that GetPortNames() keeps reporting but that no connected device
+        // backs. The registry walk is authoritative for what is actually present.
+        // If the walk finds nothing at all (protected registry, fresh boot) we
+        // keep the raw list rather than dropping every port.
+        if (_linuxDevDir is null && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var registryBuilt = WindowsPortDetails(distinct)
+                .Where(kv => !string.IsNullOrWhiteSpace(kv.Value.Description))
+                .Select(kv => kv.Key)
+                .ToArray();
+            // Name-based comparison only: a port name must have been seen in the
+            // registry walk AND originally enumerated for it to be kept.
+            var kept = distinct
+                .Where(n => registryBuilt.Contains(n, StringComparer.OrdinalIgnoreCase))
+                .ToArray();
+            if (kept.Length > 0)
+                return kept;
+        }
+
+        return distinct;
     }
 
     public IReadOnlyList<SerialPortEntry> GetPortEntries()

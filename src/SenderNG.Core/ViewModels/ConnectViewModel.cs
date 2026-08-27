@@ -26,8 +26,8 @@ public sealed record ConnectResult(ConnectMode Mode, string? Port, int BaudRate,
 public sealed record ResetModeOption(ConnectResetMode Mode, string Name);
 
 /// <summary>
-/// Connect dialog: three tabs — Serial (port list + refresh + baud), Network
-/// (TCP endpoint for grblHAL Ethernet boards) and Demo (simulated controller).
+/// Connect dialog: three tabs — Serial (live auto-refreshing port list + baud),
+/// Network (TCP endpoint for grblHAL Ethernet boards) and Demo (simulated controller).
 /// Serial is grayed out when no ports are enumerated, Network only when the
 /// settings enable network connectivity, Demo is always available and switches
 /// the app into demo mode. Port enumeration goes through
@@ -77,7 +77,6 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
 
         ConnectCommand = new DelegateCommand(_ => Connect(), _ => CanConnect);
         CancelCommand = new DelegateCommand(_ => RequestClose(false));
-        RefreshCommand = new DelegateCommand(_ => RefreshPorts());
 
         RefreshPorts();
 
@@ -125,8 +124,6 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
     public DelegateCommand ConnectCommand { get; }
 
     public DelegateCommand CancelCommand { get; }
-
-    public DelegateCommand RefreshCommand { get; }
 
     public string SelectedPort
     {
@@ -187,7 +184,7 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
 
     public string NoPortsHint => HasPorts
         ? string.Empty
-        : "No serial ports found — plug in a controller and press ⟳ to refresh.";
+        : "No serial ports found — plug in a controller and it will be detected automatically.";
 
     public string NetworkNote => NetworkEnabled
         ? "Connect to a grblHAL controller with Ethernet/WiFi (TCP). Example: 192.168.1.100:23"

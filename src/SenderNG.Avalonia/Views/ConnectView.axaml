@@ -16,48 +16,48 @@
 
                 <!-- Tab headers match the center-panel tab typography (13 SemiBold).
                      Serial is grayed out when no ports are found (port list + baud
-                     disabled; refresh stays usable so plugging in a controller
-                     and refreshing brings the tab to life). -->
+                     disabled); plugging in a controller is detected automatically
+                     by the live auto-refresh and brings the tab to life. -->
                 <TabItem>
                     <TabItem.Header>
                         <TextBlock Text="Serial" FontSize="13" FontWeight="SemiBold" />
                     </TabItem.Header>
-                    <StackPanel Spacing="6" Margin="4,8,4,4">
+                    <StackPanel Spacing="4" Margin="4,8,4,4">
+                        <!-- Port: single row, dropdown spans the tab width (same size
+                             as the network endpoint input). Autodetect replaces the
+                             old refresh button — plugging in a controller updates
+                             the list live. -->
                         <TextBlock Text="Port" FontWeight="SemiBold" FontSize="12" />
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <ComboBox ItemsSource="{Binding Ports}"
-                                      DisplayMemberBinding="{Binding FullName}"
-                                      SelectedItem="{Binding SelectedPortEntry, Mode=TwoWay}"
+                        <ComboBox ItemsSource="{Binding Ports}"
+                                  DisplayMemberBinding="{Binding FullName}"
+                                  SelectedItem="{Binding SelectedPortEntry, Mode=TwoWay}"
+                                  IsEnabled="{Binding SerialEnabled}"
+                                  FontSize="12" Height="24"
+                                  HorizontalAlignment="Stretch"
+                                  CornerRadius="0"
+                                  BorderBrush="#999" BorderThickness="1" />
+
+                        <!-- Line: "Baud rate     On connect" -->
+                        <Grid ColumnDefinitions="*,*" Margin="0,2,0,0">
+                            <TextBlock Grid.Column="0" Text="Baud rate" FontWeight="SemiBold" FontSize="12" />
+                            <TextBlock Grid.Column="1" Text="On connect" FontWeight="SemiBold" FontSize="12" />
+                        </Grid>
+                        <!-- Line: [baud_rate_dropdown] [on_connect_dropdown] -->
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                            <ComboBox Grid.Column="0" ItemsSource="{Binding BaudRates}"
+                                      SelectedItem="{Binding BaudRate, Mode=TwoWay}"
                                       IsEnabled="{Binding SerialEnabled}"
                                       FontSize="12" Height="24"
-                                      HorizontalAlignment="Stretch"
-                                      MinWidth="180" CornerRadius="0"
+                                      CornerRadius="0"
                                       BorderBrush="#999" BorderThickness="1" />
-                            <Button Content="⟳" Command="{Binding RefreshCommand}"
-                                    Width="26" Height="26" MinHeight="26" CornerRadius="0"
-                                    FontSize="11"
-                                    Background="#eee" BorderBrush="#999" BorderThickness="1"
-                                    ToolTip.Tip="Refresh port list" />
-                        </StackPanel>
-
-                        <TextBlock Text="Baud rate" FontWeight="SemiBold" FontSize="12" Margin="0,2,0,0" />
-                        <ComboBox ItemsSource="{Binding BaudRates}"
-                                  SelectedItem="{Binding BaudRate, Mode=TwoWay}"
-                                  IsEnabled="{Binding SerialEnabled}"
-                                  FontSize="12" Height="24"
-                                  MinWidth="120" CornerRadius="0"
-                                  HorizontalAlignment="Left"
-                                  BorderBrush="#999" BorderThickness="1" />
-
-                        <TextBlock Text="On connect" FontWeight="SemiBold" FontSize="12" Margin="0,2,0,0" />
-                        <ComboBox ItemsSource="{Binding ResetModeOptions}"
-                                  SelectedItem="{Binding SelectedResetModeOption, Mode=TwoWay}"
-                                  DisplayMemberBinding="{Binding Name}"
-                                  IsEnabled="{Binding SerialEnabled}"
-                                  FontSize="12" Height="24"
-                                  MinWidth="140" CornerRadius="0"
-                                  HorizontalAlignment="Left"
-                                  BorderBrush="#999" BorderThickness="1" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding ResetModeOptions}"
+                                      SelectedItem="{Binding SelectedResetModeOption, Mode=TwoWay}"
+                                      DisplayMemberBinding="{Binding Name}"
+                                      IsEnabled="{Binding SerialEnabled}"
+                                      FontSize="12" Height="24"
+                                      CornerRadius="0"
+                                      BorderBrush="#999" BorderThickness="1" />
+                        </Grid>
                         <TextBlock Text="Toggle DTR resets an Arduino bootloader on connect"
                                    FontSize="11" Foreground="#666" TextWrapping="Wrap" />
 
