@@ -866,6 +866,6 @@ public class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(ConnectionStatus));
         OnPropertyChanged(nameof(Title));
         if (!connected)
-            Status = "Disconnected";
+            Status = "Controller disconnected — check the cable and reconnect";
     }
 }

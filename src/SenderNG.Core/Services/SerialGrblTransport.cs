@@ -13,7 +13,7 @@ namespace CNC.Core.Services;
 /// as a flood even though it was caught). Lines are accumulated across polls
 /// until a <c>'\n'</c> terminator; each poll cycle sleeps 10 ms.
 /// </summary>
-public sealed class SerialGrblTransport : IGrblTransport
+public sealed class SerialGrblTransport : IGrblTransport, IPortPresenceCheck
 {
     private const int MaxLineLength = 4096;
     private const int PollDelayMs = 10;
@@ -108,6 +108,27 @@ public sealed class SerialGrblTransport : IGrblTransport
         catch (InvalidOperationException)
         {
             throw new OperationCanceledException(ct);
+        }
+    }
+
+    /// <summary>
+    /// True while the COM port is still enumerated. Unplugging a USB-serial
+    /// adapter removes its COM port on Windows, so this is a reliable disconnect
+    /// signal even when reads/writes keep returning without throwing.
+    /// </summary>
+    public bool IsPortPresent()
+    {
+        var port = _port;
+        if (port is null)
+            return false;
+        try
+        {
+            return SerialPort.GetPortNames()
+                .Contains(port.PortName, StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false; // enumeration hiccup → treat as gone (safe default)
         }
     }
 

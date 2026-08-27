@@ -163,6 +163,97 @@ public class RealGrblHardwareTests
         }
     }
 
+    /// <summary>
+    /// Interactive test (opt-in via SENDERNG_HW_PORT): connect to the real board,
+    /// then the operator unplugs the USB cable on cue and the app must detect the
+    /// disconnect and flip to NOT CONNECTED; when the cable is re-plugged the same
+    /// service must reconnect cleanly and exchange commands again.
+    /// </summary>
+    [Fact]
+    public async Task Detects_unplug_and_recovers_when_replugged_on_hardware()
+    {
+        var envPort = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
+        if (string.IsNullOrWhiteSpace(envPort))
+        {
+            Console.WriteLine("WARNING: interactive unplug/replug test skipped — set SENDERNG_HW_PORT to run it");
+            return;
+        }
+        var port = envPort.Trim();
+        if (!AvailablePorts.Contains(port, StringComparer.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"WARNING: interactive test skipped — '{port}' not enumerated");
+            return;
+        }
+
+        var savedAxes = CNC.Core.GrblInfo.NumAxes;
+        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        using var svc = new RealGrblService();
+        try
+        {
+            await svc.ConnectAsync(port);
+            Assert.True(svc.IsConnected);
+            Console.WriteLine(
+                $"OK  connected to {port}: grblHAL={svc.Capabilities.IsGrblHAL}, " +
+                $"version='{svc.Capabilities.Version}', axes={svc.Capabilities.NumAxes}");
+
+            // Phase 1: operator unplugs; the app must flip to NOT CONNECTED on its own.
+            Console.WriteLine(">>> UNPLUG the USB cable from the board now (waiting up to 90s for detection)...");
+            var detected = await WaitUntil(() => !svc.IsConnected, 90_000);
+            Console.WriteLine(detected ? "OK  disconnect detected after unplug" : "FAIL no disconnect detected within 90s");
+            Assert.True(detected, "controller unplug must flip IsConnected to false");
+
+            // Phase 2: operator re-plugs. The board may come back under a DIFFERENT
+            // COM number (USB-serial adapters re-enumerate), so scan the current ports
+            // until one answers $I as grbl/grblHAL instead of assuming the old name.
+            Console.WriteLine(">>> PLUG the cable back in now (waiting up to 120s for the board to return)...");
+            var reconnected = false;
+            string? connectedPort = null;
+            Exception? last = null;
+            var deadline = DateTime.UtcNow.AddSeconds(120);
+            while (DateTime.UtcNow < deadline && !reconnected)
+            {
+                foreach (var candidate in AvailablePorts)
+                {
+                    try
+                    {
+                        await svc.ConnectAsync(candidate);
+                        if (svc.IsConnected && svc.Capabilities.IsGrblHAL)
+                        {
+                            connectedPort = candidate;
+                            reconnected = true;
+                            break;
+                        }
+                        // Opened but not a grbl/grblHAL board: close and try the next.
+                        svc.Disconnect();
+                    }
+                    catch (Exception ex)
+                    {
+                        last = ex; // driver not ready / port busy; retry shortly
+                    }
+                }
+                if (!reconnected)
+                    await Task.Delay(1500);
+            }
+            Console.WriteLine(
+                reconnected
+                    ? $"OK  reconnected to {connectedPort}: {svc.Capabilities.Version}, axes={svc.Capabilities.NumAxes}"
+                    : $"FAIL reconnect failed: {last?.Message}");
+            Assert.True(reconnected, "reconnect after re-plug must succeed");
+            Assert.True(svc.Capabilities.IsKnown, "fresh $I handshake after reconnect");
+
+            var settings = await svc.GetSettingLinesAsync();
+            Console.WriteLine($"OK  post-reconnect $$ returned {settings.Count} setting lines");
+            Assert.NotEmpty(settings);
+        }
+        finally
+        {
+            svc.Disconnect();
+            // Restore the global static so a hardware run can't leak into later tests.
+            CNC.Core.GrblInfo.NumAxes = savedAxes;
+            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+        }
+    }
+
     private static async Task<bool> WaitUntil(Func<bool> condition, int timeoutMs)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);

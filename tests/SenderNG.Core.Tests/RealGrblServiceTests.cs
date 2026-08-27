@@ -9,7 +9,7 @@ namespace SenderNG.Core.Tests;
 /// <see cref="Enqueue"/> and capture written lines via <see cref="Sent"/>. The
 /// reader task drives <see cref="ReadLineAsync"/> off an unbounded channel.
 /// </summary>
-public sealed class FakeGrblTransport : IGrblTransport
+public sealed class FakeGrblTransport : IGrblTransport, IPortPresenceCheck
 {
     private readonly Channel<string> _inbound = Channel.CreateUnbounded<string>();
     private readonly List<string> _writtenLines = [];
@@ -18,6 +18,14 @@ public sealed class FakeGrblTransport : IGrblTransport
 
     public bool IsOpen => _open;
     public bool AutoReply { get; set; } = true;
+
+    /// <summary>When set, the next ReadLineAsync throws as a transport failure (not a cancel).</summary>
+    public bool FailNextRead { get; set; }
+
+    /// <summary>IPortPresenceCheck result: false simulates an unplugged controller.</summary>
+    public bool PortPresent { get; set; } = true;
+
+    bool IPortPresenceCheck.IsPortPresent() => PortPresent;
 
     /// <summary>Lines the service wrote; includes a marker for raw realtime bytes.</summary>
     public IReadOnlyList<string> Sent
@@ -36,6 +44,12 @@ public sealed class FakeGrblTransport : IGrblTransport
 
     public async Task<string?> ReadLineAsync(CancellationToken ct)
     {
+        // Simulate the transport failing on its own (e.g. serial unplug / dropped
+        // socket): the real transports convert fatal failures into an
+        // OperationCanceledException whose token is NOT cancelled.
+        if (FailNextRead)
+            throw new OperationCanceledException(ct);
+
         // Return null on timeout-style empty windows by waiting briefly.
         if (await _inbound.Reader.WaitToReadAsync(ct) &&
             _inbound.Reader.TryRead(out var line))
@@ -192,18 +206,24 @@ public class RealGrblServiceTests
     {
         var transport = new FakeGrblTransport();
         using var svc = new RealGrblService(transport);
-        var lines = new List<string>();
-        svc.ReceivedLines.Subscribe(lines.Add);
+        // Thread-safe capture: the reader publishes from a background thread while
+        // this test thread asserts, and a plain List races on enumeration.
+        var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        svc.ReceivedLines.Subscribe(lines.Enqueue);
 
         await svc.ConnectAsync("fake");
         transport.Enqueue("<Idle|WPos:1,2,3>");
         transport.Enqueue("ok");
         transport.Enqueue("[PRB:1.5,2,3:1]");
 
-        await WaitUntil(() => lines.Count >= 3);
-        Assert.Contains("<Idle|WPos:1,2,3>", lines);
-        Assert.Contains("ok", lines);
-        Assert.Contains("[PRB:1.5,2,3:1]", lines);
+        // Wait for the probe line specifically: connect-time $I auto-replies can
+        // already fill the queue, so a plain count check would race ahead of the
+        // lines this test enqueues.
+        await WaitUntil(() => lines.Contains("[PRB:1.5,2,3:1]"));
+        var snapshot = lines.ToArray();
+        Assert.Contains("<Idle|WPos:1,2,3>", snapshot);
+        Assert.Contains("ok", snapshot);
+        Assert.Contains("[PRB:1.5,2,3:1]", snapshot);
     }
 
     [Fact]
@@ -278,6 +298,90 @@ public class RealGrblServiceTests
             CNC.Core.GrblInfo.NumAxes = savedAxes;
             CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
         }
+    }
+
+    [Fact]
+    public async Task Reader_failure_flips_to_disconnected_and_notifies()
+    {
+        // The transport failing on its own (serial unplug, dropped TCP socket)
+        // must flip the app to NOT CONNECTED and raise ConnectionChanged, instead
+        // of silently ending the reader while IsConnected stays true.
+        var transport = new FakeGrblTransport();
+        using var svc = new RealGrblService(transport);
+        var changes = 0;
+        svc.ConnectionChanged += (_, _) => changes++;
+
+        await svc.ConnectAsync("fake");
+        Assert.True(svc.IsConnected);
+
+        transport.FailNextRead = true;
+        transport.Enqueue("ok"); // wake the reader so it hits the failure
+
+        Assert.True(await WaitUntilAsync(() => !svc.IsConnected, 3000));
+        Assert.True(changes >= 2, "connect + disconnect should both raise ConnectionChanged");
+
+        // Sending after a detected disconnect fails fast with a clear message.
+        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.SendAsync("G1 X10"));
+    }
+
+    [Fact]
+    public async Task Port_presence_watchdog_disconnects_when_port_disappears()
+    {
+        // A USB-serial unplug removes the COM port without necessarily throwing on
+        // reads; the health watchdog must catch it and flip to disconnected.
+        var transport = new FakeGrblTransport();
+        using var svc = new RealGrblService(transport) { HealthCheckIntervalMs = 100 };
+        var changes = 0;
+        svc.ConnectionChanged += (_, _) => changes++;
+
+        await svc.ConnectAsync("fake");
+        Assert.True(svc.IsConnected);
+
+        transport.PortPresent = false; // cable pulled
+
+        Assert.True(await WaitUntilAsync(() => !svc.IsConnected, 3000));
+        Assert.True(changes >= 2);
+    }
+
+    [Fact]
+    public async Task Reconnect_after_disconnect_restores_connection()
+    {
+        // The stale-state bug: after a disconnect (here: watchdog), ConnectAsync used
+        // to no-op because IsConnected stayed true. Now it must reconnect cleanly.
+        var transport = new FakeGrblTransport();
+        using var svc = new RealGrblService(transport) { HealthCheckIntervalMs = 100 };
+
+        await svc.ConnectAsync("fake");
+        transport.PortPresent = false;
+        Assert.True(await WaitUntilAsync(() => !svc.IsConnected, 3000));
+
+        // Controller re-plugged: port is present again.
+        transport.PortPresent = true;
+        await svc.ConnectAsync("fake");
+        Assert.True(svc.IsConnected);
+
+        var sendTask = svc.SendAsync("G0 X1");
+        await sendTask.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Contains("G0 X1", transport.Sent);
+    }
+
+    [Fact]
+    public async Task Disconnect_faults_in_flight_command_immediately()
+    {
+        // A command waiting for its reply (no ok yet) must not hang for the full
+        // CommandTimeout when the controller disconnects — it fails fast.
+        var transport = new FakeGrblTransport { AutoReply = false };
+        using var svc = new RealGrblService(transport) { CommandTimeout = TimeSpan.FromMinutes(5) };
+        await svc.ConnectAsync("fake");
+
+        var sendTask = svc.SendAsync("$H"); // homing, reply never arrives
+        await Task.Delay(100); // let the write + waiter registration settle
+
+        svc.Disconnect();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sendTask.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.Contains("disconnected", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task<bool> WaitUntilAsync(Func<bool> condition, int timeoutMs)

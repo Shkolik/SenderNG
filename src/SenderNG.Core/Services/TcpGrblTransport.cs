@@ -12,7 +12,7 @@ namespace CNC.Core.Services;
 /// line-buffered so status reports and command replies flow through
 /// <see cref="RealGrblService"/> unchanged.
 /// </summary>
-public sealed class TcpGrblTransport : IGrblTransport
+public sealed class TcpGrblTransport : IGrblTransport, IPortPresenceCheck
 {
     private const int DefaultPort = 23;
 
@@ -140,6 +140,30 @@ public sealed class TcpGrblTransport : IGrblTransport
         catch (ObjectDisposedException)
         {
             throw new OperationCanceledException(ct);
+        }
+    }
+
+    /// <summary>
+    /// Socket-level liveness. A peer that closed (or a dropped link) surfaces as
+    /// readable-with-no-data or a poll error, neither of which
+    /// <see cref="TcpClient.Connected"/> alone reports.
+    /// </summary>
+    public bool IsPortPresent()
+    {
+        try
+        {
+            if (_client is not { Connected: true } || _stream is null)
+                return false;
+            var socket = _client.Client;
+            if (socket is null || !socket.Connected)
+                return false;
+            // SelectRead with a zero timeout: true when data is buffered OR the
+            // socket is closed/failed. A closed peer reads as available == 0.
+            return !(socket.Poll(0, SelectMode.SelectRead) && socket.Available == 0);
+        }
+        catch
+        {
+            return false; // disposed/failed socket → gone
         }
     }
 

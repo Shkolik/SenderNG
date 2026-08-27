@@ -27,3 +27,17 @@ public interface IGrblTransport : IDisposable
     /// </summary>
     Task<string?> ReadLineAsync(CancellationToken ct);
 }
+
+/// <summary>
+/// Optional capability on a transport: reports whether the underlying connection
+/// is still physically present — e.g. the serial port is still enumerated, or the
+/// TCP socket is still live. <see cref="RealGrblService"/> uses it to detect
+/// silent disconnects (an unplugged USB-serial adapter, a remote close) that may
+/// not surface as a read/write exception, and to flip the app to NOT CONNECTED.
+/// Transports that don't implement it (e.g. in-memory test doubles) are treated
+/// as always healthy.
+/// </summary>
+public interface IPortPresenceCheck
+{
+    bool IsPortPresent();
+}

@@ -27,8 +27,11 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     private CancellationTokenSource? _cts;
     private Task? _consumerTask;
     private Timer? _pollTimer;
+    private Timer? _healthTimer;
     private volatile bool _pollerSuspended;
+    private int _disconnecting;
     private int _pollIntervalMs = 200;
+    private int _healthCheckIntervalMs = 1000;
     private TimeSpan _commandTimeout = TimeSpan.FromSeconds(60);
 
     public bool IsConnected { get; private set; }
@@ -60,6 +63,18 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     }
 
     /// <summary>
+    /// How often the transport-health watchdog runs (≥100 ms). While connected it
+    /// asks the transport whether the port/socket is still present and flips to
+    /// NOT CONNECTED when it isn't — catching unplugs that don't surface as a
+    /// read/write exception (e.g. a removed USB-serial COM port).
+    /// </summary>
+    public int HealthCheckIntervalMs
+    {
+        get => _healthCheckIntervalMs;
+        set => _healthCheckIntervalMs = Math.Max(100, value);
+    }
+
+    /// <summary>
     /// How long <see cref="SendAsync"/> waits for the command's "ok"/"error"
     /// reply. grbl is a blocking controller: it answers only after the command
     /// finishes, and long-running commands like <c>$H</c> (homing) or a slow MDI
@@ -76,7 +91,16 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     public async Task ConnectAsync(string port)
     {
         if (IsConnected)
-            return;
+        {
+            // A previous session may have left a stale "connected" flag when a
+            // disconnect didn't surface as an exception. If the transport reports
+            // the connection is actually gone, reset first so we reconnect fresh
+            // instead of silently no-op'ing.
+            if (_transport is IPortPresenceCheck present && !present.IsPortPresent())
+                HandleDisconnect();
+            else
+                return;
+        }
 
         _transport.Open(port, BaudRate);
         IsConnected = true;
@@ -86,12 +110,28 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         _consumerTask = Task.Run(() => ConsumerLoopAsync(_cts.Token));
 
         await StartPolling(port);
+        StartHealthWatch();
 
         // Identify the controller so UI can adapt to its capabilities. Non-fatal:
         // a controller that ignores $I (or answers slowly) still connects and polls.
+        // Retry a few times: a freshly booted board (right after re-plug) can drop
+        // the first $I while its UART/boot banner settles, which left the DRO at the
+        // default 3 axes until a later reconnect. Each attempt is a fresh exchange;
+        // the loop stops as soon as the board identifies itself.
         try
         {
-            Capabilities = ControllerInfoParser.ParseInfo(await GetInfoLinesAsync(port));
+            for (var attempt = 0; attempt < 5; attempt++)
+            {
+                Capabilities = ControllerInfoParser.ParseInfo(await GetInfoLinesAsync(port));
+                if (Capabilities.IsKnown)
+                    break;
+                await Task.Delay(500, _cts.Token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Disconnected mid-handshake; reconnect will retry from scratch.
+            Capabilities = ControllerCapabilities.Unknown;
         }
         catch
         {
@@ -117,6 +157,55 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             return;
 
         _pollTimer = new Timer(_ => PollTick(), null, 0, _pollIntervalMs);
+    }
+
+    /// <summary>
+    /// Watchdog that asks the transport whether the connection is still physically
+    /// present while we're connected. Catches unplugs that reads/writes never
+    /// surface as exceptions (e.g. a removed USB-serial COM port on Windows).
+    /// </summary>
+    private void StartHealthWatch()
+    {
+        _healthTimer?.Dispose();
+        _healthTimer = new Timer(_ => CheckHealth(), null, _healthCheckIntervalMs, _healthCheckIntervalMs);
+    }
+
+    private void CheckHealth()
+    {
+        if (!IsConnected || _cts is null)
+            return;
+        if (_transport is IPortPresenceCheck present && !present.IsPortPresent())
+            HandleDisconnect();
+    }
+
+    private void PollTick()
+    {
+        if (_pollerSuspended || !IsConnected || _cts?.IsCancellationRequested == true)
+            return;
+        try
+        {
+            _transport.WriteByte(0x3F); // '?' - realtime status request
+        }
+        catch
+        {
+            // A failed status write can be a transient adapter hiccup; only treat
+            // it as a disconnect when the transport confirms the connection is gone.
+            if (_transport is IPortPresenceCheck present && !present.IsPortPresent())
+                HandleDisconnect();
+        }
+    }
+
+    /// <summary>
+    /// Spontaneous transport failure (reader hit an error, the poll watchdog found
+    /// the port/socket gone, or ConnectAsync detected a stale dead session).
+    /// Flips the app to NOT CONNECTED and tears the session down; safe to call from
+    /// the reader or timer threads, and idempotent via the <see cref="IsConnected"/> guard.
+    /// </summary>
+    private void HandleDisconnect()
+    {
+        if (!IsConnected)
+            return;
+        Disconnect();
     }
 
     /// <summary>
@@ -149,20 +238,6 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         catch
         {
             // Non-fatal: capabilities remain available on the property either way.
-        }
-    }
-
-    private void PollTick()
-    {
-        if (_pollerSuspended || !IsConnected || _cts?.IsCancellationRequested == true)
-            return;
-        try
-        {
-            _transport.WriteByte(0x3F); // '?' - realtime status request
-        }
-        catch
-        {
-            // Adapter hiccup; the next tick retries.
         }
     }
 
@@ -206,6 +281,17 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                     waiter.TryComplete(); // a later waiter owned the head; just cancel this task
             }
             throw;
+        }
+        catch (Exception ex) when (!IsConnected)
+        {
+            // The controller disconnected (spontaneously or via Disconnect) while the
+            // command was in flight. Whether the waiter was faulted first or the token
+            // cancellation won the race, surface a clear message instead of a bare
+            // TaskCanceledException. IsConnected is set false at the very start of
+            // Disconnect, so this branch is deterministic.
+            if (ex is InvalidOperationException)
+                throw;
+            throw new InvalidOperationException("Controller disconnected.", ex);
         }
     }
 
@@ -312,12 +398,14 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                return;
+                return; // deliberate disconnect (cts cancelled by Disconnect)
             }
             catch (OperationCanceledException)
             {
-                // Transport signalled closure (e.g. a dropped TCP connection);
-                // end the reader cleanly instead of faulting the background task.
+                // Transport signalled closure on its own — a dropped TCP socket or
+                // a failed serial read after unplug. That's a disconnect: flip the
+                // app state and tear down instead of silently ending the reader.
+                HandleDisconnect();
                 return;
             }
 
@@ -383,24 +471,52 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
     public void Disconnect()
     {
-        _pollerSuspended = true;
-        _pollTimer?.Change(Timeout.Infinite, Timeout.Infinite);
-        _pollTimer?.Dispose();
-        _pollTimer = null;
-
-        _cts?.Cancel();
-        _cts?.Dispose();
-        _cts = null;
-
-        IsConnected = false;
-        ConnectionChanged?.Invoke(this, EventArgs.Empty);
+        // Idempotent against concurrent calls — HandleDisconnect can race with a
+        // user-initiated Disconnect, and a double teardown would dispose _cts twice.
+        if (Interlocked.Exchange(ref _disconnecting, 1) == 1)
+            return;
         try
         {
-            _transport.Close();
+            // Flip the flag first so in-flight AwaitWaiterAsync calls (which guard on
+            // IsConnected) deterministically report "Controller disconnected."
+            IsConnected = false;
+            _pollerSuspended = true;
+            _pollTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+            _pollTimer?.Dispose();
+            _pollTimer = null;
+
+            _healthTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+            _healthTimer?.Dispose();
+            _healthTimer = null;
+
+            // Fault any in-flight command waiters so SendAsync/ExchangeAsync fail fast
+            // with a clear message instead of hanging until the command timeout.
+            // Fault BEFORE cancelling the token so the awaiting WaitAsync deterministically
+            // throws the waiter's exception rather than racing with a TaskCanceledException.
+            lock (_gate)
+            {
+                while (_waiters.Count > 0)
+                    _waiters.Dequeue().TrySetException(
+                        new InvalidOperationException("Controller disconnected."));
+            }
+
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = null;
+
+            ConnectionChanged?.Invoke(this, EventArgs.Empty);
+            try
+            {
+                _transport.Close();
+            }
+            catch
+            {
+                // Best effort on close.
+            }
         }
-        catch
+        finally
         {
-            // Best effort on close.
+            Interlocked.Exchange(ref _disconnecting, 0);
         }
     }
 
@@ -418,6 +534,9 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
         /// <summary>Mark the wait complete (success or cancelled).</summary>
         bool TryComplete();
+
+        /// <summary>Fault the wait (used on disconnect so in-flight commands fail fast).</summary>
+        bool TrySetException(Exception exception);
     }
 
     private sealed class ReplyWaiter : IMessageWaiter
@@ -436,6 +555,18 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             try
             {
                 return _tcs.TrySetResult();
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public bool TrySetException(Exception exception)
+        {
+            try
+            {
+                return _tcs.TrySetException(exception);
             }
             catch
             {
