@@ -50,6 +50,12 @@ public static class GrblRealtime
     public const byte FeedHold = 0x21;   // '!'
     public const byte Reset = 0x18;
 
+    // Jog cancel is defined identically in classic grbl 1.1 (config.h CMD_JOG_CANCEL,
+    // includes the mega5x 1.2i fork) and grblHAL (grbl.h CMD_JOG_CANCEL): it stops the
+    // jog with deceleration, flushes remaining jog blocks and returns to IDLE — unlike
+    // a feed hold ('!'), which leaves the machine in HOLD. Use this for the jog Stop.
+    public const byte JogCancel = 0x85;
+
     // Feed override
     public const byte FeedOvrReset = 0x90;      // 100%
     public const byte FeedOvrCoarsePlus = 0x91; // +10%

@@ -49,7 +49,19 @@ public class ConsoleViewModelTests
 
         Assert.Contains("Grbl 1.1h ['$' for help]", vm.ConsoleLines);
         Assert.Contains("[OPT:V,15,128]", vm.ConsoleLines);
-        Assert.Contains("error:23", vm.ConsoleLines);
+        // Error replies get their dictionary explanation appended (ioSender format).
+        Assert.Contains("error:23 - G-code command in block requires an integer value.", vm.ConsoleLines);
+    }
+
+    [Fact]
+    public void Unknown_error_reply_stays_raw()
+    {
+        var grbl = new LineGrbl();
+        var vm = new ConsoleViewModel(grbl, MakeSettings());
+
+        grbl.Lines.OnNext("error:200");
+
+        Assert.Contains("error:200", vm.ConsoleLines);
     }
 
     [Fact]

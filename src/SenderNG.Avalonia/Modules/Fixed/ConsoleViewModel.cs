@@ -170,7 +170,10 @@ public class ConsoleViewModel : ViewModelBase
         string? line = null;
         if (isError)
         {
-            line = data;
+            // ioSender semantics: show the raw reply with its dictionary
+            // explanation appended, e.g. "error:2 - Missing the expected G-code
+            // word value or numeric value format is not valid."
+            line = GrblErrorCodes.Decorate(data);
         }
         else if (data == "ok")
         {

@@ -650,7 +650,10 @@ public class MainViewModel : ViewModelBase
         var description = CNC.Core.Services.GrblErrorCodes.Describe(code);
         if (description is null)
             return false;
-        message = $"error:{code} — {description}";
+        var hint = CNC.Core.Services.GrblErrorCodes.Hint(code);
+        message = hint is null
+            ? $"error:{code} — {description}"
+            : $"error:{code} — {description} {hint}";
         return true;
     }
 

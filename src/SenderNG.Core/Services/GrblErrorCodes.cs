@@ -1,68 +1,145 @@
+using System.Text.RegularExpressions;
+
 namespace CNC.Core.Services;
 
 /// <summary>
-/// Human-readable descriptions for grbl / grblHAL <c>error:&lt;n&gt;</c> replies.
-/// Codes 0–38 are identical across classic grbl (1.1) and grblHAL (they share the
-/// parser lineage); 39+ are grblHAL extensions. Used to turn a bare console line
-/// like <c>error:79</c> into an actionable status-bar message.
+/// Dictionary of grbl / grblHAL <c>error:&lt;n&gt;</c> replies with the controller's
+/// own explanation text (ioSender shows the same info; grblHAL exposes it via
+/// <c>$I+</c>/<c>[ERRORCODE:]</c> and ioSender ships it in <c>error_codes_*.csv</c>).
+/// Codes 0–38 are identical across classic grbl (1.1) and grblHAL — they share the
+/// parser lineage — and 39+ are grblHAL extensions. Classic grbl 1.1 / the mega5x
+/// 1.2i fork emit the same numbers for the shared range.
+///
+/// The descriptions below are the authoritative texts from grblHAL's
+/// <c>errors.c</c> (Terje Io, GPLv3) and grbl 1.1's <c>report.h</c>. Keeping the
+/// dictionary in code (rather than CSV files or a <c>$I+</c> round-trip) keeps the
+/// core library cross-platform and dependency-free.
 /// </summary>
 public static class GrblErrorCodes
 {
-    // Keyed by grbl status code. Entries are short so they fit the status bar.
+    /// <summary>Official controller explanation per error code.</summary>
     private static readonly Dictionary<int, string> Descriptions = new()
     {
-        [1] = "expected a command letter",
-        [2] = "bad number format",
-        [3] = "invalid statement",
-        [4] = "negative value not allowed",
-        [5] = "homing cycle is not enabled",
-        [6] = "step pulse time too short",
-        [7] = "EEPROM read failed — reset the controller",
-        [8] = "'$' command ignored — invalid or not allowed now",
-        [9] = "commands are locked out while in alarm or jog state",
-        [10] = "soft limit exceeded",
-        [11] = "line too long",
-        [12] = "step rate too high",
-        [13] = "safety door is open",
-        [14] = "line exceeds EEPROM limit",
-        [15] = "jog blocked — target outside allowed travel (soft limits). If not homed, run Home ($H) first",
-        [16] = "invalid jog command — '$J=<axis> F<feed>' with no g-code",
-        [17] = "laser mode requires PWM output",
-        [20] = "unsupported or invalid g-code command",
-        [21] = "conflicting g-code commands in the same modal group",
-        [22] = "feed rate not set",
-        [23] = "command requires an integer value",
-        [24] = "conflicting axis-command usage in the block",
-        [25] = "a g-code word was repeated",
-        [26] = "no axis words found in the block",
-        [27] = "invalid line number",
-        [28] = "value word missing",
-        [29] = "unsupported coordinate system",
-        [30] = "G53 used with an invalid motion mode",
-        [31] = "axis words not allowed with this command",
-        [32] = "no axis words in the selected plane",
-        [33] = "invalid target",
-        [34] = "arc radius error",
-        [35] = "no offsets in the selected plane",
-        // grblHAL extensions
-        [39] = "value out of range",
-        [40] = "tool change pending",
-        [41] = "spindle is not running",
-        [42] = "illegal plane",
-        [43] = "feed rate exceeds the maximum",
-        [44] = "RPM out of range",
-        [45] = "limit switch(es) engaged — motion is blocked",
-        [46] = "homing required before motion",
-        [50] = "e-stop is active — release it, then retry",
-        [51] = "motor fault — check the drives",
-        [79] = "critical alarm active (hard/soft limit, e-stop or motor fault) — release the cause, then Reset/Unlock again",
+        [1] = "G-code words consist of a letter and a value. Letter was not found.",
+        [2] = "Missing the expected G-code word value or numeric value format is not valid.",
+        [3] = "'$' system command was not recognized or supported.",
+        [4] = "Negative value received for an expected positive value.",
+        [5] = "Homing cycle failure. Homing is not configured via settings.",
+        [6] = "Step pulse time must be greater or equal to 2 microseconds.",
+        [7] = "A settings read failed. Auto-restoring affected settings to default values.",
+        [8] = "'$' command cannot be used unless controller state is IDLE.",
+        [9] = "G-code commands are locked out during alarm or jog state.",
+        [10] = "Soft limits cannot be enabled without homing also enabled.",
+        [11] = "Max characters per line exceeded. Received command line was not executed.",
+        [12] = "'$' setting value causes the step rate to exceed the maximum supported.",
+        [13] = "Safety door detected as opened and door state initiated.",
+        [14] = "Build info or startup line exceeded line length limit. Line not stored.",
+        [15] = "Jog target exceeds machine travel. Jog command has been ignored.",
+        [16] = "Jog command has no '=' or contains prohibited g-code.",
+        [17] = "Laser mode requires PWM output.",
+        [18] = "Reset asserted.", // grblHAL
+        [19] = "Non-positive value.", // grblHAL
+        [20] = "Unsupported or invalid g-code command found in block.",
+        [21] = "More than one g-code command from same modal group found in block.",
+        [22] = "Feed rate has not yet been set or is undefined.",
+        [23] = "G-code command in block requires an integer value.",
+        [24] = "More than one g-code command that requires axis words found in block.",
+        [25] = "Repeated g-code word found in block.",
+        [26] = "No axis words found in block for g-code command or current modal state which requires them.",
+        [27] = "Line number value is invalid.",
+        [28] = "G-code command is missing a required value word.",
+        [29] = "G59.x work coordinate systems are not supported.",
+        [30] = "G53 only allowed with G0 and G1 motion modes.",
+        [31] = "Axis words found in block when no command or current modal state uses them.",
+        [32] = "G2 and G3 arcs require at least one in-plane axis word.",
+        [33] = "Motion command target is invalid.",
+        [34] = "Arc radius value is invalid.",
+        [35] = "G2 and G3 arcs require at least one in-plane offset word.",
+        [36] = "Unused value words found in block.",
+        [37] = "G43.1 dynamic tool length offset is not assigned to configured tool length axis.",
+        [38] = "Tool number greater than max supported value or undefined tool selected.",
+        [39] = "Value out of range.",
+        [40] = "G-code command not allowed when tool change is pending.",
+        [41] = "Spindle not running when motion commanded in CSS or spindle sync mode.",
+        [42] = "Plane must be ZX for threading.",
+        [43] = "Max. feed rate exceeded.",
+        [44] = "RPM out of range.",
+        [45] = "Only homing is allowed when a limit switch is engaged.",
+        [46] = "Home machine to continue.",
+        [47] = "ATC: current tool is not set. Set current tool with M61.",
+        [48] = "Value word conflict.",
+        [49] = "Power on self test failed. A hard reset is required.",
+        [50] = "Emergency stop active.",
+        [51] = "Motor fault.",
+        [52] = "Setting value is out of range.",
+        [53] = "Setting is not available, possibly due to limited driver support.",
+        [54] = "Retract position is less than drill depth.",
+        [55] = "Attempt to home two auto squared axes at the same time.",
+        [57] = "Unexpected file demarcation.",
+        [58] = "Port is not available.",
+        [60] = "SD card mount error.",
+        [61] = "File read error.",
+        [62] = "Failed to open directory.",
+        [63] = "Directory not found.",
+        [64] = "SD card not mounted.",
+        [65] = "File system not mounted.",
+        [66] = "File system is read only.",
+        [70] = "Bluetooth init error.",
+        [71] = "Unknown operation found in expression.",
+        [72] = "Divide by zero in expression attempted.",
+        [73] = "Too large or too small argument provided.",
+        [74] = "Argument is not valid for the operation.",
+        [75] = "Expression is not valid.",
+        [76] = "Either NaN (not a number) or infinity was returned from expression.",
+        [77] = "Authentication required.",
+        [78] = "Access denied.",
+        [79] = "Not allowed while critical event is active.",
+        [80] = "Flow statement only allowed in filesystem macro.",
+        [81] = "Unknown flow statement.",
+        [82] = "Stack overflow while executing flow statement.",
+        [83] = "Out of memory while executing flow statement.",
+        [84] = "Could not open file.",
+        [85] = "File system format failed.",
+        [86] = "Port is not usable.",
+        [87] = "Tool in spindle.",
+        [88] = "No tool in spindle.",
+        [89] = "File delete failed.",
+        [90] = "Cutter compensation is already active.",
+        [91] = "Command not allowed while cutter compensation is active.",
+        [92] = "Cutter compensation is not valid for current move.",
+        [253] = "User defined error occurred.",
     };
 
-    /// <summary>
-    /// Human-readable description for an <c>error:&lt;code&gt;</c> reply, or
-    /// <c>null</c> when the code isn't known. Prefixes nothing; callers format
-    /// e.g. <c>error:79 — critical alarm active …</c>.
-    /// </summary>
+    /// <summary>Actionable guidance appended to the status bar (not the console) for
+    /// errors whose official text doesn't say what to do next.</summary>
+    private static readonly Dictionary<int, string> Hints = new()
+    {
+        [15] = "If the machine is not homed and soft limits are enabled, run Home ($H) first.",
+        [79] = "A critical alarm (hard/soft limit, e-stop or motor fault) is active — release the cause, then Reset and Unlock again.",
+    };
+
+    private static readonly Regex ErrorReply = new("^error:([0-9]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>Official controller explanation for an error code, or <c>null</c> when unknown.</summary>
     public static string? Describe(int code) =>
         Descriptions.TryGetValue(code, out var text) ? text : null;
+
+    /// <summary>Optional actionable hint for the status bar, or <c>null</c>.</summary>
+    public static string? Hint(int code) =>
+        Hints.TryGetValue(code, out var text) ? text : null;
+
+    /// <summary>
+    /// Render a raw <c>error:&lt;n&gt;</c> console line with its explanation appended,
+    /// e.g. <c>error:2 - Missing the expected G-code word value or numeric value
+    /// format is not valid.</c> (ioSender format). Unknown codes pass through
+    /// unchanged; non-error lines pass through unchanged.
+    /// </summary>
+    public static string Decorate(string line)
+    {
+        var match = ErrorReply.Match(line);
+        if (!match.Success || !int.TryParse(match.Groups[1].Value, out var code))
+            return line;
+        var description = Describe(code);
+        return description is null ? line : $"{line} - {description}";
+    }
 }

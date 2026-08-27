@@ -159,14 +159,17 @@ public Task SendAsync(string line)
     }
 
     [Fact]
-    public void Stop_command_sends_feed_hold()
+    public void Stop_command_sends_jog_cancel_realtime_byte()
     {
+        // Jog cancel (0x85) is the firmware's dedicated stop-jog command on classic
+        // grbl 1.1, the mega5x fork and grblHAL: it returns to IDLE, while a feed
+        // hold ('!') would leave the machine in HOLD.
         var sent = new List<string>();
         var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings());
 
         vm.StopCommand.Execute(null);
 
-        Assert.Equal(["!"], sent);
+        Assert.Equal(["RT:85"], sent);
     }
 }
 

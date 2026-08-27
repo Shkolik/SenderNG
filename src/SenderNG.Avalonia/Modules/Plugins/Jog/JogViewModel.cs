@@ -36,7 +36,11 @@ public class JogViewModel : ViewModelBase
         RefreshLinearAxes();
 
         JogCommand = new DelegateCommand(p => _ = JogAsync(p as string));
-        StopCommand = new DelegateCommand(_ => _ = _grbl.SendAsync("!"));
+        // Jog cancel (realtime 0x85) is the firmware's dedicated stop-jog command on
+        // classic grbl 1.1, the mega5x 1.2i fork and grblHAL: it decelerates, flushes
+        // remaining jog blocks and returns to IDLE. A feed hold ('!') would leave the
+        // machine in HOLD needing a cycle start — wrong for the jog panel.
+        StopCommand = new DelegateCommand(_ => _grbl.SendRealtime(GrblRealtime.JogCancel));
 
         _grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
         _settingsService.Changed += OnSettingsChanged;
