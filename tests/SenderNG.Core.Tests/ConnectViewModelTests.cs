@@ -9,6 +9,9 @@ public class ConnectViewModelTests
     private sealed class StubComPorts(string[] ports) : IComPortService
     {
         public string[] GetPorts() => ports;
+        // Mimic the real service: plain names in GetPorts, device descriptions in entries.
+        public IReadOnlyList<SerialPortEntry> GetPortEntries() =>
+            ports.Select(p => new SerialPortEntry(p, $"{p} - USB Serial Device")).ToArray();
     }
 
     private static AppSettings SettingsWith(string? port = null, int baud = 115200)
@@ -24,7 +27,9 @@ public class ConnectViewModelTests
     public void Ports_are_populated_from_com_port_service()
     {
         var vm = new ConnectViewModel(SettingsWith(), new StubComPorts(["COM3", "COM7"]));
-        Assert.Equal(["COM3", "COM7"], vm.Ports);
+        Assert.Equal(["COM3", "COM7"], vm.Ports.Select(p => p.Name));
+        // FullName is populated from the entry so the dropdown shows device info.
+        Assert.Equal("COM3 - USB Serial Device", vm.Ports.First().FullName);
         // No persisted port -> first enumerated is pre-selected.
         Assert.Equal("COM3", vm.SelectedPort);
     }
@@ -272,7 +277,7 @@ public class ConnectViewModelTests
         var vm = new ConnectViewModel(SettingsWith(), ports);
         try
         {
-            Assert.Equal(["COM3"], vm.Ports);
+            Assert.Equal(["COM3"], vm.Ports.Select(p => p.Name));
             Assert.True(vm.SerialEnabled);
 
             // A controller is plugged in while the dialog stays open: the serial
@@ -281,10 +286,10 @@ public class ConnectViewModelTests
             ports.Set(["COM3", "COM5"]);
 
             var deadline = DateTime.UtcNow.AddSeconds(5);
-            while (!vm.Ports.Contains("COM5") && DateTime.UtcNow < deadline)
+            while (!vm.Ports.Any(p => p.Name == "COM5") && DateTime.UtcNow < deadline)
                 await Task.Delay(100);
 
-            Assert.Contains("COM5", vm.Ports);
+            Assert.Contains(vm.Ports, p => p.Name == "COM5");
         }
         finally
         {
@@ -314,7 +319,7 @@ public class ConnectViewModelTests
                 await Task.Delay(100);
 
             Assert.True(vm.SerialEnabled);
-            Assert.Contains("COM9", vm.Ports);
+            Assert.Contains(vm.Ports, p => p.Name == "COM9");
             // A port was auto-selected, so the Serial tab can now connect.
             Assert.Equal("COM9", vm.SelectedPort);
             Assert.True(vm.ConnectCommand.CanExecute(null));
@@ -329,6 +334,8 @@ public class ConnectViewModelTests
     {
         private string[] _ports = ports;
         public string[] GetPorts() => _ports;
+        public IReadOnlyList<SerialPortEntry> GetPortEntries() =>
+            _ports.Select(p => new SerialPortEntry(p, p)).ToArray();
         public void Set(string[] ports) => _ports = ports;
     }
 }

@@ -26,7 +26,8 @@
                         <TextBlock Text="Port" FontWeight="SemiBold" FontSize="12" />
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <ComboBox ItemsSource="{Binding Ports}"
-                                      SelectedItem="{Binding SelectedPort, Mode=TwoWay}"
+                                      DisplayMemberBinding="{Binding FullName}"
+                                      SelectedItem="{Binding SelectedPortEntry, Mode=TwoWay}"
                                       IsEnabled="{Binding SerialEnabled}"
                                       FontSize="12" Height="24"
                                       HorizontalAlignment="Stretch"

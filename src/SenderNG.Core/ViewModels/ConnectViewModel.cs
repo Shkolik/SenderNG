@@ -119,7 +119,8 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
         }
     }
 
-    public ObservableCollection<string> Ports { get; } = new();
+    /// <summary>Ports as displayed in the Serial tab ("COM7 - USB Serial Device" when known).</summary>
+    public ObservableCollection<SerialPortEntry> Ports { get; } = new();
 
     public DelegateCommand ConnectCommand { get; }
 
@@ -133,7 +134,22 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
         set
         {
             if (SetField(ref _selectedPort, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(SelectedPortEntry));
                 RaiseCanConnectChanged();
+            }
+        }
+    }
+
+    /// <summary>The selected <see cref="Ports"/> entry (the ComboBox binds this;
+    /// <see cref="SelectedPort"/> stays the plain name used to open the port).</summary>
+    public SerialPortEntry? SelectedPortEntry
+    {
+        get => Ports.FirstOrDefault(p => p.Name == _selectedPort);
+        set
+        {
+            if (value is not null)
+                SelectedPort = value.Name;
         }
     }
 
@@ -244,23 +260,25 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
 
     public void RefreshPorts()
     {
-        var ports = _ports?.GetPorts() ?? Array.Empty<string>();
+        var ports = _ports?.GetPortEntries() ?? Array.Empty<SerialPortEntry>();
         var previous = _selectedPort;
 
         Ports.Clear();
         foreach (var p in ports)
             Ports.Add(p);
 
+        var names = ports.Select(p => p.Name).ToArray();
         // Prefer the current selection, then the last successful port, then the
         // legacy mode-scoped port, then the first enumerated one.
-        SelectedPort = ports.Contains(previous) ? previous
-            : ports.Contains(_settings.LastSerialPort) ? _settings.LastSerialPort
-            : ports.Contains(_settings.Current.Port) ? _settings.Current.Port
-            : ports.FirstOrDefault() ?? string.Empty;
+        SelectedPort = names.Contains(previous) ? previous
+            : names.Contains(_settings.LastSerialPort) ? _settings.LastSerialPort
+            : names.Contains(_settings.Current.Port) ? _settings.Current.Port
+            : names.FirstOrDefault() ?? string.Empty;
 
         OnPropertyChanged(nameof(HasPorts));
         OnPropertyChanged(nameof(SerialEnabled));
         OnPropertyChanged(nameof(NoPortsHint));
+        OnPropertyChanged(nameof(SelectedPortEntry));
         RaiseCanConnectChanged();
     }
 
@@ -273,11 +291,13 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
     {
         // Enumerate on the timer (threadpool) thread; the comparison is pure
         // reads, and the UI mutation is marshalled so ObservableCollection changes
-        // stay on the dispatcher thread in the Avalonia app.
+        // stay on the dispatcher thread in the Avalonia app. The cheap name-only
+        // pass detects changes; the device-name lookup (registry walk on Windows)
+        // only runs when the port set actually changed.
         var current = _ports?.GetPorts() ?? Array.Empty<string>();
         if (current.Length == Ports.Count
-            && current.All(Ports.Contains)
-            && Ports.All(current.Contains))
+            && current.All(name => Ports.Any(p => p.Name == name))
+            && Ports.All(p => current.Contains(p.Name)))
             return;
 
         if (_ui is not null)

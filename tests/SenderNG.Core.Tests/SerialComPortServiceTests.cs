@@ -38,6 +38,21 @@ public class SerialComPortServiceTests : IDisposable
         Assert.Empty(ports);
     }
 
+    [Fact]
+    public void GetPortEntries_falls_back_to_plain_names_off_windows()
+    {
+        // On non-Windows (simulated by the injected dev dir) there is no device-
+        // description source, so entries must still enumerate with FullName==Name.
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(Path.Combine(_dir, "ttyUSB0"), "");
+        File.WriteAllText(Path.Combine(_dir, "ttyACM0"), "");
+
+        var entries = new SerialComPortService(_dir).GetPortEntries();
+
+        Assert.Equal(["ttyACM0", "ttyUSB0"], entries.Select(e => e.Name));
+        Assert.All(entries, e => Assert.Equal(e.Name, e.FullName));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_dir))

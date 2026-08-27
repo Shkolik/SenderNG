@@ -423,6 +423,18 @@ public class RealGrblHardwareTests
             else
                 Console.WriteLine($"INFO board was '{statusBeforeUnlock}' (not Alarm); $X exchanged");
 
+            // 3b) Jog: a tiny incremental $J command must be accepted once the
+            //     machine is out of alarm. This catches the jog-format regression
+            //     (the app used to send '$J=G91 G0 …' — prohibited g-code inside a
+            //     jog, rejected as error 16/21). Boards stuck in a critical alarm
+            //     (grblHAL error 79) or with homing required will refuse — reported,
+            //     not asserted, since that depends on the bench setup.
+            var beforeJog = received.Count;
+            Console.WriteLine("JOG sending $J=X1 F500 (1mm)...");
+            await svc.SendAsync("$J=X1 F500");
+            var jogReplies = received.Skip(beforeJog).Where(l => !l.StartsWith('<')).Take(2).ToArray();
+            Console.WriteLine($"JOG reply: {(jogReplies.Length > 0 ? string.Join(" | ", jogReplies) : "(none observed)")}");
+
             // 4) Reset: realtime 0x18 reboots the controller -> boot banner re-prints
             //    and the alarm lock re-arms (grbl power-up state with homing enabled).
             var countBefore = received.Count;

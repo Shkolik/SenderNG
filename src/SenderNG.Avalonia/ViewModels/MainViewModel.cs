@@ -54,6 +54,7 @@ public class MainViewModel : ViewModelBase
     private IBrush _stateBrush = new SolidColorBrush(Color.Parse("#ffe8a0"));
     private IBrush _stateForeground = Brushes.Black;
     private IDisposable? _stateSubscription;
+    private IDisposable? _linesSubscription;
     private bool _probeActive;
     private ProgramViewModel? _program;
 
@@ -147,6 +148,15 @@ public class MainViewModel : ViewModelBase
         // Also drives dynamic Signals panel (AxisSignals + ProbeActive) from MachineState.NumAxes / Signals
         _stateSubscription = _grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
 
+        // Command replies: surface a bare "error:<n>" line (which also shows in the
+        // console) as an actionable status-bar message, e.g. error:79 on grblHAL
+        // means a critical alarm (e-stop/hard limit) is blocking unlock/motion.
+        _linesSubscription = _grbl.ReceivedLines.Subscribe(line =>
+        {
+            if (TryDescribeError(line, out var message))
+                UiThread.Post(() => Status = message);
+        });
+
         // Connection state drives the "NOT CONNECTED" indicator and status bar.
         _connectionChangedHandler = OnConnectionChanged;
         _grbl.ConnectionChanged += _connectionChangedHandler;
@@ -172,6 +182,13 @@ public class MainViewModel : ViewModelBase
             {
                 _stateSubscription?.Dispose();
                 _stateSubscription = _grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
+
+                _linesSubscription?.Dispose();
+                _linesSubscription = _grbl.ReceivedLines.Subscribe(line =>
+                {
+                    if (TryDescribeError(line, out var message))
+                        UiThread.Post(() => Status = message);
+                });
 
                 if (_connectionChangedHandler is not null)
                 {
@@ -616,6 +633,25 @@ public class MainViewModel : ViewModelBase
     {
         try { Grbl.SendAsync(line); Status = $"{label} sent"; }
         catch (Exception ex) { Status = $"{label} failed: {ex.Message}"; }
+    }
+
+    /// <summary>
+    /// Interpret an <c>error:&lt;n&gt;</c> controller reply into a status-bar message
+    /// (the raw line still reaches the console). Returns false for any other line.
+    /// </summary>
+    private static bool TryDescribeError(string line, out string message)
+    {
+        message = string.Empty;
+        const string prefix = "error:";
+        if (!line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (!int.TryParse(line[prefix.Length..], out var code))
+            return false;
+        var description = CNC.Core.Services.GrblErrorCodes.Describe(code);
+        if (description is null)
+            return false;
+        message = $"error:{code} — {description}";
+        return true;
     }
 
     /// <summary>Rewind the loaded program to the start (local reset, no byte sent - mirrors ioSender RewindFile).</summary>
