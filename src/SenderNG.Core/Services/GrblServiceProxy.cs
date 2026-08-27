@@ -16,7 +16,12 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
     private EventHandler? _innerConnectionHandler;
     private EventHandler? _connectionChanged;
     private readonly BehaviorSubject<MachineState> _subject = new(new MachineState());
-    private readonly Subject<string> _receivedLines = new();
+    // Bounded replay so the console realizes late (center-panel tabs are built
+    // lazily by Avalonia from a deferred enumeration) still sees the connect
+    // burst — the $I identity/options lines and recent status — instead of an
+    // empty log. The demo service publishes no raw lines, so the buffer is empty
+    // in demo mode (the console stays silent as intended).
+    private readonly ReplaySubject<string> _receivedLines = new(bufferSize: 50);
 
     public GrblServiceProxy(IGrblService inner) =>
         _inner = SetInner(inner);

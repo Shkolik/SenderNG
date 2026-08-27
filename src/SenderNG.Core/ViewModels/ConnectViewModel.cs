@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Windows.Input;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
@@ -29,10 +30,14 @@ public sealed record ConnectResult(ConnectMode Mode, string? Port, int BaudRate,
 /// <see cref="IComPortService"/> so the dialog is cross-platform; the network
 /// transport is <see cref="TcpGrblTransport"/> behind <see cref="RealGrblService"/>.
 /// </summary>
-public class ConnectViewModel : ViewModelBase, IClosableDialog
+public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
 {
+    private const int AutoRefreshIntervalMs = 1000;
+
     private readonly AppSettings _settings;
     private readonly IComPortService? _ports;
+    private readonly System.Action<System.Action>? _ui;
+    private Timer? _autoRefreshTimer;
     private string _selectedPort = string.Empty;
     private int _baudRate = 115200;
     private string _networkEndpoint = string.Empty;
@@ -40,11 +45,16 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog
 
     public event EventHandler<bool>? CloseRequested;
 
-    public ConnectViewModel(AppSettings settings, IComPortService? comPorts = null)
+    /// <param name="ui">
+    /// Optional marshaller that runs an action on the UI thread. When absent
+    /// (e.g. unit tests, headless) the auto-refresh applies directly.
+    /// </param>
+    public ConnectViewModel(AppSettings settings, IComPortService? comPorts = null, System.Action<System.Action>? ui = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         _settings = settings;
         _ports = comPorts;
+        _ui = ui;
 
         // Pre-fill from the last *successful* connection (global settings),
         // falling back to the legacy mode-scoped values, then the standard rate.
@@ -65,6 +75,10 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog
         // Default to the first usable tab: Serial when ports exist, otherwise
         // Network when enabled, otherwise Demo (always available).
         SelectedIndex = HasPorts ? 0 : NetworkEnabled ? 1 : 2;
+
+        // Live-enumerate while the dialog is open: plugging in a controller
+        // revives the (otherwise grayed-out) Serial tab without a manual refresh.
+        _autoRefreshTimer = new Timer(_ => AutoRefreshPorts(), null, AutoRefreshIntervalMs, AutoRefreshIntervalMs);
     }
 
     /// <summary>Standard grbl / grblHAL baud choices (cross-platform friendly).</summary>
@@ -215,6 +229,40 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog
         RaiseCanConnectChanged();
     }
 
-    protected void RequestClose(bool result) =>
+    /// <summary>
+    /// Periodically re-enumerate ports. Only when the enumerated set actually
+    /// changes do we refresh the UI — steady state stays untouched so the user's
+    /// selection/scroll position is never disturbed by a no-op timer tick.
+    /// </summary>
+    private void AutoRefreshPorts()
+    {
+        // Enumerate on the timer (threadpool) thread; the comparison is pure
+        // reads, and the UI mutation is marshalled so ObservableCollection changes
+        // stay on the dispatcher thread in the Avalonia app.
+        var current = _ports?.GetPorts() ?? Array.Empty<string>();
+        if (current.Length == Ports.Count
+            && current.All(Ports.Contains)
+            && Ports.All(current.Contains))
+            return;
+
+        if (_ui is not null)
+            _ui(() => RefreshPorts());
+        else
+            RefreshPorts();
+    }
+
+    protected void RequestClose(bool result)
+    {
+        // The dialog is closing; stop background port enumeration.
+        _autoRefreshTimer?.Dispose();
+        _autoRefreshTimer = null;
         CloseRequested?.Invoke(this, result);
+    }
+
+    public void Dispose()
+    {
+        _autoRefreshTimer?.Dispose();
+        _autoRefreshTimer = null;
+        GC.SuppressFinalize(this);
+    }
 }

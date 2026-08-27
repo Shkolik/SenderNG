@@ -77,6 +77,26 @@ public class GrblServiceProxyTests
     }
 
     [Fact]
+    public void Late_console_subscriber_sees_recent_connected_lines()
+    {
+        // Regression: the connect burst ($I identity/options, first status lines)
+        // used to be lost because ReceivedLines was a non-replaying Subject and
+        // Avalonia realizes the center-panel ConsoleView lazily. The proxy now
+        // replays recent lines so a late-attaching console still shows them.
+        var inner = new FakeGrbl("real");
+        var proxy = new GrblServiceProxy(inner);
+
+        inner.Lines.OnNext("GrblHAL 1.2i");
+        inner.Lines.OnNext("[OPT:V,15,128]");
+
+        var late = new List<string>();
+        using var sub = proxy.ReceivedLines.Subscribe(late.Add);
+
+        Assert.Contains("GrblHAL 1.2i", late);
+        Assert.Contains("[OPT:V,15,128]", late);
+    }
+
+    [Fact]
     public void Subscribers_keep_receiving_state_after_inner_swap()
     {
         var demo = new FakeGrbl("demo");

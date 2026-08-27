@@ -24,7 +24,9 @@ controller. Demo mode masks these gaps in day-to-day use.
       (ioSender `PollGrbl` semantics). Verified on a real grbl 1.2i board @ COM6
       (live status, `$$`, `$I`).
 - [x] **Full grbl handshake** (`$I` + `[OPT:...]`, grblHAL build/version
-      detection) and an exposed `ControllerCapabilities` on `IGrblService`
+      detection) and an exposed `ControllerCapabilities` on `IGrblService`; on
+      connect the axis count is pushed into the legacy `GrblInfo` static and the
+      live `MachineState` so the DRO shows the board's real axes
       (ROADMAP top item). `ControllerInfoParser` reads `[VER:]` / `[AXS:]` /
       `[OPT:]` (real 1.2i output verified: axes from `[AXS:]`, tools from `[OPT:]`).
 - [x] **Accessory-state parsing** — `StatusReportParser` reads the grblHAL `A:`
@@ -65,7 +67,11 @@ Many already exist; the gaps are listed per widget.
       Show-all-realtime options (persisted), Clear button, 200-line cap. Demo
       mode publishes no raw lines, so the console no longer shows mocked status
       strings; connected to a real board it shows $I identity/options, $$ dumps,
-      `[PRB:...]` and `error:` replies as sent.
+      `[PRB:...]` and `error:` replies as sent. The proxy relays raw lines as a
+      bounded replay so the console still shows the connect burst even when the
+      Console tab is realized lazily after connecting. The connect dialog also
+      auto-re-enumerates serial ports every second, so plugging in a controller
+      revives the otherwise-grayed Serial tab without a manual refresh.
 - [x] Offsets (`Modules/Fixed/Offsets`) — coordinate table + save.
 - [x] Grbl settings (`Modules/Fixed/GrblSettings`) — `$$` view/edit.
 - [x] App settings (`Modules/Fixed/AppSettings`).

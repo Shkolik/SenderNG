@@ -238,6 +238,48 @@ public class RealGrblServiceTests
         Assert.Equal("1.1h", svc.Capabilities.Version);
     }
 
+    [Fact]
+    public async Task Connect_applies_I_axis_count_to_state_and_grblinfo()
+    {
+        // A grblHAL $I handshake reporting 5 axes must grow the live DRO state
+        // (MachineState.NumAxes -> DRO/signals rows) and the legacy GrblInfo
+        // static that the parser/expressions read. Restore the global static so
+        // the test can't leak into others.
+        var savedAxes = CNC.Core.GrblInfo.NumAxes;
+        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        try
+        {
+            var transport = new FakeGrblTransport { AutoReply = false };
+            using var svc = new RealGrblService(transport);
+            MachineState? latest = null;
+            svc.State.Subscribe(s => latest = s);
+
+            var connectTask = svc.ConnectAsync("fake");
+            await WaitUntil(() => transport.Sent.Contains("$I"), 3000);
+            transport.Enqueue("GrblHAL 1.2i ['$' for help]");
+            transport.Enqueue("[VER:1.2i.20260521:]");
+            transport.Enqueue("[OPT:V,15,128]");
+            transport.Enqueue("[AXS:5:XYZAB]");
+            transport.Enqueue("ok");
+            await connectTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.True(svc.Capabilities.IsKnown);
+            Assert.Equal(5, svc.Capabilities.NumAxes);
+
+            // Legacy global used by gcode parser / expressions must follow.
+            Assert.Equal(5, CNC.Core.GrblInfo.NumAxes);
+            Assert.True(CNC.Core.GrblInfo.IsGrblHAL);
+
+            // Live state drives the DRO axis rows.
+            Assert.True(await WaitUntilAsync(() => latest?.NumAxes == 5, 3000));
+        }
+        finally
+        {
+            CNC.Core.GrblInfo.NumAxes = savedAxes;
+            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+        }
+    }
+
     private static async Task<bool> WaitUntilAsync(Func<bool> condition, int timeoutMs)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);

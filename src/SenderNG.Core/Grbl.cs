@@ -101,7 +101,7 @@ namespace CNC.Core
         public static int NumAxes
         {
             get=>_numAxes;
-            internal set{
+            set{
                 _numAxes=value;
                 int flags=0; PositionFormatString="";
                 for(int i=0;i<_numAxes;i++){ flags=(flags<<1)|0x01; PositionFormatString+=AxisIndexToLetter(i)+": {"+i+"}  "; }

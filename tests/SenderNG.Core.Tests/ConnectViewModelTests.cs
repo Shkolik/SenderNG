@@ -229,4 +229,71 @@ public class ConnectViewModelTests
         var legacy = new ConnectViewModel(SettingsWith("COM3", 12345), new StubComPorts(["COM3"]));
         Assert.Equal(115200, legacy.BaudRate); // unsupported saved baud falls back
     }
+
+    [Fact]
+    public async Task Auto_discovers_new_com_port_while_dialog_is_open()
+    {
+        var ports = new MutableComPorts(["COM3"]);
+        var vm = new ConnectViewModel(SettingsWith(), ports);
+        try
+        {
+            Assert.Equal(["COM3"], vm.Ports);
+            Assert.True(vm.SerialEnabled);
+
+            // A controller is plugged in while the dialog stays open: the serial
+            // tab was already usable here, but the point is the new port appears
+            // without a manual refresh.
+            ports.Set(["COM3", "COM5"]);
+
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (!vm.Ports.Contains("COM5") && DateTime.UtcNow < deadline)
+                await Task.Delay(100);
+
+            Assert.Contains("COM5", vm.Ports);
+        }
+        finally
+        {
+            vm.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task Auto_discovers_port_greysed_serial_tab_when_controller_plugged_in()
+    {
+        // Start with no ports -> Serial tab is grayed out and unusable.
+        var ports = new MutableComPorts([]);
+        var settings = SettingsWith();
+        settings.NetworkAvailable = false;
+        var vm = new ConnectViewModel(settings, ports);
+        try
+        {
+            Assert.False(vm.SerialEnabled);
+            vm.SelectedIndex = (int)ConnectMode.Serial;
+            Assert.False(vm.ConnectCommand.CanExecute(null));
+
+            // Plugging in a controller revives the Serial tab automatically.
+            ports.Set(["COM9"]);
+
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (!vm.SerialEnabled && DateTime.UtcNow < deadline)
+                await Task.Delay(100);
+
+            Assert.True(vm.SerialEnabled);
+            Assert.Contains("COM9", vm.Ports);
+            // A port was auto-selected, so the Serial tab can now connect.
+            Assert.Equal("COM9", vm.SelectedPort);
+            Assert.True(vm.ConnectCommand.CanExecute(null));
+        }
+        finally
+        {
+            vm.Dispose();
+        }
+    }
+
+    private sealed class MutableComPorts(string[] ports) : IComPortService
+    {
+        private string[] _ports = ports;
+        public string[] GetPorts() => _ports;
+        public void Set(string[] ports) => _ports = ports;
+    }
 }

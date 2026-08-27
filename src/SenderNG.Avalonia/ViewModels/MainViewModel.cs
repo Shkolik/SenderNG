@@ -762,7 +762,7 @@ public class MainViewModel : ViewModelBase
         }
 
         var settings = _settingsService.Load();
-        var vm = new CNC.Core.ViewModels.ConnectViewModel(settings, _comPorts);
+        var vm = new CNC.Core.ViewModels.ConnectViewModel(settings, _comPorts, UiThread.Post);
         // No fixed size: the dialog grows/shrinks with its tab content.
         var result = await _dialogs.ShowDialogAsync("Connect", vm);
         if (result != true)

@@ -97,6 +97,11 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         {
             Capabilities = ControllerCapabilities.Unknown;
         }
+
+        // Push the discovered axis count into the legacy GrblInfo static (the
+        // DRO, gcode parser and expressions read it) and into the live machine
+        // state so the DRO/signals grow to the board's real axes.
+        ApplyCapabilities();
     }
 
     private async Task StartPolling(string port)
@@ -112,6 +117,39 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             return;
 
         _pollTimer = new Timer(_ => PollTick(), null, 0, _pollIntervalMs);
+    }
+
+    /// <summary>
+    /// Reflect the connect-time <c>$I</c> capabilities into the legacy
+    /// <see cref="GrblInfo"/> static (axis count, grblHAL flag) and into the live
+    /// <see cref="MachineState"/> so the DRO and signals show the board's real
+    /// axes. Runs best-effort after the handshake; classic grbl that omits $I
+    /// keeps the defaults.
+    /// </summary>
+    private void ApplyCapabilities()
+    {
+        if (!Capabilities.IsKnown || Capabilities.NumAxes <= 0)
+            return;
+
+        try
+        {
+            // Legacy static is authoritative for parsing/expressions; only update
+            // when the handshake actually identified the board.
+            GrblInfo.IsGrblHAL = Capabilities.IsGrblHAL;
+            GrblInfo.NumAxes = Capabilities.NumAxes;
+
+            // Grow the live state so users immediately see the extra axes and
+            // WPos/MPos arrays are sized to hold all reported positions.
+            lock (_gate)
+            {
+                if (_subject.Value.NumAxes != Capabilities.NumAxes)
+                    _subject.OnNext(new MachineState(Capabilities.NumAxes));
+            }
+        }
+        catch
+        {
+            // Non-fatal: capabilities remain available on the property either way.
+        }
     }
 
     private void PollTick()
