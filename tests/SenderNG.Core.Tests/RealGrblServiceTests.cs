@@ -68,9 +68,19 @@ public sealed class FakeGrblTransport : IGrblTransport, IPortPresenceCheck
     public Task WriteLineAsync(string line)
     {
         lock (_writtenGate) _writtenLines.Add(line);
-        // Auto-reply 'ok' unless the test controls the transcript.
+        // Auto-reply 'ok' unless the test controls the transcript. $I gets a
+        // minimal classic-grbl reply so the connect handshake completes in one
+        // attempt (the real boards answer $I with [VER:]/[OPT:]/... + ok; the
+        // service keeps retrying until it collects bracket info lines).
         if (AutoReply)
+        {
+            if (line == "$I")
+            {
+                Enqueue("[VER:1.1f.20230820:]");
+                Enqueue("[OPT:V,16,128]");
+            }
             Enqueue("ok");
+        }
         return Task.CompletedTask;
     }
 
@@ -251,10 +261,13 @@ public class RealGrblServiceTests
         using var svc = new RealGrblService(transport);
 
         var connectTask = svc.ConnectAsync("fake");
-        // Feed the $I reply only once $I is actually written (on real hardware the
-        // reply only ever comes after the command, so lines must not arrive before it).
+        // Feed the full classic-grbl $I reply only once $I is actually written (on
+        // real hardware the reply only ever comes after the command, so lines must
+        // not arrive before it). A banner alone no longer completes the handshake.
         await WaitUntil(() => transport.Sent.Contains("$I"), 3000);
         transport.Enqueue("Grbl 1.1h ['$' for help]");
+        transport.Enqueue("[VER:1.1h.20190825:]");
+        transport.Enqueue("[OPT:V,15,128]");
         transport.Enqueue("ok");
         await connectTask.WaitAsync(TimeSpan.FromSeconds(5));
 
@@ -262,6 +275,35 @@ public class RealGrblServiceTests
         Assert.True(await WaitUntilAsync(() => svc.Capabilities.IsKnown, 3000));
         Assert.False(svc.Capabilities.IsGrblHAL);
         Assert.Equal("1.1h", svc.Capabilities.Version);
+        Assert.Equal(15, svc.Capabilities.PlanBufferSize);
+    }
+
+    [Fact]
+    public async Task Connect_retries_I_handshake_when_first_reply_is_banner_only()
+    {
+        // The DTR-at-open reset reboots Arduino-style boards; a $I sent while the
+        // UART is still initializing is dropped, so only the boot banner arrives.
+        // The handshake must retry until actual $I reply lines ([VER:]/[OPT:]) are
+        // collected instead of settling for banner-only capabilities.
+        var transport = new FakeGrblTransport { AutoReply = false };
+        using var svc = new RealGrblService(transport);
+
+        var connectTask = svc.ConnectAsync("fake");
+        await WaitUntil(() => transport.Sent.Contains("$I"), 3000);
+        // First $I: board still booting — only the boot banner, no $I reply.
+        transport.Enqueue("Grbl 1.1h ['$' for help]");
+
+        // Wait for the retry's second $I, then feed the real reply.
+        await WaitUntil(() => transport.Sent.Count(l => l == "$I") >= 2, 6000);
+        transport.Enqueue("[VER:1.1h.20190825:]");
+        transport.Enqueue("[OPT:V,15,128]");
+        transport.Enqueue("ok");
+        await connectTask.WaitAsync(TimeSpan.FromSeconds(8));
+
+        Assert.True(svc.Capabilities.IsKnown);
+        Assert.Equal("1.1h", svc.Capabilities.Version);
+        Assert.Equal(15, svc.Capabilities.PlanBufferSize);
+        Assert.Equal(2, transport.Sent.Count(l => l == "$I"));
     }
 
     [Fact]

@@ -132,8 +132,16 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         {
             for (var attempt = 0; attempt < 10 && !_cts.IsCancellationRequested; attempt++)
             {
-                Capabilities = ControllerInfoParser.ParseInfo(await GetInfoLinesAsync(port));
-                if (Capabilities.IsKnown)
+                var infoLines = await GetInfoLinesAsync(port);
+                Capabilities = ControllerInfoParser.ParseInfo(infoLines);
+                // A boot banner alone ("Grbl 1.1h ['$' for help]") is not a complete
+                // handshake: the DTR-at-open reset reboots Arduino-style boards, and
+                // a $I sent while the UART is still initializing is dropped. The
+                // banner makes ParseInfo report Known, so keep retrying until we
+                // actually collect $I reply lines ([VER:]/[OPT:]/[AXS:]/firmware).
+                // A boot [MSG:...] line doesn't count either — it precedes the reply.
+                if (Capabilities.IsKnown &&
+                    infoLines.Any(l => l.StartsWith('[') && !l.StartsWith("[MSG:")))
                     break;
                 await Task.Delay(500, _cts.Token);
             }
