@@ -15,7 +15,7 @@
                  dialog jump; it can still grow if content needs more room. -->
             <TabControl SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
                         CornerRadius="0" Background="White"
-                        BorderBrush="#999" BorderThickness="1" MinHeight="170">
+                        BorderBrush="#999" BorderThickness="1" MinHeight="200">
 
                 <!-- Tab headers match the center-panel tab typography (13 SemiBold).
                      Serial is grayed out when no ports are found (port list + baud
@@ -96,8 +96,8 @@
                         <TextBlock Text="Demo" FontSize="13" FontWeight="SemiBold" />
                     </TabItem.Header>
                     <StackPanel Spacing="6" Margin="4,8,4,4">
-                        <TextBlock Text="{Binding DemoDisclaimer}" FontSize="11"
-                                   Foreground="#666" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding DemoDisclaimer}" FontSize="12.5"
+                                   Foreground="#666" TextWrapping="Wrap" LineHeight="18" />
                     </StackPanel>
                 </TabItem>
             </TabControl>
