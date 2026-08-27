@@ -25,7 +25,7 @@ public static class GrblErrorCodes
         [12] = "step rate too high",
         [13] = "safety door is open",
         [14] = "line exceeds EEPROM limit",
-        [15] = "jog target exceeds machine travel",
+        [15] = "jog blocked — target outside allowed travel (soft limits). If not homed, run Home ($H) first",
         [16] = "invalid jog command — '$J=<axis> F<feed>' with no g-code",
         [17] = "laser mode requires PWM output",
         [20] = "unsupported or invalid g-code command",
