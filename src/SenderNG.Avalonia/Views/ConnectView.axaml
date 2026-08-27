@@ -48,6 +48,18 @@
                                   HorizontalAlignment="Left"
                                   BorderBrush="#999" BorderThickness="1" />
 
+                        <TextBlock Text="On connect" FontWeight="SemiBold" FontSize="12" Margin="0,2,0,0" />
+                        <ComboBox ItemsSource="{Binding ResetModeOptions}"
+                                  SelectedItem="{Binding SelectedResetModeOption, Mode=TwoWay}"
+                                  DisplayMemberBinding="{Binding Name}"
+                                  IsEnabled="{Binding SerialEnabled}"
+                                  FontSize="12" Height="24"
+                                  MinWidth="140" CornerRadius="0"
+                                  HorizontalAlignment="Left"
+                                  BorderBrush="#999" BorderThickness="1" />
+                        <TextBlock Text="Toggle DTR resets an Arduino bootloader on connect"
+                                   FontSize="11" Foreground="#666" TextWrapping="Wrap" />
+
                         <TextBlock Text="{Binding NoPortsHint}" FontSize="11" Foreground="#a33"
                                    TextWrapping="Wrap" />
                     </StackPanel>

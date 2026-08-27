@@ -46,6 +46,14 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     /// <summary>Serial baud rate used on connect. Default 115200, tunable per profile.</summary>
     public int BaudRate { get; set; } = DefaultBaudRate;
 
+    /// <summary>
+    /// Serial "On connect" reset action (ioSender Port-dialog dropdown): Toggle DTR
+    /// pulses the DTR line low after the port opens to reset an 8-bit Arduino
+    /// bootloader; Toggle RTS does the same for ESP32-style boards. Applied by the
+    /// serial transport when <see cref="ConnectAsync"/> opens the port.
+    /// </summary>
+    public ConnectResetMode SerialResetMode { get; set; }
+
     /// <summary>Capabilities from the connect-time <c>$I</c> handshake; Unknown until populated.</summary>
     public ControllerCapabilities Capabilities { get; private set; } = ControllerCapabilities.Unknown;
 
@@ -102,7 +110,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 return;
         }
 
-        _transport.Open(port, BaudRate);
+        _transport.Open(port, BaudRate, SerialResetMode);
         IsConnected = true;
         ConnectionChanged?.Invoke(this, EventArgs.Empty);
 
@@ -114,13 +122,15 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
         // Identify the controller so UI can adapt to its capabilities. Non-fatal:
         // a controller that ignores $I (or answers slowly) still connects and polls.
-        // Retry a few times: a freshly booted board (right after re-plug) can drop
-        // the first $I while its UART/boot banner settles, which left the DRO at the
-        // default 3 axes until a later reconnect. Each attempt is a fresh exchange;
-        // the loop stops as soon as the board identifies itself.
+        // Retry: a freshly booted board (right after a re-plug or an On-connect DTR
+        // reset) can drop the first $I while its UART/boot banner settles — that left
+        // the DRO at the default 3 axes until a later reconnect. Each attempt is a
+        // fresh exchange; the loop stops as soon as the board identifies itself. The
+        // window is generous (~20s worst case) because a DTR pulse hard-resets the
+        // board, which can take several seconds to boot and answer.
         try
         {
-            for (var attempt = 0; attempt < 5; attempt++)
+            for (var attempt = 0; attempt < 10 && !_cts.IsCancellationRequested; attempt++)
             {
                 Capabilities = ControllerInfoParser.ParseInfo(await GetInfoLinesAsync(port));
                 if (Capabilities.IsKnown)

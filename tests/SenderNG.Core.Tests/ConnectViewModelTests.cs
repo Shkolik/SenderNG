@@ -231,6 +231,41 @@ public class ConnectViewModelTests
     }
 
     [Fact]
+    public void On_connect_reset_dropdown_lists_ioSender_options_and_defaults_to_none()
+    {
+        var vm = new ConnectViewModel(SettingsWith(), new StubComPorts(["COM3"]));
+        Assert.Equal(["No action", "Toggle DTR", "Toggle RTS"], vm.ResetModeOptions.Select(o => o.Name));
+        Assert.Equal(ConnectResetMode.None, vm.SelectedResetMode);
+        Assert.Equal("No action", vm.SelectedResetModeOption.Name);
+    }
+
+    [Fact]
+    public void On_connect_reset_mode_prefills_from_settings()
+    {
+        var settings = SettingsWith("COM3", 115200);
+        settings.SerialResetMode = ConnectResetMode.ToggleDtr;
+        var vm = new ConnectViewModel(settings, new StubComPorts(["COM3"]));
+        Assert.Equal(ConnectResetMode.ToggleDtr, vm.SelectedResetMode);
+        Assert.Equal("Toggle DTR", vm.SelectedResetModeOption.Name);
+    }
+
+    [Fact]
+    public void Serial_connect_reports_reset_mode_in_result()
+    {
+        var settings = SettingsWith("COM3", 115200);
+        var vm = new ConnectViewModel(settings, new StubComPorts(["COM3", "COM7"]));
+        vm.SelectedPort = "COM7";
+        vm.SelectedResetMode = ConnectResetMode.ToggleDtr;
+
+        bool? result = null;
+        vm.CloseRequested += (_, r) => result = r;
+        vm.ConnectCommand.Execute(null);
+
+        Assert.True(result);
+        Assert.Equal(ConnectResetMode.ToggleDtr, vm.Result!.SerialResetMode);
+    }
+
+    [Fact]
     public async Task Auto_discovers_new_com_port_while_dialog_is_open()
     {
         var ports = new MutableComPorts(["COM3"]);

@@ -37,7 +37,13 @@ public sealed class FakeGrblTransport : IGrblTransport, IPortPresenceCheck
     }
     public List<string> WrittenRawBytes { get; } = [];
 
-    public void Open(string target, int baudRate) => _open = true;
+    public ConnectResetMode OpenedWithResetMode { get; private set; }
+
+    public void Open(string target, int baudRate, ConnectResetMode resetMode = ConnectResetMode.None)
+    {
+        OpenedWithResetMode = resetMode;
+        _open = true;
+    }
     public void Close() => _open = false;
 
     public void Enqueue(string line) => _inbound.Writer.TryWrite(line);
@@ -298,6 +304,19 @@ public class RealGrblServiceTests
             CNC.Core.GrblInfo.NumAxes = savedAxes;
             CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
         }
+    }
+
+    [Fact]
+    public async Task Connect_forwards_serial_reset_mode_to_transport()
+    {
+        // The dialog's "On connect" mode (Toggle DTR) must reach the transport when
+        // the port opens, so an Arduino bootloader gets its reset pulse.
+        var transport = new FakeGrblTransport();
+        using var svc = new RealGrblService(transport) { SerialResetMode = ConnectResetMode.ToggleDtr };
+
+        await svc.ConnectAsync("fake");
+
+        Assert.Equal(ConnectResetMode.ToggleDtr, transport.OpenedWithResetMode);
     }
 
     [Fact]

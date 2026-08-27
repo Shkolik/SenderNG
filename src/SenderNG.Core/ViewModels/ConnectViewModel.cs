@@ -19,7 +19,11 @@ public enum ConnectMode
 }
 
 /// <summary>What the user picked in the connect dialog (valid after Connect closes true).</summary>
-public sealed record ConnectResult(ConnectMode Mode, string? Port, int BaudRate, string? Endpoint);
+public sealed record ConnectResult(ConnectMode Mode, string? Port, int BaudRate, string? Endpoint,
+    ConnectResetMode SerialResetMode = ConnectResetMode.None);
+
+/// <summary>A named "On connect" reset option for the Serial tab (ioSender dropdown).</summary>
+public sealed record ResetModeOption(ConnectResetMode Mode, string Name);
 
 /// <summary>
 /// Connect dialog: three tabs — Serial (port list + refresh + baud), Network
@@ -40,6 +44,7 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
     private Timer? _autoRefreshTimer;
     private string _selectedPort = string.Empty;
     private int _baudRate = 115200;
+    private ConnectResetMode _resetMode = ConnectResetMode.None;
     private string _networkEndpoint = string.Empty;
     private int _selectedIndex;
 
@@ -66,6 +71,10 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
                 ? "192.168.1.100:23"
                 : settings.NetworkEndpoint;
 
+        // Restore the persisted On-connect reset action (default: No action).
+        _resetMode = ResetModeOptions.FirstOrDefault(
+            r => r.Mode == settings.SerialResetMode, ResetModeOptions[0]).Mode;
+
         ConnectCommand = new DelegateCommand(_ => Connect(), _ => CanConnect);
         CancelCommand = new DelegateCommand(_ => RequestClose(false));
         RefreshCommand = new DelegateCommand(_ => RefreshPorts());
@@ -83,6 +92,32 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
 
     /// <summary>Standard grbl / grblHAL baud choices (cross-platform friendly).</summary>
     public IReadOnlyList<int> BaudRates { get; } = [9600, 19200, 38400, 57600, 115200, 230400, 250000];
+
+    /// <summary>Serial "On connect" reset options (ioSender dropdown): No action / Toggle DTR / Toggle RTS.</summary>
+    public IReadOnlyList<ResetModeOption> ResetModeOptions { get; } =
+    [
+        new(ConnectResetMode.None, "No action"),
+        new(ConnectResetMode.ToggleDtr, "Toggle DTR"),
+        new(ConnectResetMode.ToggleRts, "Toggle RTS"),
+    ];
+
+    /// <summary>Selected "On connect" reset action (persisted; applied when the serial port opens).</summary>
+    public ConnectResetMode SelectedResetMode
+    {
+        get => _resetMode;
+        set { if (SetField(ref _resetMode, value)) OnPropertyChanged(nameof(SelectedResetModeOption)); }
+    }
+
+    /// <summary>The matching named option, for binding the ComboBox selection.</summary>
+    public ResetModeOption SelectedResetModeOption
+    {
+        get => ResetModeOptions.First(r => r.Mode == _resetMode);
+        set
+        {
+            if (value is not null)
+                SelectedResetMode = value.Mode;
+        }
+    }
 
     public ObservableCollection<string> Ports { get; } = new();
 
@@ -192,7 +227,7 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
         switch (SelectedTab)
         {
             case ConnectMode.Serial:
-                Result = new ConnectResult(ConnectMode.Serial, SelectedPort, BaudRate, null);
+                Result = new ConnectResult(ConnectMode.Serial, SelectedPort, BaudRate, null, SelectedResetMode);
                 break;
             case ConnectMode.Network:
                 Result = new ConnectResult(ConnectMode.Network, null, 0, NetworkEndpoint?.Trim());

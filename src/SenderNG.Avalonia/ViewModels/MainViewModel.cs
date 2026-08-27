@@ -788,7 +788,7 @@ public class MainViewModel : ViewModelBase
                 // Serial: make sure the DI serial service is active (a previous
                 // demo/network session may have swapped the proxy inner).
                 SwitchToSerial();
-                await ConnectToAsync(choice.Port ?? string.Empty, choice.BaudRate);
+                await ConnectToAsync(choice.Port ?? string.Empty, choice.BaudRate, choice.SerialResetMode);
                 break;
         }
     }
@@ -810,7 +810,7 @@ public class MainViewModel : ViewModelBase
         await ConnectToAsync(endpoint, null);
     }
 
-    private async Task ConnectToAsync(string port, int? baud = null)
+    private async Task ConnectToAsync(string port, int? baud = null, ConnectResetMode resetMode = ConnectResetMode.None)
     {
         if (string.IsNullOrWhiteSpace(port))
         {
@@ -819,9 +819,14 @@ public class MainViewModel : ViewModelBase
         }
 
         Status = $"Connecting to {port}...";
-        // Apply the chosen (or profile default) serial baud to the real service.
-        if (ResolveInner(Grbl) is RealGrblService real && baud is not null)
-            real.BaudRate = baud.Value;
+        // Apply the chosen (or profile default) serial baud and the On-connect reset
+        // action to the real service before it opens the port (network ignores reset).
+        if (ResolveInner(Grbl) is RealGrblService real)
+        {
+            if (baud is not null)
+                real.BaudRate = baud.Value;
+            real.SerialResetMode = resetMode;
+        }
         await Grbl.ConnectAsync(port);
         ConnectedTo = port;
         IsDemo = ResolveInner(Grbl) is DemoGrblService;
@@ -841,6 +846,7 @@ public class MainViewModel : ViewModelBase
                 app.LastSerialPort = port;
                 if (baud is not null)
                     app.LastSerialBaudRate = baud.Value;
+                app.SerialResetMode = resetMode;
             }
             _settingsService.Save(app);
         }

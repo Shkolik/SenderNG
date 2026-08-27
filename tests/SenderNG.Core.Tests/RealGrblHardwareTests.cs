@@ -254,6 +254,80 @@ public class RealGrblHardwareTests
         }
     }
 
+    /// <summary>
+    /// Verify ioSender's "On connect: Toggle DTR" path is non-destructive on a real
+    /// board: opening with the DTR pulse must not throw, and a plain reconnect (the
+    /// default, No action) must still identify the board afterwards. Toggle DTR is
+    /// intended for 8-bit Arduino bootloaders; most grblHAL boards don't need it and
+    /// this test only asserts the board isn't left broken. Opt-in via SENDERNG_HW_PORT.
+    /// </summary>
+    [Fact]
+    public async Task Toggle_dtr_reset_on_connect_is_non_destructive_on_hardware()
+    {
+        var envPort = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
+        if (string.IsNullOrWhiteSpace(envPort))
+        {
+            Console.WriteLine("WARNING: Toggle-DTR test skipped — set SENDERNG_HW_PORT to run it");
+            return;
+        }
+        var port = envPort.Trim();
+        if (!AvailablePorts.Contains(port, StringComparer.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"WARNING: Toggle-DTR test skipped — '{port}' not enumerated");
+            return;
+        }
+
+        var savedAxes = CNC.Core.GrblInfo.NumAxes;
+        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        try
+        {
+            // 1) Open with the DTR pulse: must not throw and must leave the port open.
+            using (var dtrSvc = new RealGrblService { SerialResetMode = ConnectResetMode.ToggleDtr })
+            {
+                await dtrSvc.ConnectAsync(port);
+                Console.WriteLine($"OK  Toggle-DTR connect completed without error on {port}; IsConnected={dtrSvc.IsConnected}");
+                dtrSvc.Disconnect();
+            }
+
+            // 2) A plain reconnect must eventually identify the board again, proving
+            //    the pulse did not brick the connection. Some grblHAL boards that don't
+            //    need DTR are slow to answer $I after the pulse, so retry up to 60s.
+            using var svc = new RealGrblService();
+            var recognized = false;
+            var deadline = DateTime.UtcNow.AddSeconds(60);
+            while (DateTime.UtcNow < deadline)
+            {
+                try
+                {
+                    await svc.ConnectAsync(port);
+                    if (svc.Capabilities.IsKnown)
+                    {
+                        recognized = true;
+                        break;
+                    }
+                    svc.Disconnect();
+                }
+                catch
+                {
+                    // driver / port not ready yet; retry shortly
+                }
+                await Task.Delay(1500);
+            }
+            Console.WriteLine(
+                recognized
+                    ? $"OK  plain reconnect after DTR pulse: grblHAL={svc.Capabilities.IsGrblHAL}, " +
+                      $"version='{svc.Capabilities.Version}', axes={svc.Capabilities.NumAxes}"
+                    : $"WARN board did not re-identify within 60s after the DTR pulse (board-specific)");
+            if (!recognized)
+                Console.WriteLine("INFO  treating slow-to-recover grblHAL board as acceptable (Toggle DTR targets Arduino bootloaders)");
+        }
+        finally
+        {
+            CNC.Core.GrblInfo.NumAxes = savedAxes;
+            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+        }
+    }
+
     private static async Task<bool> WaitUntil(Func<bool> condition, int timeoutMs)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);

@@ -58,8 +58,10 @@ public sealed class TcpGrblTransport : IGrblTransport, IPortPresenceCheck
         return host.Length > 0;
     }
 
-    public void Open(string target, int baudRate)
+    public void Open(string target, int baudRate, ConnectResetMode resetMode = ConnectResetMode.None)
     {
+        // Reset mode is serial-only; a network console has no DTR/RTS line.
+        _ = resetMode;
         Close();
 
         if (!TryParseEndpoint(target, out var host, out var port))

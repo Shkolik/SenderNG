@@ -1,3 +1,5 @@
+using CNC.Core.Abstractions;
+
 namespace CNC.Core.Services;
 
 public class AppSettings
@@ -27,6 +29,11 @@ public class AppSettings
     public string LastSerialPort { get; set; } = string.Empty;
     public int LastSerialBaudRate { get; set; }
     public string LastNetworkEndpoint { get; set; } = string.Empty;
+
+    // Serial "On connect" reset action (ioSender Port-dialog dropdown): an 8-bit
+    // Arduino usually needs Toggle DTR to reset its bootloader when the port opens;
+    // ESP32-style boards use Toggle RTS. Global, like the other connection settings.
+    public ConnectResetMode SerialResetMode { get; set; }
 
     // Legacy flat fields kept ONLY for settings.json migration; not used after Load.
     public int DemoAxes { get; set; } = 3;

@@ -33,12 +33,23 @@ controller. Demo mode masks these gaps in day-to-day use.
       accessory field into `MachineState.Flood`/`Mist`/spindle (cp. ioSender
       `GrblViewModel.cs`); classic grbl leaves them untouched.
 - [x] **Connect dialog / port discovery polish** — a PortDialog-style `ConnectView`
-      with three tabs (Serial: port list + refresh + baud, grayed when no ports;
-      Network: TCP endpoint, enabled only when settings allow network connectivity;
-      Demo: simulated controller with disclaimer, always available) replaces the old
-      auto/first-port string path. The app starts disconnected (never in demo mode),
-      opens the connect dialog right after startup, and shows an obvious
-      "NOT CONNECTED" state until the user picks a mode.
+      with three tabs (Serial: port list + refresh + baud + On-connect reset action,
+      grayed when no ports; Network: TCP endpoint, enabled only when settings allow
+      network connectivity; Demo: simulated controller with disclaimer, always
+      available) replaces the old auto/first-port string path. The app starts
+      disconnected (never in demo mode), opens the connect dialog right after
+      startup, and shows an obvious "NOT CONNECTED" state until the user picks a
+      mode.
+- [x] **On-connect reset action (ioSender Port-dialog dropdown)** — Serial tab has
+      "No action / Toggle DTR / Toggle RTS" (persisted globally). `SerialGrblTransport`
+      applies the pulse right after the port opens exactly like ioSender
+      `SerialStream.cs` connect code: Toggle DTR drops DTR low ~5ms then asserts it
+      (resets an 8-bit Arduino bootloader on connect — needed for clean grbl start),
+      Toggle RTS asserts for ESP32-style boards. Default is No action; the reset mode
+      is forwarded through `RealGrblService` into the transport's `Open` so it also
+      re-runs on a reconnect. Verified on hardware: the pulse path runs without error
+      and stays non-destructive (this grblHAL board doesn't need it and is slow to
+      re-identify after a pulse, which matches ioSender's Arduino-targeted behavior).
 - [x] **Network (TCP) transport** — `TcpGrblTransport` implements `IGrblTransport`
       over a plain TCP socket for grblHAL Ethernet boards (`host[:port]`, default
       port 23); it plugs into the existing `RealGrblService`. `NetworkAvailable` /

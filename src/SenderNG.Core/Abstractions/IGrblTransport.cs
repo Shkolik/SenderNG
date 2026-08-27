@@ -9,8 +9,13 @@ public interface IGrblTransport : IDisposable
 {
     bool IsOpen { get; }
 
-    /// <summary>Open the underlying connection. Baud rate 0 keeps a default.</summary>
-    void Open(string target, int baudRate);
+    /// <summary>
+    /// Open the underlying connection. Baud rate 0 keeps a default. When
+    /// <paramref name="resetMode"/> is not <see cref="ConnectResetMode.None"/>, a
+    /// DTR/RTS pulse is applied right after the port opens, exactly like ioSender
+    /// (an 8-bit Arduino needs Toggle DTR to reset its bootloader on connect).
+    /// </summary>
+    void Open(string target, int baudRate, ConnectResetMode resetMode = ConnectResetMode.None);
 
     void Close();
 
@@ -40,4 +45,17 @@ public interface IGrblTransport : IDisposable
 public interface IPortPresenceCheck
 {
     bool IsPortPresent();
+}
+
+/// <summary>
+/// Serial "On connect" reset action, mirroring ioSender's Port-dialog dropdown
+/// (SerialStream.cs ConnectModes). An 8-bit Arduino bootloader typically needs its
+/// DTR pulsed low when the port opens to reset grbl cleanly; ESP32-style boards use
+/// RTS instead. <see cref="None"/> is the safe default.
+/// </summary>
+public enum ConnectResetMode
+{
+    None,
+    ToggleDtr,
+    ToggleRts,
 }

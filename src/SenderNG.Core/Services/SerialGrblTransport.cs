@@ -1,5 +1,6 @@
 using System.IO.Ports;
 using System.Text;
+using System.Threading;
 using CNC.Core.Abstractions;
 
 namespace CNC.Core.Services;
@@ -24,7 +25,7 @@ public sealed class SerialGrblTransport : IGrblTransport, IPortPresenceCheck
 
     public bool IsOpen => _port is { IsOpen: true };
 
-    public void Open(string target, int baudRate)
+    public void Open(string target, int baudRate, ConnectResetMode resetMode = ConnectResetMode.None)
     {
         if (_port is not null)
             _port.Dispose();
@@ -37,7 +38,43 @@ public sealed class SerialGrblTransport : IGrblTransport, IPortPresenceCheck
             WriteTimeout = 2000,
         };
         _port.Open();
+
+        // ioSender leaves DTR asserted so a board isn't held in reset; the reset
+        // action is an explicit pulse after open (SerialStream.cs connect code):
+        //   - Toggle DTR  (Arduino): low for ~5 ms then high again -> bootloader reset.
+        //   - Toggle RTS  (ESP32):  assert, wait, no de-assert (ioSender leaves it on).
+        ApplyResetMode(resetMode);
+
         _line.Clear();
+    }
+
+    /// <summary>ioSender's On-connect DTR/RTS pulse, applied once the port is open.</summary>
+    private void ApplyResetMode(ConnectResetMode resetMode)
+    {
+        var port = _port;
+        if (port is null || !port.IsOpen || resetMode == ConnectResetMode.None)
+            return;
+        try
+        {
+            switch (resetMode)
+            {
+                case ConnectResetMode.ToggleDtr:
+                    port.DtrEnable = true; // ensure on before the low pulse
+                    port.DtrEnable = false;
+                    Thread.Sleep(5);
+                    port.DtrEnable = true; // back high -> boot never held in reset
+                    break;
+                case ConnectResetMode.ToggleRts:
+                    // ESP32-style reset; ioSender asserts and leaves it asserted.
+                    port.RtsEnable = true;
+                    Thread.Sleep(5);
+                    break;
+            }
+        }
+        catch
+        {
+            // Reset is best-effort; a controller that ignores it still connects.
+        }
     }
 
     public void Close()
