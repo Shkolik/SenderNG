@@ -17,6 +17,10 @@ public sealed class FakeGrblTransport : IGrblTransport, IPortPresenceCheck
     private bool _open;
 
     public bool IsOpen => _open;
+
+    /// <summary>In-memory double: opening never resets a controller, so the service skips the boot-banner wait.</summary>
+    public bool ResetsOnOpen => false;
+
     public bool AutoReply { get; set; } = true;
 
     /// <summary>When set, the next ReadLineAsync throws as a transport failure (not a cancel).</summary>

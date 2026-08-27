@@ -10,6 +10,15 @@ public interface IGrblTransport : IDisposable
     bool IsOpen { get; }
 
     /// <summary>
+    /// True when opening the connection resets the controller (e.g. the DTR edge
+    /// on a USB-serial port reboots an Arduino-style board through its bootloader).
+    /// <see cref="RealGrblService"/> then waits for the boot banner before writing
+    /// anything — bytes sent during the bootloader window can stall the board.
+    /// In-memory test doubles report false so the wait is skipped in unit tests.
+    /// </summary>
+    bool ResetsOnOpen { get; }
+
+    /// <summary>
     /// Open the underlying connection. Baud rate 0 keeps a default. When
     /// <paramref name="resetMode"/> is not <see cref="ConnectResetMode.None"/>, a
     /// DTR/RTS pulse is applied right after the port opens, exactly like ioSender

@@ -117,6 +117,16 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         _cts = new CancellationTokenSource();
         _consumerTask = Task.Run(() => ConsumerLoopAsync(_cts.Token));
 
+        // The DTR-at-open reset reboots Arduino-style boards through their AVR
+        // bootloader; writing ANY bytes during the bootloader window can stall the
+        // controller (Optiboot consumes them as programming protocol and never
+        // starts grbl — verified on a Mega 2560: early '?'/$I writes left it
+        // silent until a fresh reset). So hold ALL writes until the boot banner
+        // appears (or a bounded timeout for controllers that don't reset — e.g.
+        // an already-running board or TCP, which never prints a banner here).
+        if (_transport.ResetsOnOpen)
+            await WaitForBootBannerAsync();
+
         await StartPolling(port);
         StartHealthWatch();
 
@@ -160,6 +170,38 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         // DRO, gcode parser and expressions read it) and into the live machine
         // state so the DRO/signals grow to the board's real axes.
         ApplyCapabilities();
+    }
+
+    /// <summary>
+    /// Wait (bounded) for the controller's boot banner on the raw-line stream,
+    /// e.g. "Grbl 1.1h ['$' for help]" or "grblHAL 1.1f ['$' or '$HELP' for help]".
+    /// The banner proves grbl is up and its UART is accepting commands; writing
+    /// before it appears can be dropped (boot race) or worse, consumed by an AVR
+    /// bootloader. Boards that don't reset on open (already booted, TCP) print
+    /// nothing and just pay the bounded wait.
+    /// </summary>
+    private async Task WaitForBootBannerAsync()
+    {
+        try
+        {
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var sub = _receivedLines.Subscribe(line =>
+            {
+                if (line.StartsWith("Grbl", StringComparison.OrdinalIgnoreCase) ||
+                    line.Contains("grblHAL", StringComparison.OrdinalIgnoreCase))
+                    tcs.TrySetResult();
+            });
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(3), _cts!.Token);
+        }
+        catch (TimeoutException)
+        {
+            // No banner — the controller didn't reset (already running) or prints
+            // nothing; proceed with the normal handshake.
+        }
+        catch (OperationCanceledException)
+        {
+            // Disconnected while waiting.
+        }
     }
 
     private async Task StartPolling(string port)

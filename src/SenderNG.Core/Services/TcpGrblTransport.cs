@@ -22,6 +22,9 @@ public sealed class TcpGrblTransport : IGrblTransport, IPortPresenceCheck
 
     public bool IsOpen => _client is { Connected: true };
 
+    /// <summary>Opening a TCP connection never resets the controller (no DTR line).</summary>
+    public bool ResetsOnOpen => false;
+
     /// <summary>Parse a "host:port" endpoint ("host" defaults to port 23). IPv6 hosts must be bracketed ([::1]:23).</summary>
     public static bool TryParseEndpoint(string? target, out string host, out int port)
     {

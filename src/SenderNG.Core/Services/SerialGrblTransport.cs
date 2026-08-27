@@ -25,6 +25,14 @@ public sealed class SerialGrblTransport : IGrblTransport, IPortPresenceCheck
 
     public bool IsOpen => _port is { IsOpen: true };
 
+    /// <summary>
+    /// Opening a USB-serial port with DTR asserted resets Arduino-style boards
+    /// (CH340/FTDI adapters with the auto-reset circuit), which reboot through
+    /// their AVR bootloader. The service must wait for the boot banner before
+    /// writing — see <see cref="RealGrblService"/>.
+    /// </summary>
+    public bool ResetsOnOpen => true;
+
     public void Open(string target, int baudRate, ConnectResetMode resetMode = ConnectResetMode.None)
     {
         if (_port is not null)
