@@ -68,21 +68,36 @@ public static class StatusReportParser
         if (!line.StartsWith('<') || !line.EndsWith('>'))
             return false;
 
-        // Report format: <Status|WPos:x,y,z|MPos:x,y,z|FS:feed,speed|Ov:f,r,s|Pn:flags|A:accessory|WCS:g54|...>
+        // Report format: <Status|WPos:x,y,z|MPos:x,y,z|WCO:x,y,z|FS:feed,speed|Ov:f,r,s|Pn:flags|A:accessory|WCS:g54|...>
         var fields = line[1..^1].Split('|');
         state.Status = fields[0];
+
+        // Classic grbl (default $10=1) reports MPos + WCO and no WPos; ioSender
+        // derives the work position as MPos - WCO so the DRO moves on those boards.
+        var sawWPos = false;
+        var sawMPos = false;
+        var sawWCO = false;
 
         foreach (var field in fields.AsSpan(1))
         {
             if (field.StartsWith("WPos:", StringComparison.Ordinal))
             {
                 SetPositions(state.Positions, field[5..]);
+                sawWPos = true;
             }
             else if (field.StartsWith("MPos:", StringComparison.Ordinal))
             {
                 if (state.MachinePositions is null || state.MachinePositions.Length != state.Positions.Length)
                     state.MachinePositions = new double[state.Positions.Length];
                 SetPositions(state.MachinePositions, field[5..]);
+                sawMPos = true;
+            }
+            else if (field.StartsWith("WCO:", StringComparison.Ordinal))
+            {
+                if (state.WorkOffsets is null || state.WorkOffsets.Length != state.Positions.Length)
+                    state.WorkOffsets = new double[state.Positions.Length];
+                SetPositions(state.WorkOffsets, field[4..]);
+                sawWCO = true;
             }
             else if (field.StartsWith("FS:", StringComparison.Ordinal))
             {
@@ -116,6 +131,25 @@ public static class StatusReportParser
             else if (field.StartsWith("A:", StringComparison.Ordinal))
             {
                 ApplyAccessoryField(field[2..], state);
+            }
+        }
+
+        // Reports that only carry machine coords (classic grbl default $10=1)
+        // need the work position for the DRO. Derive WPos = MPos - WCO, using
+        // this report's WCO or the last known offsets carried in state; when no
+        // WCO was ever seen, fall back to MPos directly (ioSender: Position =
+        // MachinePosition when there is no WCO). An explicit WPos always wins.
+        if (!sawWPos && sawMPos && state.MachinePositions is not null)
+        {
+            if (state.WorkOffsets is not null)
+            {
+                for (var i = 0; i < state.Positions.Length; i++)
+                    state.Positions[i] = state.MachinePositions[i] - state.WorkOffsets[i];
+            }
+            else
+            {
+                for (var i = 0; i < state.Positions.Length; i++)
+                    state.Positions[i] = state.MachinePositions[i];
             }
         }
 

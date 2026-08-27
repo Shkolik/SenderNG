@@ -523,6 +523,9 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         copy.MachinePositions = src.MachinePositions is null
             ? null
             : (double[])src.MachinePositions.Clone();
+        copy.WorkOffsets = src.WorkOffsets is null
+            ? null
+            : (double[])src.WorkOffsets.Clone();
         copy.ProbePosition = src.ProbePosition is null
             ? null
             : (double[])src.ProbePosition.Clone();

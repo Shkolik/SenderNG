@@ -20,6 +20,10 @@ public class MachineState
     // controller reports them (grblHAL status reports carry both WPos and MPos).
     public double[]? MachinePositions { get; set; }
 
+    // Work offsets (WCO:) from the status report. Classic grbl (default $10=1)
+    // reports MPos + WCO and no WPos; the parser derives WPos = MPos - WCO.
+    public double[]? WorkOffsets { get; set; }
+
     public Signals Signals { get; set; } = Signals.Off;
     public bool Flood { get; set; }
     public bool Mist { get; set; }
@@ -44,6 +48,7 @@ public class MachineState
     public MachineState()
     {
         MachinePositions = new double[Positions.Length];
+        WorkOffsets = new double[Positions.Length];
     }
 
     public MachineState(int numAxes)
@@ -51,5 +56,6 @@ public class MachineState
         NumAxes = numAxes;
         Positions = new double[numAxes];
         MachinePositions = new double[numAxes];
+        WorkOffsets = new double[numAxes];
     }
 }

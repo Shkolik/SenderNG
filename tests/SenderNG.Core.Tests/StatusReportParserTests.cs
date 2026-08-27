@@ -49,6 +49,57 @@ public class StatusReportParserTests
     }
 
     [Fact]
+    public void WCO_sets_work_offsets()
+    {
+        var state = NewState();
+        StatusReportParser.Parse("<Idle|WCO:1,2,3>", state);
+        Assert.Equal([1.0, 2.0, 3.0], state.WorkOffsets!);
+    }
+
+    [Fact]
+    public void MPos_without_WPos_derives_work_positions_from_offsets()
+    {
+        // Classic grbl default report ($10=1): MPos + WCO, no WPos. The DRO shows
+        // work position, so the parser derives WPos = MPos - WCO (ioSender).
+        var state = NewState();
+        StatusReportParser.Parse("<Idle|MPos:4,5,6|FS:0,0|WCO:1,1,1>", state);
+        Assert.Equal([4.0, 5.0, 6.0], state.MachinePositions!);
+        Assert.Equal([1.0, 1.0, 1.0], state.WorkOffsets!);
+        Assert.Equal([3.0, 4.0, 5.0], state.Positions);
+    }
+
+    [Fact]
+    public void Explicit_WPos_wins_over_MPos_derivation()
+    {
+        var state = NewState();
+        StatusReportParser.Parse("<Idle|WPos:9,9,9|MPos:4,5,6|WCO:1,1,1>", state);
+        Assert.Equal([9.0, 9.0, 9.0], state.Positions);
+    }
+
+    [Fact]
+    public void MPos_without_WPos_or_WCO_falls_back_to_machine_positions()
+    {
+        // Classic grbl reports MPos without WCO on most polls; without any WCO
+        // the DRO shows MPos directly (ioSender: MachinePosition when no WCO).
+        var state = NewState();
+        StatusReportParser.Parse("<Idle|MPos:4,5,6>", state);
+        Assert.Equal([4.0, 5.0, 6.0], state.Positions);
+    }
+
+    [Fact]
+    public void MPos_uses_last_known_WCO_when_report_omits_it()
+    {
+        // The Nano's report carries WCO only intermittently; the parser keeps the
+        // last offsets in state so later MPos-only reports still derive correctly.
+        var state = NewState();
+        StatusReportParser.Parse("<Idle|MPos:10,0,0|WCO:2,0,0>", state);
+        Assert.Equal(8.0, state.Positions[0]);
+
+        StatusReportParser.Parse("<Idle|MPos:12,0,0>", state);
+        Assert.Equal(10.0, state.Positions[0]);
+    }
+
+    [Fact]
     public void FS_sets_feed_and_spindle_speed()
     {
         var state = NewState();
