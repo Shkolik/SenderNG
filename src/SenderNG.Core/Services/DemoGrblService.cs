@@ -359,6 +359,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     {
         var words = TokenizeWords(line).ToArray();
         var l1 = words.Any(x => x.Equals("L1", StringComparison.OrdinalIgnoreCase));
+        var l2 = words.Any(x => x.Equals("L2", StringComparison.OrdinalIgnoreCase));
         var p = words.FirstOrDefault(x => x.StartsWith("P", StringComparison.OrdinalIgnoreCase));
         if (!int.TryParse(p?[1..], out var number)) return;
         if (l1)
@@ -370,6 +371,8 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                     tool.Offsets["XYZABCUVW".IndexOf(char.ToUpperInvariant(word[0]))] = value;
             return;
         }
+        if (!l2)
+            return;
         var row = WorkParameters.CoordinateSystems.FirstOrDefault(x => x.Id == number);
         if (row is null)
             return;

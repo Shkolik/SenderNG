@@ -131,7 +131,8 @@ public sealed class OffsetsViewModel : ViewModelBase
         {
             var source = parameters.CoordinateSystems.FirstOrDefault(x => x.Code == row.Code);
             if (source is null) continue;
-            for (var i = 0; i < _axisCount && i < source.Values.Length; i++) row.SetValueAt(i, Format(source.Values[i]));
+            for (var i = 0; i < _axisCount && i < source.Values.Length; i++)
+                row.SetValueAt(i, Format(source.Values[i]));
         }
         SelectedOffset = parameters.ActiveCoordinateSystem;
         Status = "Offsets refreshed";
@@ -146,7 +147,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     private async Task SetCoordinateValuesAsync(EditableOffsetRow row, int? onlyAxis = null)
     {
         if (!TryValues(row.Values, out var values, out var error)) { row.Error = error; Status = error!; return; }
-        var words = string.Concat(values.Select((value, index) => onlyAxis is null || index == onlyAxis ? $"{AxisLetters[index]}{Format(value)}" : string.Empty));
+        var words = string.Concat(values.Select((value, index) => onlyAxis is null || index == onlyAxis ? $" {AxisLetters[index]}{Format(value)}" : string.Empty));
         if (words.Length == 0) return;
         var command = row.Code is "G92" ? $"G92{words}" : $"G10 L2 P{CoordinateSystemNumber(row.Code)} {words}";
         try { await _grbl.SendAsync(command); row.Error = null; Status = $"Set {row.Code}"; }
@@ -181,11 +182,12 @@ public sealed class OffsetsViewModel : ViewModelBase
                 failures++;
                 continue;
             }
-            var words = string.Concat(values.Select((value, index) => $"{AxisLetters[index]}{Format(value)}"));
+            var words = string.Concat(values.Select((value, index) => $" {AxisLetters[index]}{Format(value)}"));
             var command = $"G10 L2 P{CoordinateSystemNumber(row.Code)} {words}";
             try
             {
                 await _grbl.SendAsync(command);
+                ApplyLocalOffset(row, values);
                 sent++;
                 row.Error = null;
             }
@@ -201,6 +203,13 @@ public sealed class OffsetsViewModel : ViewModelBase
             Refresh();
         }
         Status = failures == 0 ? $"Saved {sent} offsets" : $"Saved {sent} offsets; {failures} failed";
+    }
+
+    private void ApplyLocalOffset(EditableOffsetRow row, IReadOnlyList<double> values)
+    {
+        var source = _grbl.WorkParameters.CoordinateSystems.FirstOrDefault(x => x.Code == row.Code);
+        if (source is null) return;
+        for (var i = 0; i < values.Count && i < source.Values.Length; i++) source.Values[i] = values[i];
     }
 
     private async Task SaveToolAsync(object? parameter)

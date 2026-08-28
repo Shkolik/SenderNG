@@ -36,6 +36,7 @@ public sealed class OffsetsViewModelTests
         Assert.Equal(12.5, service.WorkParameters.CoordinateSystems.Single(x => x.Code == "G54").Values[0]);
         Assert.Equal(25.5, service.WorkParameters.CoordinateSystems.Single(x => x.Code == "G55").Values[0]);
         Assert.Contains("Saved", vm.Status);
+        Assert.NotEqual(0, service.WorkParameters.CoordinateSystems.Single(x => x.Code == "G54").Values[0]);
     }
 
     [Fact]
