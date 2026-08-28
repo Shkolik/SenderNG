@@ -9,21 +9,7 @@
     <ScrollViewer>
         <StackPanel Margin="8" Spacing="6">
             <ContentControl x:Name="OffsetHeaderHost" Margin="0,0,0,4" />
-            <ItemsControl ItemsSource="{Binding Rows}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:EditableOffsetRow">
-                        <Grid ColumnDefinitions="Auto,*,*,*,*,*,*,*,*,*" Margin="0,1">
-                            <TextBlock Grid.Column="0" Text="{Binding Code}" Width="48" VerticalAlignment="Center" FontWeight="SemiBold" />
-                            <TextBox Grid.Column="1" Text="{Binding X, Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="2" Text="{Binding Y, Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="3" Text="{Binding Z, Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="4" Text="{Binding A, Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="5" Text="{Binding B, Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="6" Text="{Binding C, Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <ContentControl x:Name="OffsetRowsHost" />
             <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,6,0,0">
                 <TextBlock Grid.Column="0" Text="Selected offset:" VerticalAlignment="Center" Margin="0,0,6,0" />
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Rows}" SelectedValue="{Binding SelectedOffset, Mode=TwoWay}" SelectedValueBinding="{Binding Code}" Width="100" />
@@ -34,20 +20,7 @@
             <Separator Margin="0,4" />
             <TextBlock Text="Tool table" FontWeight="SemiBold" />
             <ContentControl x:Name="ToolHeaderHost" Margin="0,0,0,2" />
-            <ItemsControl ItemsSource="{Binding Tools}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:EditableToolRow">
-                        <Grid ColumnDefinitions="Auto,*,*,*,*,Auto" Margin="0,1">
-                            <TextBlock Grid.Column="0" Text="{Binding DisplayName}" Width="48" VerticalAlignment="Center" />
-                            <TextBox Grid.Column="1" Text="{Binding Offsets[0], Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="2" Text="{Binding Offsets[1], Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="3" Text="{Binding Offsets[2], Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="4" Text="{Binding Radius, Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                            <Button Grid.Column="5" Content="Save" Command="{Binding $parent[UserControl].DataContext.SaveToolCommand}" CommandParameter="{Binding}" Width="60" CornerRadius="0" />
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <ContentControl x:Name="ToolRowsHost" />
             <TextBlock Text="{Binding Status}" Foreground="#777" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
     </ScrollViewer>

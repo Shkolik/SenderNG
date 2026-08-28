@@ -27,7 +27,8 @@ public sealed class EditableOffsetRow : ViewModelBase
     public string C { get => GetValue(5); set => SetValue(5, value); }
     public string? Error { get; set; }
 
-    private string GetValue(int index) => index < Values.Count ? Values[index] : string.Empty;
+    public string GetValueAt(int index) => index >= 0 && index < Values.Count ? Values[index] : string.Empty;
+    private string GetValue(int index) => GetValueAt(index);
     public void SetValueAt(int index, string value)
     {
         if (index >= 0 && index < Values.Count)
@@ -50,6 +51,12 @@ public sealed class EditableToolRow : ViewModelBase
     public string DisplayName => Id == 0 ? "None" : $"T{Id}";
     public ObservableCollection<string> Offsets { get; }
     public string Radius { get; set; }
+    public string GetOffsetAt(int index) => index >= 0 && index < Offsets.Count ? Offsets[index] : string.Empty;
+    public void SetOffsetAt(int index, string value)
+    {
+        if (index >= 0 && index < Offsets.Count)
+            Offsets[index] = value;
+    }
     public string? Error { get; set; }
 }
 
@@ -129,7 +136,7 @@ public sealed class OffsetsViewModel : ViewModelBase
 
     private async Task SetAxisAsync(object? parameter)
     {
-        if (!TryAxis(parameter, out var index))
+        if (!TryAxis(parameter, out var index) || SelectedRow is null)
             return;
         await SetCoordinateValuesAsync(SelectedRow, index);
     }
