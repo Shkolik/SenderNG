@@ -1,3 +1,13 @@
+<!--
+GrblSettingsView.axaml - GRBL settings view layout
+
+Copyright (c) 2018-2022 Io Engineering (Terje Io)
+
+Copyright (c) 2026 Andrew Shkolik
+
+BSD 3-Clause License: see this file for the full license text.
+-->
+
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
