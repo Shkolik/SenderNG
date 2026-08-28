@@ -24,8 +24,19 @@ public partial class OffsetsView : UserControl
         Loaded += (_, _) => Rebuild();
     }
 
+    // Rows are long-lived VM objects that survive every rebuild; track the
+    // ValuesChanged subscription so Rebuild can detach it instead of stacking a
+    // new handler each time (leak + duplicate sync on repeated Load/DataContext).
+    private readonly Dictionary<EditableOffsetRow, EventHandler> _offsetHandlers = new();
+
     private void Rebuild()
     {
+        foreach (var pair in _offsetHandlers)
+        {
+            pair.Key.ValuesChanged -= pair.Value;
+        }
+        _offsetHandlers.Clear();
+
         _offsetRows.Children.Clear();
         _toolRows.Children.Clear();
         _offsetHeader.Children.Clear();
@@ -36,7 +47,9 @@ public partial class OffsetsView : UserControl
         BuildHeader(_offsetHeader, "Offset", vm.AxisNames);
         foreach (var row in vm.Rows)
         {
-            row.ValuesChanged += (_, _) => UpdateRowEditors(row);
+            EventHandler handler = (_, _) => UpdateRowEditors(row);
+            row.ValuesChanged += handler;
+            _offsetHandlers[row] = handler;
             var grid = CreateGrid(vm.AxisNames.Count);
             AddCell(grid, new TextBlock { Text = row.Code, Width = 48, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeight.SemiBold }, 0);
             for (var i = 0; i < vm.AxisNames.Count; i++)

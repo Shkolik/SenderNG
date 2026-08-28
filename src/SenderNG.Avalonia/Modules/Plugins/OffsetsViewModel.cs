@@ -126,6 +126,10 @@ public sealed class OffsetsViewModel : ViewModelBase
             OnPropertyChanged(nameof(ToolAxisNames));
             OnPropertyChanged(nameof(OffsetCodes));
         }
+        // Update row values from the snapshot, but only for rows still present
+        // (never rebuild or reselect mid-edit). Classic grbl can't report the
+        // active workspace in $#, so the editor selection stays user-driven like
+        // ioSender instead of snapping back to a synthetic default.
         foreach (var row in Rows)
         {
             var source = parameters.CoordinateSystems
@@ -135,10 +139,6 @@ public sealed class OffsetsViewModel : ViewModelBase
             for (var i = 0; i < _axisCount && i < source.Values.Length; i++)
                 row.SetValueAt(i, Format(source.Values[i]));
         }
-        // Track active coordinate system (selection may have changed on the board).
-        SelectedOffset = parameters.CoordinateSystems.Any(x => x.Code == parameters.ActiveCoordinateSystem)
-            ? parameters.ActiveCoordinateSystem
-            : SelectedOffset;
     }
 
     private void ApplyState(MachineState state)
@@ -167,7 +167,13 @@ public sealed class OffsetsViewModel : ViewModelBase
         var words = string.Concat(values.Select((value, index) => onlyAxis is null || index == onlyAxis ? $" {AxisLetters[index]}{Format(value)}" : string.Empty));
         if (words.Length == 0) return;
         var command = $"G10 L2 P{WorkParameters.CoordinateSystemNumber(row.Code)} {words}";
-        try { await _grbl.SendAsync(command); row.Error = null; Status = $"Set {row.Code}"; }
+        try
+        {
+            await _grbl.SendAsync(command);
+            row.Error = null;
+            Status = $"Set {row.Code}";
+            await SafeRefreshAsync();
+        }
         catch (Exception ex) { Status = $"Set {row.Code} failed: {ex.Message}"; }
     }
 
@@ -224,6 +230,9 @@ public sealed class OffsetsViewModel : ViewModelBase
                 failures++;
             }
         }
+        // Re-read from the board so the editor reflects what was actually written,
+        // not just what we sent (ioSender re-requests work parameters after writes).
+        await SafeRefreshAsync();
         Status = failures == 0 ? $"Saved {sent} offsets" : $"Saved {sent} offsets; {failures} failed";
     }
 
@@ -235,8 +244,28 @@ public sealed class OffsetsViewModel : ViewModelBase
         if (parameter is not EditableToolRow tool || !TryValues(tool.Offsets, out var values, out var error) || !double.TryParse(tool.Radius, NumberStyles.Float, CultureInfo.InvariantCulture, out var radius))
         { Status = "Invalid tool-table value"; return; }
         var words = string.Concat(values.Select((value, index) => $"{AxisLetters[index]}{Format(value)}"));
-        try { await _grbl.SendAsync($"G10L1P{tool.Id}{words}R{Format(radius)}"); tool.Error = null; Status = $"Saved {tool.DisplayName}"; }
+        try
+        {
+            await _grbl.SendAsync($"G10L1P{tool.Id}{words}R{Format(radius)}");
+            tool.Error = null;
+            Status = $"Saved {tool.DisplayName}";
+            await SafeRefreshAsync();
+        }
         catch (Exception ex) { Status = $"Save {tool.DisplayName} failed: {ex.Message}"; }
+    }
+
+    /// <summary>One-shot board refresh; failures are non-fatal (keep last snapshot).</summary>
+    private async Task SafeRefreshAsync()
+    {
+        try
+        {
+            await _grbl.RefreshWorkParametersAsync();
+        }
+        catch
+        {
+            // Non-fatal: the demo is already live and a failed $# read keeps the
+            // last published snapshot.
+        }
     }
 
     private bool TryAxis(string letter, out int index) { index = Array.IndexOf(AxisLetters, letter); return index >= 0 && index < _axisCount; }

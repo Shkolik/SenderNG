@@ -57,25 +57,9 @@ public Task SendAsync(string line)
         Assert.Contains("2000", json);
     }
 
-    [Fact]
-    public void Offsets_save_after_jog_save_preserves_jog_section()
-    {
-        var (dir, settings) = MakeSettings();
-
-        var jogVm = new JogViewModel(new RecordingGrbl(), settings);
-        jogVm.IsSpeed2 = true; // 2000
-        jogVm.Save();
-
-        var offsetsVm = new SenderNG.Avalonia.Modules.Fixed.OffsetsViewModel(settings);
-        offsetsVm.Rows[0].X = 11.5;
-        offsetsVm.SaveCommand.Execute(null);
-
-        var json = File.ReadAllText(Path.Combine(dir, "settings.json"));
-        Assert.Contains("Jog", json);
-        Assert.Contains("2000", json);
-        Assert.Contains("Offsets", json);
-        Assert.Contains("G54", json);
-    }
+    // NOTE: there is no "Offsets" settings-sharing test here anymore — the legacy
+    // settings-backed Fixed offsets editor was removed; offsets now round-trip to
+    // the controller through IGrblService, with no local settings persistence.
 
     [Fact]
     public void Macro_save_after_probe_profile_save_preserves_settings_sections()

@@ -53,6 +53,15 @@ public interface IGrblService
     /// <see cref="ReceivedLines"/> so test doubles stay cheap.
     /// </summary>
     IObservable<WorkParameters> WorkParametersChanges => System.Reactive.Linq.Observable.Empty<WorkParameters>();
+
+    /// <summary>
+    /// One-shot re-read of the controller's work parameters (<c>$#</c>) so the
+    /// offsets editor / work-parameters widget reflect the board after a write or
+    /// error. ioSender re-requests work parameters on view activation and when the
+    /// controller signals an error. Default no-op keeps test doubles cheap; the
+    /// demo is already live and the proxy forwards to the inner service.
+    /// </summary>
+    Task RefreshWorkParametersAsync() => Task.CompletedTask;
 }
 
 /// <summary>grblHAL realtime command bytes. Coolant toggle bytes are identical

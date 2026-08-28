@@ -69,6 +69,8 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
 
     public void Disconnect() => _inner.Disconnect();
 
+    public Task RefreshWorkParametersAsync() => _inner.RefreshWorkParametersAsync();
+
     public Task SendAsync(string line) => _inner.SendAsync(line);
 
     public void SendRealtime(byte code) => _inner.SendRealtime(code);

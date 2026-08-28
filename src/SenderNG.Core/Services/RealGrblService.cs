@@ -440,7 +440,29 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         await AwaitWaiterAsync(waiter, _commandTimeout, _cts.Token);
 
         if (IsErrorReply(reply))
+        {
+            // ioSender re-requests the work parameters when the controller signals
+            // an error (GrblError -> GrblWorkParameters.Get), so the offsets editor
+            // reflects the authoritative board state (e.g. a rejected G10) instead
+            // of keeping a stale snapshot. Best-effort and fire-and-forget.
+            _ = RefreshWorkParametersAfterErrorAsync();
             throw new InvalidOperationException($"Controller rejected '{line}': {reply}");
+        }
+    }
+
+    private Task RefreshWorkParametersAfterErrorAsync() =>
+        SafeReadWorkParametersAsync();
+
+    private async Task SafeReadWorkParametersAsync()
+    {
+        try
+        {
+            await ReadWorkParametersAsync();
+        }
+        catch
+        {
+            // Non-fatal: a failed re-read just keeps the last published snapshot.
+        }
     }
 
     /// <summary>True when a command replied with grbl/grblHAL's "error" token.</summary>
@@ -465,6 +487,10 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         await ExchangeAsync("$$", lines, l => l is "ok" or "error");
         return lines;
     }
+
+    /// <summary>One-shot $# re-read so the UI can refresh from the board (ioSender
+    /// re-requests on view activation and on controller error).</summary>
+    public Task RefreshWorkParametersAsync() => ReadWorkParametersAsync();
 
     /// <summary>Reads the controller's current work-coordinate table using $# and
     /// republishes the refreshed snapshot.</summary>

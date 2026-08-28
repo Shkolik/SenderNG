@@ -38,6 +38,9 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     private void PublishWorkParameters() =>
         _workParametersChanges.OnNext(WorkParameters.Clone());
 
+    /// <summary>Demo work parameters are already live after every write; nothing to re-read.</summary>
+    public Task RefreshWorkParametersAsync() => Task.CompletedTask;
+
     public DemoGrblService(AppSettings settings, string? settingsFilePath = null, int pollIntervalMs = 200)
     {
         // Seed the full optional-signal set (demo reports Full capabilities) so

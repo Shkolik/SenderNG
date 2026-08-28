@@ -83,7 +83,9 @@ Many already exist; the gaps are listed per widget.
       Console tab is realized lazily after connecting. The connect dialog also
       auto-re-enumerates serial ports every second, so plugging in a controller
       revives the otherwise-grayed Serial tab without a manual refresh.
-- [x] Offsets (`Modules/Fixed/Offsets`) — coordinate table + save.
+- [x] Offsets (`Modules/Plugins/Offsets` flyout) — controller-backed
+      coordinate/tool-table editor: live snapshot updates, G54–G59 G10 write-back,
+      and $# readback after writes (verified against a bench grbl 1.1h board).
 - [x] Grbl settings (`Modules/Fixed/GrblSettings`) — `$$` view/edit.
 - [x] App settings (`Modules/Fixed/AppSettings`).
 - [x] MDI row (editable combo + history + Send).
@@ -97,14 +99,16 @@ Many already exist; the gaps are listed per widget.
 
 - [ ] **Goto widget** (`GotoControl`/`GotoFlyoutControl`) — G28/G30 "goto
       position" buttons + numeric X/Y/Z + Go, gated on homed state.
-- [ ] **Tool table / Tool view** (`ToolView`) — tool list with Get current
-      position / Set all / Clear all; feeds probing tool-length (`G10 L1 Pn` /
-      `G43 Hn`) and would close the probing tool-table gap.
+- [ ] **Tool table → probing integration** (`ToolView`) — the Offsets flyout
+      now has a tool table with per-tool save (`G10 L1 Pn`), but it is not yet
+      wired into probing (the "with tool" selector / `G43 Hn` tool-length feed
+      is still missing).
 - [x] **Work parameters** — implemented as a SenderNG flyout rather than
       ioSender's right-panel group. It displays the active G54–G59/G59.x selector,
       parsed controller work-coordinate/tool-table snapshots, tool selection,
-      TLO/TLO-reference indicators, refresh, and tool-change state. Full editable
-      offset/tool-table write-back remains a follow-up.
+      TLO/TLO-reference indicators, refresh, and tool-change state. Editable
+      offset/tool-table write-back lives in the `Plugins/Offsets` flyout
+      (G10 write + $# readback), not here.
 - [ ] **File actions** (`FileActionControl`) — Load / Save / Close / Run from a
       toolbar; SenderNG has Open (menu + toolbar) and program send in the
       Program view, but no Save/Close file actions.
@@ -192,7 +196,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | SpindleControl + FeedControl + OverrideControl | `Plugins/Cutting` | done |
 | JobControl / GCodeListControl | `Fixed/Program` | done |
 | ConsoleControl | `Fixed/Console` | done |
-| OffsetView | `Fixed/Offsets` | done |
+| OffsetView | `Plugins/Offsets` flyout | done (G10 write + readback) |
 | GrblConfigView | `Fixed/GrblSettings` | done |
 | AppConfigView | `Fixed/AppSettings` | done |
 | MDIControl | MDI row (`MainWindow`) | done |
@@ -202,7 +206,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | ProbingView + 6 tool controls | `Plugins/Probing` | done (flyout) — see `probing-gaps.md` |
 | GotoControl / GotoFlyoutControl | — | **missing** (P1) |
 | ToolView | — | **missing** (P1) |
-| WorkParametersControl | `Plugins/WorkParameters` flyout | done (read/select; write-back follow-up) |
+| WorkParametersControl | `Plugins/WorkParameters` flyout | done (read/select; editable write-back in `Plugins/Offsets`) |
 | FileActionControl | Open only | partial (P1) |
 | StepperCalibrationWizard | — | **missing** (P3) |
 | GCodeViewer / RenderControl | — | **missing** (P2) |
