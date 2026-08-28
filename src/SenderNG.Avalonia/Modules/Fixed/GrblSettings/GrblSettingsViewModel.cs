@@ -135,6 +135,19 @@ public sealed class GrblSettingItem : ViewModelBase
     /// <summary>Original value from the board — the dirty comparison baseline.</summary>
     public string OriginalValue { get; private set; }
 
+    public bool HasUnit => !string.IsNullOrWhiteSpace(Unit);
+    public bool HasRange => Min is not null || Max is not null;
+    public bool HasDescription => !string.IsNullOrWhiteSpace(Description);
+
+    public string? Range
+    {
+        get
+        {
+            static string Fmt(double? v) => v?.ToString("0.######", CultureInfo.InvariantCulture) ?? "-";
+            return HasRange ? $"Range: {Fmt(Min)} .. {Fmt(Max)}" : null;
+        }
+    }
+
     public ObservableCollection<GrblSettingBit> Bits { get; } = new();
 
     public string Value
@@ -281,7 +294,7 @@ public sealed class GrblSettingsViewModel : ViewModelBase
         private set => SetField(ref _status, value);
     }
 
-    /// <summary>TreeView SelectedItem — the last clicked group or setting.</summary>
+    /// <summary>TreeView SelectedItem — only leaves (settings) select; a group click is discarded.</summary>
     public object? SelectedNode
     {
         get => _selectedNode;
@@ -292,12 +305,20 @@ public sealed class GrblSettingsViewModel : ViewModelBase
             if (value is GrblSettingItem item)
             {
                 SelectedSetting = item;
+                OnPropertyChanged(nameof(HasSelection));
+                OnPropertyChanged(nameof(HasNoSelection));
                 _ = LoadDescriptionAsync(item);
             }
         }
     }
 
+    /// <summary>The chosen setting shown in the detail pane (right side).</summary>
     public GrblSettingItem? SelectedSetting { get; private set; }
+
+    /// <summary>True when a setting is selected — toggles the detail pane vs the empty hint.</summary>
+    public bool HasSelection => SelectedSetting is not null;
+
+    public bool HasNoSelection => SelectedSetting is null;
 
     public DelegateCommand LoadCommand { get; }
     public DelegateCommand SaveCommand { get; }

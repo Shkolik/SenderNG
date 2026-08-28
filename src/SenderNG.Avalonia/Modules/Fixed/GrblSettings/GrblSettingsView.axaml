@@ -13,118 +13,156 @@ BSD 3-Clause License: see this file for the full license text.
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Fixed"
-             mc:Ignorable="d" d:DesignWidth="660" d:DesignHeight="520"
+             mc:Ignorable="d" d:DesignWidth="920" d:DesignHeight="560"
              x:Class="SenderNG.Avalonia.Modules.Fixed.GrblSettingsView"
              x:DataType="vm:GrblSettingsViewModel">
 
-    <!-- Fills the sized + resizable dialog window (DialogPreferredSize 660x520). -->
     <DockPanel Background="#f6f6f6">
 
-        <!-- Description + status + actions -->
-        <Border DockPanel.Dock="Bottom" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="10,8">
-            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                <TextBlock Grid.Row="0" Grid.Column="0"
-                           Text="{Binding SelectedSetting.Name}" FontWeight="SemiBold"
-                           FontSize="11" Foreground="#333" TextTrimming="CharacterEllipsis" />
-                <TextBlock Grid.Row="1" Grid.Column="0"
-                           Text="{Binding SelectedSetting.Description}" FontSize="10"
-                           Foreground="#666" TextWrapping="Wrap" MaxHeight="40"
-                           TextTrimming="CharacterEllipsis" />
-                <!-- Status + actions side by side on the right -->
-                <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
-                            Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Status}" FontSize="10" Foreground="#888"
-                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                               MaxWidth="180" />
-                    <Button Content="Load" Command="{Binding LoadCommand}"
-                            Height="28" MinHeight="28" CornerRadius="0"
-                            Background="#eee" BorderBrush="#999" BorderThickness="1"
-                            Padding="14,0" VerticalContentAlignment="Center" />
-                    <Button Content="Save changes" Command="{Binding SaveCommand}"
-                            Height="28" MinHeight="28" CornerRadius="0"
-                            Background="#eee" BorderBrush="#999" BorderThickness="1"
-                            Padding="14,0" VerticalContentAlignment="Center" />
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <!-- Search -->
+        <!-- Search (top, full width) -->
         <Border DockPanel.Dock="Top" BorderBrush="#aaa" BorderThickness="0,0,0,1" Padding="10,8">
             <TextBox Text="{Binding Search}" Watermark="Search settings..."
                      Height="26" MinHeight="26" VerticalContentAlignment="Center"
                      FontSize="11" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
         </Border>
 
-        <!-- ScrollViewer fills the resizeable window; the tree scrolls as the window shrinks. -->
-        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <TreeView ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedNode}"
-                      Padding="6" Background="Transparent">
-                <TreeView.Styles>
-                    <!-- Bind the container's expansion state to the group view model so it
-                         survives reloads and programmatic expand/collapse. ReflectionBinding
-                         (not compiled): the setter runs against each item, and only group
-                         items expose IsExpanded — leaves simply ignore it. -->
-                    <Style Selector="TreeViewItem">
-                        <Setter Property="IsExpanded"
-                                Value="{ReflectionBinding IsExpanded, Mode=TwoWay}" />
-                    </Style>
-                    <Style Selector="TreeViewItem /template/ ContentPresenter#PART_HeaderPresenter">
-                        <Setter Property="Padding" Value="2,1" />
-                    </Style>
-                </TreeView.Styles>
-                <TreeView.DataTemplates>
-                    <TreeDataTemplate DataType="{x:Type vm:GrblSettingGroupItem}"
-                                      ItemsSource="{Binding Children}"
-                                      x:DataType="vm:GrblSettingGroupItem">
-                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"
-                                   Foreground="#333" Margin="2,4,2,2" />
-                    </TreeDataTemplate>
+        <!-- Status + actions (bottom, full width) -->
+        <Border DockPanel.Dock="Bottom" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="10,8">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="{Binding Status}" FontSize="10" Foreground="#888"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <Rectangle Width="1" Height="16" Fill="#ccc" VerticalAlignment="Center"
+                           IsVisible="{Binding HasSelection}" />
+                <TextBlock Text="{Binding SelectedSetting.Key, StringFormat='Editing {0}'}" FontSize="10"
+                           Foreground="#666" VerticalAlignment="Center" IsVisible="{Binding HasSelection}" />
+                <Button Content="Load" Command="{Binding LoadCommand}"
+                        HorizontalAlignment="Right" Height="28" MinHeight="28" CornerRadius="0"
+                        Background="#eee" BorderBrush="#999" BorderThickness="1"
+                        Padding="14,0" VerticalContentAlignment="Center" />
+                <Button Content="Save changes" Command="{Binding SaveCommand}"
+                        HorizontalAlignment="Right" Height="28" MinHeight="28" CornerRadius="0"
+                        Background="#eee" BorderBrush="#999" BorderThickness="1"
+                        Padding="14,0" VerticalContentAlignment="Center" />
+            </StackPanel>
+        </Border>
 
-                    <DataTemplate DataType="{x:Type vm:GrblSettingItem}"
-                                  x:DataType="vm:GrblSettingItem">
-                        <!-- Fixed editor slot (column 2) keeps numeric/text/radio editors
-                             visible and prevents the row overflowing horizontally. -->
-                        <Grid ColumnDefinitions="36,*,220" Margin="0,2">
-                            <TextBlock Grid.Column="0" Text="{Binding Key}" FontWeight="SemiBold"
-                                       FontSize="11" Foreground="#666" VerticalAlignment="Center" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
-                                        VerticalAlignment="Center">
+        <!-- Master / detail split. Each pane scrolls independently. -->
+        <Grid ColumnDefinitions="2*,3*">
+
+            <!-- LEFT: tree selector - group nodes expand, only leaf settings select -->
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Auto"
+                          BorderBrush="#aaa" BorderThickness="0,0,1,0" Padding="2">
+                <TreeView x:Name="Tree" ItemsSource="{Binding Groups}"
+                          SelectedItem="{Binding SelectedNode}" Background="Transparent">
+                    <TreeView.Styles>
+                        <Style Selector="TreeViewItem">
+                            <Setter Property="IsExpanded"
+                                    Value="{ReflectionBinding IsExpanded, Mode=TwoWay}" />
+                        </Style>
+                    </TreeView.Styles>
+                    <TreeView.DataTemplates>
+                        <TreeDataTemplate DataType="{x:Type vm:GrblSettingGroupItem}"
+                                          ItemsSource="{Binding Children}"
+                                          x:DataType="vm:GrblSettingGroupItem">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"
+                                       Foreground="#333" Margin="2,3,2,2" />
+                        </TreeDataTemplate>
+
+                        <!-- Leaf: label only; selection drives the detail pane -->
+                        <DataTemplate DataType="{x:Type vm:GrblSettingItem}"
+                                      x:DataType="vm:GrblSettingItem">
+                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="2,1">
+                                <TextBlock Text="{Binding Key}" FontWeight="SemiBold" FontSize="11"
+                                           Foreground="#888" />
                                 <TextBlock Text="{Binding Name}" FontSize="11" Foreground="#333"
                                            TextTrimming="CharacterEllipsis" />
                                 <TextBlock Text="*" FontSize="12" FontWeight="Bold" Foreground="#c00"
                                            IsVisible="{Binding IsDirty}" />
                             </StackPanel>
-                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
-                                        VerticalAlignment="Center">
-                                <CheckBox IsChecked="{Binding IsChecked}" IsVisible="{Binding IsBool}"
-                                          VerticalAlignment="Center" />
-                                <ComboBox ItemsSource="{Binding Options}" SelectedIndex="{Binding SelectedIndex}"
-                                          IsVisible="{Binding IsRadio}" Width="200" Height="24" MinHeight="24"
-                                          FontSize="11" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                                          VerticalContentAlignment="Center" />
-                                <ItemsControl ItemsSource="{Binding Bits}" IsVisible="{Binding IsBits}"
-                                              VerticalAlignment="Center" MaxWidth="200">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:GrblSettingBit">
-                                            <CheckBox Content="{Binding Label}" IsChecked="{Binding IsChecked}"
-                                                      FontSize="10" Margin="0,1,10,1" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <TextBox Text="{Binding Value}" IsVisible="{Binding ShowTextBox}"
-                                         Width="200" Height="24" MinHeight="24"
-                                         VerticalContentAlignment="Center" FontSize="11"
-                                         CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                            </StackPanel>
-                        </Grid>
-                    </DataTemplate>
-                </TreeView.DataTemplates>
-            </TreeView>
-        </ScrollViewer>
+                        </DataTemplate>
+                    </TreeView.DataTemplates>
+                </TreeView>
+            </ScrollViewer>
+
+            <!-- RIGHT: selected leaf - data + docs + editor -->
+            <Border Grid.Column="1" Padding="12,10">
+                <Grid>
+                <TextBlock Text="Select a setting to view and edit it."
+                           FontSize="12" Foreground="#888" VerticalAlignment="Center"
+                           TextWrapping="Wrap" IsVisible="{Binding HasNoSelection}" />
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasSelection}">
+                    <StackPanel Orientation="Vertical" Spacing="10" Margin="0,2,10,4">
+
+                        <!-- Header: key + name (+ dirty marker) -->
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="{Binding SelectedSetting.Key}" FontWeight="Bold" FontSize="16"
+                                       Foreground="#333" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding SelectedSetting.Name}" FontSize="15"
+                                       Foreground="#333" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <TextBlock Text="* changed" FontSize="11" FontWeight="Bold" Foreground="#c00"
+                                       VerticalAlignment="Center" IsVisible="{Binding SelectedSetting.IsDirty}" />
+                        </StackPanel>
+                        <Rectangle Height="1" Fill="#ddd" />
+
+                        <!-- Unit + range -->
+                        <TextBlock Text="{Binding SelectedSetting.Unit}" FontSize="11" Foreground="#666"
+                                   IsVisible="{Binding SelectedSetting.HasUnit}" />
+                        <TextBlock Text="{Binding SelectedSetting.Range}" FontSize="11" Foreground="#666"
+                                   IsVisible="{Binding SelectedSetting.HasRange}" />
+
+                        <!-- Docs -->
+                        <StackPanel Spacing="4" IsVisible="{Binding SelectedSetting.HasDescription}">
+                            <TextBlock Text="Description" FontWeight="SemiBold" FontSize="11" Foreground="#666" />
+                            <TextBlock Text="{Binding SelectedSetting.Description}" FontSize="12"
+                                       Foreground="#333" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!-- Editor -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Value" FontWeight="SemiBold" FontSize="11" Foreground="#666" />
+
+                            <CheckBox Content="Enabled" IsChecked="{Binding SelectedSetting.IsChecked}"
+                                      IsVisible="{Binding SelectedSetting.IsBool}" FontSize="12" />
+
+                            <ComboBox ItemsSource="{Binding SelectedSetting.Options}"
+                                      SelectedIndex="{Binding SelectedSetting.SelectedIndex}"
+                                      IsVisible="{Binding SelectedSetting.IsRadio}"
+                                      Width="240" Height="26" MinHeight="26" HorizontalAlignment="Left"
+                                      FontSize="12" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                      VerticalContentAlignment="Center" />
+
+                            <ItemsControl ItemsSource="{Binding SelectedSetting.Bits}"
+                                          IsVisible="{Binding SelectedSetting.IsBits}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:GrblSettingBit">
+                                        <CheckBox Content="{Binding Label}" IsChecked="{Binding IsChecked}"
+                                                  FontSize="12" Margin="0,2,14,2" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBox Text="{Binding SelectedSetting.Value}"
+                                     IsVisible="{Binding SelectedSetting.ShowTextBox}"
+                                     Width="240" Height="26" MinHeight="26" HorizontalAlignment="Left"
+                                     VerticalContentAlignment="Center" FontSize="12"
+                                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+                        </StackPanel>
+
+                        <!-- Save hint -->
+                        <TextBlock Text="Save writes only the changed settings."
+                                   FontSize="10" Foreground="#999"
+                                   IsVisible="{Binding SelectedSetting.IsDirty}" />
+                    </StackPanel>
+                </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
     </DockPanel>
-</UserControl>
+</UserControl>

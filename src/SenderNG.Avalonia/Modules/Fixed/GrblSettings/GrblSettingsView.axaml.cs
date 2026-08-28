@@ -35,10 +35,10 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
 */
 
 using Avalonia.Controls;
+using Avalonia.Controls.Selection;
 
 namespace SenderNG.Avalonia.Modules.Fixed;
 
@@ -47,5 +47,19 @@ public partial class GrblSettingsView : UserControl
     public GrblSettingsView()
     {
         InitializeComponent();
+        Tree.SelectionChanged += OnTreeSelectionChanged;
     }
-}
+
+    /// <summary>
+    /// Only leaf settings are selectable — a click on a group node just collapses /
+    /// expands it (via the chevron); group selections are discarded so the detail
+    /// pane keeps showing the previously chosen setting.
+    /// </summary>
+    private static void OnTreeSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not TreeView tree)
+            return;
+        if (tree.SelectedItem is GrblSettingGroupItem)
+            tree.SelectedItem = null;
+    }
+}
