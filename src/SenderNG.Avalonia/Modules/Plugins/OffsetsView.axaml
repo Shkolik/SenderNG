@@ -8,19 +8,11 @@
              x:DataType="vm:OffsetsViewModel" mc:Ignorable="d" d:DesignWidth="680" d:DesignHeight="420">
     <ScrollViewer>
         <StackPanel Margin="8" Spacing="6">
-            <Grid ColumnDefinitions="Auto,*,*,*,*,*,*" Margin="0,0,0,4">
-                <TextBlock Grid.Column="0" Text="Offset" FontWeight="SemiBold" />
-                <TextBlock Grid.Column="1" Text="X" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Grid.Column="2" Text="Y" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Grid.Column="3" Text="Z" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Grid.Column="4" Text="A" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Grid.Column="5" Text="B" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Grid.Column="6" Text="C" FontWeight="SemiBold" HorizontalAlignment="Center" />
-            </Grid>
+            <ContentControl x:Name="OffsetHeaderHost" Margin="0,0,0,4" />
             <ItemsControl ItemsSource="{Binding Rows}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:EditableOffsetRow">
-                        <Grid ColumnDefinitions="Auto,*,*,*,*,*,*" Margin="0,1">
+                        <Grid ColumnDefinitions="Auto,*,*,*,*,*,*,*,*,*" Margin="0,1">
                             <TextBlock Grid.Column="0" Text="{Binding Code}" Width="48" VerticalAlignment="Center" FontWeight="SemiBold" />
                             <TextBox Grid.Column="1" Text="{Binding X, Mode=TwoWay}" Margin="2" CornerRadius="0" />
                             <TextBox Grid.Column="2" Text="{Binding Y, Mode=TwoWay}" Margin="2" CornerRadius="0" />
@@ -41,14 +33,7 @@
             </Grid>
             <Separator Margin="0,4" />
             <TextBlock Text="Tool table" FontWeight="SemiBold" />
-            <Grid ColumnDefinitions="Auto,*,*,*,*,Auto" Margin="0,0,0,2">
-                <TextBlock Grid.Column="0" Text="Tool" FontWeight="SemiBold" Width="48" />
-                <TextBlock Grid.Column="1" Text="X" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Grid.Column="2" Text="Y" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Grid.Column="3" Text="Z" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Grid.Column="4" Text="Radius" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Grid.Column="5" Text="" Width="60" />
-            </Grid>
+            <ContentControl x:Name="ToolHeaderHost" Margin="0,0,0,2" />
             <ItemsControl ItemsSource="{Binding Tools}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:EditableToolRow">
