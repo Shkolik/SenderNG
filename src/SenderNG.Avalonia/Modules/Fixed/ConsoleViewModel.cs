@@ -101,6 +101,14 @@ public class ConsoleViewModel : ViewModelBase
 
     public ObservableCollection<string> ConsoleLines { get; } = new();
 
+    /// <summary>
+    /// The console log as one joined string, so the console renders as a single
+    /// selectable/copyable text blob (ioSender binds a read-only TextBox to its
+    /// ResponseLog via StringCollectionToTextConverter). Rebuilt on every line
+    /// change; the log is capped at 200 lines so the join stays cheap.
+    /// </summary>
+    public string ConsoleText => string.Join(Environment.NewLine, ConsoleLines);
+
     public ConsoleViewModel(IGrblService grbl, SettingsService settings)
     {
         ArgumentNullException.ThrowIfNull(grbl);
@@ -108,7 +116,11 @@ public class ConsoleViewModel : ViewModelBase
         _settings = settings;
         _options = ConsoleSettingsStore.Load(settings.Load());
 
-        ClearCommand = new DelegateCommand(_ => ConsoleLines.Clear());
+        ClearCommand = new DelegateCommand(_ =>
+        {
+            ConsoleLines.Clear();
+            OnPropertyChanged(nameof(ConsoleText));
+        });
 
         // Raw controller output, before status parsing, so the console shows
         // exactly what the controller sent. UiThread.Post keeps the collection
@@ -146,7 +158,11 @@ public class ConsoleViewModel : ViewModelBase
         set { if (_options.FilterOk != value) { _options.FilterOk = value; OnPropertyChanged(); Save(); } }
     }
 
-    public void Log(string line) => ConsoleLines.Add(line);
+    public void Log(string line)
+    {
+        ConsoleLines.Add(line);
+        OnPropertyChanged(nameof(ConsoleText));
+    }
 
     private void OnLineReceived(string data)
     {
@@ -197,8 +213,14 @@ public class ConsoleViewModel : ViewModelBase
             return;
 
         Log(line);
+        var trimmed = false;
         while (ConsoleLines.Count > MaxLines)
+        {
             ConsoleLines.RemoveAt(0);
+            trimmed = true;
+        }
+        if (trimmed)
+            OnPropertyChanged(nameof(ConsoleText));
     }
 
     private void Save()

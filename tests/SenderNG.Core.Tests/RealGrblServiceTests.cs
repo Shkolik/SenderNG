@@ -117,6 +117,32 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    public async Task Connect_queries_work_parameters_and_publishes_dump_to_raw_stream()
+    {
+        // ioSender's connect sequence runs $# (NGC work parameters) after $I so
+        // the console shows the [G54:..]..[G92:..]/[TLO:..]/[PRB:..] dump. The
+        // lines must reach the raw line stream (the console renders it), even
+        // though the status parser ignores them.
+        var transport = new FakeGrblTransport();
+        using var svc = new RealGrblService(transport);
+        var raw = new List<string>();
+        svc.ReceivedLines.Subscribe(raw.Add);
+
+        await svc.ConnectAsync("fake");
+
+        Assert.Contains("$#", transport.Sent);
+
+        // The connect handshake auto-replies 'ok' for $# (no dump lines) in the
+        // fake transport; push the actual work-parameter dump through and confirm
+        // it lands on the raw stream for the console.
+        transport.Enqueue("[G54:0.000,0.000,0.000]");
+        transport.Enqueue("[G92:0.000,0.000,0.000]");
+        await WaitUntil(() => raw.Contains("[G54:0.000,0.000,0.000]"));
+
+        Assert.Contains(raw, l => l == "[G92:0.000,0.000,0.000]");
+    }
+
+    [Fact]
     public async Task Probe_report_fills_probe_position()
     {
         var transport = new FakeGrblTransport();

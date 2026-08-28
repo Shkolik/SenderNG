@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using SenderNG.Avalonia.Modules.Fixed;
 
 namespace SenderNG.Avalonia.Modules.Fixed;
@@ -34,14 +35,18 @@ public partial class ConsoleView : UserControl
         }
     }
 
-    // View-only concern (keep viewport pinned to the newest line), so it lives here
-    // rather than in the view model.
+    // View-only concern (keep the console pinned to the newest output), so it
+    // lives here rather than in the view model. The log is a read-only TextBox
+    // (ioSender style); after each line lands, jump the caret/scroll to the end
+    // so new output is always visible, mirroring ioSender's AlwaysScrollToEnd.
     private void OnLinesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (e.Action != NotifyCollectionChangedAction.Add)
             return;
-        var list = this.FindControl<ListBox>("ConsoleList");
-        if (list is not null && list.ItemCount > 0)
-            list.ScrollIntoView(list.ItemCount - 1);
+        var box = this.FindControl<TextBox>("ConsoleText");
+        if (box is null || box.Text is null)
+            return;
+        box.CaretIndex = box.Text.Length;
+        box.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault()?.ScrollToEnd();
     }
 }

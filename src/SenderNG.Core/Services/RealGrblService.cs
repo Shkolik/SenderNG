@@ -166,6 +166,25 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             Capabilities = ControllerCapabilities.Unknown;
         }
 
+        // ioSender's connect sequence follows $I with a $# (NGC work parameters)
+        // exchange — the [G54:..]..[G92:..]/[TLO:..]/[PRB:..] dump that shows in
+        // the console. Best-effort and non-fatal, exactly like the $I handshake:
+        // the lines are published on the raw stream so the console shows them;
+        // the parser ignores them (no MachineState fields map to work offsets yet).
+        try
+        {
+            if (Capabilities.IsKnown)
+                await GetWorkParameterLinesAsync(port);
+        }
+        catch (OperationCanceledException)
+        {
+            // Disconnected mid-handshake; reconnect retries from scratch.
+        }
+        catch
+        {
+            // Non-fatal: $# is a console nicety, not required to connect.
+        }
+
         // Push the discovered axis count into the legacy GrblInfo static (the
         // DRO, gcode parser and expressions read it) and into the live machine
         // state so the DRO/signals grow to the board's real axes.
@@ -423,6 +442,27 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         catch (TimeoutException)
         {
             // Classic grbl $I has no "ok"; keep what we read.
+        }
+        return lines;
+    }
+
+    /// <summary>
+    /// <c>$#</c> work-parameter exchange: collect the [G54:..]..[PRB:..] dump
+    /// until the trailing "ok"/"error" or a short deadline (classic grbl replies
+    /// without "ok"). The lines are published to the raw stream by the consumer
+    /// loop before this collector sees them, so the console renders the dump
+    /// exactly as ioSender does at connect.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> GetWorkParameterLinesAsync(string port)
+    {
+        var lines = new List<string>();
+        try
+        {
+            await ExchangeAsync("$#", lines, l => l is "ok" or "error", TimeSpan.FromSeconds(1.5));
+        }
+        catch (TimeoutException)
+        {
+            // Classic grbl $# has no "ok"; keep what we read.
         }
         return lines;
     }

@@ -32,10 +32,19 @@
                 </StackPanel>
             </Border>
 
-            <ListBox x:Name="ConsoleList" Grid.Row="1" ItemsSource="{Binding ConsoleLines}"
+            <!-- ioSender console: a read-only TextBox showing the whole log as one
+                 selectable/copyable text blob (its StringCollectionToTextConverter
+                 joins ResponseLog into Text). Replaced the per-line ListBox so the
+                 output can be selected and copied in one go. -->
+            <TextBox x:Name="ConsoleText" Grid.Row="1" IsReadOnly="True"
+                     Text="{Binding ConsoleText}" TextWrapping="NoWrap"
                      CornerRadius="0" BorderBrush="#aaa" BorderThickness="0"
-                     FontSize="11" ScrollViewer.HorizontalScrollBarVisibility="Visible"
-                     HorizontalAlignment="Stretch" />
+                     FontSize="11" FontFamily="Consolas, Courier New, monospace"
+                     ScrollViewer.HorizontalScrollBarVisibility="Visible"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     AcceptsReturn="True"
+                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                     Padding="4" />
         </Grid>
     </Border>
 </UserControl>

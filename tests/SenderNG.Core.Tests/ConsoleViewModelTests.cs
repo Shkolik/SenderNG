@@ -146,6 +146,26 @@ public class ConsoleViewModelTests
         vm.ClearCommand.Execute(null);
 
         Assert.Empty(vm.ConsoleLines);
+        Assert.Equal(string.Empty, vm.ConsoleText);
+    }
+
+    [Fact]
+    public void ConsoleText_joins_lines_for_copyable_output()
+    {
+        var grbl = new LineGrbl();
+        var vm = new ConsoleViewModel(grbl, MakeSettings());
+
+        grbl.Lines.OnNext("[VER:1.2i.20260521:]");
+        grbl.Lines.OnNext("[AXS:5:XYZAB]");
+        grbl.Lines.OnNext("[G54:0.000,0.000,0.000,0.000,0.000]");
+
+        // The console is one selectable text blob (ioSender binds its read-only
+        // TextBox to the joined ResponseLog) so the dump can be copied as-is.
+        Assert.Equal(
+            "[VER:1.2i.20260521:]" + Environment.NewLine +
+            "[AXS:5:XYZAB]" + Environment.NewLine +
+            "[G54:0.000,0.000,0.000,0.000,0.000]",
+            vm.ConsoleText);
     }
 
     [Fact]
