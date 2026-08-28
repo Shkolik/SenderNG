@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 
@@ -470,6 +471,82 @@ public class RealGrblHardwareTests
         {
             svc.Disconnect();
             // Restore the global static so a hardware run can't leak into later tests.
+            CNC.Core.GrblInfo.NumAxes = savedAxes;
+            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+        }
+    }
+
+    [Fact]
+    public async Task Offsets_module_writes_and_reads_back_G54_through_G59_on_hardware()
+    {
+        var port = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
+        if (string.IsNullOrWhiteSpace(port))
+        {
+            Console.WriteLine("WARNING: offsets hardware test skipped — set SENDERNG_HW_PORT to run it");
+            return;
+        }
+        if (!AvailablePorts.Contains(port.Trim(), StringComparer.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"WARNING: offsets hardware test skipped — '{port}' is not enumerated");
+            return;
+        }
+
+        var savedAxes = CNC.Core.GrblInfo.NumAxes;
+        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        using var service = new RealGrblService();
+        try
+        {
+            await service.ConnectAsync(port.Trim());
+            Assert.True(service.IsConnected);
+            Assert.True(service.Capabilities.IsKnown);
+
+            var vm = new SenderNG.Avalonia.Modules.Plugins.OffsetsViewModel(service);
+            var codes = new[] { "G54", "G55", "G56", "G57", "G58", "G59" };
+            var rows = codes.Select(code => Assert.Single(vm.Rows, row => row.Code == code)).ToArray();
+            var original = rows.ToDictionary(row => row.Code, row => row.Values.ToArray());
+
+            try
+            {
+                for (var i = 0; i < rows.Length; i++)
+                    rows[i].SetValueAt(0, (100 + i * 11.25).ToString("0.###", CultureInfo.InvariantCulture));
+
+                vm.SetAllCommand.Execute(null);
+                await WaitUntil(() => vm.Status.StartsWith("Saved", StringComparison.Ordinal), 15_000);
+                Assert.StartsWith("Saved ", vm.Status);
+                Assert.DoesNotContain("failed", vm.Status, StringComparison.OrdinalIgnoreCase);
+
+                var written = await service.ReadWorkParametersAsync();
+                for (var i = 0; i < rows.Length; i++)
+                {
+                    var actual = Assert.Single(written.CoordinateSystems, x => x.Code == codes[i]);
+                    Assert.Equal(100 + i * 11.25, actual.Values[0], 3);
+                }
+            }
+            finally
+            {
+                for (var i = 0; i < rows.Length; i++)
+                    for (var axis = 0; axis < rows[i].Values.Count; axis++)
+                        rows[i].SetValueAt(axis, original[codes[i]][axis]);
+
+                vm.SetAllCommand.Execute(null);
+                var restoredStatus = await WaitUntil(() => vm.Status.StartsWith("Saved", StringComparison.Ordinal), 15_000);
+                Assert.True(restoredStatus, $"offset restore did not complete: {vm.Status}");
+                Assert.DoesNotContain("failed", vm.Status, StringComparison.OrdinalIgnoreCase);
+
+                var restored = await service.ReadWorkParametersAsync();
+                foreach (var code in codes)
+                {
+                    var actual = Assert.Single(restored.CoordinateSystems, x => x.Code == code);
+                    var expected = original[code].Select(value => double.Parse(value, CultureInfo.InvariantCulture)).ToArray();
+                    Assert.Equal(expected.Length, actual.Values.Length);
+                    for (var axis = 0; axis < expected.Length; axis++)
+                        Assert.True(Math.Abs(expected[axis] - actual.Values[axis]) <= 0.001, $"{code} axis {axis}: expected {expected[axis]}, got {actual.Values[axis]}");
+                }
+            }
+        }
+        finally
+        {
+            service.Disconnect();
             CNC.Core.GrblInfo.NumAxes = savedAxes;
             CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
         }

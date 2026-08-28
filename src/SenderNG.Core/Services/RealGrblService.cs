@@ -438,6 +438,14 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         return lines;
     }
 
+    /// <summary>Reads the controller's current work-coordinate table using $#.</summary>
+    public async Task<WorkParameters> ReadWorkParametersAsync()
+    {
+        var lines = await GetWorkParameterLinesAsync(string.Empty);
+        WorkParameters = WorkParameters.Parse(lines, Capabilities.NumAxes, Capabilities.NumTools);
+        return WorkParameters;
+    }
+
     /// <summary>
     /// <c>$I</c> handshake: collect identity/options lines until the trailing "ok"
     /// or a short deadline (classic grbl may not send "ok"). Doesn't throw on
