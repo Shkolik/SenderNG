@@ -352,7 +352,19 @@ public class MainViewModel : ViewModelBase
     /// ioSender, and the rest are gated on <see cref="MachineState.OptionalSignals"/>
     /// — the signals the controller actually reports in $I — so a board without a
     /// safety door / e-stop / motor fault wiring doesn't show LEDs it can't drive.</summary>
+    /// <remarks>All three collections hold the same <see cref="SignalIndicator"/>
+    /// instances; <see cref="SignalIndicators"/> is the flattened render order
+    /// (used for state updates and tests), while the two grouped collections feed
+    /// the axis-left / control-right layout mirroring ioSender's SignalsControl
+    /// (DockPanel Left axis limits, Right machine controls).</remarks>
     public ObservableCollection<SignalIndicator> SignalIndicators { get; } = new();
+
+    /// <summary>Axis/limit LEDs only (ioSender left panel).</summary>
+    public ObservableCollection<SignalIndicator> AxisSignalIndicators { get; } = new();
+
+    /// <summary>Machine control LEDs only — always-on H/S/R/P plus reported optional
+    /// signals (ioSender right panel).</summary>
+    public ObservableCollection<SignalIndicator> ControlSignalIndicators { get; } = new();
 
     /// <summary>Always-visible machine control signals (ioSender ungated set).</summary>
     private static readonly (CNC.Core.Signals Flag, string Label, string Tip)[] AlwaysControlSignals =
@@ -784,19 +796,30 @@ public class MainViewModel : ViewModelBase
     private void RebuildSignalStrip(int numAxes, CNC.Core.Signals optionalSignals)
     {
         SignalIndicators.Clear();
+        AxisSignalIndicators.Clear();
+        ControlSignalIndicators.Clear();
         var letters = CNC.Core.GrblInfo.AxisLetters;
         for (var i = 0; i < numAxes; i++)
         {
             var letter = letters[i].ToString();
-            SignalIndicators.Add(new SignalIndicator(
-                letter, (CNC.Core.Signals)(1 << i), $"Limit {letter}"));
+            var indicator = new SignalIndicator(
+                letter, (CNC.Core.Signals)(1 << i), $"Limit {letter}");
+            SignalIndicators.Add(indicator);
+            AxisSignalIndicators.Add(indicator);
         }
         foreach (var (flag, label, tip) in AlwaysControlSignals)
-            SignalIndicators.Add(new SignalIndicator(label, flag, tip));
+        {
+            var indicator = new SignalIndicator(label, flag, tip);
+            SignalIndicators.Add(indicator);
+            ControlSignalIndicators.Add(indicator);
+        }
         foreach (var (flag, label, tip) in OptionalControlSignals)
         {
-            if ((optionalSignals & flag) != 0)
-                SignalIndicators.Add(new SignalIndicator(label, flag, tip));
+            if ((optionalSignals & flag) == 0)
+                continue;
+            var indicator = new SignalIndicator(label, flag, tip);
+            SignalIndicators.Add(indicator);
+            ControlSignalIndicators.Add(indicator);
         }
         _signalAxisCount = numAxes;
         _signalOptionalSignals = optionalSignals;

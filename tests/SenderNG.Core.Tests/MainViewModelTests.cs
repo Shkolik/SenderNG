@@ -604,6 +604,10 @@ public class MainViewModelStatusButtonsTests
         Assert.DoesNotContain(vm.SignalIndicators, s => s.Flag == CNC.Core.Signals.SafetyDoor);
         Assert.DoesNotContain(vm.SignalIndicators, s => s.Flag == CNC.Core.Signals.EStop);
         Assert.DoesNotContain(vm.SignalIndicators, s => s.Flag == CNC.Core.Signals.MotorFault);
+
+        // The grouped collections split axes (left) from controls (right).
+        Assert.Equal(["X", "Y", "Z"], vm.AxisSignalIndicators.Select(s => s.Letter));
+        Assert.Equal(["H", "S", "R", "P"], vm.ControlSignalIndicators.Select(s => s.Letter));
     }
 
     [Fact]
@@ -630,6 +634,11 @@ public class MainViewModelStatusButtonsTests
         Assert.True(probe.IsActive);
         Assert.False(estop.IsActive); // present (reported) but not tripped
         Assert.Null(motorFault);      // never reported -> LED not rendered
+
+        // Reported optional signals land in the control group, not the axis group.
+        Assert.All(vm.AxisSignalIndicators, s => Assert.Contains(s.Flag, new[]
+            { CNC.Core.Signals.LimitX, CNC.Core.Signals.LimitY, CNC.Core.Signals.LimitZ }));
+        Assert.Contains(vm.ControlSignalIndicators, s => s.Flag == CNC.Core.Signals.SafetyDoor);
     }
 
     private sealed class BehaviorGrbl(BehaviorSubject<MachineState> state) : IGrblService

@@ -154,28 +154,51 @@
                     </ScrollViewer>
                 </Expander>
 
-                <!-- Signals (pinned bottom) — fixed, no Expander header. Axis/limit LEDs
-                     then machine-control signals (probe, door, e-stop, hold, cycle start,
-                     reset, motor), ioSender-style, lit by the current status report. -->
+                <!-- Signals (pinned bottom) — fixed, no Expander header. ioSender's
+                     SignalsControl layout: axis/limit LEDs anchored left, machine
+                     control signals (probe, door, e-stop, hold, cycle start, reset,
+                     motor) anchored right in the same row. Two WrapPanels in a
+                     3-column grid (Auto,*,Auto) reproduce the DockPanel Left/Right
+                     split so each group wraps independently when space is tight. -->
                 <Border Grid.Row="3" Background="White" BorderBrush="#aaa" BorderThickness="0,1,0,0" Margin="0" Padding="4,6" HorizontalAlignment="Stretch">
-                    <ItemsControl ItemsSource="{Binding SignalIndicators}" HorizontalAlignment="Stretch" VerticalAlignment="Center">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:SignalIndicator">
-                                <StackPanel Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                            Margin="4,0" ToolTip.Tip="{Binding ToolTip}">
-                                    <Ellipse Width="14" Height="14" Stroke="#777" StrokeThickness="1.4"
-                                             Fill="{Binding IsActive, Converter={x:Static conv:Converters.SignalBrush}}"
-                                             HorizontalAlignment="Center" />
-                                    <TextBlock Text="{Binding Letter}" FontSize="11" Foreground="#333" HorizontalAlignment="Center" FontWeight="SemiBold" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <Grid ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                        <ItemsControl Grid.Column="0" ItemsSource="{Binding AxisSignalIndicators}" HorizontalAlignment="Left" VerticalAlignment="Center">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SignalIndicator">
+                                    <StackPanel Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                Margin="4,0" ToolTip.Tip="{Binding ToolTip}">
+                                        <Ellipse Width="14" Height="14" Stroke="#777" StrokeThickness="1.4"
+                                                 Fill="{Binding IsActive, Converter={x:Static conv:Converters.SignalBrush}}"
+                                                 HorizontalAlignment="Center" />
+                                        <TextBlock Text="{Binding Letter}" FontSize="11" Foreground="#333" HorizontalAlignment="Center" FontWeight="SemiBold" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl Grid.Column="2" ItemsSource="{Binding ControlSignalIndicators}" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" HorizontalAlignment="Right" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SignalIndicator">
+                                    <StackPanel Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                Margin="4,0" ToolTip.Tip="{Binding ToolTip}">
+                                        <Ellipse Width="14" Height="14" Stroke="#777" StrokeThickness="1.4"
+                                                 Fill="{Binding IsActive, Converter={x:Static conv:Converters.SignalBrush}}"
+                                                 HorizontalAlignment="Center" />
+                                        <TextBlock Text="{Binding Letter}" FontSize="11" Foreground="#333" HorizontalAlignment="Center" FontWeight="SemiBold" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
                 </Border>
 
                 <!-- State / Controls (pinned bottom) — fixed, no Expander, aligns with Cycle bar height 28 -->
