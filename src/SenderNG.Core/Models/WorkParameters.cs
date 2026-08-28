@@ -43,6 +43,13 @@ public sealed class WorkParameters
     public static readonly string[] CoordinateSystemCodes =
         ["G54", "G55", "G56", "G57", "G58", "G59", "G59.1", "G59.2", "G59.3"];
 
+    /// <summary>Coordinate systems the controller can actually select/write.
+    /// Classic grbl 1.1 (and classic forks like mega5x 1.2i) support only G54..G59
+    /// — G59.1/G59.2/G59.3 are grblHAL-only and classic firmware rejects them with
+    /// error 29, so the UI must not offer them on non-HAL controllers.</summary>
+    public static IReadOnlyList<string> SupportedSystems(bool isGrblHal) =>
+        isGrblHal ? CoordinateSystemCodes : CoordinateSystemCodes[..6];
+
     public List<WorkCoordinateSystem> CoordinateSystems { get; } = new();
     public List<ToolTableEntry> Tools { get; } = new();
     public double[] ToolLengthOffset { get; set; } = new double[9];

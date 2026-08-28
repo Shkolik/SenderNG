@@ -101,15 +101,18 @@ Many already exist; the gaps are listed per widget.
       `Plugins/Goto` flyout: G28/G30 "goto position" buttons, G28.1/G30.1
       record-reference-point buttons, numeric per-axis rows + Go (`G53 G0`),
       gated on homed state (tracked via completed `$H`; cleared on alarm/soft
-      reset). The visible axis count is a persisted preference (App Settings /
-      widget selector, 1–9) capped by the connected controller's reported axis
-      count, so a 4-axis preference shows 3 rows on a 3-axis controller.
+      reset). The visible axis count is a persisted preference (App Settings,
+      1–9) capped by the connected controller's reported axis count, so a
+      4-axis preference shows 3 rows on a 3-axis controller.
 - [ ] **Tool table → probing integration** (`ToolView`) — the Offsets flyout
-      now has a tool table (optional via App Settings, shown only on grblHAL
-      controllers — classic grbl 1.1 has no `G10 L1`) with a single "Save tool
-      table" button that writes only changed tools, but it is not yet wired
-      into probing (the "with tool" selector / `G43 Hn` tool-length feed is
-      still missing).
+      now has a tool table (optional via App Settings and shown only when the
+      controller supports it — classic grbl 1.1 has no `G10 L1`, so it is
+      hidden entirely, not grayed out) with a single "Save tools" button that
+      writes only changed tools, but it is not yet wired into probing (the
+      "with tool" selector / `G43 Hn` tool-length feed is still missing). The
+      editor offers only the coordinate systems the firmware supports (classic
+      grbl: G54–G59 only — G59.x is grblHAL-only and rejected with error 29 on
+      classic forks) and disables itself while the controller is in Alarm.
 - [x] **Work parameters** — implemented as a SenderNG flyout rather than
       ioSender's right-panel group. It displays the active G54–G59/G59.x selector,
       parsed controller work-coordinate/tool-table snapshots, tool selection,

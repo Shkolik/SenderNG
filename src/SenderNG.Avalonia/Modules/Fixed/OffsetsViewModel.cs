@@ -141,6 +141,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     private string _selectedOffset = "G54";
     private string _status = string.Empty;
     private bool _saving;
+    private bool _isAlarm;
 
     public OffsetsViewModel(IGrblService grbl, SettingsService settingsService)
     {
@@ -191,6 +192,20 @@ public sealed class OffsetsViewModel : ViewModelBase
     /// the HAL flag and reported tool slots are required.</summary>
     public bool ControllerSupportsToolTable =>
         _grbl.Capabilities.IsGrblHAL && _grbl.Capabilities.NumTools > 0;
+
+    /// <summary>The tool table is shown only when the user enabled it in App
+    /// Settings AND the controller can persist one — no grayed-out placeholder on
+    /// controllers without G10 L1.</summary>
+    public bool ShowToolTableSection => Config.ShowToolTable && ControllerSupportsToolTable;
+
+    /// <summary>Coordinate systems the connected controller can actually write
+    /// (classic grbl 1.1 offers only G54..G59; G59.x is grblHAL-only).</summary>
+    public IReadOnlyList<string> SupportedSystems =>
+        WorkParameters.SupportedSystems(_grbl.Capabilities.IsGrblHAL);
+
+    /// <summary>Editor usable state: while the controller is in Alarm, grbl rejects
+    /// every offset/tool write, so the editor disables itself.</summary>
+    public bool IsReady => !_isAlarm;
 
     public bool ShowToolTable
     {
@@ -281,6 +296,12 @@ public sealed class OffsetsViewModel : ViewModelBase
         if (state is null)
             return;
         _lastState = state;
+        var alarm = state.Status?.Contains("Alarm", StringComparison.OrdinalIgnoreCase) == true;
+        if (alarm != _isAlarm)
+        {
+            _isAlarm = alarm;
+            OnPropertyChanged(nameof(IsReady));
+        }
     }
 
     public void Refresh()
@@ -314,6 +335,7 @@ public sealed class OffsetsViewModel : ViewModelBase
 
     private void GetCurrentPosition()
     {
+        if (!IsReady) { Status = "Controller is in alarm — unlock or home first"; return; }
         var row = SelectedRow;
         if (row is null) return;
         var positions = _lastState.Positions ?? [];
@@ -323,6 +345,7 @@ public sealed class OffsetsViewModel : ViewModelBase
 
     private void ClearAll()
     {
+        if (!IsReady) { Status = "Controller is in alarm — unlock or home first"; return; }
         foreach (var row in Rows)
             for (var i = 0; i < row.Values.Count; i++) row.SetValueAt(i, "0.000");
         Status = "All offsets cleared in editor; press Set all to write them";
@@ -332,6 +355,7 @@ public sealed class OffsetsViewModel : ViewModelBase
 
     private async Task SetAllCoreAsync()
     {
+        if (!IsReady) { Status = "Controller is in alarm — unlock or home first"; return; }
         // Build every command up front. Commands are read from the user-edited rows,
         // which the engine's live publications must not be allowed to overwrite in
         // between sends — otherwise the earlier writes re-render the rows from the
@@ -377,6 +401,7 @@ public sealed class OffsetsViewModel : ViewModelBase
 
     private async Task SaveToolTableCoreAsync()
     {
+        if (!IsReady) { Status = "Controller is in alarm — unlock or home first"; return; }
         if (!ControllerSupportsToolTable)
         {
             Status = "This controller has no G10 L1 tool table (classic grbl 1.1)";
@@ -447,11 +472,19 @@ public sealed class OffsetsViewModel : ViewModelBase
     private void BuildRows(WorkParameters parameters)
     {
         Rows.Clear();
-        foreach (var item in parameters.CoordinateSystems.Where(x => WorkParameters.IsG10Writable(x.Code)))
-            Rows.Add(new EditableOffsetRow(item.Code, _axisCount));
-        if (Rows.Count == 0)
-            foreach (var code in WorkParameters.CoordinateSystemCodes)
-                Rows.Add(new EditableOffsetRow(code, _axisCount));
+        // Offer exactly what the controller reports, clamped to the systems the
+        // firmware actually supports (classic grbl: G54..G59 only). Never fabricate
+        // rows the board rejects — a failed save of an unsupported system is what
+        // produced error 29 / the vanishing G59.x rows on the mega5x fork.
+        var reported = parameters.CoordinateSystems
+            .Where(x => WorkParameters.IsG10Writable(x.Code) && SupportedSystems.Contains(x.Code))
+            .Select(x => x.Code)
+            .Distinct()
+            .OrderBy(WorkParameters.CoordinateSystemNumber)
+            .ToList();
+        var codes = reported.Count > 0 ? reported : SupportedSystems.ToList();
+        foreach (var code in codes)
+            Rows.Add(new EditableOffsetRow(code, _axisCount));
         Tools.Clear(); foreach (var item in parameters.Tools) Tools.Add(new EditableToolRow(item.Id, _axisCount));
         if (Tools.Count == 0) Tools.Add(new EditableToolRow(0, _axisCount));
         if (SelectedRow is null) SelectedOffset = Rows[0].Code;

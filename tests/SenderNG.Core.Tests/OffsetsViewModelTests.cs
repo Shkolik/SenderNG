@@ -197,6 +197,8 @@ public sealed class OffsetsViewModelTests
         var grbl = new ClassicGrblStub();
         var vm = new OffsetsViewModel(grbl, MakeSettings());
         Assert.False(vm.ControllerSupportsToolTable);
+        // No grayed-out placeholder: the whole section hides unless supported AND enabled.
+        Assert.False(vm.ShowToolTableSection);
 
         // A classic fork that reports tool slots (mega5x 1.2i) still can't write
         // the table via G10 L1 -> unsupported.
@@ -209,16 +211,76 @@ public sealed class OffsetsViewModelTests
         });
         var forkVm = new OffsetsViewModel(fork, MakeSettings());
         Assert.False(forkVm.ControllerSupportsToolTable);
+        Assert.False(forkVm.ShowToolTableSection);
     }
 
-    /// <summary>Minimal IGrblService double exposing configurable capabilities.</summary>
+    [Fact]
+    public void Demo_shows_tool_table_section_when_enabled()
+    {
+        using var service = new DemoGrblService(new AppSettings());
+        service.ConnectAsync("demo").GetAwaiter().GetResult();
+        var vm = new OffsetsViewModel(service, MakeSettings());
+
+        Assert.True(vm.ControllerSupportsToolTable);
+        Assert.True(vm.ShowToolTableSection);
+
+        // User preference hides the whole section.
+        vm.ShowToolTable = false;
+        Assert.False(vm.ShowToolTableSection);
+    }
+
+    [Fact]
+    public void Editor_offers_only_supported_systems_on_classic_grbl()
+    {
+        // Classic grbl 1.1h reports G54..G59 only and has no G59.x — offering rows
+        // for G59.1/2/3 would produce error 29 on save (mega5x 1.2i).
+        var grbl = new ClassicGrblStub(
+            new ControllerCapabilities { IsKnown = true, IsGrblHAL = false, NumAxes = 5 });
+        var vm = new OffsetsViewModel(grbl, MakeSettings());
+
+        Assert.Equal(6, vm.Rows.Count);
+        Assert.DoesNotContain(vm.Rows, row => row.Code.StartsWith("G59."));
+        Assert.Equal(["G54", "G55", "G56", "G57", "G58", "G59"], vm.Rows.Select(r => r.Code));
+        Assert.Equal(6, vm.OffsetCodes.Count);
+    }
+
+    [Fact]
+    public async Task Alarm_state_disables_editor_writes()
+    {
+        var grbl = new ClassicGrblStub();
+        var vm = new OffsetsViewModel(grbl, MakeSettings());
+        Assert.True(vm.IsReady);
+
+        grbl.Push(new MachineState(3) { Status = "Alarm" });
+
+        Assert.False(vm.IsReady);
+        vm.SetAllCommand.Execute(null);
+        await Task.Delay(100);
+        Assert.Contains("alarm", vm.Status, StringComparison.OrdinalIgnoreCase);
+
+        // Leaving alarm re-enables the editor.
+        grbl.Push(new MachineState(3) { Status = "Idle" });
+        Assert.True(vm.IsReady);
+    }
+
+    /// <summary>Minimal IGrblService double exposing configurable capabilities.
+    /// Defaults to classic grbl (no HAL) with the classic $# system set.
+    /// </summary>
     private sealed class ClassicGrblStub : IGrblService
     {
         private readonly System.Reactive.Subjects.BehaviorSubject<MachineState> _subject = new(new MachineState(3));
-        public ClassicGrblStub(ControllerCapabilities? caps = null) => Capabilities = caps ?? new ControllerCapabilities { IsKnown = true, IsGrblHAL = false };
+        public ClassicGrblStub(ControllerCapabilities? caps = null)
+        {
+            Capabilities = caps ?? new ControllerCapabilities { IsKnown = true, IsGrblHAL = false };
+            WorkParameters = WorkParameters.Parse(
+                ["[G54:0,0,0]", "[G55:0,0,0]", "[G56:0,0,0]", "[G57:0,0,0]", "[G58:0,0,0]", "[G59:0,0,0]"],
+                Capabilities.NumAxes, Capabilities.NumTools);
+        }
         public bool IsConnected => true;
         public ControllerCapabilities Capabilities { get; }
+        public WorkParameters WorkParameters { get; }
         public IObservable<MachineState> State => _subject;
+        public void Push(MachineState state) => _subject.OnNext(state);
         public Task ConnectAsync(string port) => Task.CompletedTask;
         public void Disconnect() { }
         public void SendRealtime(byte code) { }

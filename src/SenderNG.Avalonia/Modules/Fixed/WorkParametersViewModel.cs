@@ -64,7 +64,10 @@ public sealed class WorkParametersViewModel : ViewModelBase
     public ObservableCollection<WorkCoordinateRow> CoordinateSystems { get; } = new();
     public ObservableCollection<ToolRow> Tools { get; } = new();
 
-    public IReadOnlyList<string> CoordinateSystemCodes { get; } = WorkParameters.CoordinateSystemCodes;
+    // Only offer systems the connected controller supports (classic grbl 1.1 has
+    // no G59.x — selecting one would be rejected with error 29).
+    public IReadOnlyList<string> CoordinateSystemCodes =>
+        WorkParameters.SupportedSystems(_grbl.Capabilities.IsGrblHAL);
 
     public string SelectedCoordinateSystem
     {

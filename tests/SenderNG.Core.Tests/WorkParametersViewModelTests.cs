@@ -1,4 +1,5 @@
 using System.Reactive.Linq;
+using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Avalonia.Modules.Fixed;
 
@@ -69,5 +70,36 @@ public sealed class WorkParametersTests
         Assert.Equal(3, grbl.WorkParameters.ActiveTool);
         Assert.Equal("G55", vm.SelectedCoordinateSystem);
         Assert.Equal(3, vm.SelectedTool);
+    }
+
+    [Fact]
+    public void Classic_grbl_selector_omits_unsupported_g59x()
+    {
+        // Classic grbl 1.1 rejects G59.1/2/3 (error 29) — never offer them.
+        var grbl = new CapsStub(new ControllerCapabilities { IsKnown = true, IsGrblHAL = false });
+        var vm = new WorkParametersViewModel(grbl);
+
+        Assert.Equal(["G54", "G55", "G56", "G57", "G58", "G59"], vm.CoordinateSystemCodes);
+    }
+
+    [Fact]
+    public void GrblHal_selector_offers_all_nine_systems()
+    {
+        var grbl = new CapsStub(ControllerCapabilities.Full);
+        var vm = new WorkParametersViewModel(grbl);
+
+        Assert.Equal(9, vm.CoordinateSystemCodes.Count);
+        Assert.Contains("G59.3", vm.CoordinateSystemCodes);
+    }
+
+    private sealed class CapsStub(ControllerCapabilities caps) : IGrblService
+    {
+        public bool IsConnected => true;
+        public ControllerCapabilities Capabilities => caps;
+        public IObservable<MachineState> State => Observable.Never<MachineState>();
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public void SendRealtime(byte code) { }
+        public Task SendAsync(string line) => Task.CompletedTask;
     }
 }

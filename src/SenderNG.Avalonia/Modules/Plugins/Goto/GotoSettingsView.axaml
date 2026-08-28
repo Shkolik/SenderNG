@@ -3,20 +3,16 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
-             mc:Ignorable="d" d:DesignWidth="130" d:DesignHeight="60"
+             mc:Ignorable="d" d:DesignWidth="150" d:DesignHeight="60"
              x:Class="SenderNG.Avalonia.Modules.Plugins.GotoSettingsView"
              x:DataType="vm:GotoViewModel">
     <StackPanel Spacing="4">
-        <StackPanel Spacing="4">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-                <TextBlock Text="Goto axis count" FontSize="10" VerticalAlignment="Center" />
-                <ComboBox ItemsSource="{Binding AxisChoices}" SelectedItem="{Binding SelectedAxisCount}"
-                          Width="52" Height="24" CornerRadius="0" />
-                <TextBlock Text="/ available" FontSize="10" VerticalAlignment="Center" Foreground="#777" />
-                <TextBlock Text="{Binding AvailableAxisCount}" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" />
-            </StackPanel>
-            <TextBlock Text="Capped by the connected controller's axis count."
-                       FontSize="9" Foreground="#999" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="Goto axis count" FontSize="10" VerticalAlignment="Center" />
+            <ComboBox ItemsSource="{Binding AxisChoices}" SelectedItem="{Binding SelectedAxisCount}"
+                      CornerRadius="0" Height="28" MinWidth="64" />
         </StackPanel>
+        <TextBlock Text="Capped by the connected controller's axis count."
+                   FontSize="9" Foreground="#999" TextWrapping="Wrap" />
     </StackPanel>
 </UserControl>
