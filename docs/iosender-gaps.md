@@ -83,7 +83,7 @@ Many already exist; the gaps are listed per widget.
       Console tab is realized lazily after connecting. The connect dialog also
       auto-re-enumerates serial ports every second, so plugging in a controller
       revives the otherwise-grayed Serial tab without a manual refresh.
-- [x] Offsets (`Modules/Plugins/Offsets` flyout) — controller-backed
+- [x] Offsets (`Modules/Fixed/Offsets` flyout) — controller-backed
       coordinate/tool-table editor: live snapshot updates, G54–G59 G10 write-back,
       and $# readback after writes (verified against a bench grbl 1.1h board).
 - [x] Grbl settings (`Modules/Fixed/GrblSettings`) — `$$` view/edit.
@@ -107,7 +107,7 @@ Many already exist; the gaps are listed per widget.
       ioSender's right-panel group. It displays the active G54–G59/G59.x selector,
       parsed controller work-coordinate/tool-table snapshots, tool selection,
       TLO/TLO-reference indicators, refresh, and tool-change state. Editable
-      offset/tool-table write-back lives in the `Plugins/Offsets` flyout
+      offset/tool-table write-back lives in the `Fixed/Offsets` flyout
       (G10 write + $# readback), not here.
 - [ ] **File actions** (`FileActionControl`) — Load / Save / Close / Run from a
       toolbar; SenderNG has Open (menu + toolbar) and program send in the
@@ -196,7 +196,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | SpindleControl + FeedControl + OverrideControl | `Plugins/Cutting` | done |
 | JobControl / GCodeListControl | `Fixed/Program` | done |
 | ConsoleControl | `Fixed/Console` | done |
-| OffsetView | `Plugins/Offsets` flyout | done (G10 write + readback) |
+| OffsetView | `Fixed/Offsets` flyout | done (G10 write + readback) |
 | GrblConfigView | `Fixed/GrblSettings` | done |
 | AppConfigView | `Fixed/AppSettings` | done |
 | MDIControl | MDI row (`MainWindow`) | done |
@@ -206,7 +206,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | ProbingView + 6 tool controls | `Plugins/Probing` | done (flyout) — see `probing-gaps.md` |
 | GotoControl / GotoFlyoutControl | — | **missing** (P1) |
 | ToolView | — | **missing** (P1) |
-| WorkParametersControl | `Plugins/WorkParameters` flyout | done (read/select; editable write-back in `Plugins/Offsets`) |
+| WorkParametersControl | `Fixed/WorkParameters` flyout | done (read/select; editable write-back in `Fixed/Offsets`) |
 | FileActionControl | Open only | partial (P1) |
 | StepperCalibrationWizard | — | **missing** (P3) |
 | GCodeViewer / RenderControl | — | **missing** (P2) |

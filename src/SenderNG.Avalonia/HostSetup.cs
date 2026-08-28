@@ -49,11 +49,12 @@ public static class HostSetup
         RegisterModule(builder.Services, new Modules.Fixed.DroModule());
         // The compact selector is WorkParameters; the editable offsets/tool table
         // is a separate flyout, matching ioSender's two distinct widgets.
-        RegisterModule(builder.Services, new Modules.Plugins.OffsetsModule());
+        RegisterModule(builder.Services, new Modules.Fixed.OffsetsModule());
         RegisterModule(builder.Services, new Modules.Fixed.ProgramModule());
         RegisterModule(builder.Services, new Modules.Fixed.ConsoleModule());
         RegisterModule(builder.Services, new Modules.Fixed.GrblSettingsModule());
         RegisterModule(builder.Services, new Modules.Fixed.AppSettingsModule());
+        RegisterModule(builder.Services, new Modules.Fixed.WorkParametersModule());
 
         // Plugin modules (jog / cutting / coolant / macro / mpos / outline).
         RegisterModule(builder.Services, new Modules.Plugins.JogModule());
@@ -61,7 +62,6 @@ public static class HostSetup
         RegisterModule(builder.Services, new Modules.Plugins.CoolantModule());
         RegisterModule(builder.Services, new Modules.Plugins.MacroModule());
         RegisterModule(builder.Services, new Modules.Plugins.ProbingModule());
-        RegisterModule(builder.Services, new Modules.Plugins.WorkParametersModule());
         RegisterModule(builder.Services, new Modules.Plugins.MposModule());
         RegisterModule(builder.Services, new Modules.Plugins.OutlineModule());
 

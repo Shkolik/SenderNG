@@ -35,8 +35,8 @@ public class ModulePanelTests
         Assert.Equal(PanelHint.Center, new ConsoleModule().Panel);
         Assert.Equal(21, new ConsoleModule().Order);
 
-        Assert.Equal(PanelHint.Flyout, new SenderNG.Avalonia.Modules.Plugins.OffsetsModule().Panel);
-        Assert.Equal(30, new SenderNG.Avalonia.Modules.Plugins.OffsetsModule().Order);
+        Assert.Equal(PanelHint.Flyout, new SenderNG.Avalonia.Modules.Fixed.OffsetsModule().Panel);
+        Assert.Equal(30, new SenderNG.Avalonia.Modules.Fixed.OffsetsModule().Order);
 
         // First menu-claiming module: opens as a modal dialog from Settings.
         Assert.Equal(PanelHint.Menu, new GrblSettingsModule().Panel);

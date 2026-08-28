@@ -1,6 +1,6 @@
 using System.Reactive.Linq;
 using CNC.Core.Services;
-using SenderNG.Avalonia.Modules.Plugins;
+using SenderNG.Avalonia.Modules.Fixed;
 
 namespace SenderNG.Core.Tests;
 

@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 
-namespace SenderNG.Avalonia.Modules.Plugins;
+namespace SenderNG.Avalonia.Modules.Fixed;
 
 public partial class WorkParametersView : UserControl
 {

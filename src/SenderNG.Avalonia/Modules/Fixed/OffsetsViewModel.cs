@@ -5,7 +5,31 @@ using CNC.Core.Services;
 using SenderNG.Avalonia.ViewModels;
 using SenderNG.Core.Commands;
 
-namespace SenderNG.Avalonia.Modules.Plugins;
+namespace SenderNG.Avalonia.Modules.Fixed;
+
+/// <summary>
+/// Bindable table cell that proxies to a row's string store and re-raises when
+/// the row is updated programmatically (Get current position, Clear all, board
+/// readback), so TextBox bindings in the view stay live.
+/// </summary>
+public sealed class OffsetCellViewModel : ViewModelBase
+{
+    private readonly Func<string> _getValue;
+    private readonly Action<string> _setValue;
+
+    public OffsetCellViewModel(Func<string> getValue, Action<string> setValue, Action<EventHandler> subscribeChanged)
+    {
+        _getValue = getValue;
+        _setValue = setValue;
+        subscribeChanged((_, _) => OnPropertyChanged(nameof(Value)));
+    }
+
+    public string Value
+    {
+        get => _getValue();
+        set => _setValue(value);
+    }
+}
 
 public sealed class EditableOffsetRow : ViewModelBase
 {
@@ -13,11 +37,20 @@ public sealed class EditableOffsetRow : ViewModelBase
     {
         Code = code;
         Values = new ObservableCollection<string>(Enumerable.Repeat("0.000", axisCount));
+        for (var i = 0; i < axisCount; i++)
+        {
+            var index = i;
+            Cells.Add(new OffsetCellViewModel(
+                () => GetValueAt(index),
+                value => SetValueAt(index, value),
+                handler => ValuesChanged += handler));
+        }
     }
 
     public string Code { get; }
     public string DisplayName => Code;
     public ObservableCollection<string> Values { get; }
+    public ObservableCollection<OffsetCellViewModel> Cells { get; } = new();
     public string X { get => GetValueAt(0); set => SetValueAt(0, value); }
     public string Y { get => GetValueAt(1); set => SetValueAt(1, value); }
     public string Z { get => GetValueAt(2); set => SetValueAt(2, value); }
@@ -42,18 +75,33 @@ public sealed class EditableOffsetRow : ViewModelBase
 
 public sealed class EditableToolRow : ViewModelBase
 {
+    private string _radius = "0.000";
+
     public EditableToolRow(int id, int axisCount)
     {
         Id = id;
         Offsets = new ObservableCollection<string>(Enumerable.Repeat("0.000", axisCount));
         Radius = "0.000";
+        for (var i = 0; i < axisCount; i++)
+        {
+            var index = i;
+            Cells.Add(new OffsetCellViewModel(
+                () => GetOffsetAt(index),
+                value => SetOffsetAt(index, value),
+                handler => ValuesChanged += handler));
+        }
     }
 
     public int Id { get; }
     public string DisplayName => Id == 0 ? "None" : $"T{Id}";
     public ObservableCollection<string> Offsets { get; }
+    public ObservableCollection<OffsetCellViewModel> Cells { get; } = new();
     public event EventHandler? ValuesChanged;
-    public string Radius { get; set; }
+    public string Radius
+    {
+        get => _radius;
+        set => SetField(ref _radius, value);
+    }
     public string GetOffsetAt(int index) => index >= 0 && index < Offsets.Count ? Offsets[index] : string.Empty;
     public void SetOffsetAt(int index, string value)
     {

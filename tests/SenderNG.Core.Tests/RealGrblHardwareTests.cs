@@ -501,7 +501,7 @@ public class RealGrblHardwareTests
             // exchange itself is healthy.
             await service.SendAsync("$X");
 
-            var vm = new SenderNG.Avalonia.Modules.Plugins.OffsetsViewModel(service);
+            var vm = new SenderNG.Avalonia.Modules.Fixed.OffsetsViewModel(service);
             var codes = new[] { "G54", "G55", "G56", "G57", "G58", "G59" };
             var rows = codes.Select(code => Assert.Single(vm.Rows, row => row.Code == code)).ToArray();
             var original = rows.ToDictionary(row => row.Code, row => row.Values.ToArray());

@@ -4,7 +4,7 @@ using CNC.Core.Services;
 using SenderNG.Avalonia.ViewModels;
 using SenderNG.Core.Commands;
 
-namespace SenderNG.Avalonia.Modules.Plugins;
+namespace SenderNG.Avalonia.Modules.Fixed;
 
 public sealed class WorkCoordinateRow : ViewModelBase
 {

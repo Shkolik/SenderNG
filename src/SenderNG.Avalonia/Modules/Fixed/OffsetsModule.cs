@@ -3,7 +3,7 @@ using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Modules;
 
-namespace SenderNG.Avalonia.Modules.Plugins;
+namespace SenderNG.Avalonia.Modules.Fixed;
 
 public sealed class OffsetsModule : IModule
 {

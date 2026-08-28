@@ -1,5 +1,5 @@
 using CNC.Core.Services;
-using SenderNG.Avalonia.Modules.Plugins;
+using SenderNG.Avalonia.Modules.Fixed;
 
 namespace SenderNG.Core.Tests;
 
@@ -69,6 +69,38 @@ public sealed class OffsetsViewModelTests
 
         Assert.Equal("7.5", row.GetValueAt(0));
         Assert.Equal("4.25", row.GetValueAt(1));
+    }
+
+    [Fact]
+    public void Offset_row_cells_proxy_to_values_both_ways()
+    {
+        // MVVM plumbing: the view binds TextBoxes to the cell's Value; the cell
+        // must read from and write to the row's string store, and re-raise when
+        // the row is updated programmatically (Get current position / readback).
+        var row = new EditableOffsetRow("G54", 3);
+
+        Assert.Equal(3, row.Cells.Count);
+        Assert.Equal("0.000", row.Cells[0].Value);
+
+        // Typing through the cell writes the row store.
+        row.Cells[1].Value = "5.5";
+        Assert.Equal("5.5", row.Values[1]);
+
+        // A programmatic row update is visible through the cell (raises Value).
+        row.SetValueAt(0, "12.5");
+        Assert.Equal("12.5", row.Cells[0].Value);
+    }
+
+    [Fact]
+    public void Tool_row_cells_and_radius_are_bindable()
+    {
+        var tool = new EditableToolRow(3, 3);
+
+        tool.Cells[2].Value = "10.0";
+        Assert.Equal("10.0", tool.Offsets[2]);
+
+        tool.Radius = "4.5";
+        Assert.Equal("4.5", tool.Radius);
     }
 
     [Fact]
