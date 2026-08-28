@@ -55,7 +55,7 @@ namespace SenderNG.Avalonia.Modules.Fixed;
 /// </summary>
 public sealed class GrblSettingGroupItem : ViewModelBase
 {
-    private bool _isExpanded = true;
+    private bool _isExpanded; // groups start collapsed (search auto-expands matches)
 
     public string Name { get; }
     public ObservableCollection<object> Children { get; } = new();
