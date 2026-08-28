@@ -72,6 +72,13 @@ public static class StatusReportParser
         var fields = line[1..^1].Split('|');
         state.Status = fields[0];
 
+        // An alarm always means the machine needs (re-)homing: the reported
+        // homed state is lost regardless of whether the alarm is then cleared
+        // with $X (unlock without homing). Classic grbl's status report has no
+        // explicit homed flag, so the alarm transition is the honest signal.
+        if (fields[0].Equals("Alarm", StringComparison.OrdinalIgnoreCase))
+            state.IsHomed = false;
+
         // Each status report fully describes the current pin/switch state, so the
         // accumulated signal flags are rebuilt from this report (Pn:/A:) rather than
         // OR-ed onto whatever tripped earlier. This keeps the signal LEDs live: a

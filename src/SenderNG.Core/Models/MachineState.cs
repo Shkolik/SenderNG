@@ -51,6 +51,11 @@ public class MachineState
     public double[]? ProbePosition { get; set; }
     public bool ProbeSuccess { get; set; }
 
+    // Homing state. Classic grbl's status report carries no homed flag, so this
+    // is derived: true after a completed $H (demo + real services), false on any
+    // Alarm report (an alarm always requires homing) or a soft reset.
+    public bool IsHomed { get; set; }
+
     public MachineState()
     {
         MachinePositions = new double[Positions.Length];

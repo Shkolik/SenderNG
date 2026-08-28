@@ -175,6 +175,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 case GrblRealtime.Reset:
                     // Soft reset returns to Idle and loses position (until re-homed).
                     state.Status = "Idle";
+                    state.IsHomed = false;
                     for (var i = 0; i < state.Positions.Length; i++)
                         state.Positions[i] = 0;
                     if (state.MachinePositions is not null)
@@ -340,6 +341,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 // coordinates return to zero; work = machine - offset stays
                 // shifted by any active G92 offset (as on a real controller).
                 state.Status = "Idle";
+                state.IsHomed = true;
                 EnsureMachinePositions(state);
                 for (var i = 0; i < state.MachinePositions.Length; i++)
                 {
@@ -464,6 +466,26 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                         break;
                     case "53":
                         g53 = true; // G53 forces absolute machine coordinates.
+                        break;
+                    case "28":
+                    case "30":
+                        // G28/G30 move to the stored reference position, which the
+                        // demo keeps at machine zero (as after $H). Axes moved
+                        // immediately: work position follows the machine shift.
+                        if (state.MachinePositions is null)
+                            EnsureMachinePositions(state);
+                        for (var i = 0; i < state.MachinePositions.Length; i++)
+                        {
+                            state.MachinePositions[i] = 0;
+                            if (i < state.Positions.Length)
+                                state.Positions[i] = -_workOffset[i];
+                        }
+                        break;
+                    case "28.1":
+                    case "30.1":
+                        // Record current position as the reference point. The demo
+                        // home is fixed at machine zero, so this is a no-op that
+                        // keeps the command flow working.
                         break;
                     // G0/G1/other G-words: motion mode only, no position effect here.
                 }

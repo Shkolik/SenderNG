@@ -56,7 +56,8 @@ public static class HostSetup
         RegisterModule(builder.Services, new Modules.Fixed.AppSettingsModule());
         RegisterModule(builder.Services, new Modules.Fixed.WorkParametersModule());
 
-        // Plugin modules (jog / cutting / coolant / macro / mpos / outline).
+        // Plugin modules (jog / cutting / coolant / macro / mpos / outline / goto).
+        RegisterModule(builder.Services, new Modules.Plugins.GotoModule());
         RegisterModule(builder.Services, new Modules.Plugins.JogModule());
         RegisterModule(builder.Services, new Modules.Plugins.CuttingModule());
         RegisterModule(builder.Services, new Modules.Plugins.CoolantModule());

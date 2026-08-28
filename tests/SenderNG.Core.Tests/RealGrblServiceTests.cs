@@ -117,6 +117,27 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    public async Task Completed_homing_marks_state_homed_and_alarm_clears_it()
+    {
+        var transport = new FakeGrblTransport();
+        using var svc = new RealGrblService(transport);
+        MachineState? latest = null;
+        svc.State.Subscribe(s => latest = s);
+
+        await svc.ConnectAsync("fake");
+        Assert.False(latest!.IsHomed);
+
+        // $H completes when grbl replies "ok" (the board only answers after the
+        // homing cycle finishes) — the service then marks the machine homed.
+        await svc.SendAsync("$H");
+        Assert.True(latest!.IsHomed);
+
+        // Any alarm report means the machine needs (re-)homing again.
+        transport.Enqueue("<Alarm|MPos:0,0,0>");
+        await WaitUntil(() => latest?.IsHomed == false);
+    }
+
+    [Fact]
     public async Task Connect_queries_work_parameters_and_publishes_dump_to_raw_stream()
     {
         // ioSender's connect sequence runs $# (NGC work parameters) after $I so
@@ -137,9 +158,10 @@ public class RealGrblServiceTests
         // it lands on the raw stream for the console.
         transport.Enqueue("[G54:0.000,0.000,0.000]");
         transport.Enqueue("[G92:0.000,0.000,0.000]");
-        await WaitUntil(() => raw.Contains("[G54:0.000,0.000,0.000]"));
-
-        Assert.Contains(raw, l => l == "[G92:0.000,0.000,0.000]");
+        // Wait for BOTH dump lines: the consumer publishes lines one at a time, so
+        // waiting only on the first can race the second into the raw stream.
+        await WaitUntil(() => raw.Contains("[G54:0.000,0.000,0.000]") &&
+                             raw.Contains("[G92:0.000,0.000,0.000]"));
     }
 
     [Fact]

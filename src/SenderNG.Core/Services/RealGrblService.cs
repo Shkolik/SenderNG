@@ -448,6 +448,21 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             _ = RefreshWorkParametersAfterErrorAsync();
             throw new InvalidOperationException($"Controller rejected '{line}': {reply}");
         }
+
+        // A completed $H means the machine is homed (grbl answers only after the
+        // homing cycle finishes). No status-report field carries this on classic
+        // grbl, so track it here; any later Alarm report clears it again.
+        if (line.Trim().Equals("$H", StringComparison.OrdinalIgnoreCase))
+        {
+            lock (_gate)
+            {
+                if (!_subject.Value.IsHomed)
+                {
+                    _subject.Value.IsHomed = true;
+                    _subject.OnNext(CloneOf(_subject.Value));
+                }
+            }
+        }
     }
 
     private Task RefreshWorkParametersAfterErrorAsync() =>
@@ -669,6 +684,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             RapidOvr = src.RapidOvr,
             SpindleOvr = src.SpindleOvr,
             ProbeSuccess = src.ProbeSuccess,
+            IsHomed = src.IsHomed,
         };
         Array.Copy(src.Positions, copy.Positions, Math.Min(src.Positions.Length, copy.Positions.Length));
         copy.MachinePositions = src.MachinePositions is null

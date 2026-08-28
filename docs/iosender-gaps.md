@@ -97,8 +97,10 @@ Many already exist; the gaps are listed per widget.
 
 ### Missing widgets (port from ioSender `CNC Controls`)
 
-- [ ] **Goto widget** (`GotoControl`/`GotoFlyoutControl`) — G28/G30 "goto
-      position" buttons + numeric X/Y/Z + Go, gated on homed state.
+- [x] **Goto widget** (`GotoControl`/`GotoFlyoutControl`) — implemented as the
+      `Plugins/Goto` flyout: G28/G30 "goto position" buttons, G28.1/G30.1
+      record-reference-point buttons, numeric X/Y/Z + Go (`G53 G0`), gated on
+      homed state (tracked via completed `$H`; cleared on alarm/soft reset).
 - [ ] **Tool table → probing integration** (`ToolView`) — the Offsets flyout
       now has a tool table with per-tool save (`G10 L1 Pn`), but it is not yet
       wired into probing (the "with tool" selector / `G43 Hn` tool-length feed
@@ -204,7 +206,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | LimitsControl | Program limits panel | done |
 | MacroEditor / MacroExecuteControl | `Plugins/Macro` | done (flyout) |
 | ProbingView + 6 tool controls | `Plugins/Probing` | done (flyout) — see `probing-gaps.md` |
-| GotoControl / GotoFlyoutControl | — | **missing** (P1) |
+| GotoControl / GotoFlyoutControl | `Plugins/Goto` | done (flyout, homed-gated) |
 | ToolView | — | **missing** (P1) |
 | WorkParametersControl | `Fixed/WorkParameters` flyout | done (read/select; editable write-back in `Fixed/Offsets`) |
 | FileActionControl | Open only | partial (P1) |

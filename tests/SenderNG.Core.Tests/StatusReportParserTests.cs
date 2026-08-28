@@ -29,6 +29,24 @@ public class StatusReportParserTests
         Assert.Equal("Run", state.Status);
     }
 
+    [Fact]
+    public void Alarm_report_clears_homed_state()
+    {
+        var state = NewState();
+        state.IsHomed = true;
+        StatusReportParser.Parse("<Alarm|MPos:0,0,0>", state);
+        Assert.False(state.IsHomed);
+    }
+
+    [Fact]
+    public void Non_alarm_report_keeps_homed_state()
+    {
+        var state = NewState();
+        state.IsHomed = true;
+        StatusReportParser.Parse("<Idle|WPos:1,2,3>", state);
+        Assert.True(state.IsHomed);
+    }
+
     [Theory]
     [InlineData("<Idle|WPos:1.0,2.0,5.5>", 0, 1.0)]
     [InlineData("<Idle|WPos:10,20,30>", 1, 20.0)]

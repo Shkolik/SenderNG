@@ -1,0 +1,39 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             mc:Ignorable="d" d:DesignWidth="320" d:DesignHeight="220"
+             x:Class="SenderNG.Avalonia.Modules.Plugins.GotoView"
+             x:DataType="vm:GotoViewModel">
+    <ScrollViewer>
+        <StackPanel Margin="8" Spacing="6">
+            <TextBlock Text="Reference points" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="4">
+                <Button Content="G28 · Home" Command="{Binding GotoHomeCommand}"
+                        IsEnabled="{Binding IsHomed}" CornerRadius="0" />
+                <Button Grid.Column="1" Content="G30 · Ref. 2" Command="{Binding GotoG30Command}"
+                        IsEnabled="{Binding IsHomed}" CornerRadius="0" />
+            </Grid>
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="4">
+                <Button Content="Set home (G28.1)" Command="{Binding SetHomeCommand}"
+                        IsEnabled="{Binding IsHomed}" CornerRadius="0" />
+                <Button Grid.Column="1" Content="Set ref. 2 (G30.1)" Command="{Binding SetG30Command}"
+                        IsEnabled="{Binding IsHomed}" CornerRadius="0" />
+            </Grid>
+
+            <Separator Margin="0,2" />
+
+            <TextBlock Text="Goto position (machine coords)" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,*,*,Auto" ColumnSpacing="4">
+                <TextBox Text="{Binding X, Mode=TwoWay}" Watermark="X" CornerRadius="0" />
+                <TextBox Grid.Column="1" Text="{Binding Y, Mode=TwoWay}" Watermark="Y" CornerRadius="0" />
+                <TextBox Grid.Column="2" Text="{Binding Z, Mode=TwoWay}" Watermark="Z" CornerRadius="0" />
+                <Button Grid.Column="3" Content="Go" Command="{Binding GoCommand}"
+                        IsEnabled="{Binding IsHomed}" CornerRadius="0" />
+            </Grid>
+
+            <TextBlock Text="{Binding Status}" Foreground="#777" FontSize="11" TextWrapping="Wrap" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
