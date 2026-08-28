@@ -93,4 +93,12 @@ public class ProbeMathTests
         Assert.Equal("G92X24.5Y34.5", ProbeMath.OffsetCommand(CoordinateMode.G92, CoordinateSystem.G54, pos, "XY"));
         Assert.Equal(string.Empty, ProbeMath.OffsetCommand(CoordinateMode.Measure, CoordinateSystem.G54, pos, "XY"));
     }
+
+    [Fact]
+    public void ToolLengthTableCommand_emits_g10_l1_with_probed_z()
+    {
+        Assert.Equal("G10L1P2Z-11.5", ProbeMath.ToolLengthTableCommand(2, -11.5));
+        Assert.Equal("G10L1P0Z0", ProbeMath.ToolLengthTableCommand(0, 0));
+        Assert.Equal("G10L1P7Z1.25", ProbeMath.ToolLengthTableCommand(7, 1.25));
+    }
 }

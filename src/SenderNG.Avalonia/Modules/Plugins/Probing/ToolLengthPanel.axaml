@@ -11,6 +11,17 @@
 
         <CheckBox Content="Probe fixture @ G59.3" IsChecked="{Binding ProbeFixture}" FontSize="11" />
         <CheckBox Content="Establish reference offset" IsChecked="{Binding ReferenceToolOffset}" FontSize="11" />
+
+        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="6">
+            <TextBlock Text="with tool:" FontSize="11" Foreground="#333" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" ItemsSource="{Binding ToolChoices}"
+                      SelectedItem="{Binding SelectedToolNumber, Mode=TwoWay}"
+                      IsEnabled="{Binding HasToolTable}"
+                      FontSize="11" Width="64" Height="26" CornerRadius="0" />
+            <TextBlock Grid.Column="2" Text="store probed length into the tool table (grblHAL)"
+                       FontSize="10" Foreground="#888" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        </Grid>
+
         <CheckBox Content="Set coordinate system or offset" IsChecked="{Binding AddAction}" FontSize="11" />
 
         <StackPanel Spacing="4" IsVisible="{Binding ProbeFixture}">

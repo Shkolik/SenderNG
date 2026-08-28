@@ -116,6 +116,17 @@ public static class ProbeMath
         _ => string.Empty,
     };
 
+    /// <summary>
+    /// The controller command that stores the probed tool length <paramref name="z"/>
+    /// (mm, tip-down Z) into tool <paramref name="tool"/> of the tool table via
+    /// G10 L1 Pn. grblHAL-only: classic grbl 1.1 / 1.2i forks have no G10 L1 and
+    /// reject it with error 20, so this is only used when the controller reports a
+    /// tool table (ioSender scaffolded this but shipped it commented out — we make
+    /// it live).
+    /// </summary>
+    public static string ToolLengthTableCommand(int tool, double z) =>
+        $"G10L1P{tool}Z{Fmt(z)}";
+
     /// <summary>Invariant number formatting shared by probe UI/tests.</summary>
     public static string Fmt(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 }

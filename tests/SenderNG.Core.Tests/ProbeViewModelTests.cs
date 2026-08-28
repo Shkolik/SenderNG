@@ -35,6 +35,54 @@ public class ProbeViewModelTests : IDisposable
     }
 
     [Fact]
+    public void Tool_table_availability_reflects_controller_capabilities()
+    {
+        var demo = ConnectDemoAsync().Result;
+        var vm = new ProbeViewModel(demo, _settings);
+
+        // Demo is grblHAL Full with 4 tool slots -> tool table present.
+        Assert.True(vm.HasToolTable);
+        Assert.Equal([0, 1, 2, 3, 4], vm.ToolChoices);
+        Assert.False(vm.ProbeToolTable); // 0 selected -> dynamic offset
+
+        vm.SelectedToolNumber = 2;
+        Assert.True(vm.ProbeToolTable);
+    }
+
+    [Fact]
+    public async Task ToolLength_with_tool_stores_to_tool_table_and_applies_G43()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+        vm.SelectedToolNumber = 2;
+
+        await vm.StartAsync();
+
+        Assert.True(
+            vm.LastResult.StartsWith("Tool length offset stored to T2:", StringComparison.Ordinal),
+            $"Unexpected result: {vm.LastResult}");
+        Assert.Contains("G10L1P2Z-11.5", vm.LastResult);
+        // The demo stores the probed Z into the tool-table slot; verify the probe
+        // actually persisted it (ioSender only scaffolded this path).
+        var stored = Assert.Single(demo.WorkParameters.Tools, t => t.Id == 2);
+        Assert.Equal(-11.5, stored.Offsets[2], 3);
+    }
+
+    [Fact]
+    public async Task ToolLength_without_tool_keeps_dynamic_G43_and_never_writes_table()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+        // Default SelectedToolNumber = 0 -> dynamic G43.1, no G10 L1.
+        vm.SelectedToolNumber = 0;
+
+        await vm.StartAsync();
+
+        Assert.Contains("G43.1Z-11.5", vm.LastResult);
+        Assert.DoesNotContain("G10L1", vm.LastResult);
+    }
+
+    [Fact]
     public async Task ToolLength_with_add_offset_writes_G10()
     {
         var demo = await ConnectDemoAsync();

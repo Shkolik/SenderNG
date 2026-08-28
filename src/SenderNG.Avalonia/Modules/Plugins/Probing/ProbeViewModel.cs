@@ -333,6 +333,40 @@ public class ProbeViewModel : ViewModelBase
     private bool _referenceToolOffset = true;
     public bool ReferenceToolOffset { get => _referenceToolOffset; set => SetField(ref _referenceToolOffset, value); }
 
+    /// <summary>True when the connected controller can persist a tool table
+    /// (G10 L1 — grblHAL-only; classic grbl 1.1 / 1.2i forks reject it).</summary>
+    public bool HasToolTable =>
+        _grbl.Capabilities.IsGrblHAL && _grbl.Capabilities.NumTools > 0;
+
+    /// <summary>Tool-table slot numbers to store a probed length into (0..N,
+    /// matching the Offsets editor); 0 = apply a dynamic G43.1 offset instead.</summary>
+    public IReadOnlyList<int> ToolChoices
+    {
+        get
+        {
+            var tools = new List<int>();
+            var max = _grbl.Capabilities.IsKnown && _grbl.Capabilities.NumTools > 0 ? _grbl.Capabilities.NumTools : 0;
+            for (var i = 0; i <= max; i++)
+                tools.Add(i);
+            return tools;
+        }
+    }
+
+    private int _selectedToolNumber;
+    public int SelectedToolNumber
+    {
+        get => _selectedToolNumber;
+        set
+        {
+            if (SetField(ref _selectedToolNumber, Math.Clamp(value, 0, _grbl.Capabilities.NumTools)))
+                OnPropertyChanged(nameof(ProbeToolTable));
+        }
+    }
+
+    /// <summary>True when the probe run should store the length into the tool
+    /// table rather than apply a dynamic G43.1 offset.</summary>
+    public bool ProbeToolTable => SelectedToolNumber > 0 && HasToolTable;
+
     // Height map geometry (ioSender HeightMapViewModel defaults).
     private double _hmMinX, _hmMinY, _hmMaxX = 50, _hmMaxY = 50, _hmGridSizeX = 5, _hmGridSizeY = 5;
     private bool _hmLockXY = true, _hmAddPause, _hmSetToolOffset;
@@ -548,6 +582,19 @@ public class ProbeViewModel : ViewModelBase
             {
                 LastResult = $"Measured Z: {ProbeMath.Fmt(touch.Z)}";
             }
+        }
+        else if (ProbeToolTable)
+        {
+            // Store the probed length into the selected tool-table slot (G10 L1 Pn
+            // Z), then apply it with G43 Hn so the current job uses it. ioSender
+            // scaffolded exactly this but shipped it commented out; on a grblHAL
+            // board this persists the length so the Offsets tool table and probing
+            // share one source of truth.
+            var table = ProbeMath.ToolLengthTableCommand(SelectedToolNumber, touch.Z);
+            var apply = $"G43H{SelectedToolNumber}";
+            await _grbl.SendAsync(table);
+            await _grbl.SendAsync(apply);
+            LastResult = $"Tool length offset stored to T{SelectedToolNumber}: {table}";
         }
         else
         {

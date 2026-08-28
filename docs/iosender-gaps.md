@@ -110,12 +110,17 @@ Many already exist; the gaps are listed per widget.
       reset). The visible axis count is a persisted preference (App Settings,
       1–9) capped by the connected controller's reported axis count, so a
       4-axis preference shows 3 rows on a 3-axis controller.
-- [ ] **Tool table → probing integration** (`ToolView`) — the Offsets flyout
-      now has a tool table (optional via App Settings and shown only when the
+- [~] **Tool table → probing integration** (`ToolView`) — the Offsets flyout
+      has a tool table (optional via App Settings and shown only when the
       controller supports it — classic grbl 1.1 has no `G10 L1`, so it is
       hidden entirely, not grayed out) with a single "Save tools" button that
-      writes only changed tools, but it is not yet wired into probing (the
-      "with tool" selector / `G43 Hn` tool-length feed is still missing). The
+      writes only changed tools. The **tool-length probe** now exposes a "with
+      tool:" selector (enabled on grblHAL with tool slots) that stores the
+      probed length into the selected slot via `G10 L1 Pn Z` and applies
+      `G43 Hn`; the fallback keeps `G43.1Z<tlo>` (ioSender's active path — its
+      own tool-table write is commented out). Still missing: ioSender's full
+      `ToolView` (edit-in-place table with `R`/`I`/`J`/`Q` tool geometry) and
+      the manual probing-tool picker independent of the Offsets table. The
       editor offers only the coordinate systems the firmware supports (classic
       grbl: G54–G59 only — G59.x is grblHAL-only and rejected with error 29 on
       classic forks) and disables itself while the controller is in Alarm.
@@ -222,7 +227,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | MacroEditor / MacroExecuteControl | `Plugins/Macro` | done (flyout) |
 | ProbingView + 6 tool controls | `Plugins/Probing` | done (flyout) — see `probing-gaps.md` |
 | GotoControl / GotoFlyoutControl | `Plugins/Goto` | done (flyout, homed-gated) |
-| ToolView | — | **missing** (P1) |
+| ToolView | `Fixed/Offsets` tool table + tool-length probe "with tool" | partial (P1) — table edit + probe store live; ioSender's standalone ToolView control not ported |
 | WorkParametersControl | `Fixed/WorkParameters` flyout | done (read/select; editable write-back in `Fixed/Offsets`) |
 | FileActionControl | Open only | partial (P1) |
 | StepperCalibrationWizard | — | **missing** (P3) |
