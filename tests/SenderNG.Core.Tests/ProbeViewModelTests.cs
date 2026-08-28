@@ -1,3 +1,4 @@
+using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Avalonia.Modules.Plugins;
 using SenderNG.Core.Modules.Probing;
@@ -168,8 +169,44 @@ public class ProbeViewModelTests : IDisposable
         Assert.Equal(2, new ProbeViewModel(demo, _settings).Profiles.Count);
     }
 
+    [Fact]
+    public async Task ToolLength_with_tool_requests_work_parameter_refresh()
+    {
+        var demo = await ConnectDemoAsync();
+        var recording = new RecordingGrblService(demo);
+        var vm = new ProbeViewModel(recording, _settings);
+        vm.SelectedToolNumber = 2;
+
+        Assert.Equal(0, recording.RefreshCalls);
+        await vm.StartAsync();
+
+        // After G10 L1 Pn + G43 Hn the probe re-reads $# so the Offsets tool
+        // table / Work Parameters widgets update immediately on a real board
+        // (the demo is already live, so the publish happens via the G10 L1 path).
+        Assert.Equal(1, recording.RefreshCalls);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_dir, recursive: true); } catch { }
+    }
+
+    /// <summary>Wraps an IGrblService, counting RefreshWorkParametersAsync calls.</summary>
+    private sealed class RecordingGrblService : CNC.Core.Abstractions.IGrblService
+    {
+        private readonly IGrblService _inner;
+        public int RefreshCalls { get; private set; }
+        public RecordingGrblService(IGrblService inner) => _inner = inner;
+        public bool IsConnected => _inner.IsConnected;
+        public event EventHandler? ConnectionChanged { add => _inner.ConnectionChanged += value; remove => _inner.ConnectionChanged -= value; }
+        public ControllerCapabilities Capabilities => _inner.Capabilities;
+        public WorkParameters WorkParameters => _inner.WorkParameters;
+        public IObservable<MachineState> State => _inner.State;
+        public IObservable<WorkParameters> WorkParametersChanges => _inner.WorkParametersChanges;
+        public Task ConnectAsync(string port) => _inner.ConnectAsync(port);
+        public void Disconnect() => _inner.Disconnect();
+        public void SendRealtime(byte code) => _inner.SendRealtime(code);
+        public Task SendAsync(string line) => _inner.SendAsync(line);
+        public Task RefreshWorkParametersAsync() { RefreshCalls++; return _inner.RefreshWorkParametersAsync(); }
     }
 }

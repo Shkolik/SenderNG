@@ -547,6 +547,22 @@ public class ProbeViewModel : ViewModelBase
         return state;
     }
 
+    /// <summary>One-shot $# re-read so the Offsets tool table / Work Parameters
+    /// widgets immediately reflect a change the controller published, e.g. a
+    /// tool-table row written by the tool-length probe. Best-effort: a real
+    /// controller re-reads it; the demo is already live and no-ops.</summary>
+    private async Task RefreshWorkParametersAsync()
+    {
+        try
+        {
+            await _grbl.RefreshWorkParametersAsync();
+        }
+        catch
+        {
+            // Non-fatal: a failed re-read keeps the last published snapshot.
+        }
+    }
+
     private async Task<ProbeRunResult> RunAsync(ProbeProgramBuilder builder)
     {
         var result = await _runner.ExecuteAsync(builder.Lines, _cts!.Token);
@@ -594,6 +610,10 @@ public class ProbeViewModel : ViewModelBase
             var apply = $"G43H{SelectedToolNumber}";
             await _grbl.SendAsync(table);
             await _grbl.SendAsync(apply);
+            // Re-read $# so the Offsets tool table and Work Parameters widgets
+            // immediately reflect the new stored length and the active TLO
+            // (the stored table row only arrives via a $# dump).
+            await RefreshWorkParametersAsync();
             LastResult = $"Tool length offset stored to T{SelectedToolNumber}: {table}";
         }
         else
