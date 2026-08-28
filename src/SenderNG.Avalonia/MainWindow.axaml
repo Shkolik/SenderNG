@@ -240,7 +240,8 @@
                     </TabControl.ItemTemplate>
                     <TabControl.ContentTemplate>
                         <DataTemplate x:DataType="vm:CenterTab">
-                            <ContentControl Content="{Binding View}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                            <ContentControl Content="{Binding View}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
                         </DataTemplate>
                     </TabControl.ContentTemplate>
                 </TabControl>
