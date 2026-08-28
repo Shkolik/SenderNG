@@ -511,8 +511,7 @@ public class RealGrblHardwareTests
                 for (var i = 0; i < rows.Length; i++)
                     rows[i].SetValueAt(0, (100 + i * 11.25).ToString("0.###", CultureInfo.InvariantCulture));
 
-                vm.SetAllCommand.Execute(null);
-                await WaitUntil(() => vm.Status.StartsWith("Saved", StringComparison.Ordinal), 75_000);
+                await vm.SetAllAsync();
                 Assert.StartsWith("Saved ", vm.Status);
                 Assert.DoesNotContain("failed", vm.Status, StringComparison.OrdinalIgnoreCase);
 
@@ -529,8 +528,8 @@ public class RealGrblHardwareTests
                     for (var axis = 0; axis < rows[i].Values.Count; axis++)
                         rows[i].SetValueAt(axis, original[codes[i]][axis]);
 
-                vm.SetAllCommand.Execute(null);
-                var restoredStatus = await WaitUntil(() => vm.Status.StartsWith("Saved", StringComparison.Ordinal), 75_000);
+                await vm.SetAllAsync();
+                var restoredStatus = vm.Status.StartsWith("Saved", StringComparison.Ordinal);
                 Assert.True(restoredStatus, $"offset restore did not complete: {vm.Status}");
                 Assert.DoesNotContain("failed", vm.Status, StringComparison.OrdinalIgnoreCase);
 

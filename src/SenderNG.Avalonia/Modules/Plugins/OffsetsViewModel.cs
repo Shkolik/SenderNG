@@ -95,8 +95,8 @@ public sealed class OffsetsViewModel : ViewModelBase
         SetAxisCommand = new DelegateCommand(p => _ = SetAxisAsync(p));
         GetCurrentPositionCommand = new DelegateCommand(_ => GetCurrentPosition());
         ClearAllCommand = new DelegateCommand(_ => ClearAll());
-        SetAllCommand = new DelegateCommand(_ => _ = SetAllAsync());
-        SaveToolCommand = new DelegateCommand(p => _ = SaveToolAsync(p));
+        SetAllCommand = new DelegateCommand(_ => LastSaveTask = SetAllAsync());
+        SaveToolCommand = new DelegateCommand(p => LastSaveTask = SaveToolAsync(p));
     }
 
     public ObservableCollection<EditableOffsetRow> Rows { get; } = new();
@@ -114,6 +114,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     public DelegateCommand ClearAllCommand { get; }
     public DelegateCommand SetAllCommand { get; }
     public DelegateCommand SaveToolCommand { get; }
+    public Task? LastSaveTask { get; private set; }
 
     public void Refresh()
     {
@@ -170,7 +171,9 @@ public sealed class OffsetsViewModel : ViewModelBase
         Status = "All offsets cleared in editor; press Set all to write them";
     }
 
-    private async Task SetAllAsync()
+    public Task SetAllAsync() => SetAllCoreAsync();
+
+    private async Task SetAllCoreAsync()
     {
         var sent = 0;
         var failures = 0;
@@ -212,7 +215,10 @@ public sealed class OffsetsViewModel : ViewModelBase
         for (var i = 0; i < values.Count && i < source.Values.Length; i++) source.Values[i] = values[i];
     }
 
-    private async Task SaveToolAsync(object? parameter)
+    public Task SaveToolAsync(object? parameter)
+        => SaveToolCoreAsync(parameter);
+
+    private async Task SaveToolCoreAsync(object? parameter)
     {
         if (parameter is not EditableToolRow tool || !TryValues(tool.Offsets, out var values, out var error) || !double.TryParse(tool.Radius, NumberStyles.Float, CultureInfo.InvariantCulture, out var radius))
         { Status = "Invalid tool-table value"; return; }

@@ -62,7 +62,9 @@ public sealed class WorkParameters
     {
         var result = new WorkParameters();
         result.ToolLengthOffset = new double[Math.Clamp(axisCount, 1, 9)];
-        var input = lines.ToList();
+        var input = lines.Select(line => line?.Trim() ?? string.Empty)
+            .Where(line => line.Length > 0)
+            .ToList();
         foreach (var code in input.Select(GetCode).Where(code => code is not null).Cast<string>().Distinct())
             if (code is not "TLO" and not "PRB" and not "TOOL" and not "T")
                 result.CoordinateSystems.Add(new WorkCoordinateSystem(code, CoordinateSystemNumber(code), result.ToolLengthOffset.Length));
@@ -77,7 +79,7 @@ public sealed class WorkParameters
             if (colon <= 1)
                 continue;
             var code = line[1..colon];
-            var values = line[(colon + 1)..^1].Split('|');
+            var values = line[(colon + 1)..^1].Split('|', StringSplitOptions.RemoveEmptyEntries);
             switch (code)
             {
                 case "G28":
@@ -138,7 +140,7 @@ public sealed class WorkParameters
     private static double[] ParseValues(string csv, int count)
     {
         var result = new double[count];
-        var values = csv.Split(',');
+        var values = csv.Split(',', StringSplitOptions.TrimEntries);
         for (var i = 0; i < result.Length && i < values.Length; i++)
             double.TryParse(values[i], NumberStyles.Float, CultureInfo.InvariantCulture, out result[i]);
         return result;
