@@ -84,8 +84,14 @@ Many already exist; the gaps are listed per widget.
       auto-re-enumerates serial ports every second, so plugging in a controller
       revives the otherwise-grayed Serial tab without a manual refresh.
 - [x] Offsets (`Modules/Fixed/Offsets` flyout) — controller-backed
-      coordinate/tool-table editor: live snapshot updates, G54–G59 G10 write-back,
-      and $# readback after writes (verified against a bench grbl 1.1h board).
+      coordinate/tool-table editor: live snapshot updates, G10 write-back (G54–G59
+      on classic boards, G54–G59.3 on grblHAL), and `$#` readback after writes.
+      Capability-aware: only systems the firmware supports are offered, the editor
+      disables itself while the controller is in Alarm, and the tool table shows
+      only when the controller is grblHAL with tool slots (classic grbl 1.1 /
+      1.2i forks have no `G10 L1`). Verified on all three boards (1.1h, mega5x
+      1.2i, grblHAL RP2040) via the opt-in `RealGrblHardwareTests` battery —
+      incl. a G10 L1 tool-table save/readback on grblHAL.
 - [x] Grbl settings (`Modules/Fixed/GrblSettings`) — `$$` view/edit.
 - [x] App settings (`Modules/Fixed/AppSettings`).
 - [x] MDI row (editable combo + history + Send).
@@ -114,10 +120,11 @@ Many already exist; the gaps are listed per widget.
       grbl: G54–G59 only — G59.x is grblHAL-only and rejected with error 29 on
       classic forks) and disables itself while the controller is in Alarm.
 - [x] **Work parameters** — implemented as a SenderNG flyout rather than
-      ioSender's right-panel group. It displays the active G54–G59/G59.x selector,
-      parsed controller work-coordinate/tool-table snapshots, tool selection,
-      TLO/TLO-reference indicators, refresh, and tool-change state. Editable
-      offset/tool-table write-back lives in the `Fixed/Offsets` flyout
+      ioSender's right-panel group. It displays the active G54–G59/G59.x selector
+      (clamped to the systems the firmware supports, so classic boards never offer
+      G59.x), parsed controller work-coordinate/tool-table snapshots, tool
+      selection, TLO/TLO-reference indicators, refresh, and tool-change state.
+      Editable offset/tool-table write-back lives in the `Fixed/Offsets` flyout
       (G10 write + $# readback), not here.
 - [ ] **File actions** (`FileActionControl`) — Load / Save / Close / Run from a
       toolbar; SenderNG has Open (menu + toolbar) and program send in the
