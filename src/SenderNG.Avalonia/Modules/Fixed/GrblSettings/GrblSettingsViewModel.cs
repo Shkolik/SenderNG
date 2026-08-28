@@ -305,15 +305,30 @@ public sealed class GrblSettingsViewModel : ViewModelBase
             if (value is GrblSettingItem item)
             {
                 SelectedSetting = item;
-                OnPropertyChanged(nameof(HasSelection));
-                OnPropertyChanged(nameof(HasNoSelection));
                 _ = LoadDescriptionAsync(item);
             }
         }
     }
 
-    /// <summary>The chosen setting shown in the detail pane (right side).</summary>
-    public GrblSettingItem? SelectedSetting { get; private set; }
+    private GrblSettingItem? _selectedSetting;
+
+    /// <summary>
+    /// The chosen setting shown in the detail pane (right side). Must raise
+    /// PropertyChanged on swap or every <c>SelectedSetting.*</c> binding in the
+    /// detail pane would keep showing the previous selection.
+    /// </summary>
+    public GrblSettingItem? SelectedSetting
+    {
+        get => _selectedSetting;
+        private set
+        {
+            if (SetField(ref _selectedSetting, value))
+            {
+                OnPropertyChanged(nameof(HasSelection));
+                OnPropertyChanged(nameof(HasNoSelection));
+            }
+        }
+    }
 
     /// <summary>True when a setting is selected — toggles the detail pane vs the empty hint.</summary>
     public bool HasSelection => SelectedSetting is not null;

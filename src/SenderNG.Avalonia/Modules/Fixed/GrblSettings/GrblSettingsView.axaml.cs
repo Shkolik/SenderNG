@@ -37,8 +37,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Selection;
+using Avalonia.Input;
 
 namespace SenderNG.Avalonia.Modules.Fixed;
 
@@ -61,5 +63,15 @@ public partial class GrblSettingsView : UserControl
             return;
         if (tree.SelectedItem is GrblSettingGroupItem)
             tree.SelectedItem = null;
+    }
+
+    /// <summary>
+    /// Clicking anywhere on a group label expands/collapses it — the TreeViewItem
+    /// container's IsExpanded is two-way bound to the group item's property.
+    /// </summary>
+    private static void OnGroupTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is StyledElement { DataContext: GrblSettingGroupItem group })
+            group.IsExpanded = !group.IsExpanded;
     }
 }

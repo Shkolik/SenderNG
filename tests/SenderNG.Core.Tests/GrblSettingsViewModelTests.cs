@@ -184,4 +184,24 @@ public class GrblSettingsViewModelTests
         vm.SelectedNode = setting;
         Assert.Same(setting, vm.SelectedSetting);
     }
+
+    [Fact]
+    public async Task Changing_selection_raises_property_changed_so_the_detail_pane_rerenders()
+    {
+        // Regression: SelectedSetting was a plain auto-property, so swapping it never
+        // raised PropertyChanged and every SelectedSetting.* binding in the detail
+        // pane kept showing the first selection.
+        var vm = CreateVm(new StubProvider { ValueLines = ["$0=10", "$100=250.000"] });
+        await vm.LoadAsync();
+
+        var changes = new List<string?>();
+        vm.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+        vm.SelectedNode = Find(vm.Groups, 0);
+        vm.SelectedNode = Find(vm.Groups, 100);
+
+        Assert.Same(Find(vm.Groups, 100), vm.SelectedSetting);
+        Assert.Contains(nameof(GrblSettingsViewModel.SelectedSetting), changes);
+        Assert.Contains(nameof(GrblSettingsViewModel.HasSelection), changes);
+    }
 }
