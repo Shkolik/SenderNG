@@ -462,6 +462,12 @@ public class RealGrblHardwareTests
             Console.WriteLine($"RESET post-reboot status='{latest?.Status}'");
             Assert.True(postReset, "status poll must resume after reset");
 
+            // Dump the raw lines since the reset so an interactive triage session can
+            // see exactly what the board emitted (banner, any alarm, first statuses).
+            var postResetLines = received.Skip(countBefore).ToArray();
+            Console.WriteLine(
+                $"RESET raw lines: {string.Join(" | ", postResetLines.Select(l => l.Length > 60 ? l[..60] + "…" : l))}");
+
             // 5) Commands still flow after the reboot.
             var settings = await svc.GetSettingLinesAsync();
             Console.WriteLine($"OK  $$ after reset returned {settings.Count} setting lines");
@@ -483,9 +489,15 @@ public class RealGrblHardwareTests
         if (string.IsNullOrWhiteSpace(port))
             port = AvailablePorts.FirstOrDefault(p => p.Equals("COM6", StringComparison.OrdinalIgnoreCase));
         if (string.IsNullOrWhiteSpace(port))
-            throw new InvalidOperationException("Offsets hardware test requires SENDERNG_HW_PORT or an enumerated COM6 board.");
+        {
+            Console.WriteLine("WARNING: offsets hardware test skipped — set SENDERNG_HW_PORT or connect a COM6 board");
+            return;
+        }
         if (!AvailablePorts.Contains(port.Trim(), StringComparer.OrdinalIgnoreCase))
-            throw new InvalidOperationException($"Requested offsets hardware port '{port}' is not enumerated.");
+        {
+            Console.WriteLine($"WARNING: offsets hardware test skipped — '{port}' not enumerated");
+            return;
+        }
 
         var savedAxes = CNC.Core.GrblInfo.NumAxes;
         var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
@@ -545,6 +557,256 @@ public class RealGrblHardwareTests
                     for (var axis = 0; axis < expected.Length; axis++)
                         Assert.True(Math.Abs(expected[axis] - actual.Values[axis]) <= 0.001, $"{code} axis {axis}: expected {expected[axis]}, got {actual.Values[axis]}");
                 }
+            }
+        }
+        finally
+        {
+            service.Disconnect();
+            CNC.Core.GrblInfo.NumAxes = savedAxes;
+            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+        }
+    }
+
+    /// <summary>
+    /// Interactive alarm-gating probe (opt-in via SENDERNG_HW_PORT). Classic grbl
+    /// 1.1 boards with homing disabled ($22=0) boot Idle on every connect (the app's
+    /// DTR-at-open pulse resets them), so the "saves refused while in Alarm" path
+    /// never shows up naturally — this test induces a REAL alarm on the wire the way
+    /// the triage test discovered it: a jog followed immediately by a soft reset
+    /// (0x18) aborts the cycle and the board reboots into <c>ALARM:3</c>. It then
+    /// verifies the Offsets editor disables, both saves are refused, and <c>$X</c>
+    /// restores the ability to save.
+    /// </summary>
+    [Fact]
+    public async Task Alarm_gating_disables_offsets_saves_on_hardware()
+    {
+        var port = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT")?.Trim();
+        if (string.IsNullOrWhiteSpace(port) || !AvailablePorts.Contains(port, StringComparer.OrdinalIgnoreCase))
+        {
+            Console.WriteLine("WARNING: alarm-gating probe skipped — set SENDERNG_HW_PORT to a connected board");
+            return;
+        }
+
+        var savedAxes = CNC.Core.GrblInfo.NumAxes;
+        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        var received = new ConcurrentQueue<string>();
+        MachineState? latest = null;
+        using var service = new RealGrblService();
+        try
+        {
+            service.ReceivedLines.Subscribe(received.Enqueue);
+            service.State.Subscribe(s => latest = s);
+            await service.ConnectAsync(port);
+
+            var gotIdle = await WaitUntil(
+                () => latest is { Status: "Idle" } && received.Count(l => l.StartsWith('<')) >= 2,
+                HandshakeTimeoutMs);
+            Console.WriteLine(gotIdle ? "OK  connected and Idle" : $"WARN never saw Idle (status='{latest?.Status}') — aborting probe");
+            if (!gotIdle)
+                return;
+
+            var settingsDir = Path.Combine(Path.GetTempPath(), "senderng-hw-" + Guid.NewGuid().ToString("N"));
+            var hwSettings = new SettingsService(settingsDir);
+            hwSettings.Save(hwSettings.Load());
+            var vm = new SenderNG.Avalonia.Modules.Fixed.OffsetsViewModel(service, hwSettings);
+
+            // Induce ALARM:3: jog, then soft-reset in the Jog->Idle window grbl 1.1
+            // leaves open right after the jog's "ok" (verified on the 1.1h board:
+            // ALARM:3 + '[MSG:\'$H\'|\'$X\' to unlock]' + <Alarm|MPos:0.004,..>).
+            var before = received.Count;
+            try
+            {
+                await service.SendAsync("$J=G91 X0.1 F500");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"WARN jog rejected ({ex.Message}) — cannot induce the abort alarm; skipping probe");
+                return;
+            }
+            service.SendRealtime(0x18);
+
+            var inAlarm = await WaitUntil(() => latest is { Status: "Alarm" }, 10_000);
+            var alarmLines = received.Skip(before).Where(l => l.StartsWith("ALARM:") || l.StartsWith("[MSG:") || l.StartsWith('<')).Take(4).ToArray();
+            Console.WriteLine(
+                inAlarm
+                    ? $"OK  alarm induced on wire: {string.Join(" | ", alarmLines)}"
+                    : $"WARN no alarm after jog+reset (status='{latest?.Status}') — board boots Idle; skipping gating checks");
+            if (!inAlarm)
+                return;
+
+            Assert.False(vm.IsReady, "editor must disable while the controller is in Alarm");
+            await vm.SetAllAsync();
+            Assert.Contains("alarm", vm.Status, StringComparison.OrdinalIgnoreCase);
+            await vm.SaveToolTableAsync();
+            Assert.Contains("alarm", vm.Status, StringComparison.OrdinalIgnoreCase);
+            Console.WriteLine($"OK  gating: IsReady=false; Set all and Save tools refused ('{vm.Status}')");
+
+            await service.SendAsync("$X");
+            var ready = await WaitUntil(() => vm.IsReady, 10_000);
+            Console.WriteLine(ready ? "OK  unlocked: IsReady=true after $X" : "FAIL $X did not restore IsReady");
+            Assert.True(ready);
+
+            // Saves must work again once unlocked (values unchanged → no-op writes).
+            await vm.SetAllAsync();
+            Assert.StartsWith("Saved", vm.Status, StringComparison.Ordinal);
+            Assert.DoesNotContain("failed", vm.Status, StringComparison.OrdinalIgnoreCase);
+            Console.WriteLine($"OK  saves re-enabled after unlock ('{vm.Status}')");
+        }
+        finally
+        {
+            service.Disconnect();
+            CNC.Core.GrblInfo.NumAxes = savedAxes;
+            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+        }
+    }
+
+    /// <summary>
+    /// Interactive per-board verification (opt-in via SENDERNG_HW_PORT): run once
+    /// per board — classic 1.1h, mega5x 1.2i fork, grblHAL — and verify (a) board
+    /// identity/capabilities, (b) the G59.x clamp (systems offered == what the
+    /// firmware can actually write; no G59.x on classic), (c) alarm gating (saves
+    /// refused while the controller reports Alarm), (d) tool-table visibility
+    /// (shown only when the user enabled it AND the controller is grblHAL with
+    /// tool slots), and (e) offsets write/readback for every supported system,
+    /// restored to the original values afterwards.
+    /// </summary>
+    [Fact]
+    public async Task Offsets_alarm_tooltable_and_g59x_clamp_verified_on_hardware()
+    {
+        var port = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT")?.Trim();
+        if (string.IsNullOrWhiteSpace(port))
+        {
+            Console.WriteLine("WARNING: per-board verification skipped — set SENDERNG_HW_PORT to run it");
+            return;
+        }
+        if (!AvailablePorts.Contains(port, StringComparer.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"WARNING: per-board verification skipped — '{port}' not enumerated");
+            return;
+        }
+
+        var savedAxes = CNC.Core.GrblInfo.NumAxes;
+        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        var received = new ConcurrentQueue<string>();
+        MachineState? latest = null;
+        using var service = new RealGrblService();
+        try
+        {
+            service.ReceivedLines.Subscribe(received.Enqueue);
+            service.State.Subscribe(s => latest = s);
+            await service.ConnectAsync(port);
+            Assert.True(service.IsConnected);
+            Assert.True(service.Capabilities.IsKnown);
+
+            // Wait for the first real status reports so the VM has seen the board's
+            // actual state (alarm or not) before we test gating.
+            var gotStatus = await WaitUntil(
+                () => latest != null && latest.Status != null && received.Count(l => l.StartsWith('<')) >= 2,
+                HandshakeTimeoutMs);
+            Assert.True(gotStatus, "board must produce live status reports");
+            await Task.Delay(300); // settle so `latest` reflects a fresh report
+
+            var c = service.Capabilities;
+            Console.WriteLine(
+                $"BOARD {port}: IsGrblHAL={c.IsGrblHAL} firmware='{c.Firmware}' version='{c.Version}' " +
+                $"axes={c.NumAxes} tools={c.NumTools} status='{latest!.Status}'");
+
+            var settingsDir = Path.Combine(Path.GetTempPath(), "senderng-hw-" + Guid.NewGuid().ToString("N"));
+            var hwSettings = new SettingsService(settingsDir);
+            hwSettings.Save(hwSettings.Load());
+            var vm = new SenderNG.Avalonia.Modules.Fixed.OffsetsViewModel(service, hwSettings);
+            var wpVm = new SenderNG.Avalonia.Modules.Fixed.WorkParametersViewModel(service);
+
+            // (b) G59.x clamp — offer only what this firmware can actually write.
+            // Classic grbl 1.1 has no G59.x (rejected with error 29), so the offsets
+            // editor rows and the Work Parameters selector must never offer them.
+            var expectedSystems = WorkParameters.SupportedSystems(c.IsGrblHAL);
+            Assert.Equal(expectedSystems, vm.SupportedSystems);
+            Assert.Equal(expectedSystems, wpVm.CoordinateSystemCodes);
+            Assert.Equal(expectedSystems.Count, vm.Rows.Count);
+            foreach (var code in expectedSystems)
+                Assert.Single(vm.Rows, row => row.Code == code);
+            if (!c.IsGrblHAL)
+            {
+                Assert.DoesNotContain(vm.Rows, row => row.Code.StartsWith("G59.", StringComparison.Ordinal));
+                Assert.DoesNotContain(wpVm.CoordinateSystems, row => row.Code.StartsWith("G59.", StringComparison.Ordinal));
+            }
+            Assert.Equal(c.NumAxes, vm.Rows[0].Values.Count);
+            Console.WriteLine(
+                $"OK  G59.x clamp: offered systems = [{string.Join(", ", vm.SupportedSystems)}] " +
+                $"({(c.IsGrblHAL ? "grblHAL: G59.x supported" : "classic: G59.x correctly hidden")})");
+
+            // (c) Alarm gating — while the controller reports Alarm, saves are refused.
+            var wasAlarm = latest.Status == "Alarm";
+            if (wasAlarm)
+            {
+                Assert.False(vm.IsReady, "editor must be disabled while the controller is in Alarm");
+                await vm.SetAllAsync();
+                Assert.Contains("alarm", vm.Status, StringComparison.OrdinalIgnoreCase);
+                await vm.SaveToolTableAsync();
+                Assert.Contains("alarm", vm.Status, StringComparison.OrdinalIgnoreCase);
+                Console.WriteLine($"OK  alarm gating: in Alarm -> IsReady=false, saves refused ('{vm.Status}')");
+
+                await service.SendAsync("$X");
+                var unlocked = await WaitUntil(() => vm.IsReady, 10_000);
+                Console.WriteLine(unlocked ? "OK  unlocked ($X): IsReady=true" : "FAIL $X did not clear the alarm");
+                Assert.True(unlocked);
+            }
+            else
+            {
+                Assert.True(vm.IsReady, "editor should be ready when the controller is not in Alarm");
+                Console.WriteLine($"OK  alarm gating: board booted '{latest.Status}' (not Alarm) -> IsReady=true");
+            }
+
+            // (d) Tool-table visibility — only grblHAL with tool slots gets a tool
+            //     table; classic 1.1h and classic forks have no G10 L1 at all.
+            var expectToolTable = c.IsGrblHAL && c.NumTools > 0;
+            Assert.Equal(expectToolTable, vm.ControllerSupportsToolTable);
+            Assert.Equal(expectToolTable, vm.ShowToolTableSection); // config default: ShowToolTable=true
+            Console.WriteLine(
+                expectToolTable
+                    ? $"OK  tool table visible (grblHAL, {c.NumTools} tool slots)"
+                    : $"OK  tool table hidden ({(c.IsGrblHAL ? "no tool slots" : "not grblHAL — no G10 L1")})");
+
+            // (e) Offsets write/readback for every supported system, then restore.
+            var rows = vm.Rows.ToArray();
+            var original = rows.ToDictionary(row => row.Code, row => row.Values.ToArray());
+            try
+            {
+                for (var i = 0; i < rows.Length; i++)
+                    rows[i].SetValueAt(0, (100 + i * 11.25).ToString("0.###", CultureInfo.InvariantCulture));
+
+                await vm.SetAllAsync();
+                Assert.StartsWith("Saved", vm.Status, StringComparison.Ordinal);
+                Assert.DoesNotContain("failed", vm.Status, StringComparison.OrdinalIgnoreCase);
+
+                var written = await service.ReadWorkParametersAsync();
+                for (var i = 0; i < rows.Length; i++)
+                {
+                    var actual = Assert.Single(written.CoordinateSystems, x => x.Code == rows[i].Code);
+                    Assert.Equal(100 + i * 11.25, actual.Values[0], 3);
+                }
+                Console.WriteLine($"OK  offsets write/readback: {rows.Length} systems written and read back on {port}");
+            }
+            finally
+            {
+                for (var i = 0; i < rows.Length; i++)
+                    for (var axis = 0; axis < rows[i].Values.Count; axis++)
+                        rows[i].SetValueAt(axis, original[rows[i].Code][axis]);
+                await vm.SetAllAsync();
+                Assert.DoesNotContain("failed", vm.Status, StringComparison.OrdinalIgnoreCase);
+
+                var restored = await service.ReadWorkParametersAsync();
+                foreach (var code in expectedSystems)
+                {
+                    var actual = Assert.Single(restored.CoordinateSystems, x => x.Code == code);
+                    var expected = original[code].Select(value => double.Parse(value, CultureInfo.InvariantCulture)).ToArray();
+                    Assert.Equal(expected.Length, actual.Values.Length);
+                    for (var axis = 0; axis < expected.Length; axis++)
+                        Assert.True(Math.Abs(expected[axis] - actual.Values[axis]) <= 0.001,
+                            $"{code} axis {axis}: expected {expected[axis]}, got {actual.Values[axis]}");
+                }
+                Console.WriteLine($"OK  offsets restored on {port}");
             }
         }
         finally
