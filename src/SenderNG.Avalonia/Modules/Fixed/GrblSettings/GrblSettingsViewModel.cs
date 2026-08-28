@@ -1,5 +1,5 @@
 /*
- * GrblSettingsViewModel.cs - GRBL settings view model
+ * GrblSettingsViewModel.cs - GRBL settings tree view model
  */
 
 /*
@@ -35,59 +35,281 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
 */
 
 using System.Collections.ObjectModel;
-using System.Text.RegularExpressions;
-using SenderNG.Core.Commands;
+using System.Globalization;
+using CNC.Core.Abstractions;
 using SenderNG.Avalonia.ViewModels;
+using SenderNG.Core.Commands;
+using SenderNG.Core.Localization;
+using SenderNG.Core.Settings;
 
 namespace SenderNG.Avalonia.Modules.Fixed;
 
-public sealed class SettingRow
+/// <summary>
+/// A group node in the settings tree. <see cref="Children"/> mixes nested groups and
+/// settings (<see cref="GrblSettingItem"/> leaves). The TreeView's <c>TreeViewItem</c>
+/// container binds <c>IsExpanded</c> two-way to <see cref="IsExpanded"/> so expansion
+/// state survives reloads (see GrblSettingsView.axaml <c>TreeView.Styles</c>).
+/// </summary>
+public sealed class GrblSettingGroupItem : ViewModelBase
 {
-    public SettingRow(string key, string value, string comment)
+    private bool _isExpanded = true;
+
+    public string Name { get; }
+    public ObservableCollection<object> Children { get; } = new();
+
+    public bool IsExpanded
     {
-        Key = key;
-        Value = value;
-        Comment = comment;
+        get => _isExpanded;
+        set => SetField(ref _isExpanded, value);
     }
 
-    public string Key { get; }
-    public string Value { get; set; }
-    public string Comment { get; }
+    public GrblSettingGroupItem(string name) => Name = name;
 }
 
-public class GrblSettingsViewModel : ViewModelBase
+/// <summary>One checkbox of a bitfield / axis-mask setting; toggling recomputes the raw value.</summary>
+public sealed class GrblSettingBit : ViewModelBase
 {
-    private static readonly Regex LinePattern =
-        new(@"^\$(\d+)=([^\s(]+)\s*(?:\(([^)]*)\))?\s*$", RegexOptions.Compiled);
+    private bool _isChecked;
+    private readonly GrblSettingItem _owner;
 
-    private readonly Func<Task<IEnumerable<string>>> _provider;
-    private readonly Func<string, Task>? _send;
-    private readonly Dictionary<string, string> _originals = new();
+    public string Label { get; }
+    public int Mask { get; }
 
-    public ObservableCollection<SettingRow> Settings { get; } = new();
+    public bool IsChecked
+    {
+        get => _isChecked;
+        set
+        {
+            if (_isChecked == value)
+                return;
+            _isChecked = value;
+            OnPropertyChanged();
+            _owner.OnBitToggled();
+        }
+    }
 
+    internal GrblSettingBit(GrblSettingItem owner, string label, int mask, bool isChecked)
+    {
+        _owner = owner;
+        Label = label;
+        Mask = mask;
+        _isChecked = isChecked;
+    }
+
+    /// <summary>Update from the raw value without bouncing back into the owner.</summary>
+    internal void SetSilently(bool value)
+    {
+        if (_isChecked == value)
+            return;
+        _isChecked = value;
+        OnPropertyChanged();
+    }
+}
+
+/// <summary>
+/// A single setting row. The editor rendered by the view is chosen via the
+/// <c>IsBool</c>/<c>IsRadio</c>/<c>IsBits</c>/<c>ShowTextBox</c> flags, which mirror the
+/// grblHAL data type (<see cref="GrblSettingType"/>). All editors funnel through
+/// <see cref="Value"/> so dirty tracking stays in one place.
+/// </summary>
+public sealed class GrblSettingItem : ViewModelBase
+{
+    private string _value;
+    private string? _description;
+
+    public int Id { get; }
+    public string Key => $"${Id}";
+    public string Name { get; }
+    public string Unit { get; }
+    public GrblSettingType Type { get; }
+    public string Format { get; }
+    public double? Min { get; }
+    public double? Max { get; }
+
+    /// <summary>Radio option labels or bitfield labels (axis letters for axis masks).</summary>
+    public string[] Options { get; }
+
+    /// <summary>Original value from the board — the dirty comparison baseline.</summary>
+    public string OriginalValue { get; private set; }
+
+    public ObservableCollection<GrblSettingBit> Bits { get; } = new();
+
+    public string Value
+    {
+        get => _value;
+        set
+        {
+            if (!SetField(ref _value, value))
+                return;
+            OnPropertyChanged(nameof(IsDirty));
+            OnPropertyChanged(nameof(IsChecked));
+            OnPropertyChanged(nameof(SelectedIndex));
+            ResyncBits();
+        }
+    }
+
+    public bool IsDirty => _value != OriginalValue;
+
+    /// <summary>Mark the current value as saved (after a successful write).</summary>
+    public void Accept()
+    {
+        OriginalValue = _value;
+        OnPropertyChanged(nameof(IsDirty));
+    }
+
+    // Editor selection flags (the view binds IsVisible to these).
+    public bool IsBool => Type == GrblSettingType.Bool;
+    public bool IsRadio => Type == GrblSettingType.RadioButtons;
+    public bool IsBits => (Type is GrblSettingType.Bitfield or GrblSettingType.XBitfield or GrblSettingType.AxisMask) && Bits.Count > 0;
+    public bool IsNumeric => Type is GrblSettingType.Integer or GrblSettingType.Float;
+    public bool ShowTextBox => !IsBool && !IsRadio && !IsBits;
+
+    public bool IsChecked
+    {
+        get => Value == "1";
+        set => Value = value ? "1" : "0";
+    }
+
+    public int SelectedIndex
+    {
+        get => int.TryParse(Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) ? i : -1;
+        set => Value = value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    public string? Description
+    {
+        get => _description;
+        set => SetField(ref _description, value);
+    }
+
+    public GrblSettingItem(GrblSetting setting, int numAxes)
+    {
+        Id = setting.Id;
+        Name = setting.Name;
+        Unit = setting.Unit;
+        Type = setting.DataType;
+        Format = setting.Format;
+        Min = setting.Min;
+        Max = setting.Max;
+        Description = setting.Description;
+        _value = OriginalValue = setting.Value;
+
+        Options = Type switch
+        {
+            GrblSettingType.RadioButtons => SplitOptions(Format),
+            GrblSettingType.AxisMask => AxisLetters(numAxes),
+            GrblSettingType.Bitfield or GrblSettingType.XBitfield => SplitOptions(Format),
+            _ => [],
+        };
+
+        if (Options.Length > 0)
+        {
+            var value = int.TryParse(_value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : 0;
+            for (var i = 0; i < Options.Length; i++)
+                Bits.Add(new GrblSettingBit(this, Options[i], 1 << i, (value & (1 << i)) != 0));
+        }
+    }
+
+    /// <summary>Recompute the raw value from the bit checkboxes (no resync bounce).</summary>
+    internal void OnBitToggled()
+    {
+        var value = 0;
+        foreach (var bit in Bits)
+        {
+            if (bit.IsChecked)
+                value |= bit.Mask;
+        }
+        _value = value.ToString(CultureInfo.InvariantCulture);
+        OnPropertyChanged(nameof(Value));
+        OnPropertyChanged(nameof(IsDirty));
+    }
+
+    private void ResyncBits()
+    {
+        var value = int.TryParse(_value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : 0;
+        foreach (var bit in Bits)
+            bit.SetSilently((value & bit.Mask) != 0);
+    }
+
+    private static string[] SplitOptions(string format) =>
+        string.IsNullOrWhiteSpace(format) ? [] : format.Split(',');
+
+    private static string[] AxisLetters(int numAxes)
+    {
+        const string letters = "XYZABC";
+        var count = Math.Clamp(numAxes, 1, letters.Length);
+        return Enumerable.Range(0, count).Select(i => letters[i].ToString()).ToArray();
+    }
+}
+
+/// <summary>
+/// GRBL settings widget view model: loads the settings tree via
+/// <see cref="GrblSettingsLoader"/> (controller metadata on grblHAL, embedded English
+/// catalog on classic grbl), renders it as a searchable tree with typed editors, and
+/// saves only the dirty settings as <c>$id=value</c> writes.
+/// </summary>
+public sealed class GrblSettingsViewModel : ViewModelBase
+{
+    private readonly IGrblSettingsProvider _provider;
+    private readonly IGrblService _grbl;
+    private readonly LocalizationService _localization;
+    private readonly List<GrblSettingItem> _allItems = new();
+    private readonly List<GrblSettingGroupItem> _allRoots = new();
+    private string _search = string.Empty;
     private string _status = string.Empty;
+    private object? _selectedNode;
+
+    /// <summary>The visible (filtered) tree roots bound to the TreeView.</summary>
+    public ObservableCollection<object> Groups { get; } = new();
+
+    public string Search
+    {
+        get => _search;
+        set
+        {
+            if (SetField(ref _search, value))
+                ApplyFilter();
+        }
+    }
+
     public string Status
     {
         get => _status;
-        set => SetField(ref _status, value);
+        private set => SetField(ref _status, value);
     }
 
-    public DelegateCommand LoadCommand { get; }
+    /// <summary>TreeView SelectedItem — the last clicked group or setting.</summary>
+    public object? SelectedNode
+    {
+        get => _selectedNode;
+        set
+        {
+            if (!SetField(ref _selectedNode, value))
+                return;
+            if (value is GrblSettingItem item)
+            {
+                SelectedSetting = item;
+                _ = LoadDescriptionAsync(item);
+            }
+        }
+    }
 
+    public GrblSettingItem? SelectedSetting { get; private set; }
+
+    public DelegateCommand LoadCommand { get; }
     public DelegateCommand SaveCommand { get; }
 
-    public GrblSettingsViewModel(Func<Task<IEnumerable<string>>> provider, Func<string, Task>? send = null)
+    public GrblSettingsViewModel(IGrblSettingsProvider provider, IGrblService grbl, LocalizationService localization)
     {
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
-        _send = send;
+        _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
+        _localization = localization ?? throw new ArgumentNullException(nameof(localization));
+
         LoadCommand = new DelegateCommand(_ => _ = LoadAsync());
-        SaveCommand = new DelegateCommand(_ => _ = SaveAsync(), _ => _send is not null);
-        // Fill on open; failures surface via Status.
+        SaveCommand = new DelegateCommand(_ => _ = SaveAsync());
         _ = LoadAsync();
     }
 
@@ -95,22 +317,22 @@ public class GrblSettingsViewModel : ViewModelBase
     {
         try
         {
-            var rows = new List<SettingRow>();
-            foreach (var line in await _provider())
-            {
-                if (Parse(line) is { } row)
-                    rows.Add(row);
-            }
+            var snapshot = await new GrblSettingsLoader(_provider, _localization).LoadAsync();
 
-            Settings.Clear();
-            foreach (var row in rows)
-                Settings.Add(row);
+            _allItems.Clear();
+            _allRoots.Clear();
 
-            _originals.Clear();
-            foreach (var row in rows)
-                _originals[row.Key] = row.Value;
+            var numAxes = _grbl.Capabilities.NumAxes;
+            foreach (var setting in snapshot.Settings)
+                _allItems.Add(new GrblSettingItem(setting, numAxes));
 
-            Status = $"Loaded {rows.Count} settings";
+            var itemsById = _allItems.ToDictionary(static i => i.Id);
+            foreach (var root in snapshot.TopGroups)
+                _allRoots.Add(BuildGroupItem(root, itemsById));
+
+            ApplyFilter();
+            Status = $"Loaded {_allItems.Count} settings " +
+                     (snapshot.MetadataFromController ? "(from controller)" : "(from catalog)");
         }
         catch (Exception ex)
         {
@@ -120,20 +342,22 @@ public class GrblSettingsViewModel : ViewModelBase
 
     public async Task SaveAsync()
     {
-        if (_send is null)
-            return;
         try
         {
-            var changed = 0;
-            foreach (var row in Settings)
+            var dirty = _allItems.Where(static i => i.IsDirty).OrderBy(static i => i.Id).ToList();
+            if (dirty.Count == 0)
             {
-                if (!_originals.TryGetValue(row.Key, out var original) || original == row.Value)
-                    continue;
-                await _send($"${row.Key}={row.Value}");
-                _originals[row.Key] = row.Value;
-                changed++;
+                Status = "No changes";
+                return;
             }
-            Status = changed == 0 ? "No changes" : $"Saved {changed} setting(s)";
+
+            foreach (var item in dirty)
+            {
+                await _grbl.SendAsync($"${item.Id}={item.Value}");
+                item.Accept();
+            }
+
+            Status = dirty.Count == 1 ? "Saved 1 setting" : $"Saved {dirty.Count} settings";
         }
         catch (Exception ex)
         {
@@ -141,15 +365,94 @@ public class GrblSettingsViewModel : ViewModelBase
         }
     }
 
-    public static SettingRow? Parse(string line)
+    /// <summary>
+    /// Lazily fetch the long description for a setting whose metadata came from the
+    /// controller ($SED on grblHAL). Catalog-sourced settings (classic grbl) already
+    /// carry their description.
+    /// </summary>
+    private async Task LoadDescriptionAsync(GrblSettingItem item)
     {
-        var match = LinePattern.Match(line?.Trim() ?? string.Empty);
-        if (!match.Success)
+        if (item.Description is not null)
+            return;
+
+        try
+        {
+            var line = await _provider.GetSettingDescriptionAsync(item.Id);
+            if (GrblSettingsParser.ParseDescriptionLine(line) is { } parsed)
+                item.Description = parsed.Description;
+        }
+        catch
+        {
+            // A failed $SED is non-fatal — the row stays without a description.
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        var search = Search.Trim();
+        var roots = new List<object>();
+        foreach (var root in _allRoots)
+        {
+            if (search.Length == 0)
+            {
+                roots.Add(root); // original instances keep their expansion state
+                continue;
+            }
+            if (FilterGroup(root, search) is { } match)
+                roots.Add(match);
+        }
+
+        Groups.Clear();
+        foreach (var root in roots)
+            Groups.Add(root);
+    }
+
+    /// <summary>Clone a group that matches or contains matching children; auto-expanded so results are visible.</summary>
+    private static GrblSettingGroupItem? FilterGroup(GrblSettingGroupItem group, string search)
+    {
+        var matches = Contains(group.Name, search);
+        var children = new List<object>();
+        foreach (var child in group.Children)
+        {
+            switch (child)
+            {
+                case GrblSettingGroupItem childGroup when FilterGroup(childGroup, search) is { } match:
+                    children.Add(match);
+                    break;
+                case GrblSettingItem setting when Matches(setting, search):
+                    children.Add(setting);
+                    break;
+            }
+        }
+
+        if (!matches && children.Count == 0)
             return null;
 
-        return new SettingRow(
-            match.Groups[1].Value,
-            match.Groups[2].Value,
-            match.Groups[3].Success ? match.Groups[3].Value : string.Empty);
+        var clone = new GrblSettingGroupItem(group.Name) { IsExpanded = true };
+        foreach (var child in children)
+            clone.Children.Add(child);
+        return clone;
+    }
+
+    private static bool Matches(GrblSettingItem item, string search) =>
+        Contains(item.Name, search)
+        || Contains(item.Description, search)
+        || item.Key.Contains(search, StringComparison.OrdinalIgnoreCase)
+        || item.Id.ToString(CultureInfo.InvariantCulture).Contains(search, StringComparison.OrdinalIgnoreCase);
+
+    private static bool Contains(string? text, string search) =>
+        text?.Contains(search, StringComparison.OrdinalIgnoreCase) == true;
+
+    private static GrblSettingGroupItem BuildGroupItem(GrblSettingGroup group, Dictionary<int, GrblSettingItem> itemsById)
+    {
+        var node = new GrblSettingGroupItem(group.Name);
+        foreach (var childGroup in group.Children)
+            node.Children.Add(BuildGroupItem(childGroup, itemsById));
+        foreach (var setting in group.Settings)
+        {
+            if (itemsById.TryGetValue(setting.Id, out var item))
+                node.Children.Add(item);
+        }
+        return node;
     }
 }

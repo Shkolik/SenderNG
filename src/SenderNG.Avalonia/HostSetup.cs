@@ -21,6 +21,8 @@ public static class HostSetup
         builder.Services.AddSingleton<SettingsService>();
         // Shared AppSettings graph: one instance for every consumer (VMs, services).
         builder.Services.AddSingleton(sp => sp.GetRequiredService<SettingsService>().Load());
+        // Localization: embedded en.json (English base + classic-grbl settings catalog).
+        builder.Services.AddSingleton(SenderNG.Core.Localization.LocalizationService.CreateEmbedded());
         builder.Services.AddSingleton<IComPortService, SerialComPortService>();
         builder.Services.AddSingleton<IFileDialogService, AvaloniaFileDialogService>();
         builder.Services.AddSingleton<IDialogService, AvaloniaDialogService>();

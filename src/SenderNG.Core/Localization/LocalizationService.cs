@@ -203,7 +203,7 @@ public sealed class LocalizationService
                     GetInt(e, "group", 0),
                     GetString(e, "name") ?? string.Empty,
                     GetString(e, "unit") ?? string.Empty,
-                    Enum.TryParse<GrblSettingType>(GetString(e, "type") ?? string.Empty, true, out var type) ? type : GrblSettingType.Text,
+                    ParseSettingType(GetString(e, "type")),
                     GetString(e, "format") ?? string.Empty,
                     GetDouble(e, "min"),
                     GetDouble(e, "max"),
@@ -262,6 +262,17 @@ public sealed class LocalizationService
         locStrings = strings;
         return overrides;
     }
+
+    /// <summary>
+    /// Maps the JSON type name to the enum. "radio" is the catalog's name for
+    /// <see cref="GrblSettingType.RadioButtons"/> — Enum.TryParse can't match it,
+    /// so radio settings must map explicitly or they'd fall back to Text editors.
+    /// </summary>
+    private static GrblSettingType ParseSettingType(string? name) => name switch
+    {
+        "radio" => GrblSettingType.RadioButtons,
+        _ => Enum.TryParse<GrblSettingType>(name, true, out var type) ? type : GrblSettingType.Text,
+    };
 
     private static int GetInt(JsonElement e, string name, int fallback) =>
         e.TryGetProperty(name, out var v) && v.TryGetInt32(out var i) ? i : fallback;

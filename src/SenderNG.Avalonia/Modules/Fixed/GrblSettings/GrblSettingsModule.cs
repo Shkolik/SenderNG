@@ -54,8 +54,9 @@ public class GrblSettingsModule : IModule
 
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton(sp => new GrblSettingsViewModel(
-            async () => await sp.GetRequiredService<IGrblSettingsProvider>().GetSettingLinesAsync(),
-            line => sp.GetRequiredService<IGrblService>().SendAsync(line)));
+            sp.GetRequiredService<IGrblSettingsProvider>(),
+            sp.GetRequiredService<IGrblService>(),
+            sp.GetRequiredService<SenderNG.Core.Localization.LocalizationService>()));
 
     public void RegisterSettings(AppSettings settings) { }
 
