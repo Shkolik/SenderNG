@@ -41,6 +41,8 @@ public static class ControllerInfoParser
         var axesLine = string.Empty;
         var identity = string.Empty;
         var optionalSignals = CNC.Core.Signals.Off;
+        var hasSettingEnums = false;
+        var hasSettingDescriptions = false;
 
         foreach (var raw in lines)
         {
@@ -99,9 +101,15 @@ public static class ControllerInfoParser
                     case "NEWOPT":
                         // grblHAL $I extended options: BD=block delete, ES=e-stop,
                         // MW=motor warning, OS=optional stop (ioSender Grbl.cs
-                        // Process "NEWOPT" case).
+                        // Process "NEWOPT" case), plus ENUMS (settings database via
+                        // $ES/$EG) and SED (per-setting descriptions via $SED=).
                         if (kv.Length > 1)
+                        {
                             optionalSignals |= NewOptionsToFlags(kv[1]);
+                            var tokens = kv[1].Split(',');
+                            hasSettingEnums |= tokens.Contains("ENUMS", StringComparer.Ordinal);
+                            hasSettingDescriptions |= tokens.Contains("SED", StringComparer.Ordinal);
+                        }
                         break;
                     // [FIRMWARE:grbl] (classic), [FW_BUILD:...] and other lines carry
                     // no HAL signal by themselves.
@@ -182,6 +190,8 @@ public static class ControllerInfoParser
             Spindle = true,
             Probing = true,
             HomingEnabled = optLetters.Contains('H'),
+            HasSettingEnums = hasSettingEnums,
+            HasSettingDescriptions = hasSettingDescriptions,
             OptionalSignals = optionalSignals,
         };
     }

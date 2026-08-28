@@ -80,6 +80,18 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
             ? provider.GetSettingLinesAsync()
             : throw new NotSupportedException("The active machine does not support settings.");
 
+    public Task<IReadOnlyList<string>> GetSettingDetailLinesAsync() =>
+        _inner is IGrblSettingsProvider p ? p.GetSettingDetailLinesAsync() : EmptyLines;
+
+    public Task<IReadOnlyList<string>> GetSettingGroupLinesAsync() =>
+        _inner is IGrblSettingsProvider p ? p.GetSettingGroupLinesAsync() : EmptyLines;
+
+    public Task<string?> GetSettingDescriptionAsync(int id) =>
+        _inner is IGrblSettingsProvider p ? p.GetSettingDescriptionAsync(id) : Task.FromResult<string?>(null);
+
+    private static readonly Task<IReadOnlyList<string>> EmptyLines =
+        Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+
     private IGrblService SetInner(IGrblService value)
     {
         ArgumentNullException.ThrowIfNull(value);

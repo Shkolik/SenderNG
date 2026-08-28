@@ -30,6 +30,10 @@ public sealed record ControllerCapabilities
         // Demo emulates a fully-equipped grblHAL board: 4 tool-table slots so the
         // Offsets tool table is shown and savable in demo mode.
         NumTools = 4,
+        // Demo emulates a fully-equipped grblHAL board: settings database via
+        // $ES/$EG/$SED and every optional signal is reported.
+        HasSettingEnums = true,
+        HasSettingDescriptions = true,
         // Demo emulates a fully-equipped grblHAL board: every optional signal is
         // reported, so the signals panel shows the complete set (real boards only
         // show what their $I reports).
@@ -56,6 +60,20 @@ public sealed record ControllerCapabilities
     public bool Spindle { get; init; } = true;
     public bool Probing { get; init; } = true;
     public bool HomingEnabled { get; init; }
+
+    /// <summary>
+    /// grblHAL only: the firmware carries its own settings database and serves it via
+    /// <c>$ES</c> (setting metadata) and <c>$EG</c> (group tree). Signalled by the
+    /// <c>ENUMS</c> token in <c>[NEWOPT:]</c>. Classic grbl 1.1 / 1.2i forks have no
+    /// such dump — they fall back to the embedded catalog.
+    /// </summary>
+    public bool HasSettingEnums { get; init; }
+
+    /// <summary>
+    /// grblHAL only: per-setting long descriptions are available via <c>$SED=&lt;id&gt;</c>.
+    /// Signalled by the <c>SED</c> token in <c>[NEWOPT:]</c>.
+    /// </summary>
+    public bool HasSettingDescriptions { get; init; }
 
     /// <summary>
     /// Signals the controller reports as available, discovered from <c>$I</c>

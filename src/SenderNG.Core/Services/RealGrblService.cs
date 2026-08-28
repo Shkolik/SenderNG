@@ -1,5 +1,6 @@
 using System.Reactive.Subjects;
 using CNC.Core.Abstractions;
+using SenderNG.Core.Settings;
 
 namespace CNC.Core.Services;
 
@@ -501,6 +502,61 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         var lines = new List<string>();
         await ExchangeAsync("$$", lines, l => l is "ok" or "error");
         return lines;
+    }
+
+    /// <summary>
+    /// $ES dump: grblHAL setting metadata ([SETTING:...] lines) — ENUMS boards only.
+    /// Classic grbl replies "error" to the unknown command (or nothing), so this
+    /// returns empty and the caller falls back to the embedded catalog.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetSettingDetailLinesAsync()
+    {
+        var lines = new List<string>();
+        try
+        {
+            await ExchangeAsync("$ES", lines, l => l is "ok" or "error", TimeSpan.FromSeconds(1.5));
+        }
+        catch (TimeoutException)
+        {
+            // Classic grbl may stay silent to unknown $ commands; keep what we read.
+        }
+        return lines;
+    }
+
+    /// <summary>
+    /// $EG dump: grblHAL settings group tree ([SETTINGGROUP:...] lines) — ENUMS boards only.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetSettingGroupLinesAsync()
+    {
+        var lines = new List<string>();
+        try
+        {
+            await ExchangeAsync("$EG", lines, l => l is "ok" or "error", TimeSpan.FromSeconds(1.5));
+        }
+        catch (TimeoutException)
+        {
+            // Classic grbl may stay silent to unknown $ commands; keep what we read.
+        }
+        return lines;
+    }
+
+    /// <summary>
+    /// $SED=&lt;id&gt;: long description for one setting (grblHAL SED boards only).
+    /// The firmware replies "[SETTINGDESCR:id|text]" then "ok" — or just "ok" when
+    /// the setting has no description (returns null then).
+    /// </summary>
+    public async Task<string?> GetSettingDescriptionAsync(int id)
+    {
+        var lines = new List<string>();
+        try
+        {
+            await ExchangeAsync($"$SED={id}", lines, l => l is "ok" or "error", TimeSpan.FromSeconds(1.5));
+        }
+        catch (TimeoutException)
+        {
+            // Classic grbl may stay silent to unknown $ commands; keep what we read.
+        }
+        return lines.Select(GrblSettingsParser.ParseDescriptionLine).FirstOrDefault(static d => d.HasValue)?.Description;
     }
 
     /// <summary>One-shot $# re-read so the UI can refresh from the board (ioSender

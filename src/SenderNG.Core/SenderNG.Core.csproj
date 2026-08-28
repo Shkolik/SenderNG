@@ -12,4 +12,10 @@
     <PackageReference Include="System.Reactive" Version="6.0.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Embedded locale catalog: English base + the classic-grbl settings fallback.
+         Regenerated from a grblHAL board via tools/gen_catalog.py. -->
+    <EmbeddedResource Include="Localization\en.json" />
+  </ItemGroup>
+
 </Project>

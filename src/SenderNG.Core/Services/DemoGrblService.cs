@@ -1,5 +1,7 @@
 using System.Reactive.Subjects;
 using CNC.Core.Abstractions;
+using SenderNG.Core.Localization;
+using SenderNG.Core.Settings;
 
 namespace CNC.Core.Services;
 
@@ -198,6 +200,45 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 _settings.OrderBy(kv => kv.Key).Select(kv => $"${kv.Key}={kv.Value}").ToList());
         }
     }
+
+    // Demo emulates a grblHAL ENUMS board: serve $ES / $EG / $SED from the embedded
+    // catalog so the settings UI shows the full tree + typed editors in demo mode.
+    private static readonly Lazy<LocalizationService> DemoCatalog = new(LocalizationService.CreateEmbedded);
+
+    /// <summary>Serialize the embedded catalog as [SETTING:...] lines (grblHAL $ES wire format).</summary>
+    public Task<IReadOnlyList<string>> GetSettingDetailLinesAsync()
+    {
+        var catalog = DemoCatalog.Value.Settings;
+        var lines = catalog.Values
+            .OrderBy(s => s.Id)
+            .Select(s => $"[SETTING:{s.Id}|{s.GroupId}|{s.Name}|{s.Unit}|{(int)s.Type}|{s.Format}|" +
+                         $"{Fmt(s.Min)}|{Fmt(s.Max)}|{(s.RebootRequired ? 1 : 0)}|{(s.AllowNull ? 1 : 0)}]")
+            .ToList();
+        return Task.FromResult<IReadOnlyList<string>>(lines);
+    }
+
+    /// <summary>Serialize the embedded group tree as [SETTINGGROUP:...] lines ($EG wire format).</summary>
+    public Task<IReadOnlyList<string>> GetSettingGroupLinesAsync()
+    {
+        var groups = DemoCatalog.Value.Groups;
+        var lines = groups.Values
+            .OrderBy(g => g.Id)
+            .Select(g => $"[SETTINGGROUP:{g.Id}|{g.ParentId}|{g.Name}]")
+            .ToList();
+        return Task.FromResult<IReadOnlyList<string>>(lines);
+    }
+
+    /// <summary>Serve the embedded description for one setting ($SED wire format, literal \n escapes).</summary>
+    public Task<string?> GetSettingDescriptionAsync(int id)
+    {
+        var description = DemoCatalog.Value.Settings.TryGetValue(id, out var s) ? s.Description : null;
+        return Task.FromResult(description is null
+            ? null
+            : $"[SETTINGDESCR:{id}|{description.Replace("\n", "\\n")}]");
+    }
+
+    private static string Fmt(double? value) =>
+        value is null ? string.Empty : value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     private static bool TryParseSetting(string line, out int number, out string value)
     {
