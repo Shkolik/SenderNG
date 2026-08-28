@@ -17,6 +17,7 @@ public sealed class EditableOffsetRow : ViewModelBase
     }
 
     public string Code { get; }
+    public string DisplayName => Code;
     public ObservableCollection<string> Values { get; }
     public string X { get => GetValue(0); set => SetValue(0, value); }
     public string Y { get => GetValue(1); set => SetValue(1, value); }
@@ -27,11 +28,13 @@ public sealed class EditableOffsetRow : ViewModelBase
     public string? Error { get; set; }
 
     private string GetValue(int index) => index < Values.Count ? Values[index] : string.Empty;
-    private void SetValue(int index, string value)
+    public void SetValueAt(int index, string value)
     {
-        if (index < Values.Count)
+        if (index >= 0 && index < Values.Count)
             Values[index] = value;
     }
+
+    private void SetValue(int index, string value) => SetValueAt(index, value);
 }
 
 public sealed class EditableToolRow : ViewModelBase
@@ -88,7 +91,7 @@ public sealed class OffsetsViewModel : ViewModelBase
         }
     }
 
-    public EditableOffsetRow SelectedRow => Rows.FirstOrDefault(row => row.Code == SelectedOffset) ?? Rows[0];
+    public EditableOffsetRow? SelectedRow => Rows.FirstOrDefault(row => row.Code == SelectedOffset);
 
     public string Status
     {
@@ -160,8 +163,11 @@ public sealed class OffsetsViewModel : ViewModelBase
     private void GetCurrentPosition()
     {
         var state = _grbl.State.FirstAsync().Wait();
-        for (var i = 0; i < _axisCount && i < state.Positions.Length && i < SelectedRow.Values.Count; i++)
-            SelectedRow.Values[i] = Format(state.Positions[i]);
+        var row = SelectedRow;
+        if (row is null)
+            return;
+        for (var i = 0; i < _axisCount && i < state.Positions.Length && i < row.Values.Count; i++)
+            row.SetValueAt(i, Format(state.Positions[i]));
         Status = $"Current position copied to {SelectedOffset}";
     }
 
@@ -169,7 +175,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     {
         foreach (var row in Rows)
             for (var i = 0; i < row.Values.Count; i++)
-                row.Values[i] = "0.000";
+                row.SetValueAt(i, "0.000");
         Status = "All offsets cleared in editor; press Set all to write them";
     }
 
@@ -177,6 +183,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     {
         foreach (var row in Rows)
             await SetCoordinateValuesAsync(row);
+        Refresh();
         Status = "All offsets sent";
     }
 
