@@ -113,6 +113,18 @@ public sealed class EditableToolRow : ViewModelBase
         }
     }
     public string? Error { get; set; }
+
+    /// <summary>Original values loaded from the board; a change marks the tool dirty
+    /// so the single "Save tool table" button only writes edited rows.</summary>
+    public string[] OriginalOffsets { get; private set; } = [];
+    public string OriginalRadius { get; private set; } = "0.000";
+    public void SetOriginals(string[] offsets, string radius)
+    {
+        OriginalOffsets = offsets;
+        OriginalRadius = radius;
+    }
+    public bool IsDirty => OriginalRadius != Radius || OriginalOffsets.Length != Offsets.Count ||
+        OriginalOffsets.Select((v, i) => v != GetOffsetAt(i)).Any(x => x);
 }
 
 public sealed class OffsetsViewModel : ViewModelBase
@@ -120,16 +132,25 @@ public sealed class OffsetsViewModel : ViewModelBase
     private static readonly string[] AxisLetters = ["X", "Y", "Z", "A", "B", "C", "U", "V", "W"];
 
     private readonly IGrblService _grbl;
+    private readonly SettingsService _settingsService;
+    private readonly AppSettings _appSettings;
     private readonly IDisposable _stateSubscription;
     private readonly IDisposable _workParametersSubscription;
     private MachineState _lastState = new();
     private int _axisCount = 3;
     private string _selectedOffset = "G54";
     private string _status = string.Empty;
+    private bool _saving;
 
-    public OffsetsViewModel(IGrblService grbl)
+    public OffsetsViewModel(IGrblService grbl, SettingsService settingsService)
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
+        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _appSettings = _settingsService.Load();
+
+        Config = OffsetsConfigStore.Load(_appSettings);
+        Config.PropertyChanged += OnConfigPropertyChanged;
+
         _stateSubscription = grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
         _workParametersSubscription = grbl.WorkParametersChanges.Subscribe(
             p => UiThread.Post(() => ApplySnapshot(p)));
@@ -140,8 +161,11 @@ public sealed class OffsetsViewModel : ViewModelBase
         GetCurrentPositionCommand = new DelegateCommand(_ => GetCurrentPosition());
         ClearAllCommand = new DelegateCommand(_ => ClearAll());
         SetAllCommand = new DelegateCommand(_ => LastSaveTask = SetAllAsync());
-        SaveToolCommand = new DelegateCommand(p => LastSaveTask = SaveToolAsync(p));
+        SaveToolTableCommand = new DelegateCommand(_ => LastSaveTask = SaveToolTableAsync());
+        _settingsService.Changed += OnSettingsChanged;
     }
+
+    public OffsetsConfig Config { get; private set; }
 
     public ObservableCollection<EditableOffsetRow> Rows { get; } = new();
     public ObservableCollection<EditableToolRow> Tools { get; } = new();
@@ -157,8 +181,54 @@ public sealed class OffsetsViewModel : ViewModelBase
     public DelegateCommand GetCurrentPositionCommand { get; }
     public DelegateCommand ClearAllCommand { get; }
     public DelegateCommand SetAllCommand { get; }
-    public DelegateCommand SaveToolCommand { get; }
+    public DelegateCommand SaveToolTableCommand { get; }
     public Task? LastSaveTask { get; private set; }
+
+    /// <summary>True when the connected controller can persist a tool table.
+    /// G10 L1 tool-table writes only exist in grblHAL (a compile-time option);
+    /// classic grbl 1.1h has no G10 L1, and classic forks that merely report tool
+    /// slots in [OPT:] (e.g. mega5x 1.2i) reject the write with error 20. So both
+    /// the HAL flag and reported tool slots are required.</summary>
+    public bool ControllerSupportsToolTable =>
+        _grbl.Capabilities.IsGrblHAL && _grbl.Capabilities.NumTools > 0;
+
+    public bool ShowToolTable
+    {
+        get => Config.ShowToolTable;
+        set => Config.ShowToolTable = value;
+    }
+
+    private void OnConfigPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (_saving || e.PropertyName != nameof(OffsetsConfig.ShowToolTable))
+            return;
+        Save();
+        OnPropertyChanged(nameof(ShowToolTable));
+    }
+
+    private void OnSettingsChanged()
+    {
+        if (_saving)
+            return;
+        Config = OffsetsConfigStore.Load(_appSettings);
+        Config.PropertyChanged += OnConfigPropertyChanged;
+        OnPropertyChanged(nameof(Config));
+        OnPropertyChanged(nameof(ShowToolTable));
+    }
+
+    public void Save()
+    {
+        _saving = true;
+        try
+        {
+            OffsetsConfigStore.Save(_appSettings, Config);
+            _settingsService.Save(_appSettings);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
 
     /// <summary>Applies a new engine snapshot: resize rows, then refresh values for
     /// the G10-writable coordinate systems the controller reports.</summary>
@@ -186,6 +256,23 @@ public sealed class OffsetsViewModel : ViewModelBase
                 continue;
             for (var i = 0; i < _axisCount && i < source.Values.Length; i++)
                 row.SetValueAt(i, Format(source.Values[i]));
+        }
+
+        // Refresh tool rows from the snapshot, preserving the loaded original
+        // radius so dirty-tracking compares against what the board had.
+        foreach (var tool in Tools)
+        {
+            var source = parameters.Tools.FirstOrDefault(t => t.Id == tool.Id);
+            if (source is null)
+                continue;
+            for (var i = 0; i < _axisCount && i < source.Offsets.Length; i++)
+                tool.SetOffsetAt(i, Format(source.Offsets[i]));
+            var radius = Format(source.Radius);
+            tool.Radius = radius;
+            var originals = new string[_axisCount];
+            for (var i = 0; i < _axisCount && i < source.Offsets.Length; i++)
+                originals[i] = Format(source.Offsets[i]);
+            tool.SetOriginals(originals, radius);
         }
     }
 
@@ -284,22 +371,56 @@ public sealed class OffsetsViewModel : ViewModelBase
         Status = failures == 0 ? $"Saved {sent} offsets" : $"Saved {sent} offsets; {failures} failed";
     }
 
-    public Task SaveToolAsync(object? parameter)
-        => SaveToolCoreAsync(parameter);
+    /// <summary>Writes only the tools the user actually changed (offsets or radius),
+    /// so a single button refreshes the table without replaying unchanged rows.</summary>
+    public Task SaveToolTableAsync() => SaveToolTableCoreAsync();
 
-    private async Task SaveToolCoreAsync(object? parameter)
+    private async Task SaveToolTableCoreAsync()
     {
-        if (parameter is not EditableToolRow tool || !TryValues(tool.Offsets, out var values, out var error) || !double.TryParse(tool.Radius, NumberStyles.Float, CultureInfo.InvariantCulture, out var radius))
-        { Status = "Invalid tool-table value"; return; }
-        var words = string.Concat(values.Select((value, index) => $"{AxisLetters[index]}{Format(value)}"));
-        try
+        if (!ControllerSupportsToolTable)
         {
-            await _grbl.SendAsync($"G10L1P{tool.Id}{words}R{Format(radius)}");
-            tool.Error = null;
-            Status = $"Saved {tool.DisplayName}";
-            await SafeRefreshAsync();
+            Status = "This controller has no G10 L1 tool table (classic grbl 1.1)";
+            return;
         }
-        catch (Exception ex) { Status = $"Save {tool.DisplayName} failed: {ex.Message}"; }
+
+        var changed = new List<(EditableToolRow Tool, string Command)>();
+        var failures = 0;
+        foreach (var tool in Tools.Where(t => t.IsDirty))
+        {
+            if (!TryValues(tool.Offsets, out var values, out var error) ||
+                !double.TryParse(tool.Radius, NumberStyles.Float, CultureInfo.InvariantCulture, out var radius))
+            {
+                tool.Error = "Invalid tool-table value";
+                failures++;
+                continue;
+            }
+            var words = string.Concat(values.Select((value, index) => $"{AxisLetters[index]}{Format(value)}"));
+            changed.Add((tool, $"G10L1P{tool.Id}{words}R{Format(radius)}"));
+        }
+
+        if (changed.Count == 0)
+        {
+            Status = "No tool changes to save";
+            return;
+        }
+
+        var sent = 0;
+        foreach (var (tool, command) in changed)
+        {
+            try
+            {
+                await _grbl.SendAsync(command);
+                tool.Error = null;
+                sent++;
+            }
+            catch (Exception ex)
+            {
+                tool.Error = ex.Message;
+                failures++;
+            }
+        }
+        await SafeRefreshAsync();
+        Status = failures == 0 ? $"Saved {sent} changed tools" : $"Saved {sent} tools; {failures} failed";
     }
 
     /// <summary>One-shot board refresh; failures are non-fatal (keep last snapshot).</summary>

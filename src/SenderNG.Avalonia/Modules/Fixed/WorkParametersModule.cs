@@ -12,7 +12,8 @@ public sealed class WorkParametersModule : IModule
     public int Order => 36;
     public PanelHint Panel => PanelHint.Right;
     public bool IsVisibleByDefault => true;
-    public bool CanHide => true;
+    // Core functionality: always visible, no hide checkbox in App Settings.
+    public bool CanHide => false;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>

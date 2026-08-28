@@ -386,8 +386,12 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             var tool = WorkParameters.Tools.FirstOrDefault(x => x.Id == number) ?? new ToolTableEntry(number, state.NumAxes);
             if (!WorkParameters.Tools.Contains(tool)) WorkParameters.Tools.Add(tool);
             foreach (var word in words)
+            {
                 if (word.Length > 1 && "XYZABCUVW".Contains(char.ToUpperInvariant(word[0])) && double.TryParse(word[1..], System.Globalization.CultureInfo.InvariantCulture, out var value))
                     tool.Offsets["XYZABCUVW".IndexOf(char.ToUpperInvariant(word[0]))] = value;
+                else if (word.Length > 1 && char.ToUpperInvariant(word[0]) == 'R' && double.TryParse(word[1..], System.Globalization.CultureInfo.InvariantCulture, out var radius))
+                    tool.Radius = radius;
+            }
             return;
         }
         if (!l2)

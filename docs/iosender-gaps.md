@@ -105,9 +105,11 @@ Many already exist; the gaps are listed per widget.
       widget selector, 1–9) capped by the connected controller's reported axis
       count, so a 4-axis preference shows 3 rows on a 3-axis controller.
 - [ ] **Tool table → probing integration** (`ToolView`) — the Offsets flyout
-      now has a tool table with per-tool save (`G10 L1 Pn`), but it is not yet
-      wired into probing (the "with tool" selector / `G43 Hn` tool-length feed
-      is still missing).
+      now has a tool table (optional via App Settings, shown only on grblHAL
+      controllers — classic grbl 1.1 has no `G10 L1`) with a single "Save tool
+      table" button that writes only changed tools, but it is not yet wired
+      into probing (the "with tool" selector / `G43 Hn` tool-length feed is
+      still missing).
 - [x] **Work parameters** — implemented as a SenderNG flyout rather than
       ioSender's right-panel group. It displays the active G54–G59/G59.x selector,
       parsed controller work-coordinate/tool-table snapshots, tool selection,

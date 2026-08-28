@@ -7,13 +7,16 @@
              x:Class="SenderNG.Avalonia.Modules.Plugins.GotoSettingsView"
              x:DataType="vm:GotoViewModel">
     <StackPanel Spacing="4">
-        <TextBlock Text="Goto axes" FontSize="10" FontWeight="SemiBold" Foreground="#333" />
-        <StackPanel Orientation="Horizontal" Spacing="6">
-            <TextBlock Text="Rows" FontSize="10" VerticalAlignment="Center" />
-            <ComboBox ItemsSource="{Binding AxisChoices}" SelectedItem="{Binding SelectedAxisCount}"
-                      Width="52" Height="24" CornerRadius="0" />
+        <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="Goto axis count" FontSize="10" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding AxisChoices}" SelectedItem="{Binding SelectedAxisCount}"
+                          Width="52" Height="24" CornerRadius="0" />
+                <TextBlock Text="/ available" FontSize="10" VerticalAlignment="Center" Foreground="#777" />
+                <TextBlock Text="{Binding AvailableAxisCount}" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Text="Capped by the connected controller's axis count."
+                       FontSize="9" Foreground="#999" TextWrapping="Wrap" />
         </StackPanel>
-        <TextBlock Text="Capped by the connected controller's axis count."
-                   FontSize="9" Foreground="#999" TextWrapping="Wrap" />
     </StackPanel>
 </UserControl>
