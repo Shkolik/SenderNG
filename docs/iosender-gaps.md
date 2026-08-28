@@ -99,8 +99,11 @@ Many already exist; the gaps are listed per widget.
 
 - [x] **Goto widget** (`GotoControl`/`GotoFlyoutControl`) — implemented as the
       `Plugins/Goto` flyout: G28/G30 "goto position" buttons, G28.1/G30.1
-      record-reference-point buttons, numeric X/Y/Z + Go (`G53 G0`), gated on
-      homed state (tracked via completed `$H`; cleared on alarm/soft reset).
+      record-reference-point buttons, numeric per-axis rows + Go (`G53 G0`),
+      gated on homed state (tracked via completed `$H`; cleared on alarm/soft
+      reset). The visible axis count is a persisted preference (App Settings /
+      widget selector, 1–9) capped by the connected controller's reported axis
+      count, so a 4-axis preference shows 3 rows on a 3-axis controller.
 - [ ] **Tool table → probing integration** (`ToolView`) — the Offsets flyout
       now has a tool table with per-tool save (`G10 L1 Pn`), but it is not yet
       wired into probing (the "with tool" selector / `G43 Hn` tool-length feed

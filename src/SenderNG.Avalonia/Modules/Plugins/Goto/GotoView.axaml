@@ -3,7 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
-             mc:Ignorable="d" d:DesignWidth="320" d:DesignHeight="220"
+             mc:Ignorable="d" d:DesignWidth="320" d:DesignHeight="260"
              x:Class="SenderNG.Avalonia.Modules.Plugins.GotoView"
              x:DataType="vm:GotoViewModel">
     <ScrollViewer>
@@ -24,14 +24,29 @@
 
             <Separator Margin="0,2" />
 
-            <TextBlock Text="Goto position (machine coords)" FontWeight="SemiBold" />
-            <Grid ColumnDefinitions="*,*,*,Auto" ColumnSpacing="4">
-                <TextBox Text="{Binding X, Mode=TwoWay}" Watermark="X" CornerRadius="0" />
-                <TextBox Grid.Column="1" Text="{Binding Y, Mode=TwoWay}" Watermark="Y" CornerRadius="0" />
-                <TextBox Grid.Column="2" Text="{Binding Z, Mode=TwoWay}" Watermark="Z" CornerRadius="0" />
-                <Button Grid.Column="3" Content="Go" Command="{Binding GoCommand}"
-                        IsEnabled="{Binding IsHomed}" CornerRadius="0" />
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <TextBlock Text="Goto position (machine coords)" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Text="Axes" FontSize="11" VerticalAlignment="Center" Foreground="#555" />
+                    <ComboBox ItemsSource="{Binding AxisChoices}" SelectedItem="{Binding SelectedAxisCount}"
+                              Width="52" Height="24" CornerRadius="0" />
+                </StackPanel>
             </Grid>
+            <ItemsControl ItemsSource="{Binding GotoAxes}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:GotoAxisRow">
+                        <Grid ColumnDefinitions="Auto,*" Margin="0,1">
+                            <TextBlock Grid.Column="0" Text="{Binding Letter}" FontSize="16" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" Width="22" TextAlignment="Center" />
+                            <TextBox Grid.Column="1" Text="{Binding Value, Mode=TwoWay}" Height="32" MinHeight="32"
+                                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" Margin="4,0"
+                                     Padding="8,0" VerticalContentAlignment="Center" FontSize="14" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Button Content="Go" Command="{Binding GoCommand}" IsEnabled="{Binding IsHomed}"
+                    CornerRadius="0" HorizontalAlignment="Stretch" />
 
             <TextBlock Text="{Binding Status}" Foreground="#777" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
