@@ -60,7 +60,14 @@ public sealed class WorkParameters
     /// <summary>Parses the bracketed lines returned by classic grbl/grblHAL $#.</summary>
     public static WorkParameters Parse(IEnumerable<string> lines, int axisCount = 3, int toolCount = 0)
     {
-        var result = CreateDefault(axisCount, toolCount);
+        var result = new WorkParameters();
+        result.ToolLengthOffset = new double[Math.Clamp(axisCount, 1, 9)];
+        var input = lines.ToList();
+        foreach (var code in input.Select(GetCode).Where(code => code is not null).Cast<string>().Distinct())
+            if (code is not "TLO" and not "PRB" and not "TOOL" and not "T")
+                result.CoordinateSystems.Add(new WorkCoordinateSystem(code, CoordinateSystemNumber(code), result.ToolLengthOffset.Length));
+        if (result.CoordinateSystems.Count == 0)
+            result = CreateDefault(axisCount, toolCount);
         foreach (var raw in lines)
         {
             var line = raw?.Trim();
@@ -136,6 +143,21 @@ public sealed class WorkParameters
             double.TryParse(values[i], NumberStyles.Float, CultureInfo.InvariantCulture, out result[i]);
         return result;
     }
+
+    private static string? GetCode(string raw)
+    {
+        var line = raw?.Trim();
+        if (string.IsNullOrWhiteSpace(line) || line[0] != '[')
+            return null;
+        var colon = line.IndexOf(':');
+        return colon > 1 ? line[1..colon] : null;
+    }
+
+    private static int CoordinateSystemNumber(string code) => code switch
+    {
+        "G54" => 1, "G55" => 2, "G56" => 3, "G57" => 4, "G58" => 5, "G59" => 6,
+        "G59.1" => 7, "G59.2" => 8, "G59.3" => 9, _ => 0,
+    };
 
     private static void Copy(double[] source, double[] target) =>
         Array.Copy(source, target, Math.Min(source.Length, target.Length));

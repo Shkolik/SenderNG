@@ -55,7 +55,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     private static readonly string[] OffsetCodes = ["G54", "G55", "G56", "G57", "G58", "G59", "G28", "G30", "G92"];
     private static readonly string[] AxisLetters = ["X", "Y", "Z", "A", "B", "C", "U", "V", "W"];
     private readonly IGrblService _grbl;
-    private readonly int _axisCount;
+    private int _axisCount;
     private string _selectedOffset = "G54";
     private string _status = string.Empty;
 
@@ -63,12 +63,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
         _axisCount = Math.Clamp(grbl.Capabilities.NumAxes, 1, AxisLetters.Length);
-        foreach (var code in OffsetCodes)
-            Rows.Add(new EditableOffsetRow(code, _axisCount));
-        foreach (var tool in grbl.WorkParameters.Tools)
-            Tools.Add(new EditableToolRow(tool.Id, _axisCount));
-        if (Tools.Count == 0)
-            Tools.Add(new EditableToolRow(0, _axisCount));
+        BuildRows(grbl.WorkParameters);
 
         SelectedOffset = grbl.WorkParameters.ActiveCoordinateSystem;
         RefreshCommand = new DelegateCommand(_ => Refresh());
@@ -111,6 +106,12 @@ public sealed class OffsetsViewModel : ViewModelBase
     public void Refresh()
     {
         var parameters = _grbl.WorkParameters;
+        var axisCount = Math.Clamp(parameters.CoordinateSystems.Select(x => x.Values.Length).DefaultIfEmpty(_axisCount).Max(), 1, AxisLetters.Length);
+        if (axisCount != _axisCount || Rows.Count != OffsetCodes.Length || Tools.Count != parameters.Tools.Count)
+        {
+            _axisCount = axisCount;
+            BuildRows(parameters);
+        }
         foreach (var row in Rows)
         {
             var source = parameters.CoordinateSystems.FirstOrDefault(item => item.Code == row.Code);
@@ -234,6 +235,23 @@ public sealed class OffsetsViewModel : ViewModelBase
         "G54" => 1, "G55" => 2, "G56" => 3, "G57" => 4, "G58" => 5, "G59" => 6,
         "G92" => 0, "G28" => 0, "G30" => 0, _ => 1,
     };
+
+    private void BuildRows(WorkParameters parameters)
+    {
+        Rows.Clear();
+        foreach (var code in parameters.CoordinateSystems.Select(x => x.Code).Distinct())
+            Rows.Add(new EditableOffsetRow(code, _axisCount));
+        if (Rows.Count == 0)
+            foreach (var code in OffsetCodes)
+                Rows.Add(new EditableOffsetRow(code, _axisCount));
+        Tools.Clear();
+        foreach (var tool in parameters.Tools)
+            Tools.Add(new EditableToolRow(tool.Id, _axisCount));
+        if (Tools.Count == 0)
+            Tools.Add(new EditableToolRow(0, _axisCount));
+        if (!Rows.Any(row => row.Code == SelectedOffset))
+            SelectedOffset = Rows[0].Code;
+    }
 
     private static string Format(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
     private static string Format(double? value) => value is null ? "0.000" : Format(value.Value);
