@@ -9,19 +9,21 @@ Guidance for AI agents (and human contributors) making changes to SenderNG. This
 3. **Reproduce bugs before fixing them.** Confirm the failure first. Where feasible, reproduce with a failing test; otherwise capture a minimal manual repro and describe it.
 4. **Demonstrate the failure with a test.** Write a test that fails against the current code, then make it pass. Tests live in `tests/SenderNG.Core.Tests` (xUnit).
 5. **Keep changes minimal.** Fix the problem, not the neighborhood: no unrelated refactoring, no style churn, and no work on deferred modules (Lathe, DragKnife, Converters) unless explicitly asked.
-6. **Run the relevant checks.** At minimum:
+6. **Add a copyright header to every new file.** Every new `src` file you add must start with the correct per-file copyright header chosen by the rules in `docs/copyright-headers.md` (mine-only vs. double vs. untouched). Do this at creation time, not later.
+7. **Run the relevant checks.** At minimum:
    - Build: `dotnet build SenderNG.sln`
    - Tests: `dotnet test SenderNG.sln` (or `dotnet test --filter <name>` for a targeted run)
-7. **Review the final diff.** Re-read the change (`git diff`) for correctness and unintended edits before finishing.
-8. **Commit and merge.** After each successfully finished pass/turn, commit the change on the feature branch and merge it into `main` before ending the turn. From the main worktree, merge the feature-branch tip by explicit commit hash — `@`/`HEAD` resolve to main's own HEAD there and silently no-op. Use conventional commit messages.
-9. **Re-verify after merge.** Re-run build and tests at the merged state when the binaries are not locked by a running app; if they are, state that the identical commit already passed in the worktree.
+8. **Review the final diff.** Re-read the change (`git diff`) for correctness and unintended edits before finishing.
+9. **Commit and merge.** After each successfully finished pass/turn, commit the change on the feature branch and merge it into `main` before ending the turn. From the main worktree, merge the feature-branch tip by explicit commit hash — `@`/`HEAD` resolve to main's own HEAD there and silently no-op. Use conventional commit messages.
+10. **Re-verify after merge.** Re-run build and tests at the merged state when the binaries are not locked by a running app; if they are, state that the identical commit already passed in the worktree.
 
 ## Project facts
 
 - .NET 10 / Avalonia cross-platform gcode sender; fork of ioSender (BSD 3-Clause). SDK pinned in `global.json`.
 - The original ioSender reference checkout is available locally at `c:\Projects\Workshop\ioSender\` (engine in `CNC Core/CNC Core/`, WPF UI in `CNC Controls/CNC Controls/` and `ioSender/ioSender/`). Use it for reference instead of scraping the web; mirror ioSender's semantics where behavior parity matters.
-- Three real test boards are available when hardware verification is needed: Mega 2560, RP2040, and Arduino Nano v3. Before running hardware-dependent tests, explicitly prompt the user to connect the specific board required and provide its port when applicable; never assume a board is connected.
+- **Hardware testing** — three real test boards are on the bench, nothing wired to them yet (RP2040 grblHAL, Mega 2560 mega5x grbl 1.2i, Arduino Nano classic grbl 1.1). They are safe to exercise (settings/parameters may be changed as needed) and tests restore what they touch. Boards' COM ports are not stable — resolve via `SENDERNG_HW_PORT=<port>` or auto-scan. See `docs/hardware-testing.md` for the board→firmware matrix, port discovery, and how to run the automated + interactive hardware tests. Before running any hardware-dependent test, explicitly prompt the user to connect the specific board and provide its port; never assume a board is connected, and check which board is actually plugged in (the firmware class changes what the test must verify).
 - `src/SenderNG.Core` — engine (namespaces `CNC.GCode`, `CNC.Core`, `SenderNG.*`); `src/SenderNG.Avalonia` — UI; `tests/SenderNG.Core.Tests` — xUnit tests.
+- **Copyright headers** — every file carries a per-author copyright header (mine-only / double / untouched). The exact forms and the rule for choosing one are in `docs/copyright-headers.md`; follow it for all new files.
 - Deferred scope (don't implement or extend without being asked): Lathe wizards, DragKnife, Converters.
 - The build currently emits warnings (CS8602, AVLN5001, xUnit1031, …); don't add new ones beyond the scope of the change.
 
