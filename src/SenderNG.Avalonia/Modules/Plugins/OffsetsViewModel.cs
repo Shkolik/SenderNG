@@ -148,7 +148,7 @@ public sealed class OffsetsViewModel : ViewModelBase
         if (!TryValues(row.Values, out var values, out var error)) { row.Error = error; Status = error!; return; }
         var words = string.Concat(values.Select((value, index) => onlyAxis is null || index == onlyAxis ? $"{AxisLetters[index]}{Format(value)}" : string.Empty));
         if (words.Length == 0) return;
-        var command = row.Code is "G92" ? $"G92{words}" : $"G10L2P{CoordinateSystemNumber(row.Code)}{words}";
+        var command = row.Code is "G92" ? $"G92{words}" : $"G10 L2 P{CoordinateSystemNumber(row.Code)} {words}";
         try { await _grbl.SendAsync(command); row.Error = null; Status = $"Set {row.Code}"; }
         catch (Exception ex) { Status = $"Set {row.Code} failed: {ex.Message}"; }
     }
@@ -171,9 +171,42 @@ public sealed class OffsetsViewModel : ViewModelBase
 
     private async Task SetAllAsync()
     {
-        foreach (var row in Rows) await SetCoordinateValuesAsync(row);
-        Refresh();
-        Status = "All offsets sent";
+        var sent = 0;
+        var failures = 0;
+        foreach (var row in Rows)
+        {
+            if (!TryValues(row.Values, out var values, out var error))
+            {
+                row.Error = error;
+                failures++;
+                continue;
+            }
+            var words = string.Concat(values.Select((value, index) => $"{AxisLetters[index]}{Format(value)}"));
+            var command = row.Code switch
+            {
+                "G92" => $"G92 {words}",
+                "G28" => $"G28 {words}",
+                "G30" => $"G30 {words}",
+                _ => $"G10 L2 P{CoordinateSystemNumber(row.Code)} {words}",
+            };
+            try
+            {
+                await _grbl.SendAsync(command);
+                sent++;
+                row.Error = null;
+            }
+            catch (Exception ex)
+            {
+                row.Error = ex.Message;
+                failures++;
+            }
+        }
+        if (sent > 0)
+        {
+            Refresh();
+            await Task.Delay(50);
+        }
+        Status = failures == 0 ? $"Saved {sent} offsets" : $"Saved {sent} offsets; {failures} failed";
     }
 
     private async Task SaveToolAsync(object? parameter)

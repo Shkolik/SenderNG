@@ -33,6 +33,7 @@ public sealed class OffsetsViewModelTests
         await Task.Delay(100);
 
         Assert.Equal(12.5, service.WorkParameters.CoordinateSystems[0].Values[0]);
+        Assert.Contains("Saved", vm.Status);
     }
 
     [Fact]
