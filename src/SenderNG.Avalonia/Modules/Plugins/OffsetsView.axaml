@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             xmlns:conv="clr-namespace:SenderNG.Avalonia.Converters"
              x:Class="SenderNG.Avalonia.Modules.Plugins.OffsetsView"
              x:DataType="vm:OffsetsViewModel" mc:Ignorable="d" d:DesignWidth="680" d:DesignHeight="420">
     <ScrollViewer>

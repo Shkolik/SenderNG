@@ -5,33 +5,31 @@
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
              mc:Ignorable="d" d:DesignWidth="250" d:DesignHeight="84"
              x:Class="SenderNG.Avalonia.Modules.Plugins.WorkParametersView"
-             x:DataType="vm:WorkParametersViewModel">
-    <Border BorderBrush="#999" BorderThickness="1" Background="#f6f6f6" Padding="6">
-        <StackPanel Spacing="6">
-            <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto">
-                <TextBlock Grid.Column="0" Text="Offset:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <ComboBox Grid.Column="1" ItemsSource="{Binding CoordinateSystemCodes}"
+             x:DataType="vm:WorkParametersViewModel">    <Border Background="#f6f6f6" Padding="6">
+        <Grid RowDefinitions="Auto,Auto,Auto">
+            <Grid ColumnDefinitions="*,*">
+                <TextBlock Grid.Column="0" Text="Offset" />
+                <TextBlock Grid.Column="1" Text="Tool" />
+            </Grid>
+            <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="0,2,0,0">
+                <ComboBox Grid.Column="0" ItemsSource="{Binding CoordinateSystemCodes}"
                           SelectedItem="{Binding SelectedCoordinateSystem, Mode=OneWay}"
-                          SelectionChanged="CoordinateSystemChanged" CornerRadius="0" Height="24" />
-                <TextBlock Grid.Column="2" Text="Tool:" VerticalAlignment="Center" Margin="10,0,6,0" />
-                <ComboBox Grid.Column="3" ItemsSource="{Binding Tools}"
+                          SelectionChanged="CoordinateSystemChanged" CornerRadius="0" Height="28" Margin="0,0,6,0" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding Tools}"
                           SelectedItem="{Binding SelectedToolRow, Mode=OneWay}"
-                          SelectionChanged="ToolChanged" CornerRadius="0" Height="24">
+                          SelectionChanged="ToolChanged" CornerRadius="0" Height="28">
                     <ComboBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ToolRow">
                             <TextBlock Text="{Binding DisplayName}" />
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-                <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" BorderBrush="#ccc" BorderThickness="0,1,0,0" Margin="0,4,0,0" Padding="0,4,0,0">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <CheckBox IsChecked="{Binding IsTloReferenceSet, Mode=OneWay}" IsEnabled="False" />
-                        <TextBlock Text="TLO ref'd" VerticalAlignment="Center" FontSize="11" />
-                        <TextBlock Text="TLO active" IsVisible="{Binding IsTloActive}" Foreground="#555" VerticalAlignment="Center" FontSize="11" />
-                    </StackPanel>
-                </Border>
             </Grid>
-            <TextBlock Text="{Binding Status}" Foreground="#777" FontSize="10" TextWrapping="Wrap" />
-        </StackPanel>
+            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6" Margin="0,3,0,0">
+                <CheckBox IsChecked="{Binding IsTloReferenceSet, Mode=OneWay}" IsEnabled="False" />
+                <TextBlock Text="TLO ref'd" VerticalAlignment="Center" />
+                <TextBlock Text="TLO active" IsVisible="{Binding IsTloActive}" Foreground="#555" VerticalAlignment="Center" />
+            </StackPanel>
+        </Grid>
     </Border>
 </UserControl>

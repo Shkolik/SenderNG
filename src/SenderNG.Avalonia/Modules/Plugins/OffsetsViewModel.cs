@@ -80,7 +80,7 @@ public sealed class OffsetsViewModel : ViewModelBase
         }
     }
 
-    public EditableOffsetRow SelectedRow => Rows.First(row => row.Code == SelectedOffset);
+    public EditableOffsetRow SelectedRow => Rows.FirstOrDefault(row => row.Code == SelectedOffset) ?? Rows[0];
 
     public string Status
     {
@@ -103,7 +103,7 @@ public sealed class OffsetsViewModel : ViewModelBase
             var source = parameters.CoordinateSystems.FirstOrDefault(item => item.Code == row.Code);
             if (source is null)
                 continue;
-            for (var i = 0; i < _axisCount; i++)
+            for (var i = 0; i < _axisCount && i < source.Values.Length && i < row.Values.Count; i++)
                 row.Values[i] = Format(source.Values[i]);
         }
         SelectedOffset = parameters.ActiveCoordinateSystem;
@@ -146,7 +146,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     private void GetCurrentPosition()
     {
         var state = _grbl.State.FirstAsync().Wait();
-        for (var i = 0; i < _axisCount; i++)
+        for (var i = 0; i < _axisCount && i < state.Positions.Length && i < SelectedRow.Values.Count; i++)
             SelectedRow.Values[i] = Format(state.Positions[i]);
         Status = $"Current position copied to {SelectedOffset}";
     }
