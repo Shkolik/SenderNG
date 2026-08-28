@@ -496,6 +496,11 @@ public class RealGrblHardwareTests
             Assert.True(service.IsConnected);
             Assert.True(service.Capabilities.IsKnown);
 
+            // The controller may boot locked/alarmed. Unlock before exercising G10;
+            // otherwise a valid offset command is rejected even though the serial
+            // exchange itself is healthy.
+            await service.SendAsync("$X");
+
             var vm = new SenderNG.Avalonia.Modules.Plugins.OffsetsViewModel(service);
             var codes = new[] { "G54", "G55", "G56", "G57", "G58", "G59" };
             var rows = codes.Select(code => Assert.Single(vm.Rows, row => row.Code == code)).ToArray();
