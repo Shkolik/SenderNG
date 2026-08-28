@@ -173,7 +173,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     {
         var sent = 0;
         var failures = 0;
-        foreach (var row in Rows)
+        foreach (var row in Rows.Where(row => CoordinateSystemNumber(row.Code) > 0))
         {
             if (!TryValues(row.Values, out var values, out var error))
             {
@@ -182,13 +182,7 @@ public sealed class OffsetsViewModel : ViewModelBase
                 continue;
             }
             var words = string.Concat(values.Select((value, index) => $"{AxisLetters[index]}{Format(value)}"));
-            var command = row.Code switch
-            {
-                "G92" => $"G92 {words}",
-                "G28" => $"G28 {words}",
-                "G30" => $"G30 {words}",
-                _ => $"G10 L2 P{CoordinateSystemNumber(row.Code)} {words}",
-            };
+            var command = $"G10 L2 P{CoordinateSystemNumber(row.Code)} {words}";
             try
             {
                 await _grbl.SendAsync(command);
@@ -203,8 +197,8 @@ public sealed class OffsetsViewModel : ViewModelBase
         }
         if (sent > 0)
         {
-            Refresh();
             await Task.Delay(50);
+            Refresh();
         }
         Status = failures == 0 ? $"Saved {sent} offsets" : $"Saved {sent} offsets; {failures} failed";
     }

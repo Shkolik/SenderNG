@@ -27,12 +27,14 @@ public sealed class OffsetsViewModelTests
         using var service = new DemoGrblService(new AppSettings());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service);
-        vm.Rows[0].SetValueAt(0, "12.5");
+        vm.Rows.Single(x => x.Code == "G54").SetValueAt(0, "12.5");
+        vm.Rows.Single(x => x.Code == "G55").SetValueAt(0, "25.5");
 
         vm.SetAllCommand.Execute(null);
         await Task.Delay(100);
 
-        Assert.Equal(12.5, service.WorkParameters.CoordinateSystems[0].Values[0]);
+        Assert.Equal(12.5, service.WorkParameters.CoordinateSystems.Single(x => x.Code == "G54").Values[0]);
+        Assert.Equal(25.5, service.WorkParameters.CoordinateSystems.Single(x => x.Code == "G55").Values[0]);
         Assert.Contains("Saved", vm.Status);
     }
 

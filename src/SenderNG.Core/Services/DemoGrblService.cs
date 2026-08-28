@@ -372,10 +372,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         }
         var row = WorkParameters.CoordinateSystems.FirstOrDefault(x => x.Id == number);
         if (row is null)
-        {
-            row = new WorkCoordinateSystem($"G{53 + number}", number, state.NumAxes);
-            WorkParameters.CoordinateSystems.Add(row);
-        }
+            return;
         foreach (var word in words)
             if (word.Length > 1 && "XYZABCUVW".Contains(char.ToUpperInvariant(word[0])) && double.TryParse(word[1..], System.Globalization.CultureInfo.InvariantCulture, out var value))
                 row.Values["XYZABCUVW".IndexOf(char.ToUpperInvariant(word[0]))] = value;

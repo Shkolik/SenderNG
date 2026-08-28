@@ -118,7 +118,7 @@ public sealed class WorkParameters
         var item = result.CoordinateSystems.FirstOrDefault(x => x.Code == code);
         if (item is null)
         {
-            item = new WorkCoordinateSystem(code, 0, result.ToolLengthOffset.Length);
+            item = new WorkCoordinateSystem(code, CoordinateSystemNumber(code), result.ToolLengthOffset.Length);
             result.CoordinateSystems.Add(item);
         }
         Copy(ParseValues(csv, item.Values.Length), item.Values);
