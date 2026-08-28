@@ -100,9 +100,11 @@ Many already exist; the gaps are listed per widget.
 - [ ] **Tool table / Tool view** (`ToolView`) — tool list with Get current
       position / Set all / Clear all; feeds probing tool-length (`G10 L1 Pn` /
       `G43 Hn`) and would close the probing tool-table gap.
-- [ ] **Work parameters** (`WorkParametersControl`) — ioSender's right-panel
-      group (work offset fields + tool-change state). Offsets module covers the
-      table; the "work parameters" quick fields are not ported.
+- [x] **Work parameters** — implemented as a SenderNG flyout rather than
+      ioSender's right-panel group. It displays the active G54–G59/G59.x selector,
+      parsed controller work-coordinate/tool-table snapshots, tool selection,
+      TLO/TLO-reference indicators, refresh, and tool-change state. Full editable
+      offset/tool-table write-back remains a follow-up.
 - [ ] **File actions** (`FileActionControl`) — Load / Save / Close / Run from a
       toolbar; SenderNG has Open (menu + toolbar) and program send in the
       Program view, but no Save/Close file actions.
@@ -200,7 +202,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | ProbingView + 6 tool controls | `Plugins/Probing` | done (flyout) — see `probing-gaps.md` |
 | GotoControl / GotoFlyoutControl | — | **missing** (P1) |
 | ToolView | — | **missing** (P1) |
-| WorkParametersControl | — | **missing** (P1) |
+| WorkParametersControl | `Plugins/WorkParameters` flyout | done (read/select; write-back follow-up) |
 | FileActionControl | Open only | partial (P1) |
 | StepperCalibrationWizard | — | **missing** (P3) |
 | GCodeViewer / RenderControl | — | **missing** (P2) |

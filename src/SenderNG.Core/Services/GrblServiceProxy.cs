@@ -47,6 +47,8 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
 
     public ControllerCapabilities Capabilities => _inner.Capabilities;
 
+    public WorkParameters WorkParameters => _inner.WorkParameters;
+
     // BehaviorSubject: replays the current machine state, so subscribers that
     // attach after construction (widgets, MainViewModel) immediately see the
     // inner service's latest state instead of waiting for the next emission.

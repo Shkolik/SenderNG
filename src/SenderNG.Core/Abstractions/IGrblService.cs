@@ -37,6 +37,9 @@ public interface IGrblService
     /// and <see cref="RealGrblService"/>/<see cref="GrblServiceProxy"/> override it.
     /// </summary>
     ControllerCapabilities Capabilities => ControllerCapabilities.Unknown;
+
+    /// <summary>Latest controller work-coordinate and tool-table snapshot.</summary>
+    WorkParameters WorkParameters => WorkParameters.CreateDefault(Capabilities.NumAxes, Capabilities.NumTools);
 }
 
 /// <summary>grblHAL realtime command bytes. Coolant toggle bytes are identical

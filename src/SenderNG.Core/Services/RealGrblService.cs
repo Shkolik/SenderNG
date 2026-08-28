@@ -57,6 +57,8 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     /// <summary>Capabilities from the connect-time <c>$I</c> handshake; Unknown until populated.</summary>
     public ControllerCapabilities Capabilities { get; private set; } = ControllerCapabilities.Unknown;
 
+    public WorkParameters WorkParameters { get; private set; } = WorkParameters.CreateDefault(3);
+
     public RealGrblService(IGrblTransport? transport = null)
     {
         _transport = transport ?? new SerialGrblTransport();
@@ -173,8 +175,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         // the parser ignores them (no MachineState fields map to work offsets yet).
         try
         {
-            if (Capabilities.IsKnown)
-                await GetWorkParameterLinesAsync(port);
+            // Work-parameter lines are parsed below after capabilities are applied.
         }
         catch (OperationCanceledException)
         {
@@ -183,6 +184,16 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         catch
         {
             // Non-fatal: $# is a console nicety, not required to connect.
+        }
+
+        try
+        {
+            WorkParameters = WorkParameters.Parse(await GetWorkParameterLinesAsync(port),
+                Capabilities.NumAxes, Capabilities.NumTools);
+        }
+        catch
+        {
+            WorkParameters = WorkParameters.CreateDefault(Capabilities.NumAxes, Capabilities.NumTools);
         }
 
         // Push the discovered axis count into the legacy GrblInfo static (the

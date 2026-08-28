@@ -12,13 +12,14 @@ Guidance for AI agents (and human contributors) making changes to SenderNG. This
 6. **Run the relevant checks.** At minimum:
    - Build: `dotnet build SenderNG.sln`
    - Tests: `dotnet test SenderNG.sln` (or `dotnet test --filter <name>` for a targeted run)
-7. **Review the final diff.** Re-read the change (`git diff`) for correctness and unintended edits before finishing.
-8. **Commit and merge.** After each successfully finished turn, commit the change on the feature branch and merge it into `main` before ending the turn. From the main worktree, merge the feature-branch tip by explicit commit hash — `@`/`HEAD` resolve to main's own HEAD there and silently no-op. Use conventional commit messages. Re-verify build and tests at the merged state when the binaries are not locked by a running app; if they are, state that the identical commit already passed in the worktree.
+7. **Review the final diff.** Re-read the change (`git diff`) for correctness and unintended edits before finishing.8. **Commit and merge.** After each successfully finished pass/turn, commit the change on the feature branch and merge it into `main` before ending the turn. From the main worktree, merge the feature-branch tip by explicit commit hash — `@`/`HEAD` resolve to main's own HEAD there and silently no-op. Use conventional commit messages.
+ Re-verify build and tests at the merged state when the binaries are not locked by a running app; if they are, state that the identical commit already passed in the worktree.
 
 ## Project facts
 
 - .NET 10 / Avalonia cross-platform gcode sender; fork of ioSender (BSD 3-Clause). SDK pinned in `global.json`.
-- ioSender reference sources are checked out locally at `c:\Projects\Workshop\ioSender\` (engine in `CNC Core/CNC Core/`, WPF UI in `CNC Controls/CNC Controls/` and `ioSender/ioSender/`). Use them for reference instead of scraping the web; mirror ioSender's semantics where behavior parity matters.
+- The original ioSender reference checkout is available locally at `c:\Projects\Workshop\ioSender\` (engine in `CNC Core/CNC Core/`, WPF UI in `CNC Controls/CNC Controls/` and `ioSender/ioSender/`). Use it for reference instead of scraping the web; mirror ioSender's semantics where behavior parity matters.
+- Three real test boards are available when hardware verification is needed: Mega 2560, RP2040, and Arduino Nano v3. Before running hardware-dependent tests, explicitly prompt the user to connect the specific board required and provide its port when applicable; never assume a board is connected.
 - `src/SenderNG.Core` — engine (namespaces `CNC.GCode`, `CNC.Core`, `SenderNG.*`); `src/SenderNG.Avalonia` — UI; `tests/SenderNG.Core.Tests` — xUnit tests.
 - Deferred scope (don't implement or extend without being asked): Lathe wizards, DragKnife, Converters.
 - The build currently emits warnings (CS8602, AVLN5001, xUnit1031, …); don't add new ones beyond the scope of the change.

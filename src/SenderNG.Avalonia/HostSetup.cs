@@ -59,6 +59,7 @@ public static class HostSetup
         RegisterModule(builder.Services, new Modules.Plugins.CoolantModule());
         RegisterModule(builder.Services, new Modules.Plugins.MacroModule());
         RegisterModule(builder.Services, new Modules.Plugins.ProbingModule());
+        RegisterModule(builder.Services, new Modules.Plugins.WorkParametersModule());
         RegisterModule(builder.Services, new Modules.Plugins.MposModule());
         RegisterModule(builder.Services, new Modules.Plugins.OutlineModule());
 

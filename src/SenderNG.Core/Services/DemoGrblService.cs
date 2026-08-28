@@ -26,6 +26,8 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     // Demo reports a full capability set so both coolant modes stay visible.
     public ControllerCapabilities Capabilities => ControllerCapabilities.Full;
 
+    public WorkParameters WorkParameters { get; } = WorkParameters.CreateDefault(3, 4);
+
     public DemoGrblService(AppSettings settings, string? settingsFilePath = null, int pollIntervalMs = 200)
     {
         // Seed the full optional-signal set (demo reports Full capabilities) so
@@ -245,6 +247,30 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             }
 
             var state = _subject.Value;
+
+            if (trimmed.StartsWith("G54", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("G55", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("G56", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("G57", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("G58", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("G59", StringComparison.OrdinalIgnoreCase))
+            {
+                var code = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].ToUpperInvariant();
+                if (WorkParameters.CoordinateSystems.Any(x => x.Code == code))
+                    WorkParameters.ActiveCoordinateSystem = code;
+                _subject.OnNext(state);
+                return Task.CompletedTask;
+            }
+
+            if (trimmed.StartsWith("T", StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(trimmed[1..], out var tool))
+            {
+                WorkParameters.ActiveTool = tool;
+                if (WorkParameters.Tools.All(x => x.Id != tool))
+                    WorkParameters.Tools.Add(new ToolTableEntry(tool, state.NumAxes));
+                _subject.OnNext(state);
+                return Task.CompletedTask;
+            }
 
             if (trimmed == "?")
             {
