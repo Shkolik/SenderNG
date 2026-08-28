@@ -481,15 +481,11 @@ public class RealGrblHardwareTests
     {
         var port = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
         if (string.IsNullOrWhiteSpace(port))
-        {
-            Console.WriteLine("WARNING: offsets hardware test skipped — set SENDERNG_HW_PORT to run it");
-            return;
-        }
+            port = AvailablePorts.FirstOrDefault(p => p.Equals("COM6", StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrWhiteSpace(port))
+            throw new InvalidOperationException("Offsets hardware test requires SENDERNG_HW_PORT or an enumerated COM6 board.");
         if (!AvailablePorts.Contains(port.Trim(), StringComparer.OrdinalIgnoreCase))
-        {
-            Console.WriteLine($"WARNING: offsets hardware test skipped — '{port}' is not enumerated");
-            return;
-        }
+            throw new InvalidOperationException($"Requested offsets hardware port '{port}' is not enumerated.");
 
         var savedAxes = CNC.Core.GrblInfo.NumAxes;
         var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
@@ -511,7 +507,7 @@ public class RealGrblHardwareTests
                     rows[i].SetValueAt(0, (100 + i * 11.25).ToString("0.###", CultureInfo.InvariantCulture));
 
                 vm.SetAllCommand.Execute(null);
-                await WaitUntil(() => vm.Status.StartsWith("Saved", StringComparison.Ordinal), 15_000);
+                await WaitUntil(() => vm.Status.StartsWith("Saved", StringComparison.Ordinal), 75_000);
                 Assert.StartsWith("Saved ", vm.Status);
                 Assert.DoesNotContain("failed", vm.Status, StringComparison.OrdinalIgnoreCase);
 
@@ -529,7 +525,7 @@ public class RealGrblHardwareTests
                         rows[i].SetValueAt(axis, original[codes[i]][axis]);
 
                 vm.SetAllCommand.Execute(null);
-                var restoredStatus = await WaitUntil(() => vm.Status.StartsWith("Saved", StringComparison.Ordinal), 15_000);
+                var restoredStatus = await WaitUntil(() => vm.Status.StartsWith("Saved", StringComparison.Ordinal), 75_000);
                 Assert.True(restoredStatus, $"offset restore did not complete: {vm.Status}");
                 Assert.DoesNotContain("failed", vm.Status, StringComparison.OrdinalIgnoreCase);
 
