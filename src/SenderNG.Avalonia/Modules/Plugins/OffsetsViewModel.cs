@@ -18,7 +18,20 @@ public sealed class EditableOffsetRow : ViewModelBase
 
     public string Code { get; }
     public ObservableCollection<string> Values { get; }
+    public string X { get => GetValue(0); set => SetValue(0, value); }
+    public string Y { get => GetValue(1); set => SetValue(1, value); }
+    public string Z { get => GetValue(2); set => SetValue(2, value); }
+    public string A { get => GetValue(3); set => SetValue(3, value); }
+    public string B { get => GetValue(4); set => SetValue(4, value); }
+    public string C { get => GetValue(5); set => SetValue(5, value); }
     public string? Error { get; set; }
+
+    private string GetValue(int index) => index < Values.Count ? Values[index] : string.Empty;
+    private void SetValue(int index, string value)
+    {
+        if (index < Values.Count)
+            Values[index] = value;
+    }
 }
 
 public sealed class EditableToolRow : ViewModelBase

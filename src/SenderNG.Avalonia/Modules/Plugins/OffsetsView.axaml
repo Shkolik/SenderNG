@@ -22,12 +22,12 @@
                     <DataTemplate x:DataType="vm:EditableOffsetRow">
                         <Grid ColumnDefinitions="Auto,*,*,*,*,*,*" Margin="0,1">
                             <TextBlock Grid.Column="0" Text="{Binding Code}" Width="48" VerticalAlignment="Center" FontWeight="SemiBold" />
-                            <TextBox Grid.Column="1" Text="{Binding Values[0], Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="2" Text="{Binding Values[1], Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="3" Text="{Binding Values[2], Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="4" Text="{Binding Values[3], Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="5" Text="{Binding Values[4], Mode=TwoWay}" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="6" Text="{Binding Values[5], Mode=TwoWay}" Margin="2" CornerRadius="0" />
+                            <TextBox Grid.Column="1" Text="{Binding X, Mode=TwoWay}" Margin="2" CornerRadius="0" />
+                            <TextBox Grid.Column="2" Text="{Binding Y, Mode=TwoWay}" Margin="2" CornerRadius="0" />
+                            <TextBox Grid.Column="3" Text="{Binding Z, Mode=TwoWay}" Margin="2" CornerRadius="0" />
+                            <TextBox Grid.Column="4" Text="{Binding A, Mode=TwoWay}" Margin="2" CornerRadius="0" />
+                            <TextBox Grid.Column="5" Text="{Binding B, Mode=TwoWay}" Margin="2" CornerRadius="0" />
+                            <TextBox Grid.Column="6" Text="{Binding C, Mode=TwoWay}" Margin="2" CornerRadius="0" />
                         </Grid>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
