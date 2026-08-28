@@ -24,14 +24,7 @@
 
             <Separator Margin="0,2" />
 
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                <TextBlock Text="Goto position (machine coords)" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                    <TextBlock Text="Axes" FontSize="11" VerticalAlignment="Center" Foreground="#555" />
-                    <ComboBox ItemsSource="{Binding AxisChoices}" SelectedItem="{Binding SelectedAxisCount}"
-                              Width="52" Height="24" CornerRadius="0" />
-                </StackPanel>
-            </Grid>
+            <TextBlock Text="Goto position (machine coords)" FontWeight="SemiBold" VerticalAlignment="Center" />
             <ItemsControl ItemsSource="{Binding GotoAxes}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:GotoAxisRow">
