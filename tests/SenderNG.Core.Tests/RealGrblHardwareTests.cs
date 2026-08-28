@@ -426,12 +426,14 @@ public class RealGrblHardwareTests
             // 3b) Jog: a tiny incremental $J command must be accepted once the
             //     machine is out of alarm. This catches the jog-format regression
             //     (the app used to send '$J=G91 G0 …' — prohibited g-code inside a
-            //     jog, rejected as error 16/21). Boards stuck in a critical alarm
-            //     (grblHAL error 79) or with homing required will refuse — reported,
-            //     not asserted, since that depends on the bench setup.
+            //     jog, rejected as error 16/21; bare '$J=X1' is accepted but is an
+            //     ABSOLUTE move under G90, so G91 must be embedded to jog relative).
+            //     Boards stuck in a critical alarm (grblHAL error 79) or with homing
+            //     required will refuse — reported, not asserted, since that depends
+            //     on the bench setup.
             var beforeJog = received.Count;
-            Console.WriteLine("JOG sending $J=X1 F500 (1mm)...");
-            await svc.SendAsync("$J=X1 F500");
+            Console.WriteLine("JOG sending $J=G91 X1 F500 (+1mm incremental)...");
+            await svc.SendAsync("$J=G91 X1 F500");
             var jogReplies = received.Skip(beforeJog).Where(l => !l.StartsWith('<')).Take(2).ToArray();
             Console.WriteLine($"JOG reply: {(jogReplies.Length > 0 ? string.Join(" | ", jogReplies) : "(none observed)")}");
 

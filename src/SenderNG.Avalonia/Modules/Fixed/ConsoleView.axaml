@@ -39,7 +39,7 @@
             <TextBox x:Name="ConsoleText" Grid.Row="1" IsReadOnly="True"
                      Text="{Binding ConsoleText}" TextWrapping="NoWrap"
                      CornerRadius="0" BorderBrush="#aaa" BorderThickness="0"
-                     FontSize="11" FontFamily="Consolas, Courier New, monospace"
+                     FontSize="13" FontFamily="Consolas, Courier New, monospace"
                      ScrollViewer.HorizontalScrollBarVisibility="Visible"
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                      AcceptsReturn="True"

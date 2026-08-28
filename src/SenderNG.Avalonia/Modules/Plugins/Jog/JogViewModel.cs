@@ -196,11 +196,14 @@ public class JogViewModel : ViewModelBase
             words = string.Join(" ", SelectWords(parts[0]));
         }
 
-        // grbl jog mode only accepts axis words plus an optional feed word —
-        // embedding g-code (G91/G0) makes the parser reject the whole line
-        // (error 16 "invalid jog command" on classic grbl, 21 on some forks).
-        // Each $J= command is inherently incremental, so no G91 is needed.
-        await _grbl.SendAsync($"$J={words} F{Fmt(SelectedSpeed)}");
+        // grbl's jog parser only accepts axis words, an optional feed word, and
+        // the unit/distance override words G20/G21/G90/G91/G53 — embedding any
+        // other g-code (e.g. G0) rejects the whole line (error 16 "invalid jog"
+        // on 1.2i/grblHAL, 21 on classic 1.1h). Without G91 the jog executes in
+        // the CURRENT modal state (G90 after unlock/reset), so bare '$J=X10'
+        // means "move to absolute X=10" instead of "move +10". Embedding G91
+        // forces each click to be an incremental move, like ioSender does.
+        await _grbl.SendAsync($"$J=G91 {words} F{Fmt(SelectedSpeed)}");
     }
 
     private string ToWord(string token)

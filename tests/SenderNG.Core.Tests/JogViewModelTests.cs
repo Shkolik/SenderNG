@@ -56,7 +56,7 @@ public Task SendAsync(string line)
 
         vm.JogCommand.Execute("X+");
 
-        Assert.Equal(["$J=X10 F1000"], sent);
+        Assert.Equal(["$J=G91 X10 F1000"], sent);
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public Task SendAsync(string line)
 
         vm.JogCommand.Execute("X-,Y+");
 
-        Assert.Equal(["$J=X-1 Y1 F2000"], sent);
+        Assert.Equal(["$J=G91 X-1 Y1 F2000"], sent);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public Task SendAsync(string line)
 
         vm.JogCommand.Execute("X-,Y+|Z-,A+");
 
-        Assert.Equal(["$J=X-1 Y1 Z-1 A1 F1000"], sent);
+        Assert.Equal(["$J=G91 X-1 Y1 Z-1 A1 F1000"], sent);
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public Task SendAsync(string line)
 
         vm.JogCommand.Execute("X+,Y-|Z+,A-");
 
-        Assert.Equal(["$J=X1 Y-1 F1000"], sent);
+        Assert.Equal(["$J=G91 X1 Y-1 F1000"], sent);
     }
 
     [Fact]
