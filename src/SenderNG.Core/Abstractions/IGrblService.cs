@@ -38,8 +38,21 @@ public interface IGrblService
     /// </summary>
     ControllerCapabilities Capabilities => ControllerCapabilities.Unknown;
 
-    /// <summary>Latest controller work-coordinate and tool-table snapshot.</summary>
+    /// <summary>
+    /// Latest controller work-coordinate and tool-table snapshot. Treat as
+    /// read-only: services publish fresh clones through
+    /// <see cref="WorkParametersChanges"/> rather than mutating this one.
+    /// Defaults to a stub so lightweight test doubles compile.
+    /// </summary>
     WorkParameters WorkParameters => WorkParameters.CreateDefault(Capabilities.NumAxes, Capabilities.NumTools);
+
+    /// <summary>
+    /// Emits a fresh work-parameters snapshot whenever the controller reports
+    /// new values (connect <c>$#</c> dump, live <c>[G54:..]</c>/<c>[TLO:..]</c>
+    /// reports, tool selection). Defaults to an empty stream like
+    /// <see cref="ReceivedLines"/> so test doubles stay cheap.
+    /// </summary>
+    IObservable<WorkParameters> WorkParametersChanges => System.Reactive.Linq.Observable.Empty<WorkParameters>();
 }
 
 /// <summary>grblHAL realtime command bytes. Coolant toggle bytes are identical

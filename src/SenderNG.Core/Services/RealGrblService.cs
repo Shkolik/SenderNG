@@ -19,6 +19,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 {
     private const int DefaultBaudRate = 115200;
     private readonly BehaviorSubject<MachineState> _subject;
+    private readonly BehaviorSubject<WorkParameters> _workParameters;
     private readonly Subject<string> _receivedLines = new();
     private readonly IGrblTransport _transport;
     private readonly object _gate = new();
@@ -57,12 +58,21 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     /// <summary>Capabilities from the connect-time <c>$I</c> handshake; Unknown until populated.</summary>
     public ControllerCapabilities Capabilities { get; private set; } = ControllerCapabilities.Unknown;
 
-    public WorkParameters WorkParameters { get; private set; } = WorkParameters.CreateDefault(3);
+    /// <summary>
+    /// Read-only snapshot of the controller work parameters; replaced (never
+    /// mutated in place) and published on <see cref="WorkParametersChanges"/>.
+    /// </summary>
+    public WorkParameters WorkParameters => _workParameters.Value;
+
+    /// <summary>Emits a fresh work-parameters snapshot on connect and whenever a
+    /// bracket report (<c>[G54:..]</c>, <c>[TLO:..]</c>, tool/probe) arrives.</summary>
+    public IObservable<WorkParameters> WorkParametersChanges => _workParameters;
 
     public RealGrblService(IGrblTransport? transport = null)
     {
         _transport = transport ?? new SerialGrblTransport();
         _subject = new BehaviorSubject<MachineState>(new MachineState());
+        _workParameters = new BehaviorSubject<WorkParameters>(WorkParameters.CreateDefault(3));
     }
 
     /// <summary>Status-poll interval in ms (≥50). Tuned by tests; shown for visibility.</summary>
@@ -188,12 +198,15 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
         try
         {
-            WorkParameters = WorkParameters.Parse(await GetWorkParameterLinesAsync(port),
+            var parameters = WorkParameters.Parse(await GetWorkParameterLinesAsync(port),
                 Capabilities.NumAxes, Capabilities.NumTools);
+            parameters.ActiveCoordinateSystem = "G54";
+            _workParameters.OnNext(parameters);
         }
         catch
         {
-            WorkParameters = WorkParameters.CreateDefault(Capabilities.NumAxes, Capabilities.NumTools);
+            _workParameters.OnNext(
+                WorkParameters.CreateDefault(Capabilities.NumAxes, Capabilities.NumTools));
         }
 
         // Push the discovered axis count into the legacy GrblInfo static (the
@@ -414,11 +427,26 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         // fast reply that lands between the write and the enqueue. The consumer loop
         // serves waiters FIFO, matching grbl's strictly serial reply stream.
         using var poll = SuspendPolling();
-        var waiter = new ReplyWaiter();
+        string? reply = null;
+        var waiter = new ReplyWaiter
+        {
+            // SendAsync is the single-command path (G10, MDI, $X): the controller
+            // answers exactly one line. Capture it so a rejected command ("error:nn")
+            // is reported as a failure instead of silently succeeding.
+            OnLine = line => { reply = line; return true; },
+        };
         lock (_gate) _waiters.Enqueue(waiter);
         await _transport.WriteLineAsync(line);
         await AwaitWaiterAsync(waiter, _commandTimeout, _cts.Token);
+
+        if (IsErrorReply(reply))
+            throw new InvalidOperationException($"Controller rejected '{line}': {reply}");
     }
+
+    /// <summary>True when a command replied with grbl/grblHAL's "error" token.</summary>
+    private static bool IsErrorReply(string? line) =>
+        line?.Equals("error", StringComparison.OrdinalIgnoreCase) == true ||
+        line?.StartsWith("error:", StringComparison.OrdinalIgnoreCase) == true;
 
     public void SendRealtime(byte code)
     {
@@ -438,12 +466,14 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         return lines;
     }
 
-    /// <summary>Reads the controller's current work-coordinate table using $#.</summary>
+    /// <summary>Reads the controller's current work-coordinate table using $# and
+    /// republishes the refreshed snapshot.</summary>
     public async Task<WorkParameters> ReadWorkParametersAsync()
     {
         var lines = await GetWorkParameterLinesAsync(string.Empty);
-        WorkParameters = WorkParameters.Parse(lines, Capabilities.NumAxes, Capabilities.NumTools);
-        return WorkParameters;
+        var parameters = WorkParameters.Parse(lines, Capabilities.NumAxes, Capabilities.NumTools);
+        _workParameters.OnNext(parameters);
+        return parameters;
     }
 
     /// <summary>
@@ -557,6 +587,12 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 continue;
             }
 
+            // Fold bracket work-parameter reports ([G54:..], [TLO:..], [TLR:..],
+            // tool table) into the live snapshot so the offsets editor and the
+            // work-parameters widget update without a manual refresh. The line also
+            // falls through to the waiter below so a $# dump still collects it.
+            ApplyLiveWorkParameter(line);
+
             // A command reply: feed it to the head waiter (FIFO). Drop stray
             // replies that arrive with no pending command.
             IMessageWaiter? head;
@@ -570,6 +606,23 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 lock (_gate) _waiters.Dequeue();
             }
         }
+    }
+
+    /// <summary>
+    /// Applies a bracketed work-parameter report to a clone of the live snapshot
+    /// and republishes it when the line changed something. Runs on the consumer
+    /// thread alongside status parsing; the UI is updated by subscribers posting
+    /// back to the dispatcher.
+    /// </summary>
+    private void ApplyLiveWorkParameter(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line) || line[0] != '[')
+            return;
+        var clone = _workParameters.Value.Clone();
+        if (!clone.ApplyLine(line))
+            return;
+        lock (_gate)
+            _workParameters.OnNext(clone);
     }
 
     /// <summary>Deep-copy a <see cref="MachineState"/> so each emitted snapshot is isolated.</summary>
@@ -709,4 +762,4 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             }
         }
     }
-}
+}

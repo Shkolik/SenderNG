@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Reactive.Linq;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Avalonia.ViewModels;
@@ -71,25 +70,22 @@ public sealed class EditableToolRow : ViewModelBase
 public sealed class OffsetsViewModel : ViewModelBase
 {
     private static readonly string[] AxisLetters = ["X", "Y", "Z", "A", "B", "C", "U", "V", "W"];
+
     private readonly IGrblService _grbl;
-    private int _axisCount;
+    private readonly IDisposable _stateSubscription;
+    private readonly IDisposable _workParametersSubscription;
+    private MachineState _lastState = new();
+    private int _axisCount = 3;
     private string _selectedOffset = "G54";
     private string _status = string.Empty;
 
     public OffsetsViewModel(IGrblService grbl)
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
-        _axisCount = Math.Clamp(grbl.State.FirstAsync().GetAwaiter().GetResult().NumAxes, 1, AxisLetters.Length);
-        BuildRows(grbl.WorkParameters);
-        Refresh();
-        if (grbl.WorkParameters.CoordinateSystems.Count > 0)
-        {
-            BuildRows(grbl.WorkParameters);
-            OnPropertyChanged(nameof(AxisNames));
-            OnPropertyChanged(nameof(ToolAxisNames));
-            OnPropertyChanged(nameof(OffsetCodes));
-            Refresh();
-        }
+        _stateSubscription = grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
+        _workParametersSubscription = grbl.WorkParametersChanges.Subscribe(
+            p => UiThread.Post(() => ApplySnapshot(p)));
+        ApplySnapshot(grbl.WorkParameters);
         SelectedOffset = Rows.FirstOrDefault()?.Code ?? "G54";
         RefreshCommand = new DelegateCommand(_ => Refresh());
         SetAxisCommand = new DelegateCommand(p => _ = SetAxisAsync(p));
@@ -116,11 +112,13 @@ public sealed class OffsetsViewModel : ViewModelBase
     public DelegateCommand SaveToolCommand { get; }
     public Task? LastSaveTask { get; private set; }
 
-    public void Refresh()
+    /// <summary>Applies a new engine snapshot: resize rows, then refresh values for
+    /// the G10-writable coordinate systems the controller reports.</summary>
+    private void ApplySnapshot(WorkParameters parameters)
     {
-        var parameters = _grbl.WorkParameters;
-        var axisCount = Math.Clamp(parameters.CoordinateSystems.Select(x => x.Values.Length).DefaultIfEmpty(_axisCount).Max(), 1, AxisLetters.Length);
-        if (axisCount != _axisCount || Rows.Count != parameters.CoordinateSystems.Count || Tools.Count != parameters.Tools.Count)
+        var axisCount = Math.Clamp(parameters.CoordinateSystems
+            .Select(x => x.Values.Length).DefaultIfEmpty(_axisCount).Max(), 1, AxisLetters.Length);
+        if (axisCount != _axisCount || Rows.Count == 0)
         {
             _axisCount = axisCount;
             BuildRows(parameters);
@@ -130,12 +128,29 @@ public sealed class OffsetsViewModel : ViewModelBase
         }
         foreach (var row in Rows)
         {
-            var source = parameters.CoordinateSystems.FirstOrDefault(x => x.Code == row.Code);
-            if (source is null) continue;
+            var source = parameters.CoordinateSystems
+                .FirstOrDefault(x => x.Code == row.Code && WorkParameters.IsG10Writable(x.Code));
+            if (source is null)
+                continue;
             for (var i = 0; i < _axisCount && i < source.Values.Length; i++)
                 row.SetValueAt(i, Format(source.Values[i]));
         }
-        SelectedOffset = parameters.ActiveCoordinateSystem;
+        // Track active coordinate system (selection may have changed on the board).
+        SelectedOffset = parameters.CoordinateSystems.Any(x => x.Code == parameters.ActiveCoordinateSystem)
+            ? parameters.ActiveCoordinateSystem
+            : SelectedOffset;
+    }
+
+    private void ApplyState(MachineState state)
+    {
+        if (state is null)
+            return;
+        _lastState = state;
+    }
+
+    public void Refresh()
+    {
+        ApplySnapshot(_grbl.WorkParameters);
         Status = "Offsets refreshed";
     }
 
@@ -147,10 +162,11 @@ public sealed class OffsetsViewModel : ViewModelBase
 
     private async Task SetCoordinateValuesAsync(EditableOffsetRow row, int? onlyAxis = null)
     {
+        if (!WorkParameters.IsG10Writable(row.Code)) { row.Error = "Only G54..G59.3 are writable"; Status = row.Error; return; }
         if (!TryValues(row.Values, out var values, out var error)) { row.Error = error; Status = error!; return; }
         var words = string.Concat(values.Select((value, index) => onlyAxis is null || index == onlyAxis ? $" {AxisLetters[index]}{Format(value)}" : string.Empty));
         if (words.Length == 0) return;
-        var command = row.Code is "G92" ? $"G92{words}" : $"G10 L2 P{CoordinateSystemNumber(row.Code)} {words}";
+        var command = $"G10 L2 P{WorkParameters.CoordinateSystemNumber(row.Code)} {words}";
         try { await _grbl.SendAsync(command); row.Error = null; Status = $"Set {row.Code}"; }
         catch (Exception ex) { Status = $"Set {row.Code} failed: {ex.Message}"; }
     }
@@ -159,8 +175,8 @@ public sealed class OffsetsViewModel : ViewModelBase
     {
         var row = SelectedRow;
         if (row is null) return;
-        var state = _grbl.State.FirstAsync().GetAwaiter().GetResult();
-        for (var i = 0; i < _axisCount && i < state.Positions.Length; i++) row.SetValueAt(i, Format(state.Positions[i]));
+        var positions = _lastState.Positions ?? [];
+        for (var i = 0; i < _axisCount && i < positions.Length; i++) row.SetValueAt(i, Format(positions[i]));
         Status = $"Current position copied to {SelectedOffset}";
     }
 
@@ -175,9 +191,13 @@ public sealed class OffsetsViewModel : ViewModelBase
 
     private async Task SetAllCoreAsync()
     {
-        var sent = 0;
+        // Build every command up front. Commands are read from the user-edited rows,
+        // which the engine's live publications must not be allowed to overwrite in
+        // between sends — otherwise the earlier writes re-render the rows from the
+        // (still-stale) snapshot and later commands repeat the old values.
+        var pending = new List<(EditableOffsetRow Row, string Command)>();
         var failures = 0;
-        foreach (var row in Rows.Where(row => CoordinateSystemNumber(row.Code) > 0))
+        foreach (var row in Rows.Where(row => WorkParameters.IsG10Writable(row.Code)))
         {
             if (!TryValues(row.Values, out var values, out var error))
             {
@@ -186,13 +206,17 @@ public sealed class OffsetsViewModel : ViewModelBase
                 continue;
             }
             var words = string.Concat(values.Select((value, index) => $" {AxisLetters[index]}{Format(value)}"));
-            var command = $"G10 L2 P{CoordinateSystemNumber(row.Code)} {words}";
+            pending.Add((row, $"G10 L2 P{WorkParameters.CoordinateSystemNumber(row.Code)}{words}"));
+        }
+
+        var sent = 0;
+        foreach (var (row, command) in pending)
+        {
             try
             {
                 await _grbl.SendAsync(command);
-                ApplyLocalOffset(row, values);
-                sent++;
                 row.Error = null;
+                sent++;
             }
             catch (Exception ex)
             {
@@ -200,19 +224,7 @@ public sealed class OffsetsViewModel : ViewModelBase
                 failures++;
             }
         }
-        if (sent > 0)
-        {
-            await Task.Delay(50);
-            Refresh();
-        }
         Status = failures == 0 ? $"Saved {sent} offsets" : $"Saved {sent} offsets; {failures} failed";
-    }
-
-    private void ApplyLocalOffset(EditableOffsetRow row, IReadOnlyList<double> values)
-    {
-        var source = _grbl.WorkParameters.CoordinateSystems.FirstOrDefault(x => x.Code == row.Code);
-        if (source is null) return;
-        for (var i = 0; i < values.Count && i < source.Values.Length; i++) source.Values[i] = values[i];
     }
 
     public Task SaveToolAsync(object? parameter)
@@ -234,11 +246,14 @@ public sealed class OffsetsViewModel : ViewModelBase
         for (var i = 0; i < values.Count; i++) if (!double.TryParse(values[i], NumberStyles.Float, CultureInfo.InvariantCulture, out result[i])) { error = $"Invalid numeric value at axis {i + 1}"; return false; }
         error = null; return true;
     }
-    private static int CoordinateSystemNumber(string code) => code switch { "G54" => 1, "G55" => 2, "G56" => 3, "G57" => 4, "G58" => 5, "G59" => 6, "G59.1" => 7, "G59.2" => 8, "G59.3" => 9, _ => 0 };
     private void BuildRows(WorkParameters parameters)
     {
-        Rows.Clear(); foreach (var item in parameters.CoordinateSystems) Rows.Add(new EditableOffsetRow(item.Code, _axisCount));
-        if (Rows.Count == 0) foreach (var code in new[] { "G54", "G55", "G56", "G57", "G58", "G59", "G28", "G30", "G92" }) Rows.Add(new EditableOffsetRow(code, _axisCount));
+        Rows.Clear();
+        foreach (var item in parameters.CoordinateSystems.Where(x => WorkParameters.IsG10Writable(x.Code)))
+            Rows.Add(new EditableOffsetRow(item.Code, _axisCount));
+        if (Rows.Count == 0)
+            foreach (var code in WorkParameters.CoordinateSystemCodes)
+                Rows.Add(new EditableOffsetRow(code, _axisCount));
         Tools.Clear(); foreach (var item in parameters.Tools) Tools.Add(new EditableToolRow(item.Id, _axisCount));
         if (Tools.Count == 0) Tools.Add(new EditableToolRow(0, _axisCount));
         if (SelectedRow is null) SelectedOffset = Rows[0].Code;

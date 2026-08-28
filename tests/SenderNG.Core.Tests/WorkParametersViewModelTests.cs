@@ -24,6 +24,34 @@ public sealed class WorkParametersTests
     }
 
     [Fact]
+    public void Apply_line_handles_tool_length_reference_and_isolates_clones()
+    {
+        var parameters = WorkParameters.CreateDefault(3);
+        parameters.ApplyLine("[TLR:45.5]");
+        Assert.Equal(45.5, parameters.ToolLengthOffsetReference);
+
+        parameters.ApplyLine("[G54:1,2,3]");
+        Assert.Equal([1, 2, 3], parameters.CoordinateSystems.Single(x => x.Code == "G54").Values[..3]);
+
+        // Clones are deep copies: mutating one must not affect the other.
+        var clone = parameters.Clone();
+        clone.ApplyLine("[G54:9,9,9]");
+        Assert.Equal(1, parameters.CoordinateSystems.Single(x => x.Code == "G54").Values[0]);
+        Assert.Equal(9, clone.CoordinateSystems.Single(x => x.Code == "G54").Values[0]);
+    }
+
+    [Fact]
+    public void Coordinate_system_numbers_and_writability()
+    {
+        Assert.Equal(1, WorkParameters.CoordinateSystemNumber("G54"));
+        Assert.Equal(9, WorkParameters.CoordinateSystemNumber("G59.3"));
+        Assert.Equal(0, WorkParameters.CoordinateSystemNumber("G92"));
+        Assert.True(WorkParameters.IsG10Writable("G55"));
+        Assert.False(WorkParameters.IsG10Writable("G28"));
+        Assert.False(WorkParameters.IsG10Writable("G92"));
+    }
+
+    [Fact]
     public async Task Demo_work_parameters_send_coordinate_and_tool_selection()
     {
         var settings = new AppSettings();

@@ -28,6 +28,16 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
     public WorkParameters WorkParameters { get; } = WorkParameters.CreateDefault(3, 4);
 
+    private readonly BehaviorSubject<WorkParameters> _workParametersChanges =
+        new(WorkParameters.CreateDefault(3, 4));
+
+    /// <summary>Emits a fresh work-parameters snapshot whenever a write mutates it
+    /// (G10, coordinate/tool selection), so widgets stay in sync without polling.</summary>
+    public IObservable<WorkParameters> WorkParametersChanges => _workParametersChanges;
+
+    private void PublishWorkParameters() =>
+        _workParametersChanges.OnNext(WorkParameters.Clone());
+
     public DemoGrblService(AppSettings settings, string? settingsFilePath = null, int pollIntervalMs = 200)
     {
         // Seed the full optional-signal set (demo reports Full capabilities) so
@@ -43,6 +53,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         _settingsFilePath = settingsFilePath ??
             Path.Combine(SettingsService.DefaultDir(), "grbl-settings-demo.txt");
         _settings = LoadSettings(_settingsFilePath);
+        PublishWorkParameters();
     }
 
     private void ResizeWorkParameters(int axisCount)
@@ -273,6 +284,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             {
                 ApplyWorkParameterCommand(trimmed, state);
                 _subject.OnNext(state);
+                PublishWorkParameters();
                 return Task.CompletedTask;
             }
 
@@ -287,6 +299,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 if (WorkParameters.CoordinateSystems.Any(x => x.Code == code))
                     WorkParameters.ActiveCoordinateSystem = code;
                 _subject.OnNext(state);
+                PublishWorkParameters();
                 return Task.CompletedTask;
             }
 
@@ -297,6 +310,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 if (WorkParameters.Tools.All(x => x.Id != tool))
                     WorkParameters.Tools.Add(new ToolTableEntry(tool, state.NumAxes));
                 _subject.OnNext(state);
+                PublishWorkParameters();
                 return Task.CompletedTask;
             }
 

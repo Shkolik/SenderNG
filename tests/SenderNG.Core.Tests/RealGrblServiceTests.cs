@@ -218,6 +218,24 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    public async Task SendAsync_throws_when_controller_replies_with_error()
+    {
+        // A rejected command (e.g. G10 while locked/alarmed) replies "error:nn".
+        // SendAsync must surface that as a failure so callers stop reporting
+        // "Saved" for a write the controller refused.
+        var transport = new FakeGrblTransport { AutoReply = false };
+        using var svc = new RealGrblService(transport);
+        await svc.ConnectAsync("fake");
+
+        var sendTask = svc.SendAsync("G10 L2 P1 X5");
+        transport.Enqueue("error:26");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sendTask.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.Contains("error:26", ex.Message);
+    }
+
+    [Fact]
     public async Task GetSettingLines_collects_until_ok()
     {
         var transport = new FakeGrblTransport();

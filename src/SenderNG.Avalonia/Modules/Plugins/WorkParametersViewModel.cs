@@ -41,6 +41,7 @@ public sealed class WorkParametersViewModel : ViewModelBase
 {
     private readonly IGrblService _grbl;
     private readonly IDisposable _stateSubscription;
+    private readonly IDisposable _workParametersSubscription;
     private string _selectedCoordinateSystem = "G54";
     private int _selectedTool;
     private bool _isTloActive;
@@ -52,10 +53,11 @@ public sealed class WorkParametersViewModel : ViewModelBase
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
         RefreshCommand = new DelegateCommand(_ => Refresh());
-        SaveCommand = new DelegateCommand(_ => _ = SaveAsync(), _ => _grbl.IsConnected);
         SelectCoordinateSystemCommand = new DelegateCommand(p => _ = SelectCoordinateSystemAsync(p as string));
         SelectToolCommand = new DelegateCommand(p => _ = SelectToolAsync(p));
         _stateSubscription = grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
+        _workParametersSubscription = grbl.WorkParametersChanges.Subscribe(
+            p => UiThread.Post(() => Refresh(p)));
         Refresh();
     }
 
@@ -107,25 +109,27 @@ public sealed class WorkParametersViewModel : ViewModelBase
     }
 
     public DelegateCommand RefreshCommand { get; }
-    public DelegateCommand SaveCommand { get; }
     public DelegateCommand SelectCoordinateSystemCommand { get; }
     public DelegateCommand SelectToolCommand { get; }
 
-    public void Refresh()
+    public void Refresh() => Refresh(_grbl.WorkParameters);
+
+    /// <summary>Rebuilds rows from a work-parameters snapshot (used on live updates).</summary>
+    private void Refresh(WorkParameters parameters)
     {
-        var parameters = _grbl.WorkParameters;
         CoordinateSystems.Clear();
         foreach (var coordinateSystem in parameters.CoordinateSystems)
             CoordinateSystems.Add(new WorkCoordinateRow(coordinateSystem));
         Tools.Clear();
         foreach (var tool in parameters.Tools)
             Tools.Add(new ToolRow(tool));
-        SelectedCoordinateSystem = parameters.ActiveCoordinateSystem;
+        SelectedCoordinateSystem = parameters.CoordinateSystems.Any(x => x.Code == parameters.ActiveCoordinateSystem)
+            ? parameters.ActiveCoordinateSystem
+            : SelectedCoordinateSystem;
         SelectedTool = parameters.ActiveTool;
         IsTloActive = parameters.ToolLengthOffset.Any(value => Math.Abs(value) > double.Epsilon);
         IsTloReferenceSet = !double.IsNaN(parameters.ToolLengthOffsetReference);
         Status = parameters.CoordinateSystems.Count == 0 ? "No work parameters reported" : string.Empty;
-        SaveCommand.RaiseCanExecuteChanged();
     }
 
     private async Task SelectCoordinateSystemAsync(string? code)
@@ -166,18 +170,10 @@ public sealed class WorkParametersViewModel : ViewModelBase
         }
     }
 
-    private async Task SaveAsync()
-    {
-        // Tool-table and coordinate editing will use G10/G43 semantics. Keep this
-        // command present now, but do not silently write values until the explicit
-        // editor fields have been changed and validated.
-        await Task.CompletedTask;
-        Status = "Edit values then save (controller write-back pending)";
-    }
-
     private void ApplyState(MachineState state)
     {
+        if (state is null)
+            return;
         IsToolChanging = state.IsToolChanging;
-        SaveCommand.RaiseCanExecuteChanged();
     }
 }

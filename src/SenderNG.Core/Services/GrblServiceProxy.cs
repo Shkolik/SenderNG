@@ -22,6 +22,9 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
     // empty log. The demo service publishes no raw lines, so the buffer is empty
     // in demo mode (the console stays silent as intended).
     private readonly ReplaySubject<string> _receivedLines = new(bufferSize: 50);
+    private readonly BehaviorSubject<WorkParameters> _workParameters =
+        new(WorkParameters.CreateDefault(3));
+    private IDisposable? _workParametersSubscription;
 
     public GrblServiceProxy(IGrblService inner) =>
         _inner = SetInner(inner);
@@ -47,7 +50,9 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
 
     public ControllerCapabilities Capabilities => _inner.Capabilities;
 
-    public WorkParameters WorkParameters => _inner.WorkParameters;
+    public WorkParameters WorkParameters => _workParameters.Value;
+
+    public IObservable<WorkParameters> WorkParametersChanges => _workParameters;
 
     // BehaviorSubject: replays the current machine state, so subscribers that
     // attach after construction (widgets, MainViewModel) immediately see the
@@ -80,6 +85,10 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
         _subscription = value.State.Subscribe(_subject.OnNext);
         _linesSubscription?.Dispose();
         _linesSubscription = value.ReceivedLines.Subscribe(_receivedLines.OnNext);
+
+        _workParametersSubscription?.Dispose();
+        _workParametersSubscription = value.WorkParametersChanges.Subscribe(
+            _workParameters.OnNext);
 
         if (_innerConnectionHandler is not null)
             _inner.ConnectionChanged -= _innerConnectionHandler;

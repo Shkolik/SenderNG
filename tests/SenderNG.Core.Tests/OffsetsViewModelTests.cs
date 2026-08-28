@@ -40,6 +40,38 @@ public sealed class OffsetsViewModelTests
     }
 
     [Fact]
+    public async Task Editor_rows_are_restricted_to_g10_writable_systems()
+    {
+        using var service = new DemoGrblService(new AppSettings());
+        await service.ConnectAsync("demo");
+        var vm = new OffsetsViewModel(service);
+
+        // G28/G30/G92 have no G10 L2 P number and must not be offered as writable
+        // rows (ioSender only writes G54..G59.3 via G10).
+        Assert.Equal(9, vm.Rows.Count);
+        Assert.DoesNotContain(vm.Rows, row => row.Code is "G28" or "G30" or "G92");
+        Assert.Contains("G54", vm.OffsetCodes);
+        Assert.Contains("G59.3", vm.OffsetCodes);
+    }
+
+    [Fact]
+    public async Task Rows_update_live_when_engine_publishes_new_snapshot()
+    {
+        using var service = new DemoGrblService(new AppSettings());
+        await service.ConnectAsync("demo");
+        var vm = new OffsetsViewModel(service);
+        var row = vm.Rows.Single(x => x.Code == "G54");
+        Assert.Equal("0", row.GetValueAt(0));
+
+        // A write issued outside the editor still reaches the VM through the live
+        // work-parameters stream (no manual Refresh required).
+        await service.SendAsync("G10 L2 P1 X7.5 Y4.25 Z0");
+
+        Assert.Equal("7.5", row.GetValueAt(0));
+        Assert.Equal("4.25", row.GetValueAt(1));
+    }
+
+    [Fact]
     public async Task Five_axis_editor_has_exactly_five_axes_and_offset_names()
     {
         var settings = new AppSettings();

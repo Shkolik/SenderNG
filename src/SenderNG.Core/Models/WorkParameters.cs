@@ -31,7 +31,13 @@ public sealed class ToolTableEntry
     public double Radius { get; set; }
 }
 
-/// <summary>Portable snapshot of the controller work parameters.</summary>
+/// <summary>
+/// Snapshot of the controller work parameters (coordinate systems, tool table,
+/// tool-length offset, probe result). Immutable by convention: the owning service
+/// replaces the whole snapshot with a fresh clone whenever data changes and
+/// publishes it through <c>IGrblService.WorkParametersChanges</c>, so observers
+/// never hold a reference that another thread mutates under them.
+/// </summary>
 public sealed class WorkParameters
 {
     public static readonly string[] CoordinateSystemCodes =
@@ -65,55 +71,111 @@ public sealed class WorkParameters
         var input = lines.Select(line => line?.Trim() ?? string.Empty)
             .Where(line => line.Length > 0)
             .ToList();
-        foreach (var code in input.Select(GetCode).Where(code => code is not null).Cast<string>().Distinct())
-            if (code is not "TLO" and not "PRB" and not "TOOL" and not "T")
-                result.CoordinateSystems.Add(new WorkCoordinateSystem(code, CoordinateSystemNumber(code), result.ToolLengthOffset.Length));
-        if (result.CoordinateSystems.Count == 0)
+
+        // Seed coordinate systems/tools from every reported code so a partial dump
+        // (e.g. classic grbl split over multiple $#s) keeps them all visible.
+        var codes = input.Select(GetCode).Where(code => code is not null).Cast<string>().Distinct().ToList();
+        var sawTable = codes.Count > 0;
+        if (!sawTable)
             result = CreateDefault(axisCount, toolCount);
-        foreach (var raw in lines)
+        else
         {
-            var line = raw?.Trim();
-            if (string.IsNullOrWhiteSpace(line) || line[0] != '[' || line[^1] != ']')
-                continue;
-            var colon = line.IndexOf(':');
-            if (colon <= 1)
-                continue;
-            var code = line[1..colon];
-            var values = line[(colon + 1)..^1].Split('|', StringSplitOptions.RemoveEmptyEntries);
-            switch (code)
-            {
-                case "G28":
-                case "G30":
-                case "G54":
-                case "G55":
-                case "G56":
-                case "G57":
-                case "G58":
-                case "G59":
-                case "G59.1":
-                case "G59.2":
-                case "G59.3":
-                case "G92":
-                    UpsertCoordinateSystem(result, code, values.FirstOrDefault() ?? string.Empty);
-                    break;
-                case "TLO":
-                    result.ToolLengthOffset = ParseValues(values.FirstOrDefault() ?? string.Empty, result.ToolLengthOffset.Length);
-                    break;
-                case "PRB":
-                    var probe = values.FirstOrDefault() ?? string.Empty;
-                    var probeParts = probe.Split(':');
-                    result.ProbePosition = ParseValues(probeParts[0], result.ToolLengthOffset.Length);
-                    result.ProbeSuccess = probeParts.Length < 2 || probeParts[1] == "1";
-                    break;
-                case "TOOL":
-                case "T":
-                    if (int.TryParse(values.FirstOrDefault(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
-                        UpsertTool(result, id, values.Skip(1).FirstOrDefault() ?? string.Empty);
-                    break;
-            }
+            foreach (var code in codes)
+                if (code is not "TLO" and not "PRB" and not "TOOL" and not "T")
+                    UpsertCoordinateSystem(result, code, string.Empty);
+        }
+
+        foreach (var raw in input)
+            result.ApplyLine(raw);
+        return result;
+    }
+
+    /// <summary>Applies a single bracketed work-parameter line, e.g. <c>[G54:1,2,3]</c>.</summary>
+    public bool ApplyLine(string raw)
+    {
+        var line = raw?.Trim();
+        if (string.IsNullOrWhiteSpace(line) || line[0] != '[' || line[^1] != ']')
+            return false;
+        var colon = line.IndexOf(':');
+        if (colon <= 1)
+            return false;
+        var code = line[1..colon];
+        var values = line[(colon + 1)..^1].Split('|', StringSplitOptions.RemoveEmptyEntries);
+        switch (code)
+        {
+            case "G28":
+            case "G30":
+            case "G54":
+            case "G55":
+            case "G56":
+            case "G57":
+            case "G58":
+            case "G59":
+            case "G59.1":
+            case "G59.2":
+            case "G59.3":
+            case "G92":
+                UpsertCoordinateSystem(this, code, values.FirstOrDefault() ?? string.Empty);
+                return true;
+            case "TLO":
+                ToolLengthOffset = ParseValues(values.FirstOrDefault() ?? string.Empty, ToolLengthOffset.Length);
+                return true;
+            case "TLR":
+                if (double.TryParse(values.FirstOrDefault(), NumberStyles.Float, CultureInfo.InvariantCulture, out var reference))
+                    ToolLengthOffsetReference = reference;
+                return true;
+            case "PRB":
+                var probe = values.FirstOrDefault() ?? string.Empty;
+                var probeParts = probe.Split(':');
+                ProbePosition = ParseValues(probeParts[0], ToolLengthOffset.Length);
+                ProbeSuccess = probeParts.Length < 2 || probeParts[1] == "1";
+                return true;
+            case "TOOL":
+            case "T":
+                if (int.TryParse(values.FirstOrDefault(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
+                    UpsertTool(this, id, values.Skip(1).FirstOrDefault() ?? string.Empty);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>Deep copy so services can replace the snapshot without aliasing.</summary>
+    public WorkParameters Clone()
+    {
+        var result = new WorkParameters
+        {
+            ToolLengthOffset = (double[])ToolLengthOffset.Clone(),
+            ProbePosition = ProbePosition is null ? null : (double[])ProbePosition.Clone(),
+            ProbeSuccess = ProbeSuccess,
+            ActiveCoordinateSystem = ActiveCoordinateSystem,
+            ActiveTool = ActiveTool,
+            ToolLengthOffsetReference = ToolLengthOffsetReference,
+        };
+        foreach (var cs in CoordinateSystems)
+        {
+            var copy = new WorkCoordinateSystem(cs.Code, cs.Id, cs.Values.Length);
+            Copy(cs.Values, copy.Values);
+            result.CoordinateSystems.Add(copy);
+        }
+        foreach (var tool in Tools)
+        {
+            var copy = new ToolTableEntry(tool.Id, tool.Offsets.Length) { Radius = tool.Radius };
+            Copy(tool.Offsets, copy.Offsets);
+            result.Tools.Add(copy);
         }
         return result;
     }
+
+    /// <summary>G10 L2 P number for a settable coordinate system (1..9), else 0.</summary>
+    public static int CoordinateSystemNumber(string code) => code switch
+    {
+        "G54" => 1, "G55" => 2, "G56" => 3, "G57" => 4, "G58" => 5, "G59" => 6,
+        "G59.1" => 7, "G59.2" => 8, "G59.3" => 9, _ => 0,
+    };
+
+    /// <summary>True when <paramref name="code"/> can be written with G10 L2 &lt;P&gt;.</summary>
+    public static bool IsG10Writable(string code) => CoordinateSystemNumber(code) > 0;
 
     private static void UpsertCoordinateSystem(WorkParameters result, string code, string csv)
     {
@@ -154,12 +216,6 @@ public sealed class WorkParameters
         var colon = line.IndexOf(':');
         return colon > 1 ? line[1..colon] : null;
     }
-
-    private static int CoordinateSystemNumber(string code) => code switch
-    {
-        "G54" => 1, "G55" => 2, "G56" => 3, "G57" => 4, "G58" => 5, "G59" => 6,
-        "G59.1" => 7, "G59.2" => 8, "G59.3" => 9, _ => 0,
-    };
 
     private static void Copy(double[] source, double[] target) =>
         Array.Copy(source, target, Math.Min(source.Length, target.Length));
