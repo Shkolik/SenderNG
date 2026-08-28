@@ -36,11 +36,32 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         {
             OptionalSignals = ControllerCapabilities.Full.OptionalSignals,
         });
-        _workOffset = new double[Math.Max(1, settings.Current.DemoAxes)];
+        var demoAxes = Math.Clamp(settings.Current.DemoAxes, 1, CNC.Core.GrblInfo.AxisLetters.Length);
+        ResizeWorkParameters(demoAxes);
+        _workOffset = new double[demoAxes];
         _pollIntervalMs = Math.Max(10, pollIntervalMs);
         _settingsFilePath = settingsFilePath ??
             Path.Combine(SettingsService.DefaultDir(), "grbl-settings-demo.txt");
         _settings = LoadSettings(_settingsFilePath);
+    }
+
+    private void ResizeWorkParameters(int axisCount)
+    {
+        for (var i = 0; i < WorkParameters.CoordinateSystems.Count; i++)
+        {
+            var source = WorkParameters.CoordinateSystems[i];
+            var replacement = new WorkCoordinateSystem(source.Code, source.Id, axisCount);
+            Array.Copy(source.Values, replacement.Values, Math.Min(source.Values.Length, axisCount));
+            WorkParameters.CoordinateSystems[i] = replacement;
+        }
+        for (var i = 0; i < WorkParameters.Tools.Count; i++)
+        {
+            var source = WorkParameters.Tools[i];
+            var replacement = new ToolTableEntry(source.Id, axisCount) { Radius = source.Radius };
+            Array.Copy(source.Offsets, replacement.Offsets, Math.Min(source.Offsets.Length, axisCount));
+            WorkParameters.Tools[i] = replacement;
+        }
+        WorkParameters.ToolLengthOffset = new double[axisCount];
     }
 
     // Demo settings persist across sessions: defaults overlaid by $N=value lines from disk.
@@ -248,6 +269,13 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
             var state = _subject.Value;
 
+            if (trimmed.StartsWith("G10", StringComparison.OrdinalIgnoreCase))
+            {
+                ApplyWorkParameterCommand(trimmed, state);
+                _subject.OnNext(state);
+                return Task.CompletedTask;
+            }
+
             if (trimmed.StartsWith("G54", StringComparison.OrdinalIgnoreCase) ||
                 trimmed.StartsWith("G55", StringComparison.OrdinalIgnoreCase) ||
                 trimmed.StartsWith("G56", StringComparison.OrdinalIgnoreCase) ||
@@ -327,6 +355,28 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     // Hand-parses motion lines: supports $J= jog commands, modal G90/G91
     // distance modes, G92 coordinate setting and the X/Y/Z/A/B axis set,
     // clamped to NumAxes.
+    private void ApplyWorkParameterCommand(string line, MachineState state)
+    {
+        var words = TokenizeWords(line).ToArray();
+        var l1 = words.Any(x => x.Equals("L1", StringComparison.OrdinalIgnoreCase));
+        var p = words.FirstOrDefault(x => x.StartsWith("P", StringComparison.OrdinalIgnoreCase));
+        if (!int.TryParse(p?[1..], out var number)) return;
+        if (l1)
+        {
+            var tool = WorkParameters.Tools.FirstOrDefault(x => x.Id == number) ?? new ToolTableEntry(number, state.NumAxes);
+            if (!WorkParameters.Tools.Contains(tool)) WorkParameters.Tools.Add(tool);
+            foreach (var word in words)
+                if (word.Length > 1 && "XYZABCUVW".Contains(char.ToUpperInvariant(word[0])) && double.TryParse(word[1..], System.Globalization.CultureInfo.InvariantCulture, out var value))
+                    tool.Offsets["XYZABCUVW".IndexOf(char.ToUpperInvariant(word[0]))] = value;
+            return;
+        }
+        var row = WorkParameters.CoordinateSystems.FirstOrDefault(x => x.Id == number);
+        if (row is null) return;
+        foreach (var word in words)
+            if (word.Length > 1 && "XYZABCUVW".Contains(char.ToUpperInvariant(word[0])) && double.TryParse(word[1..], System.Globalization.CultureInfo.InvariantCulture, out var value))
+                row.Values["XYZABCUVW".IndexOf(char.ToUpperInvariant(word[0]))] = value;
+    }
+
     private void ApplyMotion(string line, MachineState state)
     {
         var rest = line;

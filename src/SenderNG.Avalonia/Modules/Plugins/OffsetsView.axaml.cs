@@ -21,6 +21,7 @@ public partial class OffsetsView : UserControl
         ToolHeaderHost.Content = _toolHeader;
         ToolRowsHost.Content = _toolRows;
         DataContextChanged += (_, _) => Rebuild();
+        Loaded += (_, _) => Rebuild();
     }
 
     private void Rebuild()
@@ -35,6 +36,7 @@ public partial class OffsetsView : UserControl
         BuildHeader(_offsetHeader, "Offset", vm.AxisNames);
         foreach (var row in vm.Rows)
         {
+            row.ValuesChanged += (_, _) => UpdateRowEditors(row);
             var grid = CreateGrid(vm.AxisNames.Count);
             AddCell(grid, new TextBlock { Text = row.Code, Width = 48, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeight.SemiBold }, 0);
             for (var i = 0; i < vm.AxisNames.Count; i++)
@@ -47,13 +49,13 @@ public partial class OffsetsView : UserControl
             _offsetRows.Children.Add(grid);
         }
 
-        var toolAxes = vm.AxisNames.Take(3).ToArray();
+        var toolAxes = vm.ToolAxisNames;
         BuildHeader(_toolHeader, "Tool", toolAxes, "Radius", true);
         foreach (var tool in vm.Tools)
         {
-            var grid = CreateGrid(toolAxes.Length + 2);
+            var grid = CreateGrid(toolAxes.Count + 2);
             AddCell(grid, new TextBlock { Text = tool.DisplayName, Width = 48, VerticalAlignment = VerticalAlignment.Center }, 0);
-            for (var i = 0; i < toolAxes.Length; i++)
+            for (var i = 0; i < toolAxes.Count; i++)
             {
                 var box = new TextBox { Text = tool.GetOffsetAt(i), Margin = new Thickness(2), CornerRadius = new CornerRadius(0) };
                 var index = i;
@@ -62,10 +64,27 @@ public partial class OffsetsView : UserControl
             }
             var radius = new TextBox { Text = tool.Radius, Margin = new Thickness(2), CornerRadius = new CornerRadius(0) };
             radius.TextChanged += (_, _) => tool.Radius = radius.Text ?? string.Empty;
-            AddCell(grid, radius, toolAxes.Length + 1);
+            AddCell(grid, radius, toolAxes.Count + 1);
             var save = new Button { Content = "Save", Width = 60, CornerRadius = new CornerRadius(0), Command = vm.SaveToolCommand, CommandParameter = tool };
-            AddCell(grid, save, toolAxes.Length + 2);
+            AddCell(grid, save, toolAxes.Count + 2);
             _toolRows.Children.Add(grid);
+        }
+    }
+
+    private void UpdateRowEditors(EditableOffsetRow row)
+    {
+        foreach (var control in _offsetRows.Children.OfType<Grid>())
+        {
+            if (control.Children.FirstOrDefault() is TextBlock label && label.Text == row.Code)
+            {
+                foreach (var box in control.Children.OfType<TextBox>())
+                {
+                    var column = Grid.GetColumn(box) - 1;
+                    if (column >= 0 && column < row.Values.Count && box.Text != row.GetValueAt(column))
+                        box.Text = row.GetValueAt(column);
+                }
+                break;
+            }
         }
     }
 

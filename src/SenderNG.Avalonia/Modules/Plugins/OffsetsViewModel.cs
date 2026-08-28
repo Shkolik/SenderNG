@@ -27,6 +27,7 @@ public sealed class EditableOffsetRow : ViewModelBase
     public string C { get => GetValueAt(5); set => SetValueAt(5, value); }
     public string? Error { get; set; }
 
+    public event EventHandler? ValuesChanged;
     public string GetValueAt(int index) => index >= 0 && index < Values.Count ? Values[index] : string.Empty;
     public void SetValueAt(int index, string value)
     {
@@ -34,6 +35,8 @@ public sealed class EditableOffsetRow : ViewModelBase
         {
             Values[index] = value;
             OnPropertyChanged(nameof(Values));
+            ValuesChanged?.Invoke(this, EventArgs.Empty);
+            OnPropertyChanged(index switch { 0 => nameof(X), 1 => nameof(Y), 2 => nameof(Z), 3 => nameof(A), 4 => nameof(B), 5 => nameof(C), _ => string.Empty });
         }
     }
 }
@@ -50,12 +53,17 @@ public sealed class EditableToolRow : ViewModelBase
     public int Id { get; }
     public string DisplayName => Id == 0 ? "None" : $"T{Id}";
     public ObservableCollection<string> Offsets { get; }
+    public event EventHandler? ValuesChanged;
     public string Radius { get; set; }
     public string GetOffsetAt(int index) => index >= 0 && index < Offsets.Count ? Offsets[index] : string.Empty;
     public void SetOffsetAt(int index, string value)
     {
         if (index >= 0 && index < Offsets.Count && Offsets[index] != value)
+        {
             Offsets[index] = value;
+            OnPropertyChanged(nameof(Offsets));
+            ValuesChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
     public string? Error { get; set; }
 }
@@ -71,9 +79,18 @@ public sealed class OffsetsViewModel : ViewModelBase
     public OffsetsViewModel(IGrblService grbl)
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
-        _axisCount = Math.Clamp(grbl.Capabilities.NumAxes, 1, AxisLetters.Length);
+        _axisCount = Math.Clamp(grbl.State.FirstAsync().GetAwaiter().GetResult().NumAxes, 1, AxisLetters.Length);
         BuildRows(grbl.WorkParameters);
-        SelectedOffset = grbl.WorkParameters.ActiveCoordinateSystem;
+        Refresh();
+        if (grbl.WorkParameters.CoordinateSystems.Count > 0)
+        {
+            BuildRows(grbl.WorkParameters);
+            OnPropertyChanged(nameof(AxisNames));
+            OnPropertyChanged(nameof(ToolAxisNames));
+            OnPropertyChanged(nameof(OffsetCodes));
+            Refresh();
+        }
+        SelectedOffset = Rows.FirstOrDefault()?.Code ?? "G54";
         RefreshCommand = new DelegateCommand(_ => Refresh());
         SetAxisCommand = new DelegateCommand(p => _ = SetAxisAsync(p));
         GetCurrentPositionCommand = new DelegateCommand(_ => GetCurrentPosition());
@@ -85,6 +102,8 @@ public sealed class OffsetsViewModel : ViewModelBase
     public ObservableCollection<EditableOffsetRow> Rows { get; } = new();
     public ObservableCollection<EditableToolRow> Tools { get; } = new();
     public IReadOnlyList<string> AxisNames => AxisLetters[.._axisCount];
+    public IReadOnlyList<string> ToolAxisNames => AxisNames;
+    public IReadOnlyList<string> OffsetCodes => Rows.Select(row => row.Code).ToArray();
 
     public string SelectedOffset { get => _selectedOffset; set { if (SetField(ref _selectedOffset, value)) OnPropertyChanged(nameof(SelectedRow)); } }
     public EditableOffsetRow? SelectedRow => Rows.FirstOrDefault(row => row.Code == SelectedOffset);
@@ -104,6 +123,9 @@ public sealed class OffsetsViewModel : ViewModelBase
         {
             _axisCount = axisCount;
             BuildRows(parameters);
+            OnPropertyChanged(nameof(AxisNames));
+            OnPropertyChanged(nameof(ToolAxisNames));
+            OnPropertyChanged(nameof(OffsetCodes));
         }
         foreach (var row in Rows)
         {
@@ -135,7 +157,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     {
         var row = SelectedRow;
         if (row is null) return;
-        var state = _grbl.State.First();
+        var state = _grbl.State.FirstAsync().GetAwaiter().GetResult();
         for (var i = 0; i < _axisCount && i < state.Positions.Length; i++) row.SetValueAt(i, Format(state.Positions[i]));
         Status = $"Current position copied to {SelectedOffset}";
     }
@@ -150,6 +172,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     private async Task SetAllAsync()
     {
         foreach (var row in Rows) await SetCoordinateValuesAsync(row);
+        Refresh();
         Status = "All offsets sent";
     }
 

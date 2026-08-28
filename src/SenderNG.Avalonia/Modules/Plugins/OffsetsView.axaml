@@ -12,7 +12,11 @@
             <ContentControl x:Name="OffsetRowsHost" />
             <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,6,0,0">
                 <TextBlock Grid.Column="0" Text="Selected offset:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <ComboBox Grid.Column="1" ItemsSource="{Binding Rows}" SelectedValue="{Binding SelectedOffset, Mode=TwoWay}" SelectedValueBinding="{Binding Code}" Width="100" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding OffsetCodes}" SelectedItem="{Binding SelectedOffset, Mode=TwoWay}" Width="100">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate><TextBlock Text="{Binding}" /></DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
                 <Button Grid.Column="2" Content="Get current position" Command="{Binding GetCurrentPositionCommand}" Margin="6,0,0,0" CornerRadius="0" />
                 <Button Grid.Column="3" Content="Clear all" Command="{Binding ClearAllCommand}" Margin="6,0,0,0" CornerRadius="0" />
                 <Button Grid.Column="4" Content="Set all" Command="{Binding SetAllCommand}" Margin="6,0,0,0" CornerRadius="0" />
