@@ -44,6 +44,8 @@
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                      AcceptsReturn="True"
                      HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                     Height="NaN" MinHeight="0"
+                     VerticalContentAlignment="Top"
                      Padding="4" />
         </Grid>
     </Border>
