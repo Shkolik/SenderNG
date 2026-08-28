@@ -27,6 +27,12 @@ public sealed record ControllerCapabilities
         Probing = true,
         PlanBufferSize = 16,
         SerialBufferSize = 128,
+        // Demo emulates a fully-equipped grblHAL board: every optional signal is
+        // reported, so the signals panel shows the complete set (real boards only
+        // show what their $I reports).
+        OptionalSignals = CNC.Core.Signals.SafetyDoor | CNC.Core.Signals.EStop |
+            CNC.Core.Signals.MotorWarning | CNC.Core.Signals.MotorFault |
+            CNC.Core.Signals.BlockDelete | CNC.Core.Signals.OptionalStop,
     };
 
     public bool IsKnown { get; init; }
@@ -47,4 +53,12 @@ public sealed record ControllerCapabilities
     public bool Spindle { get; init; } = true;
     public bool Probing { get; init; } = true;
     public bool HomingEnabled { get; init; }
+
+    /// <summary>
+    /// Signals the controller reports as available, discovered from <c>$I</c>
+    /// (<c>[SIGNALS:]</c> chars, <c>[OPT:]</c> '+' for the safety door, <c>[NEWOPT:]</c>
+    /// BD/ES/MW/OS). Mirrors ioSender's <c>OptionalSignals</c>: the signals panel
+    /// only shows LEDs for these (plus the always-on axis/H/S/R/P set).
+    /// </summary>
+    public CNC.Core.Signals OptionalSignals { get; init; } = CNC.Core.Signals.Off;
 }

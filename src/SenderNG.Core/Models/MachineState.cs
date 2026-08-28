@@ -25,6 +25,12 @@ public class MachineState
     public double[]? WorkOffsets { get; set; }
 
     public Signals Signals { get; set; } = Signals.Off;
+
+    // Signals the controller reports as available (discovered from $I and dynamic
+    // Pn: observation) — drives which optional LEDs the signals panel shows.
+    // Sticky: unlike Signals, it accumulates (ioSender OptionalSignals semantics).
+    public Signals OptionalSignals { get; set; } = Signals.Off;
+
     public bool Flood { get; set; }
     public bool Mist { get; set; }
 

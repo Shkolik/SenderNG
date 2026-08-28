@@ -40,6 +40,7 @@ public static class ControllerInfoParser
         var opt = string.Empty;
         var axesLine = string.Empty;
         var identity = string.Empty;
+        var optionalSignals = CNC.Core.Signals.Off;
 
         foreach (var raw in lines)
         {
@@ -85,6 +86,22 @@ public static class ControllerInfoParser
                     case "NAME":
                         // [NAME:...] is grblHAL-specific; classic grbl never emits it.
                         isHAL = true;
+                        break;
+                    case "SIGNALS":
+                        // grblHAL $I lists the signals the firmware is built with,
+                        // one letter per signal, in SignalLetters order. ioSender
+                        // maps each char to the matching Signals flag (Grbl.cs
+                        // Process "SIGNALS" case). Classic grbl 1.1/1.2i have no
+                        // such line, so they discover nothing here.
+                        if (kv.Length > 1)
+                            optionalSignals |= SignalLettersToFlags(kv[1]);
+                        break;
+                    case "NEWOPT":
+                        // grblHAL $I extended options: BD=block delete, ES=e-stop,
+                        // MW=motor warning, OS=optional stop (ioSender Grbl.cs
+                        // Process "NEWOPT" case).
+                        if (kv.Length > 1)
+                            optionalSignals |= NewOptionsToFlags(kv[1]);
                         break;
                     // [FIRMWARE:grbl] (classic), [FW_BUILD:...] and other lines carry
                     // no HAL signal by themselves.
@@ -141,6 +158,11 @@ public static class ControllerInfoParser
         if (int.TryParse(axesLine, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) && n > 0)
             axes = n;
 
+        // Classic grbl reports the safety door via a '+' in the first [OPT:] letter
+        // field (ioSender: `if (s[0].Contains('+')) OptionalSignals |= SafetyDoor`).
+        if (optLetters.Contains('+'))
+            optionalSignals |= CNC.Core.Signals.SafetyDoor;
+
         return new ControllerCapabilities
         {
             IsKnown = true,
@@ -160,6 +182,42 @@ public static class ControllerInfoParser
             Spindle = true,
             Probing = true,
             HomingEnabled = optLetters.Contains('H'),
+            OptionalSignals = optionalSignals,
         };
+    }
+
+    // grblHAL's [SIGNALS:] letters are ordered by ioSender's SignalLetters constant
+    // ("XYZABCUVWEPRDHSLTOMF", kept in sync with the Signals enum): index i -> 1<<i.
+    private static readonly string SignalLetters = "XYZABCUVWEPRDHSLTOMF";
+
+    /// <summary>Map a grblHAL [SIGNALS:] string to Signals flags (ioSender semantics).</summary>
+    private static CNC.Core.Signals SignalLettersToFlags(string chars)
+    {
+        var flags = CNC.Core.Signals.Off;
+        foreach (var c in chars)
+        {
+            var i = SignalLetters.IndexOf(c);
+            if (i >= 0)
+                flags |= (CNC.Core.Signals)(1 << i);
+        }
+        return flags;
+    }
+
+    /// <summary>Map grblHAL [NEWOPT:] tokens to Signals flags (ioSender semantics).</summary>
+    private static CNC.Core.Signals NewOptionsToFlags(string options)
+    {
+        var flags = CNC.Core.Signals.Off;
+        foreach (var opt in options.Split(','))
+        {
+            flags |= opt switch
+            {
+                "BD" => CNC.Core.Signals.BlockDelete,
+                "ES" => CNC.Core.Signals.EStop,
+                "MW" => CNC.Core.Signals.MotorWarning,
+                "OS" => CNC.Core.Signals.OptionalStop,
+                _ => CNC.Core.Signals.Off,
+            };
+        }
+        return flags;
     }
 }

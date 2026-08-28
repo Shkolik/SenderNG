@@ -18,6 +18,7 @@ Guidance for AI agents (and human contributors) making changes to SenderNG. This
 ## Project facts
 
 - .NET 10 / Avalonia cross-platform gcode sender; fork of ioSender (BSD 3-Clause). SDK pinned in `global.json`.
+- ioSender reference sources are checked out locally at `c:\Projects\Workshop\ioSender\` (engine in `CNC Core/CNC Core/`, WPF UI in `CNC Controls/CNC Controls/` and `ioSender/ioSender/`). Use them for reference instead of scraping the web; mirror ioSender's semantics where behavior parity matters.
 - `src/SenderNG.Core` — engine (namespaces `CNC.GCode`, `CNC.Core`, `SenderNG.*`); `src/SenderNG.Avalonia` — UI; `tests/SenderNG.Core.Tests` — xUnit tests.
 - Deferred scope (don't implement or extend without being asked): Lathe wizards, DragKnife, Converters.
 - The build currently emits warnings (CS8602, AVLN5001, xUnit1031, …); don't add new ones beyond the scope of the change.

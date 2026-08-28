@@ -288,11 +288,23 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             GrblInfo.NumAxes = Capabilities.NumAxes;
 
             // Grow the live state so users immediately see the extra axes and
-            // WPos/MPos arrays are sized to hold all reported positions.
+            // WPos/MPos arrays are sized to hold all reported positions, and seed
+            // the signals the controller reports as available (ioSender's
+            // OptionalSignals) so the signals panel gates its optional LEDs.
             lock (_gate)
             {
                 if (_subject.Value.NumAxes != Capabilities.NumAxes)
-                    _subject.OnNext(new MachineState(Capabilities.NumAxes));
+                {
+                    _subject.OnNext(new MachineState(Capabilities.NumAxes)
+                    {
+                        OptionalSignals = Capabilities.OptionalSignals,
+                    });
+                }
+                else if (_subject.Value.OptionalSignals != Capabilities.OptionalSignals)
+                {
+                    _subject.Value.OptionalSignals = Capabilities.OptionalSignals;
+                    _subject.OnNext(CloneOf(_subject.Value));
+                }
             }
         }
         catch
@@ -508,6 +520,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         {
             Status = src.Status,
             Signals = src.Signals,
+            OptionalSignals = src.OptionalSignals,
             Flood = src.Flood,
             Mist = src.Mist,
             IsToolChanging = src.IsToolChanging,

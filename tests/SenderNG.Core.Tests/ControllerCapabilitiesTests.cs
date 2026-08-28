@@ -135,6 +135,58 @@ public class ControllerInfoParserTests
         var caps = ControllerInfoParser.ParseInfo(["garbage", "", "$$..."]);
         Assert.False(caps.IsKnown);
     }
+
+    [Fact]
+    public void GrblHAL_signals_line_reports_optional_signals()
+    {
+        // grblHAL $I lists built-in signals one letter per char in SignalLetters
+        // order (ioSender maps each to the matching Signals flag).
+        var caps = ControllerInfoParser.ParseInfo(
+            ["[VER:1.1f.20260827:grblHAL]", "[SIGNALS:XYZABCUERDHSOF]"]);
+        Assert.True(caps.IsKnown);
+        Assert.True(caps.IsGrblHAL);
+        Assert.True((caps.OptionalSignals & CNC.Core.Signals.SafetyDoor) != 0); // D
+        Assert.True((caps.OptionalSignals & CNC.Core.Signals.EStop) != 0);      // E
+        Assert.True((caps.OptionalSignals & CNC.Core.Signals.MotorFault) != 0); // F
+        Assert.True((caps.OptionalSignals & CNC.Core.Signals.LimitX) != 0);     // X
+        Assert.False((caps.OptionalSignals & CNC.Core.Signals.MotorWarning) != 0); // M absent
+    }
+
+    [Fact]
+    public void Classic_grbl_opt_plus_reports_safety_door()
+    {
+        // Classic grbl reports the safety door via a '+' in the first OPT field
+        // (ioSender: `if (s[0].Contains('+')) OptionalSignals |= SafetyDoor`).
+        var caps = ControllerInfoParser.ParseInfo(["[OPT:Z+FRPNM-SV,64,256,8]"]);
+        Assert.True(caps.IsKnown);
+        Assert.True((caps.OptionalSignals & CNC.Core.Signals.SafetyDoor) != 0);
+        Assert.False((caps.OptionalSignals & CNC.Core.Signals.EStop) != 0);
+    }
+
+    [Fact]
+    public void Classic_grbl_without_plus_reports_no_optional_signals()
+    {
+        // The mega5x 1.2i / classic grbl 1.1 $I shape (no [SIGNALS:], no '+' in
+        // OPT) discovers no optional signals — the strip shows only axis limits
+        // plus the always-on H/S/R/P, exactly as ioSender behaves on these boards.
+        var caps = ControllerInfoParser.ParseInfo(
+            ["[VER:1.2i.20260521:]", "[AXS:5:XYZAB]", "[OPT:VNMGH,35,255,48]"]);
+        Assert.True(caps.IsKnown);
+        Assert.Equal(CNC.Core.Signals.Off, caps.OptionalSignals);
+    }
+
+    [Fact]
+    public void GrblHAL_newopt_reports_block_delete_estop_motor()
+    {
+        // grblHAL [NEWOPT:] tokens map to optional signals (ioSender semantics).
+        var caps = ControllerInfoParser.ParseInfo(
+            ["[VER:1.1f.20260827:grblHAL]", "[NEWOPT:BD,ES,MW,OS]"]);
+        Assert.True(caps.IsKnown);
+        Assert.True((caps.OptionalSignals & CNC.Core.Signals.BlockDelete) != 0);
+        Assert.True((caps.OptionalSignals & CNC.Core.Signals.EStop) != 0);
+        Assert.True((caps.OptionalSignals & CNC.Core.Signals.MotorWarning) != 0);
+        Assert.True((caps.OptionalSignals & CNC.Core.Signals.OptionalStop) != 0);
+    }
 }
 
 public class ControllerCapabilitiesDemoAndProxyTests

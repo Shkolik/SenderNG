@@ -586,39 +586,50 @@ public class MainViewModelStatusButtonsTests
     }
 
     [Fact]
-    public void Signal_strip_seeds_axes_and_control_set()
+    public void Signal_strip_gates_optional_signals_on_controller_report()
     {
+        // A controller that reports NO optional signals (classic grbl, $I without
+        // [SIGNALS:]/[OPT:]+) shows only axis limits + the always-on H/S/R/P set —
+        // mirroring ioSender, which hides door/e-stop/motor LEDs it can't drive.
         var settings = MakeSettings();
         var loaded = settings.Load();
         loaded.Current.DemoAxes = 3;
         settings.Save(loaded);
-        var grbl = new RecordingGrbl();
+        var grbl = new RecordingGrbl(); // Capabilities = Unknown -> OptionalSignals = Off
         var vm = new MainViewModel(grbl, settings, MakeProvider(settings));
 
-        // 3 axis/limit LEDs then the fixed machine-control set.
-        Assert.True(vm.SignalIndicators.Count >= 3 + 8);
-        Assert.Equal(["X", "Y", "Z"], vm.SignalIndicators.Take(3).Select(s => s.Letter));
-        Assert.Contains(vm.SignalIndicators, s => s.Letter == "D" && s.Flag == CNC.Core.Signals.SafetyDoor);
-        Assert.Contains(vm.SignalIndicators, s => s.Letter == "E" && s.Flag == CNC.Core.Signals.EStop);
-        Assert.Contains(vm.SignalIndicators, s => s.Letter == "P" && s.Flag == CNC.Core.Signals.Probe);
+        // 3 axis/limit LEDs + always-on H/S/R/P; no optional LEDs.
+        Assert.Equal(["X", "Y", "Z", "H", "S", "R", "P"],
+            vm.SignalIndicators.Select(s => s.Letter));
+        Assert.DoesNotContain(vm.SignalIndicators, s => s.Flag == CNC.Core.Signals.SafetyDoor);
+        Assert.DoesNotContain(vm.SignalIndicators, s => s.Flag == CNC.Core.Signals.EStop);
+        Assert.DoesNotContain(vm.SignalIndicators, s => s.Flag == CNC.Core.Signals.MotorFault);
     }
 
     [Fact]
-    public void Signal_strip_lights_flags_from_live_state()
+    public void Signal_strip_shows_optional_signals_the_controller_reports()
     {
+        // A grblHAL board reporting door + e-stop in $I gains those LEDs.
         var settings = MakeSettings();
-        var subject = new System.Reactive.Subjects.BehaviorSubject<MachineState>(new MachineState(3));
+        var subject = new System.Reactive.Subjects.BehaviorSubject<MachineState>(
+            new MachineState(3));
         var grbl = new BehaviorGrbl(subject);
         var vm = new MainViewModel(grbl, settings, MakeProvider(settings));
 
-        subject.OnNext(new MachineState(3) { Signals = CNC.Core.Signals.SafetyDoor | CNC.Core.Signals.Probe });
+        subject.OnNext(new MachineState(3)
+        {
+            OptionalSignals = CNC.Core.Signals.SafetyDoor | CNC.Core.Signals.EStop,
+            Signals = CNC.Core.Signals.SafetyDoor | CNC.Core.Signals.Probe,
+        });
 
         var door = vm.SignalIndicators.Single(s => s.Flag == CNC.Core.Signals.SafetyDoor);
-        var probe = vm.SignalIndicators.Single(s => s.Flag == CNC.Core.Signals.Probe);
         var estop = vm.SignalIndicators.Single(s => s.Flag == CNC.Core.Signals.EStop);
+        var probe = vm.SignalIndicators.Single(s => s.Flag == CNC.Core.Signals.Probe);
+        var motorFault = vm.SignalIndicators.SingleOrDefault(s => s.Flag == CNC.Core.Signals.MotorFault);
         Assert.True(door.IsActive);
         Assert.True(probe.IsActive);
-        Assert.False(estop.IsActive);
+        Assert.False(estop.IsActive); // present (reported) but not tripped
+        Assert.Null(motorFault);      // never reported -> LED not rendered
     }
 
     private sealed class BehaviorGrbl(BehaviorSubject<MachineState> state) : IGrblService

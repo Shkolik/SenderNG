@@ -28,7 +28,12 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
     public DemoGrblService(AppSettings settings, string? settingsFilePath = null, int pollIntervalMs = 200)
     {
-        _subject = new BehaviorSubject<MachineState>(new MachineState(settings.Current.DemoAxes));
+        // Seed the full optional-signal set (demo reports Full capabilities) so
+        // the signals panel shows every LED, as before gating was introduced.
+        _subject = new BehaviorSubject<MachineState>(new MachineState(settings.Current.DemoAxes)
+        {
+            OptionalSignals = ControllerCapabilities.Full.OptionalSignals,
+        });
         _workOffset = new double[Math.Max(1, settings.Current.DemoAxes)];
         _pollIntervalMs = Math.Max(10, pollIntervalMs);
         _settingsFilePath = settingsFilePath ??
@@ -81,7 +86,10 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         lock (_lock)
         {
             _workOffset = new double[clamped];
-            _subject.OnNext(new MachineState(clamped));
+            _subject.OnNext(new MachineState(clamped)
+            {
+                OptionalSignals = ControllerCapabilities.Full.OptionalSignals,
+            });
         }
     }
 

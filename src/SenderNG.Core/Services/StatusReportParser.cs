@@ -197,7 +197,14 @@ public static class StatusReportParser
                 case 'R': state.Signals |= CNC.Core.Signals.Reset; break;
                 case 'H': state.Signals |= CNC.Core.Signals.Hold; break;
                 case 'S': state.Signals |= CNC.Core.Signals.CycleStart; break;
-                case 'E': state.Signals |= CNC.Core.Signals.EStop; break;
+                case 'E':
+                    state.Signals |= CNC.Core.Signals.EStop;
+                    // Dynamic discovery: a controller that trips e-stop but never
+                    // reported it in $I (e.g. classic grbl, which has no [SIGNALS:])
+                    // gets its e-stop LED revealed by observation, exactly like
+                    // ioSender's Set("Pn", ...) adds EStop to OptionalSignals.
+                    state.OptionalSignals |= CNC.Core.Signals.EStop;
+                    break;
             }
         }
     }

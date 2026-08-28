@@ -71,6 +71,7 @@ public class MainViewModel : ViewModelBase
     private IDisposable? _stateSubscription;
     private IDisposable? _linesSubscription;
     private int _signalAxisCount = -1;
+    private CNC.Core.Signals _signalOptionalSignals = CNC.Core.Signals.Off;
     private ProgramViewModel? _program;
 
     public MainViewModel(
@@ -112,7 +113,7 @@ public class MainViewModel : ViewModelBase
         // Use settings DemoAxes as fallback; live State subscription will correct it immediately if BehaviourSubject replays
         var seedAxes = _settingsService.Load().Current.DemoAxes;
         seedAxes = Math.Clamp(seedAxes, 1, CNC.Core.GrblInfo.AxisLetters.Length);
-        RebuildSignalStrip(seedAxes);
+        RebuildSignalStrip(seedAxes, _grbl.Capabilities.OptionalSignals);
 
         // Recent files persist across sessions via settings.json.
         foreach (var f in _settingsService.Load().RecentFiles)
@@ -346,34 +347,32 @@ public class MainViewModel : ViewModelBase
         _services.GetService<ProgramViewModel>()?.LimitRows;
 
     /// <summary>Signal LEDs shown in the left panel — axis limits first, then the
-    /// machine control signals (probe, safety door, e-stop, hold, cycle start,
-    /// reset). Axis entries follow the controller's axis count; the control set is
-    /// fixed and matches classic grbl 1.1 + grblHAL pin reporting.</summary>
+    /// machine control signals. Axis entries follow the controller's axis count;
+    /// H/S/R/P (feed hold, cycle start, reset, probe) are always shown like
+    /// ioSender, and the rest are gated on <see cref="MachineState.OptionalSignals"/>
+    /// — the signals the controller actually reports in $I — so a board without a
+    /// safety door / e-stop / motor fault wiring doesn't show LEDs it can't drive.</summary>
     public ObservableCollection<SignalIndicator> SignalIndicators { get; } = new();
 
-    /// <summary>Flags reported by the machine, in render order (axis first).</summary>
-    private static readonly CNC.Core.Signals[] ControlSignalFlags =
+    /// <summary>Always-visible machine control signals (ioSender ungated set).</summary>
+    private static readonly (CNC.Core.Signals Flag, string Label, string Tip)[] AlwaysControlSignals =
     [
-        CNC.Core.Signals.Probe,
-        CNC.Core.Signals.SafetyDoor,
-        CNC.Core.Signals.EStop,
-        CNC.Core.Signals.Hold,
-        CNC.Core.Signals.CycleStart,
-        CNC.Core.Signals.Reset,
-        CNC.Core.Signals.MotorWarning,
-        CNC.Core.Signals.MotorFault,
+        (CNC.Core.Signals.Hold, "H", "Feed hold"),
+        (CNC.Core.Signals.CycleStart, "S", "Cycle start"),
+        (CNC.Core.Signals.Reset, "R", "Reset"),
+        (CNC.Core.Signals.Probe, "P", "Probe"),
     ];
 
-    private static readonly (string Label, string Tip)[] ControlSignalMeta =
+    /// <summary>Optional signals, shown only when the controller reports them
+    /// (ioSender gates these on OptionalSignals in SignalsControl.xaml).</summary>
+    private static readonly (CNC.Core.Signals Flag, string Label, string Tip)[] OptionalControlSignals =
     [
-        ("P", "Probe"),
-        ("D", "Safety door"),
-        ("E", "E-stop"),
-        ("H", "Feed hold"),
-        ("S", "Cycle start"),
-        ("R", "Reset"),
-        ("W", "Motor warning"),
-        ("F", "Motor fault"),
+        (CNC.Core.Signals.MotorWarning, "W", "Motor warning"),
+        (CNC.Core.Signals.MotorFault, "F", "Motor fault"),
+        (CNC.Core.Signals.BlockDelete, "B", "Block delete"),
+        (CNC.Core.Signals.OptionalStop, "O", "Optional stop"),
+        (CNC.Core.Signals.SafetyDoor, "D", "Safety door"),
+        (CNC.Core.Signals.EStop, "E", "E-stop"),
     ];
 
 
@@ -767,20 +766,22 @@ public class MainViewModel : ViewModelBase
         var letters = CNC.Core.GrblInfo.AxisLetters;
         var num = state.NumAxes;
         num = Math.Clamp(num, 0, letters.Length);
+        var optional = state.OptionalSignals;
 
-        if (_signalAxisCount != num)
-            RebuildSignalStrip(num);
+        if (_signalAxisCount != num || _signalOptionalSignals != optional)
+            RebuildSignalStrip(num, optional);
 
         var sig = state.Signals;
         for (var i = 0; i < SignalIndicators.Count; i++)
             SignalIndicators[i].IsActive = (sig & SignalIndicators[i].Flag) != 0;
     }
 
-    /// <summary>Rebuild the signal strip for a given axis count — axis/limit LEDs
-    /// first, then the fixed machine-control set (probe, door, e-stop, hold,
-    /// cycle start, reset, motor). Called on connect (axis count known) and on
-    /// startup seeding; kept idempotent so it only runs when the count changes.</summary>
-    private void RebuildSignalStrip(int numAxes)
+    /// <summary>Rebuild the signal strip for a given axis count and optional-signal
+    /// set — axis/limit LEDs first, then the always-on machine controls (H/S/R/P),
+    /// then the optional signals the controller reports (ioSender's gating). Called
+    /// on connect (axis count / $I signals known) and on startup seeding; kept
+    /// idempotent so it only runs when the count or the signal set changes.</summary>
+    private void RebuildSignalStrip(int numAxes, CNC.Core.Signals optionalSignals)
     {
         SignalIndicators.Clear();
         var letters = CNC.Core.GrblInfo.AxisLetters;
@@ -790,12 +791,15 @@ public class MainViewModel : ViewModelBase
             SignalIndicators.Add(new SignalIndicator(
                 letter, (CNC.Core.Signals)(1 << i), $"Limit {letter}"));
         }
-        for (var i = 0; i < ControlSignalFlags.Length; i++)
+        foreach (var (flag, label, tip) in AlwaysControlSignals)
+            SignalIndicators.Add(new SignalIndicator(label, flag, tip));
+        foreach (var (flag, label, tip) in OptionalControlSignals)
         {
-            SignalIndicators.Add(new SignalIndicator(
-                ControlSignalMeta[i].Label, ControlSignalFlags[i], ControlSignalMeta[i].Tip));
+            if ((optionalSignals & flag) != 0)
+                SignalIndicators.Add(new SignalIndicator(label, flag, tip));
         }
         _signalAxisCount = numAxes;
+        _signalOptionalSignals = optionalSignals;
     }
 
     private void ApplyMachineState(string status)

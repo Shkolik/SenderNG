@@ -154,6 +154,22 @@ public class StatusReportParserTests
     }
 
     [Fact]
+    public void Pn_estop_observes_signal_dynamically_for_strip_gating()
+    {
+        // ioSender adds EStop to OptionalSignals the first time it is observed in
+        // Pn: (a classic grbl board that never reported it in $I gets its e-stop
+        // LED revealed by observation). The discovery is sticky: it survives
+        // reports where the e-stop pin is no longer tripped.
+        var state = NewState();
+        StatusReportParser.Parse("<Alarm|Pn:E>", state);
+        Assert.True((state.OptionalSignals & CNC.Core.Signals.EStop) != 0);
+
+        StatusReportParser.Parse("<Idle|Pn:>", state);
+        Assert.True((state.OptionalSignals & CNC.Core.Signals.EStop) != 0);
+        Assert.True((state.Signals & CNC.Core.Signals.EStop) == 0);
+    }
+
+    [Fact]
     public void Pn_field_rebuilds_signals_each_report_not_sticky()
     {
         // A signal that clears must stop showing as active on the next report
