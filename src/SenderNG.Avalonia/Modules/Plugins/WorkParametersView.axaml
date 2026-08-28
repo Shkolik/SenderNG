@@ -3,68 +3,35 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
-             xmlns:conv="clr-namespace:SenderNG.Avalonia.Converters"
-             mc:Ignorable="d" d:DesignWidth="360" d:DesignHeight="260"
+             mc:Ignorable="d" d:DesignWidth="250" d:DesignHeight="84"
              x:Class="SenderNG.Avalonia.Modules.Plugins.WorkParametersView"
              x:DataType="vm:WorkParametersViewModel">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="8" Spacing="8">
-            <Grid ColumnDefinitions="Auto,*,Auto,*,Auto" RowDefinitions="Auto,Auto">
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="Offset:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding CoordinateSystemCodes}"
+    <Border BorderBrush="#999" BorderThickness="1" Background="#f6f6f6" Padding="6">
+        <StackPanel Spacing="6">
+            <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto">
+                <TextBlock Grid.Column="0" Text="Offset:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding CoordinateSystemCodes}"
                           SelectedItem="{Binding SelectedCoordinateSystem, Mode=OneWay}"
-                          SelectionChanged="CoordinateSystemChanged" CornerRadius="0" Height="28" />
-                <TextBlock Grid.Row="0" Grid.Column="2" Text="Tool:" VerticalAlignment="Center" Margin="10,0,6,0" />
-                <ComboBox Grid.Row="0" Grid.Column="3" ItemsSource="{Binding Tools}"
-                          SelectedItem="{Binding SelectedTool, Mode=OneWay}"
-                          SelectionChanged="ToolChanged" CornerRadius="0" Height="28">
+                          SelectionChanged="CoordinateSystemChanged" CornerRadius="0" Height="24" />
+                <TextBlock Grid.Column="2" Text="Tool:" VerticalAlignment="Center" Margin="10,0,6,0" />
+                <ComboBox Grid.Column="3" ItemsSource="{Binding Tools}"
+                          SelectedItem="{Binding SelectedToolRow, Mode=OneWay}"
+                          SelectionChanged="ToolChanged" CornerRadius="0" Height="24">
                     <ComboBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ToolRow">
-                            <TextBlock Text="{Binding Id, StringFormat=T{0}}" />
+                            <TextBlock Text="{Binding DisplayName}" />
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-                <Button Grid.Row="0" Grid.Column="4" Content="↻" Command="{Binding RefreshCommand}"
-                        ToolTip.Tip="Refresh work parameters" Margin="6,0,0,0" CornerRadius="0" Height="28" />
-
-                <Border Grid.Row="1" Grid.Column="1" Background="{Binding IsTloActive, Converter={x:Static conv:Converters.SignalBrush}}"
-                        BorderBrush="#999" BorderThickness="1" Margin="0,8,0,0" Padding="6,2">
-                    <TextBlock Text="TLO" FontSize="11" />
-                </Border>
-                <Border Grid.Row="1" Grid.Column="3" Background="{Binding IsTloReferenceSet, Converter={x:Static conv:Converters.SignalBrush}}"
-                        BorderBrush="#999" BorderThickness="1" Margin="6,8,0,0" Padding="6,2">
-                    <TextBlock Text="TLO ref'd" FontSize="11" />
+                <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" BorderBrush="#ccc" BorderThickness="0,1,0,0" Margin="0,4,0,0" Padding="0,4,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <CheckBox IsChecked="{Binding IsTloReferenceSet, Mode=OneWay}" IsEnabled="False" />
+                        <TextBlock Text="TLO ref'd" VerticalAlignment="Center" FontSize="11" />
+                        <TextBlock Text="TLO active" IsVisible="{Binding IsTloActive}" Foreground="#555" VerticalAlignment="Center" FontSize="11" />
+                    </StackPanel>
                 </Border>
             </Grid>
-
-            <TextBlock Text="Coordinate offsets" FontWeight="SemiBold" />
-            <ItemsControl ItemsSource="{Binding CoordinateSystems}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:WorkCoordinateRow">
-                        <Grid ColumnDefinitions="44,*,*,*" Margin="0,1">
-                            <TextBlock Grid.Column="0" Text="{Binding Code}" VerticalAlignment="Center" FontWeight="SemiBold" />
-                            <TextBox Grid.Column="1" Text="{Binding Values[0], StringFormat={}{0:F3}, Mode=OneWay}" IsReadOnly="True" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="2" Text="{Binding Values[1], StringFormat={}{0:F3}, Mode=OneWay}" IsReadOnly="True" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="3" Text="{Binding Values[2], StringFormat={}{0:F3}, Mode=OneWay}" IsReadOnly="True" Margin="2" CornerRadius="0" />
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-
-            <TextBlock Text="Tool table" FontWeight="SemiBold" />
-            <ItemsControl ItemsSource="{Binding Tools}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:ToolRow">
-                        <Grid ColumnDefinitions="44,*,*,*" Margin="0,1">
-                            <TextBlock Grid.Column="0" Text="{Binding Id, StringFormat=T{0}}" VerticalAlignment="Center" />
-                            <TextBox Grid.Column="1" Text="{Binding Offsets[0], StringFormat={}{0:F3}, Mode=OneWay}" IsReadOnly="True" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="2" Text="{Binding Offsets[1], StringFormat={}{0:F3}, Mode=OneWay}" IsReadOnly="True" Margin="2" CornerRadius="0" />
-                            <TextBox Grid.Column="3" Text="{Binding Offsets[2], StringFormat={}{0:F3}, Mode=OneWay}" IsReadOnly="True" Margin="2" CornerRadius="0" />
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <TextBlock Text="{Binding Status}" Foreground="#777" FontSize="11" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Status}" Foreground="#777" FontSize="10" TextWrapping="Wrap" />
         </StackPanel>
-    </ScrollViewer>
+    </Border>
 </UserControl>

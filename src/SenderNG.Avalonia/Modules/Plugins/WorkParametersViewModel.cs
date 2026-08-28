@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Globalization;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Avalonia.ViewModels;
@@ -33,6 +32,7 @@ public sealed class ToolRow : ViewModelBase
 
     public ToolTableEntry Source { get; }
     public int Id { get; }
+    public string DisplayName => Id == 0 ? "None" : $"T{Id}";
     public ObservableCollection<double> Offsets { get; }
     public double Radius { get; set; }
 }
@@ -73,8 +73,14 @@ public sealed class WorkParametersViewModel : ViewModelBase
     public int SelectedTool
     {
         get => _selectedTool;
-        private set => SetField(ref _selectedTool, value);
+        private set
+        {
+            if (SetField(ref _selectedTool, value))
+                OnPropertyChanged(nameof(SelectedToolRow));
+        }
     }
+
+    public ToolRow? SelectedToolRow => Tools.FirstOrDefault(tool => tool.Id == SelectedTool);
 
     public bool IsTloActive
     {

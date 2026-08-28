@@ -9,8 +9,8 @@ public sealed class WorkParametersModule : IModule
 {
     public string Id => "work-parameters";
     public string Name => "Work Parameters";
-    public int Order => 25;
-    public PanelHint Panel => PanelHint.Flyout;
+    public int Order => 36;
+    public PanelHint Panel => PanelHint.Right;
     public bool IsVisibleByDefault => true;
     public bool CanHide => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];

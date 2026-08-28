@@ -47,7 +47,9 @@ public static class HostSetup
 
         // Built-in fixed modules (no assembly scan).
         RegisterModule(builder.Services, new Modules.Fixed.DroModule());
-        RegisterModule(builder.Services, new Modules.Fixed.OffsetsModule());
+        // The compact selector is WorkParameters; the editable offsets/tool table
+        // is a separate flyout, matching ioSender's two distinct widgets.
+        RegisterModule(builder.Services, new Modules.Plugins.OffsetsModule());
         RegisterModule(builder.Services, new Modules.Fixed.ProgramModule());
         RegisterModule(builder.Services, new Modules.Fixed.ConsoleModule());
         RegisterModule(builder.Services, new Modules.Fixed.GrblSettingsModule());
