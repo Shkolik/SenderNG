@@ -83,27 +83,27 @@ public sealed class GrblSettingsLoader
         }
 
         // 2. Metadata — $ES on grblHAL ENUMS boards, else the embedded catalog.
-        var metadataFromController = false;
         var metadata = new Dictionary<int, GrblSetting>();
-        var detailLines = await _provider.GetSettingDetailLinesAsync();
-        if (detailLines.Count > 0)
+        foreach (var line in await _provider.GetSettingDetailLinesAsync())
         {
-            metadataFromController = true;
-            foreach (var line in detailLines)
-            {
-                if (GrblSettingsParser.ParseSettingLine(line) is { } setting)
-                    metadata[setting.Id] = setting;
-            }
+            if (GrblSettingsParser.ParseSettingLine(line) is { } setting)
+                metadata[setting.Id] = setting;
         }
+        // metadataFromController is only true when lines for at least one setting were
+        // parsed — classic grbl's "error:NN" reply to $ES parses to nothing, so its
+        // names/descriptions come from the catalog (flag false).
+        var metadataFromController = metadata.Count > 0;
 
         // 3. Groups — $EG on grblHAL ENUMS boards, else the catalog's group tree.
         var groupLines = await _provider.GetSettingGroupLinesAsync();
         var groups = groupLines.Count > 0
             ? groupLines.Select(GrblSettingsParser.ParseGroupLine).Where(static g => g is not null).Cast<GrblSettingGroup>().ToList()
-            : _localization.Groups.Values
-                .OrderBy(static g => g.Id)
-                .Select(static g => new GrblSettingGroup { Id = g.Id, ParentId = g.ParentId, Name = g.Name })
-                .ToList();
+            : CatalogGroups(_localization);
+        // Defense in depth: a board replying garbage (e.g. classic grbl's "error:NN"
+        // to the unsupported $EG) can leave zero parseable groups; falling back to the
+        // catalog tree is always safe and keeps every setting on the HAL hierarchy.
+        if (groups.Count == 0)
+            groups = CatalogGroups(_localization);
 
         // 4. Merge values with metadata into the flat setting list.
         var settings = new List<GrblSetting>(values.Count);
@@ -132,6 +132,12 @@ public sealed class GrblSettingsLoader
 
         return new GrblSettingsSnapshot(topGroups, settings, metadataFromController);
     }
+
+    private static List<GrblSettingGroup> CatalogGroups(LocalizationService localization) =>
+        localization.Groups.Values
+            .OrderBy(static g => g.Id)
+            .Select(static g => new GrblSettingGroup { Id = g.Id, ParentId = g.ParentId, Name = g.Name })
+            .ToList();
 
     /// <summary>Build a setting from the embedded English catalog (classic fallback), or null if unknown.</summary>
     private static GrblSetting? BuildFromCatalog(int id, LocalizationService localization)

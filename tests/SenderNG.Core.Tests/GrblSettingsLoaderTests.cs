@@ -70,6 +70,31 @@ public class GrblSettingsLoaderTests
     }
 
     [Fact]
+    public async Task Garbage_group_lines_fall_back_to_the_catalog_so_classic_settings_stay_grouped()
+    {
+        // Classic grbl doesn't understand $EG/$ES and can reply "error:NN". That
+        // garbage must not be treated as a (empty but real) group tree — every setting
+        // would collapse into "Ungrouped". The loader should drop it and use the catalog
+        // hierarchy instead.
+        var provider = new StubProvider
+        {
+            ValueLines = ["$0=10", "$100=250.000"],
+            GroupLines = ["error:22"],     // classic's reply to the unsupported $EG
+            DetailLines = ["error:22"],    // ...and to $ES
+        };
+
+        var snapshot = await new GrblSettingsLoader(provider, Loc).LoadAsync();
+
+        Assert.False(snapshot.MetadataFromController);
+        Assert.DoesNotContain(snapshot.TopGroups, static g => g.Name == "Ungrouped");
+
+        var stepper = snapshot.TopGroups.Single(g => g.Id == 35);
+        Assert.Contains(snapshot.Settings.Single(s => s.Id == 0), stepper.Settings);
+        var xAxis = snapshot.TopGroups.Single(g => g.Id == 42).Children.Single(g => g.Id == 43);
+        Assert.Contains(snapshot.Settings.Single(s => s.Id == 100), xAxis.Settings);
+    }
+
+    [Fact]
     public async Task GrblHAL_metadata_wins_and_unknown_ids_fall_back_to_the_catalog()
     {
         // grblHAL ENUMS board: $ES metadata + $EG groups on the wire. A value whose

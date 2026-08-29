@@ -315,4 +315,41 @@ public class GrblSettingsViewModelTests
         Assert.Equal("4", mask.Value);
         Assert.True(mask.IsDirty);
     }
+
+    [Fact]
+    public async Task Reload_preserves_the_selected_setting_and_expands_its_group()
+    {
+        var vm = CreateVm(new StubProvider { ValueLines = ["$100=250.000", "$0=10"] });
+        await vm.LoadAsync();
+
+        vm.SelectedNode = Find(vm.Groups, 100);
+
+        await vm.LoadAsync(); // rebuilds items/roots into fresh instances
+
+        Assert.NotNull(vm.SelectedSetting);
+        Assert.Equal(100, vm.SelectedSetting.Id);
+        Assert.False(vm.SelectedSetting.IsDirty);
+
+        // The freshly built group chain (Axis > X-axis) must be expanded so the tree
+        // doesn't collapse and the selection stays on screen.
+        var root = vm.Groups.OfType<GrblSettingGroupItem>().Single(g => g.Name == "Axis");
+        Assert.True(root.IsExpanded);
+        var xAxis = root.Children.OfType<GrblSettingGroupItem>().Single(g => g.Name == "X-axis");
+        Assert.True(xAxis.IsExpanded);
+        Assert.Same(vm.SelectedSetting, Find(vm.Groups, 100));
+    }
+
+    [Fact]
+    public async Task Reload_drops_selection_when_the_setting_is_no_longer_present()
+    {
+        var vm = CreateVm(new StubProvider { ValueLines = ["$100=250.000"] });
+        await vm.LoadAsync();
+        vm.SelectedNode = Find(vm.Groups, 100);
+        Assert.NotNull(vm.SelectedSetting);
+
+        // Reload with a board that no longer reports $100.
+        var reloaded = CreateVm(new StubProvider { ValueLines = ["$0=10"] });
+        await reloaded.LoadAsync();
+        Assert.Null(reloaded.SelectedSetting); // cleared, not left stale
+    }
 }

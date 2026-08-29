@@ -369,6 +369,11 @@ public sealed class GrblSettingsViewModel : ViewModelBase
 
     public async Task LoadAsync()
     {
+        // Reload builds brand-new item/group instances, so the current selection (a
+        // reference into the old tree) would be detached — the tree would collapse and
+        // the detail pane would show a stale row. Remember the id and restore it below.
+        var selectedId = _selectedSetting?.Id;
+
         try
         {
             var snapshot = await new GrblSettingsLoader(_provider, _localization).LoadAsync();
@@ -385,6 +390,7 @@ public sealed class GrblSettingsViewModel : ViewModelBase
                 _allRoots.Add(BuildGroupItem(root, itemsById));
 
             ApplyFilter();
+            RestoreSelection(selectedId);
             Status = $"Loaded {_allItems.Count} settings " +
                      (snapshot.MetadataFromController ? "(from controller)" : "(from catalog)");
         }
@@ -392,6 +398,78 @@ public sealed class GrblSettingsViewModel : ViewModelBase
         {
             Status = $"Load failed: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// After a reload, keep the previously selected setting selected: find the same id
+    /// in the freshly built (visible) tree, open its group chain, and re-select it so
+    /// the tree no longer collapses and the detail pane stays in sync. If the item is
+    /// no longer present (e.g. filtered out), clear the selection instead of leaving
+    /// stale details on screen.
+    /// </summary>
+    private void RestoreSelection(int? selectedId)
+    {
+        if (selectedId is not { } id)
+        {
+            ClearSelection();
+            return;
+        }
+
+        foreach (var root in Groups)
+        {
+            if (FindPath(root, id) is { } found)
+            {
+                foreach (var group in found.Path)
+                    group.IsExpanded = true;
+                SelectedNode = found.Item; // re-selecting also updates SelectedSetting
+                return;
+            }
+        }
+
+        ClearSelection();
+    }
+
+    /// <summary>Locate a setting by id under a tree node, returning it and its ancestor group path (root-first).</summary>
+    private static (GrblSettingItem Item, List<GrblSettingGroupItem> Path)? FindPath(object node, int id)
+    {
+        switch (node)
+        {
+            case GrblSettingItem item when item.Id == id:
+                return (item, new List<GrblSettingGroupItem>());
+            case GrblSettingGroupItem group:
+                var path = new List<GrblSettingGroupItem>() { group };
+                return FindWithin(group, id, path) is { } found
+                    ? (found.Item, found.Path)
+                    : null;
+            default:
+                return null;
+        }
+    }
+
+    private static (GrblSettingItem Item, List<GrblSettingGroupItem> Path)? FindWithin(
+        GrblSettingGroupItem group, int id, List<GrblSettingGroupItem> path)
+    {
+        foreach (var child in group.Children)
+        {
+            switch (child)
+            {
+                case GrblSettingItem item when item.Id == id:
+                    return (item, new List<GrblSettingGroupItem>(path));
+                case GrblSettingGroupItem childGroup:
+                    path.Add(childGroup);
+                    if (FindWithin(childGroup, id, path) is { } found)
+                        return found;
+                    path.RemoveAt(path.Count - 1);
+                    break;
+            }
+        }
+        return null;
+    }
+
+    private void ClearSelection()
+    {
+        SelectedNode = null;
+        SelectedSetting = null;
     }
 
     public async Task SaveAsync()

@@ -54,8 +54,12 @@ public class GrblSettingsModule : IModule
     public (double Width, double Height)? DialogPreferredSize => (660.0, 520.0);
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
+    // Transient, not singleton: OpenMenuModuleAsync asks CreateViewModel on every
+    // dialog open, so a fresh ViewModel (whose constructor LoadAsync() re-reads the
+    // board) must be created each time. A singleton would keep the first connection's
+    // settings and show stale data after disconnect/reconnect until Load is pressed.
     public void RegisterServices(IServiceCollection services) =>
-        services.AddSingleton(sp => new GrblSettingsViewModel(
+        services.AddTransient(sp => new GrblSettingsViewModel(
             sp.GetRequiredService<IGrblSettingsProvider>(),
             sp.GetRequiredService<IGrblService>(),
             sp.GetRequiredService<SenderNG.Core.Localization.LocalizationService>()));

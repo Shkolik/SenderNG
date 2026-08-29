@@ -514,7 +514,11 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         var lines = new List<string>();
         try
         {
-            await ExchangeAsync("$ES", lines, l => l is "ok" or "error", TimeSpan.FromSeconds(1.5));
+            // On classic grbl an unsupported $ command draws an "error:NN" reply. Treat
+            // any error line as the terminal line: ExchangeAsync drops the terminal
+            // line, so the metadata list stays empty and the loader falls back to the
+            // embedded catalog (classic settings are mapped onto the grblHAL tree).
+            await ExchangeAsync("$ES", lines, IsOkOrError, TimeSpan.FromSeconds(1.5));
         }
         catch (TimeoutException)
         {
@@ -531,7 +535,10 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         var lines = new List<string>();
         try
         {
-            await ExchangeAsync("$EG", lines, l => l is "ok" or "error", TimeSpan.FromSeconds(1.5));
+            // See GetSettingDetailLinesAsync — classic's "error:NN" must terminate and
+            // be dropped so the loader uses the catalog grouping rather than a bogus
+            // group tree (which previously pushed every setting into "Ungrouped").
+            await ExchangeAsync("$EG", lines, IsOkOrError, TimeSpan.FromSeconds(1.5));
         }
         catch (TimeoutException)
         {
@@ -550,7 +557,9 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         var lines = new List<string>();
         try
         {
-            await ExchangeAsync($"$SED={id}", lines, l => l is "ok" or "error", TimeSpan.FromSeconds(1.5));
+            // Treat classic's "error:NN" (unsupported command) as terminal so the
+            // 1.5s exchange returns promptly instead of waiting out the timeout.
+            await ExchangeAsync($"$SED={id}", lines, IsOkOrError, TimeSpan.FromSeconds(1.5));
         }
         catch (TimeoutException)
         {
@@ -558,6 +567,16 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         }
         return lines.Select(GrblSettingsParser.ParseDescriptionLine).FirstOrDefault(static d => d.HasValue)?.Description;
     }
+
+    /// <summary>
+    /// Terminal-line predicate for grblHAL-only metadata commands ($ES/$EG/$SED).
+    /// <c>ok</c> ends a successful reply and <c>error</c>/<c>error:NN</c> ends an
+    /// unsupported one — classic grbl uses the latter for commands it doesn't know,
+    /// and because <see cref="ExchangeAsync"/> drops the terminal line, an error
+    /// reply leaves the collected list empty (loader falls back to the catalog).
+    /// </summary>
+    private static bool IsOkOrError(string line) =>
+        line == "ok" || line == "error" || line.StartsWith("error:", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>One-shot $# re-read so the UI can refresh from the board (ioSender
     /// re-requests on view activation and on controller error).</summary>
