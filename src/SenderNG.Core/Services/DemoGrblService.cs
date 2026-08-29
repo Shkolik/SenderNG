@@ -43,8 +43,12 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     /// <summary>Demo work parameters are already live after every write; nothing to re-read.</summary>
     public Task RefreshWorkParametersAsync() => Task.CompletedTask;
 
-    public DemoGrblService(AppSettings settings, string? settingsFilePath = null, int pollIntervalMs = 200)
+    private readonly LocalizationService? _localization;
+
+    public DemoGrblService(AppSettings settings, string? settingsFilePath = null, int pollIntervalMs = 200,
+        LocalizationService? localization = null)
     {
+        _localization = localization;
         // Seed the full optional-signal set (demo reports Full capabilities) so
         // the signals panel shows every LED, as before gating was introduced.
         _subject = new BehaviorSubject<MachineState>(new MachineState(settings.Current.DemoAxes)
@@ -201,14 +205,20 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         }
     }
 
-    // Demo emulates a grblHAL ENUMS board: serve $ES / $EG / $SED from the embedded
-    // catalog so the settings UI shows the full tree + typed editors in demo mode.
-    private static readonly Lazy<LocalizationService> DemoCatalog = new(LocalizationService.CreateEmbedded);
+    // Demo emulates a grblHAL ENUMS board: serve $ES / $EG / $SED from the locale
+    // catalog (injected via DI) so the settings UI shows the full tree + typed
+    // editors in demo mode. When no catalog is injected (direct construction in
+    // tests), demo serves no enums — matching a classic board.
+    private IReadOnlyDictionary<int, GrblSettingDefinition> CatalogSettings =>
+        _localization?.Settings ?? new Dictionary<int, GrblSettingDefinition>();
 
-    /// <summary>Serialize the embedded catalog as [SETTING:...] lines (grblHAL $ES wire format).</summary>
+    private IReadOnlyDictionary<int, GrblSettingGroupDefinition> CatalogGroups =>
+        _localization?.Groups ?? new Dictionary<int, GrblSettingGroupDefinition>();
+
+    /// <summary>Serialize the catalog as [SETTING:...] lines (grblHAL $ES wire format).</summary>
     public Task<IReadOnlyList<string>> GetSettingDetailLinesAsync()
     {
-        var catalog = DemoCatalog.Value.Settings;
+        var catalog = CatalogSettings;
         var lines = catalog.Values
             .OrderBy(s => s.Id)
             .Select(s => $"[SETTING:{s.Id}|{s.GroupId}|{s.Name}|{s.Unit}|{(int)s.Type}|{s.Format}|" +
@@ -217,10 +227,10 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         return Task.FromResult<IReadOnlyList<string>>(lines);
     }
 
-    /// <summary>Serialize the embedded group tree as [SETTINGGROUP:...] lines ($EG wire format).</summary>
+    /// <summary>Serialize the group tree as [SETTINGGROUP:...] lines ($EG wire format).</summary>
     public Task<IReadOnlyList<string>> GetSettingGroupLinesAsync()
     {
-        var groups = DemoCatalog.Value.Groups;
+        var groups = CatalogGroups;
         var lines = groups.Values
             .OrderBy(g => g.Id)
             .Select(g => $"[SETTINGGROUP:{g.Id}|{g.ParentId}|{g.Name}]")
@@ -228,10 +238,10 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         return Task.FromResult<IReadOnlyList<string>>(lines);
     }
 
-    /// <summary>Serve the embedded description for one setting ($SED wire format, literal \n escapes).</summary>
+    /// <summary>Serve the catalog description for one setting ($SED wire format, literal \n escapes).</summary>
     public Task<string?> GetSettingDescriptionAsync(int id)
     {
-        var description = DemoCatalog.Value.Settings.TryGetValue(id, out var s) ? s.Description : null;
+        var description = CatalogSettings.TryGetValue(id, out var s) ? s.Description : null;
         return Task.FromResult(description is null
             ? null
             : $"[SETTINGDESCR:{id}|{description.Replace("\n", "\\n")}]");

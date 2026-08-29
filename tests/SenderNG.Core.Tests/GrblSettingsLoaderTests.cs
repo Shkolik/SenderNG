@@ -18,7 +18,7 @@ public class GrblSettingsLoaderTests
         public Task<string?> GetSettingDescriptionAsync(int id) => Task.FromResult<string?>(null);
     }
 
-    private static readonly LocalizationService Loc = LocalizationService.CreateEmbedded();
+    private static readonly LocalizationService Loc = TestLocalization.Locale;
 
     [Fact]
     public async Task Classic_grbl_gets_names_types_and_groups_from_the_english_catalog()

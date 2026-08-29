@@ -103,7 +103,7 @@ catalog = {
     "grblSettings": settings,
 }
 
-out = "src/SenderNG.Core/Localization/en.json"
+out = "src/SenderNG.Avalonia/Locale/en.json"  # UI-owned locale data (copied to OutputDir/Locale)
 os.makedirs(os.path.dirname(out), exist_ok=True)
 with open(out, "w", encoding="utf-8") as f:
     json.dump(catalog, f, indent=2, ensure_ascii=False)

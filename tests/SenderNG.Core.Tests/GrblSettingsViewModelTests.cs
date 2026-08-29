@@ -33,7 +33,7 @@ public class GrblSettingsViewModelTests
         public Task SendAsync(string line) { Sent.Add(line); return Task.CompletedTask; }
     }
 
-    private static readonly LocalizationService Loc = LocalizationService.CreateEmbedded();
+    private static readonly LocalizationService Loc = TestLocalization.Locale;
 
     private static GrblSettingsViewModel CreateVm(IGrblSettingsProvider provider, IGrblService? grbl = null) =>
         new(provider, grbl ?? new FakeGrbl(), Loc);

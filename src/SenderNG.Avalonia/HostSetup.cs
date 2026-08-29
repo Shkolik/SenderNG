@@ -21,8 +21,13 @@ public static class HostSetup
         builder.Services.AddSingleton<SettingsService>();
         // Shared AppSettings graph: one instance for every consumer (VMs, services).
         builder.Services.AddSingleton(sp => sp.GetRequiredService<SettingsService>().Load());
-        // Localization: embedded en.json (English base + classic-grbl settings catalog).
-        builder.Services.AddSingleton(SenderNG.Core.Localization.LocalizationService.CreateEmbedded());
+        // Localization: locale data lives in the UI's OutputDir/Locale (copied on
+        // build). Core owns only the mechanism — discover the requested locale and
+        // pass its stream into LocalizationService.
+        var localeDir = Path.Combine(AppContext.BaseDirectory, "Locale");
+        var localeCode = ResolveLocaleCode(args);
+        builder.Services.AddSingleton(
+            SenderNG.Core.Localization.LocalizationService.LoadFromDirectory(localeDir, localeCode));
         builder.Services.AddSingleton<IComPortService, SerialComPortService>();
         builder.Services.AddSingleton<IFileDialogService, AvaloniaFileDialogService>();
         builder.Services.AddSingleton<IDialogService, AvaloniaDialogService>();
@@ -95,6 +100,15 @@ public static class HostSetup
                 provider.AttachServices(host.Services);
 
         return host;
+    }
+
+    /// <summary>Resolve the requested locale from args (--locale &lt;code&gt;) or default to English.</summary>
+    private static string ResolveLocaleCode(string[] args)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+            if (string.Equals(args[i], "--locale", StringComparison.OrdinalIgnoreCase))
+                return args[i + 1];
+        return "en";
     }
 
     private static void RegisterModule(IServiceCollection services, IModule module)

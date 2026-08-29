@@ -19,4 +19,13 @@
     <ProjectReference Include="..\..\src\SenderNG.Core\SenderNG.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Locale fixtures: copied into this project's OutputDir/Locale so tests can
+         build a LocalizationService from the same UI-owned data the app uses. -->
+    <Content Include="..\..\src\SenderNG.Avalonia\Locale\**\*.json">
+      <Link>Locale\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

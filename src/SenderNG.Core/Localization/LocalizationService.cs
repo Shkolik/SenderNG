@@ -75,9 +75,6 @@ public sealed record GrblSettingLocalization(int Id, string? Name, string? Engli
 /// </summary>
 public sealed class LocalizationService
 {
-    private const string EmbeddedEnJson = "SenderNG.Core.Localization.en.json";
-    private static LocalizationService? _embedded;
-
     private readonly string _locale;
     private readonly IReadOnlyDictionary<string, string> _enStrings;
     private readonly IReadOnlyDictionary<string, string> _localeStrings;
@@ -85,15 +82,27 @@ public sealed class LocalizationService
     private readonly IReadOnlyDictionary<int, GrblSettingGroupDefinition> _groups;
     private readonly IReadOnlyDictionary<int, GrblSettingLocalization> _overrides;
 
-    /// <summary>Shared instance over the embedded en.json (English, no overrides).</summary>
-    public static LocalizationService Embedded => _embedded ??= CreateEmbedded();
-
-    /// <summary>Build from the embedded <c>en.json</c> only (English base).</summary>
-    public static LocalizationService CreateEmbedded()
+    /// <summary>
+    /// Loads a locale from a directory of JSON catalog files (the UI-owned data:
+    /// <c>&lt;dir&gt;/en.json</c> + optional <c>&lt;dir&gt;/&lt;locale&gt;.json</c> override)
+    /// and builds its stream(s) into a <see cref="LocalizationService"/>. The directory is
+    /// the host's <c>OutputDir/Locale</c>; the locale code selects the override file.
+    /// </summary>
+    public static LocalizationService LoadFromDirectory(string directory, string localeCode = "en")
     {
-        var stream = typeof(LocalizationService).Assembly.GetManifestResourceStream(EmbeddedEnJson)
-            ?? throw new InvalidOperationException($"Embedded resource '{EmbeddedEnJson}' not found.");
-        return new LocalizationService(stream);
+        var enPath = Path.Combine(directory, "en.json");
+        if (!File.Exists(enPath))
+            throw new FileNotFoundException($"Locale base file not found: {enPath}");
+
+        Stream? localeJson = null;
+        if (!string.Equals(localeCode, "en", StringComparison.OrdinalIgnoreCase))
+        {
+            var locPath = Path.Combine(directory, $"{localeCode}.json");
+            if (File.Exists(locPath))
+                localeJson = File.OpenRead(locPath);
+        }
+
+        return new LocalizationService(File.OpenRead(enPath), localeCode, localeJson);
     }
 
     /// <summary>

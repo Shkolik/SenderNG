@@ -22,4 +22,14 @@
     <ProjectReference Include="..\SenderNG.Core\SenderNG.Core.csproj" />
     <ProjectReference Include="..\SenderNG.Modules.Dummy\SenderNG.Modules.Dummy.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Locale data is a UI responsibility: copied on build into OutputDir/Locale
+         so the host can discover the requested locale and pass its stream into
+         LocalizationService (Core owns only the mechanism). -->
+    <Content Include="Locale\**\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>Locale\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+    </Content>
+  </ItemGroup>
 </Project>

@@ -118,8 +118,9 @@ public class GrblSettingsViewHeadlessTests
         {
             ValueLines = ["$44=4", "$14=72", "$4=15", "$10=511", "$370=9", "$45=3"],
         };
-        var grbl = new GrblServiceProxy(new DemoGrblService(new AppSettings()));
-        var vm = new GrblSettingsViewModel(provider, grbl, LocalizationService.CreateEmbedded());
+        var grbl = new GrblServiceProxy(
+            new DemoGrblService(new AppSettings(), localization: HeadlessTestCatalog.Locale));
+        var vm = new GrblSettingsViewModel(provider, grbl, HeadlessTestCatalog.Locale);
         vm.LoadAsync().GetAwaiter().GetResult();
 
         var view = new GrblSettingsView { DataContext = vm };
@@ -158,8 +159,9 @@ public class GrblSettingsViewHeadlessTests
         // value + marking it dirty. Only radio settings may write via the combo, and the
         // write is deferred until the bindings settle into a no-op.
         var provider = new StubProvider { ValueLines = ["$32=2", "$44=0"] };
-        var grbl = new GrblServiceProxy(new DemoGrblService(new AppSettings()));
-        var vm = new GrblSettingsViewModel(provider, grbl, LocalizationService.CreateEmbedded());
+        var grbl = new GrblServiceProxy(
+            new DemoGrblService(new AppSettings(), localization: HeadlessTestCatalog.Locale));
+        var vm = new GrblSettingsViewModel(provider, grbl, HeadlessTestCatalog.Locale);
         vm.LoadAsync().GetAwaiter().GetResult();
 
         var view = new GrblSettingsView { DataContext = vm };

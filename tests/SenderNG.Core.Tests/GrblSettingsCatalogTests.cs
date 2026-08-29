@@ -117,14 +117,13 @@ public class LocalizationServiceTests
     private static Stream Json(string json) =>
         new MemoryStream(Encoding.UTF8.GetBytes(json));
 
-    private static Stream EmbeddedEn() =>
-        typeof(LocalizationService).Assembly.GetManifestResourceStream(
-            "SenderNG.Core.Localization.en.json")!;
+    private static Stream EnglishJson() =>
+        File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Locale", "en.json"));
 
     [Fact]
-    public void Embedded_catalog_loads_settings_groups_and_strings()
+    public void English_catalog_loads_settings_groups_and_strings()
     {
-        var service = LocalizationService.CreateEmbedded();
+        var service = TestLocalization.Locale;
 
         Assert.Equal("en", service.Locale);
         Assert.Equal(96, service.Settings.Count);
@@ -137,21 +136,21 @@ public class LocalizationServiceTests
     [Fact]
     public void Unknown_string_key_falls_back_to_the_key_itself()
     {
-        var service = LocalizationService.CreateEmbedded();
+        var service = TestLocalization.Locale;
         Assert.Equal("app.nonexistent", service.T("app.nonexistent"));
     }
 
     [Fact]
-    public void English_string_is_served_from_the_embedded_catalog()
+    public void English_string_is_served_from_the_english_catalog()
     {
-        var service = LocalizationService.CreateEmbedded();
+        var service = TestLocalization.Locale;
         Assert.Equal("GRBL settings", service.T("grblSettings.title"));
     }
 
     [Fact]
     public void Locale_string_overrides_english_when_present()
     {
-        using var en = EmbeddedEn();
+        using var en = EnglishJson();
         var service = new LocalizationService(
             en,
             "es",
@@ -166,7 +165,7 @@ public class LocalizationServiceTests
     [Fact]
     public void Locale_without_strings_uses_english_as_fallback()
     {
-        using var en = EmbeddedEn();
+        using var en = EnglishJson();
         var service = new LocalizationService(en, "es", Json("""{ "strings": {} }"""));
         Assert.Equal("GRBL settings", service.T("grblSettings.title"));
     }
@@ -174,7 +173,7 @@ public class LocalizationServiceTests
     [Fact]
     public void Setting_localization_applies_when_english_names_match()
     {
-        using var en = EmbeddedEn();
+        using var en = EnglishJson();
         var service = new LocalizationService(
             en,
             "es",
@@ -188,7 +187,7 @@ public class LocalizationServiceTests
     [Fact]
     public void Setting_localization_is_rejected_when_english_names_differ()
     {
-        using var en = EmbeddedEn();
+        using var en = EnglishJson();
         // A driver-specific id reused with a different meaning: translation was
         // authored against "Step idle delay" but this controller's id=1 says "no".
         var service = new LocalizationService(
@@ -204,7 +203,7 @@ public class LocalizationServiceTests
     [Fact]
     public void Setting_localization_without_en_key_trusts_the_id()
     {
-        using var en = EmbeddedEn();
+        using var en = EnglishJson();
         // No "en" guard key: the translation is authored for a spec-stable id
         // (classic grbl path) — the guard passes unconditionally.
         var service = new LocalizationService(
@@ -220,16 +219,16 @@ public class LocalizationServiceTests
     [Fact]
     public void Setting_localization_is_skipped_for_english_locale()
     {
-        var service = LocalizationService.CreateEmbedded();
+        var service = TestLocalization.Locale;
         var setting = new GrblSetting { Id = 1, EnglishName = "Step idle delay", Name = "Step idle delay" };
         service.ApplySettingStrings(setting);
         Assert.Equal("Step idle delay", setting.Name);
     }
 
     [Fact]
-    public void Embedded_catalog_definition_matches_captured_hardware_metadata()
+    public void English_catalog_definition_matches_captured_hardware_metadata()
     {
-        var service = LocalizationService.CreateEmbedded();
+        var service = TestLocalization.Locale;
         var s100 = service.Settings[100];
         Assert.Equal("X-axis travel resolution", s100.Name);
         Assert.Equal(GrblSettingType.Float, s100.Type);
@@ -246,7 +245,7 @@ public class DemoCatalogRoundTripTests
     [Fact]
     public async Task Demo_serves_es_lines_that_parse_back_to_the_catalog()
     {
-        var service = new DemoGrblService(new AppSettings());
+        var service = new DemoGrblService(new AppSettings(), localization: TestLocalization.Locale);
         var lines = await service.GetSettingDetailLinesAsync();
 
         Assert.Equal(96, lines.Count);
@@ -260,7 +259,7 @@ public class DemoCatalogRoundTripTests
     [Fact]
     public async Task Demo_serves_eg_lines_that_parse_back_to_the_group_tree()
     {
-        var service = new DemoGrblService(new AppSettings());
+        var service = new DemoGrblService(new AppSettings(), localization: TestLocalization.Locale);
         var lines = await service.GetSettingGroupLinesAsync();
 
         Assert.Equal(18, lines.Count);
@@ -273,7 +272,7 @@ public class DemoCatalogRoundTripTests
     [Fact]
     public async Task Demo_serves_sed_description_with_literal_newline_escapes()
     {
-        var service = new DemoGrblService(new AppSettings());
+        var service = new DemoGrblService(new AppSettings(), localization: TestLocalization.Locale);
         var line = await service.GetSettingDescriptionAsync(100);
 
         Assert.NotNull(line);
@@ -287,7 +286,7 @@ public class DemoCatalogRoundTripTests
     [Fact]
     public async Task Demo_serves_null_for_unknown_setting_description()
     {
-        var service = new DemoGrblService(new AppSettings());
+        var service = new DemoGrblService(new AppSettings(), localization: TestLocalization.Locale);
         Assert.Null(await service.GetSettingDescriptionAsync(999_999));
     }
 }
