@@ -1,9 +1,35 @@
 <!--
-AppSettingsView.axaml - App settings view layout
+AppSettingsView.axaml - App settings master/detail tree layout
 
 Copyright (c) 2026 Andrew Shkolik
 
-BSD 3-Clause License: see this file for the full license text.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+· Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+
+· Redistributions in binary form must reproduce the above copyright notice, this
+list of conditions and the following disclaimer in the documentation and/or
+other materials provided with the distribution.
+
+· Neither the name of the copyright holder nor the names of its contributors may
+be used to endorse or promote products derived from this software without
+specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 -->
 
 <UserControl xmlns="https://github.com/avaloniaui"
@@ -11,123 +37,165 @@ BSD 3-Clause License: see this file for the full license text.
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:CNC.Core.ViewModels;assembly=SenderNG.Core"
-             mc:Ignorable="d" d:DesignWidth="480" d:DesignHeight="420"
+             mc:Ignorable="d" d:DesignWidth="920" d:DesignHeight="560"
              x:Class="SenderNG.Avalonia.Modules.Fixed.AppSettingsView"
              x:DataType="vm:AppSettingsViewModel">
 
-    <UserControl.Styles>
-        <!-- Mode buttons: RadioButtons templated as flat buttons; checked swaps bg/border. -->
-        <Style Selector="RadioButton.mode">
-            <Setter Property="Template">
-                <ControlTemplate>
-                    <Border x:Name="Root" CornerRadius="0" BorderThickness="1"
-                            Padding="10,8" Background="#eee" BorderBrush="#999">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <ContentPresenter Content="{TemplateBinding Content}" />
-                        </StackPanel>
-                    </Border>
-                </ControlTemplate>
-            </Setter>
-        </Style>
-        <Style Selector="RadioButton.mode:checked /template/ Border#Root">
-            <Setter Property="Background" Value="#ddd" />
-            <Setter Property="BorderBrush" Value="#666" />
-        </Style>
-    </UserControl.Styles>
+    <DockPanel Background="#f6f6f6">
 
-    <!-- Fills the resizable window; the card grid row grows/shrinks with it -->
-    <Border Padding="12" Background="#f6f6f6">
-        <Grid RowDefinitions="Auto,Auto,*,Auto">
-            <StackPanel Grid.Row="0" Spacing="8">
-                <TextBlock Text="Select a mode" FontWeight="SemiBold" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <RadioButton Classes="mode" GroupName="Mode"
-                                 IsChecked="{Binding IsMill, Mode=TwoWay}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <!-- End mill outline -->
-                        <PathIcon Data="M4 12 L4 6 L8 6 L8 3 L12 3 L12 6 L16 6 L16 12 Z M10 12 L10 18"
-                                  Width="16" Height="16" Foreground="Black" VerticalAlignment="Center" />
-                        <TextBlock Text="Mill" VerticalAlignment="Center" />
-                    </StackPanel>
-                </RadioButton>
-                <RadioButton Classes="mode" GroupName="Mode"
-                             IsChecked="{Binding IsFoam, Mode=TwoWay}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <!-- Hot wire over foam block outline -->
-                        <PathIcon Data="M3 14 L17 14 M5 18 L15 18 M3 14 L5 18 M15 18 L17 14 M6 14 L10 4 L10 14"
-                                  Width="16" Height="16" Foreground="Black" VerticalAlignment="Center" />
-                        <TextBlock Text="Foam CNC" VerticalAlignment="Center" />
-                    </StackPanel>
-                </RadioButton>
-                </StackPanel>
-            </StackPanel>
-
-            <TextBlock Grid.Row="1" Text="Modules" FontWeight="SemiBold" Margin="0,8,0,4" />
-            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-                <!-- Wrap layout: max 3 cards per row (card width 148 + 8 gap in a 480 dialog) -->
-                <ItemsControl ItemsSource="{Binding ModuleSections}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:ModuleSettingsEntry">
-                            <!-- Natural height (WrapPanel rows size to tallest card) -->
-                            <!-- Natural size: min width for uniformity, wider when a module's
-                                 settings view needs the room -->
-                            <Border MinWidth="148" CornerRadius="0" BorderBrush="#aaa" BorderThickness="1"
-                                    Background="#fafafa" Margin="0,0,8,8" Padding="8,6">
-                                <StackPanel Spacing="4">
-                                    <!-- Header: checkbox-as-header for hideable modules, plain name for fixed ones -->
-                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsVisible, Mode=TwoWay}"
-                                              FontWeight="SemiBold" FontSize="11"
-                                              IsVisible="{Binding CanHide}" />
-                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11"
-                                               IsVisible="{Binding ShowNameOnly}" />
-                                    <TextBlock Text="Always visible" FontSize="9" Foreground="#999"
-                                               IsVisible="{Binding ShowAlwaysVisibleCaption}" />
-                                    <!-- Module-provided settings UI (preferred) -->
-                                    <ContentControl Content="{Binding SettingsView}"
-                                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                                    IsVisible="{Binding SettingsView, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                    <!-- Generic field lists (fallback for modules without a settings view) -->
-                                    <ItemsControl ItemsSource="{Binding BoolFields}" Margin="12,0,0,0"
-                                                  IsVisible="{Binding ShowGenericFields}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:BoolSettingEntry">
-                                                <CheckBox Content="{Binding Label}" IsChecked="{Binding Value, Mode=TwoWay}"
-                                                          FontSize="11" Margin="0,2,0,0" />
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                    <ItemsControl ItemsSource="{Binding Fields}" Margin="12,0,0,0"
-                                                  IsVisible="{Binding ShowGenericFields}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:NumericSettingEntry">
-                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                                    <TextBlock Text="{Binding Label}" Width="60" FontSize="10"
-                                                               VerticalAlignment="Center" />
-                                                    <TextBox Text="{Binding Value}" Width="62" CornerRadius="0"
-                                                             BorderBrush="#999" BorderThickness="1" Height="22" FontSize="10"
-                                                             VerticalContentAlignment="Center" Padding="4,0" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
-
-            <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,8,0,0">
+        <!-- Close (bottom right, full width) -->
+        <Border DockPanel.Dock="Bottom" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="10,8">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
                 <Button Content="Close" Command="{Binding CloseCommand}"
                         Height="28" MinHeight="28" CornerRadius="0"
                         Background="#eee" BorderBrush="#999" BorderThickness="1"
-                        Padding="12,0" VerticalContentAlignment="Center" />
+                        Padding="14,0" VerticalContentAlignment="Center" />
             </StackPanel>
+        </Border>
+
+        <!-- Master / detail split. Each pane scrolls independently. -->
+        <Grid ColumnDefinitions="Auto,1,3*">
+
+            <!-- LEFT: tree selector - only leaves are selectable -->
+            <Border Grid.Column="0" BorderBrush="#aaa" BorderThickness="0,0,1,0" Padding="8">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Auto" Padding="2">
+                    <TreeView ItemsSource="{Binding Groups}"
+                              SelectedItem="{Binding SelectedNode}" Background="Transparent">
+                        <TreeView.Styles>
+                            <Style Selector="TreeViewItem">
+                                <Setter Property="IsExpanded"
+                                        Value="{ReflectionBinding IsExpanded, Mode=TwoWay}" />
+                            </Style>
+                            <Style Selector="TreeViewItem /template/ ContentPresenter#PART_HeaderPresenter">
+                                <Setter Property="Padding" Value="3,2" />
+                            </Style>
+                            <Style Selector="TreeViewItem:pointerover /template/ Border#Bd">
+                                <Setter Property="Background" Value="#eee" />
+                            </Style>
+                            <Style Selector="TreeViewItem:selected /template/ Border#Bd">
+                                <Setter Property="Background" Value="#ddd" />
+                                <Setter Property="BorderBrush" Value="#999" />
+                                <Setter Property="BorderThickness" Value="0,0,0,2" />
+                            </Style>
+                        </TreeView.Styles>
+                        <TreeView.DataTemplates>
+                            <!-- Group: label only, expands on chevron click -->
+                            <TreeDataTemplate DataType="{x:Type vm:AppSettingsGroupItem}"
+                                              ItemsSource="{Binding Children}"
+                                              x:DataType="vm:AppSettingsGroupItem">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"
+                                           Foreground="#333" Margin="2,3,2,2" />
+                            </TreeDataTemplate>
+
+                            <!-- Global leaves -->
+                            <DataTemplate DataType="{x:Type vm:ModeSettingsLeaf}"
+                                          x:DataType="vm:ModeSettingsLeaf">
+                                <TextBlock Text="{Binding Name}" FontSize="11" Foreground="#222" Margin="2,2" />
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:LanguageSettingsLeaf}"
+                                          x:DataType="vm:LanguageSettingsLeaf">
+                                <TextBlock Text="{Binding Name}" FontSize="11" Foreground="#222" Margin="2,2" />
+                            </DataTemplate>
+
+                            <!-- Module leaf -->
+                            <DataTemplate DataType="{x:Type vm:ModuleSettingsLeaf}"
+                                          x:DataType="vm:ModuleSettingsLeaf">
+                                <TextBlock Text="{Binding Name}" FontSize="11" Foreground="#222" Margin="2,2" />
+                            </DataTemplate>
+                        </TreeView.DataTemplates>
+                    </TreeView>
+                </ScrollViewer>
+            </Border>
+
+            <!-- RIGHT: selected leaf - data + editor -->
+            <Rectangle Grid.Column="1" Fill="#ccc" />
+
+            <Border Grid.Column="2" Padding="12,10">
+                <Grid>
+                    <TextBlock Text="Select a setting to edit"
+                               FontSize="12" Foreground="#888" VerticalAlignment="Top" HorizontalAlignment="Left"
+                               TextWrapping="Wrap" IsVisible="{Binding HasNoSelection}" />
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasSelection}">
+                        <StackPanel Orientation="Vertical" Spacing="10" Margin="0,2,10,4">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="{Binding SelectedSetting.Name}" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="#222" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding SelectedSetting.Description}" FontSize="11" Foreground="#666"
+                                       TextWrapping="Wrap" IsVisible="{Binding SelectedSetting.HasDescription}" />
+                            <Rectangle Height="1" Fill="#ddd" IsVisible="{Binding SelectedSetting.HasDescription}" />                            <!-- Mode: Mill / Foam -->
+                            <StackPanel Spacing="8" IsVisible="{Binding IsModeLeaf}">
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                    <RadioButton GroupName="ModeEdit" IsChecked="{Binding SelectedModeLeaf.IsMill}"
+                                                 FontSize="12">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="Mill" VerticalAlignment="Center" FontSize="12" />
+                                        </StackPanel>
+                                    </RadioButton>
+                                    <RadioButton GroupName="ModeEdit" IsChecked="{Binding SelectedModeLeaf.IsFoam}"
+                                                 FontSize="12">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="Foam CNC" VerticalAlignment="Center" FontSize="12" />
+                                        </StackPanel>
+                                    </RadioButton>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Language -->
+                            <StackPanel Spacing="8" IsVisible="{Binding IsLanguageLeaf}">
+                                <ComboBox ItemsSource="{Binding SelectedLanguageLeaf.AvailableLocales}"
+                                          SelectedItem="{Binding SelectedLanguageLeaf.SelectedLocale, Mode=TwoWay}"
+                                          Width="200" Height="26" MinHeight="26"
+                                          FontSize="12" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                          VerticalContentAlignment="Center" />
+                            </StackPanel>
+
+                            <!-- Module: visibility + settings -->
+                            <StackPanel Spacing="8" IsVisible="{Binding IsModuleLeaf}">
+                                <CheckBox Content="Visible" IsChecked="{Binding SelectedModuleLeaf.IsVisible, Mode=TwoWay}"
+                                          IsEnabled="{Binding SelectedModuleLeaf.CanHide}" FontSize="12" />
+                                <TextBlock Text="Always visible" FontSize="10" Foreground="#888"
+                                           IsVisible="{Binding SelectedModuleLeaf.ShowAlwaysVisibleCaption}" />
+
+                                <ContentControl Content="{Binding SelectedModuleLeaf.SettingsView}"
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                IsVisible="{Binding SelectedModuleLeaf.SettingsView, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                                <ItemsControl ItemsSource="{Binding SelectedModuleLeaf.BoolFields}"
+                                              IsVisible="{Binding SelectedModuleLeaf.ShowGenericFields}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:BoolSettingEntry">
+                                            <CheckBox Content="{Binding Label}" IsChecked="{Binding Value, Mode=TwoWay}"
+                                                      FontSize="12" Margin="0,2,0,0" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <ItemsControl ItemsSource="{Binding SelectedModuleLeaf.Fields}"
+                                              IsVisible="{Binding SelectedModuleLeaf.ShowGenericFields}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:NumericSettingEntry">
+                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,3,0,0">
+                                            <TextBlock Text="{Binding Label}" FontSize="11"
+                                                       VerticalAlignment="Center" />
+                                            <TextBox Text="{Binding Value}" Width="110" Height="24" MinHeight="24"
+                                                     CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                                     FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
         </Grid>
-    </Border>
+    </DockPanel>
 </UserControl>

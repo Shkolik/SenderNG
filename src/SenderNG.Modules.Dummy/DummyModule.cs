@@ -12,6 +12,7 @@ public class DummyModule : IModule
 {
     public string Id => "dummy";
     public string Name => "Dummy";
+    public string Description => "Example third-party plugin used to prove assembly-scanned module discovery.";
     public int Order => 100;
     public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;

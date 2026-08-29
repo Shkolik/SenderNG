@@ -75,12 +75,16 @@ public sealed record GrblSettingLocalization(int Id, string? Name, string? Engli
 /// </summary>
 public sealed class LocalizationService
 {
-    private readonly string _locale;
+    private string _locale;
+    private string? _localeDirectory;
     private readonly IReadOnlyDictionary<string, string> _enStrings;
-    private readonly IReadOnlyDictionary<string, string> _localeStrings;
+    private IReadOnlyDictionary<string, string> _localeStrings;
     private readonly IReadOnlyDictionary<int, GrblSettingDefinition> _settings;
     private readonly IReadOnlyDictionary<int, GrblSettingGroupDefinition> _groups;
-    private readonly IReadOnlyDictionary<int, GrblSettingLocalization> _overrides;
+    private IReadOnlyDictionary<int, GrblSettingLocalization> _overrides;
+
+    /// <summary>Raised whenever the active locale changes (Language picker), so UI re-reads labels.</summary>
+    public event EventHandler? Changed;
 
     /// <summary>
     /// Loads a locale from a directory of JSON catalog files (the UI-owned data:
@@ -102,7 +106,60 @@ public sealed class LocalizationService
                 localeJson = File.OpenRead(locPath);
         }
 
-        return new LocalizationService(File.OpenRead(enPath), localeCode, localeJson);
+        var service = new LocalizationService(File.OpenRead(enPath), localeCode, localeJson)
+        {
+            _localeDirectory = directory,
+        };
+        return service;
+    }
+
+    /// <summary>
+    /// Locale codes available in the source directory (every <c>*.json</c>, English first,
+    /// then alphabetical). Empty when the service was built from streams (tests).
+    /// </summary>
+    public IReadOnlyList<string> AvailableLocales
+    {
+        get
+        {
+            if (_localeDirectory is null)
+                return ["en"];
+            return Directory.EnumerateFiles(_localeDirectory, "*.json")
+                .Select(Path.GetFileNameWithoutExtension)
+                .Where(static c => !string.IsNullOrWhiteSpace(c))
+                .OrderBy(static c => c != "en") // English first
+                .ThenBy(static c => c, StringComparer.OrdinalIgnoreCase)
+                .ToArray()!;
+        }
+    }
+
+    /// <summary>
+    /// Switch the active locale at runtime (Language picker). English is the base;
+    /// any other code loads its override file from the source directory if present.
+    /// Raises <see cref="Changed"/> so open UI can re-read its labels.
+    /// </summary>
+    public void SetLocale(string localeCode)
+    {
+        if (_localeDirectory is null
+            || string.Equals(localeCode, _locale, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _overrides = new Dictionary<int, GrblSettingLocalization>();
+        _localeStrings = _enStrings;
+        _locale = "en";
+
+        if (!string.Equals(localeCode, "en", StringComparison.OrdinalIgnoreCase))
+        {
+            var locPath = Path.Combine(_localeDirectory, $"{localeCode}.json");
+            if (!File.Exists(locPath))
+                return;
+            using var stream = File.OpenRead(locPath);
+            _overrides = ReadOverrides(stream, out var locStrings);
+            if (locStrings.Count > 0)
+                _localeStrings = locStrings;
+            _locale = localeCode;
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -113,6 +170,7 @@ public sealed class LocalizationService
     /// </summary>
     public LocalizationService(Stream enJson, string localeCode = "en", Stream? localeJson = null)
     {
+        _localeDirectory = null;
         _locale = string.IsNullOrWhiteSpace(localeCode) ? "en" : localeCode;
 
         using (enJson)

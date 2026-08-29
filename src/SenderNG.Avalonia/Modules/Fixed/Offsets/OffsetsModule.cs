@@ -49,6 +49,7 @@ public sealed class OffsetsModule : IModule, IModuleSettingsProvider
 
     public string Id => "offsets-table";
     public string Name => "Offsets";
+    public string Description => "Edit work offsets (G54..G59) and the tool table, saved back to the controller.";
     public int Order => 30;
     public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;

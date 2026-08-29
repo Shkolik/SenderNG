@@ -46,6 +46,7 @@ public sealed class WorkParametersModule : IModule
 {
     public string Id => "work-parameters";
     public string Name => "Work Parameters";
+    public string Description => "Machine & work coordinate systems, G54..G59 switches and the active tool length offset.";
     public int Order => 36;
     public PanelHint Panel => PanelHint.Right;
     public bool IsVisibleByDefault => true;

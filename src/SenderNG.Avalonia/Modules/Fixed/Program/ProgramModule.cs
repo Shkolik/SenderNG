@@ -45,6 +45,7 @@ public class ProgramModule : IModule
 {
     public string Id => "program";
     public string Name => "Program";
+    public string Description => "Load, view and run G-code programs with per-line status tracking.";
     public int Order => 20;
     public PanelHint Panel => PanelHint.Center;
     public bool IsVisibleByDefault => true;

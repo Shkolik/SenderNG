@@ -11,6 +11,7 @@ public class GotoModule : IModule, IModuleSettingsProvider
 
     public string Id => "goto";
     public string Name => "Goto";
+    public string Description => "Move axes to G28/G30 reference positions or to typed coordinates.";
     public int Order => 18;
     public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;

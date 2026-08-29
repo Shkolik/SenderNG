@@ -56,7 +56,8 @@ public class AppSettingsModule : IModule
         // views (a view instance cannot be attached to a new visual parent twice).
         services.AddTransient(sp => new AppSettingsViewModel(
             sp.GetRequiredService<SettingsService>(),
-            sp.GetServices<IModule>()));
+            sp.GetServices<IModule>(),
+            sp.GetRequiredService<SenderNG.Core.Localization.LocalizationService>()));
 
     public void RegisterSettings(AppSettings settings) { }
 
@@ -67,5 +68,5 @@ public class AppSettingsModule : IModule
         new AppSettingsView { DataContext = viewModel };
 
     // Content-heavy wrap grid: fixed resizable window instead of size-to-content.
-    public (double Width, double Height)? DialogPreferredSize => (660.0, 520.0);
+    public (double Width, double Height)? DialogPreferredSize => (900.0, 560.0);
 }

@@ -17,6 +17,10 @@ public interface IModule
     /// <summary>Human-readable display name.</summary>
     string Name { get; }
 
+    /// <summary>One-line summary shown in App Settings; localized via <c>module.&lt;id&gt;.description</c>
+    /// when a key exists in the active locale, falling back to this literal string.</summary>
+    string Description => string.Empty;
+
     /// <summary>Sort order in which the module's UI is presented.</summary>
     int Order { get; }
 

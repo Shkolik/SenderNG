@@ -9,6 +9,7 @@ public class MacroModule : IModule
 {
     public string Id => "macro";
     public string Name => "Macros";
+    public string Description => "Run user-defined macro buttons on demand.";
     public int Order => 45;
     public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;

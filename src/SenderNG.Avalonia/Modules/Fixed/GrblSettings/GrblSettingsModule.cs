@@ -46,6 +46,7 @@ public class GrblSettingsModule : IModule
 {
     public string Id => "grbl-settings";
     public string Name => "GRBL Settings";
+    public string Description => "View and edit controller settings ($) with a searchable, self-documented tree.";
     public int Order => 40;
     // First module claiming the menu: opened as a modal dialog from Settings.
     public PanelHint Panel => PanelHint.Menu;

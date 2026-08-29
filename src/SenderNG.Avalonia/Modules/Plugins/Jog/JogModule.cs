@@ -12,6 +12,7 @@ public class JogModule : IModule, IModuleSettingsProvider
 
     public string Id => "jog";
     public string Name => "Jog";
+    public string Description => "Manual jog with configurable step distances and speeds.";
     public int Order => 15;
     // Flyout: the widget is wide in foam/multiaxis layouts — drawer overlay suits it better.
     public PanelHint Panel => PanelHint.Flyout;

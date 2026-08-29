@@ -45,6 +45,7 @@ public class ConsoleModule : IModule
 {
     public string Id => "console";
     public string Name => "Console";
+    public string Description => "Live G-code console: send commands and watch controller responses.";
     public int Order => 21;
     public PanelHint Panel => PanelHint.Center;
     public bool IsVisibleByDefault => true;

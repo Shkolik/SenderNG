@@ -9,6 +9,8 @@ public class AppSettings
     public static string[] KnownModes { get; } = [MillMode, FoamMode];
 
     public string Mode { get; set; } = MillMode;
+    // Global (not mode-aware) UI language (locale code, e.g. "en"/"ru"); empty = English.
+    public string Language { get; set; } = string.Empty;
     public Dictionary<string, ModeSettings> Modes { get; set; } = new();
     // Recent G-code files, most recent first; persists across app restarts.
     public List<string> RecentFiles { get; set; } = new();

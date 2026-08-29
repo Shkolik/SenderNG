@@ -45,6 +45,7 @@ public class DroModule : IModule
 {
     public string Id => "dro";
     public string Name => "DRO";
+    public string Description => "Digital read-out: live axis positions, machine coordinates and spindle feedback.";
     public int Order => 10;
     public PanelHint Panel => PanelHint.Left;
     public bool IsVisibleByDefault => true;

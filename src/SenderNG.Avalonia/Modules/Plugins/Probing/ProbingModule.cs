@@ -9,6 +9,7 @@ public class ProbingModule : IModule, IModuleSettingsProvider
 {
     public string Id => "probing";
     public string Name => "Probing";
+    public string Description => "Tool-length, edge, center, rotation and height-map probing cycles.";
     public int Order => 50;
     public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;

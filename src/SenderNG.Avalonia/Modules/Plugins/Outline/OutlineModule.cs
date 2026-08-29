@@ -9,6 +9,7 @@ public class OutlineModule : IModule
 {
     public string Id => "outline";
     public string Name => "Outline";
+    public string Description => "Outline the loaded program's travel limits and move between them.";
     public int Order => 32;
     public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;

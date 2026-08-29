@@ -23,11 +23,21 @@ public static class HostSetup
         builder.Services.AddSingleton(sp => sp.GetRequiredService<SettingsService>().Load());
         // Localization: locale data lives in the UI's OutputDir/Locale (copied on
         // build). Core owns only the mechanism — discover the requested locale and
-        // pass its stream into LocalizationService.
+        // pass its stream into LocalizationService. Locale resolution: explicit
+        // --locale arg wins, else the persisted AppSettings.Language, else English.
         var localeDir = Path.Combine(AppContext.BaseDirectory, "Locale");
-        var localeCode = ResolveLocaleCode(args);
-        builder.Services.AddSingleton(
-            SenderNG.Core.Localization.LocalizationService.LoadFromDirectory(localeDir, localeCode));
+        var cliLocale = ResolveLocaleCode(args);
+        builder.Services.AddSingleton(sp =>
+        {
+            var code = cliLocale;
+            if (string.Equals(code, "en", System.StringComparison.OrdinalIgnoreCase))
+            {
+                var savedLanguage = sp.GetRequiredService<AppSettings>().Language;
+                if (!string.IsNullOrWhiteSpace(savedLanguage))
+                    code = savedLanguage;
+            }
+            return SenderNG.Core.Localization.LocalizationService.LoadFromDirectory(localeDir, code);
+        });
         builder.Services.AddSingleton<IComPortService, SerialComPortService>();
         builder.Services.AddSingleton<IFileDialogService, AvaloniaFileDialogService>();
         builder.Services.AddSingleton<IDialogService, AvaloniaDialogService>();

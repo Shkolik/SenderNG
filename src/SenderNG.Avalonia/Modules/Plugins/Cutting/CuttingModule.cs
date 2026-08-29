@@ -9,6 +9,7 @@ public class CuttingModule : IModule
 {
     public string Id => "cutting";
     public string Name => "Cutting";
+    public string Description => "Feed/spindle overrides and cycle controls for manual cutting.";
     public int Order => 25;
     public PanelHint Panel => PanelHint.Right;
     public bool IsVisibleByDefault => true;
