@@ -171,6 +171,30 @@ public class LocalizationServiceTests
     }
 
     [Fact]
+    public void Russian_locale_overrides_strings_and_setting_names_when_en_matches()
+    {
+        // Load the real ru.json shipped with the app (copied to OutputDir/Locale),
+        // exercising the full LoadFromDirectory override path end-to-end.
+        var ruDir = Path.Combine(AppContext.BaseDirectory, "Locale");
+        var service = LocalizationService.LoadFromDirectory(ruDir, "ru");
+
+        Assert.Equal("ru", service.Locale);
+        // App string override.
+        Assert.Equal("Настройки GRBL", service.T("grblSettings.title"));
+        // Placeholder overrides with a non-ASCII character.
+        Assert.Equal("Поиск\u2026", service.T("grblSettings.searchPlaceholder"));
+
+        // Setting name override applies while the id + English-name guard matches.
+        var setting = new GrblSetting { Id = 0, EnglishName = "Step pulse time", Name = "Step pulse time" };
+        service.ApplySettingStrings(setting);
+        Assert.Equal("Время импульса шага", setting.Name);
+        Assert.False(string.IsNullOrEmpty(setting.Description));
+
+        // Unknown keys still fall back through English to the key.
+        Assert.Equal("app.nonexistent", service.T("app.nonexistent"));
+    }
+
+    [Fact]
     public void Setting_localization_applies_when_english_names_match()
     {
         using var en = EnglishJson();
