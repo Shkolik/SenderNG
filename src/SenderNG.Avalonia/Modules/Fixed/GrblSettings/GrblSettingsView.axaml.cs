@@ -42,6 +42,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Selection;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 
 namespace SenderNG.Avalonia.Modules.Fixed;
 
@@ -91,9 +92,32 @@ public partial class GrblSettingsView : UserControl
 
     private static void OnDetailSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (sender is ComboBox { DataContext: GrblSettingsViewModel vm, SelectedIndex: >= 0 } combo
-            && vm.SelectedSetting is { } item)
-            item.ApplyRadio(combo.SelectedIndex);
+        if (sender is not ComboBox { DataContext: GrblSettingsViewModel vm } combo)
+            return;
+
+        var item = vm.SelectedSetting;
+        if (item is null || !item.IsRadio)
+            return; // only radio settings have the combo; ignore recycled events for others
+
+        // The ComboBox is a single control recycled across settings. During a selection
+        // switch its SelectionChanged can fire with a STALE index (from the previous
+        // setting) before bindings settle — that previously wrote a bogus value into the
+        // just-selected setting and marked it dirty. Defer the write: once the OneWay
+        // binding has re-synced the combo to the item's own index, a programmatic/-
+        // recycled event becomes a no-op (idx == item.SelectedIndex), while a genuine
+        // user selection still differs from the model and gets committed.
+        Dispatcher.UIThread.Post(() =>
+        {
+            var idx = combo.SelectedIndex;
+            if (ReferenceEquals(combo.DataContext, vm)
+                && vm.SelectedSetting == item
+                && idx >= 0
+                && idx < item.Options.Length
+                && idx != item.SelectedIndex)
+            {
+                item.ApplyRadio(idx);
+            }
+        }, DispatcherPriority.Input);
     }
 
     private static void OnBitClick(object? sender, RoutedEventArgs e)

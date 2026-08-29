@@ -149,6 +149,40 @@ public class GrblSettingsViewHeadlessTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task Switching_radio_to_bitmask_does_not_corrupt_the_bitmask()
+    {
+        // Regression for the recycled-ComboBox bug: the single shared ComboBox fired
+        // SelectionChanged with a STALE index (from the previously selected radio)
+        // targeting the just-selected bitmask, calling ApplyRadio() and corrupting its
+        // value + marking it dirty. Only radio settings may write via the combo, and the
+        // write is deferred until the bindings settle into a no-op.
+        var provider = new StubProvider { ValueLines = ["$32=2", "$44=0"] };
+        var grbl = new GrblServiceProxy(new DemoGrblService(new AppSettings()));
+        var vm = new GrblSettingsViewModel(provider, grbl, LocalizationService.CreateEmbedded());
+        vm.LoadAsync().GetAwaiter().GetResult();
+
+        var view = new GrblSettingsView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+
+        var radio = Find(vm.Groups, 32);
+        Assert.True(radio.IsRadio);
+        vm.SelectedNode = radio;
+        window.Show();
+        for (var i = 0; i < 4; i++)
+            await Pump();
+
+        var mask = Find(vm.Groups, 44);
+        Assert.True(mask.IsBits);
+        vm.SelectedNode = mask; // the combo is recycled here: it must NOT write its stale index
+        for (var i = 0; i < 4; i++)
+            await Pump();
+
+        Assert.Equal("0", mask.Value);
+        Assert.False(mask.IsDirty);
+        window.Close();
+    }
+
     /// <summary>Yield so the headless SynchronizationContext runs a pending layout/render.</summary>
     private static async Task Pump()
     {
