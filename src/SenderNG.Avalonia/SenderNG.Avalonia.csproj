@@ -31,5 +31,12 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <TargetPath>Locale\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
     </Content>
+    <!-- 3rd-party plugin locales: each plugin serves its own catalogs under
+         OutputDir/Modules/<id>/Locale (registered by the host). The Dummy plugin's
+         files are linked here from its project so they land in the app output. -->
+    <None Include="..\SenderNG.Modules.Dummy\Locale\**\*.json">
+      <Link>Modules\dummy\Locale\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>

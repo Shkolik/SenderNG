@@ -112,35 +112,35 @@ public sealed class ModeSettingsLeaf : AppSettingsLeaf
     }
 }
 
-/// <summary>Global &gt; Language leaf: locale dropdown that persists and re-applies at runtime.</summary>
+/// <summary>Global &gt; Language leaf: locale dropdown that persists and re-applies at runtime.
+/// The selection is backed by the live current locale (a provider delegate into the VM), so
+/// the dropdown always reflects the active language whenever the leaf is re-selected — a
+/// locally cached copy could go stale and show a stale/blank value on focus loss.</summary>
 public sealed class LanguageSettingsLeaf : AppSettingsLeaf
 {
-    private string _selectedLocale;
+    private readonly Func<string> _getCurrentLocale;
     private readonly Action<string> _setLocale;
 
-    public LanguageSettingsLeaf(string currentLocale, IReadOnlyList<string> availableLocales,
+    public LanguageSettingsLeaf(Func<string> getCurrentLocale, IReadOnlyList<string> availableLocales,
         Action<string> setLocale, string name, string description)
         : base("language", name, description)
     {
-        _selectedLocale = string.IsNullOrWhiteSpace(currentLocale) ? "en" : currentLocale;
+        _getCurrentLocale = getCurrentLocale;
         AvailableLocales = availableLocales;
         _setLocale = setLocale;
-        if (!AvailableLocales.Contains(_selectedLocale, StringComparer.OrdinalIgnoreCase))
-            _selectedLocale = AvailableLocales.FirstOrDefault() ?? "en";
     }
 
     public IReadOnlyList<string> AvailableLocales { get; }
 
     public string SelectedLocale
     {
-        get => _selectedLocale;
+        get => _getCurrentLocale();
         set
         {
-            if (string.Equals(_selectedLocale, value, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(_getCurrentLocale(), value, StringComparison.OrdinalIgnoreCase))
                 return;
-            _selectedLocale = value;
-            OnPropertyChanged();
             _setLocale(value);
+            OnPropertyChanged();
         }
     }
 }
@@ -413,10 +413,8 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
                 }
             }
 
-            // Fixed modules with nothing to configure have no leaf at all.
-            if (!module.CanHide && settingsView is null && fields is null && boolFields is null)
-                continue;
-
+            // Every module gets a leaf (ordered): fixed modules with no settings/view
+            // still show their name + description so users can learn what they do.
             ModuleLeaves.Add(new ModuleSettingsLeaf(
                 module.Id,
                 ModuleName(module),
@@ -441,7 +439,7 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
             LeafName("mode", "Mode"),
             LeafDescription("mode", "Machine mode: Mill for CNC milling, Foam for hot-wire foam cutting."));
         _globalLeaves.Add(modeLeaf);
-        var languageLeaf = new LanguageSettingsLeaf(_currentLanguage, _localization.AvailableLocales, SetLocale,
+        var languageLeaf = new LanguageSettingsLeaf(() => _currentLanguage, _localization.AvailableLocales, SetLocale,
             LeafName("language", "Language"),
             LeafDescription("language", "Interface language. Applied immediately."));
         _globalLeaves.Add(languageLeaf);

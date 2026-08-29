@@ -118,7 +118,8 @@ public static class GrblErrorCodes
         [79] = "A critical alarm (hard/soft limit, e-stop or motor fault) is active — release the cause, then Reset and Unlock again.",
     };
 
-    private static readonly Regex ErrorReply = new("^error:([0-9]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    /// <summary>Matches the <c>error:&lt;n&gt;</c> reply prefix (public so localization can reuse it).</summary>
+    public static readonly Regex ErrorReply = new("^error:([0-9]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>Official controller explanation for an error code, or <c>null</c> when unknown.</summary>
     public static string? Describe(int code) =>

@@ -28,7 +28,8 @@ MODULES = {
     "mpos": ("MPos", "Позиция станка"),
     "outline": ("Outline", "Контур"),
     "probing": ("Probing", "Измерение"),
-    "dummy": ("Dummy", "Заглушка"),
+    # NOTE: the Dummy plugin is intentionally absent — 3rd-party plugins serve their
+    # own module.<id>.* strings from OutputDir/Modules/<id>/Locale, not the global file.
 }
 
 DESC_EN = {
@@ -47,7 +48,6 @@ DESC_EN = {
     "mpos": "Show machine-position and work-position read-outs.",
     "outline": "Outline the loaded program's travel limits and move between them.",
     "probing": "Tool-length, edge, center, rotation and height-map probing cycles.",
-    "dummy": "Example third-party plugin used to prove assembly-scanned module discovery.",
 }
 
 # Settings-view / generic-field strings per module (id -> {key: (en, ru)})
@@ -125,7 +125,6 @@ DESC_RU = {
     "mpos": "Отображение машинных и рабочих координат.",
     "outline": "Контур пределов перемещения загруженной программы и переход между ними.",
     "probing": "Циклы измерения длины инструмента, кромки, центра, поворота и карты высот.",
-    "dummy": "Пример стороннего плагина для проверки обнаружения модулей по сборкам.",
 }
 
 COMMON_EN = {
@@ -135,6 +134,12 @@ COMMON_EN = {
     "appSettings.leaf.mode.description": "Machine mode: Mill for CNC milling, Foam for hot-wire foam cutting.",
     "appSettings.leaf.language": "Language",
     "appSettings.leaf.language.description": "Interface language. Applied immediately.",
+    "appSettings.enabled": "Enabled",
+    "appSettings.alwaysVisible": "Always visible",
+    "appSettings.close": "Close",
+    "appSettings.selectHint": "Select a setting to edit",
+    "appSettings.mode.mill": "Mill",
+    "appSettings.mode.foam": "Foam CNC",
 }
 
 COMMON_RU = {
@@ -144,6 +149,12 @@ COMMON_RU = {
     "appSettings.leaf.mode.description": "Режим станка: Mill для фрезеровки, Foam для резки пенопласта горячей нитью.",
     "appSettings.leaf.language": "Язык",
     "appSettings.leaf.language.description": "Язык интерфейса. Применяется сразу.",
+    "appSettings.enabled": "Включено",
+    "appSettings.alwaysVisible": "Всегда виден",
+    "appSettings.close": "Закрыть",
+    "appSettings.selectHint": "Выберите настройку для редактирования",
+    "appSettings.mode.mill": "Фрезеровка",
+    "appSettings.mode.foam": "Резка пенопласта",
 }
 
 

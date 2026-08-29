@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:CNC.Core.ViewModels;assembly=SenderNG.Core"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization;assembly=SenderNG.Avalonia"
              mc:Ignorable="d" d:DesignWidth="920" d:DesignHeight="560"
              x:Class="SenderNG.Avalonia.Modules.Fixed.AppSettingsView"
              x:DataType="vm:AppSettingsViewModel">
@@ -46,7 +47,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <!-- Close (bottom right, full width) -->
         <Border DockPanel.Dock="Bottom" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="10,8">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
-                <Button Content="Close" Command="{Binding CloseCommand}"
+                <Button Content="{loc:Loc appSettings.close}" Command="{Binding CloseCommand}"
                         Height="28" MinHeight="28" CornerRadius="0"
                         Background="#eee" BorderBrush="#999" BorderThickness="1"
                         Padding="14,0" VerticalContentAlignment="Center" />
@@ -113,7 +114,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
             <Border Grid.Column="2" Padding="12,10">
                 <Grid>
-                    <TextBlock Text="Select a setting to edit"
+                    <TextBlock Text="{loc:Loc appSettings.selectHint}"
                                FontSize="12" Foreground="#888" VerticalAlignment="Top" HorizontalAlignment="Left"
                                TextWrapping="Wrap" IsVisible="{Binding HasNoSelection}" />
 
@@ -131,13 +132,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                     <RadioButton GroupName="ModeEdit" IsChecked="{Binding SelectedModeLeaf.IsMill}"
                                                  FontSize="12">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <TextBlock Text="Mill" VerticalAlignment="Center" FontSize="12" />
+                                            <TextBlock Text="{loc:Loc appSettings.mode.mill}" VerticalAlignment="Center" FontSize="12" />
                                         </StackPanel>
                                     </RadioButton>
                                     <RadioButton GroupName="ModeEdit" IsChecked="{Binding SelectedModeLeaf.IsFoam}"
                                                  FontSize="12">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <TextBlock Text="Foam CNC" VerticalAlignment="Center" FontSize="12" />
+                                            <TextBlock Text="{loc:Loc appSettings.mode.foam}" VerticalAlignment="Center" FontSize="12" />
                                         </StackPanel>
                                     </RadioButton>
                                 </StackPanel>
@@ -154,9 +155,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
                             <!-- Module: visibility + settings -->
                             <StackPanel Spacing="8" IsVisible="{Binding IsModuleLeaf}">
-                                <CheckBox Content="Visible" IsChecked="{Binding SelectedModuleLeaf.IsVisible, Mode=TwoWay}"
+                                <CheckBox Content="{loc:Loc appSettings.enabled}" IsChecked="{Binding SelectedModuleLeaf.IsVisible, Mode=TwoWay}"
                                           IsEnabled="{Binding SelectedModuleLeaf.CanHide}" FontSize="12" />
-                                <TextBlock Text="Always visible" FontSize="10" Foreground="#888"
+                                <TextBlock Text="{loc:Loc appSettings.alwaysVisible}" FontSize="10" Foreground="#888"
                                            IsVisible="{Binding SelectedModuleLeaf.ShowAlwaysVisibleCaption}" />
 
                                 <ContentControl Content="{Binding SelectedModuleLeaf.SettingsView}"

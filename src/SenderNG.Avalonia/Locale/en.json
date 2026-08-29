@@ -49,8 +49,6 @@
     "module.outline.description": "Outline the loaded program's travel limits and move between them.",
     "module.probing.name": "Probing",
     "module.probing.description": "Tool-length, edge, center, rotation and height-map probing cycles.",
-    "module.dummy.name": "Dummy",
-    "module.dummy.description": "Example third-party plugin used to prove assembly-scanned module discovery.",
     "module.goto.axisCount": "Goto axis count",
     "module.goto.axisCountHint": "Capped by the connected controller's axis count.",
     "module.jog.distances": "Distances (mm)",
@@ -68,7 +66,13 @@
     "module.probing.edge-internal": "Edge finder, internal",
     "module.probing.rotation": "Rotation",
     "module.probing.center": "Center finder",
-    "module.probing.heightmap": "Height map"
+    "module.probing.heightmap": "Height map",
+    "appSettings.enabled": "Enabled",
+    "appSettings.alwaysVisible": "Always visible",
+    "appSettings.close": "Close",
+    "appSettings.selectHint": "Select a setting to edit",
+    "appSettings.mode.mill": "Mill",
+    "appSettings.mode.foam": "Foam CNC"
   },
   "grblSettingGroups": {
     "0": {

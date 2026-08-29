@@ -104,10 +104,21 @@ public static class HostSetup
 
         var host = builder.Build();
 
+        var localization = host.Services
+            .GetRequiredService<SenderNG.Core.Localization.LocalizationService>();
+        // 3rd-party modules may serve their own locale data under
+        // OutputDir/Modules/<id>/Locale/*.json; register them so their namespaced
+        // keys (module.<id>.*) resolve through the active locale. Base catalogs win.
+        foreach (var module in host.Services.GetServices<IModule>())
+        {
+            var dir = Path.Combine(AppContext.BaseDirectory, "Modules", module.Id, "Locale");
+            if (Directory.Exists(dir))
+                localization.RegisterModuleLocales(dir);
+        }
+
         // Expose the localized instance for {Loc key} markup extensions (views
         // can't reach DI). Must be set before any module view is realized.
-        SenderNG.Core.Localization.LocalizationService.Current =
-            host.Services.GetRequiredService<SenderNG.Core.Localization.LocalizationService>();
+        SenderNG.Core.Localization.LocalizationService.Current = localization;
 
         // Settings fields may be read before a module's UI is ever opened.
         foreach (var module in host.Services.GetServices<IModule>())

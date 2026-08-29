@@ -172,7 +172,7 @@ public class AppSettingsViewModelTests
     }
 
     [Fact]
-    public void Fixed_modules_without_settings_are_excluded()
+    public void Fixed_modules_without_settings_are_still_listed()
     {
         var (_, settings) = MakeSettings();
         var modules = new IModule[]
@@ -183,7 +183,12 @@ public class AppSettingsViewModelTests
 
         var vm = new AppSettingsViewModel(settings, modules, Loc);
 
-        Assert.Equal(new[] { "jog" }, vm.ModuleLeaves.Select(e => e.Id).ToArray());
+        // Every module gets a leaf so its description/docs are reachable.
+        Assert.Equal(new[] { "dro", "jog" }, vm.ModuleLeaves.Select(e => e.Id).ToArray());
+        var dro = Leaf(vm, "dro");
+        Assert.True(dro.IsVisible);          // fixed modules stay pinned visible
+        Assert.False(dro.CanHide);           // no Enabled checkbox
+        Assert.True(dro.ShowAlwaysVisibleCaption);
     }
 
     [Fact]
@@ -305,6 +310,87 @@ public class AppSettingsViewModelTests
             {
                 Loc.SetLocale("en");
             }
+        }
+    }
+
+    [Fact]
+    public void Language_selector_retains_selection_across_reselect_and_reopen()
+    {
+        var (_, settings) = MakeSettings();
+        var vm = CreateVm(settings);
+        var leaf = (LanguageSettingsLeaf)((AppSettingsGroupItem)vm.Groups[0]).Children[1];
+
+        if (leaf.AvailableLocales.Contains("ru"))
+        {
+            try
+            {
+                leaf.SelectedLocale = "ru";
+                // Getter is backed by the VM's live current locale, not a stale copy:
+                // re-reading (as when the user navigates away and back) still shows "ru".
+                Assert.Equal("ru", leaf.SelectedLocale);
+                // And a freshly opened dialog (new VM over the same settings) starts on "ru".
+                var reopened = new AppSettingsViewModel(settings, Modules, Loc);
+                var reopenedLeaf = (LanguageSettingsLeaf)((AppSettingsGroupItem)reopened.Groups[0]).Children[1];
+                Assert.Equal("ru", reopenedLeaf.SelectedLocale);
+            }
+            finally
+            {
+                Loc.SetLocale("en");
+            }
+        }
+    }
+
+    [Fact]
+    public void Plugin_locale_registration_serves_its_own_strings()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-plugin-locale-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "en.json"),
+            """{ "strings": { "module.dummy.name": "Dummy", "module.dummy.tagline": "Dummy plugin works!" } }""");
+        File.WriteAllText(Path.Combine(dir, "ru.json"),
+            """{ "strings": { "module.dummy.name": "Заглушка", "module.dummy.tagline": "Плагин «Заглушка» работает!" } }""");
+
+        var loc = LocalizationService.LoadFromDirectory(Path.Combine(AppContext.BaseDirectory, "Locale"));
+        loc.RegisterModuleLocales(dir);
+
+        try
+        {
+            Assert.Contains("ru", loc.AvailableLocales);
+            Assert.Equal("Dummy", loc.T("module.dummy.name"));
+            Assert.Equal("Dummy plugin works!", loc.T("module.dummy.tagline"));
+            loc.SetLocale("ru");
+            Assert.Equal("Заглушка", loc.T("module.dummy.name"));
+            Assert.Equal("Плагин «Заглушка» работает!", loc.T("module.dummy.tagline"));
+            // Base catalogs take precedence: a plugin may not override an app string.
+            Assert.NotEqual("Заглушка", loc.T("appSettings.enabled"));
+        }
+        finally
+        {
+            loc.SetLocale("en");
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Grbl_errors_localize_through_the_service()
+    {
+        try
+        {
+            Assert.Contains("integer value", Loc.TError(23)); // English fallback
+            if (Loc.AvailableLocales.Contains("ru"))
+            {
+                Loc.SetLocale("ru");
+                Assert.Contains("целочисленного значения", Loc.TError(23));
+                Assert.Contains("Цель джога", Loc.TError(15));
+                Assert.Contains("критическое событие", Loc.TError(79));
+                Assert.Contains("возврат в ноль", Loc.TErrorHint(15));
+                Assert.Contains("error:23 -", Loc.DecorateError("error:23"));
+                Assert.Null(Loc.TError(9999)); // unknown code stays unknown
+            }
+        }
+        finally
+        {
+            Loc.SetLocale("en");
         }
     }
 

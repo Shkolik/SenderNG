@@ -73,6 +73,7 @@ public class MainViewModel : ViewModelBase
     private int _signalAxisCount = -1;
     private CNC.Core.Signals _signalOptionalSignals = CNC.Core.Signals.Off;
     private ProgramViewModel? _program;
+    private readonly SenderNG.Core.Localization.LocalizationService? _localization;
 
     public MainViewModel(
         IGrblService grbl,
@@ -96,6 +97,7 @@ public class MainViewModel : ViewModelBase
         _fileDialogs = fileDialogs;
         _dialogs = dialogs;
         _viewFactory = viewFactory;
+        _localization = services.GetService<SenderNG.Core.Localization.LocalizationService>();
         _isDemo = ResolveInner(grbl) is DemoGrblService;
         _isConnected = grbl.IsConnected;
         _connectedTo = _isDemo ? "demo" : null;
@@ -695,9 +697,11 @@ public class MainViewModel : ViewModelBase
 
     /// <summary>
     /// Interpret an <c>error:&lt;n&gt;</c> controller reply into a status-bar message
-    /// (the raw line still reaches the console). Returns false for any other line.
+    /// (the raw line still reaches the console). The explanation resolves through the
+    /// active locale when available (fallback: the built-in English dictionary).
+    /// Returns false for any other line.
     /// </summary>
-    private static bool TryDescribeError(string line, out string message)
+    private bool TryDescribeError(string line, out string message)
     {
         message = string.Empty;
         const string prefix = "error:";
@@ -705,10 +709,10 @@ public class MainViewModel : ViewModelBase
             return false;
         if (!int.TryParse(line[prefix.Length..], out var code))
             return false;
-        var description = CNC.Core.Services.GrblErrorCodes.Describe(code);
+        var description = _localization?.TError(code) ?? CNC.Core.Services.GrblErrorCodes.Describe(code);
         if (description is null)
             return false;
-        var hint = CNC.Core.Services.GrblErrorCodes.Hint(code);
+        var hint = _localization?.TErrorHint(code) ?? CNC.Core.Services.GrblErrorCodes.Hint(code);
         message = hint is null
             ? $"error:{code} — {description}"
             : $"error:{code} — {description} {hint}";

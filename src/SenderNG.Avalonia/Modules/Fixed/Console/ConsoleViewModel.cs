@@ -44,6 +44,7 @@ using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Avalonia.ViewModels;
 using SenderNG.Core.Commands;
+using SenderNG.Core.Localization;
 
 namespace SenderNG.Avalonia.Modules.Fixed;
 
@@ -137,6 +138,7 @@ public class ConsoleViewModel : ViewModelBase
     private readonly SettingsService _settings;
     private readonly ConsoleOptions _options;
     private readonly IDisposable _linesSubscription;
+    private readonly LocalizationService? _localization;
     private string? _lastStatusLine;
 
     public ObservableCollection<string> ConsoleLines { get; } = new();
@@ -149,11 +151,13 @@ public class ConsoleViewModel : ViewModelBase
     /// </summary>
     public string ConsoleText => string.Join(Environment.NewLine, ConsoleLines);
 
-    public ConsoleViewModel(IGrblService grbl, SettingsService settings)
+    public ConsoleViewModel(IGrblService grbl, SettingsService settings,
+        LocalizationService? localization = null)
     {
         ArgumentNullException.ThrowIfNull(grbl);
         ArgumentNullException.ThrowIfNull(settings);
         _settings = settings;
+        _localization = localization;
         _options = ConsoleSettingsStore.Load(settings.Load());
 
         ClearCommand = new DelegateCommand(_ =>
@@ -226,10 +230,11 @@ public class ConsoleViewModel : ViewModelBase
         string? line = null;
         if (isError)
         {
-            // ioSender semantics: show the raw reply with its dictionary
-            // explanation appended, e.g. "error:2 - Missing the expected G-code
-            // word value or numeric value format is not valid."
-            line = GrblErrorCodes.Decorate(data);
+            // ioSender semantics: show the raw reply with its explanation
+            // appended, e.g. "error:2 - Missing the expected G-code word value
+            // or numeric value format is not valid." Resolves through the active
+            // locale when available (fallback: the built-in English dictionary).
+            line = _localization?.DecorateError(data) ?? GrblErrorCodes.Decorate(data);
         }
         else if (data == "ok")
         {

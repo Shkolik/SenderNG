@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Globalization;
 using System.Text.Json;
 using SenderNG.Core.Settings;
+using CNC.Core.Services;
 
 namespace SenderNG.Core.Localization;
 
@@ -83,6 +84,12 @@ public sealed class LocalizationService
     private readonly IReadOnlyDictionary<int, GrblSettingGroupDefinition> _groups;
     private IReadOnlyDictionary<int, GrblSettingLocalization> _overrides;
 
+    // Supplementary catalogs registered at runtime by 3rd-party modules (each module
+    // serves its own <Module>/Locale/<lang>.json). Base catalogs take precedence;
+    // extras are additive and use their own namespaced keys (module.<id>.*).
+    private readonly Dictionary<string, string> _extraEn = new();
+    private readonly Dictionary<string, Dictionary<string, string>> _extraByLocale = new();
+
     /// <summary>Raised whenever the active locale changes (Language picker), so UI re-reads labels.</summary>
     public event EventHandler? Changed;
 
@@ -128,14 +135,18 @@ public sealed class LocalizationService
     {
         get
         {
-            if (_localeDirectory is null)
-                return ["en"];
-            return Directory.EnumerateFiles(_localeDirectory, "*.json")
-                .Select(Path.GetFileNameWithoutExtension)
-                .Where(static c => !string.IsNullOrWhiteSpace(c))
-                .OrderBy(static c => c != "en") // English first
-                .ThenBy(static c => c, StringComparer.OrdinalIgnoreCase)
-                .ToArray()!;
+            var codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (_localeDirectory is not null)
+            {
+                foreach (var f in Directory.EnumerateFiles(_localeDirectory, "*.json"))
+                    if (!string.IsNullOrWhiteSpace(Path.GetFileNameWithoutExtension(f)))
+                        codes.Add(Path.GetFileNameWithoutExtension(f));
+            }
+            // Locales contributed by registered 3rd-party modules.
+            foreach (var code in _extraByLocale.Keys)
+                codes.Add(code);
+            codes.Add("en");
+            return [.. codes.OrderBy(c => c != "en").ThenBy(c => c, StringComparer.OrdinalIgnoreCase)];
         }
     }
 
@@ -218,9 +229,97 @@ public sealed class LocalizationService
     {
         if (_localeStrings.TryGetValue(key, out var localized))
             return localized;
+        if (_extraByLocale.TryGetValue(_locale, out var extra) && extra.TryGetValue(key, out var pluginLoc))
+            return pluginLoc;
         if (_enStrings.TryGetValue(key, out var english))
             return english;
+        if (_extraEn.TryGetValue(key, out var pluginEn))
+            return pluginEn;
         return key;
+    }
+
+    /// <summary>
+    /// Registers a 3rd-party module's locale directory (<c>en.json</c> + one file per
+    /// locale, e.g. <c>ru.json</c>, each with a <c>strings</c> object). Namespaced keys
+    /// (<c>module.&lt;id&gt;.*</c>) are additive: base catalogs take precedence, plugins
+    /// may not override app strings. Merged into <see cref="AvailableLocales"/> and
+    /// consulted by <see cref="T"/> for the active locale.
+    /// </summary>
+    public void RegisterModuleLocales(string directory)
+    {
+        if (!Directory.Exists(directory))
+            return;
+        var enPath = Path.Combine(directory, "en.json");
+        if (!File.Exists(enPath))
+            return;
+        foreach (var file in Directory.EnumerateFiles(directory, "*.json"))
+        {
+            var code = Path.GetFileNameWithoutExtension(file);
+            var strings = ReadStrings(file);
+            if (string.Equals(code, "en", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var (k, v) in strings)
+                    if (!_extraEn.ContainsKey(k))
+                        _extraEn[k] = v;
+            }
+            else
+            {
+                if (!_extraByLocale.TryGetValue(code, out var bucket))
+                    _extraByLocale[code] = bucket = new Dictionary<string, string>();
+                foreach (var (k, v) in strings)
+                    if (!bucket.ContainsKey(k))
+                        bucket[k] = v;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Localized explanation for a grbl <c>error:&lt;n&gt;</c> reply. Resolves the
+    /// <c>error.{code}</c> string (locale → English → key); when absent falls back to
+    /// the built-in English dictionary (GrblErrorCodes), so classic/grblHAL codes are
+    /// always described even for locales that don't translate them yet.
+    /// </summary>
+    public string? TError(int code)
+    {
+        var key = $"error.{code}";
+        var v = T(key);
+        if (!string.Equals(v, key, StringComparison.Ordinal))
+            return v;
+        return GrblErrorCodes.Describe(code);
+    }
+
+    /// <summary>Localized actionable hint for the status bar, or <c>null</c> when none.</summary>
+    public string? TErrorHint(int code)
+    {
+        var key = $"errorHint.{code}";
+        var v = T(key);
+        return string.Equals(v, key, StringComparison.Ordinal) ? GrblErrorCodes.Hint(code) : v;
+    }
+
+    /// <summary>
+    /// Render a raw <c>error:&lt;n&gt;</c> console line with its (localized) explanation
+    /// appended, e.g. <c>error:2 - Missing the expected G-code word value ...</c>.
+    /// Mirrors <see cref="GrblErrorCodes.Decorate"/> but resolves through the locale.
+    /// Unknown codes and non-error lines pass through unchanged.
+    /// </summary>
+    public string DecorateError(string line)
+    {
+        var match = CNC.Core.Services.GrblErrorCodes.ErrorReply.Match(line);
+        if (!match.Success || !int.TryParse(match.Groups[1].Value, out var code))
+            return line;
+        var description = TError(code);
+        return description is null ? line : $"{line} - {description}";
+    }
+
+    /// <summary>Reads just the <c>strings</c> object of a locale JSON file.</summary>
+    private static Dictionary<string, string> ReadStrings(string path)
+    {
+        var result = new Dictionary<string, string>();
+        using var doc = JsonDocument.Parse(File.ReadAllBytes(path));
+        if (doc.RootElement.TryGetProperty("strings", out var stringsEl) && stringsEl.ValueKind == JsonValueKind.Object)
+            foreach (var p in stringsEl.EnumerateObject())
+                result[p.Name] = p.Value.GetString() ?? string.Empty;
+        return result;
     }
 
     /// <summary>
