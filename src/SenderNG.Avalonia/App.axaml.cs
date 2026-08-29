@@ -11,6 +11,10 @@ public partial class App : Application
 {
     public static IHost? Host { get; private set; }
 
+    /// <summary>Command-line args from <see cref="Program.Main"/> (Avalonia's lifetime
+    /// doesn't forward them), read when building the host in <see cref="OnFrameworkInitializationCompleted"/>.</summary>
+    public static string[] StartupArgs { get; set; } = [];
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -23,7 +27,7 @@ public partial class App : Application
         UiThread.Initialize();
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            Host = HostSetup.BuildHost([]);
+            Host = HostSetup.BuildHost(StartupArgs);
             var vm = Host.Services.GetRequiredService<MainViewModel>();
 
             desktop.MainWindow = new MainWindow { DataContext = vm };

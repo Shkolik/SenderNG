@@ -9,8 +9,15 @@ class Program
     // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
     // yet and stuff might break.
     [STAThread]
-    public static void Main(string[] args) => BuildAvaloniaApp()
-        .StartWithClassicDesktopLifetime(args);
+    public static void Main(string[] args)
+    {
+        // Avalonia's lifetime leaves command-line args to Program; App's
+        // OnFrameworkInitializationCompleted needs them when it builds the host
+        // (e.g. --locale <code>), so stash them before the lifetime takes over.
+        App.StartupArgs = args;
+        BuildAvaloniaApp()
+            .StartWithClassicDesktopLifetime(args);
+    }
 
     // Avalonia configuration, don't remove; also used by visual designer.
     public static AppBuilder BuildAvaloniaApp()
