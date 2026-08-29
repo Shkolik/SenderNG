@@ -131,6 +131,33 @@ public class GrblSettingsLoaderTests
     }
 
     [Fact]
+    public async Task Controller_metadata_settings_get_descriptions_from_the_language_file()
+    {
+        // grblHAL $ES metadata has no description field, so the English catalog is the
+        // source of truth for docs; the lazy $SED fetch is only a fallback for ids the
+        // catalog doesn't know. The board is connected now, so on load every HAL
+        // setting carries its language-file description.
+        var provider = new StubProvider
+        {
+            ValueLines = ["$0=5.0", "$1=25", "$9999=1"],
+            DetailLines =
+            [
+                "[SETTING:0|35|Step pulse time|microseconds|6|#0.0|1.0||0|0]",
+                "[SETTING:1|35|Step idle delay|milliseconds|5|####0||65535|0|0]",
+                "[SETTING:9999|1|My custom setting||0|||0|0]",
+            ],
+        };
+
+        var snapshot = await new GrblSettingsLoader(provider, Loc).LoadAsync();
+
+        var s0 = snapshot.Settings.Single(s => s.Id == 0);
+        Assert.False(string.IsNullOrWhiteSpace(s0.Description)); // from the catalog
+
+        // An id the catalog doesn't know keeps whatever the controller sent (or nothing).
+        Assert.Null(snapshot.Settings.Single(s => s.Id == 9999).Description);
+    }
+
+    [Fact]
     public async Task Empty_groups_are_dropped_and_settings_are_ordered_by_id()
     {
         var provider = new StubProvider

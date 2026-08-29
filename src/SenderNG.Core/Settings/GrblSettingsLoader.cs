@@ -122,6 +122,18 @@ public sealed class GrblSettingsLoader
 
             setting.Value = value;
             _localization.ApplySettingStrings(setting);
+            // The language file is the single source of truth for docs. Controller
+            // $ES metadata carries no description, so prefer the embedded catalog one
+            // (English base, superseded by any localized description from
+            // ApplySettingStrings above) and reserve the lazy $SED fetch for ids the
+            // catalog doesn't know (the view only asks when Description is still null).
+            if (string.IsNullOrEmpty(setting.Description)
+                && _localization.Settings.TryGetValue(id, out var def)
+                && !string.IsNullOrEmpty(def.Description))
+            {
+                setting.Description = def.Description;
+            }
+
             settings.Add(setting);
         }
 
