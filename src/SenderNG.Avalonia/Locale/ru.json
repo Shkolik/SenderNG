@@ -49,7 +49,25 @@
     "module.probing.name": "Измерение",
     "module.probing.description": "Циклы измерения длины инструмента, кромки, центра, поворота и карты высот.",
     "module.dummy.name": "Заглушка",
-    "module.dummy.description": "Пример стороннего плагина для проверки обнаружения модулей по сборкам."
+    "module.dummy.description": "Пример стороннего плагина для проверки обнаружения модулей по сборкам.",
+    "module.goto.axisCount": "Число осей перехода",
+    "module.goto.axisCountHint": "Ограничивается числом осей подключённого контроллера.",
+    "module.jog.distances": "Расстояния (мм)",
+    "module.jog.speeds": "Скорости (мм/мин)",
+    "module.jog.step1": "Шаг 1",
+    "module.jog.step2": "Шаг 2",
+    "module.jog.step3": "Шаг 3",
+    "module.jog.speed1": "Скорость 1",
+    "module.jog.speed2": "Скорость 2",
+    "module.jog.speed3": "Скорость 3",
+    "module.jog.diagonal": "Диагональные перемещения",
+    "module.offsets-table.showToolTable": "Показать таблицу инструментов",
+    "module.probing.tool-length": "Смещение длины инструмента",
+    "module.probing.edge-external": "Поиск кромки, снаружи",
+    "module.probing.edge-internal": "Поиск кромки, внутри",
+    "module.probing.rotation": "Поворот",
+    "module.probing.center": "Поиск центра",
+    "module.probing.heightmap": "Карта высот"
   },
   "grblSettings": {
     "0": {

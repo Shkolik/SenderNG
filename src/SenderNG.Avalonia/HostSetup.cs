@@ -104,6 +104,11 @@ public static class HostSetup
 
         var host = builder.Build();
 
+        // Expose the localized instance for {Loc key} markup extensions (views
+        // can't reach DI). Must be set before any module view is realized.
+        SenderNG.Core.Localization.LocalizationService.Current =
+            host.Services.GetRequiredService<SenderNG.Core.Localization.LocalizationService>();
+
         // Settings fields may be read before a module's UI is ever opened.
         foreach (var module in host.Services.GetServices<IModule>())
             if (module is IModuleSettingsProvider provider)

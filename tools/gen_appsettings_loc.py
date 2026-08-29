@@ -50,6 +50,65 @@ DESC_EN = {
     "dummy": "Example third-party plugin used to prove assembly-scanned module discovery.",
 }
 
+# Settings-view / generic-field strings per module (id -> {key: (en, ru)})
+VIEW_EN = {
+    "goto": {
+        "module.goto.axisCount": "Goto axis count",
+        "module.goto.axisCountHint": "Capped by the connected controller's axis count.",
+    },
+    "jog": {
+        "module.jog.distances": "Distances (mm)",
+        "module.jog.speeds": "Speeds (mm/min)",
+        "module.jog.step1": "Step 1",
+        "module.jog.step2": "Step 2",
+        "module.jog.step3": "Step 3",
+        "module.jog.speed1": "Speed 1",
+        "module.jog.speed2": "Speed 2",
+        "module.jog.speed3": "Speed 3",
+        "module.jog.diagonal": "Diagonal jogging",
+    },
+    "offsets-table": {
+        "module.offsets-table.showToolTable": "Show tool table",
+    },
+    "probing": {
+        "module.probing.tool-length": "Tool length offset",
+        "module.probing.edge-external": "Edge finder, external",
+        "module.probing.edge-internal": "Edge finder, internal",
+        "module.probing.rotation": "Rotation",
+        "module.probing.center": "Center finder",
+        "module.probing.heightmap": "Height map",
+    },
+}
+
+VIEW_RU = {
+    "goto": {
+        "module.goto.axisCount": "Число осей перехода",
+        "module.goto.axisCountHint": "Ограничивается числом осей подключённого контроллера.",
+    },
+    "jog": {
+        "module.jog.distances": "Расстояния (мм)",
+        "module.jog.speeds": "Скорости (мм/мин)",
+        "module.jog.step1": "Шаг 1",
+        "module.jog.step2": "Шаг 2",
+        "module.jog.step3": "Шаг 3",
+        "module.jog.speed1": "Скорость 1",
+        "module.jog.speed2": "Скорость 2",
+        "module.jog.speed3": "Скорость 3",
+        "module.jog.diagonal": "Диагональные перемещения",
+    },
+    "offsets-table": {
+        "module.offsets-table.showToolTable": "Показать таблицу инструментов",
+    },
+    "probing": {
+        "module.probing.tool-length": "Смещение длины инструмента",
+        "module.probing.edge-external": "Поиск кромки, снаружи",
+        "module.probing.edge-internal": "Поиск кромки, внутри",
+        "module.probing.rotation": "Поворот",
+        "module.probing.center": "Поиск центра",
+        "module.probing.heightmap": "Карта высот",
+    },
+}
+
 DESC_RU = {
     "dro": "Цифровой индикатор: живые координаты осей, машинные координаты и обратная связь шпинделя.",
     "work-parameters": "Машинные и рабочие системы координат, переключение G54..G59 и действующее смещение длины инструмента.",
@@ -92,11 +151,15 @@ def build(lang):
     is_en = lang == "en"
     common = COMMON_EN if is_en else COMMON_RU
     descs = DESC_EN if is_en else DESC_RU
+    views = VIEW_EN if is_en else VIEW_RU
     strings = dict(common)
     for mid, (en_name, ru_name) in MODULES.items():
         name = en_name if is_en else ru_name
         strings[f"module.{mid}.name"] = name
         strings[f"module.{mid}.description"] = descs[mid]
+    for mid, entries in views.items():
+        for key, value in entries.items():
+            strings[key] = value
     return strings
 
 

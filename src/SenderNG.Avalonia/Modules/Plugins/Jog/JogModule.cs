@@ -5,7 +5,7 @@ using SenderNG.Core.Modules;
 
 namespace SenderNG.Avalonia.Modules.Plugins;
 
-public class JogModule : IModule, IModuleSettingsProvider
+public class JogModule : IModule, IModuleSettingsProvider, ILocalizedModule
 {
     private SettingsService? _settingsService;
     private IServiceProvider? _services;
@@ -19,6 +19,20 @@ public class JogModule : IModule, IModuleSettingsProvider
     public bool IsVisibleByDefault => true;
     public bool CanHide => false;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
+
+    public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
+        new Dictionary<string, string>
+        {
+            ["module.jog.distances"] = "Distances (mm)",
+            ["module.jog.speeds"] = "Speeds (mm/min)",
+            ["module.jog.step1"] = "Step 1",
+            ["module.jog.step2"] = "Step 2",
+            ["module.jog.step3"] = "Step 3",
+            ["module.jog.speed1"] = "Speed 1",
+            ["module.jog.speed2"] = "Speed 2",
+            ["module.jog.speed3"] = "Speed 3",
+            ["module.jog.diagonal"] = "Diagonal jogging",
+        };
 
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<JogViewModel>();

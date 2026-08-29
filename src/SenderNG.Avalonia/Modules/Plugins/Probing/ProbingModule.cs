@@ -5,7 +5,7 @@ using SenderNG.Core.Modules.Probing;
 
 namespace SenderNG.Avalonia.Modules.Plugins;
 
-public class ProbingModule : IModule, IModuleSettingsProvider
+public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule
 {
     public string Id => "probing";
     public string Name => "Probing";
@@ -29,6 +29,17 @@ public class ProbingModule : IModule, IModuleSettingsProvider
         "heightmap",
     ];
 
+    public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
+        new Dictionary<string, string>
+        {
+            ["module.probing.tool-length"] = "Tool length offset",
+            ["module.probing.edge-external"] = "Edge finder, external",
+            ["module.probing.edge-internal"] = "Edge finder, internal",
+            ["module.probing.rotation"] = "Rotation",
+            ["module.probing.center"] = "Center finder",
+            ["module.probing.heightmap"] = "Height map",
+        };
+
     private SettingsService? _settingsService;
 
     public void RegisterServices(IServiceCollection services)
@@ -51,16 +62,9 @@ public class ProbingModule : IModule, IModuleSettingsProvider
     {
         var tools = ReadTools(_settingsService);
 
-        string Label(string key) => key switch
-        {
-            "tool-length" => "Tool length offset",
-            "edge-external" => "Edge finder, external",
-            "edge-internal" => "Edge finder, internal",
-            "rotation" => "Rotation",
-            "center" => "Center finder",
-            "heightmap" => "Height map",
-            _ => key,
-        };
+        string Label(string key) => LocalizationKeys.TryGetValue("module.probing." + key, out var en)
+            ? en
+            : key;
 
         foreach (var key in ToolKeys)
         {
@@ -75,7 +79,8 @@ public class ProbingModule : IModule, IModuleSettingsProvider
                         EnsureSection(settings)[EnabledToolsKey] = tools;
                         svc.Save(settings);
                     }
-                });
+                },
+                key: "module.probing." + key);
         }
     }
 

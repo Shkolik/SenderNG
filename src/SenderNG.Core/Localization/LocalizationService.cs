@@ -87,6 +87,13 @@ public sealed class LocalizationService
     public event EventHandler? Changed;
 
     /// <summary>
+    /// The application-wide instance. Set by the host (HostSetup) after the DI host is
+    /// built; XML markup extensions ({@code {Loc key}}) and other UI that can't reach DI
+    /// resolve strings through it and re-render on <see cref="Changed"/>.
+    /// </summary>
+    public static LocalizationService? Current { get; set; }
+
+    /// <summary>
     /// Loads a locale from a directory of JSON catalog files (the UI-owned data:
     /// <c>&lt;dir&gt;/en.json</c> + optional <c>&lt;dir&gt;/&lt;locale&gt;.json</c> override)
     /// and builds its stream(s) into a <see cref="LocalizationService"/>. The directory is

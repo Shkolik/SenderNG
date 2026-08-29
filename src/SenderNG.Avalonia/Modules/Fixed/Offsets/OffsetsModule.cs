@@ -42,7 +42,7 @@ using SenderNG.Core.Modules;
 
 namespace SenderNG.Avalonia.Modules.Fixed;
 
-public sealed class OffsetsModule : IModule, IModuleSettingsProvider
+public sealed class OffsetsModule : IModule, IModuleSettingsProvider, ILocalizedModule
 {
     private SettingsService? _settingsService;
     private IServiceProvider? _services;
@@ -56,6 +56,12 @@ public sealed class OffsetsModule : IModule, IModuleSettingsProvider
     // Core functionality: always visible, no hide checkbox in App Settings.
     public bool CanHide => false;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
+
+    public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
+        new Dictionary<string, string>
+        {
+            ["module.offsets-table.showToolTable"] = "Show tool table",
+        };
 
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<OffsetsViewModel>();
@@ -79,7 +85,8 @@ public sealed class OffsetsModule : IModule, IModuleSettingsProvider
         if (_settingsService is null || _services is null)
             return [];
         var vm = _services.GetRequiredService<OffsetsViewModel>();
-        return [new ModuleSettingBool("Show tool table", () => vm.ShowToolTable, v => vm.ShowToolTable = v)];
+        return [new ModuleSettingBool("Show tool table", () => vm.ShowToolTable, v => vm.ShowToolTable = v,
+            key: "module.offsets-table.showToolTable")];
     }
 
     public object CreateView(object viewModel) =>

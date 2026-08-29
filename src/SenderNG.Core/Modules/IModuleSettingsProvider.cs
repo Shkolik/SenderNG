@@ -18,16 +18,20 @@ public interface IModuleSettingsProvider
     void AttachServices(IServiceProvider services) { }
 }
 
-public sealed class ModuleSettingField(string label, Func<double> get, Action<double> set)
+public sealed class ModuleSettingField(string label, Func<double> get, Action<double> set, string? key = null)
 {
     public string Label { get; } = label;
+    /// <summary>Optional localization key resolved through LocalizationService (fallback = <see cref="Label"/>).</summary>
+    public string? Key { get; } = key;
     public Func<double> Get { get; } = get;
     public Action<double> Set { get; } = set;
 }
 
-public sealed class ModuleSettingBool(string label, Func<bool> get, Action<bool> set)
+public sealed class ModuleSettingBool(string label, Func<bool> get, Action<bool> set, string? key = null)
 {
     public string Label { get; } = label;
+    /// <summary>Optional localization key resolved through LocalizationService (fallback = <see cref="Label"/>).</summary>
+    public string? Key { get; } = key;
     public Func<bool> Get { get; } = get;
     public Action<bool> Set { get; } = set;
 }

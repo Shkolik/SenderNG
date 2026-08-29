@@ -5,7 +5,7 @@ using SenderNG.Core.Modules;
 
 namespace SenderNG.Avalonia.Modules.Plugins;
 
-public class GotoModule : IModule, IModuleSettingsProvider
+public class GotoModule : IModule, IModuleSettingsProvider, ILocalizedModule
 {
     private IServiceProvider? _services;
 
@@ -16,6 +16,13 @@ public class GotoModule : IModule, IModuleSettingsProvider
     public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
+
+    public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
+        new Dictionary<string, string>
+        {
+            ["module.goto.axisCount"] = "Goto axis count",
+            ["module.goto.axisCountHint"] = "Capped by the connected controller's axis count.",
+        };
 
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<GotoViewModel>();

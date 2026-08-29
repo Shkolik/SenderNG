@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization;assembly=SenderNG.Avalonia"
              mc:Ignorable="d" d:DesignWidth="130" d:DesignHeight="170"
              x:Class="SenderNG.Avalonia.Modules.Plugins.JogSettingsView"
              x:DataType="vm:JogViewModel">
@@ -30,18 +31,18 @@
     <StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="12">
             <StackPanel>
-                <TextBlock Classes="caption" Text="Distances (mm)" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Distance1}" PlaceholderText="Step 1" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Distance2}" PlaceholderText="Step 2" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Distance3}" PlaceholderText="Step 3" />
+                <TextBlock Classes="caption" Text="{loc:Loc module.jog.distances}" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Distance1}" PlaceholderText="{loc:Loc module.jog.step1}" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Distance2}" PlaceholderText="{loc:Loc module.jog.step2}" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Distance3}" PlaceholderText="{loc:Loc module.jog.step3}" />
             </StackPanel>
             <StackPanel>
-                <TextBlock Classes="caption" Text="Speeds (mm/min)" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Speed1}" PlaceholderText="Speed 1" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Speed2}" PlaceholderText="Speed 2" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Speed3}" PlaceholderText="Speed 3" />
+                <TextBlock Classes="caption" Text="{loc:Loc module.jog.speeds}" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Speed1}" PlaceholderText="{loc:Loc module.jog.speed1}" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Speed2}" PlaceholderText="{loc:Loc module.jog.speed2}" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Speed3}" PlaceholderText="{loc:Loc module.jog.speed3}" />
             </StackPanel>
         </StackPanel>
-        <CheckBox Content="Diagonal jogging" IsChecked="{Binding Config.Diagonals}" FontSize="10" Margin="0,6,0,0" />
+        <CheckBox Content="{loc:Loc module.jog.diagonal}" IsChecked="{Binding Config.Diagonals}" FontSize="10" Margin="0,6,0,0" />
     </StackPanel>
 </UserControl>

@@ -50,7 +50,25 @@
     "module.probing.name": "Probing",
     "module.probing.description": "Tool-length, edge, center, rotation and height-map probing cycles.",
     "module.dummy.name": "Dummy",
-    "module.dummy.description": "Example third-party plugin used to prove assembly-scanned module discovery."
+    "module.dummy.description": "Example third-party plugin used to prove assembly-scanned module discovery.",
+    "module.goto.axisCount": "Goto axis count",
+    "module.goto.axisCountHint": "Capped by the connected controller's axis count.",
+    "module.jog.distances": "Distances (mm)",
+    "module.jog.speeds": "Speeds (mm/min)",
+    "module.jog.step1": "Step 1",
+    "module.jog.step2": "Step 2",
+    "module.jog.step3": "Step 3",
+    "module.jog.speed1": "Speed 1",
+    "module.jog.speed2": "Speed 2",
+    "module.jog.speed3": "Speed 3",
+    "module.jog.diagonal": "Diagonal jogging",
+    "module.offsets-table.showToolTable": "Show tool table",
+    "module.probing.tool-length": "Tool length offset",
+    "module.probing.edge-external": "Edge finder, external",
+    "module.probing.edge-internal": "Edge finder, internal",
+    "module.probing.rotation": "Rotation",
+    "module.probing.center": "Center finder",
+    "module.probing.heightmap": "Height map"
   },
   "grblSettingGroups": {
     "0": {

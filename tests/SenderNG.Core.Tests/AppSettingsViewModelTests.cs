@@ -59,6 +59,27 @@ public class AppSettingsViewModelTests
         }
     }
 
+    private sealed class LocalizedFieldStubModule : IModule, IModuleSettingsProvider, ILocalizedModule
+    {
+        public string Id => "locf";
+        public string Name => "Localized";
+        public string Description => "Description.";
+        public int Order => 60;
+        public bool IsVisibleByDefault => true;
+        public bool CanHide => true;
+        public IReadOnlyList<HotKey> HotKeys => [];
+        public void RegisterServices(IServiceCollection services) { }
+        public void RegisterSettings(AppSettings settings) { }
+        public object CreateViewModel(IServiceProvider sp) => new object();
+        public object CreateView(object vm) => new object();
+        public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
+            new Dictionary<string, string> { ["module.jog.diagonal"] = "Diagonal jogging" };
+        public IEnumerable<ModuleSettingBool> GetBoolSettingFields()
+        {
+            yield return new ModuleSettingBool("Diagonal jogging", () => true, _ => { }, key: "module.jog.diagonal");
+        }
+    }
+
     private static readonly LocalizationService Loc = TestLocalization.Locale;
 
     private static (string Dir, SettingsService Service) MakeSettings()
@@ -246,6 +267,42 @@ public class AppSettingsViewModelTests
             {
                 // The shared static Loc is deliberately stateful; restore English so
                 // other tests that read module names are unaffected by order.
+                Loc.SetLocale("en");
+            }
+        }
+    }
+
+    [Fact]
+    public void Generic_field_label_resolves_from_its_localization_key()
+    {
+        var (_, settings) = MakeSettings();
+        var vm = new AppSettingsViewModel(settings, new IModule[] { new LocalizedFieldStubModule() }, Loc);
+        var moduleLeaf = Leaf(vm, "locf");
+
+        // en.json holds the key, so the leaf's field label comes from the locale file.
+        var boolField = Assert.Single(moduleLeaf.BoolFields);
+        Assert.Equal("Diagonal jogging", boolField.Label);
+        Assert.Equal("module.jog.diagonal", boolField.Key);
+    }
+
+    [Fact]
+    public void Generic_field_label_relocalizes_on_language_change()
+    {
+        var (_, settings) = MakeSettings();
+        var vm = new AppSettingsViewModel(settings, new IModule[] { new LocalizedFieldStubModule() }, Loc);
+        var moduleLeaf = Leaf(vm, "locf");
+        var boolField = Assert.Single(moduleLeaf.BoolFields);
+
+        if (Loc.AvailableLocales.Contains("ru"))
+        {
+            try
+            {
+                Loc.SetLocale("ru");
+                // locale-changed triggers RefreshFields, re-resolving each keyed label.
+                Assert.Equal("Диагональные перемещения", boolField.Label);
+            }
+            finally
+            {
                 Loc.SetLocale("en");
             }
         }

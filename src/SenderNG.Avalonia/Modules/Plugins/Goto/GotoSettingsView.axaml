@@ -3,16 +3,17 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization;assembly=SenderNG.Avalonia"
              mc:Ignorable="d" d:DesignWidth="150" d:DesignHeight="60"
              x:Class="SenderNG.Avalonia.Modules.Plugins.GotoSettingsView"
              x:DataType="vm:GotoViewModel">
     <StackPanel Spacing="4">
         <StackPanel Orientation="Horizontal" Spacing="6">
-            <TextBlock Text="Goto axis count" FontSize="10" VerticalAlignment="Center" />
+            <TextBlock Text="{loc:Loc module.goto.axisCount}" FontSize="10" VerticalAlignment="Center" />
             <ComboBox ItemsSource="{Binding AxisChoices}" SelectedItem="{Binding SelectedAxisCount}"
                       CornerRadius="0" Height="28" MinWidth="64" />
         </StackPanel>
-        <TextBlock Text="Capped by the connected controller's axis count."
+        <TextBlock Text="{loc:Loc module.goto.axisCountHint}"
                    FontSize="9" Foreground="#999" TextWrapping="Wrap" />
     </StackPanel>
 </UserControl>

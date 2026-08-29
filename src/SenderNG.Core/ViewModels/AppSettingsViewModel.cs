@@ -153,16 +153,35 @@ public sealed class NumericSettingEntry : ViewModelBase
     private double _value;
 
     public NumericSettingEntry(string label, Func<double> get, Action<double> set)
+        : this(label, null, get, set) { }
+
+    public NumericSettingEntry(string label, string? key, Func<double> get, Action<double> set)
     {
         ArgumentNullException.ThrowIfNull(get);
         ArgumentNullException.ThrowIfNull(set);
-        Label = label;
+        _label = label;
+        Key = key;
         _get = get;
         _set = set;
         _value = get();
     }
 
-    public string Label { get; }
+    private string _label;
+
+    /// <summary>Optional localization key; re-resolved on Relocalize().</summary>
+    public string? Key { get; }
+
+    public string Label
+    {
+        get => _label;
+        internal set
+        {
+            if (string.Equals(_label, value, StringComparison.Ordinal))
+                return;
+            _label = value;
+            OnPropertyChanged(nameof(Label));
+        }
+    }
 
     public double Value
     {
@@ -195,16 +214,35 @@ public sealed class BoolSettingEntry : ViewModelBase
     private bool _value;
 
     public BoolSettingEntry(string label, Func<bool> get, Action<bool> set)
+        : this(label, null, get, set) { }
+
+    public BoolSettingEntry(string label, string? key, Func<bool> get, Action<bool> set)
     {
         ArgumentNullException.ThrowIfNull(get);
         ArgumentNullException.ThrowIfNull(set);
-        Label = label;
+        _label = label;
+        Key = key;
         _get = get;
         _set = set;
         _value = get();
     }
 
-    public string Label { get; }
+    private string _label;
+
+    /// <summary>Optional localization key; re-resolved on Relocalize().</summary>
+    public string? Key { get; }
+
+    public string Label
+    {
+        get => _label;
+        internal set
+        {
+            if (string.Equals(_label, value, StringComparison.Ordinal))
+                return;
+            _label = value;
+            OnPropertyChanged(nameof(Label));
+        }
+    }
 
     public bool Value
     {
@@ -234,6 +272,7 @@ public sealed class BoolSettingEntry : ViewModelBase
 public sealed class ModuleSettingsLeaf : AppSettingsLeaf
 {
     private readonly System.Action<string, bool> _visibilityChanged;
+    private readonly Func<string, string, string> _resolveSettingKey;
     private bool _isVisible;
 
     public ModuleSettingsLeaf(
@@ -245,9 +284,11 @@ public sealed class ModuleSettingsLeaf : AppSettingsLeaf
         System.Action<string, bool> visibilityChanged,
         object? settingsView,
         IEnumerable<NumericSettingEntry>? fields,
-        IEnumerable<BoolSettingEntry>? boolFields)
+        IEnumerable<BoolSettingEntry>? boolFields,
+        Func<string, string, string> resolveSettingKey)
         : base(id, name, description)
     {
+        _resolveSettingKey = resolveSettingKey;
         CanHide = canHide;
         _isVisible = canHide ? isVisible : true; // fixed modules are always visible
         _visibilityChanged = visibilityChanged;
@@ -278,9 +319,17 @@ public sealed class ModuleSettingsLeaf : AppSettingsLeaf
     public void RefreshFields()
     {
         foreach (var f in Fields)
+        {
+            if (!string.IsNullOrWhiteSpace(f.Key))
+                f.Label = _resolveSettingKey(f.Key, f.Label);
             f.Refresh();
+        }
         foreach (var f in BoolFields)
+        {
+            if (!string.IsNullOrWhiteSpace(f.Key))
+                f.Label = _resolveSettingKey(f.Key, f.Label);
             f.Refresh();
+        }
     }
 
     public bool IsVisible
@@ -354,10 +403,12 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
                 if (settingsView is null)
                 {
                     fields = provider.GetSettingFields()
-                        .Select(f => new NumericSettingEntry(f.Label, f.Get, f.Set))
+                        .Select(f => new NumericSettingEntry(
+                            ResolveSettingKey(f.Key, f.Label), f.Key, f.Get, f.Set))
                         .ToList();
                     boolFields = provider.GetBoolSettingFields()
-                        .Select(f => new BoolSettingEntry(f.Label, f.Get, f.Set))
+                        .Select(f => new BoolSettingEntry(
+                            ResolveSettingKey(f.Key, f.Label), f.Key, f.Get, f.Set))
                         .ToList();
                 }
             }
@@ -375,7 +426,8 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
                 VisibilityChanged,
                 settingsView,
                 fields,
-                boolFields));
+                boolFields,
+                ResolveSettingKey));
         }
     }
 
@@ -416,6 +468,10 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
     private string LeafDescription(string key, string fallback) => Resolve($"appSettings.leaf.{key}.description", fallback);
     private string ModuleName(IModule module) => Resolve($"module.{module.Id}.name", module.Name);
     private string ModuleDescription(IModule module) => Resolve($"module.{module.Id}.description", module.Description);
+
+    // A field key is a full localization key; null/absent falls back to its literal label.
+    private string ResolveSettingKey(string? key, string fallback) =>
+        string.IsNullOrWhiteSpace(key) ? fallback : Resolve(key, fallback);
 
     private string Resolve(string key, string fallback)
     {
@@ -495,8 +551,11 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
             LeafDescription("language", "Interface language. Applied immediately."));
 
         foreach (var leaf in ModuleLeaves)
+        {
             if (_moduleById.TryGetValue(leaf.Id, out var module))
                 leaf.Relocalize(ModuleName(module), ModuleDescription(module));
+            leaf.RefreshFields(); // also re-resolves generic field labels from their keys
+        }
     }
 
     private void SetLocale(string code)
