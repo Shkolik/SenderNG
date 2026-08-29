@@ -173,6 +173,15 @@ public sealed class GrblSettingItem : ViewModelBase
         OnPropertyChanged(nameof(IsDirty));
     }
 
+    /// <summary>Apply a bool editor change (checkbox toggle).</summary>
+    public void ApplyBool(bool value) => Value = value ? "1" : "0";
+
+    /// <summary>Apply a radio editor change (combobox selection).</summary>
+    public void ApplyRadio(int index) => Value = index.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>Apply a text/numeric editor change.</summary>
+    public void ApplyText(string text) => Value = text;
+
     // Editor selection flags (the view binds IsVisible to these).
     public bool IsBool => Type == GrblSettingType.Bool;
     public bool IsRadio => Type == GrblSettingType.RadioButtons;

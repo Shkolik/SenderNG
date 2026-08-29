@@ -186,6 +186,47 @@ public class GrblSettingsViewModelTests
     }
 
     [Fact]
+    public async Task Load_does_not_mark_settings_dirty_or_mutate_values()
+    {
+        // Regression: TwoWay editor bindings pushed control defaults into the setting
+        // value when the detail pane first realized (radio combo wrote -1, bit check
+        // boxes flipped on), marking settings dirty right after load/selection.
+        var vm = CreateVm(new StubProvider { ValueLines = ["$0=10", "$10=1", "$32=0", "$650=0"] });
+        await vm.LoadAsync();
+
+        var expected = new Dictionary<int, string> { [0] = "10", [10] = "1", [32] = "0", [650] = "0" };
+        foreach (var item in AllSettings(vm.Groups))
+        {
+            Assert.False(item.IsDirty, $"{item.Key} ({item.Name}) marked dirty right after load");
+            Assert.Equal(expected[item.Id], item.Value); // unchanged from the board dump
+        }
+    }
+
+    [Fact]
+    public async Task Apply_methods_are_the_editor_write_path_and_mark_dirty()
+    {
+        var vm = CreateVm(new StubProvider { ValueLines = ["$0=10", "$20=0", "$32=0", "$2=0"] });
+        await vm.LoadAsync();
+
+        var text = Find(vm.Groups, 0);
+        text.ApplyText("11.5");
+        Assert.Equal("11.5", text.Value);
+        Assert.True(text.IsDirty);
+
+        var boolean = Find(vm.Groups, 20);
+        boolean.ApplyBool(true);
+        Assert.Equal("1", boolean.Value);
+
+        var radio = Find(vm.Groups, 32);
+        radio.ApplyRadio(2);
+        Assert.Equal("2", radio.Value);
+
+        var mask = Find(vm.Groups, 2);
+        mask.Bits[0].IsChecked = true;
+        Assert.Equal("1", mask.Value);
+    }
+
+    [Fact]
     public async Task Changing_selection_raises_property_changed_so_the_detail_pane_rerenders()
     {
         // Regression: SelectedSetting was a plain auto-property, so swapping it never

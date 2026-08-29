@@ -41,6 +41,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Selection;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 
 namespace SenderNG.Avalonia.Modules.Fixed;
 
@@ -73,5 +74,34 @@ public partial class GrblSettingsView : UserControl
     {
         if (sender is StyledElement { DataContext: GrblSettingGroupItem group })
             group.IsExpanded = !group.IsExpanded;
+    }
+
+    // Editor events. The bindings are OneWay (display only) — these handlers are the
+    // only writers to the setting value, so control defaults can never leak into the
+    // source and mark settings dirty right after load/selection.
+
+    private static void OnDetailIsCheckedChanged(object? sender, RoutedEventArgs e)
+    {
+        if (sender is CheckBox { DataContext: GrblSettingsViewModel vm } cb && vm.SelectedSetting is { } item)
+            item.ApplyBool(cb.IsChecked == true);
+    }
+
+    private static void OnDetailSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ComboBox { DataContext: GrblSettingsViewModel vm, SelectedIndex: >= 0 } combo
+            && vm.SelectedSetting is { } item)
+            item.ApplyRadio(combo.SelectedIndex);
+    }
+
+    private static void OnDetailBitChanged(object? sender, RoutedEventArgs e)
+    {
+        if (sender is CheckBox { DataContext: GrblSettingBit bit } cb)
+            bit.IsChecked = cb.IsChecked == true;
+    }
+
+    private static void OnDetailTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (sender is TextBox { DataContext: GrblSettingsViewModel vm } tb && vm.SelectedSetting is { } item)
+            item.ApplyText(tb.Text ?? string.Empty);
     }
 }
