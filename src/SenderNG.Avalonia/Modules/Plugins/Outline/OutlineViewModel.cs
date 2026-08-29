@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Avalonia.Localization;
 using SenderNG.Avalonia.Modules.Fixed;
 using SenderNG.Avalonia.ViewModels;
 using SenderNG.Core.Commands;
@@ -72,7 +73,7 @@ public class OutlineViewModel : ViewModelBase
         var y = _program.LimitRows.FirstOrDefault(r => r.Letter == "Y");
         if (x is null || y is null)
         {
-            Status = "Outline: program has no X/Y limits";
+            Status = LocText.Resolve("module.outline.noXyLimits", "Outline: program has no X/Y limits");
             return;
         }
 
@@ -89,11 +90,11 @@ public class OutlineViewModel : ViewModelBase
         try
         {
             await _grbl.SendAsync(gcode.ToString());
-            Status = "Outline sent";
+            Status = LocText.Resolve("module.outline.sent", "Outline sent");
         }
         catch (Exception ex)
         {
-            Status = $"Outline failed: {ex.Message}";
+            Status = LocText.Format("module.outline.failed", "Outline failed: {0}", ex.Message);
         }
     }
 

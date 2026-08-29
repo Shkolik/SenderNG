@@ -13,6 +13,7 @@ BSD 3-Clause License: see this file for the full license text.
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Fixed"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization;assembly=SenderNG.Avalonia"
              mc:Ignorable="d" d:DesignWidth="920" d:DesignHeight="560"
              x:Class="SenderNG.Avalonia.Modules.Fixed.GrblSettingsView"
              x:DataType="vm:GrblSettingsViewModel">
@@ -27,15 +28,15 @@ BSD 3-Clause License: see this file for the full license text.
                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                     <Rectangle Width="1" Height="16" Fill="#ccc" VerticalAlignment="Center"
                                IsVisible="{Binding HasSelection}" />
-                    <TextBlock Text="{Binding SelectedSetting.Key, StringFormat='Editing {0}'}" FontSize="10"
+                    <TextBlock Text="{Binding SelectedEditSummary}" FontSize="10"
                                Foreground="#666" VerticalAlignment="Center" IsVisible="{Binding HasSelection}" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Button Content="Load" Command="{Binding LoadCommand}"
+                    <Button Content="{loc:Loc module.grbl-settings.load}" Command="{Binding LoadCommand}"
                             Height="28" MinHeight="28" CornerRadius="0"
                             Background="#eee" BorderBrush="#999" BorderThickness="1"
                             Padding="14,0" VerticalContentAlignment="Center" />
-                    <Button Content="Save changes" Command="{Binding SaveCommand}"
+                    <Button Content="{loc:Loc module.grbl-settings.saveChanges}" Command="{Binding SaveCommand}"
                             Height="28" MinHeight="28" CornerRadius="0"
                             Background="#eee" BorderBrush="#999" BorderThickness="1"
                             Padding="14,0" VerticalContentAlignment="Center" />
@@ -49,7 +50,7 @@ BSD 3-Clause License: see this file for the full license text.
             <!-- LEFT: search + tree selector - only leaf settings are selectable -->
             <DockPanel Grid.Column="0">
                 <Border DockPanel.Dock="Top" BorderBrush="#aaa" BorderThickness="0,0,0,1" Padding="10,8">
-                    <TextBox Text="{Binding Search}" PlaceholderText="Search settings..."
+                    <TextBox Text="{Binding Search}" PlaceholderText="{loc:Loc module.grbl-settings.searchPlaceholder}"
                              Height="26" MinHeight="26" VerticalContentAlignment="Center"
                              FontSize="11" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
                 </Border>
@@ -109,7 +110,7 @@ BSD 3-Clause License: see this file for the full license text.
 
             <Border Grid.Column="2" Padding="12,10">
                 <Grid>
-                <TextBlock Text="Select a setting to edit"
+                <TextBlock Text="{loc:Loc module.grbl-settings.selectHint}"
                            FontSize="12" Foreground="#888" VerticalAlignment="Top" HorizontalAlignment="Left"
                            TextWrapping="Wrap" IsVisible="{Binding HasNoSelection}" />
 
@@ -134,7 +135,7 @@ BSD 3-Clause License: see this file for the full license text.
                         <!-- Editor: OneWay display + explicit user-input events, so bindings
                              can never write control defaults back into the setting value. -->
                         <StackPanel Spacing="8">
-                            <CheckBox Content="Enabled"
+                            <CheckBox Content="{loc:Loc module.grbl-settings.enabled}"
                                       IsChecked="{Binding SelectedSetting.IsChecked, Mode=OneWay}"
                                       Click="OnBoolClick"
                                       IsVisible="{Binding SelectedSetting.IsBool}" FontSize="12" />
@@ -182,13 +183,13 @@ BSD 3-Clause License: see this file for the full license text.
 
                         <!-- Docs -->
                         <StackPanel Spacing="4" IsVisible="{Binding SelectedSetting.HasDescription}">
-                            <TextBlock Text="Description" FontWeight="SemiBold" FontSize="11" Foreground="#666" />
+                            <TextBlock Text="{loc:Loc module.grbl-settings.descriptionLabel}" FontWeight="SemiBold" FontSize="11" Foreground="#666" />
                             <TextBlock Text="{Binding SelectedSetting.Description}" FontSize="12"
                                        Foreground="#333" TextWrapping="Wrap" />
                         </StackPanel>
 
                         <!-- Save hint -->
-                        <TextBlock Text="Save writes only the changed settings."
+                        <TextBlock Text="{loc:Loc module.grbl-settings.saveHint}"
                                    FontSize="10" Foreground="#999"
                                    IsVisible="{Binding SelectedSetting.IsDirty}" />
                     </StackPanel>

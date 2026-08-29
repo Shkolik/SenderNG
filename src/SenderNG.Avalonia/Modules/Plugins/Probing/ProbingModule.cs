@@ -38,6 +38,9 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule
             ["module.probing.rotation"] = "Rotation",
             ["module.probing.center"] = "Center finder",
             ["module.probing.heightmap"] = "Height map",
+            ["module.probing.tipTool"] = "Tool length",
+            ["module.probing.edgeExternal"] = "Edge external",
+            ["module.probing.edgeInternal"] = "Edge internal",
         };
 
     private SettingsService? _settingsService;

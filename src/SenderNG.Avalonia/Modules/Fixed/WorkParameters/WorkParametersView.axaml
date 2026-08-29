@@ -13,13 +13,14 @@ BSD 3-Clause License: see this file for the full license text.
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Fixed"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization;assembly=SenderNG.Avalonia"
              mc:Ignorable="d" d:DesignWidth="250" d:DesignHeight="84"
              x:Class="SenderNG.Avalonia.Modules.Fixed.WorkParametersView"
              x:DataType="vm:WorkParametersViewModel">    <Border Background="#f6f6f6" Padding="6">
         <Grid RowDefinitions="Auto,Auto,Auto">
             <Grid ColumnDefinitions="*,*">
-                <TextBlock Grid.Column="0" Text="Offset" />
-                <TextBlock Grid.Column="1" Text="Tool" />
+                <TextBlock Grid.Column="0" Text="{loc:Loc module.work-parameters.offset}" />
+                <TextBlock Grid.Column="1" Text="{loc:Loc module.work-parameters.tool}" />
             </Grid>
             <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="0,2,0,0">
                 <ComboBox Grid.Column="0" ItemsSource="{Binding CoordinateSystemCodes}"
@@ -37,8 +38,8 @@ BSD 3-Clause License: see this file for the full license text.
             </Grid>
             <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6" Margin="0,3,0,0">
                 <CheckBox IsChecked="{Binding IsTloReferenceSet, Mode=OneWay}" IsEnabled="False" />
-                <TextBlock Text="TLO ref'd" VerticalAlignment="Center" />
-                <TextBlock Text="TLO active" IsVisible="{Binding IsTloActive}" Foreground="#555" VerticalAlignment="Center" />
+                <TextBlock Text="{loc:Loc module.work-parameters.tloRefd}" VerticalAlignment="Center" />
+                <TextBlock Text="{loc:Loc module.work-parameters.tloActive}" IsVisible="{Binding IsTloActive}" Foreground="#555" VerticalAlignment="Center" />
             </StackPanel>
         </Grid>
     </Border>

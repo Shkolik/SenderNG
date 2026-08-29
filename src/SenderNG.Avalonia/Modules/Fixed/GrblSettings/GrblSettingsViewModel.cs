@@ -40,6 +40,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CNC.Core.Abstractions;
+using SenderNG.Avalonia.Localization;
 using SenderNG.Avalonia.ViewModels;
 using SenderNG.Core.Commands;
 using SenderNG.Core.Localization;
@@ -344,6 +345,7 @@ public sealed class GrblSettingsViewModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(HasSelection));
                 OnPropertyChanged(nameof(HasNoSelection));
+                OnPropertyChanged(nameof(SelectedEditSummary));
             }
         }
     }
@@ -352,6 +354,20 @@ public sealed class GrblSettingsViewModel : ViewModelBase
     public bool HasSelection => SelectedSetting is not null;
 
     public bool HasNoSelection => SelectedSetting is null;
+
+    /// <summary>Localized "Editing $N" header for the selected setting (fallback: plain key).</summary>
+    public string SelectedEditSummary
+    {
+        get
+        {
+            if (SelectedSetting is not { } item)
+                return string.Empty;
+            var format = _localization.T("module.grbl-settings.editing");
+            return string.Equals(format, "module.grbl-settings.editing", StringComparison.Ordinal)
+                ? item.Key
+                : string.Format(format, item.Key);
+        }
+    }
 
     public DelegateCommand LoadCommand { get; }
     public DelegateCommand SaveCommand { get; }
@@ -391,12 +407,13 @@ public sealed class GrblSettingsViewModel : ViewModelBase
 
             ApplyFilter();
             RestoreSelection(selectedId);
-            Status = $"Loaded {_allItems.Count} settings " +
-                     (snapshot.MetadataFromController ? "(from controller)" : "(from catalog)");
+            var source = snapshot.MetadataFromController ? "(from controller)" : "(from catalog)";
+            Status = LocText.Resolve("module.grbl-settings.loaded", "Loaded {0} settings")
+                .Replace("{0}", _allItems.Count.ToString(CultureInfo.InvariantCulture)) + " " + source;
         }
         catch (Exception ex)
         {
-            Status = $"Load failed: {ex.Message}";
+            Status = LocText.Format("module.grbl-settings.loadFailed", "Load failed: {0}", ex.Message);
         }
     }
 
@@ -479,7 +496,7 @@ public sealed class GrblSettingsViewModel : ViewModelBase
             var dirty = _allItems.Where(static i => i.IsDirty).OrderBy(static i => i.Id).ToList();
             if (dirty.Count == 0)
             {
-                Status = "No changes";
+                Status = LocText.Resolve("module.grbl-settings.noChanges", "No changes");
                 return;
             }
 
@@ -489,11 +506,14 @@ public sealed class GrblSettingsViewModel : ViewModelBase
                 item.Accept();
             }
 
-            Status = dirty.Count == 1 ? "Saved 1 setting" : $"Saved {dirty.Count} settings";
+            Status = LocText.Format(
+                dirty.Count == 1 ? "module.grbl-settings.savedOne" : "module.grbl-settings.savedMany",
+                dirty.Count == 1 ? "Saved 1 setting" : "Saved {0} settings",
+                dirty.Count);
         }
         catch (Exception ex)
         {
-            Status = $"Save failed: {ex.Message}";
+            Status = LocText.Format("module.grbl-settings.saveFailed", "Save failed: {0}", ex.Message);
         }
     }
 

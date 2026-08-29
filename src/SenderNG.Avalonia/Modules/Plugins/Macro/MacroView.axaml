@@ -3,24 +3,25 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization;assembly=SenderNG.Avalonia"
              mc:Ignorable="d" d:DesignWidth="460" d:DesignHeight="340"
              x:Class="SenderNG.Avalonia.Modules.Plugins.MacroView"
              x:DataType="vm:MacroViewModel">
 
     <DockPanel Margin="8">
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,0,0,8">
-            <Button Content="Add" Command="{Binding AddMacroCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
-            <Button Content="Remove" Command="{Binding RemoveMacroCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
-            <Button Content="Run" Command="{Binding RunCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
+            <Button Content="{loc:Loc common.add}" Command="{Binding AddMacroCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
+            <Button Content="{loc:Loc common.remove}" Command="{Binding RemoveMacroCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
+            <Button Content="{loc:Loc common.run}" Command="{Binding RunCommand}" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="8,4" />
         </StackPanel>
 
         <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
             <TextBox Text="{Binding SelectedMacro.Name, Mode=TwoWay}"
-                     PlaceholderText="Macro name"
+                     PlaceholderText="{loc:Loc module.macro.namePlaceholder}"
                      IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
             <TextBox Text="{Binding SelectedMacro.Code, Mode=TwoWay}"
-                     PlaceholderText="G-code lines, one per line"
+                     PlaceholderText="{loc:Loc module.macro.codePlaceholder}"
                      AcceptsReturn="True" MinHeight="100" TextWrapping="Wrap"
                      IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />

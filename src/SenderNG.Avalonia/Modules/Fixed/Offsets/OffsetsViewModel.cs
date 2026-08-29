@@ -42,6 +42,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Avalonia.Localization;
 using SenderNG.Avalonia.ViewModels;
 using SenderNG.Core.Commands;
 
@@ -347,7 +348,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     public void Refresh()
     {
         ApplySnapshot(_grbl.WorkParameters);
-        Status = "Offsets refreshed";
+        Status = LocText.Resolve("module.offsets-table.refreshed", "Offsets refreshed");
     }
 
     private async Task SetAxisAsync(object? parameter)
@@ -358,7 +359,7 @@ public sealed class OffsetsViewModel : ViewModelBase
 
     private async Task SetCoordinateValuesAsync(EditableOffsetRow row, int? onlyAxis = null)
     {
-        if (!WorkParameters.IsG10Writable(row.Code)) { row.Error = "Only G54..G59.3 are writable"; Status = row.Error; return; }
+        if (!WorkParameters.IsG10Writable(row.Code)) { row.Error = LocText.Resolve("module.offsets-table.notWritable", "Only G54..G59.3 are writable"); Status = row.Error; return; }
         if (!TryValues(row.Values, out var values, out var error)) { row.Error = error; Status = error!; return; }
         var words = string.Concat(values.Select((value, index) => onlyAxis is null || index == onlyAxis ? $" {AxisLetters[index]}{Format(value)}" : string.Empty));
         if (words.Length == 0) return;
@@ -367,35 +368,35 @@ public sealed class OffsetsViewModel : ViewModelBase
         {
             await _grbl.SendAsync(command);
             row.Error = null;
-            Status = $"Set {row.Code}";
+            Status = LocText.Format("module.offsets-table.set", "Set {0}", row.Code);
             await SafeRefreshAsync();
         }
-        catch (Exception ex) { Status = $"Set {row.Code} failed: {ex.Message}"; }
+        catch (Exception ex) { Status = LocText.Format("module.offsets-table.setFailed", "Set {0} failed: {1}", row.Code, ex.Message); }
     }
 
     private void GetCurrentPosition()
     {
-        if (!IsReady) { Status = "Controller is in alarm — unlock or home first"; return; }
+        if (!IsReady) { Status = LocText.Resolve("module.offsets-table.inAlarm", "Controller is in alarm — unlock or home first"); return; }
         var row = SelectedRow;
         if (row is null) return;
         var positions = _lastState.Positions ?? [];
         for (var i = 0; i < _axisCount && i < positions.Length; i++) row.SetValueAt(i, Format(positions[i]));
-        Status = $"Current position copied to {SelectedOffset}";
+        Status = LocText.Format("module.offsets-table.copied", "Current position copied to {0}", SelectedOffset);
     }
 
     private void ClearAll()
     {
-        if (!IsReady) { Status = "Controller is in alarm — unlock or home first"; return; }
+        if (!IsReady) { Status = LocText.Resolve("module.offsets-table.inAlarm", "Controller is in alarm — unlock or home first"); return; }
         foreach (var row in Rows)
             for (var i = 0; i < row.Values.Count; i++) row.SetValueAt(i, "0.000");
-        Status = "All offsets cleared in editor; press Set all to write them";
+        Status = LocText.Resolve("module.offsets-table.cleared", "All offsets cleared in editor; press Set all to write them");
     }
 
     public Task SetAllAsync() => SetAllCoreAsync();
 
     private async Task SetAllCoreAsync()
     {
-        if (!IsReady) { Status = "Controller is in alarm — unlock or home first"; return; }
+        if (!IsReady) { Status = LocText.Resolve("module.offsets-table.inAlarm", "Controller is in alarm — unlock or home first"); return; }
         // Build every command up front. Commands are read from the user-edited rows,
         // which the engine's live publications must not be allowed to overwrite in
         // between sends — otherwise the earlier writes re-render the rows from the
@@ -432,7 +433,9 @@ public sealed class OffsetsViewModel : ViewModelBase
         // Re-read from the board so the editor reflects what was actually written,
         // not just what we sent (ioSender re-requests work parameters after writes).
         await SafeRefreshAsync();
-        Status = failures == 0 ? $"Saved {sent} offsets" : $"Saved {sent} offsets; {failures} failed";
+        Status = failures == 0
+            ? LocText.Format("module.offsets-table.saved", "Saved {0} offsets", sent)
+            : LocText.Format("module.offsets-table.savedWithFailures", "Saved {0} offsets; {1} failed", sent, failures);
     }
 
     /// <summary>Writes only the tools the user actually changed (offsets or radius),
@@ -441,10 +444,10 @@ public sealed class OffsetsViewModel : ViewModelBase
 
     private async Task SaveToolTableCoreAsync()
     {
-        if (!IsReady) { Status = "Controller is in alarm — unlock or home first"; return; }
+        if (!IsReady) { Status = LocText.Resolve("module.offsets-table.inAlarm", "Controller is in alarm — unlock or home first"); return; }
         if (!ControllerSupportsToolTable)
         {
-            Status = "This controller has no G10 L1 tool table (classic grbl 1.1)";
+            Status = LocText.Resolve("module.offsets-table.noToolTable", "This controller has no G10 L1 tool table (classic grbl 1.1)");
             return;
         }
 
@@ -455,7 +458,7 @@ public sealed class OffsetsViewModel : ViewModelBase
             if (!TryValues(tool.Offsets, out var values, out var error) ||
                 !double.TryParse(tool.Radius, NumberStyles.Float, CultureInfo.InvariantCulture, out var radius))
             {
-                tool.Error = "Invalid tool-table value";
+                tool.Error = LocText.Resolve("module.offsets-table.invalidToolValue", "Invalid tool-table value");
                 failures++;
                 continue;
             }
@@ -465,7 +468,7 @@ public sealed class OffsetsViewModel : ViewModelBase
 
         if (changed.Count == 0)
         {
-            Status = "No tool changes to save";
+            Status = LocText.Resolve("module.offsets-table.noToolChanges", "No tool changes to save");
             return;
         }
 
@@ -485,7 +488,9 @@ public sealed class OffsetsViewModel : ViewModelBase
             }
         }
         await SafeRefreshAsync();
-        Status = failures == 0 ? $"Saved {sent} changed tools" : $"Saved {sent} tools; {failures} failed";
+        Status = failures == 0
+            ? LocText.Format("module.offsets-table.savedTools", "Saved {0} changed tools", sent)
+            : LocText.Format("module.offsets-table.savedToolFailures", "Saved {0} tools; {1} failed", sent, failures);
     }
 
     /// <summary>One-shot board refresh; failures are non-fatal (keep last snapshot).</summary>
@@ -506,7 +511,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     private static bool TryValues(IReadOnlyList<string> values, out double[] result, out string? error)
     {
         result = new double[values.Count];
-        for (var i = 0; i < values.Count; i++) if (!double.TryParse(values[i], NumberStyles.Float, CultureInfo.InvariantCulture, out result[i])) { error = $"Invalid numeric value at axis {i + 1}"; return false; }
+        for (var i = 0; i < values.Count; i++) if (!double.TryParse(values[i], NumberStyles.Float, CultureInfo.InvariantCulture, out result[i])) { error = LocText.Format("module.offsets-table.invalidAxisValue", "Invalid numeric value at axis {0}", i + 1); return false; }
         error = null; return true;
     }
     private void BuildRows(WorkParameters parameters)

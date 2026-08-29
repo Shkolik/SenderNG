@@ -42,6 +42,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Avalonia.Localization;
 using SenderNG.Avalonia.ViewModels;
 using SenderNG.Core.Commands;
 
@@ -98,11 +99,11 @@ public class DroViewModel : ViewModelBase
         try
         {
             await _grbl.SendAsync($"G92 {letter}0");
-            Status = $"{letter} zeroed";
+            Status = LocText.Format("module.dro.zeroedAxis", "{0} zeroed", letter);
         }
         catch (Exception ex)
         {
-            Status = $"Zero {letter} failed: {ex.Message}";
+            Status = LocText.Format("module.dro.zeroAxisFailed", "Zero {0} failed: {1}", letter, ex.Message);
         }
     }
 
@@ -114,11 +115,11 @@ public class DroViewModel : ViewModelBase
         try
         {
             await _grbl.SendAsync($"G92 {words}");
-            Status = "All axes zeroed";
+            Status = LocText.Resolve("module.dro.zeroed", "All axes zeroed");
         }
         catch (Exception ex)
         {
-            Status = $"Zero all failed: {ex.Message}";
+            Status = LocText.Format("module.dro.zeroAllFailed", "Zero all failed: {0}", ex.Message);
         }
     }
 

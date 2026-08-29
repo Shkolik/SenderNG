@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization;assembly=SenderNG.Avalonia"
              mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="260"
              x:Class="SenderNG.Avalonia.Modules.Plugins.JogView"
              x:DataType="vm:JogViewModel">
@@ -100,7 +101,7 @@
         <StackPanel Spacing="8" VerticalAlignment="Top">
             <!-- Distance selector -->
             <StackPanel MinWidth="76" VerticalAlignment="Top">
-                <TextBlock Classes="caption" Text="Distance (mm)" Margin="0,0,0,2" />
+                <TextBlock Classes="caption" Text="{loc:Loc module.jog.distance}" Margin="0,0,0,2" />
                 <ToggleButton Classes="step" Content="{Binding Config.Distances[0]}" IsChecked="{Binding IsDistance0}" />
                 <ToggleButton Classes="step" Content="{Binding Config.Distances[1]}" IsChecked="{Binding IsDistance1}" />
                 <ToggleButton Classes="step" Content="{Binding Config.Distances[2]}" IsChecked="{Binding IsDistance2}" />
@@ -108,7 +109,7 @@
 
             <!-- Speed selector -->
             <StackPanel MinWidth="76" VerticalAlignment="Top">
-                <TextBlock Classes="caption" Text="Speed (mm/min)" Margin="0,0,0,2" />
+                <TextBlock Classes="caption" Text="{loc:Loc module.jog.speed}" Margin="0,0,0,2" />
                 <ToggleButton Classes="step" Content="{Binding Config.Speeds[0]}" IsChecked="{Binding IsSpeed0}" />
                 <ToggleButton Classes="step" Content="{Binding Config.Speeds[1]}" IsChecked="{Binding IsSpeed1}" />
                 <ToggleButton Classes="step" Content="{Binding Config.Speeds[2]}" IsChecked="{Binding IsSpeed2}" />
@@ -125,8 +126,8 @@
             <Button Grid.Row="0" Grid.Column="2" Classes="jog diag" Content="↗" Command="{Binding JogCommand}" CommandParameter="X+,Y+|Z+,A+"
                     IsVisible="{Binding ShowDiagonals}" />
             <Button Grid.Row="1" Grid.Column="0" Classes="jog" Content="X-" Command="{Binding JogCommand}" CommandParameter="X-|Z-" />
-            <Button Grid.Row="1" Grid.Column="1" Classes="jog" Content="Stop" Background="#e04545" BorderBrush="#b03535" Foreground="White" FontSize="11"
-                    Command="{Binding StopCommand}" ToolTip.Tip="Feed hold" />
+            <Button Grid.Row="1" Grid.Column="1" Classes="jog" Content="{loc:Loc common.stop}" Background="#e04545" BorderBrush="#b03535" Foreground="White" FontSize="11"
+                    Command="{Binding StopCommand}" ToolTip.Tip="{loc:Loc module.jog.feedHold}" />
             <Button Grid.Row="1" Grid.Column="2" Classes="jog" Content="X+" Command="{Binding JogCommand}" CommandParameter="X+|Z+" />
             <Button Grid.Row="2" Grid.Column="0" Classes="jog diag" Content="↙" Command="{Binding JogCommand}" CommandParameter="X-,Y-|Z-,A-"
                     IsVisible="{Binding ShowDiagonals}" />
@@ -137,7 +138,7 @@
 
         <!-- Foam only: padlock between the crosses, vertically centered on the middle row -->
         <CheckBox IsVisible="{Binding IsFoam}" Classes="padlock" IsChecked="{Binding Together}"
-                  ToolTip.Tip="Synchronize both gantries" VerticalAlignment="Center" Margin="0,0,0,0" />
+                  ToolTip.Tip="{loc:Loc module.jog.syncGantries}" VerticalAlignment="Center" Margin="0,0,0,0" />
 
         <!-- Foam only: ZA cross -->
         <Grid IsVisible="{Binding IsFoam}" Width="174" Height="174" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Center">

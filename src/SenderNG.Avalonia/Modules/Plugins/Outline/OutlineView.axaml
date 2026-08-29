@@ -4,26 +4,27 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
              xmlns:conv="clr-namespace:SenderNG.Avalonia.Converters"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization;assembly=SenderNG.Avalonia"
              mc:Ignorable="d" d:DesignWidth="260" d:DesignHeight="140"
              x:Class="SenderNG.Avalonia.Modules.Plugins.OutlineView"
              x:DataType="vm:OutlineViewModel">
 
     <StackPanel Margin="8" Spacing="6">
         <TextBlock TextWrapping="Wrap" FontSize="10" Foreground="#444">
-            <Run Text="Moves the tool around the X/Y outline of the loaded program's limits." />
+            <Run Text="{loc:Loc module.outline.description}" />
             <LineBreak />
-            <Run Text="Ensure the tool tip is clear of any obstructions!" Foreground="#c03030" FontWeight="Bold" />
+            <Run Text="{loc:Loc module.outline.warning}" Foreground="#c03030" FontWeight="Bold" />
         </TextBlock>
 
         <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2,0,0">
-            <TextBlock Grid.Column="0" Text="Feed rate:" FontSize="11" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="0" Text="{loc:Loc module.outline.feedRate}" FontSize="11" VerticalAlignment="Center" />
             <TextBox Grid.Column="1" Text="{Binding FeedRate, Converter={x:Static conv:Converters.NumericText}}"
                      Height="28" MinHeight="28" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                      Margin="6,0" Padding="6,0" VerticalContentAlignment="Center" FontSize="12" />
-            <TextBlock Grid.Column="2" Text="mm/min" FontSize="10" Foreground="#888" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Text="{loc:Loc common.mmMin}" FontSize="10" Foreground="#888" VerticalAlignment="Center" />
         </Grid>
 
-        <Button Content="Go" Command="{Binding GoCommand}"
+        <Button Content="{loc:Loc common.go}" Command="{Binding GoCommand}"
                 HorizontalAlignment="Left" MinWidth="80"
                 Height="30" MinHeight="30" CornerRadius="0"
                 Background="#eee" BorderBrush="#999" BorderThickness="1"

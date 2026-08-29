@@ -5,7 +5,7 @@ using SenderNG.Core.Modules;
 
 namespace SenderNG.Avalonia.Modules.Plugins;
 
-public class MacroModule : IModule
+public class MacroModule : IModule, ILocalizedModule
 {
     public string Id => "macro";
     public string Name => "Macros";
@@ -14,6 +14,15 @@ public class MacroModule : IModule
     public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
+
+    public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
+        new Dictionary<string, string>
+        {
+            ["module.macro.namePlaceholder"] = "Macro name",
+            ["module.macro.codePlaceholder"] = "G-code lines, one per line",
+            ["module.macro.newMacro"] = "Macro {0}",
+        };
+
 
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<MacroViewModel>();

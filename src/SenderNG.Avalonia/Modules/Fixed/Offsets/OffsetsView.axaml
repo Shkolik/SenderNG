@@ -13,6 +13,7 @@ BSD 3-Clause License: see this file for the full license text.
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Fixed"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization;assembly=SenderNG.Avalonia"
              x:Class="SenderNG.Avalonia.Modules.Fixed.OffsetsView"
              x:DataType="vm:OffsetsViewModel" mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="420">
     <UserControl.Styles>
@@ -33,7 +34,7 @@ BSD 3-Clause License: see this file for the full license text.
 
             <!-- Offset table header: offset-code column + one axis column each -->
             <Grid ColumnDefinitions="Auto,*">
-                <TextBlock Text="Offset" Width="48" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Text="{loc:Loc module.offsets-table.offset}" Width="48" FontWeight="SemiBold" VerticalAlignment="Center" />
                 <ItemsControl Grid.Column="1" ItemsSource="{Binding AxisNames}" HorizontalAlignment="Stretch">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -73,15 +74,15 @@ BSD 3-Clause License: see this file for the full license text.
 
             <!-- Selected offset + actions -->
             <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,6,0,0">
-                <TextBlock Grid.Column="0" Text="Selected offset:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBlock Grid.Column="0" Text="{loc:Loc module.offsets-table.selectedOffset}" VerticalAlignment="Center" Margin="0,0,6,0" />
                 <ComboBox Grid.Column="1" ItemsSource="{Binding OffsetCodes}" SelectedItem="{Binding SelectedOffset, Mode=TwoWay}" Width="100">
                     <ComboBox.ItemTemplate>
                         <DataTemplate><TextBlock Text="{Binding}" /></DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-                <Button Grid.Column="2" Content="Get current position" Command="{Binding GetCurrentPositionCommand}" Margin="6,0,0,0" CornerRadius="0" />
-                <Button Grid.Column="3" Content="Clear all" Command="{Binding ClearAllCommand}" Margin="6,0,0,0" CornerRadius="0" />
-                <Button Grid.Column="4" Content="Set all" Command="{Binding SetAllCommand}" Margin="6,0,0,0" CornerRadius="0" />
+                <Button Grid.Column="2" Content="{loc:Loc module.offsets-table.getCurrentPosition}" Command="{Binding GetCurrentPositionCommand}" Margin="6,0,0,0" CornerRadius="0" />
+                <Button Grid.Column="3" Content="{loc:Loc module.offsets-table.clearAll}" Command="{Binding ClearAllCommand}" Margin="6,0,0,0" CornerRadius="0" />
+                <Button Grid.Column="4" Content="{loc:Loc module.offsets-table.setAll}" Command="{Binding SetAllCommand}" Margin="6,0,0,0" CornerRadius="0" />
             </Grid>
 
             <!-- Tool table: optional (App Settings checkbox) AND only when the
@@ -94,7 +95,7 @@ BSD 3-Clause License: see this file for the full license text.
                 <StackPanel>
                     <!-- Tool table header: tool name, axis cells, radius, save action -->
                     <Grid ColumnDefinitions="48,*,96">
-                        <TextBlock Text="Tool" Width="48" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:Loc module.offsets-table.tool}" Width="48" FontWeight="SemiBold" VerticalAlignment="Center" />
                         <ItemsControl Grid.Column="1" ItemsSource="{Binding ToolAxisNames}" HorizontalAlignment="Stretch">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -107,7 +108,7 @@ BSD 3-Clause License: see this file for the full license text.
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <TextBlock Grid.Column="2" Text="Radius" FontWeight="SemiBold"
+                        <TextBlock Grid.Column="2" Text="{loc:Loc module.offsets-table.radius}" FontWeight="SemiBold"
                                    HorizontalAlignment="Stretch" TextAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
 
@@ -137,7 +138,7 @@ BSD 3-Clause License: see this file for the full license text.
                     </ItemsControl>
                 </StackPanel>
 
-                <Button Content="Save tools" Command="{Binding SaveToolTableCommand}"
+                <Button Content="{loc:Loc module.offsets-table.saveTools}" Command="{Binding SaveToolTableCommand}"
                         HorizontalAlignment="Right" CornerRadius="0" Margin="0,4,0,0" />
             </StackPanel>
 

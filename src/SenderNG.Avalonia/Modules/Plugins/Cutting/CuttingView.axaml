@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization;assembly=SenderNG.Avalonia"
              mc:Ignorable="d" d:DesignWidth="280" d:DesignHeight="260"
              x:Class="SenderNG.Avalonia.Modules.Plugins.CuttingView"
              x:DataType="vm:CuttingViewModel">
@@ -63,8 +64,8 @@
         <Border BorderBrush="#aaa" BorderThickness="1" Padding="8,5" Background="#f6f6f6">
             <StackPanel>
                 <Grid ColumnDefinitions="*,*">
-                    <TextBlock Grid.Column="0" Classes="caption" Text="Feed" />
-                    <TextBlock Grid.Column="1" Classes="caption" Text="Speed" Grid.ColumnSpan="1" />
+                    <TextBlock Grid.Column="0" Classes="caption" Text="{loc:Loc module.cutting.feed}" />
+                    <TextBlock Grid.Column="1" Classes="caption" Text="{loc:Loc module.cutting.speed}" Grid.ColumnSpan="1" />
                 </Grid>
                 <Grid ColumnDefinitions="*,*" Margin="0,1,0,0">
                     <TextBlock Grid.Column="0" Text="{Binding Feed, StringFormat={}{0:F0} mm/min}" FontSize="13" FontWeight="SemiBold" />
@@ -75,20 +76,20 @@
 
         <!-- Feed override: reset pinned to the right edge, value centered -->
         <StackPanel>
-            <TextBlock Classes="caption" Text="Feed override" />
+            <TextBlock Classes="caption" Text="{loc:Loc module.cutting.feedOverride}" />
             <Grid ColumnDefinitions="Auto,4,Auto,*,Auto,4,Auto, 10, Auto" Margin="0,2,0,0">
                 <Button Grid.Column="0" Classes="ovr" Content="-10" Command="{Binding FeedCoarseMinusCommand}" />
                 <Button Grid.Column="2" Classes="ovr" Content="-1" Command="{Binding FeedFineMinusCommand}" />
                 <TextBlock Grid.Column="3" Classes="ovrValue" Text="{Binding FeedOvr, StringFormat={}{0}%}" />
                 <Button Grid.Column="4" Classes="ovr" Content="+1" Command="{Binding FeedFinePlusCommand}" />
                 <Button Grid.Column="6" Classes="ovr" Content="+10" Command="{Binding FeedCoarsePlusCommand}" />
-                <Button Grid.Column="8" Classes="ovr" Content="100" Command="{Binding FeedResetCommand}" ToolTip.Tip="Reset to 100%" />
+                <Button Grid.Column="8" Classes="ovr" Content="100" Command="{Binding FeedResetCommand}" ToolTip.Tip="{loc:Loc module.cutting.reset100}" />
             </Grid>
         </StackPanel>
 
         <!-- Rapids override: widths roughly proportional to the value -->
         <StackPanel>
-            <TextBlock Classes="caption" Text="Rapids override" />
+            <TextBlock Classes="caption" Text="{loc:Loc module.cutting.rapidsOverride}" />
             <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,2,0,0">
                 <ToggleButton Classes="ovrToggle" Content="100%" Width="56"
                               IsChecked="{Binding IsRapidFull, Mode=OneWay}"
@@ -104,14 +105,14 @@
 
         <!-- Speed override + spindle on/off -->
         <StackPanel Margin="0,8,0,0">
-            <TextBlock Classes="caption" Text="Speed override" />
+            <TextBlock Classes="caption" Text="{loc:Loc module.cutting.speedOverride}" />
             <Grid ColumnDefinitions="Auto,4,Auto,*,Auto,4,Auto, 10, Auto" Margin="0,2,0,0">
                 <Button Grid.Column="0" Classes="ovr" Content="-10" Command="{Binding SpeedCoarseMinusCommand}" />
                 <Button Grid.Column="2" Classes="ovr" Content="-1" Command="{Binding SpeedFineMinusCommand}" />
                 <TextBlock Grid.Column="3" Classes="ovrValue" Text="{Binding SpindleOvr, StringFormat={}{0}%}" />
                 <Button Grid.Column="4" Classes="ovr" Content="+1" Command="{Binding SpeedFinePlusCommand}" />
                 <Button Grid.Column="6" Classes="ovr" Content="+10" Command="{Binding SpeedCoarsePlusCommand}" />
-                <Button Grid.Column="8" Classes="ovr" Content="100" Command="{Binding SpeedResetCommand}" ToolTip.Tip="Reset to 100%" />
+                <Button Grid.Column="8" Classes="ovr" Content="100" Command="{Binding SpeedResetCommand}" ToolTip.Tip="{loc:Loc module.cutting.reset100}" />
             </Grid>
 
             <!-- Spindle control row: [rpm input] [CW] [CCW] [On/Off]; input and
@@ -121,11 +122,11 @@
                          Padding="4,0" FontSize="11" VerticalContentAlignment="Center"
                          Text="{Binding SpindleRpm, Mode=TwoWay}"
                          IsEnabled="{Binding !IsSpindleOn}"
-                         ToolTip.Tip="Spindle speed (RPM) used by CW/CCW" />
-                <Button Classes="ovr" Content="CW" Command="{Binding SpindleCwCommand}" ToolTip.Tip="Spindle on, clockwise (M3)" />
-                <Button Classes="ovr" Content="CCW" Command="{Binding SpindleCcwCommand}" ToolTip.Tip="Spindle on, counter-clockwise (M4)" />
-                <Button Classes="ovr" Content="Off" Command="{Binding SpindleOffCommand}"
-                        ToolTip.Tip="Spindle off (M5)"
+                         ToolTip.Tip="{loc:Loc module.cutting.spindleRpmHint}" />
+                <Button Classes="ovr" Content="{loc:Loc module.cutting.cw}" Command="{Binding SpindleCwCommand}" ToolTip.Tip="{loc:Loc module.cutting.spindleCwHint}" />
+                <Button Classes="ovr" Content="{loc:Loc module.cutting.ccw}" Command="{Binding SpindleCcwCommand}" ToolTip.Tip="{loc:Loc module.cutting.spindleCcwHint}" />
+                <Button Classes="ovr" Content="{loc:Loc module.cutting.off}" Command="{Binding SpindleOffCommand}"
+                        ToolTip.Tip="{loc:Loc module.cutting.spindleOffHint}"
                         Margin="6,0,0,0" />
             </StackPanel>
         </StackPanel>

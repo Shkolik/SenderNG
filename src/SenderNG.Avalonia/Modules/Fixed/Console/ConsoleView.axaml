@@ -13,6 +13,7 @@ BSD 3-Clause License: see this file for the full license text.
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Fixed"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization;assembly=SenderNG.Avalonia"
              mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="400"
              x:Class="SenderNG.Avalonia.Modules.Fixed.ConsoleView"
              x:DataType="vm:ConsoleViewModel">
@@ -25,17 +26,17 @@ BSD 3-Clause License: see this file for the full license text.
                  labels are long, so they stack vertically to fit the tab width. -->
             <Border Grid.Row="0" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,0,0,1" Padding="4,3">
                 <StackPanel Orientation="Vertical" Spacing="1">
-                    <CheckBox Content="Verbose" IsChecked="{Binding Verbose, Mode=TwoWay}"
+                    <CheckBox Content="{loc:Loc module.console.verbose}" IsChecked="{Binding Verbose, Mode=TwoWay}"
                               FontSize="11" CornerRadius="0" />
-                    <CheckBox Content="Filter out realtime responses"
+                    <CheckBox Content="{loc:Loc module.console.filterRealtime}"
                               IsChecked="{Binding FilterRealtime, Mode=TwoWay}"
                               IsEnabled="{Binding Verbose}"
                               FontSize="11" CornerRadius="0" />
-                    <CheckBox Content="Show all realtime responses"
+                    <CheckBox Content="{loc:Loc module.console.showAllRealtime}"
                               IsChecked="{Binding ShowAllRealtime, Mode=TwoWay}"
                               IsEnabled="{Binding Verbose}"
                               FontSize="11" CornerRadius="0" />
-                    <Button Content="Clear" Command="{Binding ClearCommand}"
+                    <Button Content="{loc:Loc common.clear}" Command="{Binding ClearCommand}"
                             HorizontalAlignment="Left"
                             CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1"
                             Padding="10,0" Height="22" FontSize="11" Margin="0,3,0,0" />

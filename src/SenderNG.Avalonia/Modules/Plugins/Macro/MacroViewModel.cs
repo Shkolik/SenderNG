@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Text.Json;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Avalonia.Localization;
 using SenderNG.Core.Commands;
 using SenderNG.Avalonia.ViewModels;
 
@@ -122,7 +123,10 @@ public class MacroViewModel : ViewModelBase
 
     private void AddMacro()
     {
-        var macro = new MacroItem { Name = $"Macro {Macros.Count + 1}", Code = string.Empty };
+        var macro = new MacroItem {
+            Name = LocText.Format("module.macro.newMacro", "Macro {0}", Macros.Count + 1),
+            Code = string.Empty,
+        };
         AddItem(macro);
         SelectedMacro = macro;
         Save();

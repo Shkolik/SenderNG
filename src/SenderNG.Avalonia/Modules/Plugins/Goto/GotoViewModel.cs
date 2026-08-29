@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Avalonia.Localization;
 using SenderNG.Avalonia.ViewModels;
 using SenderNG.Core.Commands;
 
@@ -60,10 +61,10 @@ public sealed class GotoViewModel : ViewModelBase
         Config = GotoConfigStore.Load(_appSettings);
         Config.PropertyChanged += OnConfigPropertyChanged;
 
-        GotoHomeCommand = new DelegateCommand(_ => _ = SendAsync("G28", "Going to home position"));
-        GotoG30Command = new DelegateCommand(_ => _ = SendAsync("G30", "Going to second reference point"));
-        SetHomeCommand = new DelegateCommand(_ => _ = SendAsync("G28.1", "Home position recorded"));
-        SetG30Command = new DelegateCommand(_ => _ = SendAsync("G30.1", "Second reference point recorded"));
+        GotoHomeCommand = new DelegateCommand(_ => _ = SendAsync("G28", LocText.Resolve("module.goto.goingHome", "Going to home position")));
+        GotoG30Command = new DelegateCommand(_ => _ = SendAsync("G30", LocText.Resolve("module.goto.goingRef2", "Going to second reference point")));
+        SetHomeCommand = new DelegateCommand(_ => _ = SendAsync("G28.1", LocText.Resolve("module.goto.homeRecorded", "Home position recorded")));
+        SetG30Command = new DelegateCommand(_ => _ = SendAsync("G30.1", LocText.Resolve("module.goto.ref2Recorded", "Second reference point recorded")));
         GoCommand = new DelegateCommand(_ => _ = GoAsync());
 
         _stateSubscription = grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
@@ -86,7 +87,7 @@ public sealed class GotoViewModel : ViewModelBase
         private set
         {
             if (SetField(ref _isHomed, value))
-                Status = value ? string.Empty : "Home the machine first ($H)";
+                Status = value ? string.Empty : LocText.Resolve("module.goto.homeFirst", "Home the machine first ($H)");
         }
     }
 
@@ -181,7 +182,7 @@ public sealed class GotoViewModel : ViewModelBase
     {
         if (!IsHomed)
         {
-            Status = "Home the machine first ($H)";
+            Status = LocText.Resolve("module.goto.homeFirst", "Home the machine first ($H)");
             return;
         }
 
@@ -192,16 +193,16 @@ public sealed class GotoViewModel : ViewModelBase
 
         if (invalid.Count > 0)
         {
-            Status = $"Invalid value: {string.Join(", ", invalid)}";
+            Status = LocText.Format("module.goto.invalidValue", "Invalid value: {0}", string.Join(", ", invalid));
             return;
         }
         if (words.Count == 0)
         {
-            Status = "Enter at least one coordinate";
+            Status = LocText.Resolve("module.goto.enterCoordinate", "Enter at least one coordinate");
             return;
         }
 
-        await SendAsync($"G53 G0 {string.Join(" ", words)}", "Going to position");
+        await SendAsync($"G53 G0 {string.Join(" ", words)}", LocText.Resolve("module.goto.goingPosition", "Going to position"));
     }
 
     private static void TryAxis(List<string> words, List<string> invalid, GotoAxisRow row)
@@ -218,7 +219,7 @@ public sealed class GotoViewModel : ViewModelBase
     {
         if (!IsHomed)
         {
-            Status = "Home the machine first ($H)";
+            Status = LocText.Resolve("module.goto.homeFirst", "Home the machine first ($H)");
             return;
         }
         try
@@ -228,7 +229,7 @@ public sealed class GotoViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Status = $"{command} failed: {ex.Message}";
+            Status = LocText.Format("module.goto.commandFailed", "{0} failed: {1}", command, ex.Message);
         }
     }
 }

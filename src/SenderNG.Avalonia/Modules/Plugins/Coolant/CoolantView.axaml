@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization;assembly=SenderNG.Avalonia"
              mc:Ignorable="d" d:DesignWidth="260" d:DesignHeight="120"
              x:Class="SenderNG.Avalonia.Modules.Plugins.CoolantView"
              x:DataType="vm:CoolantViewModel">
@@ -40,11 +41,11 @@
     <!-- Independent toggles: grblHAL realtime overrides (0xA0/0xA1) let both run together -->
     <StackPanel Margin="8">
         <StackPanel Orientation="Horizontal" Spacing="4">
-            <ToggleButton Classes="coolant" Content="Flood"
+            <ToggleButton Classes="coolant" Content="{loc:Loc module.coolant.flood}"
                           IsChecked="{Binding IsFlood, Mode=OneWay}"
                           Command="{Binding ToggleFloodCommand}"
                           IsVisible="{Binding HasFlood}" />
-            <ToggleButton Classes="coolant" Content="Mist"
+            <ToggleButton Classes="coolant" Content="{loc:Loc module.coolant.mist}"
                           IsChecked="{Binding IsMist, Mode=OneWay}"
                           Command="{Binding ToggleMistCommand}"
                           IsVisible="{Binding HasMist}" />

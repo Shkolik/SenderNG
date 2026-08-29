@@ -2,36 +2,37 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Plugins"
              xmlns:conv="clr-namespace:SenderNG.Avalonia.Converters"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization;assembly=SenderNG.Avalonia"
              x:Class="SenderNG.Avalonia.Modules.Plugins.ToolLengthPanel"
              x:DataType="vm:ProbeViewModel">
 
     <StackPanel Spacing="8" Margin="0,4">
-        <TextBlock Text="Probe Z downward onto the touch plate / fixture to establish the tool length offset."
+        <TextBlock Text="{loc:Loc module.probing.toolLengthDesc}"
                    FontSize="11" Foreground="#333" TextWrapping="Wrap" />
 
-        <CheckBox Content="Probe fixture @ G59.3" IsChecked="{Binding ProbeFixture}" FontSize="11" />
-        <CheckBox Content="Establish reference offset" IsChecked="{Binding ReferenceToolOffset}" FontSize="11" />
+        <CheckBox Content="{loc:Loc module.probing.probeFixture}" IsChecked="{Binding ProbeFixture}" FontSize="11" />
+        <CheckBox Content="{loc:Loc module.probing.establishReference}" IsChecked="{Binding ReferenceToolOffset}" FontSize="11" />
 
         <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="6">
-            <TextBlock Text="with tool:" FontSize="11" Foreground="#333" VerticalAlignment="Center" />
+            <TextBlock Text="{loc:Loc module.probing.withTool}" FontSize="11" Foreground="#333" VerticalAlignment="Center" />
             <ComboBox Grid.Column="1" ItemsSource="{Binding ToolChoices}"
                       SelectedItem="{Binding SelectedToolNumber, Mode=TwoWay}"
                       IsEnabled="{Binding HasToolTable}"
                       FontSize="11" Width="64" Height="26" CornerRadius="0" />
-            <TextBlock Grid.Column="2" Text="store probed length into the tool table (grblHAL)"
+            <TextBlock Grid.Column="2" Text="{loc:Loc module.probing.storeProbed}"
                        FontSize="10" Foreground="#888" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
         </Grid>
 
-        <CheckBox Content="Set coordinate system or offset" IsChecked="{Binding AddAction}" FontSize="11" />
+        <CheckBox Content="{loc:Loc module.probing.setCoordSystem}" IsChecked="{Binding AddAction}" FontSize="11" />
 
         <StackPanel Spacing="4" IsVisible="{Binding ProbeFixture}">
-            <TextBlock Text="Fixture probing rapids to the fixture origin (0,0) and probes from there;"
+            <TextBlock Text="{loc:Loc module.probing.fixtureProbing}"
                        FontSize="10" Foreground="#888" TextWrapping="Wrap" />
         </StackPanel>
 
         <StackPanel Spacing="4" IsVisible="{Binding AddAction}">
             <Grid ColumnDefinitions="110,120" Width="230" HorizontalAlignment="Left">
-                <TextBlock Text="Workpiece height:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBlock Text="{loc:Loc module.probing.workpieceHeight}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
                 <TextBox Grid.Column="1" Text="{Binding WorkpieceHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                          Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                          FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />

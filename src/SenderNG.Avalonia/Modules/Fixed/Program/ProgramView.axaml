@@ -13,6 +13,7 @@ BSD 3-Clause License: see this file for the full license text.
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Avalonia.Modules.Fixed"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization;assembly=SenderNG.Avalonia"
              mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="400"
              x:Class="SenderNG.Avalonia.Modules.Fixed.ProgramView"
              x:DataType="vm:ProgramViewModel">
@@ -21,9 +22,9 @@ BSD 3-Clause License: see this file for the full license text.
         <DockPanel>
             <!-- Program grid header: 3 columns Line (44px) | Status (28px blank) | Data (1*) -->
             <Grid DockPanel.Dock="Top" ColumnDefinitions="44,28,1*" Background="#e8e8e8" Height="22">
-                <TextBlock Grid.Column="0" Text="Line" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center" Margin="6,0" Foreground="#333" />
+                <TextBlock Grid.Column="0" Text="{loc:Loc module.program.line}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center" Margin="6,0" Foreground="#333" />
                 <TextBlock Grid.Column="1" Text="" />
-                <TextBlock Grid.Column="2" Text="Data" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center" Margin="6,0" Foreground="#333" />
+                <TextBlock Grid.Column="2" Text="{loc:Loc module.program.data}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center" Margin="6,0" Foreground="#333" />
             </Grid>
             <ListBox ItemsSource="{Binding ProgramRows}" CornerRadius="0" BorderBrush="#aaa" BorderThickness="0">
                 <ListBox.ItemTemplate>

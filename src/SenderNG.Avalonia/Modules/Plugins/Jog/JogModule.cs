@@ -32,6 +32,10 @@ public class JogModule : IModule, IModuleSettingsProvider, ILocalizedModule
             ["module.jog.speed2"] = "Speed 2",
             ["module.jog.speed3"] = "Speed 3",
             ["module.jog.diagonal"] = "Diagonal jogging",
+            ["module.jog.distance"] = "Distance (mm)",
+            ["module.jog.speed"] = "Speed (mm/min)",
+            ["module.jog.feedHold"] = "Feed hold",
+            ["module.jog.syncGantries"] = "Synchronize both gantries",
         };
 
     public void RegisterServices(IServiceCollection services) =>

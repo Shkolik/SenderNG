@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Avalonia.Localization;
 using SenderNG.Avalonia.Modules.Fixed;
 using SenderNG.Avalonia.ViewModels;
 using SenderNG.Core.Commands;
@@ -458,15 +459,15 @@ public class ProbeViewModel : ViewModelBase
 
     private void ApplyToolInstructions() => Instructions = SelectedTool switch
     {
-        ProbingType.ToolLength => "Probe the touch plate/fixture to set the tool length offset.",
+        ProbingType.ToolLength => LocText.Resolve("module.probing.instr.toolLength", "Probe the touch plate/fixture to set the tool length offset."),
         ProbingType.EdgeFinderExternal or ProbingType.EdgeFinderInternal =>
-            "Click an edge, corner or Z in the diagram to select the probing action.\nMove the probe above the indicated position before Start.",
+            LocText.Resolve("module.probing.instr.edge", "Click an edge, corner or Z in the diagram to select the probing action.\nMove the probe above the indicated position before Start."),
         ProbingType.CenterFinder =>
-            "Place the probe above the approximate center of the workpiece before Start.\nSelect inside or outside probing first.",
+            LocText.Resolve("module.probing.instr.center", "Place the probe above the approximate center of the workpiece before Start.\nSelect inside or outside probing first."),
         ProbingType.Rotation =>
-            "Select an edge to probe two points along, then Start to measure the angle.",
+            LocText.Resolve("module.probing.instr.rotation", "Select an edge to probe two points along, then Start to measure the angle."),
         ProbingType.HeightMap =>
-            "Set the map area and grid size, then Start to probe the grid.",
+            LocText.Resolve("module.probing.instr.heightmap", "Set the map area and grid size, then Start to probe the grid."),
         _ => string.Empty,
     };
 
@@ -480,7 +481,7 @@ public class ProbeViewModel : ViewModelBase
         IsConnected = _grbl.IsConnected;
         if (!IsConnected)
         {
-            LastResult = "Not connected - connect first (or use Demo mode).";
+            LastResult = LocText.Resolve("module.probing.notConnected", "Not connected - connect first (or use Demo mode).");
             return;
         }
 
@@ -518,11 +519,11 @@ public class ProbeViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
-            LastResult = "Probing cancelled";
+            LastResult = LocText.Resolve("module.probing.cancelled", "Probing cancelled");
         }
         catch (Exception ex)
         {
-            LastResult = $"Probing failed: {ex.Message}";
+            LastResult = LocText.Format("module.probing.failed", "Probing failed: {0}", ex.Message);
         }
         finally
         {
@@ -567,7 +568,7 @@ public class ProbeViewModel : ViewModelBase
     {
         var result = await _runner.ExecuteAsync(builder.Lines, _cts!.Token);
         if (!result.Success)
-            LastResult = $"Probing failed: {result.Error}";
+            LastResult = LocText.Format("module.probing.failed", "Probing failed: {0}", result.Error);
         return result;
     }
 
@@ -577,7 +578,7 @@ public class ProbeViewModel : ViewModelBase
         var result = await RunAsync(builder);
         if (!result.Success || result.Positions.Count != 1)
         {
-            LastResult = "Probing failed - no probe position captured";
+            LastResult = LocText.Resolve("module.probing.noPosition", "Probing failed - no probe position captured");
             return;
         }
 
@@ -592,11 +593,11 @@ public class ProbeViewModel : ViewModelBase
             if (!string.IsNullOrEmpty(cmd))
             {
                 await _grbl.SendAsync(cmd);
-                LastResult = $"Tool length offset set: {cmd}";
+                LastResult = LocText.Format("module.probing.toolLengthSet", "Tool length offset set: {0}", cmd);
             }
             else
             {
-                LastResult = $"Measured Z: {ProbeMath.Fmt(touch.Z)}";
+                LastResult = LocText.Format("module.probing.measuredZ", "Measured Z: {0}", ProbeMath.Fmt(touch.Z));
             }
         }
         else if (ProbeToolTable)
@@ -614,13 +615,13 @@ public class ProbeViewModel : ViewModelBase
             // immediately reflect the new stored length and the active TLO
             // (the stored table row only arrives via a $# dump).
             await RefreshWorkParametersAsync();
-            LastResult = $"Tool length offset stored to T{SelectedToolNumber}: {table}";
+            LastResult = LocText.Format("module.probing.toolLengthStored", "Tool length offset stored to T{0}: {1}", SelectedToolNumber, table);
         }
         else
         {
             var cmd = $"G43.1Z{ProbeMath.Fmt(touch.Z)}";
             await _grbl.SendAsync(cmd);
-            LastResult = $"Tool length offset set: {cmd}";
+            LastResult = LocText.Format("module.probing.toolLengthSet", "Tool length offset set: {0}", cmd);
         }
     }
 
@@ -628,7 +629,7 @@ public class ProbeViewModel : ViewModelBase
     {
         if (ProbeEdge == Edge.None)
         {
-            LastResult = "Select an edge or corner first";
+            LastResult = LocText.Resolve("module.probing.selectEdgeFirst", "Select an edge or corner first");
             return;
         }
 
@@ -636,7 +637,7 @@ public class ProbeViewModel : ViewModelBase
         var result = await RunAsync(builder);
         if (!result.Success || result.Positions.Count == 0)
         {
-            LastResult = "Probing failed - no probe position captured";
+            LastResult = LocText.Resolve("module.probing.noPosition", "Probing failed - no probe position captured");
             return;
         }
 
@@ -683,24 +684,25 @@ public class ProbeViewModel : ViewModelBase
         var cmd = ProbeMath.OffsetCommand(CoordMode, CoordinateSystem, pos, axes);
         if (string.IsNullOrEmpty(cmd))
         {
-            LastResult = $"Measured: X{ProbeMath.Fmt(contact.X)} Y{ProbeMath.Fmt(contact.Y)} Z{ProbeMath.Fmt(contact.Z)}";
+            LastResult = LocText.Format("module.probing.measured", "Measured: X{0} Y{1} Z{2}",
+                ProbeMath.Fmt(contact.X), ProbeMath.Fmt(contact.Y), ProbeMath.Fmt(contact.Z));
             return;
         }
 
         _ = _grbl.SendAsync(cmd);
-        LastResult = $"Probing completed: {cmd}";
+        LastResult = LocText.Format("module.probing.probingCompleted", "Probing completed: {0}", cmd);
     }
 
     private async Task RunCenterFinderAsync(ProbeProgramBuilder builder, Pos start)
     {
         if (ProbeCenter == Center.None)
         {
-            LastResult = "Select inside or outside probing first";
+            LastResult = LocText.Resolve("module.probing.selectCenterFirst", "Select inside or outside probing first");
             return;
         }
         if (WorkpieceSizeX <= 0 && WorkpieceSizeY <= 0)
         {
-            LastResult = "Workpiece size must be set";
+            LastResult = LocText.Resolve("module.probing.sizeMustBeSet", "Workpiece size must be set");
             return;
         }
 
@@ -715,7 +717,7 @@ public class ProbeViewModel : ViewModelBase
             var expected = (WorkpieceSizeY > 0 && WorkpieceSizeX > 0) ? 4 : 2;
             if (result.Positions.Count < expected)
             {
-                LastResult = "Probing failed - not enough probe positions";
+                LastResult = LocText.Resolve("module.probing.notEnoughPos", "Probing failed - not enough probe positions");
                 return;
             }
 
@@ -736,7 +738,7 @@ public class ProbeViewModel : ViewModelBase
     {
         if (CoordMode == CoordinateMode.Measure)
         {
-            LastResult = $"Probing completed: X distance {ProbeMath.Fmt(xd)}, Y distance {ProbeMath.Fmt(yd)}";
+            LastResult = LocText.Format("module.probing.xDistance", "Probing completed: X distance {0}, Y distance {1}", ProbeMath.Fmt(xd), ProbeMath.Fmt(yd));
             return;
         }
 
@@ -749,7 +751,7 @@ public class ProbeViewModel : ViewModelBase
         if (!string.IsNullOrEmpty(cmd))
         {
             _ = _grbl.SendAsync(cmd);
-            LastResult = $"Probing completed: X distance {ProbeMath.Fmt(xd)}, Y distance {ProbeMath.Fmt(yd)} -> {cmd}";
+            LastResult = LocText.Format("module.probing.xDistanceArrow", "Probing completed: X distance {0}, Y distance {1} -> {2}", ProbeMath.Fmt(xd), ProbeMath.Fmt(yd), cmd);
         }
     }
 
@@ -757,7 +759,7 @@ public class ProbeViewModel : ViewModelBase
     {
         if (ProbeEdge is not (Edge.AD or Edge.AB or Edge.CB or Edge.CD))
         {
-            LastResult = "Select an edge for rotation probing";
+            LastResult = LocText.Resolve("module.probing.selectRotationEdge", "Select an edge for rotation probing");
             return;
         }
 
@@ -765,7 +767,7 @@ public class ProbeViewModel : ViewModelBase
         var result = await RunAsync(builder);
         if (!result.Success || result.Positions.Count < 2)
         {
-            LastResult = "Probing failed - two probe positions required";
+            LastResult = LocText.Resolve("module.probing.twoPosRequired", "Probing failed - two probe positions required");
             return;
         }
 
@@ -773,7 +775,7 @@ public class ProbeViewModel : ViewModelBase
         var p2 = Pos.From(result.Positions[^1]);
         var angle = ProbeMath.ComputeRotationAngle(ProbeEdge, p1, p2);
         _probedAngle = angle;
-        LastResult = $"Probed angle: {ProbeMath.ToDegrees(angle)}°";
+        LastResult = LocText.Format("module.probing.probedAngle", "Probed angle: {0}°", ProbeMath.ToDegrees(angle));
     }
 
     private double _probedAngle;
@@ -795,7 +797,7 @@ public class ProbeViewModel : ViewModelBase
         var result = await RunAsync(builder);
         if (!result.Success || result.Positions.Count != map.TotalPoints)
         {
-            LastResult = $"Probing failed - expected {map.TotalPoints} positions, got {result.Positions.Count}";
+            LastResult = LocText.Format("module.probing.expectedFail", "Probing failed - expected {0} positions, got {1}", map.TotalPoints, result.Positions.Count);
             return;
         }
 
@@ -839,7 +841,7 @@ public class ProbeViewModel : ViewModelBase
         HeightMapData = map;
         OnPropertyChanged(nameof(HeightMapData));
         HasHeightMap = true;
-        LastResult = $"Probing completed: Z range {ProbeMath.Fmt(zMin)} to {ProbeMath.Fmt(zMax)}";
+        LastResult = LocText.Format("module.probing.zRange", "Probing completed: Z range {0} to {1}", ProbeMath.Fmt(zMin), ProbeMath.Fmt(zMax));
     }
 
     // ------------------------------------------------------ height map file io
@@ -848,7 +850,7 @@ public class ProbeViewModel : ViewModelBase
     {
         if (HeightMapData is null)
         {
-            LastResult = "No height map to save";
+            LastResult = LocText.Resolve("module.probing.noHeightMap", "No height map to save");
             return;
         }
 
@@ -856,18 +858,18 @@ public class ProbeViewModel : ViewModelBase
         var dialogs = _services?.GetService(typeof(IFileDialogService)) as IFileDialogService;
         var path = dialogs is null
             ? Path.Combine(SettingsService.DefaultDir(), "heightmap.map")
-            : await dialogs.SaveFileAsync("Save height map", "heightmap.map", "Height map (*.map)|*.map");
+            : await dialogs.SaveFileAsync(LocText.Resolve("module.probing.saveMap", "Save map"), "heightmap.map", "Height map (*.map)|*.map");
         if (string.IsNullOrEmpty(path))
             return; // cancelled
 
         try
         {
             HeightMapData.Save(path);
-            LastResult = $"Height map saved to {path}";
+            LastResult = LocText.Format("module.probing.heightMapSaved", "Height map saved to {0}", path);
         }
         catch (Exception ex)
         {
-            LastResult = $"Save failed: {ex.Message}";
+            LastResult = LocText.Format("module.probing.saveFailed", "Save failed: {0}", ex.Message);
         }
     }
 
@@ -877,7 +879,7 @@ public class ProbeViewModel : ViewModelBase
         var dialogs = _services?.GetService(typeof(IFileDialogService)) as IFileDialogService;
         var path = dialogs is null
             ? Path.Combine(SettingsService.DefaultDir(), "heightmap.map")
-            : await dialogs.OpenFileAsync("Load height map", "Height map (*.map)|*.map");
+            : await dialogs.OpenFileAsync(LocText.Resolve("module.probing.loadMap", "Load map"), "Height map (*.map)|*.map");
         if (string.IsNullOrEmpty(path))
             return; // cancelled
 
@@ -885,7 +887,7 @@ public class ProbeViewModel : ViewModelBase
         {
             if (!File.Exists(path))
             {
-                LastResult = $"No height map at {path}";
+                LastResult = LocText.Format("module.probing.noHeightMapAt", "No height map at {0}", path);
                 return;
             }
             var map = HeightMap.Load(path);
@@ -897,11 +899,11 @@ public class ProbeViewModel : ViewModelBase
             HmGridSizeX = map.GridX;
             HmGridSizeY = map.GridY;
             HasHeightMap = true;
-            LastResult = $"Height map loaded from {path}";
+            LastResult = LocText.Format("module.probing.heightMapLoaded", "Height map loaded from {0}", path);
         }
         catch (Exception ex)
         {
-            LastResult = $"Load failed: {ex.Message}";
+            LastResult = LocText.Format("module.probing.loadFailed", "Load failed: {0}", ex.Message);
         }
     }
 
@@ -909,38 +911,38 @@ public class ProbeViewModel : ViewModelBase
     {
         if (HeightMapData is null || _services is not { } services)
         {
-            LastResult = "Probe or load a height map first";
+            LastResult = LocText.Resolve("module.probing.probeOrLoadFirst", "Probe or load a height map first");
             return;
         }
         var program = services.GetService(typeof(ProgramViewModel)) as ProgramViewModel;
         if (program is null || string.IsNullOrEmpty(program.LoadedText))
         {
-            LastResult = "No program loaded";
+            LastResult = LocText.Resolve("module.probing.noProgramLoaded", "No program loaded");
             return;
         }
 
         var transformed = ProgramTransform.ApplyHeightMap(program.LoadedText, HeightMapData);
         program.LoadGCode(transformed);
-        LastResult = "Height map applied to program";
+        LastResult = LocText.Resolve("module.probing.heightMapApplied", "Height map applied to program");
     }
 
     private void ApplyRotationToProgram()
     {
         if (Math.Abs(_probedAngle) < 0.0001 || _services is not { } services)
         {
-            LastResult = "Probe an edge angle first";
+            LastResult = LocText.Resolve("module.probing.probeAngleFirst", "Probe an edge angle first");
             return;
         }
         var program = services.GetService(typeof(ProgramViewModel)) as ProgramViewModel;
         if (program is null || string.IsNullOrEmpty(program.LoadedText))
         {
-            LastResult = "No program loaded";
+            LastResult = LocText.Resolve("module.probing.noProgramLoaded", "No program loaded");
             return;
         }
 
         var transformed = ProgramTransform.Rotate(program.LoadedText, _probedAngle, 0, 0);
         program.LoadGCode(transformed);
-        LastResult = "Program rotated";
+        LastResult = LocText.Resolve("module.probing.programRotated", "Program rotated");
     }
 
     // ----------------------------------------------------------------- helpers

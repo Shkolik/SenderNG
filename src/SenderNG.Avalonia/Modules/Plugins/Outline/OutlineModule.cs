@@ -5,7 +5,7 @@ using SenderNG.Core.Modules;
 
 namespace SenderNG.Avalonia.Modules.Plugins;
 
-public class OutlineModule : IModule
+public class OutlineModule : IModule, ILocalizedModule
 {
     public string Id => "outline";
     public string Name => "Outline";
@@ -14,6 +14,18 @@ public class OutlineModule : IModule
     public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
+
+    public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
+        new Dictionary<string, string>
+        {
+            ["module.outline.description"] = "Moves the tool around the X/Y outline of the loaded program's limits.",
+            ["module.outline.warning"] = "Ensure the tool tip is clear of any obstructions!",
+            ["module.outline.feedRate"] = "Feed rate:",
+            ["module.outline.sent"] = "Outline sent",
+            ["module.outline.noXyLimits"] = "Outline: program has no X/Y limits",
+            ["module.outline.failed"] = "Outline failed: {0}",
+        };
+
 
     // Module settings key for the persisted outline feed rate.
     public const string SettingsSection = "Outline";
