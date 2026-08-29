@@ -76,14 +76,17 @@ public partial class GrblSettingsView : UserControl
             group.IsExpanded = !group.IsExpanded;
     }
 
-    // Editor events. The bindings are OneWay (display only) — these handlers are the
-    // only writers to the setting value, so control defaults can never leak into the
-    // source and mark settings dirty right after load/selection.
+    // Editor events. The bindings are OneWay (display only) and we react only to
+    // explicit user gestures (Click for bools/bits, SelectionChanged for the combo,
+    // TextChanged for the textbox) — so control defaults and binding application can
+    // never leak stale values into the source and mark a setting dirty right after
+    // load/selection. The original IsCheckedChanged approach was unreliable because
+    // Avalonia can raise it during checkbox realization with a stale bool? default.
 
-    private static void OnDetailIsCheckedChanged(object? sender, RoutedEventArgs e)
+    private static void OnBoolClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is CheckBox { DataContext: GrblSettingsViewModel vm } cb && vm.SelectedSetting is { } item)
-            item.ApplyBool(cb.IsChecked == true);
+        if (sender is CheckBox { DataContext: GrblSettingsViewModel vm } && vm.SelectedSetting is { IsBool: true } item)
+            item.ApplyBool(!item.IsChecked);
     }
 
     private static void OnDetailSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -93,10 +96,14 @@ public partial class GrblSettingsView : UserControl
             item.ApplyRadio(combo.SelectedIndex);
     }
 
-    private static void OnDetailBitChanged(object? sender, RoutedEventArgs e)
+    private static void OnBitClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is CheckBox { DataContext: GrblSettingBit bit } cb)
-            bit.IsChecked = cb.IsChecked == true;
+        if (sender is CheckBox { DataContext: GrblSettingBit bit })
+        {
+            // The OneWay binding re-pushes IsChecked after the property change, so the
+            // checkbox visually follows; toggling flips just this bit incrementally.
+            bit.IsChecked = !bit.IsChecked;
+        }
     }
 
     private static void OnDetailTextChanged(object? sender, TextChangedEventArgs e)

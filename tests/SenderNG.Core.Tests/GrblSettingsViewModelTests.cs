@@ -267,4 +267,52 @@ public class GrblSettingsViewModelTests
         Assert.Contains(nameof(GrblSettingsViewModel.SelectedSetting), changes);
         Assert.Contains(nameof(GrblSettingsViewModel.HasSelection), changes);
     }
+
+    [Fact]
+    public async Task Real_board_axis_masks_are_clean_right_after_selection()
+    {
+        // Regression: $4/$44/$45 showed "* changed" the moment they were selected.
+        // Construction is proven clean here — the stale write must come only from a
+        // real user gesture (see note in GrblSettingsView.axaml.cs about IsCheckedChanged).
+        var vm = CreateVm(new StubProvider { ValueLines = ["$4=15", "$44=4", "$45=3"] });
+        await vm.LoadAsync();
+
+        Assert.All(AllSettings(vm.Groups), static s => Assert.False(s.IsDirty));
+
+        // Values must be preserved exactly as the board sent them.
+        Assert.Equal("15", Find(vm.Groups, 4).Value);
+        Assert.Equal("4", Find(vm.Groups, 44).Value);
+        Assert.Equal("3", Find(vm.Groups, 45).Value);
+    }
+
+    [Fact]
+    public async Task Redundant_bit_write_does_not_mark_an_axis_mask_dirty()
+    {
+        // A stale realization callback must never dirty a clean setting. Setting a bit
+        // to its current masked state is a no-op (same value) and keeps the mask clean.
+        var vm = CreateVm(new StubProvider { ValueLines = ["$44=4"] }); // Z (mask 4) set
+        await vm.LoadAsync();
+
+        var mask = Find(vm.Groups, 44);
+        var zBit = mask.Bits.Single(b => b.Mask == 4);
+        Assert.True(zBit.IsChecked);
+        Assert.False(mask.IsDirty);
+
+        // Same-state write (what a stale callback does) must not flip the value or dirty it.
+        zBit.IsChecked = true;
+        Assert.Equal("4", mask.Value);
+        Assert.False(mask.IsDirty);
+
+        // Genuine removal of the Z axis is the only permitted dirty path.
+        zBit.IsChecked = false;
+        Assert.Equal("0", mask.Value);
+        Assert.True(mask.IsDirty);
+        mask.Accept(); // save clears the baseline against the just-wrote value ("0")
+        Assert.False(mask.IsDirty);
+
+        // A later genuine re-add reports as a new edit relative to the saved baseline.
+        zBit.IsChecked = true;
+        Assert.Equal("4", mask.Value);
+        Assert.True(mask.IsDirty);
+    }
 }

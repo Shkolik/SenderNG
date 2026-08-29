@@ -49,7 +49,7 @@ BSD 3-Clause License: see this file for the full license text.
             <!-- LEFT: search + tree selector - only leaf settings are selectable -->
             <DockPanel Grid.Column="0">
                 <Border DockPanel.Dock="Top" BorderBrush="#aaa" BorderThickness="0,0,0,1" Padding="10,8">
-                    <TextBox Text="{Binding Search}" Watermark="Search settings..."
+                    <TextBox Text="{Binding Search}" PlaceholderText="Search settings..."
                              Height="26" MinHeight="26" VerticalContentAlignment="Center"
                              FontSize="11" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
                 </Border>
@@ -136,7 +136,7 @@ BSD 3-Clause License: see this file for the full license text.
                         <StackPanel Spacing="8">
                             <CheckBox Content="Enabled"
                                       IsChecked="{Binding SelectedSetting.IsChecked, Mode=OneWay}"
-                                      IsCheckedChanged="OnDetailIsCheckedChanged"
+                                      Click="OnBoolClick"
                                       IsVisible="{Binding SelectedSetting.IsBool}" FontSize="12" />
 
                             <StackPanel Orientation="Horizontal" Spacing="8"
@@ -162,7 +162,7 @@ BSD 3-Clause License: see this file for the full license text.
                                     <DataTemplate x:DataType="vm:GrblSettingBit">
                                         <CheckBox Content="{Binding Label}"
                                                   IsChecked="{Binding IsChecked, Mode=OneWay}"
-                                                  IsCheckedChanged="OnDetailBitChanged"
+                                                  Click="OnBitClick"
                                                   FontSize="12" Margin="0,1" />
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
