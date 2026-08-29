@@ -87,7 +87,7 @@ public sealed class GrblSettingBit : ViewModelBase
                 return;
             _isChecked = value;
             OnPropertyChanged();
-            _owner.OnBitToggled();
+            _owner.OnBitToggled(this);
         }
     }
 
@@ -231,23 +231,32 @@ public sealed class GrblSettingItem : ViewModelBase
         {
             var value = int.TryParse(_value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : 0;
             for (var i = 0; i < Options.Length; i++)
+            {
+                // grblHAL marks unused bits "N/A" — skip them so no placeholder checkbox
+                // is shown, but keep the real bits at their original mask positions.
+                if (IsPlaceholder(Options[i]))
+                    continue;
                 Bits.Add(new GrblSettingBit(this, Options[i], 1 << i, (value & (1 << i)) != 0));
+            }
         }
     }
 
-    /// <summary>Recompute the raw value from the bit checkboxes (no resync bounce).</summary>
-    internal void OnBitToggled()
+    /// <summary>
+    /// Flip just the toggled bit relative to the current value — never recompute from
+    /// the visible bits, so hidden/unrendered bits (N/A positions, out-of-range axes)
+    /// are preserved and no setting is spuriously marked dirty.
+    /// </summary>
+    internal void OnBitToggled(GrblSettingBit changed)
     {
-        var value = 0;
-        foreach (var bit in Bits)
-        {
-            if (bit.IsChecked)
-                value |= bit.Mask;
-        }
-        _value = value.ToString(CultureInfo.InvariantCulture);
+        var current = int.TryParse(_value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : 0;
+        current = changed.IsChecked ? current | changed.Mask : current & ~changed.Mask;
+        _value = current.ToString(CultureInfo.InvariantCulture);
         OnPropertyChanged(nameof(Value));
         OnPropertyChanged(nameof(IsDirty));
     }
+
+    private static bool IsPlaceholder(string label) =>
+        string.IsNullOrEmpty(label) || label.Equals("n/a", StringComparison.OrdinalIgnoreCase);
 
     private void ResyncBits()
     {

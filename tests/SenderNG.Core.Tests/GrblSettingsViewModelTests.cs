@@ -203,6 +203,28 @@ public class GrblSettingsViewModelTests
     }
 
     [Fact]
+    public async Task Na_placeholder_bits_are_not_shown_and_toggles_are_incremental()
+    {
+        // $14 "Invert control inputs" format: "N/A,Feed hold,Cycle start,Safety door,N/A,N/A,EStop"
+        // — unused bits are marked N/A on the wire and must not render as checkboxes.
+        var vm = CreateVm(new StubProvider { ValueLines = ["$14=72"] }); // bits 3 (Safety door) + 6 (EStop)
+        await vm.LoadAsync();
+
+        var s14 = Find(vm.Groups, 14);
+
+        Assert.All(s14.Bits, static b => Assert.False(b.Label.Contains("N/A", StringComparison.OrdinalIgnoreCase)));
+        Assert.Equal(4, s14.Bits.Count); // only the 4 real options stay
+        Assert.Equal(8, s14.Bits.Single(b => b.Label == "Safety door").Mask);  // keeps original bit 3
+        Assert.Equal(64, s14.Bits.Single(b => b.Label == "EStop").Mask);       // keeps original bit 6
+        Assert.False(s14.IsDirty);
+
+        // Incremental toggle flips only that bit: 72 | Feed hold(2) = 74.
+        s14.Bits.Single(b => b.Label == "Feed hold").IsChecked = true;
+        Assert.Equal("74", s14.Value);
+        Assert.True(s14.IsDirty);
+    }
+
+    [Fact]
     public async Task Apply_methods_are_the_editor_write_path_and_mark_dirty()
     {
         var vm = CreateVm(new StubProvider { ValueLines = ["$0=10", "$20=0", "$32=0", "$2=0"] });
