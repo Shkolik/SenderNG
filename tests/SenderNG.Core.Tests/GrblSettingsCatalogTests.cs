@@ -1,6 +1,8 @@
 using System.Text;
 using CNC.Core.Services;
+using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Localization;
+using SenderNG.Core.Modules;
 using SenderNG.Core.Settings;
 
 namespace SenderNG.Core.Tests;
@@ -287,6 +289,34 @@ public class LocalizationServiceTests
         var s1 = service.Settings[1];
         Assert.Equal("Step idle delay", s1.Name);
         Assert.Equal(65535.0, s1.Max);
+    }
+
+    [Fact]
+    public void ModuleNames_Localized_resolves_from_the_base_catalog()
+    {
+        // "module.jog.name" lives in the app's en.json/ru.json.
+        Assert.Equal("Jog", ModuleNames.Localized(new StubNamedModule("jog", "Jog"), TestLocalization.Locale));
+    }
+
+    [Fact]
+    public void ModuleNames_Localized_falls_back_to_module_name_when_key_missing()
+    {
+        var module = new StubNamedModule("custom", "My Module");
+        Assert.Equal("My Module", ModuleNames.Localized(module, TestLocalization.Locale));
+    }
+
+    private sealed record StubNamedModule(string Id, string Name) : IModule
+    {
+        public string Description => "desc";
+        public int Order => 1;
+        public PanelHint Panel => PanelHint.Flyout;
+        public bool IsVisibleByDefault => true;
+        public bool CanHide => true;
+        public IReadOnlyList<HotKey> HotKeys => [];
+        public void RegisterServices(IServiceCollection services) { }
+        public void RegisterSettings(AppSettings settings) { }
+        public object CreateViewModel(IServiceProvider sp) => new object();
+        public object CreateView(object vm) => new object();
     }
 }
 

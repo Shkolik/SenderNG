@@ -372,6 +372,35 @@ public class AppSettingsViewModelTests
     }
 
     [Fact]
+    public void Plugin_module_name_resolves_from_its_own_locale_first()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-plugin-name-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "en.json"),
+            """{ "strings": { "module.dummy.name": "Dummy plugin" } }""");
+        File.WriteAllText(Path.Combine(dir, "ru.json"),
+            """{ "strings": { "module.dummy.name": "Заглушка" } }""");
+
+        var loc = LocalizationService.LoadFromDirectory(Path.Combine(AppContext.BaseDirectory, "Locale"));
+        loc.RegisterModuleLocales(dir);
+        var module = new StubModule("dummy", "Dummy", 10);
+
+        try
+        {
+            // The plugin's own en.json provides the name before the locale switch.
+            Assert.Equal("Dummy plugin", ModuleNames.Localized(module, loc));
+            loc.SetLocale("ru");
+            // And its ru.json wins after the switch — proving plugin-first resolution.
+            Assert.Equal("Заглушка", ModuleNames.Localized(module, loc));
+        }
+        finally
+        {
+            loc.SetLocale("en");
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Grbl_errors_localize_through_the_service()
     {
         try
