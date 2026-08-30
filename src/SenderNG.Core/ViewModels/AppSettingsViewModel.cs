@@ -471,11 +471,8 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
     private string ResolveSettingKey(string? key, string fallback) =>
         string.IsNullOrWhiteSpace(key) ? fallback : Resolve(key, fallback);
 
-    private string Resolve(string key, string fallback)
-    {
-        var v = _localization.T(key);
-        return string.Equals(v, key, StringComparison.Ordinal) ? fallback : v;
-    }
+    private string Resolve(string key, string fallback) =>
+        _localization.Resolve(key, fallback);
 
     /// <summary>Module leaves, ordered by module order.</summary>
     public ObservableCollection<ModuleSettingsLeaf> ModuleLeaves { get; } = new();
