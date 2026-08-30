@@ -250,6 +250,32 @@ public class LocalizationServiceTests
     }
 
     [Fact]
+    public void Resolve_returns_fallback_when_key_is_missing()
+    {
+        var service = TestLocalization.Locale;
+        Assert.Equal("Fallback text", service.Resolve("module.nope.missing", "Fallback text"));
+    }
+
+    [Fact]
+    public void Resolve_returns_localized_value_when_present()
+    {
+        using var en = EnglishJson();
+        var service = new LocalizationService(
+            en,
+            "es",
+            Json("""{ "strings": { "grblSettings.title": "Configuración GRBL" } }"""));
+
+        Assert.Equal("Configuración GRBL", service.Resolve("grblSettings.title", "GRBL settings"));
+    }
+
+    [Fact]
+    public void Resolve_returns_english_when_only_in_english_catalog()
+    {
+        var service = TestLocalization.Locale;
+        Assert.Equal("GRBL settings", service.Resolve("grblSettings.title", "GRBL settings"));
+    }
+
+    [Fact]
     public void English_catalog_definition_matches_captured_hardware_metadata()
     {
         var service = TestLocalization.Locale;

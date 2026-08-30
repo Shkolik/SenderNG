@@ -239,6 +239,20 @@ public sealed class LocalizationService
     }
 
     /// <summary>
+    /// Resolve <paramref name="key"/> with an explicit English fallback returned when
+    /// neither the locale nor the English catalog contains the key — the code-side
+    /// counterpart to the <c>{Loc}</c> markup extension, so ViewModel text never leaks
+    /// a raw key. <see cref="T(string)"/> keeps returning the key itself for low-level
+    /// lookups; this is the one place the "resolve or fall back to the caller's English"
+    /// policy lives.
+    /// </summary>
+    public string Resolve(string key, string fallback)
+    {
+        var v = T(key);
+        return string.Equals(v, key, StringComparison.Ordinal) ? fallback : v;
+    }
+
+    /// <summary>
     /// Registers a 3rd-party module's locale directory (<c>en.json</c> + one file per
     /// locale, e.g. <c>ru.json</c>, each with a <c>strings</c> object). Namespaced keys
     /// (<c>module.&lt;id&gt;.*</c>) are additive: base catalogs take precedence, plugins
