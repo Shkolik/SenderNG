@@ -53,10 +53,7 @@ public static class LocText
     public static string Resolve(string key, string english)
     {
         var loc = LocalizationService.Current;
-        if (loc is null)
-            return english;
-        var value = loc.T(key);
-        return string.Equals(value, key, StringComparison.Ordinal) ? english : value;
+        return loc is null ? english : loc.Resolve(key, english);
     }
 
     /// <summary>Localized format string (placeholders <c>{0}</c>…), English fallback.</summary>
