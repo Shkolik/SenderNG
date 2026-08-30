@@ -39,6 +39,7 @@ using System;
 using System.Reactive.Linq;
 using Avalonia;
 using Avalonia.Data;
+using Avalonia.Threading;
 using SenderNG.Core.Localization;
 
 namespace SenderNG.Avalonia.Localization;
@@ -81,8 +82,12 @@ public static class LocSource
 
         return Observable.Create<string>(observer =>
         {
-            void Handler(object? s, EventArgs e) => observer.OnNext(loc.T(key));
-            observer.OnNext(loc.T(key));
+            // Emit on the UI thread: binding updates must not be pushed from a
+            // background thread even if Changed is raised there.
+            void Emit(string value) => Dispatcher.UIThread.Post(() => observer.OnNext(value));
+
+            void Handler(object? s, EventArgs e) => Emit(loc.T(key));
+            Emit(loc.T(key));
             loc.Changed += Handler;
             return () => loc.Changed -= Handler;
         });
