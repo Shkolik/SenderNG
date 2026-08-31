@@ -26,7 +26,7 @@ Guidance for AI agents (and human contributors) making changes to SenderNG. This
 - **Copyright headers** — every file carries a per-author copyright header (mine-only / double / untouched). The exact forms and the rule for choosing one are in `docs/copyright-headers.md`; follow it for all new files.
 - **Avalonia UI gotchas** — master/detail editor panels reuse one set of Controls across items, and recycled Controls fire Change events with stale state during a selection switch; never write from an editor's event handler without guarding by editor type (see `docs/avalonia-gotchas.md`). Read it before touching any editor-driven widget.
 - Deferred scope (don't implement or extend without being asked): Lathe wizards, DragKnife, Converters.
-- The build currently emits warnings (CS8602, AVLN5001, xUnit1031, …); don't add new ones beyond the scope of the change.
+- The build currently emits a small set of warnings (mostly xUnit1031, a few CS86xx nullability odds and ends); don't add new ones beyond the scope of the change.
 
 ## Verification limits
 

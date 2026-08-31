@@ -144,9 +144,9 @@ Many already exist; the gaps are listed per widget.
 - [ ] **Foam functional mode** — mode is persisted but only changes the jog
       layout; foam-specific processes (mirrored dual-gantry jog beyond the
       cross, foam probing semantics) are not implemented.
-- [ ] **Home / Unlock / Reset buttons** — now bound to `$H`/`$X`/realtime Reset
-      in `MainViewModel` (ROADMAP stale); the **Check checkbox** in the left
-      panel is still unbound.
+- [x] **Home / Unlock / Reset / Check** — `$H`/`$X`/realtime Reset and the
+      **Check checkbox** (`$C`, dry-run) are all bound in `MainViewModel`.
+      Nothing left unbound in this area.
 
 ## Priority 2 — 3D view + advanced probing
 
@@ -191,20 +191,23 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
       `GrblErrorList`) — Help menu currently has About/Libraries placeholders.
 - [ ] **G-code transforms menu** (`GCodeRotate`, `ArcsToLines`, `GCodeCompress`,
       `GCodeWrap`) — File → Transform submenu.
-- [ ] **Localization** — ioSender ships 9 locales; SenderNG is hardcoded
-      en-US (deliberate strip).
+- [x] **Localization** — ioSender ships 9 locales; SenderNG ships an en/ru
+      JSON catalog with per-plugin overrides and live switching — see
+      `docs/localization.md`; more locales are catalog-only work.
 - [ ] **Telnet / WebSocket transports** — `TcpGrblTransport` covers plain TCP
       (grblHAL Ethernet); telnet option negotiation and WebSocket remain
       deliberate stubs.
 
 ## Cross-cutting tech debt (architecture §8)
 
-- [ ] **`Grbl.cs` stubs** — 288 lines vs upstream 3438; caps parsing ported,
+- [ ] **`Grbl.cs` stubs** — ~320 lines vs upstream 3438; caps parsing ported,
       rest compile-only stubs. Clean up as features touch them.
 - [ ] **`GrblInfo` static state** — global mutable static; partly mitigated by
       pure `ParseCaps`.
-- [ ] **Build warnings** — CS8602 / CS8618 / xUnit1031 etc. remain; keep the
-      count flat while working (architecture §9).
+- [~] **Build warnings** — the nullability cluster (CS8602/CS8600/CS8601/
+      CS8603/CS8604/CS8618/CS8620/CS8622/CS8625) was swept to zero; ~18
+      warnings remain (mostly xUnit1031, a few CS86xx); keep the count flat
+      while working (architecture §9).
 
 ## Reference matrix (ioSender → SenderNG)
 

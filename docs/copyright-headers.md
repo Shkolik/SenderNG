@@ -12,18 +12,20 @@ condition 1 requires that redistributed source retain the original notice.
 ## The three categories
 
 | Category | Header | When it applies |
-|----------|--------|-----------------|
+| ---------- | -------- | ----------------- |
 | Mine only | `Copyright (c) 2026 Andrew Shkolik` only | **Completely new** SenderNG code with no ioSender antecedent. |
 | Double | ioSender + Andrew | Derived from ioSender (a control or feature ported over) but substantially rewritten for SenderNG's architecture. |
 | Untouched | Original ioSender header only | Near-verbatim carries of ioSender source into the repo (engine files). These are **not** rewritten — leave their header exactly as upstream wrote it. |
 
 ### Mine only
+
 Applies to new architecture and new features that do not mirror an ioSender control, e.g.
 the module system (`*Module.cs` orchestrators), the app settings dialog, new settings/config
 stores, and the app shell. If the file's behavior is a port of an ioSender widget, it is
 **not** mine-only even if the implementation is a from-scratch MVVM rewrite.
 
 ### Double
+
 Applies to widget implementations whose behavior maps onto an ioSender control, even when
 rewritten for SenderNG's Avalonia + MVVM structure. Examples (each ported from its ioSender
 counterpart):
@@ -32,8 +34,11 @@ counterpart):
 - DRO ← `DROControl` · Console ← `ConsoleControl`
 - GRBL Settings ← `GrblConfigControl` · Program ← `GCodeListControl`/`JobControl`
 
-The ViewModel **and** its view (`*.avaml` and `*.avaml.cs`) both carry the double header,
-because the widget layout is as much a port as the logic.
+The ViewModel **and** its view (`*.axaml` and `*.axaml.cs`) both carry the double header
+when the view layout is itself ported from the ioSender WPF XAML. A view whose layout is a
+fresh Avalonia build — same behavior, different markup structure — is new code and carries
+the mine-only header: the plugin `*View.axaml` files fall in this bucket, so only their
+ViewModels (the ported logic) are double.
 
 ### Untouched
 Files carried over essentially verbatim from ioSender (e.g. `SenderNG.Core/GCodeJob.cs`,
@@ -55,9 +60,10 @@ derivative.
 ## Header forms
 
 Headers go at the **very top** of the file. Keep the file's existing line-ending convention
-(CRLF across the repo).
+(source files in this repo are LF; docs are mixed).
 
 ### Mine only — `.cs`
+
 ```csharp
 /*
  * <filename> - <short description>
@@ -97,7 +103,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ### Double — `.cs`
+
 Same as above with both copyrights on their own lines:
+
 ```csharp
 /*
 
@@ -106,28 +114,32 @@ Copyright (c) 2018-2022 Io Engineering (Terje Io)
 Copyright (c) 2026 Andrew Shkolik
 
 All rights reserved.
-```
+
+```text
 The two copyright lines are each on **their own row with a blank line between them**, and a
 blank line between Andrew's line and `All rights reserved.`
 
-### `.avaml` view layouts
+### `.axaml` view layouts
+
 XML files cannot host a `/* */` block, so the view layout header is an XML comment. It uses
-the same attribution lines followed by a short license pointer instead of the full block, to
-keep the file readable:
+the same attribution lines followed by the same BSD body as the `.cs` form above:
 ```xml
 <!--
-<filename>.avaml - <short description>
+<filename>.axaml - <short description>
 
 Copyright (c) 2018-2022 Io Engineering (Terje Io)
 
 Copyright (c) 2026 Andrew Shkolik
 
-BSD 3-Clause License: see this file for the full license text.
+All rights reserved.
+... (same BSD body as the `.cs` form) ...
 -->
 ```
-Mine-only `.avaml` files use the same form with only the Andrew line.
+
+Mine-only `.axaml` files use the same form with only the Andrew line.
 
 ## Repo-wide license note
+
 The root `LICENSE` already lists both copyright holders (`Copyright (c) 2019-2023, Io
 Engineering (Terje Io)` and `Copyright (c) 2024-2026, Andrew Shkolik`). The per-file headers
 here are the granular, per-author attribution required by BSD condition 1 when source is

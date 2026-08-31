@@ -36,7 +36,7 @@ src/SenderNG.Modules.Dummy separate assembly proving the plugin-discovery path
 tests/SenderNG.Core.Tests  xUnit suite (dotnet test)
 ```
 
-- **Engine (ported from ioSender/foamcut, kept nearly whole):** `GCodeParser.cs` (~3610 L), `NGCExpr.cs` (~1518 L), `GCodeEmulator.cs` (~658 L), `GCode.cs`, `GCodeJob.cs`, `Machine.cs`. `Grbl.cs` is deliberately slim (288 L vs upstream 3438 L): caps parsing (`ParseCaps`, `[OPT:...]`) ported; the rest are compile-only stubs — marked tech debt.
+- **Engine (ported from ioSender/foamcut, kept nearly whole):** `GCodeParser.cs` (~3610 L), `NGCExpr.cs` (~1520 L), `GCodeEmulator.cs` (~670 L), `GCode.cs`, `GCodeJob.cs`, `Machine.cs`. `Grbl.cs` is deliberately slim (~320 L vs upstream 3438 L): caps parsing (`ParseCaps`, `[OPT:...]`) ported; the rest are compile-only stubs — marked tech debt.
 - **Service layer (`IGrblService`):** `DemoGrblService` (in-memory grbl simulation — jog `$J=`, G90/G91/G92, M3/M4/M5, coolant + override realtime bytes, persistent `$$` store) vs `RealGrblService` (serial via `System.IO.Ports` or network via `TcpGrblTransport` — grblHAL Ethernet; Telnet/WebSocket still stubbed), swapped behind `GrblServiceProxy` so subscribers survive demo↔real↔network transitions. Realtime command bytes live in `GrblRealtime`. A `ConnectionChanged` event on `IGrblService` (forwarded by the proxy, raised on inner swaps) drives the UI's connected state.
 - **Module contract (`IModule`):** `Id` / `Name` / `Order` / `PanelHint {Left, Center, Right, Flyout, Menu, Bottom}` / `IsVisibleByDefault` / `CanHide` / `HotKeys` / `RegisterServices` / `RegisterSettings` / `CreateViewModel` / `CreateView`. `ModuleCatalog` scans assemblies; built-ins are registered explicitly in `HostSetup`.
 - **Modules today:** fixed — DRO, Program, Console, GrblSettings, AppSettings, Offsets (flyout), Work Parameters; plugins — Jog, Cutting, Coolant, Macro, Probing, Mpos, Outline, Goto; plus Dummy (external assembly scan). Fixed modules are core and always visible (`CanHide = false`, no hide checkbox in App Settings); plugins are hideable. The Offsets module exposes its tool-table visibility toggle via an App Settings card; the Goto module exposes a persisted axis count (App-Settings dropdown) capped by the connected controller's axis count. Offsets and Work Parameters are capability-aware: they offer only the coordinate systems the firmware can actually write (classic grbl: G54–G59; grblHAL: also G59.1–G59.3, which classic firmware rejects with error 29) and the Offsets editor disables itself while the controller is in Alarm. The Offsets tool table is shown only when the user enabled it AND the controller is grblHAL with tool slots (classic grbl 1.1 / 1.2i forks have no `G10 L1`).
@@ -49,8 +49,8 @@ tests/SenderNG.Core.Tests  xUnit suite (dotnet test)
 | Relation | Items |
 | --- | --- |
 | **Kept (ported)** | GCodeParser, NGCExpr, GCodeJob, GCodeEmulator, Machine, caps parsing, foam patches, Macro editor (foamcut), Probing, DRO/Jog/Coolant/Offsets concepts |
-| **Slimmed** | Grbl.cs (3438 → 288 L, caps only + stubs), GrblViewModel (1434 L → `MachineState`) |
-| **Stripped** | WPF everywhere; custom streams (Serial/Telnet/Websocket/YModem/Eltima) → `System.IO.Ports`; `Properties.Settings`/`App.config` → portable settings; localization (9 locales → hardcoded en-US for now) |
+| **Slimmed** | Grbl.cs (3438 → ~320 L, caps only + stubs), GrblViewModel (1434 L → `MachineState`) |
+| **Stripped** | WPF everywhere; custom streams (Serial/Telnet/Websocket/YModem/Eltima) → `System.IO.Ports`; `Properties.Settings`/`App.config` → portable settings; localization (9 locales → en/ru JSON catalog with per-plugin overrides — see `docs/localization.md`) |
 | **Deferred (lowest priority)** | 3D view (HelixToolkit), camera (AForge/V4L2), Lathe, DragKnife, Converters (Excellon/HPGL), SD card view, MPG, PID log, THC monitor, Trinamic view, steppers calibration wizard, Tool view |
 | **Added** | Demo/offline mode, DI plugin system + assembly scan, 4-panel layout with per-module visibility, cutting realtime overrides panel (0x90–0x9E), live status parsing (WPos/FS:/Ov:), MDI history, program limits, state indicator, xUnit test suite (upstream had none) |
 
@@ -83,4 +83,4 @@ dotnet build SenderNG.sln
 dotnet test  SenderNG.sln   # or --filter <name> for a targeted run
 ```
 
-The build currently emits warnings (CS8602, AVLN5001, xUnit1031, …); do not add new ones beyond a change's scope.
+The build currently emits a small set of warnings (mostly xUnit1031, a few CS86xx nullability odds and ends); do not add new ones beyond a change's scope.
