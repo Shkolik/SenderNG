@@ -1,6 +1,6 @@
 using System.Globalization;
 using Avalonia.Data;
-using SenderNG.Avalonia.Converters;
+using SenderNG.Converters;
 using Xunit;
 
 namespace SenderNG.Core.Tests;

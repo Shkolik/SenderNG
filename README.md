@@ -20,14 +20,14 @@ SenderNG is a diverged, focused fork of ioSender — stripped to foam cutting, 3
 
 ## Roadmap
 1. `src/SenderNG.Core` (`net8.0`) — extract `Grbl.cs`, `GCodeParser.cs`, `GCodeEmulator.cs`, `NGCExpr.cs` + foam patches from `foamcut`
-2. `src/SenderNG.Avalonia` (`net8.0`) — Avalonia shell, probing UI, settings
+2. `src/SenderNG` (`net8.0`) — Avalonia shell, probing UI, settings
 3. Replace viewer/camera, add Linux serial (`/dev/ttyUSB*`, `/dev/ttyACM*`) and V4L2
 
 ## Development
 ```bash
 # .NET 10 SDK + Avalonia 12 required
 dotnet build
-dotnet run --project src/SenderNG.Avalonia
+dotnet run --project src/SenderNG
 ```
 
 ## Acknowledgements

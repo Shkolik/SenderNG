@@ -1,4 +1,4 @@
-using SenderNG.Avalonia;
+using SenderNG;
 using Xunit;
 
 namespace SenderNG.Core.Tests;

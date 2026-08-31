@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Modules.Plugins"
+             xmlns:loc="clr-namespace:SenderNG.Localization;assembly=SenderNG"
+             mc:Ignorable="d" d:DesignWidth="130" d:DesignHeight="170"
+             x:Class="SenderNG.Modules.Plugins.JogSettingsView"
+             x:DataType="vm:JogViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.caption">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#333" />
+        </Style>
+        <Style Selector="TextBox.stepValue">
+            <Setter Property="Width" Value="64" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="BorderBrush" Value="#999" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- Input groups side by side, checkbox below; edits persist via the VM's config-change hook -->
+    <StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="12">
+            <StackPanel>
+                <TextBlock Classes="caption" Text="{loc:Loc module.jog.distances}" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Distance1}" PlaceholderText="{loc:Loc module.jog.step1}" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Distance2}" PlaceholderText="{loc:Loc module.jog.step2}" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Distance3}" PlaceholderText="{loc:Loc module.jog.step3}" />
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Classes="caption" Text="{loc:Loc module.jog.speeds}" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Speed1}" PlaceholderText="{loc:Loc module.jog.speed1}" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Speed2}" PlaceholderText="{loc:Loc module.jog.speed2}" />
+                <TextBox Classes="stepValue" Text="{Binding Config.Speed3}" PlaceholderText="{loc:Loc module.jog.speed3}" />
+            </StackPanel>
+        </StackPanel>
+        <CheckBox Content="{loc:Loc module.jog.diagonal}" IsChecked="{Binding Config.Diagonals}" FontSize="10" Margin="0,6,0,0" />
+    </StackPanel>
+</UserControl>

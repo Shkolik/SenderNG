@@ -1,0 +1,63 @@
+<!--
+ConsoleView.axaml - Console view layout
+
+Copyright (c) 2018-2022 Io Engineering (Terje Io)
+
+Copyright (c) 2026 Andrew Shkolik
+
+BSD 3-Clause License: see this file for the full license text.
+-->
+
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Modules.Fixed"
+             xmlns:loc="clr-namespace:SenderNG.Localization;assembly=SenderNG"
+             mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="400"
+             x:Class="SenderNG.Modules.Fixed.ConsoleView"
+             x:DataType="vm:ConsoleViewModel">
+
+    <Border BorderBrush="#aaa" BorderThickness="1" CornerRadius="0" Background="#f6f6f6">
+        <Grid RowDefinitions="Auto,*">
+
+            <!-- Console settings (ioSender ConsoleControl parity): verbose output,
+                 filter realtime status reports, show all realtime responses. The
+                 labels are long, so they stack vertically to fit the tab width. -->
+            <Border Grid.Row="0" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,0,0,1" Padding="4,3">
+                <StackPanel Orientation="Vertical" Spacing="1">
+                    <CheckBox Content="{loc:Loc module.console.verbose}" IsChecked="{Binding Verbose, Mode=TwoWay}"
+                              FontSize="11" CornerRadius="0" />
+                    <CheckBox Content="{loc:Loc module.console.filterRealtime}"
+                              IsChecked="{Binding FilterRealtime, Mode=TwoWay}"
+                              IsEnabled="{Binding Verbose}"
+                              FontSize="11" CornerRadius="0" />
+                    <CheckBox Content="{loc:Loc module.console.showAllRealtime}"
+                              IsChecked="{Binding ShowAllRealtime, Mode=TwoWay}"
+                              IsEnabled="{Binding Verbose}"
+                              FontSize="11" CornerRadius="0" />
+                    <Button Content="{loc:Loc common.clear}" Command="{Binding ClearCommand}"
+                            HorizontalAlignment="Left"
+                            CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1"
+                            Padding="10,0" Height="22" FontSize="11" Margin="0,3,0,0" />
+                </StackPanel>
+            </Border>
+
+            <!-- ioSender console: a read-only TextBox showing the whole log as one
+                 selectable/copyable text blob (its StringCollectionToTextConverter
+                 joins ResponseLog into Text). Replaced the per-line ListBox so the
+                 output can be selected and copied in one go. -->
+            <TextBox x:Name="ConsoleText" Grid.Row="1" IsReadOnly="True"
+                     Text="{Binding ConsoleText}" TextWrapping="NoWrap"
+                     CornerRadius="0" BorderBrush="#aaa" BorderThickness="0"
+                     FontSize="13" FontFamily="Consolas, Courier New, monospace"
+                     ScrollViewer.HorizontalScrollBarVisibility="Visible"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     AcceptsReturn="True"
+                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                     Height="NaN" MinHeight="0"
+                     VerticalContentAlignment="Top"
+                     Padding="4" />
+        </Grid>
+    </Border>
+</UserControl>

@@ -1,7 +1,7 @@
 using System.Reactive.Subjects;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
-using SenderNG.Avalonia.Modules.Fixed;
+using SenderNG.Modules.Fixed;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Settings;
 

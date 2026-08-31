@@ -1,0 +1,188 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Modules.Plugins"
+             xmlns:loc="clr-namespace:SenderNG.Localization;assembly=SenderNG"
+             mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="260"
+             x:Class="SenderNG.Modules.Plugins.JogView"
+             x:DataType="vm:JogViewModel">
+
+    <UserControl.Styles>
+        <!-- Square touch-friendly jog buttons; fixed cell size so the tall drawer never stretches them. -->
+        <Style Selector="Button.jog">
+            <Setter Property="Width" Value="56" />
+            <Setter Property="Height" Value="56" />
+            <Setter Property="Margin" Value="1" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Background" Value="#eee" />
+            <Setter Property="BorderBrush" Value="#999" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="Button.jog.diag">
+            <Setter Property="FontSize" Value="18" />
+        </Style>
+        <!-- Step selector toggles: own flat template; unchecked = plain text, checked = solid fill -->
+        <Style Selector="ToggleButton.step">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#444" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1" Height="22" Margin="0,1,0,0" Padding="6,0">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          FontSize="10" Foreground="{TemplateBinding Foreground}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="ToggleButton.step:checked">
+            <Setter Property="Background" Value="#bdbdbd" />
+            <Setter Property="BorderBrush" Value="#999" />
+            <Setter Property="Foreground" Value="#111" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.caption">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#333" />
+        </Style>
+        <Style Selector="TextBlock.unit">
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="Foreground" Value="#666" />
+            <Setter Property="Margin" Value="14,0,0,0" />
+        </Style>
+        <Style Selector="TextBlock.axisLabel">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- Padlock checkbox (ioSender foamcut style): open lock when unchecked, closed when checked. -->
+        <Style Selector="CheckBox.padlock">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="Transparent" Width="34" Height="34" HorizontalAlignment="Center">
+                        <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <!-- Open lock (unchecked) -->
+                            <Path x:Name="UnlockedIcon" Data="M5 8 V6 A3 3 0 0 1 11 6 M4 8 L12 8 L12 15 L4 15 Z"
+                                  Stroke="#555" StrokeThickness="1.5" Width="16" Height="16" Stretch="None"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <!-- Closed lock (checked) -->
+                            <Path x:Name="LockedIcon" Data="M5 8 V6 A3 3 0 0 1 11 6 V8 M4 8 L12 8 L12 15 L4 15 Z M8 10 L8 12"
+                                  Stroke="#333" StrokeThickness="1.5" Width="16" Height="16" Stretch="None"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="False" />
+                        </Panel>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="CheckBox.padlock:checked /template/ Path#UnlockedIcon">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="CheckBox.padlock:checked /template/ Path#LockedIcon">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="8,8,8,8">
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+
+        <!-- Selectors stacked vertically with a small gap; no box outline -->
+        <StackPanel Spacing="8" VerticalAlignment="Top">
+            <!-- Distance selector -->
+            <StackPanel MinWidth="76" VerticalAlignment="Top">
+                <TextBlock Classes="caption" Text="{loc:Loc module.jog.distance}" Margin="0,0,0,2" />
+                <ToggleButton Classes="step" Content="{Binding Config.Distances[0]}" IsChecked="{Binding IsDistance0}" />
+                <ToggleButton Classes="step" Content="{Binding Config.Distances[1]}" IsChecked="{Binding IsDistance1}" />
+                <ToggleButton Classes="step" Content="{Binding Config.Distances[2]}" IsChecked="{Binding IsDistance2}" />
+            </StackPanel>
+
+            <!-- Speed selector -->
+            <StackPanel MinWidth="76" VerticalAlignment="Top">
+                <TextBlock Classes="caption" Text="{loc:Loc module.jog.speed}" Margin="0,0,0,2" />
+                <ToggleButton Classes="step" Content="{Binding Config.Speeds[0]}" IsChecked="{Binding IsSpeed0}" />
+                <ToggleButton Classes="step" Content="{Binding Config.Speeds[1]}" IsChecked="{Binding IsSpeed1}" />
+                <ToggleButton Classes="step" Content="{Binding Config.Speeds[2]}" IsChecked="{Binding IsSpeed2}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- XY cross (both modes); in Foam+Together it jogs both gantries mirrored.
+             Explicit 3x3 Grid (not UniformGrid): hidden diagonal cells stay reserved,
+             so toggling diagonals never reflows the layout. -->
+        <Grid Width="174" Height="174" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Center">
+            <Button Grid.Row="0" Grid.Column="0" Classes="jog diag" Content="↖" Command="{Binding JogCommand}" CommandParameter="X-,Y+|Z-,A+"
+                    IsVisible="{Binding ShowDiagonals}" />
+            <Button Grid.Row="0" Grid.Column="1" Classes="jog" Content="Y+" Command="{Binding JogCommand}" CommandParameter="Y+|A+" />
+            <Button Grid.Row="0" Grid.Column="2" Classes="jog diag" Content="↗" Command="{Binding JogCommand}" CommandParameter="X+,Y+|Z+,A+"
+                    IsVisible="{Binding ShowDiagonals}" />
+            <Button Grid.Row="1" Grid.Column="0" Classes="jog" Content="X-" Command="{Binding JogCommand}" CommandParameter="X-|Z-" />
+            <Button Grid.Row="1" Grid.Column="1" Classes="jog" Content="{loc:Loc common.stop}" Background="#e04545" BorderBrush="#b03535" Foreground="White" FontSize="11"
+                    Command="{Binding StopCommand}" ToolTip.Tip="{loc:Loc module.jog.feedHold}" />
+            <Button Grid.Row="1" Grid.Column="2" Classes="jog" Content="X+" Command="{Binding JogCommand}" CommandParameter="X+|Z+" />
+            <Button Grid.Row="2" Grid.Column="0" Classes="jog diag" Content="↙" Command="{Binding JogCommand}" CommandParameter="X-,Y-|Z-,A-"
+                    IsVisible="{Binding ShowDiagonals}" />
+            <Button Grid.Row="2" Grid.Column="1" Classes="jog" Content="Y-" Command="{Binding JogCommand}" CommandParameter="Y-|A-" />
+            <Button Grid.Row="2" Grid.Column="2" Classes="jog diag" Content="↘" Command="{Binding JogCommand}" CommandParameter="X+,Y-|Z+,A-"
+                    IsVisible="{Binding ShowDiagonals}" />
+        </Grid>
+
+        <!-- Foam only: padlock between the crosses, vertically centered on the middle row -->
+        <CheckBox IsVisible="{Binding IsFoam}" Classes="padlock" IsChecked="{Binding Together}"
+                  ToolTip.Tip="{loc:Loc module.jog.syncGantries}" VerticalAlignment="Center" Margin="0,0,0,0" />
+
+        <!-- Foam only: ZA cross -->
+        <Grid IsVisible="{Binding IsFoam}" Width="174" Height="174" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Center">
+            <Button Grid.Row="0" Grid.Column="0" Classes="jog diag" Content="↖" Command="{Binding JogCommand}" CommandParameter="Z-,A+"
+                    IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
+            <Button Grid.Row="0" Grid.Column="1" Classes="jog" Content="A+" Command="{Binding JogCommand}" CommandParameter="A+"
+                    IsEnabled="{Binding ZaCrossEnabled}" />
+            <Button Grid.Row="0" Grid.Column="2" Classes="jog diag" Content="↗" Command="{Binding JogCommand}" CommandParameter="Z+,A+"
+                    IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
+            <Button Grid.Row="1" Grid.Column="0" Classes="jog" Content="Z-" Command="{Binding JogCommand}" CommandParameter="Z-"
+                    IsEnabled="{Binding ZaCrossEnabled}" />
+            <Button Grid.Row="1" Grid.Column="1" Classes="jog" Content="•" IsEnabled="False" />
+            <Button Grid.Row="1" Grid.Column="2" Classes="jog" Content="Z+" Command="{Binding JogCommand}" CommandParameter="Z+"
+                    IsEnabled="{Binding ZaCrossEnabled}" />
+            <Button Grid.Row="2" Grid.Column="0" Classes="jog diag" Content="↙" Command="{Binding JogCommand}" CommandParameter="Z-,A-"
+                    IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
+            <Button Grid.Row="2" Grid.Column="1" Classes="jog" Content="A-" Command="{Binding JogCommand}" CommandParameter="A-"
+                    IsEnabled="{Binding ZaCrossEnabled}" />
+            <Button Grid.Row="2" Grid.Column="2" Classes="jog diag" Content="↘" Command="{Binding JogCommand}" CommandParameter="Z+,A-"
+                    IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
+        </Grid>
+
+        <!-- Linear axes: one column per axis, +/- aligned with cross rows, letter in the middle -->
+        <ItemsControl ItemsSource="{Binding LinearAxisLetters}" VerticalAlignment="Center" Margin="4,0,8,0">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="2" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:LinearAxisRow">
+                    <Grid Width="58" Height="174" RowDefinitions="*,*,*" VerticalAlignment="Top">
+                        <Button Grid.Row="0" Classes="jog" Content="+" FontSize="16"
+                                Command="{Binding $parent[UserControl].DataContext.JogCommand}"
+                                CommandParameter="{Binding PlusTag}" />
+                        <TextBlock Grid.Row="1" Classes="axisLabel" Text="{Binding Letter}" />
+                        <Button Grid.Row="2" Classes="jog" Content="-" FontSize="16"
+                                Command="{Binding $parent[UserControl].DataContext.JogCommand}"
+                                CommandParameter="{Binding MinusTag}" />
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+    </StackPanel>
+    </ScrollViewer>
+</UserControl>

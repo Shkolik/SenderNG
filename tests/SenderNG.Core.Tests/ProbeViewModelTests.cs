@@ -1,6 +1,6 @@
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
-using SenderNG.Avalonia.Modules.Plugins;
+using SenderNG.Modules.Plugins;
 using SenderNG.Core.Modules.Probing;
 using Xunit;
 

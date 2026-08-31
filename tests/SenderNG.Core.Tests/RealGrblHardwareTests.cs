@@ -516,7 +516,7 @@ public class RealGrblHardwareTests
             var settingsDir = Path.Combine(Path.GetTempPath(), "senderng-hw-" + Guid.NewGuid().ToString("N"));
             var hwSettings = new CNC.Core.Services.SettingsService(settingsDir);
             hwSettings.Save(hwSettings.Load());
-            var vm = new SenderNG.Avalonia.Modules.Fixed.OffsetsViewModel(service, hwSettings);
+            var vm = new SenderNG.Modules.Fixed.OffsetsViewModel(service, hwSettings);
             var codes = new[] { "G54", "G55", "G56", "G57", "G58", "G59" };
             var rows = codes.Select(code => Assert.Single(vm.Rows, row => row.Code == code)).ToArray();
             var original = rows.ToDictionary(row => row.Code, row => row.Values.ToArray());
@@ -608,7 +608,7 @@ public class RealGrblHardwareTests
             var settingsDir = Path.Combine(Path.GetTempPath(), "senderng-hw-" + Guid.NewGuid().ToString("N"));
             var hwSettings = new SettingsService(settingsDir);
             hwSettings.Save(hwSettings.Load());
-            var vm = new SenderNG.Avalonia.Modules.Fixed.OffsetsViewModel(service, hwSettings);
+            var vm = new SenderNG.Modules.Fixed.OffsetsViewModel(service, hwSettings);
 
             // Induce ALARM:3: jog, then soft-reset in the Jog->Idle window grbl 1.1
             // leaves open right after the jog's "ok" (verified on the 1.1h board:
@@ -714,8 +714,8 @@ public class RealGrblHardwareTests
             var settingsDir = Path.Combine(Path.GetTempPath(), "senderng-hw-" + Guid.NewGuid().ToString("N"));
             var hwSettings = new SettingsService(settingsDir);
             hwSettings.Save(hwSettings.Load());
-            var vm = new SenderNG.Avalonia.Modules.Fixed.OffsetsViewModel(service, hwSettings);
-            var wpVm = new SenderNG.Avalonia.Modules.Fixed.WorkParametersViewModel(service);
+            var vm = new SenderNG.Modules.Fixed.OffsetsViewModel(service, hwSettings);
+            var wpVm = new SenderNG.Modules.Fixed.WorkParametersViewModel(service);
 
             // (b) G59.x clamp — offer only what this firmware can actually write.
             // Classic grbl 1.1 has no G59.x (rejected with error 29), so the offsets

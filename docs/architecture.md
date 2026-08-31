@@ -31,7 +31,7 @@ Implementation is based on the original ioSender **when possible**: if a process
 
 ```
 src/SenderNG.Core          pure net10.0 engine + service layer (no UI)
-src/SenderNG.Avalonia      shell: HostSetup DI wiring, MainWindow, fixed modules + plugins
+src/SenderNG      shell: HostSetup DI wiring, MainWindow, fixed modules + plugins
 src/SenderNG.Modules.Dummy separate assembly proving the plugin-discovery path
 tests/SenderNG.Core.Tests  xUnit suite (dotnet test)
 ```
@@ -42,7 +42,7 @@ tests/SenderNG.Core.Tests  xUnit suite (dotnet test)
 - **Modules today:** fixed — DRO, Program, Console, GrblSettings, AppSettings, Offsets (flyout), Work Parameters; plugins — Jog, Cutting, Coolant, Macro, Probing, Mpos, Outline, Goto; plus Dummy (external assembly scan). Fixed modules are core and always visible (`CanHide = false`, no hide checkbox in App Settings); plugins are hideable. The Offsets module exposes its tool-table visibility toggle via an App Settings card; the Goto module exposes a persisted axis count (App-Settings dropdown) capped by the connected controller's axis count. Offsets and Work Parameters are capability-aware: they offer only the coordinate systems the firmware can actually write (classic grbl: G54–G59; grblHAL: also G59.1–G59.3, which classic firmware rejects with error 29) and the Offsets editor disables itself while the controller is in Alarm. The Offsets tool table is shown only when the user enabled it AND the controller is grblHAL with tool slots (classic grbl 1.1 / 1.2i forks have no `G10 L1`).
 - **State model:** `MachineState` (NumAxes, Status, Positions, Signals, OptionalSignals, Flood/Mist, Feed/Speed, FeedOvr/RapidOvr/SpindleOvr) is the portable replacement for ioSender's WPF-bound `GrblViewModel` (1434 L). `OptionalSignals` mirrors ioSender's `OptionalSignals` — the signal set discovered from `$I` (plus dynamic e-stop observation) that gates which optional LEDs the signals panel renders.
 - **Settings:** portable `./settings.json` next to the executable (fallback to `~/.config` / `%AppData%`), composite `AppSettings` with per-module sections, single `SettingsService`.
-- **Namespaces:** the original engine code keeps the upstream `CNC.Core` / `CNC.GCode` namespaces **unchanged** — namespace migration is not planned, so the original core stays intact and diffable against upstream. New code uses `SenderNG.Core` / `SenderNG.Avalonia`.
+- **Namespaces:** the original engine code keeps the upstream `CNC.Core` / `CNC.GCode` namespaces **unchanged** — namespace migration is not planned, so the original core stays intact and diffable against upstream. New code uses `SenderNG.Core` / `SenderNG`.
 
 ## 6. Feature map vs ioSender
 

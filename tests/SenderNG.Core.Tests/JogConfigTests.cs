@@ -1,7 +1,7 @@
 using System.Text.Json;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
-using SenderNG.Avalonia.Modules.Plugins;
+using SenderNG.Modules.Plugins;
 
 namespace SenderNG.Core.Tests;
 
@@ -138,7 +138,7 @@ public class JogModuleSettingsFieldsTests
     [Fact]
     public void Settings_view_available_after_attach_services()
     {
-        var module = new SenderNG.Avalonia.Modules.Plugins.JogModule();
+        var module = new SenderNG.Modules.Plugins.JogModule();
         Assert.Null(module.CreateSettingsView()); // not attached yet
 
         var dir = Path.Combine(Path.GetTempPath(), "senderng-tests-" + Guid.NewGuid().ToString("N"));

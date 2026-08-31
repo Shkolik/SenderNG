@@ -1,8 +1,8 @@
 using System.Reactive.Linq;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
-using SenderNG.Avalonia.Modules.Fixed;
-using SenderNG.Avalonia.Modules.Plugins;
+using SenderNG.Modules.Fixed;
+using SenderNG.Modules.Plugins;
 using Xunit;
 
 namespace SenderNG.Core.Tests;

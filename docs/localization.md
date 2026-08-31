@@ -29,7 +29,7 @@ LocalizationService  (SenderNG.Core)
 
 ## The catalog files
 
-UI-owned catalogs live in `src/SenderNG.Avalonia/Locale/`:
+UI-owned catalogs live in `src/SenderNG/Locale/`:
 
 - `en.json` — the **base** catalog. Required; loaded first.
 - `ru.json` — a **per-locale override**; English is the source of truth and never depends
@@ -98,7 +98,7 @@ and bind:
 
 ```xml
 <UserControl
-    xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization">
+    xmlns:loc="clr-namespace:SenderNG.Localization">
     <Button Content="{loc:Loc common.close}"/>
     <MenuItem Header="{loc:Loc app.menu.file}"/>
 </UserControl>
@@ -120,7 +120,7 @@ Status = LocText.Format("module.goto.goingPosition", "Going to position");
 var name = LocText.Format("module.probing.heightMapSaved", "Height map saved to {0}", path);
 ```
 
-In `SenderNG.Avalonia.Localization`. Prefer `Resolve` for plain text and `Format` for
+In `SenderNG.Localization`. Prefer `Resolve` for plain text and `Format` for
 placeholder substitution (`Format` also catches `FormatException`).
 
 ### 3. Core ViewModels — injected `LocalizationService.Resolve`
@@ -256,7 +256,7 @@ Example plugin catalog:
   `LocalizationService` built from the real on-disk `Locale/` dir. Tests that call
   `SetLocale` mutate only a **private instance** — never `TestLocalization.Locale` (the
   shared static is read by many classes running in parallel, so it must stay unmutated).
-- **Headless tests** (`tests/SenderNG.Avalonia.Tests`): realize real views and assert
+- **Headless tests** (`tests/SenderNG.Tests`): realize real views and assert
   `{loc:Loc}` / live re-localization. They set
   `LocalizationService.Current = fixtureLocale`, drive `SetLocale("ru")` / `SetLocale("en")`,
   pump the UI dispatcher, and restore `Current` in a `finally`:

@@ -1,4 +1,4 @@
-using SenderNG.Avalonia.Localization;
+using SenderNG.Localization;
 using SenderNG.Core.Localization;
 
 namespace SenderNG.Core.Tests;

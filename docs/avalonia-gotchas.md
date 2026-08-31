@@ -37,7 +37,7 @@ via `ApplyRadio(staleIndex)`, corrupting the value and marking the setting dirty
 **General rule for this widget family:** never let an editor's `Changed`/`Click` handler
 write blindly to `SelectedSetting`. Guard by type, and for list-ish controls defer so the
 binding cycle settles. Regression coverage lives in
-`tests/SenderNG.Avalonia.Tests/GrblSettingsViewHeadlessTests.cs`
+`tests/SenderNG.Tests/GrblSettingsViewHeadlessTests.cs`
 (`Switching_radio_to_bitmask_does_not_corrupt_the_bitmask`).
 
 ## 2. Editors are OneWay-bind + explicit-gesture, never TwoWay-writeback
@@ -59,7 +59,7 @@ per-item `Command`) over trying to make `IsCheckedChanged`/TwoWay behave.
 
 ## Checking in on gotchas
 
-- The headless test project (`tests/SenderNG.Avalonia.Tests`, xUnit v3 +
+- The headless test project (`tests/SenderNG.Tests`, xUnit v3 +
   Avalonia.Headless.XUnit) can realize the real `GrblSettingsView` and assert UI-level
   behavior without a board. Hidden-at-`Show()` panes do **not** realize in that build —
   select the first item *before* `Show()`, then switch.

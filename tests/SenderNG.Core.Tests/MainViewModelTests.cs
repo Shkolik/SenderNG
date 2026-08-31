@@ -2,7 +2,7 @@ using System.Reactive.Subjects;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
-using SenderNG.Avalonia.ViewModels;
+using SenderNG.ViewModels;
 using SenderNG.Core.Modules;
 
 namespace SenderNG.Core.Tests;
@@ -366,10 +366,10 @@ public class MainViewModelCycleControlTests
         services.AddSingleton(settings);
         services.AddSingleton(_ => new DemoGrblService(settings.Load()));
         services.AddSingleton<RealGrblService>();
-        services.AddSingleton<SenderNG.Avalonia.Modules.Fixed.ProgramViewModel>();
+        services.AddSingleton<SenderNG.Modules.Fixed.ProgramViewModel>();
         var provider = services.BuildServiceProvider();
 
-        var program = provider.GetRequiredService<SenderNG.Avalonia.Modules.Fixed.ProgramViewModel>();
+        var program = provider.GetRequiredService<SenderNG.Modules.Fixed.ProgramViewModel>();
         program.LoadGCode("G0 X0\nG0 Y0\nM30");
         program.ProgramRows[0] = program.ProgramRows[0] with { Status = "\u2713" };
 
@@ -417,7 +417,7 @@ public class MainViewModelCycleEnablementTests
         services.AddSingleton(_ => new DemoGrblService(settings.Load()));
         services.AddSingleton<RealGrblService>();
         if (withProgram)
-            services.AddSingleton<SenderNG.Avalonia.Modules.Fixed.ProgramViewModel>();
+            services.AddSingleton<SenderNG.Modules.Fixed.ProgramViewModel>();
         return services.BuildServiceProvider();
     }
 
@@ -438,7 +438,7 @@ public class MainViewModelCycleEnablementTests
         var provider = MakeProvider(settings, withProgram: true);
         var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, provider);
 
-        var program = provider.GetRequiredService<SenderNG.Avalonia.Modules.Fixed.ProgramViewModel>();
+        var program = provider.GetRequiredService<SenderNG.Modules.Fixed.ProgramViewModel>();
         program.LoadGCode("G0 X0" + "\nG0 Y0");
 
         Assert.True(vm.CycleStartCommand.CanExecute(null));
@@ -514,7 +514,7 @@ public class MainViewModelStatusButtonsTests
         services.AddSingleton(settings);
         services.AddSingleton(_ => new DemoGrblService(settings.Load()));
         services.AddSingleton<RealGrblService>();
-        services.AddSingleton<SenderNG.Avalonia.Modules.Fixed.ProgramViewModel>();
+        services.AddSingleton<SenderNG.Modules.Fixed.ProgramViewModel>();
         return services.BuildServiceProvider();
     }
 
@@ -620,7 +620,7 @@ public class MainViewModelStatusButtonsTests
         var vm = new MainViewModel(svc, settings, provider);
         await svc.ConnectAsync("demo");
 
-        var program = provider.GetRequiredService<SenderNG.Avalonia.Modules.Fixed.ProgramViewModel>();
+        var program = provider.GetRequiredService<SenderNG.Modules.Fixed.ProgramViewModel>();
         program.LoadGCode("G0 X0");
 
         // Idle: rewind makes sense (ioSender enables it when streaming is idle).

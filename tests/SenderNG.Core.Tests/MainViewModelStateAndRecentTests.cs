@@ -1,8 +1,8 @@
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
-using SenderNG.Avalonia.Modules.Fixed;
-using SenderNG.Avalonia.ViewModels;
+using SenderNG.Modules.Fixed;
+using SenderNG.ViewModels;
 
 namespace SenderNG.Core.Tests;
 

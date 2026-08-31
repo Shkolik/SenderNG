@@ -1,6 +1,6 @@
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
-using SenderNG.Avalonia.ViewModels;
+using SenderNG.ViewModels;
 
 namespace SenderNG.Core.Tests;
 

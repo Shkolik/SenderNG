@@ -1,4 +1,4 @@
-using SenderNG.Avalonia.Modules.Fixed;
+using SenderNG.Modules.Fixed;
 
 namespace SenderNG.Core.Tests;
 

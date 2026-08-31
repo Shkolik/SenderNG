@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.*" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.1" />
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\banner.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SenderNG.Core\SenderNG.Core.csproj" />
+    <ProjectReference Include="..\SenderNG.Modules.Dummy\SenderNG.Modules.Dummy.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Locale data is a UI responsibility: copied on build into OutputDir/Locale
+         so the host can discover the requested locale and pass its stream into
+         LocalizationService (Core owns only the mechanism). -->
+    <Content Include="Locale\**\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>Locale\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+    </Content>
+    <!-- 3rd-party plugin locales: each plugin serves its own catalogs under
+         OutputDir/Modules/<id>/Locale (registered by the host). The Dummy plugin's
+         files are linked here from its project so they land in the app output. -->
+    <None Include="..\SenderNG.Modules.Dummy\Locale\**\*.json">
+      <Link>Modules\dummy\Locale\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

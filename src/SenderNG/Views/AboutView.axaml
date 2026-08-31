@@ -1,0 +1,56 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:SenderNG.ViewModels"
+        xmlns:loc="clr-namespace:SenderNG.Localization"
+        mc:Ignorable="d" d:DesignWidth="540" d:DesignHeight="600"
+        x:Class="SenderNG.Views.AboutView"
+        x:DataType="vm:AboutViewModel"
+        Title="{Binding Title}" Width="540" Height="600"
+        Background="#f6f6f6" WindowStartupLocation="CenterOwner">
+
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8" Margin="8">
+        <!-- Program banner (placeholder image; swap Assets/banner.png with the real one). -->
+        <Image Grid.Row="0" Source="avares://SenderNG/Assets/banner.png"
+               Height="200" Stretch="Uniform" HorizontalAlignment="Stretch" />
+
+        <!-- Tab headers match the app's center-panel tabs (13 SemiBold). -->
+        <TabControl Grid.Row="1" CornerRadius="0">
+            <TabItem>
+                <TabItem.Header>
+                    <TextBlock Text="{loc:Loc about.tab.about}" FontSize="13" FontWeight="SemiBold" />
+                </TabItem.Header>
+                <ScrollViewer>
+                    <StackPanel Spacing="10" Margin="12,8,12,12" VerticalAlignment="Top">
+                        <TextBlock Text="{Binding AppName}" FontSize="20" FontWeight="Bold" />
+                        <TextBlock Text="{Binding Version}" FontSize="12" Foreground="#555" />
+                        <TextBlock Text="{Binding Copyright}" FontSize="12" Foreground="#555" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding License}" FontSize="12" Foreground="#555" />
+                        <TextBlock Text="{Binding RepoUrl}" FontSize="12" Foreground="#06c" TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem>
+                <TabItem.Header>
+                    <TextBlock Text="{loc:Loc about.tab.libraries}" FontSize="13" FontWeight="SemiBold" />
+                </TabItem.Header>
+                <ListBox ItemsSource="{Binding Libraries}" Margin="4,8,4,4">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ThirdPartyLibrary">
+                            <StackPanel Spacing="1" Margin="0,4">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding VersionLicense}" FontSize="11" Foreground="#666" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </TabItem>
+        </TabControl>
+
+        <Button Grid.Row="2" HorizontalAlignment="Right" Content="{loc:Loc common.close}"
+                Click="OnCloseClick" Height="28" MinHeight="28" CornerRadius="0" FontSize="11"
+                Background="#eee" BorderBrush="#999" BorderThickness="1"
+                Padding="14,0" VerticalContentAlignment="Center" />
+    </Grid>
+</Window>

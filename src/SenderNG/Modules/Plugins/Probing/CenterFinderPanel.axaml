@@ -1,0 +1,45 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:SenderNG.Modules.Plugins"
+             xmlns:conv="clr-namespace:SenderNG.Converters"
+             xmlns:loc="clr-namespace:SenderNG.Localization;assembly=SenderNG"
+             x:Class="SenderNG.Modules.Plugins.CenterFinderPanel"
+             x:DataType="vm:ProbeViewModel">
+
+    <StackPanel Spacing="10" Margin="0,4" HorizontalAlignment="Stretch">
+        <StackPanel Orientation="Horizontal" Spacing="4">
+            <RadioButton Classes="tool" Content="{loc:Loc module.probing.inside}" FontSize="12" GroupName="center"
+                         IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Inside}" />
+            <RadioButton Classes="tool" Content="{loc:Loc module.probing.outside}" FontSize="12" GroupName="center"
+                         IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Outside}" />
+        </StackPanel>
+
+        <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6"
+                HorizontalAlignment="Left">
+            <StackPanel Spacing="4">
+                <TextBlock Text="{loc:Loc module.probing.dimensions}" FontWeight="SemiBold" FontSize="11" />
+                <Grid ColumnDefinitions="100,100,60" RowDefinitions="Auto,Auto" Width="270" HorizontalAlignment="Left">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc module.probing.xSize}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding WorkpieceSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,0,4" />
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc module.probing.ySize}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding WorkpieceSizeY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
+                    <CheckBox Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Classes="padlock"
+                              VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="{Binding WorkpieceLockXY}"
+                              ToolTip.Tip="{loc:Loc module.probing.lockHint}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="100,*" Width="210" HorizontalAlignment="Left">
+            <TextBlock Text="{loc:Loc module.probing.passes}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
+                       ToolTip.Tip="{loc:Loc module.probing.passesHint}" />
+            <TextBox Grid.Column="1" Classes="int" Text="{Binding Passes, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                     Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                     FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
+        </Grid>
+    </StackPanel>
+</UserControl>

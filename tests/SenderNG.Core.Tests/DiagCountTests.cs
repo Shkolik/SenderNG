@@ -12,7 +12,7 @@ public class HostModuleRegistrationTests
     [Fact]
     public void BuiltIn_modules_are_registered_exactly_once()
     {
-        var host = SenderNG.Avalonia.HostSetup.BuildHost([]);
+        var host = SenderNG.HostSetup.BuildHost([]);
         var modules = host.Services.GetServices<IModule>().ToList();
         var ids = modules.Select(m => m.Id).OrderBy(i => i).ToList();
         Assert.True(modules.Count == modules.DistinctBy(m => m.Id).Count(),
