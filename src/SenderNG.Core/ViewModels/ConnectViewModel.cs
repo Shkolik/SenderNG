@@ -7,6 +7,7 @@ using System.Windows.Input;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Commands;
+using SenderNG.Core.Localization;
 
 namespace CNC.Core.ViewModels;
 
@@ -41,6 +42,7 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
     private readonly AppSettings _settings;
     private readonly IComPortService? _ports;
     private readonly System.Action<System.Action>? _ui;
+    private readonly LocalizationService? _localization;
     private Timer? _autoRefreshTimer;
     private string _selectedPort = string.Empty;
     private int _baudRate = 115200;
@@ -54,12 +56,21 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
     /// Optional marshaller that runs an action on the UI thread. When absent
     /// (e.g. unit tests, headless) the auto-refresh applies directly.
     /// </param>
-    public ConnectViewModel(AppSettings settings, IComPortService? comPorts = null, System.Action<System.Action>? ui = null)
+    public ConnectViewModel(AppSettings settings, IComPortService? comPorts = null, System.Action<System.Action>? ui = null,
+        LocalizationService? localization = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         _settings = settings;
         _ports = comPorts;
         _ui = ui;
+        _localization = localization ?? LocalizationService.Current;
+
+        ResetModeOptions =
+        [
+            new(ConnectResetMode.None, Resolve("connect.reset.none", "No action")),
+            new(ConnectResetMode.ToggleDtr, Resolve("connect.reset.dtr", "Toggle DTR")),
+            new(ConnectResetMode.ToggleRts, Resolve("connect.reset.rts", "Toggle RTS")),
+        ];
 
         // Pre-fill from the last *successful* connection (global settings),
         // falling back to the legacy mode-scoped values, then the standard rate.
@@ -92,13 +103,9 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
     /// <summary>Standard grbl / grblHAL baud choices (cross-platform friendly).</summary>
     public IReadOnlyList<int> BaudRates { get; } = [9600, 19200, 38400, 57600, 115200, 230400, 250000];
 
-    /// <summary>Serial "On connect" reset options (ioSender dropdown): No action / Toggle DTR / Toggle RTS.</summary>
-    public IReadOnlyList<ResetModeOption> ResetModeOptions { get; } =
-    [
-        new(ConnectResetMode.None, "No action"),
-        new(ConnectResetMode.ToggleDtr, "Toggle DTR"),
-        new(ConnectResetMode.ToggleRts, "Toggle RTS"),
-    ];
+    /// <summary>Serial "On connect" reset options (ioSender dropdown): No action / Toggle DTR / Toggle RTS.
+    /// Names resolve through the active locale when a localization service is set.</summary>
+    public IReadOnlyList<ResetModeOption> ResetModeOptions { get; }
 
     /// <summary>Selected "On connect" reset action (persisted; applied when the serial port opens).</summary>
     public ConnectResetMode SelectedResetMode
@@ -182,23 +189,24 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
     /// <summary>Network tab is only available when the global settings say network connectivity is available.</summary>
     public bool NetworkEnabled => _settings.NetworkAvailable;
 
+    private string Resolve(string key, string fallback) =>
+        _localization is null ? fallback : _localization.Resolve(key, fallback);
+
     public string NoPortsHint => HasPorts
         ? string.Empty
-        : "No serial ports found — plug in a controller and it will be detected automatically.";
+        : Resolve("connect.noPortsHint", "No serial ports found — plug in a controller and it will be detected automatically.");
 
     public string NetworkNote => NetworkEnabled
-        ? "Connect to a grblHAL controller with Ethernet/WiFi (TCP). Example: 192.168.1.100:23"
-        : "Network connectivity is not enabled in settings (settings.json → NetworkAvailable).";
+        ? Resolve("connect.networkNote", "Connect to a grblHAL controller with Ethernet/WiFi (TCP). Example: 192.168.1.100:23")
+        : Resolve("connect.networkNoteDisabled", "Network connectivity is not enabled in settings (settings.json → NetworkAvailable).");
 
     /// <summary>Describes demo mode inside the Demo tab (the user must opt in knowingly).</summary>
-    public string DemoDisclaimer =>
-        "Demo mode runs a simulated grbl controller entirely inside the app — " +
-        "no serial or network connection is made. Jogging, MDI, probing, coolant and " +
-        "cycle commands are emulated against a virtual machine, so nothing is sent to " +
-        "real hardware and positions/settings are not real. Use it to explore SenderNG " +
-        "without a controller.";
+    public string DemoDisclaimer => Resolve("connect.demoDisclaimer",
+        "Demo mode simulates a controller locally so you can evaluate the app without hardware. Machine movement is not real.");
 
-    public string ConnectButtonLabel => SelectedTab == ConnectMode.Demo ? "Start demo" : "Connect";
+    public string ConnectButtonLabel => SelectedTab == ConnectMode.Demo
+        ? Resolve("connect.startDemo", "Start demo")
+        : Resolve("connect.connect", "Connect");
 
     public string NetworkEndpoint
     {

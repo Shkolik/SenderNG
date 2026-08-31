@@ -1,10 +1,13 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Windows.Input;
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
+using SenderNG.Avalonia.Localization;
 using SenderNG.Avalonia.Modules.Fixed;
 using SenderNG.Avalonia.ViewModels;
 using SenderNG.Core.Commands;
@@ -39,13 +42,15 @@ public sealed class SignalIndicator : ViewModelBase
     }
 }
 
-public sealed record CenterTab(IModule Module, object? View);
+public sealed record CenterTab(IModule Module, object? View, string Name);
 
-public sealed record ModuleView(IModule Module, object? View);
+public sealed record ModuleView(IModule Module, object? View, string Name);
+
+public sealed record NamedModule(IModule Module, string Name);
 
 public sealed record MenuEntry(string Header, ICommand Command, object? Parameter);
 
-public class MainViewModel : ViewModelBase
+public class MainViewModel : ViewModelBase, IDisposable
 {
     private readonly IServiceProvider _services;
     private readonly SettingsService _settingsService;
@@ -53,6 +58,7 @@ public class MainViewModel : ViewModelBase
     private readonly IFileDialogService? _fileDialogs;
     private readonly IDialogService? _dialogs;
     private readonly Func<IModule, object>? _viewFactory;
+    private readonly Dictionary<IModule, object> _moduleViews = new();
     private bool _isDemo;
     private IGrblService _grbl;
     private string _status = string.Empty;
@@ -98,6 +104,8 @@ public class MainViewModel : ViewModelBase
         _dialogs = dialogs;
         _viewFactory = viewFactory;
         _localization = services.GetService<SenderNG.Core.Localization.LocalizationService>();
+        if (_localization is not null)
+            _localization.Changed += OnLocaleChanged;
         _isDemo = ResolveInner(grbl) is DemoGrblService;
         _isConnected = grbl.IsConnected;
         _connectedTo = _isDemo ? "demo" : null;
@@ -151,11 +159,10 @@ public class MainViewModel : ViewModelBase
         MdiHistoryPrevCommand = new DelegateCommand(_ => MdiHistoryPrev());
         MdiHistoryNextCommand = new DelegateCommand(_ => MdiHistoryNext());
         // placeholder Help/Settings delegates keep Status
-        MachineSettingsCommand = new DelegateCommand(_ => Status = "Machine settings (placeholder)");
+        MachineSettingsCommand = new DelegateCommand(_ => Status = LocText.Resolve("app.msg.machineSettingsPh", "Machine settings (placeholder)"));
         DemoMachineSettingsCommand = new DelegateCommand(_ => _ = ShowDemoMachineSettingsAsync());
         OpenMenuModuleCommand = new DelegateCommand(p => _ = OpenMenuModuleAsync(p as IModule));
-        AboutCommand = new DelegateCommand(_ => Status = "SenderNG — About (placeholder)");
-        LibrariesCommand = new DelegateCommand(_ => Status = "Libraries (placeholder)");
+        AboutCommand = new DelegateCommand(_ => _ = ShowAboutAsync());
         _mdiHistoryIndex = MdiHistory.Count;
 
         // Cycle bar Start/Rewind enablement follows the loaded program rows.
@@ -181,7 +188,7 @@ public class MainViewModel : ViewModelBase
         _grbl.ConnectionChanged += _connectionChangedHandler;
 
         // Seeded defaults: the app starts disconnected and makes that obvious.
-        Status = "Not connected — choose a controller via Connect (Serial, Network or Demo)";
+        Status = LocText.Resolve("app.msg.chooseController", "Not connected — choose a controller via Connect (Serial, Network or Demo)");
     }
 
     public SettingsService SettingsService { get; }
@@ -189,7 +196,13 @@ public class MainViewModel : ViewModelBase
     /// <summary>Hosted DRO module view (per-axis position rows + zero buttons).</summary>
     public object DroContent { get; }
 
-    public string DroHeader => "DRO";
+    public string DroHeader => Resolve("module.dro.name", "DRO");
+
+    private string LocalizedModuleName(IModule m) =>
+        _localization is null ? m.Name : ModuleNames.Localized(m, _localization);
+
+    private string Resolve(string key, string fallback) =>
+        _localization is null ? fallback : _localization.Resolve(key, fallback);
 
     public IGrblService Grbl
     {
@@ -239,10 +252,10 @@ public class MainViewModel : ViewModelBase
 
     /// <summary>Status-bar connection summary: which controller (if any) is active.</summary>
     public string ConnectionStatus =>
-        !IsConnected ? "Not connected"
-        : IsDemo ? "Demo mode — controller simulated"
-        : string.IsNullOrEmpty(ConnectedTo) ? "Connected"
-        : $"Connected: {ConnectedTo}";
+        !IsConnected ? Resolve("app.conn.notConnected", "Not connected")
+        : IsDemo ? Resolve("app.conn.demo", "Demo mode — controller simulated")
+        : string.IsNullOrEmpty(ConnectedTo) ? Resolve("app.conn.connected", "Connected")
+        : LocText.Format("app.conn.connectedTo", "Connected: {0}", ConnectedTo);
 
     private string? ConnectedTo
     {
@@ -258,9 +271,9 @@ public class MainViewModel : ViewModelBase
     public string Title =>
         (IsDemo ? BaseTitleWithDemo : BaseTitleWithoutDemo) + ConnectionTitleSuffix + FileTitleSuffix;
 
-    private string ConnectionTitleSuffix => IsConnected || IsDemo ? "" : " - Not connected";
+    private string ConnectionTitleSuffix => IsConnected || IsDemo ? "" : Resolve("app.title.notConnectedSuffix", " - Not connected");
 
-    private static string BaseTitleWithDemo => "SenderNG (DEMO mode)";
+    private string BaseTitleWithDemo => Resolve("app.title.demo", "SenderNG (DEMO mode)");
     private static string BaseTitleWithoutDemo => "SenderNG";
 
     private string FileTitleSuffix => string.IsNullOrEmpty(CurrentFileName) ? "" : $" - {CurrentFileName}";
@@ -293,7 +306,7 @@ public class MainViewModel : ViewModelBase
 
     /// <summary>State indicator text: machine state in all caps, or NOT CONNECTED.</summary>
     public string MachineStateDisplay =>
-        IsConnected ? _machineState.ToUpperInvariant() : "NOT CONNECTED";
+        IsConnected ? _machineState.ToUpperInvariant() : Resolve("app.state.notConnected", "NOT CONNECTED");
 
     public IBrush StateBrush => IsConnected ? _stateBrush : DisconnectedBrush;
     public IBrush StateForeground => IsConnected ? _stateForeground : Brushes.Black;
@@ -305,8 +318,9 @@ public class MainViewModel : ViewModelBase
     public bool IsModuleVisible(IModule m) =>
         _settingsService.Load().Current.ModulesVisibility.TryGetValue(m.Id, out var v) ? v : m.IsVisibleByDefault;
 
-    public IEnumerable<IModule> LeftModules =>
-        Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Left).OrderBy(m => m.Order);
+    public IEnumerable<NamedModule> LeftModules =>
+        Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Left).OrderBy(m => m.Order)
+            .Select(m => new NamedModule(m, LocalizedModuleName(m)));
 
     public IEnumerable<IModule> CenterModules =>
         Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Center).OrderBy(m => m.Order);
@@ -315,11 +329,21 @@ public class MainViewModel : ViewModelBase
         Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Right).OrderBy(m => m.Order);
 
     /// <summary>Right-panel modules paired with their built views (Expander content).</summary>
-    public IEnumerable<ModuleView> RightModuleViews =>
-        RightModules.Select(m => new ModuleView(m, _viewFactory?.Invoke(m)));
+    private object? ViewFor(IModule m)
+    {
+        if (_moduleViews.TryGetValue(m, out var v))
+            return v;
+        v = _viewFactory?.Invoke(m);
+        _moduleViews[m] = v!;
+        return v;
+    }
 
-    public IEnumerable<IModule> FlyoutModules =>
-        Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Flyout).OrderBy(m => m.Order);
+    public IEnumerable<ModuleView> RightModuleViews =>
+        RightModules.Select(m => new ModuleView(m, ViewFor(m), LocalizedModuleName(m)));
+
+    public IEnumerable<NamedModule> FlyoutModules =>
+        Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Flyout).OrderBy(m => m.Order)
+            .Select(m => new NamedModule(m, LocalizedModuleName(m)));
 
     public IEnumerable<IModule> MenuModules =>
         Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Menu).OrderBy(m => m.Order);
@@ -327,9 +351,9 @@ public class MainViewModel : ViewModelBase
     /// <summary>Settings menu entries: fixed items plus one per Menu-claiming module.</summary>
     public IReadOnlyList<MenuEntry> SettingsMenu =>
         [
-            new MenuEntry("Machine", MachineSettingsCommand, null),
-            new MenuEntry("Demo machine", DemoMachineSettingsCommand, null),
-            ..MenuModules.Select(m => new MenuEntry(m.Name, OpenMenuModuleCommand, m)),
+            new MenuEntry(Resolve("app.settings.machine", "Machine"), MachineSettingsCommand, null),
+            new MenuEntry(Resolve("app.settings.demoMachine", "Demo machine"), DemoMachineSettingsCommand, null),
+            ..MenuModules.Select(m => new MenuEntry(LocalizedModuleName(m), OpenMenuModuleCommand, m)),
         ];
 
     private bool _hasProgramLimits;
@@ -391,7 +415,10 @@ public class MainViewModel : ViewModelBase
 
 
     public IEnumerable<CenterTab> CenterTabs =>
-        CenterModules.Select(m => new CenterTab(m, _viewFactory?.Invoke(m)));
+        CenterModules.Select(m => new CenterTab(m, ViewFor(m), LocalizedModuleName(m)));
+
+    public string SelectedModuleName =>
+        SelectedModule is null ? string.Empty : LocalizedModuleName(SelectedModule);
 
     public IModule? SelectedModule
     {
@@ -399,7 +426,10 @@ public class MainViewModel : ViewModelBase
         set
         {
             if (SetField(ref _selectedModule, value))
-                CurrentModuleView = value is not null ? _viewFactory?.Invoke(value) : null;
+            {
+                CurrentModuleView = value is not null ? ViewFor(value) : null;
+                OnPropertyChanged(nameof(SelectedModuleName));
+            }
         }
     }
 
@@ -467,11 +497,19 @@ public class MainViewModel : ViewModelBase
 
     public ICommand AboutCommand { get; }
 
-    public ICommand LibrariesCommand { get; }
-
     public DelegateCommand SelectModuleCommand { get; }
 
     public ICommand SelectRecentCommand { get; }
+
+    private async Task ShowAboutAsync()
+    {
+        var window = new Views.AboutView { DataContext = new AboutViewModel() };
+        var owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        if (owner is null)
+            window.Show();
+        else
+            await window.ShowDialog(owner);
+    }
 
     private void ToggleDemo()
     {
@@ -525,7 +563,7 @@ public class MainViewModel : ViewModelBase
         ConnectedTo = "demo";
         if (!demo.IsConnected)
             await Grbl.ConnectAsync("demo");
-        Status = "Demo mode — controller simulated in software";
+        Status = LocText.Resolve("app.msg.demoMode", "Demo mode — controller simulated in software");
     }
 
     private void MdiHistoryPrev()
@@ -566,11 +604,11 @@ public class MainViewModel : ViewModelBase
         try
         {
             await Grbl.SendAsync(line);
-            Status = $"MDI: {line}";
+            Status = LocText.Format("app.msg.mdi", "MDI: {0}", line);
         }
         catch (Exception ex)
         {
-            Status = $"MDI failed: {ex.Message}";
+            Status = LocText.Format("app.msg.mdiFailed", "MDI failed: {0}", ex.Message);
         }
     }
 
@@ -578,7 +616,7 @@ public class MainViewModel : ViewModelBase
     {
         if (_fileDialogs is null)
         {
-            Status = "Open file: no dialog service available";
+            Status = LocText.Resolve("app.msg.openFileNoDialog", "Open file: no dialog service available");
             return;
         }
         var path = await _fileDialogs.OpenFileAsync(
@@ -600,7 +638,7 @@ public class MainViewModel : ViewModelBase
             var errors = GCodeValidator.Validate(text);
             if (errors.Count > 0)
             {
-                Status = $"Validation failed: {Path.GetFileName(path)} ({errors.Count}+ error(s))";
+                Status = LocText.Format("app.msg.validationFailed", "Validation failed: {0} ({1}+ error(s))", Path.GetFileName(path), errors.Count);
                 if (_fileDialogs is not null)
                     await _fileDialogs.ShowErrorAsync("G-code validation failed", string.Join(Environment.NewLine, errors));
                 return;
@@ -620,11 +658,11 @@ public class MainViewModel : ViewModelBase
             var appSettings = _settingsService.Load();
             appSettings.RecentFiles = [.. RecentFiles];
             _settingsService.Save(appSettings);
-            Status = $"Loaded {Path.GetFileName(path)} ({blocks} blocks)";
+            Status = LocText.Format("app.msg.loaded", "Loaded {0} ({1} blocks)", Path.GetFileName(path), blocks);
         }
         catch (Exception ex)
         {
-            Status = $"Open failed: {ex.Message}";
+            Status = LocText.Format("app.msg.openFailed", "Open failed: {0}", ex.Message);
             if (_fileDialogs is not null)
                 await _fileDialogs.ShowErrorAsync("Open failed", ex.Message);
         }
@@ -634,7 +672,7 @@ public class MainViewModel : ViewModelBase
     {
         if (_dialogs is null)
         {
-            Status = "Demo machine settings: no dialog service available";
+            Status = LocText.Resolve("app.msg.demoSettingsNoDialog", "Demo machine settings: no dialog service available");
             return;
         }
 
@@ -643,7 +681,7 @@ public class MainViewModel : ViewModelBase
             _services.GetRequiredService<DemoGrblService>());
         var result = await _dialogs.ShowDialogAsync("Demo machine", vm);
         if (result == true)
-            Status = "Demo machine settings updated";
+            Status = LocText.Resolve("app.msg.demoSettingsUpdated", "Demo machine settings updated");
     }
 
     // Menu-claiming modules (PanelHint.Menu) open as modal dialogs.
@@ -653,7 +691,7 @@ public class MainViewModel : ViewModelBase
             return;
         if (_dialogs is null)
         {
-            Status = $"{module.Name}: no dialog service available";
+            Status = LocText.Format("app.msg.moduleNoDialog", "{0}: no dialog service available", module.Name);
             return;
         }
         try
@@ -662,7 +700,7 @@ public class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Status = $"{module.Name} failed: {ex.Message}";
+            Status = LocText.Format("app.msg.moduleFailed", "{0} failed: {1}", module.Name, ex.Message);
         }
         finally
         {
@@ -678,21 +716,21 @@ public class MainViewModel : ViewModelBase
         {
             Grbl.Disconnect();
             ConnectedTo = null;
-            Status = "Disconnected";
+            Status = LocText.Resolve("app.msg.disconnected", "Disconnected");
         }
-        catch (Exception ex) { Status = $"Disconnect failed: {ex.Message}"; }
+        catch (Exception ex) { Status = LocText.Format("app.msg.disconnectFailed", "Disconnect failed: {0}", ex.Message); }
     }
 
     private void SendRealtime(byte code, string label)
     {
-        try { Grbl.SendRealtime(code); Status = $"{label} sent"; }
-        catch (Exception ex) { Status = $"{label} failed: {ex.Message}"; }
+        try { Grbl.SendRealtime(code); Status = LocText.Format("app.msg.sent", "{0} sent", label); }
+        catch (Exception ex) { Status = LocText.Format("app.msg.failed", "{0} failed: {1}", label, ex.Message); }
     }
 
     private void SendLine(string line, string label)
     {
-        try { Grbl.SendAsync(line); Status = $"{label} sent"; }
-        catch (Exception ex) { Status = $"{label} failed: {ex.Message}"; }
+        try { Grbl.SendAsync(line); Status = LocText.Format("app.msg.sent", "{0} sent", label); }
+        catch (Exception ex) { Status = LocText.Format("app.msg.failed", "{0} failed: {1}", label, ex.Message); }
     }
 
     /// <summary>
@@ -725,12 +763,34 @@ public class MainViewModel : ViewModelBase
         var program = _services.GetService<ProgramViewModel>();
         if (program is null || program.ProgramRows.Count == 0)
         {
-            Status = "Rewind: no program loaded";
+            Status = LocText.Resolve("app.msg.rewindNoProgram", "Rewind: no program loaded");
             return;
         }
 
         program.Rewind();
-        Status = "Program rewound";
+        Status = LocText.Resolve("app.msg.programRewound", "Program rewound");
+    }
+
+    private void OnLocaleChanged(object? sender, EventArgs e) =>
+        UiThread.Post(() =>
+        {
+            OnPropertyChanged(nameof(CenterTabs));
+            OnPropertyChanged(nameof(RightModuleViews));
+            OnPropertyChanged(nameof(SettingsMenu));
+            OnPropertyChanged(nameof(LeftModules));
+            OnPropertyChanged(nameof(FlyoutModules));
+            OnPropertyChanged(nameof(SelectedModuleName));
+            OnPropertyChanged(nameof(DroHeader));
+            OnPropertyChanged(nameof(Title));
+            OnPropertyChanged(nameof(ConnectionStatus));
+            OnPropertyChanged(nameof(MachineStateDisplay));
+            OnPropertyChanged(nameof(Status));
+        });
+
+    public void Dispose()
+    {
+        if (_localization is not null)
+            _localization.Changed -= OnLocaleChanged;
     }
 
     private void OnModulesChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -875,7 +935,7 @@ public class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Status = $"Connection failed: {ex.Message}";
+            Status = LocText.Format("app.msg.connectFailed", "Connection failed: {0}", ex.Message);
         }
     }
 
@@ -900,7 +960,7 @@ public class MainViewModel : ViewModelBase
         var result = await _dialogs.ShowDialogAsync("Connect", vm);
         if (result != true)
         {
-            Status = "Connect cancelled";
+            Status = LocText.Resolve("app.msg.connectCancelled", "Connect cancelled");
             return;
         }
 
@@ -932,11 +992,11 @@ public class MainViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(endpoint)
             || !CNC.Core.Services.TcpGrblTransport.TryParseEndpoint(endpoint, out _, out _))
         {
-            Status = "Invalid network endpoint";
+            Status = LocText.Resolve("app.msg.invalidEndpoint", "Invalid network endpoint");
             return;
         }
 
-        Status = $"Connecting to {endpoint}...";
+        Status = LocText.Format("app.msg.connectingTo", "Connecting to {0}...", endpoint);
         var network = new RealGrblService(new CNC.Core.Services.TcpGrblTransport());
         _networkService = network;
         SwapInner(network);
@@ -947,11 +1007,11 @@ public class MainViewModel : ViewModelBase
     {
         if (string.IsNullOrWhiteSpace(port))
         {
-            Status = "No port selected";
+            Status = LocText.Resolve("app.msg.noPortSelected", "No port selected");
             return;
         }
 
-        Status = $"Connecting to {port}...";
+        Status = LocText.Format("app.msg.connectingTo", "Connecting to {0}...", port);
         // Apply the chosen (or profile default) serial baud and the On-connect reset
         // action to the real service before it opens the port (network ignores reset).
         if (ResolveInner(Grbl) is RealGrblService real)
@@ -963,7 +1023,7 @@ public class MainViewModel : ViewModelBase
         await Grbl.ConnectAsync(port);
         ConnectedTo = port;
         IsDemo = ResolveInner(Grbl) is DemoGrblService;
-        Status = $"Connected: {port}";
+        Status = LocText.Format("app.msg.connectedToPort", "Connected: {0}", port);
 
         // Only a *successful* connection is persisted (global, per connect mode)
         // so the connect dialog re-opens pre-filled with values that worked.
@@ -1007,6 +1067,6 @@ public class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(Title));
         (CheckCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         if (!connected)
-            Status = "Controller disconnected — check the cable and reconnect";
+            Status = LocText.Resolve("app.msg.connectionLost", "Controller disconnected — check the cable and reconnect");
     }
 }

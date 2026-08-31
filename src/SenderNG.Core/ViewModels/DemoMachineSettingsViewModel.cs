@@ -3,6 +3,7 @@ using System.Windows.Input;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Commands;
+using SenderNG.Core.Localization;
 
 namespace CNC.Core.ViewModels;
 
@@ -13,12 +14,14 @@ public class DemoMachineSettingsViewModel : ViewModelBase, IClosableDialog
     private readonly AppSettings _settings;
     private readonly DemoGrblService _demo;
     private readonly System.Action? _savedCallback;
+    private readonly LocalizationService? _localization;
     private int _numAxes;
     private string _mode;
 
     public event EventHandler<bool>? CloseRequested;
 
-    public DemoMachineSettingsViewModel(AppSettings settings, DemoGrblService demo, System.Action? savedCallback = null)
+    public DemoMachineSettingsViewModel(AppSettings settings, DemoGrblService demo, System.Action? savedCallback = null,
+        LocalizationService? localization = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(demo);
@@ -26,6 +29,7 @@ public class DemoMachineSettingsViewModel : ViewModelBase, IClosableDialog
         _settings = settings;
         _demo = demo;
         _savedCallback = savedCallback;
+        _localization = localization ?? LocalizationService.Current;
         _numAxes = Math.Clamp(settings.Current.DemoAxes, MinAxes, GrblInfo.AxisLetters.Length);
         _mode = settings.Mode == "Foam" ? "Foam" : "Mill";
 

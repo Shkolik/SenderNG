@@ -305,6 +305,30 @@ public class LocalizationServiceTests
         Assert.Equal("My Module", ModuleNames.Localized(module, TestLocalization.Locale));
     }
 
+    [Fact]
+    public void Shell_keys_resolve_in_english_and_russian()
+    {
+        // Use a private instance (not the shared TestLocalization.Locale) so the
+        // SetLocale("ru") switch below can't race other tests reading that static.
+        var service = LocalizationService.LoadFromDirectory(Path.Combine(AppContext.BaseDirectory, "Locale"));
+        Assert.Equal("_File", service.T("app.menu.file"));
+        Assert.Equal("Cycle Start", service.T("app.cycle.start"));
+        Assert.Equal("State", service.T("app.state.label"));
+        Assert.Equal("About SenderNG", service.T("about.title"));
+
+        try
+        {
+            service.SetLocale("ru");
+            Assert.Equal("_Файл", service.T("app.menu.file"));
+            Assert.Equal("Пуск цикла", service.T("app.cycle.start"));
+            Assert.Equal("Состояние", service.T("app.state.label"));
+        }
+        finally
+        {
+            service.SetLocale("en");
+        }
+    }
+
     private sealed record StubNamedModule(string Id, string Name) : IModule
     {
         public string Description => "desc";

@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:CNC.Core.ViewModels;assembly=SenderNG.Core"
+             xmlns:loc="clr-namespace:SenderNG.Avalonia.Localization"
              mc:Ignorable="d" d:DesignWidth="360" d:DesignHeight="360"
              x:Class="SenderNG.Avalonia.Views.ConnectView"
              x:DataType="vm:ConnectViewModel">
@@ -23,14 +24,14 @@
                      by the live auto-refresh and brings the tab to life. -->
                 <TabItem>
                     <TabItem.Header>
-                        <TextBlock Text="Serial" FontSize="13" FontWeight="SemiBold" />
+                        <TextBlock Text="{loc:Loc connect.serial}" FontSize="13" FontWeight="SemiBold" />
                     </TabItem.Header>
                     <StackPanel Spacing="4" Margin="4,8,4,4">
                         <!-- Port: single row, dropdown spans the tab width (same size
                              as the network endpoint input). Autodetect replaces the
                              old refresh button — plugging in a controller updates
                              the list live. -->
-                        <TextBlock Text="Port" FontWeight="SemiBold" FontSize="12" />
+                        <TextBlock Text="{loc:Loc connect.port}" FontWeight="SemiBold" FontSize="12" />
                         <ComboBox ItemsSource="{Binding Ports}"
                                   DisplayMemberBinding="{Binding FullName}"
                                   SelectedItem="{Binding SelectedPortEntry, Mode=TwoWay}"
@@ -47,8 +48,8 @@
                              combo fills its cell so baud and On connect read equal.
                              On-connect aligns flush with its label, no left margin. -->
                         <Grid ColumnDefinitions="*,30,*" Margin="0,2,0,0">
-                            <TextBlock Grid.Column="0" Text="Baud rate" FontWeight="SemiBold" FontSize="12" />
-                            <TextBlock Grid.Column="2" Text="On connect" FontWeight="SemiBold" FontSize="12" />
+                            <TextBlock Grid.Column="0" Text="{loc:Loc connect.baudRate}" FontWeight="SemiBold" FontSize="12" />
+                            <TextBlock Grid.Column="2" Text="{loc:Loc connect.onConnect}" FontWeight="SemiBold" FontSize="12" />
                         </Grid>
                         <Grid ColumnDefinitions="*,30,*">
                             <ComboBox Grid.Column="0" ItemsSource="{Binding BaudRates}"
@@ -67,7 +68,7 @@
                                       CornerRadius="0"
                                       BorderBrush="#999" BorderThickness="1" />
                         </Grid>
-                        <TextBlock Text="Toggle DTR resets an Arduino bootloader on connect"
+                        <TextBlock Text="{loc:Loc connect.dtrHint}"
                                    FontSize="11" Foreground="#666" TextWrapping="Wrap" />
 
                         <TextBlock Text="{Binding NoPortsHint}" FontSize="11" Foreground="#a33"
@@ -78,10 +79,10 @@
                 <!-- Network: only usable when the settings enable network connectivity. -->
                 <TabItem>
                     <TabItem.Header>
-                        <TextBlock Text="Network" FontSize="13" FontWeight="SemiBold" />
+                        <TextBlock Text="{loc:Loc connect.network}" FontSize="13" FontWeight="SemiBold" />
                     </TabItem.Header>
                     <StackPanel Spacing="6" Margin="4,8,4,4" IsEnabled="{Binding NetworkEnabled}">
-                        <TextBlock Text="Endpoint (host:port)" FontWeight="SemiBold" FontSize="12" />
+                        <TextBlock Text="{loc:Loc connect.endpoint}" FontWeight="SemiBold" FontSize="12" />
                         <TextBox Text="{Binding NetworkEndpoint, Mode=TwoWay}"
                                  FontSize="12" Height="24"
                                  CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
@@ -93,7 +94,7 @@
                 <!-- Demo: always available; the disclaimer explains what it is. -->
                 <TabItem>
                     <TabItem.Header>
-                        <TextBlock Text="Demo" FontSize="13" FontWeight="SemiBold" />
+                        <TextBlock Text="{loc:Loc connect.demo}" FontSize="13" FontWeight="SemiBold" />
                     </TabItem.Header>
                     <StackPanel Spacing="6" Margin="4,8,4,4">
                         <TextBlock Text="{Binding DemoDisclaimer}" FontSize="12.5"
@@ -107,7 +108,7 @@
                         Height="26" MinHeight="26" CornerRadius="0" FontSize="11"
                         Background="#eee" BorderBrush="#999" BorderThickness="1"
                         Padding="12,0" VerticalContentAlignment="Center" />
-                <Button Content="Cancel" Command="{Binding CancelCommand}"
+                <Button Content="{loc:Loc connect.cancel}" Command="{Binding CancelCommand}"
                         Height="26" MinHeight="26" CornerRadius="0" FontSize="11"
                         Background="#eee" BorderBrush="#999" BorderThickness="1"
                         Padding="12,0" VerticalContentAlignment="Center" />

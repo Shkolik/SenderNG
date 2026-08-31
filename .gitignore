@@ -53,3 +53,4 @@ TurningProfiles.xml
 .superpowers/*
 
 # SDD/brainstorm scratch.superpowers/.github/
+.github/copilot-instructions.md

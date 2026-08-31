@@ -346,13 +346,13 @@ public class MainViewModelLiveVisibilityTests
             new DemoGrblService(settings.Load()), settings, services.BuildServiceProvider(),
             modules: new IModule[] { new FlyoutStub("macro"), new FlyoutStub("dummy") });
 
-        Assert.Contains(vm.FlyoutModules, m => m.Id == "macro");
+        Assert.Contains(vm.FlyoutModules, m => m.Module.Id == "macro");
 
         // App Settings dialog does exactly this: write map + Save.
         settings.Load().Current.ModulesVisibility["macro"] = false;
         settings.Save(settings.Load());
 
-        Assert.DoesNotContain(vm.FlyoutModules, m => m.Id == "macro");
+        Assert.DoesNotContain(vm.FlyoutModules, m => m.Module.Id == "macro");
     }
 }
 

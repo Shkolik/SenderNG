@@ -88,7 +88,7 @@ public class LayoutVisibilityTests
             new StubModule("dro", PanelHint.Left, 10),
         };
         var vm = CreateVMWithVisibility(appSettings, mods);
-        Assert.Equal(new[] { "dro", "offsets" }, vm.LeftModules.Select(m => m.Id).ToArray());
+        Assert.Equal(new[] { "dro", "offsets" }, vm.LeftModules.Select(m => m.Module.Id).ToArray());
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public class LayoutVisibilityTests
         var appSettings = new AppSettings();
         var mods = new IModule[] { new StubModule("macro", PanelHint.Flyout, 45) };
         var vm = CreateVMWithVisibility(appSettings, mods);
-        Assert.Contains(vm.FlyoutModules, m => m.Id == "macro");
+        Assert.Contains(vm.FlyoutModules, m => m.Module.Id == "macro");
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class LayoutVisibilityTests
         var vm = CreateVMWithVisibility(appSettings, mods);
         var m = mods[0];
         Assert.False(vm.IsModuleVisible(m));
-        Assert.DoesNotContain(vm.LeftModules, x => x.Id == "hidden-by-default");
+        Assert.DoesNotContain(vm.LeftModules, x => x.Module.Id == "hidden-by-default");
     }
 
     [Fact]
@@ -137,6 +137,6 @@ public class LayoutVisibilityTests
         var mods = new IModule[] { new StubModule("hidden-by-default", PanelHint.Left, 99, visibleByDefault: false) };
         var vm = CreateVMWithVisibility(appSettings, mods);
         Assert.True(vm.IsModuleVisible(mods[0]));
-        Assert.Contains(vm.LeftModules, x => x.Id == "hidden-by-default");
+        Assert.Contains(vm.LeftModules, x => x.Module.Id == "hidden-by-default");
     }
 }

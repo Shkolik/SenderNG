@@ -80,7 +80,10 @@ public class AppSettingsViewModelTests
         }
     }
 
-    private static readonly LocalizationService Loc = TestLocalization.Locale;
+    // A private instance (not TestLocalization.Locale): this fixture's SetLocale("ru")
+    // calls must never race other test classes that read the shared English static.
+    private static readonly LocalizationService Loc =
+        LocalizationService.LoadFromDirectory(Path.Combine(AppContext.BaseDirectory, "Locale"));
 
     private static (string Dir, SettingsService Service) MakeSettings()
     {
@@ -270,8 +273,8 @@ public class AppSettingsViewModelTests
             }
             finally
             {
-                // The shared static Loc is deliberately stateful; restore English so
-                // other tests that read module names are unaffected by order.
+                // Loc is stateful within this fixture; restore English so later tests
+                // in this class that read module names are unaffected by test order.
                 Loc.SetLocale("en");
             }
         }

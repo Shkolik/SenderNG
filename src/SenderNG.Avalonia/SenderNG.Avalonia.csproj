@@ -19,6 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <AvaloniaResource Include="Assets\banner.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\SenderNG.Core\SenderNG.Core.csproj" />
     <ProjectReference Include="..\SenderNG.Modules.Dummy\SenderNG.Modules.Dummy.csproj" />
   </ItemGroup>
