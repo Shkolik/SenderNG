@@ -82,7 +82,7 @@ namespace CNC.Core
             gcode.Columns.Add("ProgramEnd", typeof(bool));
             gcode.Columns.Add("Sent", typeof(string));
             gcode.Columns.Add("Ok", typeof(bool));
-            gcode.PrimaryKey = new DataColumn[] { gcode.Columns["LineNum"] };
+            gcode.PrimaryKey = new DataColumn[] { gcode.Columns["LineNum"]! };
 
             Reset();
 
@@ -113,7 +113,7 @@ namespace CNC.Core
 
             StreamReader sr = file.OpenText();
 
-            string block = sr.ReadLine();
+            string? block = sr.ReadLine();
 
             AddBlock(filename, Action.New);
 
@@ -133,7 +133,7 @@ namespace CNC.Core
                     }
                     block = sr.ReadLine();
                 }
-                catch (Exception e)
+                catch (Exception )
                 {
                     // portable stub: always continue
                     if ((ok = false))

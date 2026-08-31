@@ -51,7 +51,7 @@ public static class OffsetsConfigStore
 
     private static Dictionary<string, object?>? AsObject(object? value) => value switch
     {
-        Dictionary<string, object> typed => new Dictionary<string, object?>(typed),
+        Dictionary<string, object> typed => typed.ToDictionary(kv => kv.Key, kv => (object?)kv.Value),
         JsonElement { ValueKind: JsonValueKind.Object } el => ReadObject(el),
         _ => null,
     };

@@ -283,7 +283,7 @@ namespace CNC.GCode
         #endregion
 
         public delegate bool ToolChangedHandler(int toolNumber);
-        public event ToolChangedHandler ToolChanged = null;
+        public event ToolChangedHandler? ToolChanged;
 
         private bool motionModeChanged = false;
         private bool remapU2A = false, remapV2B = false, remapW2C = false;
@@ -1905,7 +1905,7 @@ namespace CNC.GCode
                     bin.Serialize(stream, objToSerialize);
                 }
             }
-            catch (IOException e)
+            catch (IOException)
             {
             }
         }
@@ -2378,7 +2378,7 @@ namespace CNC.GCode
     public class GCArc : GCAxisCommand3
     {
         private bool center_ok = false;
-        private double[] center;
+        private double[] center = new double[2];
         private double[] end = new double[3];
         private double r = 0d;
 
@@ -3018,7 +3018,7 @@ namespace CNC.GCode
 
         public uint L { get; set; }
         public uint P { get; set; }
-        public double[] Values { get; set; }
+        public double[] Values { get; set; } = Array.Empty<double>();
 
         public new string ToString()
         {
@@ -3496,7 +3496,7 @@ namespace CNC.GCode
             Comment = comment.Length == 0 || comment[0] == '(' || comment[0] == ';' ? comment : "(" + comment + ")";
         }
 
-        public string Comment { get; set; }
+        public string Comment { get; set; } = string.Empty;
 
         public new string ToString()
         {
@@ -3621,7 +3621,7 @@ namespace CNC.GCode
 
         public uint O { get; set; }
         NGCExpr.FlowControl FlowControl;
-        string Expression;
+        string Expression = string.Empty;
 
         public new string ToString()
         {

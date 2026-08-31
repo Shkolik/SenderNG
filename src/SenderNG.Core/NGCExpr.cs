@@ -207,7 +207,7 @@ namespace CNC.Core
 
         private static List<NgcRoParam> ro_param = new List<NgcRoParam>();
         private static readonly object ro_paramSync = new object();
-        private Machine machine = null;
+        private Machine machine;
         private Dictionary<string, double> paramNamed = new Dictionary<string, double>();
         private Dictionary<int, double> paramNumbered = new Dictionary<int, double>();
 

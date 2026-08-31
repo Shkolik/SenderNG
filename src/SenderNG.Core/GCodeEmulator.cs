@@ -137,18 +137,19 @@ namespace CNC.Core
                     case Commands.G10:
                         if (token is GCCoordinateSystem)
                         {
-                            CoordinateSystem csys;
+                            CoordinateSystem? csys;
                             GCCoordinateSystem gcsys = (GCCoordinateSystem)token;
                             if (gcsys.P == 0)
                                 csys = coordinateSystem;
                             else
-                                csys = coordinateSystems.First(x => x.Code == gcsys.Code);
-                            foreach (int i in gcsys.AxisFlags.ToIndices())
-                            {
-                                csys.Values[i] = gcsys.Values[i];
-                                if (gcsys.P == 0)
-                                    offsets[i] = csys.Values[i];
-                            }
+                                csys = coordinateSystems.FirstOrDefault(x => x.Code == gcsys.Code);
+                            if (csys is not null)
+                                foreach (int i in gcsys.AxisFlags.ToIndices())
+                                {
+                                    csys.Values[i] = gcsys.Values[i];
+                                    if (gcsys.P == 0)
+                                        offsets[i] = csys.Values[i];
+                                }
                         }
                         break;
 
@@ -192,8 +193,9 @@ namespace CNC.Core
                             } else
                                 axisFlags = AxisFlags.All;
 
-                            foreach (int i in axisFlags.ToIndices())
-                                machinePos[i] = g28.Values[i]; // - offsets[i] - origin[i];
+                            if (g28 is not null)
+                                foreach (int i in axisFlags.ToIndices())
+                                    machinePos[i] = g28.Values[i]; // - offsets[i] - origin[i];
                             action.End = machinePos.Point3D;
                 //            action.Token = new GCLinearMotion(Commands.G0, token.LineNumber, machinePos.Array, AxisFlags.All);
                             action.Token = new GCAbsLinearMotion(token.Command, Commands.G0, token.LineNumber, machinePos.Array, axisFlags);
@@ -206,8 +208,9 @@ namespace CNC.Core
                     // G28.1: Set Predefined Position
                     case Commands.G28_1:
                         {
-                            for (int i = 0; i < g28.Values.Length; i++)
-                                g28.Values[i] = offsets[i];
+                            if (g28 is not null)
+                                for (int i = 0; i < g28.Values.Length; i++)
+                                    g28.Values[i] = offsets[i];
                         }
                         break;
 
@@ -228,8 +231,9 @@ namespace CNC.Core
                             else
                                 axisFlags = AxisFlags.All;
 
-                            foreach (int i in axisFlags.ToIndices())
-                                machinePos[i] = g30.Values[i]; // - offsets[i] - origin[i];
+                            if (g30 is not null)
+                                foreach (int i in axisFlags.ToIndices())
+                                    machinePos[i] = g30.Values[i]; // - offsets[i] - origin[i];
                             action.End = machinePos.Point3D;
 //                            action.Token = new GCLinearMotion(Commands.G0, token.LineNumber, machinePos.Array, AxisFlags.All);
                             action.Token = new GCAbsLinearMotion(token.Command, Commands.G0, token.LineNumber, machinePos.Array, axisFlags);
@@ -241,8 +245,9 @@ namespace CNC.Core
                     // G30.1: Set Predefined Position
                     case Commands.G30_1:
                         {
-                            for (int i = 0; i < g30.Values.Length; i++)
-                                g30.Values[i] = offsets[i];
+                            if (g30 is not null)
+                                for (int i = 0; i < g30.Values.Length; i++)
+                                    g30.Values[i] = offsets[i];
                         }
                         break;
 
@@ -274,17 +279,17 @@ namespace CNC.Core
 
                     // G43: Tool Length Offset
                     case Commands.G43:
-                        SetToolOffset(token as GCToolOffset);
+                        SetToolOffset((GCToolOffset)token);
                         break;
 
                     // G43.1: Dynamic Tool Length Offset
                     case Commands.G43_1:
-                        DynamicToolOffset(token as GCToolOffsets);
+                        DynamicToolOffset((GCToolOffsets)token);
                         break;
 
                     // G43.2: Apply additional Tool Length Offset
                     case Commands.G43_2:
-                        AddToolOffset(token as GCToolOffset);
+                        AddToolOffset((GCToolOffset)token);
                         break;
 
                     // G49: Cancel Tool Length Compensation
@@ -348,9 +353,12 @@ namespace CNC.Core
                     case Commands.G59_3:
                         {
                             string cs = token.Command.ToString().Replace('_', '.');
-                            coordinateSystem = coordinateSystems.First(x => x.Code == cs);
+                            var csys = coordinateSystems.FirstOrDefault(x => x.Code == cs);
+                            if (csys is null)
+                                break;
+                            coordinateSystem = csys;
                             foreach (int i in AxisFlags.All.ToIndices()) // GrblInfo.AxisFlags?
-                                offsets[i] = coordinateSystem.Values[i];
+                                offsets[i] = csys.Values[i];
                             //    CoordinateSystem = GrblWorkParameters.CoordinateSystems();
                             //GCCoordinateSystem cs = (GCCoordinateSystem)token;
                             // TODO: handle offsets... Need to read current from grbl
@@ -583,8 +591,9 @@ namespace CNC.Core
                     case Commands.G92:
                         {
                             var cs = (GCCoordinateSystem)token;
-                            foreach (int i in cs.AxisFlags.ToIndices())
-                                origin[i] = g92.Values[i] = cs.Values[i];
+                            if (g92 is not null)
+                                foreach (int i in cs.AxisFlags.ToIndices())
+                                    origin[i] = g92.Values[i] = cs.Values[i];
                         }
                         break;
 
@@ -592,7 +601,11 @@ namespace CNC.Core
                     case Commands.G92_1:
                         {
                             for (int i = 0; i < origin.Length; i++)
-                                origin[i] = g92.Values[i] = 0d;
+                            {
+                                origin[i] = 0d;
+                                if (g92 is not null)
+                                    g92.Values[i] = 0d;
+                            }
                         }
                         break;
 

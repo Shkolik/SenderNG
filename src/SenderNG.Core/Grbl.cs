@@ -47,8 +47,8 @@ namespace CNC.Core
 
     public class Position : ViewModelBase
     {
-        public Position() { for(int i=0;i<Values.Length;i++) Values[i]=double.NaN; Values.PropertyChanged += (s,e)=>OnPropertyChanged(e.PropertyName); }
-        public Position(string v){ this.Values.PropertyChanged += (s,e)=>OnPropertyChanged(e.PropertyName); Parse(v); }
+        public Position() { for(int i=0;i<Values.Length;i++) Values[i]=double.NaN; Values.PropertyChanged += (s,e)=>OnPropertyChanged(e.PropertyName ?? ""); }
+        public Position(string v){ this.Values.PropertyChanged += (s,e)=>OnPropertyChanged(e.PropertyName ?? ""); Parse(v); }
         public bool Parse(string values){ try{ var p=dbl.ParseList(values); for(int i=0;i<p.Length;i++) Values[i]=p[i]; return true;}catch{return false;}}
         public void Clear(){ for(int i=0;i<Values.Length;i++) Values[i]=double.NaN; }
         public CoordinateValues<double> Values { get; } = new CoordinateValues<double>();
@@ -182,7 +182,7 @@ namespace CNC.Core
 
     public static partial class Grbl
     {
-        public static GrblViewModel GrblViewModel { get; set; } = null;
+        public static GrblViewModel? GrblViewModel { get; set; }
 
         public static CapsResult ParseCaps(string capsLine)
         {
@@ -213,7 +213,7 @@ namespace CNC.Core
             try{
                 var file = FileUtils.OpenFile(path);
                 if(file!=null){
-                    string line=file.ReadLine();
+                    string? line=file.ReadLine();
                     line=file.ReadLine();
                     while(line!=null){
                         int key;
@@ -247,7 +247,7 @@ namespace CNC.Core
         public static IJKMode IJKMode => IJKMode.Incremental;
         public static MotionMode MotionMode => MotionMode.G0;
         public static bool IsLoaded => false;
-        public static string IsActive(string k)=>null;
+        public static string? IsActive(string k) => null;
         public static bool Get(GrblViewModel m)=>false;
         public static bool Get()=>false;
         public static bool Get(bool b)=>false;

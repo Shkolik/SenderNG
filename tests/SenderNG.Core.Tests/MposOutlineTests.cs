@@ -118,7 +118,7 @@ public class DemoGrblServiceMachinePositionTests
 
         var st = await svc.State.FirstAsync();
         Assert.Equal([0, 0, 0], st.Positions);
-        Assert.Equal([0, 0, 0], st.MachinePositions);
+        Assert.Equal([0, 0, 0], st.MachinePositions!);
     }
 }
 

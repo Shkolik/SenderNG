@@ -56,7 +56,7 @@ namespace CNC.Core
         protected double[] scaleFactors = new double[9];
         protected double[] toolOffsets = new double[9];
         protected List<CoordinateSystem> coordinateSystems = new List<CoordinateSystem>();
-        protected CoordinateSystem coordinateSystem, g28, g30, g92;
+        protected CoordinateSystem? coordinateSystem, g28, g30, g92;
         protected List<Tool> toolTable = new List<Tool>();
         protected Point6D machinePos = new Point6D();
 
@@ -97,7 +97,7 @@ namespace CNC.Core
             MotionMode = GrblParserState.MotionMode;
             IJKMode = GrblParserState.IJKMode;
             IsScaled = GrblParserState.IsActive("G51") != null;
-            string val = GrblParserState.IsActive("F");
+            string? val = GrblParserState.IsActive("F");
             Feedrate = val == null ? 0d : double.Parse(val, CultureInfo.InvariantCulture);
             val = GrblParserState.IsActive("S");
             _rpm = val == null ? 0d : double.Parse(val, CultureInfo.InvariantCulture);
@@ -151,7 +151,7 @@ namespace CNC.Core
             get { return isRelative ? DistanceMode.Incremental : DistanceMode.Absolute; }
             set { isRelative = value == DistanceMode.Incremental; }
         }
-        public GCPlane Plane { get; protected set; }
+        public GCPlane Plane { get; protected set; } = new GCPlane(Commands.G17, 0);
         public IJKMode IJKMode { get; protected set; }
         public LatheMode LatheMode { get; protected set; }
         public bool LatheUVWMode { get; protected set; }
@@ -171,7 +171,7 @@ namespace CNC.Core
             }
         }
         public bool RetractOldZ { get; protected set; }
-        public Tool SelectedTool { get; protected set; }
+        public Tool? SelectedTool { get; protected set; }
         public bool IsImperial { get; protected set; }
         public bool IsScaled { get; protected set; }
         public double GetScaleFactor(int axis)

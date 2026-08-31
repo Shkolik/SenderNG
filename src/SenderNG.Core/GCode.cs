@@ -397,7 +397,7 @@ namespace CNC.GCode
     [Serializable]
     public class Macro : ViewModelBase
     {
-        string _name;
+        string _name = string.Empty;
 
         [XmlIgnore]
         public bool IsSession { get; set; }
@@ -405,7 +405,7 @@ namespace CNC.GCode
         public int Id { get;  set; }
         public string Name { get { return _name; } set { _name = value;  OnPropertyChanged(); } }
         public bool ConfirmOnExecute { get; set; } = true;
-        public string Code { get; set; }
+        public string Code { get; set; } = string.Empty;
     }
 
     public struct Point6D
