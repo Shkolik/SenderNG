@@ -207,7 +207,8 @@ namespace CNC.Core
 
         public bool SetG92Offset(GCCoordinateSystem token)
         {
-            if ((G92Active = g92 != null))
+            G92Active = g92 != null;
+            if (g92 is not null)
                 foreach (int i in token.AxisFlags.ToIndices())
                     g92.Values[i] = token.Values[i];
 

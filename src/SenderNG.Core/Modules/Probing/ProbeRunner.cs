@@ -70,8 +70,8 @@ public sealed class ProbeRunner
             if (line.Contains("G38", StringComparison.OrdinalIgnoreCase))
             {
                 var latest = LatestState();
-                if (latest.ProbePosition is not null)
-                    result.Positions.Add((double[])latest.ProbePosition.Clone());
+                if (latest?.ProbePosition is { } probePos)
+                    result.Positions.Add((double[])probePos.Clone());
             }
         }
 

@@ -93,7 +93,7 @@ namespace CNC.Core
                     case Commands.G0:
                     case Commands.G1:
                         {
-                            var motion = token as GCLinearMotion;
+                            var motion = (GCLinearMotion)token;
                             setEndP(motion.Values, motion.AxisFlags);
                         }
                         break;
@@ -102,7 +102,7 @@ namespace CNC.Core
                     case Commands.G2:
                     case Commands.G3:
                         {
-                            var arc = token as GCArc;
+                            var arc = (GCArc)token;
                             setEndP(arc.Values, arc.AxisFlags);
                         }
                         break;
@@ -110,7 +110,7 @@ namespace CNC.Core
                     // G5: Cubic Spline
                     case Commands.G5:
                         {
-                            var spline = token as GCCubicSpline;
+                            var spline = (GCCubicSpline)token;
                             setEndP(spline.Values, spline.AxisFlags);
                         }
                         break;
@@ -118,7 +118,7 @@ namespace CNC.Core
                     // G5: Quadratic Spline
                     case Commands.G5_1:
                         {
-                            var spline = token as GCQuadraticSpline;
+                            var spline = (GCQuadraticSpline)token;
                             setEndP(spline.Values, spline.AxisFlags);
                         }
                         break;
@@ -138,11 +138,11 @@ namespace CNC.Core
                         if (token is GCCoordinateSystem)
                         {
                             CoordinateSystem csys;
-                            GCCoordinateSystem gcsys = token as GCCoordinateSystem;
+                            GCCoordinateSystem gcsys = (GCCoordinateSystem)token;
                             if (gcsys.P == 0)
                                 csys = coordinateSystem;
                             else
-                                csys = coordinateSystems.Where(x => x.Code == gcsys.Code).FirstOrDefault();
+                                csys = coordinateSystems.First(x => x.Code == gcsys.Code);
                             foreach (int i in gcsys.AxisFlags.ToIndices())
                             {
                                 csys.Values[i] = gcsys.Values[i];
@@ -180,7 +180,7 @@ namespace CNC.Core
                     case Commands.G28:
                         if(translate)
                         {
-                            var motion = token as GCLinearMotion;
+                            var motion = (GCLinearMotion)token;
                             AxisFlags axisFlags;
                             if (motion.AxisFlags != AxisFlags.None)
                             {
@@ -215,7 +215,7 @@ namespace CNC.Core
                     case Commands.G30:
                         if (translate)
                         {
-                            var motion = token as GCLinearMotion;
+                            var motion = (GCLinearMotion)token;
                             AxisFlags axisFlags;
                             if (motion.AxisFlags != AxisFlags.None)
                             {
@@ -249,7 +249,7 @@ namespace CNC.Core
                     // G33: Spindle Synchronized Motion
                     case Commands.G33:
                         {
-                            var motion = token as GCSyncMotion;
+                            var motion = (GCSyncMotion)token;
                             setEndP(motion.Values, motion.AxisFlags);
                             action.IsSpindleSynced = true;
                             action.Token = new GCLinearMotion(Commands.G1, token.LineNumber, machinePos.Array, motion.AxisFlags);
@@ -266,7 +266,7 @@ namespace CNC.Core
                     case Commands.G38_5:
                         if (translate)
                         {
-                            var motion = token as GCLinearMotion;
+                            var motion = (GCLinearMotion)token;
                             setEndP(motion.Values, motion.AxisFlags);
                             action.Token = new GCLinearMotion(Commands.G1, token.LineNumber, machinePos.Array, motion.AxisFlags);
                         }
@@ -306,7 +306,7 @@ namespace CNC.Core
                     case Commands.G51:
                         {
                             IsScaled = false;
-                            //var scale = token as GCScaling;
+                            //var scale = (GCScaling)token;
                             ////foreach (int i in scale.AxisFlags.ToIndices())
                             ////    scaleFactors[i] = scale.Values[i] * (IsImperial ? 25.4d : 1d);
                             //foreach (int i in scale.AxisFlags.ToIndices())
@@ -322,7 +322,7 @@ namespace CNC.Core
                     // G53: Move in Machine Coordinates
                     case Commands.G53:
                         {
-                            var motion = token as GCAbsLinearMotion;
+                            var motion = (GCAbsLinearMotion)token;
                             action.IsInMachineCoord = true;
                             if (action.IsInMachineCoord)
                             {
@@ -348,7 +348,7 @@ namespace CNC.Core
                     case Commands.G59_3:
                         {
                             string cs = token.Command.ToString().Replace('_', '.');
-                            coordinateSystem = coordinateSystems.Where(x => x.Code == cs).FirstOrDefault();
+                            coordinateSystem = coordinateSystems.First(x => x.Code == cs);
                             foreach (int i in AxisFlags.All.ToIndices()) // GrblInfo.AxisFlags?
                                 offsets[i] = coordinateSystem.Values[i];
                             //    CoordinateSystem = GrblWorkParameters.CoordinateSystems();
@@ -360,7 +360,7 @@ namespace CNC.Core
                     // G76: Threading Cycle
                     case Commands.G76:
                         if(translate) {
-                            var thread = token as GCThreadingMotion;
+                            var thread = (GCThreadingMotion)token;
                             uint pass = 1, passes = 0;
                             double doc = thread.InitialDepth, thread_length, main_taper_height = 0d;
                             double t_end_taper_length = thread.TaperLength;
@@ -511,7 +511,7 @@ namespace CNC.Core
                         // TODO: add plane handling
                         if(translate) {
                             bool wasRelative = isRelative;
-                            GCCannedDrill drill = (token as GCCannedDrill);
+                            GCCannedDrill drill = (GCCannedDrill)token;
                             if (!double.IsNaN(drill.R))
                                 retractPosition = drill.R;
                             double r = isRelative ? action.End.Z + retractPosition : retractPosition;
@@ -576,13 +576,13 @@ namespace CNC.Core
                     // G90.1, G91.1: Arc Distance Mode
                     case Commands.G90: // Absolute
                     case Commands.G91: // Incremental
-                        isRelative = (token as GCDistanceMode).DistanceMode == DistanceMode.Incremental;
+                        isRelative = ((GCDistanceMode)token).DistanceMode == DistanceMode.Incremental;
                         break;
 
                     // G92: Coordinate System Offset
                     case Commands.G92:
                         {
-                            var cs = token as GCCoordinateSystem;
+                            var cs = (GCCoordinateSystem)token;
                             foreach (int i in cs.AxisFlags.ToIndices())
                                 origin[i] = g92.Values[i] = cs.Values[i];
                         }
@@ -607,35 +607,35 @@ namespace CNC.Core
                     // G98, G99: Canned cycle return mode
                     case Commands.G98: // Old Z
                     case Commands.G99: // R value
-                        RetractOldZ = (token as GCodeToken).Command == Commands.G98;
+                        RetractOldZ = token.Command == Commands.G98;
                         break;
 
                         //M3, M4, M5: Spindle Control
                     case Commands.M3: // CW
                     case Commands.M4: // CCW
                     case Commands.M5: // Off
-                        SpindleState = (token as GCSpindleState).SpindleState;
+                        SpindleState = ((GCSpindleState)token).SpindleState;
                         break;
 
                     // M7, M8, M9: Coolant Control
                     case Commands.M7: // Mist
                     case Commands.M8: // Flood
                     case Commands.M9: // Off
-                        CoolantState = (token as GCCoolantState).CoolantState;
+                        CoolantState = ((GCCoolantState)token).CoolantState;
                         break;
 
                     case Commands.Feedrate:
-                        Feedrate = (token as GCFeedrate).Feedrate;
+                        Feedrate = ((GCFeedrate)token).Feedrate;
                         break;
 
                     case Commands.SpindleRPM:
-                        _rpm = (token as GCSpindleRPM).SpindleRPM;
+                        _rpm = ((GCSpindleRPM)token).SpindleRPM;
                         break;
 
                     // M61, T: Set Current Tool
                     case Commands.M61:
                     case Commands.ToolSelect:
-                        Tool = (token as GCToolSelect).Tool;
+                        Tool = ((GCToolSelect)token).Tool;
                         break;
                 }
 

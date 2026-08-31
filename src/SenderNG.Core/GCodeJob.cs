@@ -201,18 +201,19 @@ namespace CNC.Core
 
                 foreach (var cmd in emu.Execute(Tokens))
                 {
-                    if (cmd.Token is GCArc)
-                        BoundingBox.AddBoundingBox((cmd.Token as GCArc).GetBoundingBox(emu.Plane, new double[] { cmd.Start.X, cmd.Start.Y, cmd.Start.Z }, emu.DistanceMode == DistanceMode.Incremental));
-                    else if (cmd.Token is GCCubicSpline)
-                        BoundingBox.AddBoundingBox((cmd.Token as GCCubicSpline).GetBoundingBox(emu.Plane, new double[] { cmd.Start.X, cmd.Start.Y, cmd.Start.Z }, emu.DistanceMode == DistanceMode.Incremental));
-                    else if (cmd.Token is GCQuadraticSpline)
-                        BoundingBox.AddBoundingBox((cmd.Token as GCQuadraticSpline).GetBoundingBox(emu.Plane, new double[] { cmd.Start.X, cmd.Start.Y, cmd.Start.Z }, emu.DistanceMode == DistanceMode.Incremental));
-                    else if (cmd.Token is GCAxisCommand9)
+                    var start = new double[] { cmd.Start.X, cmd.Start.Y, cmd.Start.Z };
+                    if (cmd.Token is GCArc arc)
+                        BoundingBox.AddBoundingBox(arc.GetBoundingBox(emu.Plane, start, emu.DistanceMode == DistanceMode.Incremental));
+                    else if (cmd.Token is GCCubicSpline spline)
+                        BoundingBox.AddBoundingBox(spline.GetBoundingBox(emu.Plane, start, emu.DistanceMode == DistanceMode.Incremental));
+                    else if (cmd.Token is GCQuadraticSpline quad)
+                        BoundingBox.AddBoundingBox(quad.GetBoundingBox(emu.Plane, start, emu.DistanceMode == DistanceMode.Incremental));
+                    else if (cmd.Token is GCAxisCommand9 axis)
                     {
                         if (GrblInfo.LatheUVWModeEnabled)
-                            BoundingBox.AddBoundingBox((cmd.Token as GCAxisCommand9).GetBoundingBox(emu.Plane, new double[] { cmd.Start.X, cmd.Start.Y, cmd.Start.Z }, emu.DistanceMode == DistanceMode.Incremental));
+                            BoundingBox.AddBoundingBox(axis.GetBoundingBox(emu.Plane, start, emu.DistanceMode == DistanceMode.Incremental));
                         else
-                            BoundingBox.AddPoint(cmd.End, (cmd.Token as GCAxisCommand9).AxisFlags);
+                            BoundingBox.AddPoint(cmd.End, axis.AxisFlags);
                     }
                 }
 

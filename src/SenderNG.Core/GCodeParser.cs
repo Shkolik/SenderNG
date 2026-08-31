@@ -1951,91 +1951,102 @@ namespace CNC.GCode
                 {
                     case Commands.G0:
                     case Commands.G1:
-                        if (compress && lastMotion.Command == token.Command)
                         {
-                            if (!isRelative)
+                            var linear = (GCLinearMotion)token;
+                            if (compress && lastMotion.Command == token.Command)
                             {
-                                if (!relativeChanged)
+                                if (!isRelative)
                                 {
-                                    if ((token as GCLinearMotion).X == (lastMotion as GCLinearMotion).X)
-                                        (token as GCLinearMotion).AxisFlags &= ~AxisFlags.X;
-                                    else if ((token as GCLinearMotion).AxisFlags.HasFlag(AxisFlags.X))
-                                        (lastMotion as GCLinearMotion).X = (token as GCLinearMotion).X;
+                                    if (!relativeChanged)
+                                    {
+                                        var prev = (GCLinearMotion)lastMotion;
+                                        if (linear.X == prev.X)
+                                            linear.AxisFlags &= ~AxisFlags.X;
+                                        else if (linear.AxisFlags.HasFlag(AxisFlags.X))
+                                            prev.X = linear.X;
 
-                                    if ((token as GCLinearMotion).Y == (lastMotion as GCLinearMotion).Y)
-                                        (token as GCLinearMotion).AxisFlags &= ~AxisFlags.Y;
-                                    else if ((token as GCLinearMotion).AxisFlags.HasFlag(AxisFlags.Y))
-                                        (lastMotion as GCLinearMotion).Y = (token as GCLinearMotion).Y;
+                                        if (linear.Y == prev.Y)
+                                            linear.AxisFlags &= ~AxisFlags.Y;
+                                        else if (linear.AxisFlags.HasFlag(AxisFlags.Y))
+                                            prev.Y = linear.Y;
 
-                                    if ((token as GCLinearMotion).Z == (lastMotion as GCLinearMotion).Z)
-                                        (token as GCLinearMotion).AxisFlags &= ~AxisFlags.Z;
-                                    else if ((token as GCLinearMotion).AxisFlags.HasFlag(AxisFlags.Z))
-                                        (lastMotion as GCLinearMotion).Z = (token as GCLinearMotion).Z;
+                                        if (linear.Z == prev.Z)
+                                            linear.AxisFlags &= ~AxisFlags.Z;
+                                        else if (linear.AxisFlags.HasFlag(AxisFlags.Z))
+                                            prev.Z = linear.Z;
+                                    }
+                                    else
+                                        relativeChanged = false;
                                 }
-                                else
-                                    relativeChanged = false;
+                                block += linear.ToString().Substring(2);
                             }
-                            block += (token as GCLinearMotion).ToString().Substring(2);
+                            else
+                            {
+                                lastMotion = token;
+                                block += linear.ToString();
+                            }
+                            break;
                         }
-                        else
-                        {
-                            lastMotion = token;
-                            block += (token as GCLinearMotion).ToString();
-                        }
-                        break;
 
                     case Commands.G2:
                     case Commands.G3:
-                        if (compress && lastMotion.Command == token.Command)
                         {
-                            if (!isRelative)
+                            var arc = (GCArc)token;
+                            if (compress && lastMotion.Command == token.Command)
                             {
-                                if (!relativeChanged)
+                                if (!isRelative)
                                 {
-                                    if ((token as GCArc).X == (lastMotion as GCArc).X)
-                                        (token as GCArc).AxisFlags &= ~AxisFlags.X;
-                                    else if ((token as GCArc).AxisFlags.HasFlag(AxisFlags.X))
-                                        (lastMotion as GCArc).X = (token as GCArc).X;
+                                    if (!relativeChanged)
+                                    {
+                                        var prev = (GCArc)lastMotion;
+                                        if (arc.X == prev.X)
+                                            arc.AxisFlags &= ~AxisFlags.X;
+                                        else if (arc.AxisFlags.HasFlag(AxisFlags.X))
+                                            prev.X = arc.X;
 
-                                    if ((token as GCArc).Y == (lastMotion as GCArc).Y)
-                                        (token as GCArc).AxisFlags &= ~AxisFlags.Y;
-                                    else if ((token as GCArc).AxisFlags.HasFlag(AxisFlags.Y))
-                                        (lastMotion as GCArc).Y = (token as GCArc).Y;
+                                        if (arc.Y == prev.Y)
+                                            arc.AxisFlags &= ~AxisFlags.Y;
+                                        else if (arc.AxisFlags.HasFlag(AxisFlags.Y))
+                                            prev.Y = arc.Y;
 
-                                    if ((token as GCArc).Z == (lastMotion as GCArc).Z)
-                                        (token as GCArc).AxisFlags &= ~AxisFlags.Z;
-                                    else if ((token as GCArc).AxisFlags.HasFlag(AxisFlags.Z))
-                                        (lastMotion as GCArc).Z = (token as GCArc).Z;
+                                        if (arc.Z == prev.Z)
+                                            arc.AxisFlags &= ~AxisFlags.Z;
+                                        else if (arc.AxisFlags.HasFlag(AxisFlags.Z))
+                                            prev.Z = arc.Z;
+                                    }
+                                    else
+                                        relativeChanged = false;
                                 }
-                                else
-                                    relativeChanged = false;
+                                block += arc.ToString().Substring(2);
                             }
-                            block += (token as GCArc).ToString().Substring(2);
+                            else
+                            {
+                                lastMotion = token;
+                                block += arc.ToString();
+                            }
+                            break;
                         }
-                        else
-                        {
-                            lastMotion = token;
-                            block += (token as GCArc).ToString();
-                        }
-                        break;
 
                     case Commands.G5:
-                        if (compress && lastMotion.Command == token.Command)
-                            block += (token as GCCubicSpline).ToString().Substring(2);
-                        else
                         {
-                            lastMotion = token;
-                            block += (token as GCCubicSpline).ToString();
+                            var spline = (GCCubicSpline)token;
+                            if (compress && lastMotion.Command == token.Command)
+                                block += spline.ToString().Substring(2);
+                            else
+                            {
+                                lastMotion = token;
+                                block += spline.ToString();
+                            }
+                            break;
                         }
-                        break;
 
                     case Commands.G5_1:
                         lastMotion = token;
-                        block += (token as GCQuadraticSpline).ToString();
+                        block += ((GCQuadraticSpline)token).ToString();
                         break;
 
                     case Commands.G4:
-                        block += (token as GCDwell).ToString();
+                        block += ((GCDwell)token).ToString();
                         break;
 
                     case Commands.G20:
@@ -2044,27 +2055,33 @@ namespace CNC.GCode
 
                     case Commands.G28:
                     case Commands.G30:
-                        lastMotion = token;
-                        block += (token as GCLinearMotion).ToString();
-                        break;
+                        {
+                            var linear = (GCLinearMotion)token;
+                            lastMotion = token;
+                            block += linear.ToString();
+                            break;
+                        }
 
                     case Commands.G43:
                     case Commands.G43_2:
-                        block += (token as GCToolOffset).ToString();
+                        block += ((GCToolOffset)token).ToString();
                         break;
 
                     case Commands.G43_1:
-                        block += (token as GCToolOffsets).ToString();
+                        block += ((GCToolOffsets)token).ToString();
                         break;
 
                     case Commands.G51:
-                        block += (token as GCScaling).ToString();
+                        block += ((GCScaling)token).ToString();
                         break;
 
                     case Commands.G53:
-                        lastMotion = token;
-                        block += (token as GCAbsLinearMotion).ToString();
-                        break;
+                        {
+                            var linear = (GCAbsLinearMotion)token;
+                            lastMotion = token;
+                            block += linear.ToString();
+                            break;
+                        }
 
                     case Commands.G73:
                     case Commands.G81:
@@ -2073,24 +2090,28 @@ namespace CNC.GCode
                     case Commands.G85:
                     case Commands.G86:
                     case Commands.G89:
-                        if (compress && lastMotion.Command == token.Command)
                         {
-                            if ((token as GCCannedDrill).R == (lastMotion as GCCannedDrill).R)
-                                (token as GCCannedDrill).R = double.NaN;
+                            var drill = (GCCannedDrill)token;
+                            if (compress && lastMotion.Command == token.Command)
+                            {
+                                var prev = (GCCannedDrill)lastMotion;
+                                if (drill.R == prev.R)
+                                    drill.R = double.NaN;
 
-                            if ((token as GCCannedDrill).Z == (lastMotion as GCCannedDrill).Z)
-                                (token as GCCannedDrill).AxisFlags &= ~AxisFlags.Z;
-                            else if ((token as GCCannedDrill).AxisFlags.HasFlag(AxisFlags.Z))
-                                (lastMotion as GCCannedDrill).Z = (token as GCCannedDrill).Z;
+                                if (drill.Z == prev.Z)
+                                    drill.AxisFlags &= ~AxisFlags.Z;
+                                else if (drill.AxisFlags.HasFlag(AxisFlags.Z))
+                                    prev.Z = drill.Z;
 
-                            block += (token as GCCannedDrill).ToString().Substring(3);
+                                block += drill.ToString().Substring(3);
+                            }
+                            else
+                            {
+                                lastMotion = token;
+                                block += drill.ToString();
+                            }
+                            break;
                         }
-                        else
-                        {
-                            lastMotion = token;
-                            block += (token as GCCannedDrill).ToString();
-                        }
-                        break;
 
                     case Commands.G80:
                         lastMotion = new GCodeToken(Commands.Undefined, 0);
@@ -2109,51 +2130,51 @@ namespace CNC.GCode
                         break;
 
                     case Commands.Feedrate:
-                        block += (token as GCFeedrate).ToString();
+                        block += ((GCFeedrate)token).ToString();
                         break;
 
                     case Commands.SpindleRPM:
-                        block += (token as GCSpindleRPM).ToString();
+                        block += ((GCSpindleRPM)token).ToString();
                         break;
 
                     case Commands.ToolSelect:
-                        block += (token as GCToolSelect).ToString();
+                        block += ((GCToolSelect)token).ToString();
                         break;
 
                     case Commands.M3:
                     case Commands.M4:
                     case Commands.M5:
-                        block += (token as GCSpindleState).ToString();
+                        block += ((GCSpindleState)token).ToString();
                         break;
 
                     case Commands.M7:
                     case Commands.M8:
                     case Commands.M9:
-                        block += (token as GCCoolantState).ToString();
+                        block += ((GCCoolantState)token).ToString();
                         break;
 
                     case Commands.Comment:
-                        block += (token as GCComment).ToString();
+                        block += ((GCComment)token).ToString();
                         break;
 
                     case Commands.M62:
                     case Commands.M63:
                     case Commands.M64:
                     case Commands.M65:
-                        block += (token as GCDigitalOutput).ToString();
+                        block += ((GCDigitalOutput)token).ToString();
                         break;
 
                     case Commands.M66:
-                        block += (token as GCWaitOnInput).ToString();
+                        block += ((GCWaitOnInput)token).ToString();
                         break;
 
                     case Commands.M67:
                     case Commands.M68:
-                        block += (token as GCAnalogOutput).ToString();
+                        block += ((GCAnalogOutput)token).ToString();
                         break;
 
                     case Commands.UserMCommand:
-                        block += (token as GCUserMCommand).ToString();
+                        block += ((GCUserMCommand)token).ToString();
                         break;
 
                     default:

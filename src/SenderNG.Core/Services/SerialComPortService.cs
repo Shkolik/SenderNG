@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using CNC.Core.Abstractions;
 
 namespace CNC.Core.Services;
@@ -118,6 +119,7 @@ public class SerialComPortService : IComPortService
     /// tells us whether the port is a real device or a virtual/phantom one. The
     /// walk stops as soon as every requested port is resolved.
     /// </summary>
+    [SupportedOSPlatform("windows")]
     private static Dictionary<string, (string Description, bool Preferred)> WindowsPortDetails(IReadOnlyCollection<string> ports)
     {
         var result = new Dictionary<string, (string, bool)>(StringComparer.OrdinalIgnoreCase);

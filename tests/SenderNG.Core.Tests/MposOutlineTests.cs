@@ -22,7 +22,7 @@ public class MachineStateTests
     {
         var state = new MachineState(4);
         Assert.Equal(4, state.Positions.Length);
-        Assert.Equal(4, state.MachinePositions.Length);
+        Assert.Equal(4, state.MachinePositions!.Length);
     }
 }
 

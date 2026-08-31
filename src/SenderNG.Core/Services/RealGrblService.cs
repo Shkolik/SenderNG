@@ -657,7 +657,8 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         using var poll = SuspendPolling();
         lock (_gate) _waiters.Enqueue(waiter);
         await _transport.WriteLineAsync(command);
-        await AwaitWaiterAsync(waiter, timeout, _cts.Token);
+        var cts = _cts ?? throw new InvalidOperationException("Command exchange requires a started service");
+        await AwaitWaiterAsync(waiter, timeout, cts.Token);
     }
 
     private async Task ConsumerLoopAsync(CancellationToken ct)

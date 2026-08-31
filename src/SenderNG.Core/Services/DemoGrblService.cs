@@ -393,10 +393,10 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 // shifted by any active G92 offset (as on a real controller).
                 state.Status = "Idle";
                 state.IsHomed = true;
-                EnsureMachinePositions(state);
-                for (var i = 0; i < state.MachinePositions.Length; i++)
+                var machinePos = EnsureMachinePositions(state);
+                for (var i = 0; i < machinePos.Length; i++)
                 {
-                    state.MachinePositions[i] = 0;
+                    machinePos[i] = 0;
                     if (i < state.Positions.Length)
                         state.Positions[i] = -_workOffset[i];
                 }
@@ -527,11 +527,10 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                         // G28/G30 move to the stored reference position, which the
                         // demo keeps at machine zero (as after $H). Axes moved
                         // immediately: work position follows the machine shift.
-                        if (state.MachinePositions is null)
-                            EnsureMachinePositions(state);
-                        for (var i = 0; i < state.MachinePositions.Length; i++)
+                        var refPos = EnsureMachinePositions(state);
+                        for (var i = 0; i < refPos.Length; i++)
                         {
-                            state.MachinePositions[i] = 0;
+                            refPos[i] = 0;
                             if (i < state.Positions.Length)
                                 state.Positions[i] = -_workOffset[i];
                         }
@@ -563,34 +562,35 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             if (!double.TryParse(part[1..], System.Globalization.CultureInfo.InvariantCulture, out var value))
                 continue;
 
-            EnsureMachinePositions(state);
+            var machinePos = EnsureMachinePositions(state);
 
             if (isG92)
             {
                 // G92 sets the work coordinate; the machine coordinate is
                 // unchanged, so the offset absorbs the difference.
                 state.Positions[index] = value;
-                _workOffset[index] = state.MachinePositions[index] - value;
+                _workOffset[index] = machinePos[index] - value;
             }
             else if (g53)
             {
                 // G53 is always absolute machine coordinates.
-                state.MachinePositions[index] = value;
+                machinePos[index] = value;
                 state.Positions[index] = value - _workOffset[index];
             }
             else
             {
                 var work = incremental ? state.Positions[index] + value : value;
                 state.Positions[index] = work;
-                state.MachinePositions[index] = work + _workOffset[index];
+                machinePos[index] = work + _workOffset[index];
             }
         }
     }
 
-    private static void EnsureMachinePositions(MachineState state)
+    private static double[] EnsureMachinePositions(MachineState state)
     {
         if (state.MachinePositions is null || state.MachinePositions.Length != state.Positions.Length)
             state.MachinePositions = new double[state.Positions.Length];
+        return state.MachinePositions;
     }
 
     private static IEnumerable<string> TokenizeWords(string s)
