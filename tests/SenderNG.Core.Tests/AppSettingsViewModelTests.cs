@@ -267,7 +267,7 @@ public class AppSettingsViewModelTests
                 leaf.SelectedLocale = "ru";
                 Assert.Equal("ru", settings.Load().Language);
                 // The tree re-localizes immediately on the locale-changed event.
-                Assert.Equal("Джог", Leaf(vm, "jog").Name);
+                Assert.Equal("Ручное перемещение", Leaf(vm, "jog").Name);
                 Assert.Equal("Модули", ((AppSettingsGroupItem)vm.Groups[1]).Name);
                 Assert.Equal("Режим", ((ModeSettingsLeaf)((AppSettingsGroupItem)vm.Groups[0]).Children[0]).Name);
             }

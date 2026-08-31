@@ -13,7 +13,7 @@ BASE = "src/SenderNG.Avalonia/Locale"
 
 # id -> (english, russian)
 MODULES = {
-    "dro": ("DRO", "DRO"),
+    "dro": ("DRO", "УЦИ"),
     "work-parameters": ("Work Parameters", "Рабочие параметры"),
     "program": ("Program", "Программа"),
     "console": ("Console", "Консоль"),
@@ -23,7 +23,7 @@ MODULES = {
     "coolant": ("Coolant", "СОЖ"),
     "cutting": ("Cutting", "Резка"),
     "goto": ("Goto", "Переход"),
-    "jog": ("Jog", "Джог"),
+    "jog": ("Jog", "Ручное перемещение"),
     "macro": ("Macros", "Макросы"),
     "mpos": ("MPos", "Позиция станка"),
     "outline": ("Outline", "Контур"),
@@ -257,7 +257,7 @@ WIDGET = {
         "module.offsets-table.saveTools": ("Save tools", "Сохранить инструменты"),
     },
     "coolant": {
-        "module.coolant.flood": ("Flood", "Флуд"),
+        "module.coolant.flood": ("Flood", "Полив"),
         "module.coolant.mist": ("Mist", "Туман"),
     },
     "cutting": {

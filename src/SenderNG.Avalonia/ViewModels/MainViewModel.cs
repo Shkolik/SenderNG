@@ -130,7 +130,6 @@ public class MainViewModel : ViewModelBase, IDisposable
             if (!string.IsNullOrWhiteSpace(f))
                 RecentFiles.Add(f);
 
-        DemoToggleCommand = new DelegateCommand(_ => ToggleDemo());
         ConnectCommand = new DelegateCommand(_ => _ = ShowConnectDialogAsync());
         DisconnectCommand = new DelegateCommand(_ => Disconnect());
         SelectModuleCommand = new DelegateCommand(p =>
@@ -454,8 +453,6 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    public DelegateCommand DemoToggleCommand { get; }
-
     public ICommand ConnectCommand { get; }
 
     public ICommand DisconnectCommand { get; }
@@ -509,20 +506,6 @@ public class MainViewModel : ViewModelBase, IDisposable
             window.Show();
         else
             await window.ShowDialog(owner);
-    }
-
-    private void ToggleDemo()
-    {
-        if (IsDemo)
-        {
-            // Leaving demo: back to the (disconnected) serial controller service.
-            SwitchToSerial();
-            ConnectedTo = null;
-        }
-        else
-        {
-            _ = ActivateDemoAsync();
-        }
     }
 
     /// <summary>

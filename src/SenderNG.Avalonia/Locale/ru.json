@@ -389,8 +389,6 @@
     "app.menu.settings": "_Настройки",
     "app.menu.help": "_Помощь",
     "app.menu.help.about": "_О программе",
-    "app.menu.machine": "_Станок",
-    "app.menu.machine.demo": "_Демо-режим",
     "app.toolbar.connect": "Подключение",
     "app.toolbar.open": "Открыть",
     "app.panel.programLimits": "Пределы программы",

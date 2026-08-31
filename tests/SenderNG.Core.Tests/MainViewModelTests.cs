@@ -65,46 +65,6 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void MainViewModel_toggles_demo_and_swaps_service_reusing_di_singletons()
-    {
-        var settings = MakeSettings();
-        var provider = MakeProvider(settings);
-        var vm = new MainViewModel(provider.GetRequiredService<DemoGrblService>(), settings, provider);
-
-        vm.DemoToggleCommand.Execute(null);
-
-        Assert.False(vm.IsDemo);
-        Assert.Same(provider.GetRequiredService<RealGrblService>(), vm.Grbl);
-
-        vm.DemoToggleCommand.Execute(null);
-
-        Assert.True(vm.IsDemo);
-        Assert.Same(provider.GetRequiredService<DemoGrblService>(), vm.Grbl);
-    }
-
-    [Fact]
-    public void MainViewModel_toggles_proxy_inner_and_keeps_proxy_instance()
-    {
-        var settings = MakeSettings();
-        var provider = MakeProvider(settings);
-        var proxy = new GrblServiceProxy(provider.GetRequiredService<DemoGrblService>());
-        var vm = new MainViewModel(proxy, settings, provider);
-
-        Assert.True(vm.IsDemo);
-        Assert.Same(proxy, vm.Grbl);
-
-        vm.DemoToggleCommand.Execute(null);
-
-        Assert.False(vm.IsDemo);
-        Assert.Same(provider.GetRequiredService<RealGrblService>(), proxy.Inner);
-
-        vm.DemoToggleCommand.Execute(null);
-
-        Assert.True(vm.IsDemo);
-        Assert.Same(provider.GetRequiredService<DemoGrblService>(), proxy.Inner);
-    }
-
-    [Fact]
     public void SelectModuleCommand_builds_view_via_factory()
     {
         var settings = MakeSettings();

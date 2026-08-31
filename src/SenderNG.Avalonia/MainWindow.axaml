@@ -59,11 +59,6 @@
                     <MenuItem Header="{loc:Loc app.menu.help}">
                         <MenuItem Header="{loc:Loc app.menu.help.about}" Command="{Binding AboutCommand}" />
                     </MenuItem>
-                    <MenuItem Header="{loc:Loc app.menu.machine}">
-                        <MenuItem Header="{loc:Loc app.menu.machine.demo}"
-                                  IsChecked="{Binding IsDemo, Mode=OneWay}"
-                                  Command="{Binding DemoToggleCommand}" />
-                    </MenuItem>
                 </Menu>
                 <Border BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="4,2" Background="#e8e8e8" HorizontalAlignment="Stretch">
                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">

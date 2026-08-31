@@ -300,8 +300,6 @@
     "app.menu.settings": "_Settings",
     "app.menu.help": "_Help",
     "app.menu.help.about": "_About",
-    "app.menu.machine": "_Machine",
-    "app.menu.machine.demo": "_Demo Mode",
     "app.toolbar.connect": "Connect",
     "app.toolbar.open": "Open",
     "app.panel.programLimits": "Program limits",
