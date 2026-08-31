@@ -61,17 +61,17 @@ public class GrblServiceProxyTests
     }
 
     [Fact]
-    public void Proxy_forwards_calls_to_inner_service()
+    public async Task Proxy_forwards_calls_to_inner_service()
     {
         var inner = new FakeGrbl("a");
         var proxy = new GrblServiceProxy(inner);
 
         Assert.Same(inner, proxy.Inner);
         Assert.False(proxy.IsConnected);
-        proxy.ConnectAsync("COM3").Wait();
+        await proxy.ConnectAsync("COM3");
         Assert.True(proxy.IsConnected);
 
-        proxy.SendAsync("G0 X1").Wait();
+        await proxy.SendAsync("G0 X1");
         Assert.Equal(["G0 X1"], inner.Sent);
 
         proxy.Disconnect();

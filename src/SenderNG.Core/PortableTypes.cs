@@ -75,7 +75,6 @@ namespace CNC.Core
         public bool ResponseLogVerbose { get; set; }
         public System.Collections.ObjectModel.ObservableCollection<string> ResponseLog { get; } = new();
         public event System.Action<string>? OnResponseReceived;
-        public event System.Action<string>? OnWCOUpdated;
         public PollGrbl Poller { get; } = new PollGrbl();
         public string Firmware { get; set; } = "grblHAL";
         public int NumAxes { get; set; }

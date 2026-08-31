@@ -124,7 +124,7 @@ public class ConsoleViewModelTests
 
         Assert.Contains("<Idle|WPos:0,0,0>", vm.ConsoleLines);
         Assert.Contains("ok", vm.ConsoleLines);
-        Assert.Single(vm.ConsoleLines.Where(l => l.StartsWith("<Idle")));
+        Assert.Single(vm.ConsoleLines, l => l.StartsWith("<Idle"));
     }
 
     [Fact]

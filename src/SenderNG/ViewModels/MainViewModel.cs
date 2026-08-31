@@ -114,6 +114,8 @@ public class MainViewModel : ViewModelBase, IDisposable
     private CNC.Core.Signals _signalOptionalSignals = CNC.Core.Signals.Off;
     private ProgramViewModel? _program;
     private readonly SenderNG.Core.Localization.LocalizationService? _localization;
+    private readonly System.Diagnostics.Stopwatch _runStopwatch = new();
+    private bool _isRunning;
 
     public MainViewModel(
         IGrblService grbl,
@@ -222,6 +224,10 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         // Seeded defaults: the app starts disconnected and makes that obvious.
         Status = LocText.Resolve("app.msg.chooseController", "Not connected — choose a controller via Connect (Serial, Network or Demo)");
+
+        // Status-bar values track live settings (jog step) and program state changes.
+        _settingsService.Changed += OnSettingsChanged;
+        OnPropertyChanged(nameof(StatusBarJogStep));
     }
 
     public SettingsService SettingsService { get; }
@@ -300,6 +306,44 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>Status-bar block progress: executed/total blocks of the loaded program.</summary>
+    public string StatusBarBlocks
+    {
+        get
+        {
+            if (_program is null || _program.ProgramRows.Count == 0)
+                return LocText.Format("app.status.block", "Block: {0}/{1}", "--", "--");
+            var exec = _program.ProgramRows.Count(r => r.Status == "\u2713");
+            return LocText.Format("app.status.block", "Block: {0}/{1}", exec, _program.ProgramRows.Count);
+        }
+    }
+
+    /// <summary>Status-bar run time — time elapsed since the current Run started.</summary>
+    public string RunTime =>
+        LocText.Format("app.status.runTime", "Run time: {0}", FormatElapsed(_runStopwatch.Elapsed));
+
+    private static string FormatElapsed(TimeSpan t)
+    {
+        var s = (long)t.TotalSeconds;
+        var h = s / 3600;
+        var m = (s % 3600) / 60;
+        var sec = s % 60;
+        return h > 0 ? $"{h}:{m:D2}:{sec:D2}" : $"{m}:{sec:D2}";
+    }
+
+    /// <summary>Status-bar jog step — the active jog distance from the Jog module settings.</summary>
+    public string StatusBarJogStep
+    {
+        get
+        {
+            var cfg = CNC.Core.Services.JogConfigStore.Load(_settingsService.Load());
+            var step = cfg.Distances.Length == 0 ? 0.0
+                : cfg.Distances[Math.Clamp(cfg.DistanceIndex, 0, cfg.Distances.Length - 1)];
+            return LocText.Format("app.status.jogStep", "Jog step: {0}",
+                step.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+        }
+    }
+
     /// <summary>Window title: demo flag, connection state and loaded file name.</summary>
     public string Title =>
         (IsDemo ? BaseTitleWithDemo : BaseTitleWithoutDemo) + ConnectionTitleSuffix + FileTitleSuffix;
@@ -324,8 +368,15 @@ public class MainViewModel : ViewModelBase, IDisposable
     public string Status
     {
         get => _status;
-        private set => SetField(ref _status, value);
+        private set
+        {
+            if (SetField(ref _status, value))
+                OnPropertyChanged(nameof(Message));
+        }
     }
+
+    /// <summary>Status-bar message — the live transient status/alarm line.</summary>
+    public string Message => Status;
 
     public string MachineState
     {
@@ -802,12 +853,16 @@ public class MainViewModel : ViewModelBase, IDisposable
             OnPropertyChanged(nameof(ConnectionStatus));
             OnPropertyChanged(nameof(MachineStateDisplay));
             OnPropertyChanged(nameof(Status));
+            OnPropertyChanged(nameof(RunTime));
+            OnPropertyChanged(nameof(StatusBarJogStep));
+            OnPropertyChanged(nameof(StatusBarBlocks));
         });
 
     public void Dispose()
     {
         if (_localization is not null)
             _localization.Changed -= OnLocaleChanged;
+        _settingsService.Changed -= OnSettingsChanged;
     }
 
     private void OnModulesChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -833,6 +888,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(MenuModules));
         OnPropertyChanged(nameof(SettingsMenu));
         OnPropertyChanged(nameof(CenterTabs));
+        OnPropertyChanged(nameof(StatusBarJogStep));
+        OnPropertyChanged(nameof(StatusBarBlocks));
     }
 
     /// <summary>Cycle bar Start/Rewind only make sense once a program is loaded.</summary>
@@ -845,6 +902,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         (CycleStartCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (RewindCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        OnPropertyChanged(nameof(StatusBarBlocks));
     }
 
     private void ApplyState(MachineState state)
@@ -913,6 +971,25 @@ public class MainViewModel : ViewModelBase, IDisposable
         _stateForeground = _machineState.Contains("alarm", StringComparison.OrdinalIgnoreCase)
             ? Brushes.White : Brushes.Black;
         OnPropertyChanged(nameof(MachineState));
+
+        // Status-bar run-time field: start the clock on the Run transition and
+        // freeze it when the cycle leaves Run (Hold/Idle/Alarm). The periodic
+        // status reports refresh the displayed value while running.
+        if (_machineState.Equals("run", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!_isRunning)
+            {
+                _runStopwatch.Restart();
+                _isRunning = true;
+            }
+            OnPropertyChanged(nameof(RunTime));
+        }
+        else if (_isRunning)
+        {
+            _runStopwatch.Stop();
+            _isRunning = false;
+            OnPropertyChanged(nameof(RunTime));
+        }
         OnPropertyChanged(nameof(MachineStateDisplay));
         OnPropertyChanged(nameof(IsCheckMode));
         OnPropertyChanged(nameof(StateBrush));

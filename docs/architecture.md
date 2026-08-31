@@ -73,7 +73,7 @@ tests/SenderNG.Core.Tests  xUnit suite (dotnet test)
 - **Cycle bar** uses `SendRealtime` (`0x7E` / `0x21` / `0x18`); Home/Unlock/Reset are bound (`$H`/`$X`/realtime reset).
 - **Accessory-state parsing** — `StatusReportParser` reads the grblHAL `A:` field into `MachineState.Flood`/`Mist`/spindle; classic grbl leaves it untouched.
 - **Foam CNC mode** is persisted but only changes the jog layout today — no functional foam behavior yet.
-- **Unbound UI:** Home / Unlock / Reset and the **Check checkbox** (which toggles grbl check mode `$C` — dry-run g-code without moving the machine) are bound; status-bar Block/Jog-step values are still hardcoded placeholders. The Console tab renders the controller's raw output with ioSender's verbose/filter options; demo mode publishes no raw lines, so the console is silent (no mocked status flood) until a real board is connected; the proxy relays raw lines through a bounded replay so the console shows the connect burst even if the Console tab is realized after connecting.
+- **Unbound UI:** Home / Unlock / Reset and the **Check checkbox** (which toggles grbl check mode `$C` — dry-run g-code without moving the machine) are bound, and the status bar shows real Block / Message / RunTime / JogStep values (ioSender parity). The Console tab renders the controller's raw output with ioSender's verbose/filter options; demo mode publishes no raw lines, so the console is silent (no mocked status flood) until a real board is connected; the proxy relays raw lines through a bounded replay so the console shows the connect burst even if the Console tab is realized after connecting.
 - **Grbl.cs stubs** are compile-only; `GrblInfo` static state is global (partly mitigated by pure `ParseCaps`).
 
 ## 9. Verification

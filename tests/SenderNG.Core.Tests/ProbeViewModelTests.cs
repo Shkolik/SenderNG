@@ -70,9 +70,9 @@ public class ProbeViewModelTests : IDisposable
     }
 
     [Fact]
-    public void Tool_table_availability_reflects_controller_capabilities()
+    public async Task Tool_table_availability_reflects_controller_capabilities()
     {
-        var demo = ConnectDemoAsync().Result;
+        var demo = await ConnectDemoAsync();
         var vm = new ProbeViewModel(demo, _settings);
 
         // Demo is grblHAL Full with 4 tool slots -> tool table present.
@@ -165,9 +165,9 @@ public class ProbeViewModelTests : IDisposable
     }
 
     [Fact]
-    public void SelectedProfile_ignores_null_keeps_previous_while_typing_new_name()
+    public async Task SelectedProfile_ignores_null_keeps_previous_while_typing_new_name()
     {
-        var demo = ConnectDemoAsync().Result;
+        var demo = await ConnectDemoAsync();
         var vm = new ProbeViewModel(demo, _settings);
         var original = vm.SelectedProfile!;
 

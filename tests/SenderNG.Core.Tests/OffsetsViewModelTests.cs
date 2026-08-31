@@ -249,10 +249,10 @@ public sealed class OffsetsViewModelTests
     }
 
     [Fact]
-    public void Demo_shows_tool_table_section_when_enabled()
+    public async Task Demo_shows_tool_table_section_when_enabled()
     {
         using var service = new DemoGrblService(new AppSettings());
-        service.ConnectAsync("demo").GetAwaiter().GetResult();
+        await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
 
         Assert.True(vm.ControllerSupportsToolTable);

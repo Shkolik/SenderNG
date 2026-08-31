@@ -370,7 +370,7 @@ namespace CNC.Core
                         if(translate) {
                             var thread = (GCThreadingMotion)token;
                             uint pass = 1, passes = 0;
-                            double doc = thread.InitialDepth, thread_length, main_taper_height = 0d;
+                            double doc = thread.InitialDepth, thread_length;
                             double t_end_taper_length = thread.TaperLength;
                             double end_tapers = thread.ThreadTaper == ThreadTaper.None ? 0d : (thread.ThreadTaper == ThreadTaper.Both ? 2d : 1d);
                             double infeed_factor = Math.Tan(thread.InfeedAngle * Math.PI / 180d), infeed_offset = 0d;

@@ -126,7 +126,6 @@ public static class StatusReportParser
         // derives the work position as MPos - WCO so the DRO moves on those boards.
         var sawWPos = false;
         var sawMPos = false;
-        var sawWCO = false;
 
         foreach (var field in fields.AsSpan(1))
         {
@@ -147,7 +146,6 @@ public static class StatusReportParser
                 if (state.WorkOffsets is null || state.WorkOffsets.Length != state.Positions.Length)
                     state.WorkOffsets = new double[state.Positions.Length];
                 SetPositions(state.WorkOffsets, field[4..]);
-                sawWCO = true;
             }
             else if (field.StartsWith("FS:", StringComparison.Ordinal))
             {

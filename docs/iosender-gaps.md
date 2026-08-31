@@ -134,10 +134,10 @@ Many already exist; the gaps are listed per widget.
 - [ ] **File actions** (`FileActionControl`) — Load / Save / Close / Run from a
       toolbar; SenderNG has Open (menu + toolbar) and program send in the
       Program view, but no Save/Close file actions.
-- [ ] **Status bar parity** — ioSender status bar shows Blocks, Message,
-      RunTime, JogStep; SenderNG's Block/Jog-step texts are still hardcoded
-      placeholders and Ready is now bound to the connection status
-      (architecture §8 "unbound UI").
+- [x] **Status bar parity** — the status bar now shows real values like
+      ioSender: Blocks (executed/total of the loaded program), Message (the
+      live status/alarm line), RunTime (elapsed while a cycle runs) and
+      JogStep (the active jog distance), plus the centered connection status.
 
 ### Deferred scope noted here for completeness (do not start without asking)
 

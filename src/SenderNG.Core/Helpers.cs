@@ -151,7 +151,7 @@ namespace CNC.Core
         #endregion
     }
 
-    public static class dbl
+    public static class Dbl
     {
         public static string ToInvariantString(this double value) => value.ToString(CultureInfo.InvariantCulture);
         public static string ToInvariantString(this double value, string format) => value.ToString(format, CultureInfo.InvariantCulture);

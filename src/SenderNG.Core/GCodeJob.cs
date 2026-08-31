@@ -67,10 +67,10 @@ namespace CNC.Core
         public Queue<string> commands = new Queue<string>();
 
         public delegate bool ToolChangedHandler(int toolNumber);
-        public event ToolChangedHandler ToolChanged = null;
+        public event ToolChangedHandler? ToolChanged;
 
         public delegate void FileChangedHandler(string filename);
-        public event FileChangedHandler FileChanged = null;
+        public event FileChangedHandler? FileChanged;
 
         public GCodeJob()
         {
@@ -311,11 +311,11 @@ namespace CNC.Core
             set { MinValues.SuspendNotifications = MaxValues.SuspendNotifications = value; }
         }
 
-        private void MinValues_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        private void MinValues_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             OnPropertyChanged("Min" + e.PropertyName);
         }
-        private void MaxValues_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        private void MaxValues_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             OnPropertyChanged("Max" + e.PropertyName);
         }

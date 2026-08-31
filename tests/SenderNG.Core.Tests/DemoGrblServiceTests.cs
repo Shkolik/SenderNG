@@ -66,10 +66,10 @@ public class DemoGrblServiceTests
     }
 
     [Fact]
-    public void Disconnect_resets_connection()
+    public async Task Disconnect_resets_connection()
     {
         var svc = new DemoGrblService(new AppSettings());
-        svc.ConnectAsync("demo").Wait();
+        await svc.ConnectAsync("demo");
         svc.Disconnect();
         Assert.False(svc.IsConnected);
     }

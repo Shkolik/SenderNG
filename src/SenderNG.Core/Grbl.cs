@@ -85,7 +85,7 @@ namespace CNC.Core
     {
         public Position() { for(int i=0;i<Values.Length;i++) Values[i]=double.NaN; Values.PropertyChanged += (s,e)=>OnPropertyChanged(e.PropertyName ?? ""); }
         public Position(string v){ this.Values.PropertyChanged += (s,e)=>OnPropertyChanged(e.PropertyName ?? ""); Parse(v); }
-        public bool Parse(string values){ try{ var p=dbl.ParseList(values); for(int i=0;i<p.Length;i++) Values[i]=p[i]; return true;}catch{return false;}}
+        public bool Parse(string values){ try{ var p=Dbl.ParseList(values); for(int i=0;i<p.Length;i++) Values[i]=p[i]; return true;}catch{return false;}}
         public void Clear(){ for(int i=0;i<Values.Length;i++) Values[i]=double.NaN; }
         public CoordinateValues<double> Values { get; } = new CoordinateValues<double>();
         public double X { get=>Values[0]; set=>Values[0]=value; }
