@@ -55,6 +55,9 @@ namespace CNC.Core
         End
     }
 
+    /// <summary>Details of a block that failed to parse while loading a file.</summary>
+    public sealed record ParseErrorInfo(int LineNumber, string Block, string Message);
+
     public class GCodeJob
     {
 //         public SpindleState BBB;
@@ -105,7 +108,12 @@ namespace CNC.Core
         public double min_feed { get; private set; }
         public double max_feed { get; private set; }
 
-        public bool LoadFile(string filename)
+        /// <summary>
+        /// Loads a G-code file, reporting each block that fails to parse to <paramref name="onParseError"/>.
+        /// The handler returns <c>true</c> to skip the offending line and continue loading, or <c>false</c> to abort.
+        /// With no handler (or when it returns <c>false</c>) the load fails fast: rows are cleared and <c>false</c> is returned.
+        /// </summary>
+        public bool LoadFile(string filename, Func<ParseErrorInfo, bool>? onParseError = null)
         {
             bool ok = true, isComment;
 
@@ -119,6 +127,7 @@ namespace CNC.Core
 
             while (block != null)
             {
+                string rawBlock = block;
                 try
                 {
                     block = block.Trim();
@@ -133,13 +142,12 @@ namespace CNC.Core
                     }
                     block = sr.ReadLine();
                 }
-                catch (Exception )
+                catch (Exception e)
                 {
-                    // portable stub: always continue
-                    if ((ok = false))
-                        block = sr.ReadLine();
-                    else
-                        block = null;
+                    // Parse-error policy (replaces ioSender's inline MessageBox): the caller decides
+                    // per error whether to skip this line (true) and keep loading or abort (false).
+                    ok = onParseError?.Invoke(new ParseErrorInfo((int)LineNumber, rawBlock, e.Message)) ?? false;
+                    block = ok ? sr.ReadLine() : null;
                 }
             }
 

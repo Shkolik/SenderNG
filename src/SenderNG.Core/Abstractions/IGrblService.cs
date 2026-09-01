@@ -52,6 +52,24 @@ public interface IGrblService
     Task SendAsync(string line);
 
     /// <summary>
+    /// Sends one program line and awaits its reply ("ok" or "error:NN") while
+    /// keeping status polling ACTIVE — the program streamer's send path, where
+    /// the DRO/state must stay live during a run (unlike <see cref="SendAsync"/>,
+    /// which suspends the poll for the exchange). Status reports can never steal
+    /// a reply: they are parsed before the reply queue is served. Defaults to
+    /// <see cref="SendAsync"/> + "ok" so lightweight test doubles compile and
+    /// behave for happy-path tests.
+    /// </summary>
+    Task<string> SendProgramLineAsync(string line, CancellationToken cancellationToken = default) =>
+        ReplyAfterSend(SendAsync(line));
+
+    static async Task<string> ReplyAfterSend(Task send)
+    {
+        await send.ConfigureAwait(false);
+        return "ok";
+    }
+
+    /// <summary>
     /// Human-readable identity of the current connection (demo, serial port or
     /// network endpoint) — shown in status text, not used for metadata scoping.
     /// Defaults to "unknown" so lightweight test doubles compile unchanged.

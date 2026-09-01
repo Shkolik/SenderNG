@@ -42,6 +42,7 @@ namespace CNC.Core.Services;
 public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 {
     private readonly BehaviorSubject<MachineState> _subject;
+    private readonly Subject<string> _receivedLines = new();
     private readonly object _lock = new();
     private readonly int _pollIntervalMs;
     private Timer? _pollTimer;
@@ -67,6 +68,11 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     public string ControllerKey => "demo";
 
     public IObservable<MachineState> State => _subject;
+
+    // Demo answers every sent command with an "ok" (or "error:22" for lines it
+    // rejects) on the raw stream, like a real controller — the console shows the
+    // replies and the program streamer can run end-to-end against the demo.
+    public IObservable<string> ReceivedLines => _receivedLines;
 
     // Demo reports a full capability set so both coolant modes stay visible;
     // the axis count follows the live demo state (DemoMachineSettings can resize
@@ -375,18 +381,47 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     {
         if (!IsConnected)
             throw new InvalidOperationException("Not connected.");
-
         var trimmed = line?.Trim() ?? string.Empty;
+        var reply = SimulateCommand(trimmed) ? "ok" : "error:22";
+        _receivedLines.OnNext(reply);
+        return Task.CompletedTask;
+    }
 
+    /// <summary>
+    /// Streaming send: simulates the command (like <see cref="SendAsync"/>) and
+    /// returns the raw reply — "ok", or "error:22" for a line the demo rejects
+    /// (first word outside the G-code alphabet), giving the streamer's error
+    /// path a deterministic, offline-exercisable trigger.
+    /// </summary>
+    public Task<string> SendProgramLineAsync(string line, CancellationToken cancellationToken = default)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Not connected.");
+        var trimmed = line?.Trim() ?? string.Empty;
+        var reply = SimulateCommand(trimmed) ? "ok" : "error:22";
+        _receivedLines.OnNext(reply);
+        return Task.FromResult(reply);
+    }
+
+    /// <summary>
+    /// Applies one command line to the demo machine state and settings. Returns
+    /// false (and changes nothing) when the first word can't be a G-code word —
+    /// the demo's stand-in for a controller rejecting malformed input.
+    /// </summary>
+    private bool SimulateCommand(string trimmed)
+    {
         lock (_lock)
         {
+            if (trimmed.Length == 0 || "GMTNFSXYZABCUVWDHO#%$;()?~".IndexOf(trimmed[0]) < 0)
+                return false;
+
             // $N=value setting assignment: update the demo settings store.
             var assign = trimmed.Length > 2 && trimmed[0] == '$' && !trimmed.StartsWith("$$") && !trimmed.StartsWith("$J");
             if (assign && TryParseSetting(trimmed, out var number, out var value))
             {
                 _settings[number] = value;
                 PersistSettings();
-                return Task.CompletedTask;
+                return true;
             }
 
             var state = _subject.Value;
@@ -396,7 +431,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 ApplyWorkParameterCommand(trimmed, state);
                 _subject.OnNext(state);
                 PublishWorkParameters();
-                return Task.CompletedTask;
+                return true;
             }
 
             if (trimmed.StartsWith("G54", StringComparison.OrdinalIgnoreCase) ||
@@ -411,7 +446,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                     WorkParameters.ActiveCoordinateSystem = code;
                 _subject.OnNext(state);
                 PublishWorkParameters();
-                return Task.CompletedTask;
+                return true;
             }
 
             if (trimmed.StartsWith("T", StringComparison.OrdinalIgnoreCase) &&
@@ -422,7 +457,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                     WorkParameters.Tools.Add(new ToolTableEntry(tool, state.NumAxes));
                 _subject.OnNext(state);
                 PublishWorkParameters();
-                return Task.CompletedTask;
+                return true;
             }
 
             if (trimmed == "?")
@@ -430,7 +465,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 // A status query just echoes the current state - it must not
                 // clobber the live status (e.g. while emulating a running job).
                 _subject.OnNext(state);
-                return Task.CompletedTask;
+                return true;
             }
 
             if (trimmed == "$X")
@@ -439,7 +474,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 if (state.Status.Contains("Alarm", StringComparison.OrdinalIgnoreCase))
                     state.Status = "Idle";
                 _subject.OnNext(state);
-                return Task.CompletedTask;
+                return true;
             }
 
             if (trimmed == "$H")
@@ -457,7 +492,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                         state.Positions[i] = -_workOffset[i];
                 }
                 _subject.OnNext(state);
-                return Task.CompletedTask;
+                return true;
             }
 
             ApplyMotion(trimmed, state);
@@ -473,9 +508,9 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 state.Signals |= CNC.Core.Signals.Probe;
             }
 
-            _subject.OnNext(state);        }
-
-        return Task.CompletedTask;
+            _subject.OnNext(state);
+            return true;
+        }
     }
 
     // Hand-parses motion lines: supports $J= jog commands, modal G90/G91

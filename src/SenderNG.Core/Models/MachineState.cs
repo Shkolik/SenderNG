@@ -90,6 +90,14 @@ public class MachineState
     // Alarm report (an alarm always requires homing) or a soft reset.
     public bool IsHomed { get; set; }
 
+    // Executing program line from the status report's Ln: field (grblHAL and
+    // newer grbl report it while a program is running). 0 = no program line
+    // reported. Note: it counts N-word lines when the file has them, else the
+    // controller's internal block counter — matching it to file lines reliably
+    // needs the (deferred) N-numbering decision, so the UI keys the executing
+    // highlight off the sender instead and treats Ln: as informational for now.
+    public int LineNumber { get; set; }
+
     public MachineState()
     {
         MachinePositions = new double[Positions.Length];

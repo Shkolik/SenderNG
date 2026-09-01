@@ -1,4 +1,3 @@
-
 /*
 
 Copyright (c) 2026 Andrew Shkolik
@@ -32,7 +31,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using CNC.Core.Services;
 using SenderNG.Modules.Fixed;
+using Xunit;
 
 namespace SenderNG.Core.Tests;
 
@@ -46,21 +47,22 @@ public class ProgramViewModelTests
         vm.LoadGCode("G0 X0\nG0 Y0\r\nM30");
 
         Assert.Equal(3, vm.ProgramRows.Count);
-        Assert.Equal(new GCodeProgramRow(1, "·", "G0 X0"), vm.ProgramRows[0]);
-        Assert.Equal(new GCodeProgramRow(2, "·", "G0 Y0"), vm.ProgramRows[1]);
-        Assert.Equal(new GCodeProgramRow(3, "·", "M30"), vm.ProgramRows[2]);
+        Assert.Equal(new GCodeProgramRow(1, "·", "G0 X0", null), vm.ProgramRows[0]);
+        Assert.Equal(new GCodeProgramRow(2, "·", "G0 Y0", null), vm.ProgramRows[1]);
+        Assert.Equal(new GCodeProgramRow(3, "·", "M30", null), vm.ProgramRows[2]);
     }
 
     [Fact]
-    public void LoadGCode_preserves_empty_lines()
+    public void LoadGCode_rows_carry_physical_file_line_numbers()
     {
         var vm = new ProgramViewModel();
 
         vm.LoadGCode("G0 X0\n\nM30");
 
-        Assert.Equal(3, vm.ProgramRows.Count);
-        Assert.Equal(string.Empty, vm.ProgramRows[1].Data);
-        Assert.Equal(2, vm.ProgramRows[1].Line);
+        // The engine model skips blank lines; rows keep the physical file line.
+        Assert.Equal(2, vm.ProgramRows.Count);
+        Assert.Equal(1, vm.ProgramRows[0].Line);
+        Assert.Equal(3, vm.ProgramRows[1].Line);
     }
 
     [Fact]
@@ -89,16 +91,95 @@ public class ProgramViewModelTests
 
         Assert.Empty(vm.ProgramRows);
     }
+
+    [Fact]
+    public void LoadProgram_adds_limit_rows_from_the_single_parse()
+    {
+        var vm = new ProgramViewModel();
+        vm.LoadProgram(GCodeProgram.Parse("G21 G90\nG0 X10 Y20\nG1 X30 Y40 F100"), "G21 G90\nG0 X10 Y20\nG1 X30 Y40 F100");
+
+        Assert.True(vm.HasLimits);
+        var x = Assert.Single(vm.LimitRows, l => l.Letter == "X");
+        Assert.Equal(10, x.Min);
+        Assert.Equal(30, x.Max);
+    }
 }
 
-public class ProgramViewModelRewindTests
+public class ProgramViewModelRunTests
 {
+    private static async Task<DemoGrblService> ConnectDemoAsync()
+    {
+        var settings = new SettingsService(Path.Combine(Path.GetTempPath(), "sng-pvm-" + Guid.NewGuid().ToString("N")))
+            .Load();
+        var svc = new DemoGrblService(settings);
+        await svc.ConnectAsync("demo");
+        return svc;
+    }
+
+    [Fact]
+    public async Task Run_streams_every_row_to_done()
+    {
+        var svc = await ConnectDemoAsync();
+        var vm = new ProgramViewModel(svc);
+        vm.LoadGCode("G21\nG0 X10 Y10\nG1 X20 Y20 F100\nM5");
+
+        Assert.True(vm.RunCommand.CanExecute(null));
+
+        await vm.RunAsync();
+
+        Assert.False(vm.IsRunning);
+        Assert.All(vm.ProgramRows, r => Assert.Equal("✓", r.Status));
+        Assert.Equal("4/4", vm.ProgressText);
+        Assert.Contains("Run finished", vm.RunMessage);
+    }
+
+    [Fact]
+    public async Task Run_marks_the_failing_line_and_stops()
+    {
+        var svc = await ConnectDemoAsync();
+        var vm = new ProgramViewModel(svc);
+        vm.LoadGCode("G21\nR5\nG0 X1"); // R-first word: rejected by the demo
+
+        await vm.RunAsync();
+
+        Assert.False(vm.IsRunning);
+        Assert.Equal("✓", vm.ProgramRows[0].Status);
+        Assert.Equal("✕", vm.ProgramRows[1].Status);
+        Assert.Equal("error:22", vm.ProgramRows[1].Detail);
+        Assert.Equal("·", vm.ProgramRows[2].Status); // never sent
+        Assert.Contains("Run failed", vm.RunMessage);
+    }
+
+    [Fact]
+    public async Task Run_rewinds_the_rows_first()
+    {
+        var svc = await ConnectDemoAsync();
+        var vm = new ProgramViewModel(svc);
+        vm.LoadGCode("G21\nG0 X1");
+
+        await vm.RunAsync();
+        Assert.All(vm.ProgramRows, r => Assert.Equal("✓", r.Status));
+
+        await vm.RunAsync(); // second run rewinds then streams again
+
+        Assert.All(vm.ProgramRows, r => Assert.Equal("✓", r.Status));
+    }
+
+    [Fact]
+    public void Run_is_unavailable_without_a_connection()
+    {
+        var vm = new ProgramViewModel();
+        vm.LoadGCode("G0 X1");
+
+        Assert.False(vm.RunCommand.CanExecute(null));
+    }
+
     [Fact]
     public void Rewind_resets_row_statuses_to_un_sent()
     {
         var vm = new ProgramViewModel();
         vm.LoadGCode("G0 X0\nG0 Y0\nM30");
-        vm.ProgramRows[0] = vm.ProgramRows[0] with { Status = "ok" };
+        vm.ProgramRows[0] = vm.ProgramRows[0] with { Status = "✕" };
         vm.ProgramRows[1] = vm.ProgramRows[1] with { Status = "✓" };
 
         vm.Rewind();

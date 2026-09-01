@@ -54,18 +54,18 @@ never reconnected. Consequences:
 retire the legacy static and route `NGCExpr` PRB to the snapshot), then re-enable
 emulator G28/G30/G92 handling with tests.
 
-## GCodeJob.LoadFile parse-error policy — OPEN
+## GCodeJob.LoadFile parse-error policy — DONE
 
-**Gap:** on a parse error `LoadFile` has a leftover port stub
-(`GCodeJob.cs` catch block, flagged by CS0665). The original ioSender asked the
-user via MessageBox whether to continue loading (`ok = MessageBox.Show(...) == Yes`);
-the port hardcoded the answer to `false`, leaving `if ((ok = false))` — always-false
-branch, dead `block = sr.ReadLine()`. The comment says "always continue" but the code
-actually **aborts** the load (loop ends, no End marker, `LoadFile` returns false).
-
-**TODO:** pick one policy and make code+comment agree — either genuinely skip parse
-errors and keep reading (`ok = true`, continue), or abort explicitly — then replace
-the always-false condition so the intent is self-documenting.
+**Resolved (delegate policy):** the CS0665 stub is gone. `LoadFile(filename,
+Func<ParseErrorInfo, bool>? onParseError)` takes the error policy as a delegate:
+the handler receives the raw offending line, its line number, and the parser
+message, and returns `true` to skip the line and keep loading or `false` to
+abort. With **no handler the load fails fast** (clears rows, returns `false`).
+`ParseErrorInfo` is a record, keeping Core UI-free — the ioSender-style
+Yes/No MessageBox belongs to the future File-load feature's view layer, which
+will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
+`ok = MessageBox.Show(...) == Yes` semantics). Covered by `GCodeJobTests`
+(4 tests: fail-fast default, skip-and-continue, abort, clean file + limits).
 
 ## Other known deferred items
 
@@ -78,4 +78,9 @@ the always-false condition so the intent is self-documenting.
 > The full ioSender gap map lives in `docs/iosender-gaps.md`. The cycle-bar
 > realtime bytes, Home/Unlock/Reset bindings, the status read loop / `$I` handshake /
 > accessory parsing (P0-A/B/C), and the connect dialog (P0-D) are all landed; older
-> notes claiming otherwise are stale.
+> notes claiming otherwise are stale. The cycle bar is now the single run-control
+> surface (the Program view's transport bar was removed) and gates on the session
+> state: buttons stay visible, enabling/disabling as the session starts, holds,
+> resumes, or stops. The session is local orchestration only — the controller is
+> still driven exclusively by the same realtime bytes, now sent once per state
+> transition instead of blindly per button press.

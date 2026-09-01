@@ -38,14 +38,53 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 
 namespace SenderNG.Modules.Fixed;
 
 public partial class ProgramView : UserControl
 {
+    /// <summary>Uniform row height in the program grid: 24px row + 1px bottom hairline.
+    /// Keep in sync with the ItemTemplate in ProgramView.axaml.</summary>
+    private const double RowHeight = 25;
+
+    private ProgramViewModel? _vm;
+    private ScrollViewer? _scroller;
+
     public ProgramView()
     {
         InitializeComponent();
+        DataContextChanged += (_, _) =>
+        {
+            if (_vm is not null)
+                _vm.ScrollRequested -= ScrollToRow;
+            _vm = DataContext as ProgramViewModel;
+            if (_vm is not null)
+                _vm.ScrollRequested += ScrollToRow;
+        };
+    }
+
+    /// <summary>
+    /// Follow the send frontier during a run, keeping the last-sent line near
+    /// the vertical middle of the viewport so the next commands stay visible
+    /// above the fold. Scrolling is computed from the uniform row height
+    /// (index * RowHeight) instead of ScrollIntoView, which only reveals the
+    /// row at an edge and doesn't keep it centered as the frontier advances.
+    /// </summary>
+    private void ScrollToRow(int index)
+    {
+        // The inner ScrollViewer only exists once the ListBox template has been
+        // applied; requests before that are dropped and retried on the next
+        // update (the frontier keeps moving during a run).
+        var scroller = _scroller ??=
+            ProgramList.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        if (scroller is null)
+            return;
+
+        var target = index * RowHeight - (scroller.Viewport.Height - RowHeight) / 2;
+        var max = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);
+        scroller.Offset = new Vector(0, Math.Clamp(target, 0, max));
     }
 }

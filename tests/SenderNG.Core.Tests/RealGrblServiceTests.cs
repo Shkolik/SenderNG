@@ -151,6 +151,40 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    public async Task SendProgramLineAsync_returns_the_reply_without_suspending_the_poll()
+    {
+        var transport = new FakeGrblTransport();
+        using var svc = new RealGrblService(transport) { PollIntervalMs = 50 };
+        await svc.ConnectAsync("fake");
+
+        // Streaming send: returns the controller's raw reply, and the '?' poll
+        // keeps running (status stays live during a run).
+        var reply = await svc.SendProgramLineAsync("G0 X10");
+        Assert.Equal("ok", reply);
+
+        // The poller writes '?' as a realtime byte — the streaming send must
+        // NOT suspend it (unlike the single-command path).
+        await WaitUntil(() => transport.WrittenRawBytes.Contains("?"), timeoutMs: 3000);
+        Assert.NotNull(transport.Sent.LastOrDefault(l => l == "G0 X10"));
+    }
+
+    [Fact]
+    public async Task SendProgramLineAsync_returns_the_error_reply_verbatim()
+    {
+        var transport = new FakeGrblTransport { AutoReply = false };
+        using var svc = new RealGrblService(transport);
+        await svc.ConnectAsync("fake");
+
+        // Script the transcript: enqueue the reply after the write lands.
+        var pending = svc.SendProgramLineAsync("G0 X10");
+        await Task.Delay(50);
+        transport.Enqueue("error:22");
+
+        var reply = await pending;
+        Assert.Equal("error:22", reply); // streaming never throws on rejection — the streamer decides
+    }
+
+    [Fact]
     public async Task Completed_homing_marks_state_homed_and_alarm_clears_it()
     {
         var transport = new FakeGrblTransport();

@@ -907,6 +907,68 @@ public class RealGrblHardwareTests
         }
     }
 
+    /// <summary>
+    /// Streaming-path smoke on real hardware: sends a tiny, NO-MOTION program
+    /// (modal-only lines) through <see cref="GCodeProgramStreamer"/> and expects
+    /// per-line ok replies. This exercises the streaming send's key difference
+    /// from the single-command path — status polling continues during the run,
+    /// so '?' replies interleave with command replies and must not corrupt the
+    /// FIFO — for real.
+    /// </summary>
+    [Fact]
+    public async Task Streams_modal_program_with_ok_replies_on_hardware()
+    {
+        var candidates = ResolveCandidates();
+        if (candidates.Length == 0)
+        {
+            Console.WriteLine("WARNING: hardware streaming smoke skipped — no serial ports enumerated");
+            return;
+        }
+
+        var preAxes = CNC.Core.GrblInfo.NumAxes;
+        var preHAL = CNC.Core.GrblInfo.IsGrblHAL;
+
+        foreach (var port in candidates)
+        {
+            if (!TryIdentifyBoard(port, out var svc, out var received))
+            {
+                Console.WriteLine($"INFO   '{port}' did not answer $I as grbl/grblHAL — trying next port");
+                continue;
+            }
+
+            try
+            {
+                // Modal-only setup lines: no motion, the machine is left exactly as found.
+                var program = GCodeProgram.Parse("G90\nG21");
+                Assert.False(program.HasErrors);
+
+                var rawBefore = received.Count;
+                var session = new GCodeProgramStreamer(svc).Start(program);
+                var result = await session.Completion;
+                var rawDuring = received.Count - rawBefore;
+
+                Console.WriteLine(
+                    $"OK   streamed {result.LinesSent} lines, ok={result.LinesOk}, outcome={result.Outcome}, " +
+                    $"raw lines while streaming={rawDuring} (status reports interleaving)");
+
+                Assert.Equal(ProgramRunOutcome.Completed, result.Outcome);
+                Assert.Equal(2, result.LinesOk);
+                Assert.True(rawDuring >= 2, "the '?' poll should keep reporting status during a streaming run");
+            }
+            finally
+            {
+                svc.Disconnect();
+                CNC.Core.GrblInfo.NumAxes = preAxes;
+                CNC.Core.GrblInfo.IsGrblHAL = preHAL;
+            }
+            return;
+        }
+
+        Console.WriteLine(
+            $"WARNING: hardware streaming smoke skipped — none of {string.Join(", ", candidates)} " +
+            "answered the $I handshake as a grbl/grblHAL controller");
+    }
+
     private static async Task<bool> WaitUntil(Func<bool> condition, int timeoutMs)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);

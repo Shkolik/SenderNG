@@ -178,12 +178,22 @@ public class MainViewModel : ViewModelBase, IDisposable
         SendMdiCommand = new DelegateCommand(_ => _ = SendMdiAsync(), _ => !string.IsNullOrWhiteSpace(MdiInput));
         OpenFileCommand = new DelegateCommand(_ => _ = OpenFileAsync());
         SelectRecentCommand = new DelegateCommand(p => _ = LoadGCodeFileAsync(p as string));
-        // Cycle bar: raw grbl realtime bytes (classic 0x7E/0x21/0x18, grblHAL compatible).
-        // Start/Rewind need a loaded program; Stop only from Hold; Feed Hold only while Run.
-        CycleStartCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.CycleStart, "Cycle Start"), _ => HasProgram);
-        FeedHoldCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.FeedHold, "Feed Hold"), _ => IsMachineState("Run"));
-        StopCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.Reset, "Stop"), _ => IsMachineState("Hold"));
-        RewindCommand = new DelegateCommand(_ => Rewind(), _ => HasProgram && IsMachineState("Idle"));
+        // Cycle bar — the only run controls (the program pane shows no transport
+        // bar). The machine runs at most one streaming session at a time, so the
+        // buttons are gated on the session state, not a parallel machine-level
+        // state machine: Start = run (idle program) / resume (paused session),
+        // Hold = pause the session, Stop = hard reset while Held, Rewind = local
+        // rewind. Without a loaded program they fall back to raw realtime bytes
+        // (classic 0x7E/0x21/0x18, grblHAL compatible) for MDI runs; the remaining
+        // machine-state checks only cover that no-program fallback. Buttons stay
+        // visible — enablement (CanExecute) is what changes.
+        CycleStartCommand = new DelegateCommand(_ => _ = CycleStartAsync(),
+            _ => IsConnected && (SessionPaused || (HasProgram && !SessionActive)
+                || (!HasProgram && (IsMachineState("Run") || IsMachineState("Hold")))));
+        FeedHoldCommand = new DelegateCommand(_ => FeedHold(),
+            _ => (SessionActive && !SessionPaused) || (_program?.IsRunning != true && IsMachineState("Run")));
+        StopCommand = new DelegateCommand(_ => StopMachine(), _ => IsMachineState("Hold"));
+        RewindCommand = new DelegateCommand(_ => Rewind(), _ => HasProgram && !SessionActive);
         // Status bar buttons (ioSender semantics): Home -> $H, Unlock -> $X, Reset -> realtime 0x18.
         HomeCommand = new DelegateCommand(_ => SendLine("$H", "Home"));
         UnlockCommand = new DelegateCommand(_ => SendLine("$X", "Unlock"));
@@ -200,10 +210,23 @@ public class MainViewModel : ViewModelBase, IDisposable
         AboutCommand = new DelegateCommand(_ => _ = ShowAboutAsync());
         _mdiHistoryIndex = MdiHistory.Count;
 
-        // Cycle bar Start/Rewind enablement follows the loaded program rows.
+        // Cycle bar Start/Rewind enablement follows the loaded program rows; the
+        // status bar block counter follows live row statuses, and run messages
+        // surface on the status bar.
         _program = _services.GetService<ProgramViewModel>();
         if (_program is not null)
+        {
             _program.ProgramRows.CollectionChanged += (_, _) => RaiseProgramCommands();
+            _program.RowsChanged += () => OnPropertyChanged(nameof(StatusBarBlocks));
+            _program.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(ProgramViewModel.RunMessage) && _program.RunMessage is { } m)
+                    Status = m;
+                // Session transitions (start / pause / finish) re-gate the cycle bar.
+                if (e.PropertyName is nameof(ProgramViewModel.IsRunning) or nameof(ProgramViewModel.IsPaused))
+                    RaiseProgramCommands();
+            };
+        }
 
         // State indicator: subscribe to grbl State and expose MachineState + StateBrush (RUN green #c8e8c8, IDLE yellow #ffe8a0, ALARM red #e04545, Height 28)
         // Also drives dynamic Signals panel (AxisSignals + ProbeActive) from MachineState.NumAxes / Signals
@@ -703,18 +726,22 @@ public class MainViewModel : ViewModelBase, IDisposable
         try
         {
             var text = await File.ReadAllTextAsync(path);
-            var errors = GCodeValidator.Validate(text);
-            if (errors.Count > 0)
+            // The load gate IS the engine: GCodeProgram parses the file once with
+            // the same GCodeParser the streamer consumes, so a file that would
+            // fail while sending can never be loaded. Errors carry file line
+            // numbers and refuse the load outright (no skip-and-load — a partial
+            // program is a different program than the user opened).
+            var parsed = GCodeProgram.Parse(text);
+            if (parsed.HasErrors)
             {
-                Status = LocText.Format("app.msg.validationFailed", "Validation failed: {0} ({1}+ error(s))", Path.GetFileName(path), errors.Count);
+                Status = LocText.Format("app.msg.validationFailed", "Validation failed: {0} ({1} error(s))", Path.GetFileName(path), parsed.Errors.Count);
                 if (_fileDialogs is not null)
-                    await _fileDialogs.ShowErrorAsync("G-code validation failed", string.Join(Environment.NewLine, errors));
+                    await _fileDialogs.ShowErrorAsync("G-code validation failed", string.Join(Environment.NewLine, parsed.Errors));
                 return;
             }
 
-            var blocks = text.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries).Length;
             var program = _services.GetRequiredService<ProgramViewModel>();
-            program.LoadGCode(text);
+            program.LoadProgram(parsed, text);
             HasProgramLimits = program.HasLimits;
             CurrentFileName = Path.GetFileName(path);
 
@@ -726,7 +753,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             var appSettings = _settingsService.Load();
             appSettings.RecentFiles = [.. RecentFiles];
             _settingsService.Save(appSettings);
-            Status = LocText.Format("app.msg.loaded", "Loaded {0} ({1} blocks)", Path.GetFileName(path), blocks);
+            Status = LocText.Format("app.msg.loaded", "Loaded {0} ({1} lines)", Path.GetFileName(path), program.ProgramRows.Count);
         }
         catch (Exception ex)
         {
@@ -825,6 +852,47 @@ public class MainViewModel : ViewModelBase, IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Cycle-bar Start: with a loaded program it starts the streaming run (or
+    /// resumes a paused one); without, it falls back to the raw cycle-start byte.
+    /// </summary>
+    private async Task CycleStartAsync()
+    {
+        if (_program is { IsRunning: true })
+        {
+            // A paused run resumes on cycle start; a running machine ignores it.
+            if (IsMachineState("Hold"))
+                _program.Resume();
+            else
+                SendRealtime(GrblRealtime.CycleStart, "Cycle Start");
+            return;
+        }
+        if (_program is null || !HasProgram)
+        {
+            // Raw passthrough without a loaded program (harmless no-op byte).
+            SendRealtime(GrblRealtime.CycleStart, "Cycle Start");
+            return;
+        }
+        // Streaming start; RunAsync itself no-ops when not connected.
+        await _program.RunAsync();
+    }
+
+    /// <summary>Cycle-bar Feed Hold: pauses the streaming run if one is active, else sends the raw byte.</summary>
+    private void FeedHold()
+    {
+        if (_program is { IsRunning: true })
+            _program.Pause();
+        else
+            SendRealtime(GrblRealtime.FeedHold, "Feed Hold");
+    }
+
+    /// <summary>Cycle-bar Stop (enabled while Held): hard reset; ends the streaming session so it never resumes.</summary>
+    private void StopMachine()
+    {
+        _program?.OnHardReset();
+        SendRealtime(GrblRealtime.Reset, "Stop");
+    }
+
     /// <summary>Rewind the loaded program to the start (local reset, no byte sent - mirrors ioSender RewindFile).</summary>
     private void Rewind()
     {
@@ -895,12 +963,24 @@ public class MainViewModel : ViewModelBase, IDisposable
     /// <summary>Cycle bar Start/Rewind only make sense once a program is loaded.</summary>
     private bool HasProgram => _program is { ProgramRows.Count: > 0 };
 
+    /// <summary>A streaming session is active — its state is the machine run
+    /// (the machine runs at most one session at a time).</summary>
+    private bool SessionActive => _program is { IsRunning: true };
+
+    /// <summary>The active session is feed-held (paused).</summary>
+    private bool SessionPaused => _program?.IsPaused == true;
+
     private bool IsMachineState(string value) =>
         _machineState.Contains(value, StringComparison.OrdinalIgnoreCase);
 
+    // Session/program state transitions re-gate the whole cycle bar; the
+    // machine-state fallback for the no-program path re-raises from
+    // ApplyMachineState.
     private void RaiseProgramCommands()
     {
         (CycleStartCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        (FeedHoldCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        (StopCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (RewindCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         OnPropertyChanged(nameof(StatusBarBlocks));
     }
@@ -995,11 +1075,10 @@ public class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(StateBrush));
         OnPropertyChanged(nameof(StateForeground));
 
-        // Cycle bar enablement follows the machine state: Stop in Hold, Feed Hold in Run,
-        // Rewind only when Idle.
-        (FeedHoldCommand as DelegateCommand)?.RaiseCanExecuteChanged();
-        (StopCommand as DelegateCommand)?.RaiseCanExecuteChanged();
-        (RewindCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        // Cycle bar enablement: the session state gates run controls (Start/Hold/
+        // Rewind), and Stop still requires machine Hold (the only state a hard
+        // reset makes sense from). The no-program fallback also re-gates here.
+        RaiseProgramCommands();
     }
 
     private static IBrush ResolveStateBrush(string status)
@@ -1160,6 +1239,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(ConnectionStatus));
         OnPropertyChanged(nameof(Title));
         (CheckCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        RaiseProgramCommands(); // Start is gated on IsConnected
         if (!connected)
             Status = LocText.Resolve("app.msg.connectionLost", "Controller disconnected — check the cable and reconnect");
     }

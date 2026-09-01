@@ -124,6 +124,9 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
 
     public Task SendAsync(string line) => _inner.SendAsync(line);
 
+    public Task<string> SendProgramLineAsync(string line, CancellationToken cancellationToken = default) =>
+        _inner.SendProgramLineAsync(line, cancellationToken);
+
     public void SendRealtime(byte code) => _inner.SendRealtime(code);
 
     public Task<IReadOnlyList<string>> GetSettingLinesAsync() =>

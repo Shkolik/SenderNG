@@ -466,17 +466,33 @@ public class MainViewModelCycleEnablementTests
     }
 
     [Fact]
-    public void Start_and_Rewind_enabled_after_program_loads()
+    public async Task Start_and_Rewind_enabled_after_program_loads_when_connected()
     {
         var settings = MakeSettings();
         var provider = MakeProvider(settings, withProgram: true);
-        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, provider);
+        var svc = new DemoGrblService(settings.Load());
+        await svc.ConnectAsync("demo");
+        var vm = new MainViewModel(svc, settings, provider);
 
         var program = provider.GetRequiredService<SenderNG.Modules.Fixed.ProgramViewModel>();
         program.LoadGCode("G0 X0" + "\nG0 Y0");
 
         Assert.True(vm.CycleStartCommand.CanExecute(null));
         Assert.True(vm.RewindCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Cycle_start_requires_a_connection()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings, withProgram: true);
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, provider); // not connected
+
+        var program = provider.GetRequiredService<SenderNG.Modules.Fixed.ProgramViewModel>();
+        program.LoadGCode("G0 X0");
+
+        Assert.False(vm.CycleStartCommand.CanExecute(null));
+        Assert.True(vm.RewindCommand.CanExecute(null)); // Rewind is local-only
     }
 
     [Fact]
@@ -645,28 +661,63 @@ public class MainViewModelStatusButtonsTests
         public void SendRealtime(byte code) { }
     }
 
+    private sealed class SessionGrbl(BehaviorSubject<MachineState> state) : IGrblService
+    {
+        public bool IsConnected => true;
+        public IObservable<MachineState> State => state;
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        // Never completes: the streaming session stays open (SendProgramLineAsync's
+        // default awaits this task) so the test can inspect the cycle bar mid-run.
+        public Task SendAsync(string line) =>
+            new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task;
+        public void SendRealtime(byte code) { }
+    }
+
     [Fact]
-    public async Task Rewind_enabled_only_when_idle()
+    public void Cycle_bar_gates_follow_the_session_state()
     {
         var settings = MakeSettings();
-        var provider = MakeProvider(settings);
-        var svc = new DemoGrblService(settings.Load());
-        var vm = new MainViewModel(svc, settings, provider);
-        await svc.ConnectAsync("demo");
+        var subject = new BehaviorSubject<MachineState>(new MachineState());
+        var grbl = new SessionGrbl(subject);
+        var services = new ServiceCollection();
+        services.AddSingleton(settings);
+        services.AddSingleton<IGrblService>(grbl);
+        services.AddSingleton<SenderNG.Modules.Fixed.ProgramViewModel>();
+        var provider = services.BuildServiceProvider();
+        var vm = new MainViewModel(grbl, settings, provider);
 
         var program = provider.GetRequiredService<SenderNG.Modules.Fixed.ProgramViewModel>();
         program.LoadGCode("G0 X0");
 
-        // Idle: rewind makes sense (ioSender enables it when streaming is idle).
+        // Rewind is a local row reset: without an active session the machine
+        // state never blocks it (Hold/Run from MDI are unrelated to the program).
+        subject.OnNext(new MachineState { Status = "Hold" });
         Assert.True(vm.RewindCommand.CanExecute(null));
-
-        svc.SendRealtime(GrblRealtime.FeedHold); // -> Hold
-        Assert.False(vm.RewindCommand.CanExecute(null));
-
-        svc.SendRealtime(GrblRealtime.CycleStart); // -> Run
-        Assert.False(vm.RewindCommand.CanExecute(null));
-
-        svc.SendRealtime(GrblRealtime.Reset); // -> Idle
+        Assert.True(vm.StopCommand.CanExecute(null)); // machine Held regardless of session
+        Assert.False(vm.FeedHoldCommand.CanExecute(null)); // no session to pause
+        subject.OnNext(new MachineState { Status = "Run" });
         Assert.True(vm.RewindCommand.CanExecute(null));
+        Assert.True(vm.FeedHoldCommand.CanExecute(null)); // raw byte fallback for MDI runs
+        subject.OnNext(new MachineState { Status = "Idle" });
+
+        // Start: session opens and stays active (the stub never answers).
+        Assert.True(vm.CycleStartCommand.CanExecute(null));
+        vm.CycleStartCommand.Execute(null);
+
+        Assert.False(vm.RewindCommand.CanExecute(null));     // session running
+        Assert.False(vm.CycleStartCommand.CanExecute(null)); // already running
+        Assert.True(vm.FeedHoldCommand.CanExecute(null));    // running -> Hold available
+        Assert.False(vm.StopCommand.CanExecute(null));       // not Held
+
+        subject.OnNext(new MachineState { Status = "Hold" }); // feed-held => session paused
+        Assert.True(vm.CycleStartCommand.CanExecute(null)); // resume
+        Assert.True(vm.StopCommand.CanExecute(null));       // Reset while Held (ends the session)
+        Assert.False(vm.FeedHoldCommand.CanExecute(null));  // already paused
+
+        subject.OnNext(new MachineState { Status = "Run" }); // resumed, moving
+        Assert.False(vm.CycleStartCommand.CanExecute(null));
+        Assert.True(vm.FeedHoldCommand.CanExecute(null));
+        Assert.False(vm.StopCommand.CanExecute(null));
     }
 }

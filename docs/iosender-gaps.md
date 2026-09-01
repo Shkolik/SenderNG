@@ -72,12 +72,30 @@ Many already exist; the gaps are listed per widget.
 - [x] Cutting (`Modules/Plugins/Cutting`) — Feed/Rapids/Speed overrides, spindle
       CW/CCW/Off + RPM input.
 - [x] Program view (`Modules/Fixed/Program`) — line list with status, program
-      limits panel, load/send.
+      limits panel, load/send. 2026-08-31: now backed by the engine: Open File
+      runs the file through `GCodeProgram` (the same `GCodeParser` pass the
+      streamer consumes) and REFUSES any file with errors (`Line n: …` dialog —
+      no skip-and-load, a partial program is a different program). Streaming
+      sends lines awaiting each ok via `SendProgramLineAsync` (status polls
+      stay live during a run), rows show `·/@/✓/✕` with per-line error detail,
+      and the run stops on the first controller rejection or Alarm (never
+      skips). 2026-08-31 (single-run-surface consolidation): the in-view
+      Run/Pause/Resume/Stop transport bar is gone — the cycle bar is the only
+      run control, so the run stays drivable while watching the Console tab,
+      and block progress reads from the status bar (`StatusBarBlocks`). The
+      grid is header-aligned: vertical 1px gridlines on shared
+      `44|1|28|1|1*` columns, header text matching the cells' alignment,
+      zero-padded rows so the hover highlight covers the row exactly, and the
+      last-sent line auto-scrolls to the vertical center so the next commands
+      stay in view. `GCodeValidator` stays as the stateless re-validation
+      probe for future edit/save work (no ioSender counterpart exists).
 - [x] Console (`Modules/Fixed/Console`) — renders the controller's raw output
       with ioSender console semantics: Verbose / Filter-out-realtime /
       Show-all-realtime options (persisted), Clear button, 200-line cap. Demo
-      mode publishes no raw lines, so the console no longer shows mocked status
-      strings; connected to a real board it shows $I identity/options, $$ dumps,
+      mode answers every sent command with `ok`/`error:22` on the raw stream
+      (2026-08-31 — the program streamer needs responses offline), so the
+      console shows command replies but no mocked status reports; connected to
+      a real board it shows $I identity/options, $$ dumps,
       `[PRB:...]` and `error:` replies as sent. The proxy relays raw lines as a
       bounded replay so the console still shows the connect burst even when the
       Console tab is realized lazily after connecting. The connect dialog also
@@ -97,9 +115,21 @@ Many already exist; the gaps are listed per widget.
 - [x] MDI row (editable combo + history + Send).
 - [x] Signals panel (axis indicators + probe state).
 - [x] State indicator (Idle/Run/Alarm/Hold + brush).
-- [x] Cycle bar: Cycle Start / Feed Hold / Stop / Rewind — already
-      `SendRealtime` (`0x7E`/`0x21`/`0x18`) as of `MainViewModel`; ROADMAP's
-      "placeholder strings" note is stale and should be removed.
+- [x] Cycle bar (Cycle Start / Feed Hold / Stop / Rewind) — the **only** run
+      control surface (the Program view's transport bar was removed: one
+      session, one control set, usable while watching the Console tab).
+      Gated on the session state rather than the machine state — buttons stay
+      visible and enable/disable: Start = run or resume, Hold = pause, Stop =
+      hard reset while Held (the only state a reset makes sense from), Rewind
+      = local rewind whenever no session is active. The session is purely
+      local orchestration — it only decides *when*; the controller is still
+      driven **exclusively** by the same realtime bytes
+      (`0x7E`/`0x21`/`0x18`) and the G-code line stream awaiting each `ok`.
+      What changed is the timing: each state transition (start/hold/resume/
+      reset) issues its byte once at the right moment instead of each button
+      blindly sending it — MDI without a loaded program still passes the raw
+      bytes straight through. ROADMAP's "placeholder strings" note is stale
+      and should be removed.
 
 ### Missing widgets (port from ioSender `CNC Controls`)
 

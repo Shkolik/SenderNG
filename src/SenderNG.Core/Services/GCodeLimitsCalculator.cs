@@ -68,8 +68,15 @@ public static class GCodeLimitsCalculator
             }
         }
 
-        if (parser.Tokens.Count == 0)
+        return Compute(parser.Tokens);
+    }
+
+    /// <summary>Program limits for an already-parsed token stream (single-parse path: <see cref="GCodeProgram"/>).</summary>
+    public static IReadOnlyList<AxisLimits>? Compute(IReadOnlyList<GCodeToken> tokens)
+    {
+        if (tokens.Count == 0)
             return null;
+        var tokenList = tokens as List<GCodeToken> ?? tokens.ToList();
 
         // Per-axis bounding box across all machine axes (not just XYZ):
         // foam/multiaxis programs move A/B/C alongside XYZ and those limits
@@ -80,7 +87,7 @@ public static class GCodeLimitsCalculator
         var present = AxisFlags.None;
 
         var emu = new GCodeEmulator(true);
-        foreach (var cmd in emu.Execute(parser.Tokens))
+        foreach (var cmd in emu.Execute(tokenList))
         {
             switch (cmd.Token)
             {

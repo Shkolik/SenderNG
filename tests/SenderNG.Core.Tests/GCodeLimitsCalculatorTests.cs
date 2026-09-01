@@ -41,7 +41,7 @@ public class GCodeLimitsCalculatorTests
     [Fact]
     public void Compute_null_or_empty_returns_null()
     {
-        Assert.Null(GCodeLimitsCalculator.Compute(null));
+        Assert.Null(GCodeLimitsCalculator.Compute((string?)null));
         Assert.Null(GCodeLimitsCalculator.Compute(""));
         Assert.Null(GCodeLimitsCalculator.Compute("; comment only"));
     }

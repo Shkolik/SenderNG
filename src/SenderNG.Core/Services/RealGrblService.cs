@@ -461,6 +461,22 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 throw;
             throw new InvalidOperationException("Controller disconnected.", ex);
         }
+        catch (OperationCanceledException)
+        {
+            // The CALLER's token cancelled the exchange (e.g. the program streamer
+            // aborted on alarm/stop), while the connection is still up. Drop the
+            // waiter like the timeout path does, so a reply that may never arrive
+            // (grbl flushes its buffer into Alarm) can't poison the FIFO and starve
+            // later commands (e.g. $X after an aborted run).
+            lock (_gate)
+            {
+                if (_waiters.TryPeek(out var head) && ReferenceEquals(head, waiter))
+                    _waiters.Dequeue();
+                else
+                    waiter.TryComplete();
+            }
+            throw;
+        }
     }
 
     private readonly struct PollScope : IDisposable
@@ -470,29 +486,60 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         public void Dispose() => _svc.ResumePolling();
     }
 
-    public async Task SendAsync(string line)
+    public Task SendAsync(string line)
     {
-        if (!IsConnected || _cts is null)
+        if (_cts is null)
+            throw new InvalidOperationException("Not connected.");
+        return SendCoreAsync(line, suspendPolling: true, _cts.Token, throwOnError: true);
+    }
+
+    /// <summary>
+    /// Streaming send: like <see cref="SendAsync"/> but keeps the '?' poll
+    /// running so the DRO/state stay live during a file run. Safe because the
+    /// consumer loop parses status reports and continues BEFORE serving the
+    /// reply FIFO — poll replies can never be captured as command replies.
+    /// Returns the controller's raw reply ("ok" / "error:NN") — the streamer
+    /// marks the failing line with the exact text and aborts. Throws on
+    /// disconnect. The caller's token (linked with the service's) aborts the
+    /// wait immediately on alarm/stop, self-healing the FIFO.
+    /// </summary>
+    public async Task<string> SendProgramLineAsync(string line, CancellationToken cancellationToken = default)
+    {
+        if (_cts is null)
             throw new InvalidOperationException("Not connected.");
 
-        // Suspend the '?' poll so its status replies don't interleave with this
-        // command's payload. Register the waiter *before* writing so we can't lose a
-        // fast reply that lands between the write and the enqueue. The consumer loop
-        // serves waiters FIFO, matching grbl's strictly serial reply stream.
-        using var poll = SuspendPolling();
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
+        var reply = await SendCoreAsync(line, suspendPolling: false, linked.Token, throwOnError: false);
+        // ioSender re-requests the work parameters on error, so the offsets
+        // editor reflects the authoritative board state after a rejected line.
+        if (IsErrorReply(reply))
+            _ = RefreshWorkParametersAfterErrorAsync();
+        return reply;
+    }
+
+    private async Task<string> SendCoreAsync(string line, bool suspendPolling, CancellationToken cancellationToken, bool throwOnError)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Not connected.");
+
+        // Suspend the '?' poll (single-command path only) so its status replies
+        // don't interleave with this command's payload. Register the waiter
+        // *before* writing so we can't lose a fast reply that lands between the
+        // write and the enqueue. The consumer loop serves waiters FIFO, matching
+        // grbl's strictly serial reply stream.
+        using var poll = new PollScopeHolder(suspendPolling ? SuspendPolling() : null);
         string? reply = null;
         var waiter = new ReplyWaiter
         {
-            // SendAsync is the single-command path (G10, MDI, $X): the controller
-            // answers exactly one line. Capture it so a rejected command ("error:nn")
-            // is reported as a failure instead of silently succeeding.
+            // Every exchange answers exactly one line; capture it so a rejected
+            // command ("error:nn") is surfaced instead of silently succeeding.
             OnLine = line => { reply = line; return true; },
         };
         lock (_gate) _waiters.Enqueue(waiter);
         await _transport.WriteLineAsync(line);
-        await AwaitWaiterAsync(waiter, _commandTimeout, _cts.Token);
+        await AwaitWaiterAsync(waiter, _commandTimeout, cancellationToken);
 
-        if (IsErrorReply(reply))
+        if (throwOnError && IsErrorReply(reply))
         {
             // ioSender re-requests the work parameters when the controller signals
             // an error (GrblError -> GrblWorkParameters.Get), so the offsets editor
@@ -502,9 +549,6 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             throw new InvalidOperationException($"Controller rejected '{line}': {reply}");
         }
 
-        // A completed $H means the machine is homed (grbl answers only after the
-        // homing cycle finishes). No status-report field carries this on classic
-        // grbl, so track it here; any later Alarm report clears it again.
         if (line.Trim().Equals("$H", StringComparison.OrdinalIgnoreCase))
         {
             lock (_gate)
@@ -516,6 +560,17 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 }
             }
         }
+
+        return reply ?? string.Empty;
+    }
+
+    // PollScope is a struct; the streaming path skips suspension entirely, so
+    // the optional scope is boxed behind this tiny holder to keep `using` clean.
+    private sealed class PollScopeHolder : IDisposable
+    {
+        private readonly IDisposable? _scope;
+        public PollScopeHolder(IDisposable? scope) => _scope = scope;
+        public void Dispose() => _scope?.Dispose();
     }
 
     private Task RefreshWorkParametersAfterErrorAsync() =>

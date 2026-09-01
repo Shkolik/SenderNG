@@ -165,6 +165,12 @@ public static class StatusReportParser
                 if (ov.Length >= 3 && int.TryParse(ov[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var spindleOvr))
                     state.SpindleOvr = spindleOvr;
             }
+            else if (field.StartsWith("Ln:", StringComparison.Ordinal))
+            {
+                // Executing block number (grblHAL / newer grbl, only while a run is active).
+                if (int.TryParse(field[3..], NumberStyles.Integer, CultureInfo.InvariantCulture, out var lineNumber))
+                    state.LineNumber = lineNumber;
+            }
             else if (field.StartsWith("Pn:", StringComparison.Ordinal))
             {
                 ApplyPinField(field[3..], state);

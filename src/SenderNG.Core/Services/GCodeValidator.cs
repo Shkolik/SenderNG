@@ -75,7 +75,7 @@ public static class GCodeValidator
         return errors;
     }
 
-    private static string Describe(Exception ex)
+    internal static string Describe(Exception ex)
     {
         var msg = ex.Message;
         var cur = ex.InnerException;
