@@ -26,9 +26,12 @@ BSD 3-Clause License: see this file for the full license text.
             <Setter Property="CornerRadius" Value="0" />
             <Setter Property="Margin" Value="0,0,3,0" />
             <Setter Property="MinWidth" Value="60" />
+            <!-- Kill the phantom in-cell scrollbar -->
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Hidden" />
+            <Setter Property="ScrollViewer.AllowAutoHide" Value="False" />
         </Style>
     </UserControl.Styles>
-
+    
     <ScrollViewer IsEnabled="{Binding IsReady}">
         <StackPanel Margin="8" Spacing="6">
 
@@ -63,7 +66,7 @@ BSD 3-Clause License: see this file for the full license text.
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:OffsetCellViewModel">
-                                        <TextBox Text="{Binding Value, Mode=TwoWay}" Classes="axisCell" VerticalAlignment="Stretch" />
+                                        <TextBox Text="{Binding Value, Mode=TwoWay}" Classes="axisCell" VerticalAlignment="Stretch"/>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -92,14 +95,20 @@ BSD 3-Clause License: see this file for the full license text.
             <StackPanel IsVisible="{Binding ShowToolTableSection}">
                 <Border Height="30" />
 
+                <!-- Visible-tool count lives in App Settings &gt; Offsets (per
+                     mode); the grid renders T1..N where N is clamped to the
+                     controller's actual tool slots. -->
                 <StackPanel>
-                    <!-- Tool table header: tool name, axis cells, radius, save action -->
-                    <Grid ColumnDefinitions="48,*,96">
-                        <TextBlock Text="{loc:Loc module.offsets-table.tool}" Width="48" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <ItemsControl Grid.Column="1" ItemsSource="{Binding ToolAxisNames}" HorizontalAlignment="Stretch">
+                    <!-- Tool table header: name + axis cells + radius (radius shares
+                         the axis uniform grid, so it is exactly as wide as an axis
+                         column and the name column keeps the remaining space) -->
+                    <Grid ColumnDefinitions="140,*">
+                        <TextBlock Text="{loc:Loc module.offsets-table.toolName}" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                        <ItemsControl Grid.Column="1" ItemsSource="{Binding ToolColumnHeaders}" HorizontalAlignment="Stretch">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <UniformGrid Columns="{Binding ToolAxisNames.Count}" />
+                                    <UniformGrid Columns="{Binding ToolColumnHeaders.Count}" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
@@ -108,16 +117,16 @@ BSD 3-Clause License: see this file for the full license text.
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <TextBlock Grid.Column="2" Text="{loc:Loc module.offsets-table.radius}" FontWeight="SemiBold"
-                                   HorizontalAlignment="Stretch" TextAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
 
-                    <!-- Tool rows: axis cells + radius, one Save button below the table -->
+                    <!-- Tool rows: editable name + axis/radius cells (mirrors the
+                         offsets table; the last cell is the tip radius) -->
                     <ItemsControl ItemsSource="{Binding Tools}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:EditableToolRow">
-                                <Grid ColumnDefinitions="48,*,96">
-                                    <TextBlock Text="{Binding DisplayName}" Width="48" VerticalAlignment="Center" />
+                                <Grid ColumnDefinitions="140,*">
+                                    <TextBox Text="{Binding Name, Mode=TwoWay}" PlaceholderText="{Binding NamePlaceholder}" Classes="axisCell"
+                                             VerticalContentAlignment="Center" MinWidth="90" />
                                     <ItemsControl Grid.Column="1" ItemsSource="{Binding Cells}" HorizontalAlignment="Stretch">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
@@ -126,20 +135,30 @@ BSD 3-Clause License: see this file for the full license text.
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:OffsetCellViewModel">
-                                                <TextBox Text="{Binding Value, Mode=TwoWay}" Classes="axisCell" VerticalAlignment="Stretch" />
+                                                <TextBox Text="{Binding Value, Mode=TwoWay}" Classes="axisCell" VerticalAlignment="Stretch"/>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-                                    <TextBox Grid.Column="2" Text="{Binding Radius, Mode=TwoWay}" CornerRadius="0"
-                                             MinWidth="60" VerticalAlignment="Stretch" Margin="3,0,0,0" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
 
-                <Button Content="{loc:Loc module.offsets-table.saveTools}" Command="{Binding SaveToolTableCommand}"
-                        HorizontalAlignment="Right" CornerRadius="0" Margin="0,4,0,0" />
+                <!-- Selected tool + actions: same shape as the offsets action row -->
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,6,0,0">
+                    <TextBlock Grid.Column="0" Text="{loc:Loc module.offsets-table.tool}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding Tools}" SelectedItem="{Binding SelectedToolRow, Mode=TwoWay}" Width="150">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:EditableToolRow">
+                                <TextBlock Text="{Binding DisplayName}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Grid.Column="2" Content="{loc:Loc module.offsets-table.getCurrentPosition}" Command="{Binding GetToolPositionCommand}" Margin="6,0,0,0" CornerRadius="0" />
+                    <Button Grid.Column="3" Content="{loc:Loc module.offsets-table.clearAll}" Command="{Binding ClearToolsCommand}" Margin="6,0,0,0" CornerRadius="0" />
+                    <Button Grid.Column="4" Content="{loc:Loc module.offsets-table.setAll}" Command="{Binding SetAllToolsCommand}" Margin="6,0,0,0" CornerRadius="0" />
+                </Grid>
             </StackPanel>
 
             <TextBlock Text="{Binding Status}" Foreground="#777" FontSize="11" TextWrapping="Wrap" />

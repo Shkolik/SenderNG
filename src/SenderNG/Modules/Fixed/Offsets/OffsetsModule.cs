@@ -89,6 +89,26 @@ public sealed class OffsetsModule : IModule, IModuleSettingsProvider, ILocalized
             key: "module.offsets-table.showToolTable")];
     }
 
+    // Numeric field in the App Settings card: how many tool slots the editor
+    // shows, per mode (stored on ModeSettings so Mill/Foam can differ). Saving
+    // raises SettingsService.Changed, which the Offsets VM reacts to by
+    // rebuilding the grid.
+    public IEnumerable<ModuleSettingField> GetSettingFields()
+    {
+        if (_settingsService is null)
+            return [];
+        return [new ModuleSettingField(
+            "Visible tools",
+            () => _settingsService.Load().Current.VisibleTools,
+            value =>
+            {
+                var settings = _settingsService.Load();
+                settings.Current.VisibleTools = (int)System.Math.Clamp(value, 0, 64);
+                _settingsService.Save(settings);
+            },
+            key: "module.offsets-table.visibleTools")];
+    }
+
     public object CreateView(object viewModel) =>
         new OffsetsView { DataContext = viewModel };
 }

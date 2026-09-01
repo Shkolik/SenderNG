@@ -57,10 +57,24 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
     public event EventHandler? ConnectionChanged;
 
+    /// <summary>Stable identity of the demo controller (tool names are scoped per
+    /// connection, so the demo's annotations never leak onto a real controller).</summary>
+    public string ConnectionId => "demo";
+
+    /// <summary>The demo is one fixed, well-known machine — a literal key is stable
+    /// across app restarts (a real controller's key would derive from its $I
+    /// fingerprint).</summary>
+    public string ControllerKey => "demo";
+
     public IObservable<MachineState> State => _subject;
 
-    // Demo reports a full capability set so both coolant modes stay visible.
-    public ControllerCapabilities Capabilities => ControllerCapabilities.Full;
+    // Demo reports a full capability set so both coolant modes stay visible;
+    // the axis count follows the live demo state (DemoMachineSettings can resize
+    // it), so capability-driven UI (e.g. the offsets editor's column count)
+    // stays in sync with the simulated machine. Cached in a field so repeated
+    // reads return the same instance (like the real service's stored property).
+    public ControllerCapabilities Capabilities => _capabilities;
+    private ControllerCapabilities _capabilities = ControllerCapabilities.Full;
 
     public WorkParameters WorkParameters { get; } = WorkParameters.CreateDefault(3, 4);
 
@@ -90,7 +104,14 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             OptionalSignals = ControllerCapabilities.Full.OptionalSignals,
         });
         var demoAxes = Math.Clamp(settings.Current.DemoAxes, 1, CNC.Core.GrblInfo.AxisLetters.Length);
+        _capabilities = ControllerCapabilities.Full with { NumAxes = demoAxes };
         ResizeWorkParameters(demoAxes);
+        // Demo fixture: seed a couple of tip radii (grblHAL reports the R word in
+        // $# as [T:<id>|<axes>|<radius>]) so the tool table looks alive at boot.
+        if (WorkParameters.Tools.FirstOrDefault(t => t.Id == 1) is { } t1)
+            t1.Radius = 0.5;
+        if (WorkParameters.Tools.FirstOrDefault(t => t.Id == 2) is { } t2)
+            t2.Radius = 0.375;
         _workOffset = new double[demoAxes];
         _pollIntervalMs = Math.Max(10, pollIntervalMs);
         _settingsFilePath = settingsFilePath ??
@@ -162,6 +183,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
         lock (_lock)
         {
+            _capabilities = ControllerCapabilities.Full with { NumAxes = clamped };
             _workOffset = new double[clamped];
             _subject.OnNext(new MachineState(clamped)
             {

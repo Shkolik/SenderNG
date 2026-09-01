@@ -110,20 +110,30 @@ Many already exist; the gaps are listed per widget.
       reset). The visible axis count is a persisted preference (App Settings,
       1–9) capped by the connected controller's reported axis count, so a
       4-axis preference shows 3 rows on a 3-axis controller.
-- [~] **Tool table → probing integration** (`ToolView`) — the Offsets flyout
-      has a tool table (optional via App Settings and shown only when the
-      controller supports it — classic grbl 1.1 has no `G10 L1`, so it is
-      hidden entirely, not grayed out) with a single "Save tools" button that
-      writes only changed tools. The **tool-length probe** now exposes a "with
-      tool:" selector (enabled on grblHAL with tool slots) that stores the
-      probed length into the selected slot via `G10 L1 Pn Z` and applies
-      `G43 Hn`; the fallback keeps `G43.1Z<tlo>` (ioSender's active path — its
-      own tool-table write is commented out). Still missing: ioSender's full
-      `ToolView` (edit-in-place table with `R`/`I`/`J`/`Q` tool geometry) and
-      the manual probing-tool picker independent of the Offsets table. The
-      editor offers only the coordinate systems the firmware supports (classic
-      grbl: G54–G59 only — G59.x is grblHAL-only and rejected with error 29 on
-      classic forks) and disables itself while the controller is in Alarm.
+- [x] **Tool table → probing integration** (`ToolView`) — the Offsets flyout
+      tool table is a full editor mirroring the offsets table: a **Tool**
+      column with **editor-local names** (grblHAL has no name field —
+      maintainer-confirmed; names persist in `settings.json` keyed by a
+      **controller fingerprint** = the `$I` firmware identity, deliberately
+      without the COM port, so byte-identical boards share names and moving a
+      machine to another port keeps them), **X/Y/Z/… + tip-radius cells**
+      (radius parsed from the real `[T:id|axes|radius]` `$#` field and
+      round-tripped via `G10 L1 R`), **Get current position** (touch-off from
+      machine position), **Clear all / Set all** (dirty rows only, names
+      persisted on save), rows = **T1..N** where N = min(mode's "Visible
+      tools" setting, the controller's slot count) — T0 is excluded (a no-op
+      tool: `G43 H0` cancels compensation). Shown only when the controller is
+      grblHAL with tool slots (classic grbl 1.1 has no `G10 L1`); the editor
+      disables itself in Alarm and offers only firmware-supported systems. The
+      **tool-length probe** "with tool:" selector and the **Work Parameters**
+      tool strip both list **`[None, T1, T2 (name), …]`** (names in
+      parentheses when saved), default **None**, slot count following the same
+      VisibleTools rule; the probe stores the length via `G10 L1 Pn Z` +
+      `G43 Hn`, falling back to `G43.1Z<tlo>` on None/no table. ioSender's
+      standalone `ToolView` control (I/J/Q geometry, per-click writes, its
+      disabled radius field) is deliberately **not** ported — see
+      `docs/plans/2026-08-31-toolview.md` (execution plan) and the plan's
+      "NOT porting" list.
 - [x] **Work parameters** — implemented as a SenderNG flyout rather than
       ioSender's right-panel group. It displays the active G54–G59/G59.x selector
       (clamped to the systems the firmware supports, so classic boards never offer
@@ -230,7 +240,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | MacroEditor / MacroExecuteControl | `Plugins/Macro` | done (flyout) |
 | ProbingView + 6 tool controls | `Plugins/Probing` | done (flyout) — see `probing-gaps.md` |
 | GotoControl / GotoFlyoutControl | `Plugins/Goto` | done (flyout, homed-gated) |
-| ToolView | `Fixed/Offsets` tool table + tool-length probe "with tool" | partial (P1) — table edit + probe store live; ioSender's standalone ToolView control not ported |
+| ToolView | `Fixed/Offsets` tool table + Work Parameters/Probe selectors | done — editor (names, touch-off, radius, VisibleTools) + `[None, Tx (name)]` selectors; ioSender's standalone control deliberately not ported |
 | WorkParametersControl | `Fixed/WorkParameters` flyout | done (read/select; editable write-back in `Fixed/Offsets`) |
 | FileActionControl | Open only | partial (P1) |
 | StepperCalibrationWizard | — | **missing** (P3) |

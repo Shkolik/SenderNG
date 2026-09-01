@@ -243,6 +243,65 @@ public class ControllerCapabilitiesDemoAndProxyTests
     }
 
     [Fact]
+    public void Controller_key_fingerprints_firmware_and_options()
+    {
+        // The key scopes editor-local metadata (tool names) per machine: the $I
+        // firmware identity + raw OPT/AXS. Different firmware (version/build/
+        // options) must produce a different key.
+        var caps = ControllerInfoParser.ParseInfo(
+            ["[VER:1.1f.20260827:]", "[OPT:VNMSL+,100,1024,4,32]", "[AXS:4:XYZA]"]);
+
+        Assert.Equal("grbl|1.1f.20260827|VNMSL+,100,1024,4,32|4:XYZA", caps.ControllerKey);
+
+        // Deterministic: re-parsing the same $I dump yields the identical key
+        // (the key takes no endpoint — by construction it cannot change when the
+        // machine moves to another COM port or IP, so names follow the machine).
+        var reparsed = ControllerInfoParser.ParseInfo(
+            ["[VER:1.1f.20260827:]", "[OPT:VNMSL+,100,1024,4,32]", "[AXS:4:XYZA]"]);
+        Assert.Equal(caps.ControllerKey, reparsed.ControllerKey);
+
+        // A different machine (different firmware options): different key.
+        var otherBoard = ControllerInfoParser.ParseInfo(
+            ["[VER:1.1f.20260827:]", "[OPT:VNMSL+,100,1024,4,48]", "[AXS:4:XYZA]"]);
+        Assert.NotEqual(caps.ControllerKey, otherBoard.ControllerKey);
+    }
+
+    [Fact]
+    public void Controller_key_uses_the_exact_axis_letter_set()
+    {
+        // A 4-axis mill (XYZA) and a 4-axis lathe (XYZC) with identical firmware
+        // and options still get distinct keys because [AXS:] letters are kept raw.
+        var mill = ControllerInfoParser.ParseInfo(
+            ["[VER:1.1f.20260827:]", "[OPT:VNMSL+,100,1024,4,32]", "[AXS:4:XYZA]"]);
+        var lathe = ControllerInfoParser.ParseInfo(
+            ["[VER:1.1f.20260827:]", "[OPT:VNMSL+,100,1024,4,32]", "[AXS:4:XYZC]"]);
+        Assert.NotEqual(mill.ControllerKey, lathe.ControllerKey);
+    }
+
+    [Fact]
+    public void Controller_key_classic_grbl_unknown_and_clones()
+    {
+        // Classic grbl 1.1h: no [AXS:] line -> raw axes empty; key still carries
+        // the version.build and OPT numbers that distinguish boards.
+        var classic = ControllerInfoParser.ParseInfo(
+            ["Grbl 1.1h ['$' for help]", "[VER:1.1h.20170828:]", "[OPT:V,15,128]"]);
+        Assert.Equal("grbl|1.1h.20170828|V,15,128|", classic.ControllerKey);
+
+        // An unidentified controller degenerates to the shared "unknown" key
+        // (no tool table is shown then, so names can't be saved under it).
+        Assert.Equal("unknown", ControllerCapabilities.Unknown.ControllerKey);
+
+        // Two BYTE-IDENTICAL boards (clones — same firmware build, options, axis
+        // letters): same key by design — the tooling you set up on one clone
+        // applies to the other.
+        var cloneA = ControllerInfoParser.ParseInfo(
+            ["[VER:1.1f.20260827:]", "[OPT:VNMSL+,100,1024,4,32]", "[AXS:4:XYZA]"]);
+        var cloneB = ControllerInfoParser.ParseInfo(
+            ["[VER:1.1f.20260827:]", "[OPT:VNMSL+,100,1024,4,32]", "[AXS:4:XYZA]"]);
+        Assert.Equal(cloneA.ControllerKey, cloneB.ControllerKey);
+    }
+
+    [Fact]
     public void Default_interface_member_is_unknown()
     {
         // A minimal double that doesn't override Capabilities falls back to Unknown.

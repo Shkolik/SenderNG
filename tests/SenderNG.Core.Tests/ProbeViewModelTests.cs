@@ -77,11 +77,72 @@ public class ProbeViewModelTests : IDisposable
 
         // Demo is grblHAL Full with 4 tool slots -> tool table present.
         Assert.True(vm.HasToolTable);
-        Assert.Equal([0, 1, 2, 3, 4], vm.ToolChoices);
+        Assert.Equal([0, 1, 2, 3, 4], vm.ToolChoices.Select(t => t.Id));
         Assert.False(vm.ProbeToolTable); // 0 selected -> dynamic offset
 
         vm.SelectedToolNumber = 2;
         Assert.True(vm.ProbeToolTable);
+    }
+
+    [Fact]
+    public async Task Tool_selector_lists_none_then_slots_with_names_and_defaults_to_none()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+
+        // Items: None first, then T1..T4 (no names yet -> bare Tx labels).
+        Assert.Equal(
+            ["None", "T1", "T2", "T3", "T4"],
+            vm.ToolChoices.Select(t => t.DisplayName));
+        Assert.Equal(0, vm.SelectedToolNumber); // None selected by default
+        Assert.Equal("None", vm.SelectedToolChoice?.DisplayName);
+
+        // Save a name for T2 under the demo controller key (as the Offsets
+        // editor would on "Set all") and the label picks it up.
+        var app = _settings.Load();
+        var config = OffsetsConfigStore.Load(app);
+        config.ToolNamesFor("demo")[2] = "Ø3 spot drill";
+        OffsetsConfigStore.Save(app, config);
+        _settings.Save(app);
+
+        Assert.Equal(
+            ["None", "T1", "T2 (Ø3 spot drill)", "T3", "T4"],
+            vm.ToolChoices.Select(t => t.DisplayName));
+    }
+
+    [Fact]
+    public async Task Tool_selector_follows_the_visible_tools_setting()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+
+        // Demo has 4 tool slots; default VisibleTools (8) clamps to 4.
+        Assert.Equal([0, 1, 2, 3, 4], vm.ToolChoices.Select(t => t.Id));
+
+        // App Settings -> Offsets: "Visible tools" 8 -> 2 propagates here (the
+        // picker must NOT keep listing all firmware slots).
+        var app = _settings.Load();
+        app.Current.VisibleTools = 2;
+        _settings.Save(app);
+
+        Assert.Equal([0, 1, 2], vm.ToolChoices.Select(t => t.Id));
+        Assert.Equal(0, vm.SelectedToolNumber); // None still selected
+
+        // A selection beyond the reduced count clamps back into range.
+        vm.SelectedToolNumber = 2;
+        Assert.Equal(2, vm.SelectedToolNumber);
+        vm.SelectedToolNumber = 5;
+        Assert.Equal(2, vm.SelectedToolNumber);
+        Assert.True(vm.ProbeToolTable);
+
+        // 0 hides every slot — only "None" remains selectable.
+        app = _settings.Load();
+        app.Current.VisibleTools = 0;
+        _settings.Save(app);
+        Assert.Equal([0], vm.ToolChoices.Select(t => t.Id));
+        vm.SelectedToolNumber = 1;
+        Assert.Equal(0, vm.SelectedToolNumber); // clamped to None-only
+        Assert.False(vm.ProbeToolTable);
     }
 
     [Fact]

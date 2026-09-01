@@ -122,7 +122,6 @@
     "module.offsets-table.getCurrentPosition": "Get current position",
     "module.offsets-table.clearAll": "Clear all",
     "module.offsets-table.setAll": "Set all",
-    "module.offsets-table.saveTools": "Save tools",
     "module.coolant.flood": "Flood",
     "module.coolant.mist": "Mist",
     "module.cutting.feed": "Feed",
@@ -395,7 +394,13 @@
     "app.msg.failed": "{0} failed: {1}",
     "app.msg.connectFailed": "Connection failed: {0}",
     "app.msg.connectingTo": "Connecting to {0}...",
-    "app.msg.connectedToPort": "Connected: {0}"
+    "app.msg.connectedToPort": "Connected: {0}",
+    "module.offsets-table.touchOffCopied": "Machine position copied to T{0} — review and press Set all",
+    "module.offsets-table.touchOffCopiedWork": "Work position copied to T{0} (machine position unavailable) — review and press Set all",
+    "module.offsets-table.touchOffNone": "Touch-off applies to a numbered tool only",
+    "module.offsets-table.toolName": "Tool",
+    "module.offsets-table.toolsCleared": "All tools cleared in editor; press Set all to write them",
+    "module.offsets-table.visibleTools": "Visible tools"
   },
   "grblSettingGroups": {
     "0": {

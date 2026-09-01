@@ -51,6 +51,24 @@ public interface IGrblService
     void Disconnect();
     Task SendAsync(string line);
 
+    /// <summary>
+    /// Human-readable identity of the current connection (demo, serial port or
+    /// network endpoint) — shown in status text, not used for metadata scoping.
+    /// Defaults to "unknown" so lightweight test doubles compile unchanged.
+    /// </summary>
+    string ConnectionId => "unknown";
+
+    /// <summary>
+    /// Stable identity for scoping editor-local metadata (e.g. tool names): the
+    /// <c>$I</c> firmware fingerprint (firmware name, version + build, raw
+    /// <c>[OPT:]</c>/<c>[AXS:]</c>) — deliberately without the endpoint, so moving a
+    /// machine to another port keeps its names and byte-identical boards
+    /// (clones) share one set. Defaults to <see cref="ConnectionId"/> —
+    /// sufficient for test doubles, and what the real service returns until its
+    /// <c>$I</c> handshake completes.
+    /// </summary>
+    string ControllerKey => ConnectionId;
+
     /// <summary>Sends a raw realtime byte (e.g. grblHAL override toggles 0xA2/0xA3).</summary>
     void SendRealtime(byte code);
 

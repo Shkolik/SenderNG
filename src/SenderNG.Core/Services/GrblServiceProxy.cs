@@ -60,8 +60,12 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
         new(WorkParameters.CreateDefault(3));
     private IDisposable? _workParametersSubscription;
 
-    public GrblServiceProxy(IGrblService inner) =>
-        _inner = SetInner(inner);
+    public GrblServiceProxy(IGrblService inner)
+    {
+        ArgumentNullException.ThrowIfNull(inner);
+        _inner = inner;
+        AttachInner(inner);
+    }
 
     /// <summary>
     /// Forwards the inner service's connection events and also fires on every
@@ -77,10 +81,23 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
     public IGrblService Inner
     {
         get => _inner;
-        set => _inner = SetInner(value);
+        set
+        {
+            // Repoint BEFORE relaying: AttachInner subscribes to the new inner's
+            // subjects, and a BehaviorSubject replays its current value
+            // synchronously — consumers reading ConnectionId/ControllerKey (e.g.
+            // the offsets editor scoping tool names per controller) must see the
+            // NEW controller on that first snapshot, not the stale one.
+            _inner = value;
+            AttachInner(value);
+        }
     }
 
     public bool IsConnected => _inner.IsConnected;
+
+    public string ConnectionId => _inner.ConnectionId;
+
+    public string ControllerKey => _inner.ControllerKey;
 
     public ControllerCapabilities Capabilities => _inner.Capabilities;
 
@@ -126,7 +143,7 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
     private static readonly Task<IReadOnlyList<string>> EmptyLines =
         Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
 
-    private IGrblService SetInner(IGrblService value)
+    private void AttachInner(IGrblService value)
     {
         ArgumentNullException.ThrowIfNull(value);
         _subscription?.Dispose();
@@ -146,6 +163,5 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
         // The new inner may already be connected/disconnected; tell subscribers
         // so e.g. the state indicator updates without waiting for a state event.
         _connectionChanged?.Invoke(this, EventArgs.Empty);
-        return value;
     }
 }

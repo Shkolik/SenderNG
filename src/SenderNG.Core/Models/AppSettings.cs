@@ -94,4 +94,11 @@ public class ModeSettings
     public string Port { get; set; } = "auto";
     public int BaudRate { get; set; } = 115200;
     public Dictionary<string, bool> ModulesVisibility { get; set; } = new();
+
+    /// <summary>Tool slots the Offsets editor shows for this mode (T1..N; 0 hides
+    /// the grid). grblHAL ships 48 by default (compile-time), which is a huge
+    /// grid for a machine that uses a handful — the count is a per-mode app
+    /// setting, and the effective row count is further clamped to the connected
+    /// controller's tool slots.</summary>
+    public int VisibleTools { get; set; } = 8;
 }

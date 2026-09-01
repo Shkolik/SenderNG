@@ -57,6 +57,34 @@ handler for the combo, `TextChanged` for the text box). This is deliberate:
 If you need a checkbox-like editor, prefer OneWay display + a user-gesture handler (or a
 per-item `Command`) over trying to make `IsCheckedChanged`/TwoWay behave.
 
+## 3. Single-line TextBoxes show a phantom ▲/▼ overlay scrollbar on hover
+
+**Where it bit us:** every cell of the Offsets offset/tool grids — hovering the
+content area of a cell faded in a chevron-up "button" (the top arrow of a
+scrollbar) floating over the text, with nothing scrollable nearby.
+
+**Root cause:** the Fluent TextBox template embeds its own internal
+`ScrollViewer` (`PART_ScrollViewer`). Inside a TextBox that viewer's vertical
+scrollbar visibility is left at the attached-property default and
+`AllowAutoHide` is templated ON — and Avalonia's auto-hide semantics are *"show
+while the pointer is over the control, hide when it's not"*. Hovering anywhere
+in a cell therefore revealed the (useless: single-line text can't scroll)
+vertical overlay bar, arrow buttons included.
+
+**The fix (on the cells, via the shared `TextBox.axisCell` style in
+`OffsetsView.axaml`):**
+
+```xml
+<Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Hidden" />
+<Setter Property="ScrollViewer.AllowAutoHide" Value="False" />
+```
+
+Any single-line `TextBox` that shows this ghost should get the same two setters.
+Related: ordinary `ScrollViewer`s (e.g. the Offsets flyout) get the same
+auto-hide overlay at default `Auto` visibility — the whole outer bar fades in
+over the content when the pointer nears the right edge; `AllowAutoHide="False"`
+restores classic, non-overlaying scrollbars there.
+
 ## Checking in on gotchas
 
 - The headless test project (`tests/SenderNG.Tests`, xUnit v3 +

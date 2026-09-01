@@ -63,6 +63,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     private readonly Queue<IMessageWaiter> _waiters = new();
 
     private CancellationTokenSource? _cts;
+    private string? _connectionTarget;
     private Task? _consumerTask;
     private Timer? _pollTimer;
     private Timer? _healthTimer;
@@ -73,6 +74,20 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     private TimeSpan _commandTimeout = TimeSpan.FromSeconds(60);
 
     public bool IsConnected { get; private set; }
+
+    /// <summary>Identity of the current connection (serial port or network
+    /// endpoint) — readable endpoint for status text. Kept from the last connect
+    /// so a reconnect to the same port reports the same endpoint.</summary>
+    public string ConnectionId => _connectionTarget ?? "unknown";
+
+    /// <summary>
+    /// Metadata scoping key: the <c>$I</c> firmware fingerprint (firmware,
+    /// version.build, raw <c>[OPT:]</c>/<c>[AXS:]</c>) with NO endpoint — moving the
+    /// machine to another COM port keeps its names, and two byte-identical
+    /// boards (clones) intentionally share one set. "unknown" while the
+    /// handshake is incomplete or failed (no tool table is shown then anyway).
+    /// </summary>
+    public string ControllerKey => Capabilities.ControllerKey;
 
     public event EventHandler? ConnectionChanged;
 
@@ -160,6 +175,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         }
 
         _transport.Open(port, BaudRate, SerialResetMode);
+        _connectionTarget = port;
         IsConnected = true;
         ConnectionChanged?.Invoke(this, EventArgs.Empty);
 

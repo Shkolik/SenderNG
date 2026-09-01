@@ -54,3 +54,6 @@ TurningProfiles.xml
 
 # SDD/brainstorm scratch.superpowers/.github/
 .github/copilot-instructions.md
+
+# Working plans (living documents, not version-controlled)
+docs/plans/

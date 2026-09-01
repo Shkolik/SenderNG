@@ -380,6 +380,11 @@ public class RealGrblServiceTests
         Assert.False(svc.Capabilities.IsGrblHAL);
         Assert.Equal("1.1h", svc.Capabilities.Version);
         Assert.Equal(15, svc.Capabilities.PlanBufferSize);
+
+        // The metadata scoping key carries the $I firmware fingerprint only (no
+        // endpoint — moving the board to another port keeps its key; classic
+        // grbl has no [AXS:] -> empty tail).
+        Assert.Equal("grbl|1.1h.20190825|V,15,128|", svc.ControllerKey);
     }
 
     [Fact]

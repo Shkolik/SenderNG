@@ -173,8 +173,16 @@ public sealed class WorkParameters
                 return true;
             case "TOOL":
             case "T":
+                // grblHAL shape: [T:<id>|<axis CSV>|<tip radius>] (pipe-separated;
+                // the R word is NOT a trailing axis). Radius is parsed for the
+                // editor; note grblHAL (as of mid-2024) does not yet persist
+                // G10 L1 R writes, so real boards typically echo 0.000.
                 if (int.TryParse(values.FirstOrDefault(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
-                    UpsertTool(this, id, values.Skip(1).FirstOrDefault() ?? string.Empty);
+                {
+                    var tool = UpsertTool(this, id, values.Skip(1).FirstOrDefault() ?? string.Empty);
+                    if (values.Length > 2 && double.TryParse(values[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var radius))
+                        tool.Radius = radius;
+                }
                 return true;
             default:
                 return false;
@@ -229,7 +237,7 @@ public sealed class WorkParameters
         Copy(ParseValues(csv, item.Values.Length), item.Values);
     }
 
-    private static void UpsertTool(WorkParameters result, int id, string csv)
+    private static ToolTableEntry UpsertTool(WorkParameters result, int id, string csv)
     {
         var item = result.Tools.FirstOrDefault(x => x.Id == id);
         if (item is null)
@@ -238,6 +246,7 @@ public sealed class WorkParameters
             result.Tools.Add(item);
         }
         Copy(ParseValues(csv, item.Offsets.Length), item.Offsets);
+        return item;
     }
 
     private static double[] ParseValues(string csv, int count)

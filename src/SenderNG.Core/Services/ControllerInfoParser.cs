@@ -75,6 +75,7 @@ public static class ControllerInfoParser
         var build = 0;
         var opt = string.Empty;
         var axesLine = string.Empty;
+        var rawAxes = string.Empty;
         var identity = string.Empty;
         var optionalSignals = CNC.Core.Signals.Off;
         var hasSettingEnums = false;
@@ -114,8 +115,14 @@ public static class ControllerInfoParser
                         break;
                     case "AXS":
                         // [AXS:5:XYZAB] — the number before the axis letters is axis count.
-                        // Not a HAL signal: the mega5x 1.2i fork emits it too.
-                        axesLine = kv.Length > 1 ? kv[1].Split(':')[0] : string.Empty;
+                        // Not a HAL signal: the mega5x 1.2i fork emits it too. The whole
+                        // value (count + letters) is kept verbatim for the controller
+                        // fingerprint — the exact letter set distinguishes machines.
+                        if (kv.Length > 1)
+                        {
+                            rawAxes = kv[1];
+                            axesLine = kv[1].Split(':')[0];
+                        }
                         break;
                     case "OPT":
                         if (kv.Length > 1)
@@ -218,6 +225,8 @@ public static class ControllerInfoParser
             PlanBufferSize = planBuffers,
             SerialBufferSize = serialBuffers,
             NumTools = tools,
+            RawOptions = opt,
+            RawAxes = rawAxes,
             // Classic grbl 1.1 has no way to signal ENABLE_M7 via $I; grblHAL exposes
             // it via an explicit 'M' option. Default: flood+spindle on, mist only when
             // the firmware is grblHAL (the reliable signal we have).

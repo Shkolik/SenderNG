@@ -83,6 +83,14 @@ public class ProbeViewModel : ViewModelBase
 
         WireCommands();
         ApplyToolInstructions();
+
+        // Names are editor-local metadata saved by the Offsets editor: re-build
+        // the choice list (labels) whenever the settings graph changes.
+        _settingsService.Changed += () => UiThread.Post(() =>
+        {
+            OnPropertyChanged(nameof(ToolChoices));
+            OnPropertyChanged(nameof(SelectedToolChoice));
+        });
     }
 
     private void WireCommands()
@@ -375,18 +383,44 @@ public class ProbeViewModel : ViewModelBase
     public bool HasToolTable =>
         _grbl.Capabilities.IsGrblHAL && _grbl.Capabilities.NumTools > 0;
 
-    /// <summary>Tool-table slot numbers to store a probed length into (0..N,
-    /// matching the Offsets editor); 0 = apply a dynamic G43.1 offset instead.</summary>
-    public IReadOnlyList<int> ToolChoices
+    /// <summary>Tool-table slots to store a probed length into (0..N, matching
+    /// the Offsets editor — slot 0 renders as "None", apply a dynamic G43.1
+    /// offset instead; numbered slots as T{n} with the editor-local name
+    /// appended in parentheses when one is saved for this controller). The
+    /// slot count follows the mode's "Visible tools" App-Settings value
+    /// (clamped to the controller's slots — same rule as the Offsets editor
+    /// grid), so the picker never lists all 32 firmware slots when the editor
+    /// is configured for 8.</summary>
+    public IReadOnlyList<ToolSelectorItem> ToolChoices
     {
         get
         {
-            var tools = new List<int>();
-            var max = _grbl.Capabilities.IsKnown && _grbl.Capabilities.NumTools > 0 ? _grbl.Capabilities.NumTools : 0;
+            var tools = new List<ToolSelectorItem>();
+            var max = EffectiveToolCount();
+            var names = OffsetsConfigStore.ToolNamesFor(_settingsService.Load(), _grbl.ControllerKey);
             for (var i = 0; i <= max; i++)
-                tools.Add(i);
+                tools.Add(new ToolSelectorItem(i, names.GetValueOrDefault(i, string.Empty)));
             return tools;
         }
+    }
+
+    /// <summary>Tool slots offered by the pickers: min(mode's VisibleTools,
+    /// controller's NumTools). 0 (or an unknown/classic controller) yields
+    /// just the "None" option.</summary>
+    private int EffectiveToolCount()
+    {
+        var controllerTools = _grbl.Capabilities.IsKnown && _grbl.Capabilities.NumTools > 0
+            ? _grbl.Capabilities.NumTools : 0;
+        return Math.Min(Math.Clamp(_appSettings.Current.VisibleTools, 0, 64), controllerTools);
+    }
+
+    /// <summary>Selected choice (TwoWay ComboBox anchor, re-matched by value after
+    /// an ItemsSource rebuild). None (slot 0) is the default — probing without a
+    /// table write.</summary>
+    public ToolSelectorItem? SelectedToolChoice
+    {
+        get => ToolChoices.FirstOrDefault(t => t.Id == SelectedToolNumber);
+        set => SelectedToolNumber = value?.Id ?? 0;
     }
 
     private int _selectedToolNumber;
@@ -395,8 +429,11 @@ public class ProbeViewModel : ViewModelBase
         get => _selectedToolNumber;
         set
         {
-            if (SetField(ref _selectedToolNumber, Math.Clamp(value, 0, _grbl.Capabilities.NumTools)))
+            if (SetField(ref _selectedToolNumber, Math.Clamp(value, 0, EffectiveToolCount())))
+            {
                 OnPropertyChanged(nameof(ProbeToolTable));
+                OnPropertyChanged(nameof(SelectedToolChoice));
+            }
         }
     }
 

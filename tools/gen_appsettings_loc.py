@@ -9,7 +9,7 @@ import io
 import json
 import os
 
-BASE = "src/SenderNG.Avalonia/Locale"
+BASE = "src/SenderNG/Locale"
 
 # id -> (english, russian)
 MODULES = {
@@ -254,7 +254,12 @@ WIDGET = {
         "module.offsets-table.noToolChanges": ("No tool changes to save", "Нет изменений инструментов для сохранения"),
         "module.offsets-table.savedTools": ("Saved {0} changed tools", "Сохранено изменённых инструментов: {0}"),
         "module.offsets-table.savedToolFailures": ("Saved {0} tools; {1} failed", "Сохранено инструментов: {0}; неудачных: {1}"),
-        "module.offsets-table.saveTools": ("Save tools", "Сохранить инструменты"),
+        "module.offsets-table.toolName": ("Tool", "Инструмент"),
+        "module.offsets-table.visibleTools": ("Visible tools", "Видимые инструменты"),
+        "module.offsets-table.toolsCleared": ("All tools cleared in editor; press Set all to write them", "Все инструменты очищены в редакторе; нажмите «Установить всё» для записи"),
+        "module.offsets-table.touchOffCopied": ("Machine position copied to T{0} — review and press Set all", "Позиция станка скопирована в T{0} — проверьте и нажмите «Установить всё»"),
+        "module.offsets-table.touchOffCopiedWork": ("Work position copied to T{0} (machine position unavailable) — review and press Set all", "Рабочая позиция скопирована в T{0} (позиция станка недоступна) — проверьте и нажмите «Установить всё»"),
+        "module.offsets-table.touchOffNone": ("Touch-off applies to a numbered tool only", "Касание применимо только к пронумерованному инструменту"),
     },
     "coolant": {
         "module.coolant.flood": ("Flood", "Полив"),

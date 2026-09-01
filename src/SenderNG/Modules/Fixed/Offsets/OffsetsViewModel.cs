@@ -77,7 +77,7 @@ public sealed class EditableOffsetRow : ViewModelBase
     public EditableOffsetRow(string code, int axisCount)
     {
         Code = code;
-        Values = new ObservableCollection<string>(Enumerable.Repeat("0.000", axisCount));
+        Values = new ObservableCollection<string>(Enumerable.Repeat("0", axisCount));
         for (var i = 0; i < axisCount; i++)
         {
             var index = i;
@@ -116,13 +116,14 @@ public sealed class EditableOffsetRow : ViewModelBase
 
 public sealed class EditableToolRow : ViewModelBase
 {
-    private string _radius = "0.000";
+    private string _radius = "0";
+    private string _name = string.Empty;
 
     public EditableToolRow(int id, int axisCount)
     {
         Id = id;
-        Offsets = new ObservableCollection<string>(Enumerable.Repeat("0.000", axisCount));
-        Radius = "0.000";
+        Offsets = new ObservableCollection<string>(Enumerable.Repeat("0", axisCount));
+        Radius = "0";
         for (var i = 0; i < axisCount; i++)
         {
             var index = i;
@@ -131,10 +132,37 @@ public sealed class EditableToolRow : ViewModelBase
                 value => SetOffsetAt(index, value),
                 handler => ValuesChanged += handler));
         }
+        // Radius sits in the same uniform grid as the axis cells, so the column
+        // is exactly as wide as an axis column (and the name column keeps the
+        // remaining space).
+        Cells.Add(new OffsetCellViewModel(
+            () => Radius,
+            value => Radius = value,
+            handler => PropertyChanged += (_, _) => handler(this, EventArgs.Empty)));
     }
 
     public int Id { get; }
-    public string DisplayName => Id == 0 ? "None" : $"T{Id}";
+
+    /// <summary>Selector label: the tool name when set, else the slot fallback
+    /// (T1, T2, ...). Slot 0 is always "None".</summary>
+    public string DisplayName => Id == 0 ? "None" : string.IsNullOrWhiteSpace(Name) ? $"T{Id}" : Name;
+
+    /// <summary>Ghost text shown in the name cell while it has no name (the
+    /// placeholder "Tx" mirrors the selector fallback).</summary>
+    public string NamePlaceholder => $"T{Id}";
+
+    /// <summary>Editor-local tool name (firmware has no name field; persisted in
+    /// OffsetsConfig.ToolNames on save).</summary>
+    public string Name
+    {
+        get => _name;
+        set
+        {
+            if (SetField(ref _name, value))
+                OnPropertyChanged(nameof(DisplayName));
+        }
+    }
+
     public ObservableCollection<string> Offsets { get; }
     public ObservableCollection<OffsetCellViewModel> Cells { get; } = new();
     public event EventHandler? ValuesChanged;
@@ -158,13 +186,16 @@ public sealed class EditableToolRow : ViewModelBase
     /// <summary>Original values loaded from the board; a change marks the tool dirty
     /// so the single "Save tool table" button only writes edited rows.</summary>
     public string[] OriginalOffsets { get; private set; } = [];
-    public string OriginalRadius { get; private set; } = "0.000";
-    public void SetOriginals(string[] offsets, string radius)
+    public string OriginalRadius { get; private set; } = "0";
+    public string OriginalName { get; private set; } = string.Empty;
+    public void SetOriginals(string[] offsets, string radius, string name)
     {
         OriginalOffsets = offsets;
         OriginalRadius = radius;
+        OriginalName = name;
     }
-    public bool IsDirty => OriginalRadius != Radius || OriginalOffsets.Length != Offsets.Count ||
+    public bool IsDirty => OriginalName != Name || OriginalRadius != Radius ||
+        OriginalOffsets.Length != Offsets.Count ||
         OriginalOffsets.Select((v, i) => v != GetOffsetAt(i)).Any(x => x);
 }
 
@@ -183,6 +214,8 @@ public sealed class OffsetsViewModel : ViewModelBase
     private string _status = string.Empty;
     private bool _saving;
     private bool _isAlarm;
+    private string _controllerKey = "unknown";
+    private int _visibleTools = 8;
 
     public OffsetsViewModel(IGrblService grbl, SettingsService settingsService)
     {
@@ -192,6 +225,7 @@ public sealed class OffsetsViewModel : ViewModelBase
 
         Config = OffsetsConfigStore.Load(_appSettings);
         Config.PropertyChanged += OnConfigPropertyChanged;
+        _visibleTools = ReadVisibleTools();
 
         _stateSubscription = grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
         _workParametersSubscription = grbl.WorkParametersChanges.Subscribe(
@@ -203,7 +237,9 @@ public sealed class OffsetsViewModel : ViewModelBase
         GetCurrentPositionCommand = new DelegateCommand(_ => GetCurrentPosition());
         ClearAllCommand = new DelegateCommand(_ => ClearAll());
         SetAllCommand = new DelegateCommand(_ => LastSaveTask = SetAllAsync());
-        SaveToolTableCommand = new DelegateCommand(_ => LastSaveTask = SaveToolTableAsync());
+        GetToolPositionCommand = new DelegateCommand(_ => TouchOff(SelectedToolId));
+        ClearToolsCommand = new DelegateCommand(_ => ClearTools());
+        SetAllToolsCommand = new DelegateCommand(_ => LastSaveTask = SaveToolTableAsync());
         _settingsService.Changed += OnSettingsChanged;
     }
 
@@ -212,18 +248,49 @@ public sealed class OffsetsViewModel : ViewModelBase
     public ObservableCollection<EditableOffsetRow> Rows { get; } = new();
     public ObservableCollection<EditableToolRow> Tools { get; } = new();
     public IReadOnlyList<string> AxisNames => AxisLetters[.._axisCount];
-    public IReadOnlyList<string> ToolAxisNames => AxisNames;
+
+    /// <summary>Tool-table column headers: the axis letters plus the radius,
+    /// rendered as one uniform grid so radius is as wide as an axis column.</summary>
+    public IReadOnlyList<string> ToolColumnHeaders =>
+        AxisNames.Append(LocText.Resolve("module.offsets-table.radius", "Radius")).ToArray();
+
     public IReadOnlyList<string> OffsetCodes => Rows.Select(row => row.Code).ToArray();
 
     public string SelectedOffset { get => _selectedOffset; set { if (SetField(ref _selectedOffset, value)) OnPropertyChanged(nameof(SelectedRow)); } }
     public EditableOffsetRow? SelectedRow => Rows.FirstOrDefault(row => row.Code == SelectedOffset);
+
+    private int _selectedToolId;
+
+    /// <summary>Selected tool slot (0 = "None"). Selection is independent of cell
+    /// values, so switching rows never clobbers in-progress edits. The bottom
+    /// selector drives it; the controller's active tool follows it when nothing
+    /// is dirty.</summary>
+    public int SelectedToolId
+    {
+        get => _selectedToolId;
+        set
+        {
+            if (SetField(ref _selectedToolId, value))
+                OnPropertyChanged(nameof(SelectedToolRow));
+        }
+    }
+
+    /// <summary>Settable so the bottom ComboBox binds TwoWay to the row object
+    /// (mirrors SelectedOffset/SelectedRow in the offsets table above).</summary>
+    public EditableToolRow? SelectedToolRow
+    {
+        get => Tools.FirstOrDefault(tool => tool.Id == SelectedToolId);
+        set { if (value is not null) SelectedToolId = value.Id; }
+    }
     public string Status { get => _status; private set => SetField(ref _status, value); }
     public DelegateCommand RefreshCommand { get; }
     public DelegateCommand SetAxisCommand { get; }
     public DelegateCommand GetCurrentPositionCommand { get; }
     public DelegateCommand ClearAllCommand { get; }
     public DelegateCommand SetAllCommand { get; }
-    public DelegateCommand SaveToolTableCommand { get; }
+    public DelegateCommand GetToolPositionCommand { get; }
+    public DelegateCommand ClearToolsCommand { get; }
+    public DelegateCommand SetAllToolsCommand { get; }
     public Task? LastSaveTask { get; private set; }
 
     /// <summary>True when the connected controller can persist a tool table.
@@ -254,6 +321,11 @@ public sealed class OffsetsViewModel : ViewModelBase
         set => Config.ShowToolTable = value;
     }
 
+    /// <summary>Visible tool slots for the current mode (T1..N, 0 = hidden grid),
+    /// set in App Settings &gt; Offsets (mode-aware). The effective row count is
+    /// further clamped to the connected controller's tool slots.</summary>
+    public int VisibleTools => _visibleTools;
+
     private void OnConfigPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (_saving || e.PropertyName != nameof(OffsetsConfig.ShowToolTable))
@@ -270,7 +342,24 @@ public sealed class OffsetsViewModel : ViewModelBase
         Config.PropertyChanged += OnConfigPropertyChanged;
         OnPropertyChanged(nameof(Config));
         OnPropertyChanged(nameof(ShowToolTable));
+        // Mode-aware visible-tool count: re-read it (the active mode may have
+        // changed or App Settings edited it) and rebuild the grid when it moved.
+        // The fresh rows must immediately show the controller's current table
+        // (values) and this machine's saved names — merging here is what keeps
+        // the grid populated after the rebuild (no new snapshot arrives from
+        // changing a setting; only an app restart used to re-merge via ctor).
+        var visibleTools = ReadVisibleTools();
+        if (visibleTools != _visibleTools)
+        {
+            _visibleTools = visibleTools;
+            OnPropertyChanged(nameof(VisibleTools));
+            BuildTools();
+            MergeToolState(_grbl.WorkParameters, _grbl.ControllerKey ?? "unknown");
+        }
     }
+
+    private int ReadVisibleTools() =>
+        Math.Clamp(_settingsService.Load().Current.VisibleTools, 0, 64);
 
     public void Save()
     {
@@ -290,16 +379,37 @@ public sealed class OffsetsViewModel : ViewModelBase
     /// the G10-writable coordinate systems the controller reports.</summary>
     private void ApplySnapshot(WorkParameters parameters)
     {
-        var axisCount = Math.Clamp(parameters.CoordinateSystems
-            .Select(x => x.Values.Length).DefaultIfEmpty(_axisCount).Max(), 1, AxisLetters.Length);
+        var caps = _grbl.Capabilities;
+        // The controller's $I report is authoritative for its axis count. Deriving
+        // purely from snapshot lengths would let a stale or over-wide snapshot
+        // (e.g. the demo's resizable work parameters) inflate the grids beyond
+        // what the machine actually has; an unknown (not-yet-handshaken)
+        // controller falls back to the snapshot so the editor sizes itself
+        // before connect.
+        var snapshotAxes = parameters.CoordinateSystems
+            .Select(x => x.Values.Length).DefaultIfEmpty(_axisCount).Max();
+        var axisCount = Math.Clamp(caps.IsKnown && caps.NumAxes > 0 ? caps.NumAxes : snapshotAxes, 1, AxisLetters.Length);
+        // Controller identity for scoping editor-local metadata (tool names):
+        // the $I firmware fingerprint (no endpoint — clones share names, moving
+        // ports keeps them), so a different machine never inherits this one's.
+        var controllerKey = _grbl.ControllerKey ?? "unknown";
+        var effectiveToolCount = EffectiveToolCount(caps);
         if (axisCount != _axisCount || Rows.Count == 0)
         {
             _axisCount = axisCount;
             BuildRows(parameters);
             OnPropertyChanged(nameof(AxisNames));
-            OnPropertyChanged(nameof(ToolAxisNames));
+            OnPropertyChanged(nameof(ToolColumnHeaders));
             OnPropertyChanged(nameof(OffsetCodes));
         }
+        else if (controllerKey != _controllerKey || Tools.Count != effectiveToolCount)
+        {
+            // A different controller connected (or the visible-tool count changed):
+            // rebuild the tool rows so the grid matches the current machine's
+            // table instead of keeping stale rows and names from the previous one.
+            BuildTools();
+        }
+        _controllerKey = controllerKey;
         // Update row values from the snapshot, but only for rows still present
         // (never rebuild or reselect mid-edit). Classic grbl can't report the
         // active workspace in $#, so the editor selection stays user-driven like
@@ -314,21 +424,49 @@ public sealed class OffsetsViewModel : ViewModelBase
                 row.SetValueAt(i, Format(source.Values[i]));
         }
 
-        // Refresh tool rows from the snapshot, preserving the loaded original
-        // radius so dirty-tracking compares against what the board had.
+        // Follow the controller's active tool, but never yank the selection away
+        // from a row the user is mid-edit on. Evaluated against the pre-refresh
+        // state, so a dirty row keeps selection even when this snapshot also
+        // refreshes its values.
+        if (parameters.ActiveTool > 0 && !Tools.Any(tool => tool.IsDirty) && SelectedToolId != parameters.ActiveTool)
+            SelectedToolId = parameters.ActiveTool;
+
+        MergeToolState(parameters, controllerKey);
+    }
+
+    /// <summary>Merges the controller snapshot (axis values, radius) and the
+    /// per-controller name store into the tool rows, and records the originals
+    /// so dirty-tracking compares against what the board has. Runs after EVERY
+    /// rebuild (controller switch, visible-count change) and on every snapshot —
+    /// a rebuild must never leave freshly built rows blank: BuildTools() only
+    /// creates zeroed slots, so callers merge the current state right after.
+    /// Slots the snapshot doesn't report stay zero (merged from the name store
+    /// all the same — names are metadata, not board data).</summary>
+    private void MergeToolState(WorkParameters parameters, string controllerKey)
+    {
+        var storedNames = Config.ToolNamesFor(controllerKey);
         foreach (var tool in Tools)
         {
             var source = parameters.Tools.FirstOrDefault(t => t.Id == tool.Id);
-            if (source is null)
-                continue;
-            for (var i = 0; i < _axisCount && i < source.Offsets.Length; i++)
-                tool.SetOffsetAt(i, Format(source.Offsets[i]));
-            var radius = Format(source.Radius);
-            tool.Radius = radius;
-            var originals = new string[_axisCount];
-            for (var i = 0; i < _axisCount && i < source.Offsets.Length; i++)
-                originals[i] = Format(source.Offsets[i]);
-            tool.SetOriginals(originals, radius);
+            if (source is not null)
+            {
+                for (var i = 0; i < _axisCount && i < source.Offsets.Length; i++)
+                    tool.SetOffsetAt(i, Format(source.Offsets[i]));
+                tool.Radius = Format(source.Radius);
+            }
+            // Local name metadata (grblHAL has no name field), scoped to the
+            // current controller: merge the stored name into rows that don't
+            // already carry one — never clobber a name the user is typing.
+            if (string.IsNullOrEmpty(tool.Name) && storedNames.TryGetValue(tool.Id, out var name))
+                tool.Name = name;
+            // Zero-filled originals for slots the snapshot doesn't report, so a
+            // row that was never touched compares clean (a bare `new string[n]`
+            // would be null-filled and every absent slot would read as dirty).
+            var originals = Enumerable.Repeat("0", _axisCount).ToArray();
+            if (source is not null)
+                for (var i = 0; i < _axisCount && i < source.Offsets.Length; i++)
+                    originals[i] = Format(source.Offsets[i]);
+            tool.SetOriginals(originals, source is null ? "0" : Format(source.Radius), tool.Name);
         }
     }
 
@@ -384,11 +522,48 @@ public sealed class OffsetsViewModel : ViewModelBase
         Status = LocText.Format("module.offsets-table.copied", "Current position copied to {0}", SelectedOffset);
     }
 
+    /// <summary>Touch-off: copies the current machine position (work position as a
+    /// fallback when the controller didn't report MPos) into the tool's axis cells.
+    /// Values are only filled locally — the user reviews them and "Set all"
+    /// writes the row, matching the editor's single-write philosophy.</summary>
+    public void TouchOff(int toolId)
+    {
+        if (!IsReady) { Status = LocText.Resolve("module.offsets-table.inAlarm", "Controller is in alarm — unlock or home first"); return; }
+        var tool = Tools.FirstOrDefault(t => t.Id == toolId);
+        if (tool is null || tool.Id == 0)
+        {
+            Status = LocText.Resolve("module.offsets-table.touchOffNone", "Touch-off applies to a numbered tool only");
+            return;
+        }
+        SelectedToolId = toolId;
+        var machine = _lastState.MachinePositions;
+        var positions = machine ?? _lastState.Positions ?? [];
+        for (var i = 0; i < _axisCount && i < positions.Length; i++)
+            tool.SetOffsetAt(i, Format(positions[i]));
+        Status = machine is null
+            ? LocText.Format("module.offsets-table.touchOffCopiedWork", "Work position copied to T{0} (machine position unavailable) — review and press Set all", toolId)
+            : LocText.Format("module.offsets-table.touchOffCopied", "Machine position copied to T{0} — review and press Set all", toolId);
+    }
+
+    /// <summary>Zeroes every tool's axis cells and radius in the editor; "Set all"
+    /// writes them (mirrors the offsets table's Clear all / Set all pair).</summary>
+    private void ClearTools()
+    {
+        if (!IsReady) { Status = LocText.Resolve("module.offsets-table.inAlarm", "Controller is in alarm — unlock or home first"); return; }
+        foreach (var tool in Tools)
+        {
+            for (var i = 0; i < tool.Offsets.Count; i++)
+                tool.SetOffsetAt(i, "0");
+            tool.Radius = "0";
+        }
+        Status = LocText.Resolve("module.offsets-table.toolsCleared", "All tools cleared in editor; press Set all to write them");
+    }
+
     private void ClearAll()
     {
         if (!IsReady) { Status = LocText.Resolve("module.offsets-table.inAlarm", "Controller is in alarm — unlock or home first"); return; }
         foreach (var row in Rows)
-            for (var i = 0; i < row.Values.Count; i++) row.SetValueAt(i, "0.000");
+            for (var i = 0; i < row.Values.Count; i++) row.SetValueAt(i, "0");
         Status = LocText.Resolve("module.offsets-table.cleared", "All offsets cleared in editor; press Set all to write them");
     }
 
@@ -487,6 +662,27 @@ public sealed class OffsetsViewModel : ViewModelBase
                 failures++;
             }
         }
+
+        // Names are editor-local metadata scoped to the current controller (grbl
+        // has no G10 name word): persist them alongside the writes so they
+        // survive reconnects and refreshes — for THIS machine only (namespaced
+        // by the endpoint + firmware fingerprint, so another board on the same
+        // COM port has its own set).
+        var namesChanged = false;
+        var storedNames = Config.ToolNamesFor(_controllerKey);
+        foreach (var tool in Tools)
+        {
+            if (string.IsNullOrEmpty(tool.Name))
+                namesChanged |= storedNames.Remove(tool.Id);
+            else if (!storedNames.TryGetValue(tool.Id, out var existing) || existing != tool.Name)
+            {
+                storedNames[tool.Id] = tool.Name;
+                namesChanged = true;
+            }
+        }
+        if (namesChanged)
+            Save();
+
         await SafeRefreshAsync();
         Status = failures == 0
             ? LocText.Format("module.offsets-table.savedTools", "Saved {0} changed tools", sent)
@@ -530,9 +726,38 @@ public sealed class OffsetsViewModel : ViewModelBase
         var codes = reported.Count > 0 ? reported : SupportedSystems.ToList();
         foreach (var code in codes)
             Rows.Add(new EditableOffsetRow(code, _axisCount));
-        Tools.Clear(); foreach (var item in parameters.Tools) Tools.Add(new EditableToolRow(item.Id, _axisCount));
-        if (Tools.Count == 0) Tools.Add(new EditableToolRow(0, _axisCount));
+        Tools.Clear();
+        BuildTools();
         if (SelectedRow is null) SelectedOffset = Rows[0].Code;
+    }
+
+    /// <summary>Tool rows to render: the mode's VisibleTools, clamped to the
+    /// connected controller's tool slots (grblHAL NumTools). An unknown (not
+    /// handshaken) controller doesn't clamp — the section is hidden until a
+    /// tool-capable board connects anyway.</summary>
+    private int EffectiveToolCount(ControllerCapabilities? caps = null)
+    {
+        caps ??= _grbl.Capabilities;
+        return caps.IsKnown && caps.NumTools > 0 ? Math.Min(_visibleTools, caps.NumTools) : _visibleTools;
+    }
+
+    /// <summary>Rebuilds the tool rows as numbered slots T1..N (T0 "None" is a
+    /// no-op — no offset written to it is ever applied — so the grid starts at
+    /// T1; the probe picker keeps its own T0 option). Values merge from the
+    /// snapshot in ApplySnapshot; slots the controller doesn't report stay zero.
+    /// Rebuilt on connect/controller switch or when the visible-tool count
+    /// changes. The selector preselects the first row (T1) and the combo's
+    /// SelectedItem is re-raised so a rebuild can't leave it pointing at a
+    /// stale row object (blank selector on first open).</summary>
+    private void BuildTools()
+    {
+        Tools.Clear();
+        var count = EffectiveToolCount();
+        for (var id = 1; id <= count; id++)
+            Tools.Add(new EditableToolRow(id, _axisCount));
+        if (Tools.Count == 0 || Tools.All(t => t.Id != SelectedToolId))
+            SelectedToolId = Tools.FirstOrDefault()?.Id ?? 0;
+        OnPropertyChanged(nameof(SelectedToolRow));
     }
     private static string Format(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 }

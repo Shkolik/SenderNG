@@ -211,7 +211,6 @@
     "module.offsets-table.getCurrentPosition": "Получить текущую позицию",
     "module.offsets-table.clearAll": "Очистить всё",
     "module.offsets-table.setAll": "Установить всё",
-    "module.offsets-table.saveTools": "Сохранить инструменты",
     "module.coolant.flood": "Полив",
     "module.coolant.mist": "Туман",
     "module.cutting.feed": "Подача",
@@ -484,7 +483,13 @@
     "app.msg.failed": "{0} не выполнено: {1}",
     "app.msg.connectFailed": "Ошибка подключения: {0}",
     "app.msg.connectingTo": "Подключение к {0}...",
-    "app.msg.connectedToPort": "Подключено: {0}"
+    "app.msg.connectedToPort": "Подключено: {0}",
+    "module.offsets-table.touchOffCopied": "Позиция станка скопирована в T{0} — проверьте и нажмите «Установить всё»",
+    "module.offsets-table.touchOffCopiedWork": "Рабочая позиция скопирована в T{0} (позиция станка недоступна) — проверьте и нажмите «Установить всё»",
+    "module.offsets-table.touchOffNone": "Касание применимо только к пронумерованному инструменту",
+    "module.offsets-table.toolName": "Инструмент",
+    "module.offsets-table.toolsCleared": "Все инструменты очищены в редакторе; нажмите «Установить всё» для записи",
+    "module.offsets-table.visibleTools": "Видимые инструменты"
   },
   "grblSettings": {
     "0": {

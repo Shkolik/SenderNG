@@ -83,6 +83,31 @@ public sealed record ControllerCapabilities
     public int Build { get; init; }
     public string Firmware { get; init; } = string.Empty;
 
+    /// <summary>Raw <c>[OPT:]</c> value from <c>$I</c> (letters + plan/serial/axes/tools
+    /// numbers, e.g. "VNMSL+,100,1024,4,32"). Retained verbatim for the
+    /// controller fingerprint — the parsed flags lose the exact letter layout
+    /// (order, '-' exclusions), which is what distinguishes firmware builds.</summary>
+    public string RawOptions { get; init; } = string.Empty;
+
+    /// <summary>Raw <c>[AXS:]</c> value from <c>$I</c> (count + letters, e.g.
+    /// "4:XYZA"). Classic grbl 1.1 emits no <c>[AXS:]</c> line → empty. The exact
+    /// letter set distinguishes e.g. a 4-axis mill (XYZA) from a 4-axis lathe
+    /// (XYZC).</summary>
+    public string RawAxes { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Stable cross-session identity for scoping editor-local metadata (tool
+    /// names): the <c>$I</c> firmware fingerprint only — deliberately WITHOUT the
+    /// connection endpoint, so moving a machine to another COM port or IP keeps
+    /// its names, and two byte-identical boards (same firmware build, options
+    /// and axes — effectively clones) share one set of names, which matches the
+    /// tooling a user would set up on them. Different firmware → different key.
+    /// An unidentified controller (handshake failed / not yet done) is "unknown".
+    /// </summary>
+    public string ControllerKey => IsKnown
+        ? $"{Firmware}|{Version}.{Build}|{RawOptions}|{RawAxes}"
+        : "unknown";
+
     public int NumAxes { get; init; } = 3;
     public int PlanBufferSize { get; init; } = 16;
     public int SerialBufferSize { get; init; } = 128;

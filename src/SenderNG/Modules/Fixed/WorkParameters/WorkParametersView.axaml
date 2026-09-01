@@ -18,20 +18,27 @@ BSD 3-Clause License: see this file for the full license text.
              x:Class="SenderNG.Modules.Fixed.WorkParametersView"
              x:DataType="vm:WorkParametersViewModel">    <Border Background="#f6f6f6" Padding="6">
         <Grid RowDefinitions="Auto,Auto,Auto">
-            <Grid ColumnDefinitions="*,*">
+            <Grid ColumnDefinitions="100,*">
                 <TextBlock Grid.Column="0" Text="{loc:Loc module.work-parameters.offset}" />
-                <TextBlock Grid.Column="1" Text="{loc:Loc module.work-parameters.tool}" />
+                <TextBlock Grid.Column="1" Text="{loc:Loc module.work-parameters.tool}" Margin="10,0,0,0"/>
             </Grid>
-            <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="0,2,0,0">
-                <ComboBox Grid.Column="0" ItemsSource="{Binding CoordinateSystemCodes}"
+            <Grid Grid.Row="1" ColumnDefinitions="100,*" Margin="0,2,0,0">
+                <!-- Coordinate selector: fixed 100px (same as the Offsets editor's
+                     selector), a small 3px gap to the tool selector. -->
+                <ComboBox Grid.Column="0" HorizontalAlignment="Stretch" ItemsSource="{Binding CoordinateSystemCodes}"
                           SelectedItem="{Binding SelectedCoordinateSystem, Mode=OneWay}"
-                          SelectionChanged="CoordinateSystemChanged" CornerRadius="0" Height="28" Margin="0,0,6,0" />
+                          SelectionChanged="CoordinateSystemChanged" CornerRadius="0" Height="28" Margin="0,0,3,0" />
+                <!-- Tool selector: fills the remaining width (star column + MinWidth
+                     floor) and is content-independent — a long tool name stretches
+                     the combo's popup, never the control itself (labels trim). -->
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Tools}"
                           SelectedItem="{Binding SelectedToolRow, Mode=OneWay}"
-                          SelectionChanged="ToolChanged" CornerRadius="0" Height="28">
+                          SelectionChanged="ToolChanged" CornerRadius="0" Height="28"
+                          HorizontalAlignment="Stretch" Margin="10,0,3,0">
                     <ComboBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ToolRow">
-                            <TextBlock Text="{Binding DisplayName}" />
+                            <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"
+                                       ToolTip.Tip="{Binding DisplayName}" />
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
