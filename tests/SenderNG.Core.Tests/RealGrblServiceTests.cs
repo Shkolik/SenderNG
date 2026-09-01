@@ -163,7 +163,8 @@ public class RealGrblServiceTests
         Assert.Equal("ok", reply);
 
         // The poller writes '?' as a realtime byte — the streaming send must
-        // NOT suspend it (unlike the single-command path).
+        // NOT suspend it (single sends don't either; the poll is the liveness
+        // channel for the silence-based CommandTimeout).
         await WaitUntil(() => transport.WrittenRawBytes.Contains("?"), timeoutMs: 3000);
         Assert.NotNull(transport.Sent.LastOrDefault(l => l == "G0 X10"));
     }
@@ -262,8 +263,13 @@ public class RealGrblServiceTests
     }
 
     [Fact]
-    public async Task Poller_does_not_fire_while_command_is_in_flight()
+    public async Task Poller_stays_active_while_command_is_in_flight()
     {
+        // The '?' poll is the liveness channel for the silence-based
+        // CommandTimeout: single sends ($H, MDI) keep poll reports flowing, so
+        // a slow board that keeps answering status requests can never hit a
+        // spurious timeout. Reports are routed to the state parser, never the
+        // reply FIFO, so they can't be captured as command replies.
         var transport = new FakeGrblTransport();
         transport.AutoReply = false;
         using var svc = new RealGrblService(transport) { PollIntervalMs = 50 };
@@ -275,21 +281,141 @@ public class RealGrblServiceTests
         transport.Enqueue("ok");
         await sendTask.WaitAsync(TimeSpan.FromSeconds(2));
 
-        // While awaiting a reply the poller must be suspended, so no '?' bytes.
-        Assert.DoesNotContain(transport.WrittenRawBytes, b => b == "?");
+        // While awaiting a reply polling must stay active — '?' bytes flow.
+        Assert.Contains(transport.WrittenRawBytes, b => b == "?");
+        Assert.Contains("G1 X10", transport.Sent);
     }
 
     [Fact]
     public async Task SendAsync_times_out_after_CommandTimeout_without_reply()
     {
-        // Long-running blocking commands like $H (homing) may take tens of
-        // seconds; the timeout is configurable and only fires when the reply
-        // genuinely never arrives.
+        // Silence-based: no inbound line of ANY kind (no reports, no reply) for
+        // the window means the controller is genuinely unresponsive — fail fast.
         var transport = new FakeGrblTransport { AutoReply = false };
-        using var svc = new RealGrblService(transport) { CommandTimeout = TimeSpan.FromMilliseconds(100) };
+        using var svc = new RealGrblService(transport)
+        {
+            CommandTimeout = TimeSpan.FromMilliseconds(100),
+            PollIntervalMs = 50,
+        };
         await svc.ConnectAsync("fake");
 
         await Assert.ThrowsAsync<TimeoutException>(async () => await svc.SendAsync("$H"));
+    }
+
+    [Fact]
+    public async Task PendingSend_survives_feed_hold_well_past_CommandTimeout()
+    {
+        // A feed hold parks the controller for however long the operator needs:
+        // timing out a held command is nonsense. The wait must survive the whole
+        // Hold and complete once the controller resumes and replies.
+        var transport = new FakeGrblTransport { AutoReply = false };
+        using var svc = new RealGrblService(transport)
+        {
+            PollIntervalMs = 50,
+            CommandTimeout = TimeSpan.FromMilliseconds(100),
+        };
+        await svc.ConnectAsync("fake");
+
+        var sendTask = svc.SendAsync("G1 X10");
+        await WaitUntil(() => transport.Sent.Contains("G1 X10"));
+
+        // Controller goes into feed hold and stays there way past the window.
+        transport.Enqueue("<Hold|MPos:10,0,0>");
+        await Task.Delay(700);
+        transport.Enqueue("<Hold|MPos:10,0,0>"); // still held
+
+        // Operator resumes (cycle start): grbl finishes the line and replies.
+        transport.Enqueue("<Run|MPos:10,0,0>");
+        transport.Enqueue("ok");
+        await sendTask.WaitAsync(TimeSpan.FromSeconds(2)); // must NOT timeout
+    }
+
+    [Fact]
+    public async Task PendingSend_survives_long_command_while_reports_flow()
+    {
+        // A long operation with a live controller (homing a big slow machine):
+        // status reports keep sliding the silence window, so a reply that takes
+        // many windows to arrive is fine as long as the controller keeps talking.
+        var transport = new FakeGrblTransport { AutoReply = false };
+        using var svc = new RealGrblService(transport)
+        {
+            PollIntervalMs = 50,
+            CommandTimeout = TimeSpan.FromMilliseconds(100),
+        };
+        await svc.ConnectAsync("fake");
+
+        var sendTask = svc.SendAsync("$H");
+        for (var i = 0; i < 12; i++)
+        {
+            await Task.Delay(70);
+            transport.Enqueue($"<Run|MPos:{i},0,0>"); // grbl keeps reporting while working
+        }
+        transport.Enqueue("<Idle|MPos:0,0,0>");
+        transport.Enqueue("ok");
+
+        await sendTask.WaitAsync(TimeSpan.FromSeconds(3)); // must NOT timeout
+    }
+
+    [Fact]
+    public async Task PendingSend_times_out_after_silence_even_though_reports_preceded()
+    {
+        // Reports slide the deadline but don't cancel it: once the controller
+        // goes silent, one full window from the LAST line still fires.
+        var transport = new FakeGrblTransport { AutoReply = false };
+        using var svc = new RealGrblService(transport)
+        {
+            PollIntervalMs = 50,
+            CommandTimeout = TimeSpan.FromMilliseconds(200),
+        };
+        await svc.ConnectAsync("fake");
+
+        var sendTask = svc.SendAsync("$H");
+        transport.Enqueue("<Run|MPos:1,0,0>");
+        transport.Enqueue("<Run|MPos:2,0,0>");
+        await Task.Delay(600); // ~3 windows of total silence after the last report
+
+        await Assert.ThrowsAsync<TimeoutException>(async () => await sendTask);
+    }
+
+    [Fact]
+    public async Task Streamed_run_survives_feed_hold_past_CommandTimeout_and_completes()
+    {
+        // The reported bug: pausing a program for longer than CommandTimeout
+        // killed the run with "fail: timeout" because the in-flight line's reply
+        // wait had a fixed deadline. A held controller replies only after
+        // resume — the run must survive the whole hold and complete.
+        var transport = new FakeGrblTransport { AutoReply = false };
+        using var svc = new RealGrblService(transport)
+        {
+            PollIntervalMs = 50,
+            CommandTimeout = TimeSpan.FromMilliseconds(100),
+        };
+        await svc.ConnectAsync("fake");
+
+        var updates = new List<ProgramLineUpdate>();
+        var program = GCodeProgram.Parse("G0 X1\nG0 X2\nG0 X3");
+        var session = new GCodeProgramStreamer(svc).Start(program, new Progress<ProgramLineUpdate>(updates.Add));
+
+        await WaitUntil(() => transport.Sent.Contains("G0 X1"));
+        transport.Enqueue("ok");
+        await WaitUntil(() => transport.Sent.Contains("G0 X2"));
+
+        // Feed hold mid-line: stay held for 7x the CommandTimeout window.
+        for (var i = 0; i < 7; i++)
+        {
+            transport.Enqueue("<Hold|MPos:10,10,0>");
+            await Task.Delay(100);
+        }
+
+        // Resume (cycle start): line 2 finishes, the rest streams, run completes.
+        transport.Enqueue("<Run|MPos:10,10,0>");
+        transport.Enqueue("ok");
+        await WaitUntil(() => transport.Sent.Contains("G0 X3"));
+        transport.Enqueue("ok");
+
+        var result = await session.Completion.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(3, updates.Count(u => u.Status == ProgramLineStatus.Ok));
     }
 
     [Fact]

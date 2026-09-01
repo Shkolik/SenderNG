@@ -72,6 +72,12 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     private int _pollIntervalMs = 200;
     private int _healthCheckIntervalMs = 1000;
     private TimeSpan _commandTimeout = TimeSpan.FromSeconds(60);
+    // Liveness timestamp: any line the consumer reads (status report or reply)
+    // slides the CommandTimeout window, so a controller that keeps talking is
+    // never timed out (homing a big machine, feed hold). Written on the consumer
+    // thread, read by AwaitWaiterAsync — Volatile access keeps both cheap.
+    private long _lastLineReceivedTicks;
+    private static readonly TimeSpan LivenessTick = TimeSpan.FromMilliseconds(200);
 
     public bool IsConnected { get; private set; }
 
@@ -147,12 +153,18 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     }
 
     /// <summary>
-    /// How long <see cref="SendAsync"/> waits for the command's "ok"/"error"
-    /// reply. grbl is a blocking controller: it answers only after the command
-    /// finishes, and long-running commands like <c>$H</c> (homing) or a slow MDI
-    /// move can take tens of seconds — a short timeout turns a normal cycle into
-    /// a spurious TimeoutException. The await is fully async (no UI blocking);
-    /// disconnects cancel it immediately via the token.
+    /// The SILENCE window for a pending command: how long <see cref="SendAsync"/>
+    /// waits for a reply when the controller stops talking entirely. It is NOT a
+    /// deadline from the write — any inbound line (a status report, a
+    /// work-parameter dump line) slides the window to now+<see cref="CommandTimeout"/>,
+    /// and while the machine is paused (Hold feed hold / Door safety door) the
+    /// deadline is disabled outright. So long-running commands like <c>$H</c>
+    /// (homing a large slow machine can take many minutes) or a feed hold of any
+    /// length can never hit a spurious timeout; a genuinely silent controller
+    /// (hung, lost command) still fails after one window. The await is fully
+    /// async (no UI blocking); disconnects cancel it immediately via the token.
+    /// Floored at two status-poll intervals so a short configured window can't
+    /// race the poller.
     /// </summary>
     public TimeSpan CommandTimeout
     {
@@ -410,9 +422,12 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     }
 
     /// <summary>
-    /// Suspend the '?' poller while a line-command reply is in flight so $$/$I/probe
-    /// flows aren't interleaved with status requests (ioSender PollGrbl.Suspend/Resume
-    /// semantics). Resumed even on failure via a finally guard.
+    /// Suspend the '?' poller while a multi-line metadata exchange ($$/$I/$#/
+    /// $ES/$EG/$SED) is in flight (ioSender PollGrbl.Suspend/Resume semantics).
+    /// Single sends ($H, MDI) do NOT suspend: their status reports are the
+    /// liveness channel the silence-based CommandTimeout slides on, and the
+    /// consumer loop already routes reports away from the reply FIFO. Resumed
+    /// even on failure via a finally guard.
     /// </summary>
     private PollScope SuspendPolling()
     {
@@ -426,16 +441,62 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     }
 
     /// <summary>
-    /// Wait for <paramref name="waiter"/> to complete. On timeout the waiter is
-    /// removed from the FIFO queue so a hung command can't poison the reader and
-    /// starve every later exchange (ioSender would reset the port here). Marks the
-    /// waiting done so the consumer loop stops trying to serve it.
+    /// Wait for <paramref name="waiter"/> to complete. The deadline is
+    /// silence-based: ANY inbound line (a status report included) slides it to
+    /// now+<paramref name="timeout"/>, and while the machine is paused
+    /// (Hold/Door) the deadline is disabled entirely — a controller that is
+    /// alive and talking (homing a large machine, parked on a feed hold) is
+    /// never timed out, while a genuinely silent one (no line of any kind for
+    /// the window) still fails fast. On timeout/cancel the waiter is removed
+    /// from the FIFO queue so a hung exchange can't poison the reader and
+    /// starve every later command (ioSender would reset the port here).
     /// </summary>
     private async Task AwaitWaiterAsync(ReplyWaiter waiter, TimeSpan timeout, CancellationToken ct)
     {
+        // Never race the poller: if a configured silence window is shorter than
+        // the poll period, reports can't arrive in time to slide it. Floor the
+        // window at two poll intervals.
+        var window = timeout.TotalMilliseconds >= 2 * _pollIntervalMs
+            ? timeout
+            : TimeSpan.FromMilliseconds(2 * _pollIntervalMs);
+        var deadline = DateTime.UtcNow.Add(window);
         try
         {
-            await waiter.Task.WaitAsync(timeout, ct);
+            while (true)
+            {
+                if (waiter.Task.IsCompleted)
+                {
+                    await waiter.Task; // propagate faults, if any
+                    return;
+                }
+
+                if (IsPausedState())
+                {
+                    // Feed hold / safety door park the controller: grbl replies
+                    // only after the operator resumes, and a pause is
+                    // operator-paced by definition. Just wait for the reply (or
+                    // cancellation); the deadline logic resumes once the state
+                    // leaves Hold/Door (this loop re-checks every tick).
+                    await Task.WhenAny(waiter.Task, Task.Delay(LivenessTick, ct));
+                    continue;
+                }
+
+                var lastLineTicks = Volatile.Read(ref _lastLineReceivedTicks);
+                if (lastLineTicks > 0)
+                {
+                    var slid = new DateTime(lastLineTicks, DateTimeKind.Utc).Add(window);
+                    if (slid > deadline)
+                        deadline = slid;
+                }
+
+                var remaining = deadline - DateTime.UtcNow;
+                if (remaining <= TimeSpan.Zero)
+                    throw new TimeoutException(
+                        "Timed out waiting for the controller reply (no line received within the CommandTimeout window).");
+
+                var delay = remaining < LivenessTick ? remaining : LivenessTick;
+                await Task.WhenAny(waiter.Task, Task.Delay(delay, ct));
+            }
         }
         catch (TimeoutException)
         {
@@ -479,6 +540,16 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         }
     }
 
+    /// <summary>Hold (feed hold) and Door (safety door open) physically park the
+    /// controller: grbl stops processing commands and won't reply until the
+    /// pause ends. A timeout while paused is nonsense — the operator paces it.</summary>
+    private bool IsPausedState()
+    {
+        var status = _subject.Value.Status;
+        return status.StartsWith("Hold", StringComparison.OrdinalIgnoreCase) ||
+               status.StartsWith("Door", StringComparison.OrdinalIgnoreCase);
+    }
+
     private readonly struct PollScope : IDisposable
     {
         private readonly RealGrblService _svc;
@@ -490,16 +561,19 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     {
         if (_cts is null)
             throw new InvalidOperationException("Not connected.");
-        return SendCoreAsync(line, suspendPolling: true, _cts.Token, throwOnError: true);
+        // The poller stays active: grbl answers '?' as a realtime command even
+        // while executing $H or a long MDI move, and those status reports are
+        // what keep the silence-based CommandTimeout from firing spuriously.
+        return SendCoreAsync(line, _cts.Token, throwOnError: true);
     }
 
     /// <summary>
-    /// Streaming send: like <see cref="SendAsync"/> but keeps the '?' poll
-    /// running so the DRO/state stay live during a file run. Safe because the
-    /// consumer loop parses status reports and continues BEFORE serving the
-    /// reply FIFO — poll replies can never be captured as command replies.
-    /// Returns the controller's raw reply ("ok" / "error:NN") — the streamer
-    /// marks the failing line with the exact text and aborts. Throws on
+    /// Streaming send: like <see cref="SendAsync"/>, keeps the '?' poll running
+    /// so the DRO/state stay live during a file run (single sends keep it too).
+    /// Safe because the consumer loop parses status reports and continues BEFORE
+    /// serving the reply FIFO — poll replies can never be captured as command
+    /// replies. Returns the controller's raw reply ("ok" / "error:NN") — the
+    /// streamer marks the failing line with the exact text and aborts. Throws on
     /// disconnect. The caller's token (linked with the service's) aborts the
     /// wait immediately on alarm/stop, self-healing the FIFO.
     /// </summary>
@@ -509,7 +583,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             throw new InvalidOperationException("Not connected.");
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
-        var reply = await SendCoreAsync(line, suspendPolling: false, linked.Token, throwOnError: false);
+        var reply = await SendCoreAsync(line, linked.Token, throwOnError: false);
         // ioSender re-requests the work parameters on error, so the offsets
         // editor reflects the authoritative board state after a rejected line.
         if (IsErrorReply(reply))
@@ -517,17 +591,14 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         return reply;
     }
 
-    private async Task<string> SendCoreAsync(string line, bool suspendPolling, CancellationToken cancellationToken, bool throwOnError)
+    private async Task<string> SendCoreAsync(string line, CancellationToken cancellationToken, bool throwOnError)
     {
         if (!IsConnected)
             throw new InvalidOperationException("Not connected.");
 
-        // Suspend the '?' poll (single-command path only) so its status replies
-        // don't interleave with this command's payload. Register the waiter
-        // *before* writing so we can't lose a fast reply that lands between the
-        // write and the enqueue. The consumer loop serves waiters FIFO, matching
-        // grbl's strictly serial reply stream.
-        using var poll = new PollScopeHolder(suspendPolling ? SuspendPolling() : null);
+        // Register the waiter *before* writing so we can't lose a fast reply
+        // that lands between the write and the enqueue. The consumer loop
+        // serves waiters FIFO, matching grbl's strictly serial reply stream.
         string? reply = null;
         var waiter = new ReplyWaiter
         {
@@ -562,15 +633,6 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         }
 
         return reply ?? string.Empty;
-    }
-
-    // PollScope is a struct; the streaming path skips suspension entirely, so
-    // the optional scope is boxed behind this tiny holder to keep `using` clean.
-    private sealed class PollScopeHolder : IDisposable
-    {
-        private readonly IDisposable? _scope;
-        public PollScopeHolder(IDisposable? scope) => _scope = scope;
-        public void Dispose() => _scope?.Dispose();
     }
 
     private Task RefreshWorkParametersAfterErrorAsync() =>
@@ -796,6 +858,10 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
             if (line is null)
                 continue; // adapter timeout; keep reading
+
+            // Liveness heartbeat for the silence-based CommandTimeout: every
+            // inbound line (status report or reply) slides pending waits' deadline.
+            Volatile.Write(ref _lastLineReceivedTicks, DateTime.UtcNow.Ticks);
 
             // Raw line first: the console shows actual controller output (status
             // reports, ok/error replies, $I/$ settings dumps) unfiltered by parsing.

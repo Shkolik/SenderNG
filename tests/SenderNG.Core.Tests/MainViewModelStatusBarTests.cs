@@ -121,5 +121,12 @@ public class MainViewModelStatusBarTests
         var frozen = vm.RunTime;
         await Task.Delay(200);
         Assert.Equal(frozen, vm.RunTime);
+
+        // Resume (Hold -> Run) CONTINUES the clock from the frozen value — a
+        // resume is not a new cycle, so the counter must not restart at zero.
+        svc.SendRealtime(GrblRealtime.CycleStart);
+        Assert.Equal(frozen, vm.RunTime); // still showing the frozen elapsed
+        await Task.Delay(1100);
+        Assert.NotEqual(frozen, vm.RunTime); // and it advances again
     }
 }

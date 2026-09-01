@@ -1046,6 +1046,10 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void ApplyMachineState(string status)
     {
+        // Re-entering Run from Hold/Door is a RESUME, not a new cycle: the
+        // run-time clock continues from where it froze instead of restarting.
+        var wasPaused = _machineState.StartsWith("Hold", StringComparison.OrdinalIgnoreCase) ||
+                        _machineState.StartsWith("Door", StringComparison.OrdinalIgnoreCase);
         _machineState = string.IsNullOrWhiteSpace(status) ? "Idle" : status;
         _stateBrush = ResolveStateBrush(_machineState);
         _stateForeground = _machineState.Contains("alarm", StringComparison.OrdinalIgnoreCase)
@@ -1059,13 +1063,18 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             if (!_isRunning)
             {
-                _runStopwatch.Restart();
+                if (wasPaused)
+                    _runStopwatch.Start();   // resume from hold: keep counting
+                else
+                    _runStopwatch.Restart(); // fresh cycle: start from zero
                 _isRunning = true;
             }
             OnPropertyChanged(nameof(RunTime));
         }
         else if (_isRunning)
         {
+            // Freeze (Hold/Door/Alarm/Idle). Only a fresh Run entry (above)
+            // resets the clock; a resume after a pause just starts it again.
             _runStopwatch.Stop();
             _isRunning = false;
             OnPropertyChanged(nameof(RunTime));
