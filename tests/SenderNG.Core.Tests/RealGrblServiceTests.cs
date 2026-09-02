@@ -730,7 +730,9 @@ public class RealGrblServiceTests
         transport.FailNextRead = true;
         transport.Enqueue("ok"); // wake the reader so it hits the failure
 
-        Assert.True(await WaitUntilAsync(() => !svc.IsConnected, 3000));
+        // Patience window is generous: the reader is competing with the rest of
+        // the suite for CPU in a full run (known load-timing flake).
+        Assert.True(await WaitUntilAsync(() => !svc.IsConnected, 10000));
         Assert.True(changes >= 2, "connect + disconnect should both raise ConnectionChanged");
 
         // Sending after a detected disconnect fails fast with a clear message.

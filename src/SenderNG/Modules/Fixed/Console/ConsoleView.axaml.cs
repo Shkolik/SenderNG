@@ -38,7 +38,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-using System.Collections.Specialized;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using SenderNG.Modules.Fixed;
@@ -47,46 +46,45 @@ namespace SenderNG.Modules.Fixed;
 
 public partial class ConsoleView : UserControl
 {
+    private ScrollViewer? _scrollViewer;
+
     public ConsoleView()
     {
         InitializeComponent();
-        DataContextChanged += OnDataContextChanged;
-        Unloaded += (_, _) => Detach();
+
+        // Keep the console pinned to the newest output, mirroring ioSender's
+        // AlwaysScrollToEnd. The log is a read-only TextBox bound to the joined
+        // ConsoleText string; TextChanged fires while the inner ScrollViewer
+        // still has the *previous* extent, so scrolling there is always one
+        // change behind (the "doesn't autoscroll" symptom). Instead we pin on
+        // the ScrollViewer's ScrollChanged, which is raised after layout has
+        // measured the freshly bound text.
+        ConsoleText.TextChanged += (_, _) => ConsoleText.CaretIndex = ConsoleText.Text?.Length ?? 0;
+        ConsoleText.LayoutUpdated += (_, _) => EnsureScrollViewer();
     }
 
-    private INotifyCollectionChanged? _subscribed;
-
-    private void OnDataContextChanged(object? sender, EventArgs e)
+    private void EnsureScrollViewer()
     {
-        Detach();
-        if (DataContext is ConsoleViewModel { ConsoleLines: INotifyCollectionChanged lines })
-        {
-            _subscribed = lines;
-            lines.CollectionChanged += OnLinesChanged;
-        }
-    }
-
-    private void Detach()
-    {
-        if (_subscribed is not null)
-        {
-            _subscribed.CollectionChanged -= OnLinesChanged;
-            _subscribed = null;
-        }
-    }
-
-    // View-only concern (keep the console pinned to the newest output), so it
-    // lives here rather than in the view model. The log is a read-only TextBox
-    // (ioSender style); after each line lands, jump the caret/scroll to the end
-    // so new output is always visible, mirroring ioSender's AlwaysScrollToEnd.
-    private void OnLinesChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (e.Action != NotifyCollectionChangedAction.Add)
+        if (_scrollViewer is not null)
             return;
-        var box = this.FindControl<TextBox>("ConsoleText");
-        if (box is null || box.Text is null)
+
+        // Template children (the ScrollViewer) exist only after first layout.
+        var viewer = ConsoleText.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        if (viewer is null)
             return;
-        box.CaretIndex = box.Text.Length;
-        box.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault()?.ScrollToEnd();
+
+        viewer.ScrollChanged += OnScrollChanged;
+        viewer.ScrollToEnd(); // land at the bottom when the view (re)opens
+        _scrollViewer = viewer;
+    }
+
+    private void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        // Content grew (a new console line was measured) — pin to the end.
+        // Offset-only changes (user scrolling, ScrollToEnd itself) are ignored,
+        // so there is no feedback loop; on extent shrink (line trimming) the
+        // ScrollViewer clamps the offset to the new end on its own.
+        if (e.ExtentDelta.Y > 0)
+            _scrollViewer?.ScrollToEnd();
     }
 }

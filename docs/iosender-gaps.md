@@ -110,7 +110,10 @@ Many already exist; the gaps are listed per widget.
       probe for future edit/save work (no ioSender counterpart exists).
 - [x] Console (`Modules/Fixed/Console`) — renders the controller's raw output
       with ioSender console semantics: Verbose / Filter-out-realtime /
-      Show-all-realtime options (persisted), Clear button, 200-line cap. Demo
+      Show-all-realtime options (persisted), Clear button, 200-line cap, and
+      Always-scroll-to-end autoscroll (ioSender's TextBoxUtilities semantics,
+      realized on the ScrollViewer's extent change so the pin lands after the
+      new text is measured rather than one line behind). Demo
       mode answers every sent command with `ok`/`error:22` on the raw stream
       (2026-08-31 — the program streamer needs responses offline), so the
       console shows command replies but no mocked status reports; connected to
