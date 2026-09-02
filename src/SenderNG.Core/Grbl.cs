@@ -104,7 +104,7 @@ namespace CNC.Core
         string _code="";
         public CoordinateSystem():base(){}
         public CoordinateSystem(string code,string data):base(data){ Code=code; }
-        public int Id { get; private set; }
+        public int Id { get; set; }
         public string Code { get=>_code; set{_code=value; OnPropertyChanged();} }
     }
     public class Tool : Position

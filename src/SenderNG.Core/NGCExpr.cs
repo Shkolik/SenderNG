@@ -1235,15 +1235,11 @@ namespace CNC.Core
         {
             id = id % 10 - 1;
 
-            GrblWorkParameters.Get();
-
-            return id < GrblInfo.NumAxes ? GrblWorkParameters.ProbePosition.Values[id] : 0d;
+            return id < GrblInfo.NumAxes ? machine.GetProbePosition(id) : 0d;
         }
         private double probe_result(int id)
         {
-            GrblWorkParameters.Get();
-
-            return GrblWorkParameters.ProbeSuccesful ? 1d : 0d;
+            return machine.ProbeSuccess ? 1d : 0d;
         }
         private double g28_home(int id)
         {

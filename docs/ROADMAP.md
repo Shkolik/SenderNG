@@ -29,30 +29,32 @@ state until the user picks Serial / Network / Demo. Network plumbing is in:
 `TcpGrblTransport` (`IGrblTransport` over a TCP socket) drives the existing
 `RealGrblService`; `NetworkAvailable` / `NetworkEndpoint` settings gate the tab.
 
-## Legacy emulator data source vs. modern WorkParameters snapshot — OPEN
+## Legacy emulator data source vs. modern WorkParameters snapshot — DONE
 
-**Gap:** the G-code emulator (`GCodeEmulator` via `Machine`) still reads its
-coordinate-system table from the legacy static `GrblWorkParameters.CoordinateSystems`,
-which the port reduced to a stub (`Get() => false`, `Process(d) => false`) — nothing
-populates it. In the original ioSender, `GrblWorkParameters.Get(model)` ran a
-synchronous `$#` exchange with the controller and its `process` handler filled the
-table (G28/G30/G54..G59.3/G92 via `AddOrUpdateCS`, plus tools, TLO, PRB);
-`Machine.Reset()` then copied it into `Machine.coordinateSystems`.
+**Resolved (ambient provider bridge):** `Machine.WorkParametersProvider` is a static
+`Func<WorkParameters?>` registered once by the host (`MainViewModel` subscribes to
+`IGrblService.WorkParametersChanges` and closes over the latest immutable snapshot).
+`Machine.Reset()` — run by every `GCodeEmulator`/`GCodeParser` — now seeds its
+coordinate-system table (G54..G59.3 plus G28/G30/G92 rows when the controller reports
+them), tool table and active system from that snapshot instead of the stubbed legacy
+`GrblWorkParameters` statics; `NGCExpr` PRB expressions (`#5061-#5069`, `#5070`) read
+the snapshot through `Machine.GetProbePosition`/`ProbeSuccess`. Null provider keeps the
+old empty-table behavior. Consequences:
 
-Today the same data lives in the modern `WorkParameters` snapshot
-(`Models/WorkParameters.cs`, parsed from `$#`/status and published via
-`IGrblService.WorkParametersChanges` by Demo/RealGrblService), but the two worlds were
-never reconnected. Consequences:
+- Emulator G54..G59.3 activation, G10 L2 (P0 = active system, P1-9, P10-12 =
+  G92/G28/G30 rows), G28/G30, G92/G92.1/G92.2 and G43 (seeded tool table) all
+  execute their real logic against controller data. The parser's `G10 L2 P0`
+  gate was also fixed: `P0` maps to the active system (`"Current"` code) instead
+  of being rejected and silently dropped.
+- PRB expressions return the controller's reported probe position/success instead
+  of being dropped as unresolvable.
 
-- Emulator G28/G30/G92/G54..G59.3/G10 handlers are effectively dead: the lookups
-  always miss. They were hardened to no-op instead of NRE in the nullable-cleanup
-  pass, but they never execute their real logic.
-- `NGCExpr` PRB expressions read NaN — `GrblWorkParameters.ProbePosition` is never
-  parsed (stub `Get()`).
-
-**TODO:** feed `Machine.coordinateSystems` from the `WorkParameters` snapshot (or
-retire the legacy static and route `NGCExpr` PRB to the snapshot), then re-enable
-emulator G28/G30/G92 handling with tests.
+Covered by `EmulatorWorkParametersBridgeTests` (7 tests: seeded activation +
+G10 P0 write, G10 L2 Pn, G28, G92 (+P10 write), PRB expressions, G43 via seeded
+tool table, null-provider default). Note: the emulator applies offsets only in the
+G53/G28/G30 machine-coordinate paths — regular moves are modeled in machine
+coordinates, so seeded offsets do not shift plain-program limits (pre-existing
+emulator semantics, unchanged by the bridge).
 
 ## GCodeJob.LoadFile parse-error policy — DONE
 

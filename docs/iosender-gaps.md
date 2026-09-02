@@ -110,7 +110,13 @@ Many already exist; the gaps are listed per widget.
       `44|1|28|1|1*` columns, header text matching the cells' alignment,
       zero-padded rows so the hover highlight covers the row exactly, and the
       last-sent line auto-scrolls to the vertical center so the next commands
-      stay in view. `GCodeValidator` stays as the stateless re-validation
+      stay in view. 2026-09-02: the limits panel re-computes when controller
+      work parameters arrive — a program loaded before connecting was computed
+      with an empty emulator table (zero offsets, no G28/G30 rows), so the
+      first `$#` snapshot (and every offset change after that) re-runs the
+      emulator-seeded computation and re-bases the machine-coordinate moves
+      (G53/G28/G30); plain work-coordinate moves are unchanged by design.
+      `GCodeValidator` stays as the stateless re-validation
       probe for future edit/save work (no ioSender counterpart exists).
 - [x] Console (`Modules/Fixed/Console`) — renders the controller's raw output
       with ioSender console semantics: Verbose / Filter-out-realtime /

@@ -40,6 +40,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Collections.Generic;
 using System.Linq;
 using CNC.GCode;
+using CNC.Core.Services;
 // portable: removed Media3D
 using System.Globalization;
 
@@ -62,25 +63,40 @@ namespace CNC.Core
 
         public void Reset()
         {
-            // Sync with controller
-            if (GrblInfo.IsGrblHAL)
-            {
-                GrblParserState.Get();
-                GrblWorkParameters.Get();
-            }
-            else
-                GrblParserState.Get(true);
+            // The legacy GrblWorkParameters/GrblParserState statics are stubbed in
+            // this port. Live controller data arrives through WorkParametersProvider
+            // (registered by the host from IGrblService.WorkParametersChanges); when
+            // it is null the emulator starts from an empty table, which is the
+            // pre-bridge behavior.
+            WorkParameters? seed = WorkParametersProvider?.Invoke();
 
             coordinateSystems.Clear();
-            foreach (CoordinateSystem c in GrblWorkParameters.CoordinateSystems)
-                coordinateSystems.Add(c);
+            if (seed is not null)
+                foreach (WorkCoordinateSystem cs in seed.CoordinateSystems)
+                {
+                    var legacy = new CoordinateSystem(cs.Code, string.Empty)
+                    {
+                        Id = WorkParameters.CoordinateSystemNumber(cs.Code)
+                    };
+                    int n = System.Math.Min(cs.Values.Length, legacy.Values.Length);
+                    for (int i = 0; i < n; i++)
+                        legacy.Values[i] = cs.Values[i];
+                    coordinateSystems.Add(legacy);
+                }
 
             toolTable.Clear();
-            if (GrblInfo.NumTools > 0)
-                foreach (Tool t in GrblWorkParameters.Tools)
-                    toolTable.Add(t);
+            if (seed is not null)
+                foreach (ToolTableEntry t in seed.Tools)
+                {
+                    var legacy = new Tool(t.Id.ToString());
+                    int n = System.Math.Min(t.Offsets.Length, legacy.Values.Length);
+                    for (int i = 0; i < n; i++)
+                        legacy.Values[i] = t.Offsets[i];
+                    legacy.R = t.Radius;
+                    toolTable.Add(legacy);
+                }
 
-            coordinateSystem = coordinateSystems.Where(x => x.Code == GrblParserState.WorkOffset).FirstOrDefault();
+            coordinateSystem = coordinateSystems.Where(x => x.Code == (seed?.ActiveCoordinateSystem ?? GrblParserState.WorkOffset)).FirstOrDefault();
             g28 = coordinateSystems.Where(x => x.Code == "G28").FirstOrDefault();
             g30 = coordinateSystems.Where(x => x.Code == "G30").FirstOrDefault();
             g92 = coordinateSystems.Where(x => x.Code == "G92").FirstOrDefault();
@@ -192,6 +208,26 @@ namespace CNC.Core
         {
             return g30 != null && axis < GrblInfo.NumAxes ? g30.Values[axis] : 0d;
         }
+
+        /// <summary>
+        /// Live probe result from the WorkParameters snapshot (used by NGCExpr PRB
+        /// expressions). NaN when no probe data has been reported.
+        /// </summary>
+        public double GetProbePosition(int axis)
+        {
+            double[]? probe = WorkParametersProvider?.Invoke()?.ProbePosition;
+            return probe is not null && axis >= 0 && axis < probe.Length ? probe[axis] : double.NaN;
+        }
+
+        /// <summary>Whether the controller's last probe was successful (PRB expression).</summary>
+        public bool ProbeSuccess => WorkParametersProvider?.Invoke()?.ProbeSuccess ?? false;
+
+        /// <summary>
+        /// Ambient source of controller work parameters for the emulator/expression
+        /// engine. Registered once by the host (e.g. from IGrblService.WorkParametersChanges);
+        /// returns the latest immutable snapshot or null when none has arrived yet.
+        /// </summary>
+        public static Func<WorkParameters?>? WorkParametersProvider { get; set; }
         public bool G92Active { get; protected set; }
         public void G92Clear()
         {
@@ -258,7 +294,10 @@ namespace CNC.Core
 
         public bool SetCoordinateSystem(GCCoordinateSystem token)
         {
-            var csys = coordinateSystems.Where(x => x.Code == token.Code).FirstOrDefault();
+            // G10 L2 P0 targets the active system (token.Code is "Current");
+            // P10/P11/P12 address the G92/G28/G30 rows. Without seeded data both
+            // resolve to null and the write is rejected (pre-bridge behavior).
+            var csys = token.P == 0 ? coordinateSystem : coordinateSystems.Where(x => x.Code == token.Code).FirstOrDefault();
 
             if (csys != null)
                 foreach (int i in token.AxisFlags.ToIndices())

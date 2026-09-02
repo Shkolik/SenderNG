@@ -53,6 +53,9 @@ namespace SenderNG.Core.Tests;
 ///
 /// Signals/limits remain untested on hardware as noted in p0-controller-plumbing-plan.
 /// </summary>
+// Writes GrblInfo.NumAxes around handshakes, which other classes read —
+// serialized via the shared LegacyStatics collection.
+[Collection("LegacyStatics")]
 public class RealGrblHardwareTests
 {
     private const int HandshakeTimeoutMs = 8000;

@@ -61,6 +61,7 @@ public class ProgramViewModel : ViewModelBase
     private GCodeProgram? _program;
     private MachineState _machineState = new();
     private IDisposable? _stateSubscription;
+    private IDisposable? _workParametersSubscription;
 
     public ProgramViewModel(IGrblService? grbl = null)
     {
@@ -77,6 +78,18 @@ public class ProgramViewModel : ViewModelBase
                 _machineState = state;
                 OnPropertyChanged(nameof(IsPaused));
                 RaiseCommandStates();
+            }));
+
+            // Work parameters seed the emulator behind the limits computation:
+            // a program loaded before connecting was computed with empty tables
+            // (zero offsets, no G28/G30 rows), so recompute when controller data
+            // arrives — and whenever offsets change thereafter, keeping G53/
+            // G28/G30-driven limits honest.
+            _workParametersSubscription = _grbl.WorkParametersChanges.Subscribe(wp => UiThread.Post(() =>
+            {
+                if (_program is null || LimitRows.Count == 0)
+                    return;
+                RefreshLimits();
             }));
         }
     }
@@ -150,14 +163,23 @@ public class ProgramViewModel : ViewModelBase
         foreach (var entry in program.Entries)
             ProgramRows.Add(new GCodeProgramRow(entry.FileLine, "\u00b7", entry.Text, null));
 
-        var limits = GCodeLimitsCalculator.Compute(program.Tokens);
+        RefreshLimits();
+        RowsChanged?.Invoke();
+    }
+
+    private void RefreshLimits()
+    {
+        LimitRows.Clear();
+        if (_program is null)
+            return;
+
+        var limits = GCodeLimitsCalculator.Compute(_program.Tokens);
         if (limits is not null)
         {
             foreach (var l in limits)
                 LimitRows.Add(new ProgramLimitRow(l.Letter.ToString(), l.Min, l.Max));
-            OnPropertyChanged(nameof(HasLimits));
         }
-        RowsChanged?.Invoke();
+        OnPropertyChanged(nameof(HasLimits));
     }
 
     /// <summary>Load from raw text (probe transforms, tests): parsed by the same engine gate, rows from the entries.</summary>

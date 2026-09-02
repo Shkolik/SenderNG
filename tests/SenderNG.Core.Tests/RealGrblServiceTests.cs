@@ -136,6 +136,9 @@ public sealed class FakeGrblTransport : IGrblTransport, IPortPresenceCheck
     public void Dispose() => Close();
 }
 
+// Writes GrblInfo.NumAxes (see Connect_applies_I_axis_count…), which other
+// classes read — serialized via the shared LegacyStatics collection.
+[Collection("LegacyStatics")]
 public class RealGrblServiceTests
 {
     [Fact]
@@ -782,7 +785,7 @@ public class RealGrblServiceTests
         var transport = new FakeGrblTransport();
         using var svc = new RealGrblService(transport);
         var changes = 0;
-        svc.ConnectionChanged += (_, _) => changes++;
+        svc.ConnectionChanged += (_, _) => Interlocked.Increment(ref changes);
 
         await svc.ConnectAsync("fake");
         Assert.True(svc.IsConnected);
@@ -790,10 +793,12 @@ public class RealGrblServiceTests
         transport.FailNextRead = true;
         transport.Enqueue("ok"); // wake the reader so it hits the failure
 
-        // Patience window is generous: the reader is competing with the rest of
-        // the suite for CPU in a full run (known load-timing flake).
-        Assert.True(await WaitUntilAsync(() => !svc.IsConnected, 10000));
-        Assert.True(changes >= 2, "connect + disconnect should both raise ConnectionChanged");
+        // Wait for the disconnect EVENT, not the IsConnected flag: Disconnect()
+        // flips the flag a hair before raising ConnectionChanged, so polling the
+        // flag can outrun the notification (the historical flake). Interlocked
+        // because connect and disconnect can raise on different threads.
+        Assert.True(await WaitUntilAsync(() => changes >= 2, 10000));
+        Assert.False(svc.IsConnected);
 
         // Sending after a detected disconnect fails fast with a clear message.
         await Assert.ThrowsAsync<InvalidOperationException>(() => svc.SendAsync("G1 X10"));
@@ -807,15 +812,18 @@ public class RealGrblServiceTests
         var transport = new FakeGrblTransport();
         using var svc = new RealGrblService(transport) { HealthCheckIntervalMs = 100 };
         var changes = 0;
-        svc.ConnectionChanged += (_, _) => changes++;
+        svc.ConnectionChanged += (_, _) => Interlocked.Increment(ref changes);
 
         await svc.ConnectAsync("fake");
         Assert.True(svc.IsConnected);
 
         transport.PortPresent = false; // cable pulled
 
-        Assert.True(await WaitUntilAsync(() => !svc.IsConnected, 3000));
-        Assert.True(changes >= 2);
+        // Same discipline as Reader_failure…: wait for the disconnect EVENT — the
+        // flag flips before ConnectionChanged is raised, so polling IsConnected
+        // can win the race and read the counter too early.
+        Assert.True(await WaitUntilAsync(() => changes >= 2, 3000));
+        Assert.False(svc.IsConnected);
     }
 
     [Fact]

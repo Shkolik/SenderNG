@@ -31,12 +31,20 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
+using CNC.Core;
+using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Modules.Fixed;
 using Xunit;
 
 namespace SenderNG.Core.Tests;
 
+// Serialized with the other classes touching the process-global legacy
+// statics (Machine.WorkParametersProvider, GrblInfo.NumAxes) — see
+// EmulatorWorkParametersBridgeTests' collection comment.
+[Collection("LegacyStatics")]
 public class ProgramViewModelTests
 {
     [Fact]
@@ -102,6 +110,60 @@ public class ProgramViewModelTests
         var x = Assert.Single(vm.LimitRows, l => l.Letter == "X");
         Assert.Equal(10, x.Min);
         Assert.Equal(30, x.Max);
+    }
+
+    [Fact]
+    public void Limits_recompute_when_controller_work_parameters_arrive()
+    {
+        // Machine.WorkParametersProvider is a process-global static that parallel
+        // test classes also touch — save/restore it around the test.
+        var savedProvider = Machine.WorkParametersProvider;
+        try
+        {
+            // Loaded before any controller data: the limits emulator is unseeded
+            // (zero offsets), so the G53 machine-coordinate moves report raw values.
+            Machine.WorkParametersProvider = null;
+            var stub = new WorkParamsStub();
+            var vm = new ProgramViewModel(stub);
+            vm.LoadGCode("G53 X100\nG53 X200");
+
+            var x = Assert.Single(vm.LimitRows, r => r.Letter == "X");
+            Assert.Equal(100, x.Min);
+            Assert.Equal(200, x.Max);
+
+            // The recompute seeds the emulator from the provider, so point it at
+            // the snapshot before publishing (G54 active, X offset 50): the G53
+            // machine-coordinate moves re-base to 100 - 50 .. 200 - 50.
+            var wp = WorkParameters.Parse(
+                ["[G54:50,0,0]", "[G55:0,0,0]", "[G56:0,0,0]", "[G57:0,0,0]", "[G58:0,0,0]", "[G59:0,0,0]"],
+                3, 0);
+            wp.ActiveCoordinateSystem = "G54";
+            Machine.WorkParametersProvider = () => wp;
+            stub.Publish(wp);
+
+            x = Assert.Single(vm.LimitRows, r => r.Letter == "X");
+            Assert.Equal(50, x.Min);
+            Assert.Equal(150, x.Max);
+        }
+        finally
+        {
+            Machine.WorkParametersProvider = savedProvider;
+        }
+    }
+
+    /// <summary>IGrblService double that can publish work-parameters snapshots on demand.</summary>
+    private sealed class WorkParamsStub : IGrblService
+    {
+        private readonly Subject<WorkParameters> _changes = new();
+        public bool IsConnected => true;
+        public ControllerCapabilities Capabilities { get; } = new() { IsKnown = true, IsGrblHAL = false };
+        public IObservable<MachineState> State => Observable.Never<MachineState>();
+        public IObservable<WorkParameters> WorkParametersChanges => _changes;
+        public void Publish(WorkParameters wp) => _changes.OnNext(wp);
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public void SendRealtime(byte code) { }
+        public Task SendAsync(string line) => Task.CompletedTask;
     }
 }
 

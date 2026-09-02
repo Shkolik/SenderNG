@@ -109,6 +109,8 @@ public class MainViewModel : ViewModelBase, IDisposable
     private IBrush _stateForeground = Brushes.Black;
     private IDisposable? _stateSubscription;
     private IDisposable? _linesSubscription;
+    private IDisposable? _workParametersSubscription;
+    private WorkParameters? _latestWorkParameters;
     private int _signalAxisCount = -1;
     private CNC.Core.Signals _signalOptionalSignals = CNC.Core.Signals.Off;
     private ProgramViewModel? _program;
@@ -239,6 +241,14 @@ public class MainViewModel : ViewModelBase, IDisposable
                 UiThread.Post(() => Status = message);
         });
 
+        // Keep the latest work-parameters snapshot and feed it to the emulator
+        // (Machine.WorkParametersProvider): G-code limits / bounding-box math then
+        // starts from the controller's real coordinate systems, G28/G30, tools and
+        // probe data instead of an empty table. The snapshot is immutable by
+        // convention, so the closure always sees a consistent value.
+        _workParametersSubscription = _grbl.WorkParametersChanges.Subscribe(wp => UiThread.Post(() => _latestWorkParameters = wp));
+        CNC.Core.Machine.WorkParametersProvider = () => _latestWorkParameters;
+
         // Connection state drives the "NOT CONNECTED" indicator and status bar.
         _connectionChangedHandler = OnConnectionChanged;
         _grbl.ConnectionChanged += _connectionChangedHandler;
@@ -281,6 +291,9 @@ public class MainViewModel : ViewModelBase, IDisposable
                     if (TryDescribeError(line, out var message))
                         UiThread.Post(() => Status = message);
                 });
+
+                _workParametersSubscription?.Dispose();
+                _workParametersSubscription = _grbl.WorkParametersChanges.Subscribe(wp => UiThread.Post(() => _latestWorkParameters = wp));
 
                 if (_connectionChangedHandler is not null)
                 {
