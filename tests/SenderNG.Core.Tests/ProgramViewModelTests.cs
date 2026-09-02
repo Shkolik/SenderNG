@@ -257,16 +257,19 @@ public class ProgramViewModelRunTests
     }
 
     [Fact]
-    public void Rewind_resets_row_statuses_to_un_sent()
+    public void Rewind_resets_row_statuses_to_un_sent_and_requests_scroll_to_first_line()
     {
         var vm = new ProgramViewModel();
         vm.LoadGCode("G0 X0\nG0 Y0\nM30");
         vm.ProgramRows[0] = vm.ProgramRows[0] with { Status = "✕" };
         vm.ProgramRows[1] = vm.ProgramRows[1] with { Status = "✓" };
+        var scrolledTo = -1;
+        vm.ScrollRequested += i => scrolledTo = i;
 
         vm.Rewind();
 
         Assert.All(vm.ProgramRows, r => Assert.Equal("·", r.Status));
+        Assert.Equal(0, scrolledTo);
     }
 
     [Fact]

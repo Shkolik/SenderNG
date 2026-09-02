@@ -186,12 +186,13 @@ public class ProgramViewModel : ViewModelBase
     public void LoadGCode(string? text) =>
         LoadProgram(GCodeProgram.Parse(text), text);
 
-    /// <summary>Reset the loaded program to the start: all rows return to the un-sent state.</summary>
+    /// <summary>Reset the loaded program to the start: all rows return to the un-sent state and the view scrolls to the first line.</summary>
     public void Rewind()
     {
         for (var i = 0; i < ProgramRows.Count; i++)
             ProgramRows[i] = ProgramRows[i] with { Status = "\u00b7", Detail = null };
         RowsChanged?.Invoke();
+        ScrollRequested?.Invoke(0);
     }
 
     /// <summary>
