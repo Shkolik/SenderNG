@@ -265,7 +265,10 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         {
             var parameters = WorkParameters.Parse(await GetWorkParameterLinesAsync(port),
                 Capabilities.NumAxes, Capabilities.NumTools);
-            parameters.ActiveCoordinateSystem = "G54";
+            // The $G modal dump ([GC:G0 G54 ...]) is the authoritative source for
+            // the ACTIVE coordinate system — never assume G54 (ioSender parses the
+            // same dump). The DRO zero (G10 L20 P0) and the offsets editor follow it.
+            parameters.ActiveCoordinateSystem = await ReadActiveCoordinateSystemAsync(port) ?? "G54";
             _workParameters.OnNext(parameters);
         }
         catch
@@ -632,7 +635,40 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             }
         }
 
+        // The $# dump carries no modal state, so the active coordinate system is
+        // learned from activations we send (ioSender's parser does the same) —
+        // otherwise the offsets editor would drift from the controller: pick G59,
+        // zero (G10 L20 P0), and the pull-back $# re-read would report G54.
+        if (!IsErrorReply(reply) && TryReadCoordinateSystem(line, out var activeSystem))
+        {
+            lock (_gate)
+            {
+                if (_workParameters.Value.ActiveCoordinateSystem != activeSystem)
+                {
+                    var clone = _workParameters.Value.Clone();
+                    clone.ActiveCoordinateSystem = activeSystem;
+                    _workParameters.OnNext(clone);
+                }
+            }
+        }
+
         return reply ?? string.Empty;
+    }
+
+    /// <summary>Extracts G54..G59.3 from a command line ("G59", "G90 G59.1"),
+    /// or false when the line doesn't activate a coordinate system.</summary>
+    private static bool TryReadCoordinateSystem(string line, out string code)
+    {
+        foreach (var word in line.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (IsCoordinateSystemCode(word))
+            {
+                code = word.ToUpperInvariant();
+                return true;
+            }
+        }
+        code = string.Empty;
+        return false;
     }
 
     private Task RefreshWorkParametersAfterErrorAsync() =>
@@ -757,6 +793,13 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     {
         var lines = await GetWorkParameterLinesAsync(string.Empty);
         var parameters = WorkParameters.Parse(lines, Capabilities.NumAxes, Capabilities.NumTools);
+        // Parse defaults ActiveCoordinateSystem to G54 (the $# dump carries no
+        // modal state) — publishing that would yank the offsets editor back to
+        // G54 after every re-read even though the controller never left, say,
+        // G59. Carry the last known active system instead; connect's $G read and
+        // grblHAL's live WCS: reports are the only writers of it.
+        parameters.ActiveCoordinateSystem =
+            _workParameters.Value.ActiveCoordinateSystem ?? parameters.ActiveCoordinateSystem;
         _workParameters.OnNext(parameters);
         return parameters;
     }
@@ -799,6 +842,50 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             // Classic grbl $# has no "ok"; keep what we read.
         }
         return lines;
+    }
+
+    /// <summary>
+    /// <c>$G</c> modal-state dump: returns the active coordinate system
+    /// (G54..G59.3) from <c>[GC:G0 G54 ...]</c>, or null when the board doesn't
+    /// answer (non-fatal — callers fall back to G54). Both classic grbl and
+    /// grblHAL reply with the GC line + "ok".
+    /// </summary>
+    private async Task<string?> ReadActiveCoordinateSystemAsync(string port)
+    {
+        var lines = new List<string>();
+        try
+        {
+            await ExchangeAsync("$G", lines, l => l is "ok" or "error", TimeSpan.FromSeconds(1.5));
+        }
+        catch
+        {
+            return null;
+        }
+        foreach (var line in lines)
+        {
+            var gc = line.IndexOf("[GC:", StringComparison.Ordinal);
+            if (gc < 0)
+                continue;
+            foreach (var word in line[gc..].Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                if (IsCoordinateSystemCode(word))
+                    return word.ToUpperInvariant();
+        }
+        return null;
+    }
+
+    private static bool IsCoordinateSystemCode(string word)
+    {
+        if (word.Length is not (3 or 5) || word[0] != 'G' || word[1] != '5')
+            return false;
+        if (word[2] is < '4' or > '9')
+            return false;
+        if (word.Length == 3)
+            return true;
+        return word[2] switch
+        {
+            '9' => word[3] == '.' && word[4] is '1' or '2' or '3', // G59.1..G59.3
+            _ => false,
+        };
     }
 
     /// <summary>
@@ -945,6 +1032,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         copy.ProbePosition = src.ProbePosition is null
             ? null
             : (double[])src.ProbePosition.Clone();
+        copy.ActiveCoordinateSystem = src.ActiveCoordinateSystem;
         return copy;
     }
 

@@ -63,7 +63,19 @@ Many already exist; the gaps are listed per widget.
 
 ### Done / largely done (maintained, verify occasionally)
 
-- [x] DRO (`Modules/Fixed/DroView`) — positions + zero buttons.
+- [x] DRO (`Modules/Fixed/DroView`) — positions + zero buttons (zero writes the
+      active work offset via `G10 L20 P0`, persisted on the controller — iSender
+      parity; a G92 shift would read 0 on screen but never reach Work Parameters).
+- [x] Work Parameters — selecting a coordinate system in the editor activates it
+      on the controller (the combo sends `G54`..`G59.x`, iSender parity), so the
+      DRO zero and subsequent writes land in the row the user is looking at;
+      programmatic selection (editor construction, row-rebuild fallback) never
+      sends an activation. The ACTIVE system is never assumed: connect reads the
+      `$G` modal dump (`[GC:...]`, fallback G54) and grblHAL's live `WCS:` report
+      field, and the editor follows report-driven changes without echoing.
+      After a DRO zero the app re-reads `$#` so the offsets table reflects the
+      controller immediately; positions always come from the controller's MPos /
+      WCO report fields (WPos is derived controller-style, never local math).
 - [x] Jog widget (`Modules/Plugins/Jog`) — cross + linear axes, distances/speeds,
       foam Z/A cross, padlock.
 - [x] MPos widget (`Modules/Plugins/Mpos`) — machine-position readouts.

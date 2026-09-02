@@ -58,6 +58,11 @@ public class MachineState
     // reports MPos + WCO and no WPos; the parser derives WPos = MPos - WCO.
     public double[]? WorkOffsets { get; set; }
 
+    // Active coordinate system (WCS:) from grblHAL status reports — "G54".."G59.3".
+    // Classic grbl never reports it (the $G modal dump at connect covers those
+    // boards); null means unknown, i.e. don't override what the UI already knows.
+    public string? ActiveCoordinateSystem { get; set; }
+
     public Signals Signals { get; set; } = Signals.Off;
 
     // Signals the controller reports as available (discovered from $I and dynamic

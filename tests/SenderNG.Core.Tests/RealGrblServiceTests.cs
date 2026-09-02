@@ -57,6 +57,10 @@ public sealed class FakeGrblTransport : IGrblTransport, IPortPresenceCheck
 
     public bool AutoReply { get; set; } = true;
 
+    /// <summary>When set, AutoReply answers $G with a [GC:...] dump naming this
+    /// coordinate system (the connect-time active-system handshake).</summary>
+    public string? GCReply { get; set; }
+
     /// <summary>When set, the next ReadLineAsync throws as a transport failure (not a cancel).</summary>
     public bool FailNextRead { get; set; }
 
@@ -117,6 +121,8 @@ public sealed class FakeGrblTransport : IGrblTransport, IPortPresenceCheck
                 Enqueue("[VER:1.1f.20230820:]");
                 Enqueue("[OPT:V,16,128]");
             }
+            if (line == "$G" && GCReply is not null)
+                Enqueue($"[GC:G0 {GCReply} G17 G21 G90 G94 M5 M9 T0 F0 S0]");
             Enqueue("ok");
         }
         return Task.CompletedTask;
@@ -167,6 +173,81 @@ public class RealGrblServiceTests
         // channel for the silence-based CommandTimeout).
         await WaitUntil(() => transport.WrittenRawBytes.Contains("?"), timeoutMs: 3000);
         Assert.NotNull(transport.Sent.LastOrDefault(l => l == "G0 X10"));
+    }
+
+    [Fact]
+    public async Task Connect_learns_the_active_coordinate_system_from_G()
+    {
+        // Regression: the app must not assume G54 — the $G modal dump names the
+        // ACTIVE system, and the DRO zero (G10 L20 P0) writes into exactly that.
+        var transport = new FakeGrblTransport { GCReply = "G56" };
+        using var svc = new RealGrblService(transport);
+
+        await svc.ConnectAsync("fake");
+
+        Assert.Contains("$G", transport.Sent);
+        Assert.Equal("G56", svc.WorkParameters.ActiveCoordinateSystem);
+    }
+
+    [Fact]
+    public async Task Activation_sent_by_the_app_is_remembered_across_work_parameter_refreshes()
+    {
+        // The reported bug: select G59, jog, zero all — the DRO zero's $#
+        // pull-back republished a snapshot whose ActiveCoordinateSystem defaulted
+        // to G54, yanking the Work Parameters selector back to G54 while the
+        // controller ($G) was still on G59. The service must learn activations it
+        // sends and carry them through the $# re-read.
+        var transport = new FakeGrblTransport();
+        using var svc = new RealGrblService(transport);
+        await svc.ConnectAsync("fake");
+
+        await svc.SendAsync("G59"); // what the Work Parameters selector sends
+
+        Assert.Equal("G59", svc.WorkParameters.ActiveCoordinateSystem);
+
+        // The zero button's post-write $# pull-back must keep G59, not reset to G54.
+        await svc.RefreshWorkParametersAsync();
+        Assert.Equal("G59", svc.WorkParameters.ActiveCoordinateSystem);
+    }
+
+    [Fact]
+    public async Task Rejected_activation_does_not_update_the_active_system()
+    {
+        // An alarm-state controller rejects G59 — the snapshot must stay on the
+        // truth (G54), not claim a system the board never activated.
+        var transport = new FakeGrblTransport { AutoReply = false };
+        using var svc = new RealGrblService(transport);
+        await svc.ConnectAsync("fake");
+
+        var send = svc.SendAsync("G59");
+        transport.Enqueue("error:22");
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await send);
+
+        Assert.Equal("G54", svc.WorkParameters.ActiveCoordinateSystem);
+    }
+
+    [Fact]
+    public async Task Connect_falls_back_to_G54_when_modal_dump_is_missing()
+    {
+        var transport = new FakeGrblTransport(); // auto-replies ok, no [GC:...]
+        using var svc = new RealGrblService(transport);
+
+        await svc.ConnectAsync("fake");
+
+        Assert.Equal("G54", svc.WorkParameters.ActiveCoordinateSystem);
+    }
+
+    [Fact]
+    public async Task Status_report_WCS_field_marks_the_active_coordinate_system()
+    {
+        var transport = new FakeGrblTransport();
+        using var svc = new RealGrblService(transport);
+        MachineState? latest = null;
+        svc.State.Subscribe(s => latest = s);
+
+        await svc.ConnectAsync("fake");
+        transport.Enqueue("<Idle|MPos:0,0,0|WCS:g58>");
+        await WaitUntil(() => latest?.ActiveCoordinateSystem == "G58");
     }
 
     [Fact]
@@ -415,7 +496,9 @@ public class RealGrblServiceTests
 
         var result = await session.Completion.WaitAsync(TimeSpan.FromSeconds(3));
         Assert.True(result.IsSuccess, result.Error);
-        Assert.Equal(3, updates.Count(u => u.Status == ProgramLineStatus.Ok));
+        // Progress callbacks are posted asynchronously and can land just after
+        // Completion resolves — wait for all three instead of asserting instantly.
+        await WaitUntil(() => updates.Count(u => u.Status == ProgramLineStatus.Ok) == 3);
     }
 
     [Fact]

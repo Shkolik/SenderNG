@@ -212,6 +212,47 @@ public class DemoGrblServiceG92Tests
         var st = await svc.State.FirstAsync();
         Assert.Equal(5.5, st.Positions[0]);
     }
+
+    [Fact]
+    public async Task G10_L20_P0_zeroes_the_active_offset_and_persists_it()
+    {
+        // Regression: the DRO zero (G10 L20 P0) must store the offset into the
+        // ACTIVE coordinate system — the Work Parameters table then shows it.
+        var svc = new DemoGrblService(SettingsFor(3));
+        await svc.ConnectAsync("demo");
+        await svc.SendAsync("G1 X10 Y20 Z30");
+        await svc.SendAsync("G58"); // activate G58, like selecting it from Work Parameters
+
+        await svc.SendAsync("G90 G10 L20 P0 X0 Y0 Z0");
+
+        var st = await svc.State.FirstAsync();
+        Assert.Equal(0, st.Positions[0]);
+        Assert.Equal(0, st.Positions[1]);
+        Assert.Equal(0, st.Positions[2]);
+
+        var g58 = Assert.Single(svc.WorkParameters.CoordinateSystems, x => x.Code == "G58");
+        Assert.Equal(10, g58.Values[0]); // machine position absorbed into the offset
+        Assert.Equal(20, g58.Values[1]);
+        Assert.Equal(30, g58.Values[2]);
+
+        // Systems other than the active one stay untouched.
+        var g54 = Assert.Single(svc.WorkParameters.CoordinateSystems, x => x.Code == "G54");
+        Assert.All(g54.Values, v => Assert.Equal(0, v));
+    }
+
+    [Fact]
+    public async Task G10_L20_Pn_zeros_a_numbered_system_without_activating_it()
+    {
+        var svc = new DemoGrblService(SettingsFor(3));
+        await svc.ConnectAsync("demo");
+        await svc.SendAsync("G1 X10");
+
+        await svc.SendAsync("G10 L20 P5 X0"); // P5 = G58 (G54=1 … G59.3=9)
+
+        var g58 = Assert.Single(svc.WorkParameters.CoordinateSystems, x => x.Code == "G58");
+        Assert.Equal(10, g58.Values[0]);
+        Assert.Equal("G54", svc.WorkParameters.ActiveCoordinateSystem); // selection unchanged
+    }
 }
 
 public class DemoGrblServiceSettingsTests

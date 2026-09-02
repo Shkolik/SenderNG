@@ -231,7 +231,9 @@ public sealed class OffsetsViewModel : ViewModelBase
         _workParametersSubscription = grbl.WorkParametersChanges.Subscribe(
             p => UiThread.Post(() => ApplySnapshot(p)));
         ApplySnapshot(grbl.WorkParameters);
-        SelectedOffset = Rows.FirstOrDefault()?.Code ?? "G54";
+        // Initial selection is programmatic — never sends an activation.
+        if (SetField(ref _selectedOffset, Rows.FirstOrDefault()?.Code ?? "G54"))
+            OnPropertyChanged(nameof(SelectedRow));
         RefreshCommand = new DelegateCommand(_ => Refresh());
         SetAxisCommand = new DelegateCommand(p => _ = SetAxisAsync(p));
         GetCurrentPositionCommand = new DelegateCommand(_ => GetCurrentPosition());
@@ -256,7 +258,35 @@ public sealed class OffsetsViewModel : ViewModelBase
 
     public IReadOnlyList<string> OffsetCodes => Rows.Select(row => row.Code).ToArray();
 
-    public string SelectedOffset { get => _selectedOffset; set { if (SetField(ref _selectedOffset, value)) OnPropertyChanged(nameof(SelectedRow)); } }
+    public string SelectedOffset
+    {
+        get => _selectedOffset;
+        set
+        {
+            if (!SetField(ref _selectedOffset, value))
+                return;
+            OnPropertyChanged(nameof(SelectedRow));
+            // iSender parity: picking a system in the editor activates it on the
+            // controller (the combo sends G54..G59.x), so the DRO zero (G10 L20
+            // P0 = active system) and any writes land in the system the user is
+            // looking at — not the previously active one.
+            _ = ActivateOffsetAsync(value);
+        }
+    }
+
+    private async Task ActivateOffsetAsync(string code)
+    {
+        if (!_grbl.IsConnected)
+            return;
+        try
+        {
+            await _grbl.SendAsync(code);
+        }
+        catch
+        {
+            // Selection is UI state; a failed activation must not disturb the editor.
+        }
+    }
     public EditableOffsetRow? SelectedRow => Rows.FirstOrDefault(row => row.Code == SelectedOffset);
 
     private int _selectedToolId;
@@ -422,14 +452,17 @@ public sealed class OffsetsViewModel : ViewModelBase
                 continue;
             for (var i = 0; i < _axisCount && i < source.Values.Length; i++)
                 row.SetValueAt(i, Format(source.Values[i]));
-        }
+        }            // Follow the controller's active tool, but never yank the selection away
+            // from a row the user is mid-edit on. Evaluated against the pre-refresh
+            // state, so a dirty row keeps selection even when this snapshot also
+            // refreshes its values.
+            if (parameters.ActiveTool > 0 && !Tools.Any(tool => tool.IsDirty) && SelectedToolId != parameters.ActiveTool)
+                SelectedToolId = parameters.ActiveTool;
 
-        // Follow the controller's active tool, but never yank the selection away
-        // from a row the user is mid-edit on. Evaluated against the pre-refresh
-        // state, so a dirty row keeps selection even when this snapshot also
-        // refreshes its values.
-        if (parameters.ActiveTool > 0 && !Tools.Any(tool => tool.IsDirty) && SelectedToolId != parameters.ActiveTool)
-            SelectedToolId = parameters.ActiveTool;
+            // Follow the controller's ACTIVE coordinate system (from the $G modal
+            // dump at connect, or the demo's selection). Report-driven — must never
+            // re-send the activation (that would echo forever).
+            FollowControllerActiveSystem(parameters.ActiveCoordinateSystem);
 
         MergeToolState(parameters, controllerKey);
     }
@@ -481,6 +514,22 @@ public sealed class OffsetsViewModel : ViewModelBase
             _isAlarm = alarm;
             OnPropertyChanged(nameof(IsReady));
         }
+        // grblHAL reports WCS: in every status report — the live active system.
+        FollowControllerActiveSystem(state.ActiveCoordinateSystem);
+    }
+
+    /// <summary>Moves the editor selection to the controller's active coordinate
+    /// system (report-driven, i.e. WITHOUT re-sending the activation — a send would
+    /// echo back through the same path). Ignores unknown/empty values and systems
+    /// not present in the editor.</summary>
+    private void FollowControllerActiveSystem(string? code)
+    {
+        if (string.IsNullOrEmpty(code) || code == _selectedOffset)
+            return;
+        if (Rows.All(row => row.Code != code))
+            return;
+        if (SetField(ref _selectedOffset, code))
+            OnPropertyChanged(nameof(SelectedRow));
     }
 
     public void Refresh()
@@ -728,7 +777,10 @@ public sealed class OffsetsViewModel : ViewModelBase
             Rows.Add(new EditableOffsetRow(code, _axisCount));
         Tools.Clear();
         BuildTools();
-        if (SelectedRow is null) SelectedOffset = Rows[0].Code;
+        // Fallback keeps the selection valid without re-sending the activation
+        // (row rebuilds are programmatic, not user selections).
+        if (SelectedRow is null && SetField(ref _selectedOffset, Rows[0].Code))
+            OnPropertyChanged(nameof(SelectedRow));
     }
 
     /// <summary>Tool rows to render: the mode's VisibleTools, clamped to the

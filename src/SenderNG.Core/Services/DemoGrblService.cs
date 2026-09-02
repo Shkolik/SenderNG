@@ -426,7 +426,9 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
             var state = _subject.Value;
 
-            if (trimmed.StartsWith("G10", StringComparison.OrdinalIgnoreCase))
+            // G10 may follow other modal words on the same line (ioSender's DRO
+            // zero is "G90 G10 L20 P0 ..."), so detect the word anywhere.
+            if (TokenizeWords(trimmed).Any(w => w.Equals("G10", StringComparison.OrdinalIgnoreCase)))
             {
                 ApplyWorkParameterCommand(trimmed, state);
                 _subject.OnNext(state);
@@ -521,6 +523,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         var words = TokenizeWords(line).ToArray();
         var l1 = words.Any(x => x.Equals("L1", StringComparison.OrdinalIgnoreCase));
         var l2 = words.Any(x => x.Equals("L2", StringComparison.OrdinalIgnoreCase));
+        var l20 = words.Any(x => x.Equals("L20", StringComparison.OrdinalIgnoreCase));
         var p = words.FirstOrDefault(x => x.StartsWith("P", StringComparison.OrdinalIgnoreCase));
         if (!int.TryParse(p?[1..], out var number)) return;
         if (l1)
@@ -536,14 +539,38 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             }
             return;
         }
-        if (!l2)
+        if (!l2 && !l20)
             return;
-        var row = WorkParameters.CoordinateSystems.FirstOrDefault(x => x.Id == number);
+        // P0 addresses the ACTIVE coordinate system (as on a real controller),
+        // any other P the numbered system.
+        var row = number == 0
+            ? WorkParameters.CoordinateSystems.FirstOrDefault(x => x.Code == WorkParameters.ActiveCoordinateSystem)
+            : WorkParameters.CoordinateSystems.FirstOrDefault(x => x.Id == number);
         if (row is null)
             return;
+        var machinePos = EnsureMachinePositions(state);
         foreach (var word in words)
-            if (word.Length > 1 && "XYZABCUVW".Contains(char.ToUpperInvariant(word[0])) && double.TryParse(word[1..], System.Globalization.CultureInfo.InvariantCulture, out var value))
-                row.Values["XYZABCUVW".IndexOf(char.ToUpperInvariant(word[0]))] = value;
+        {
+            if (word.Length <= 1 || !"XYZABCUVW".Contains(char.ToUpperInvariant(word[0])) ||
+                !double.TryParse(word[1..], System.Globalization.CultureInfo.InvariantCulture, out var value))
+                continue;
+            var idx = "XYZABCUVW".IndexOf(char.ToUpperInvariant(word[0]));
+            if (idx >= row.Values.Length || idx >= state.Positions.Length)
+                continue;
+            if (l20)
+            {
+                // L20: make the work position read the programmed value in the
+                // addressed system — WCS = MPos - G92 - TLO - WPos (grbl formula;
+                // the demo has no TLO and tracks the combined G92+WCS shift in
+                // _workOffset). The DRO zeroes because the offset absorbs the
+                // machine position.
+                row.Values[idx] = machinePos[idx] - _workOffset[idx] - value;
+                _workOffset[idx] = machinePos[idx] - value;
+                state.Positions[idx] = value;
+            }
+            else
+                row.Values[idx] = value;
+        }
     }
 
     private void ApplyMotion(string line, MachineState state)

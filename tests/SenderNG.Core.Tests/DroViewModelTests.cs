@@ -96,6 +96,61 @@ public class DroViewModelTests
         Assert.Equal(3, vm.Axes.Count);
         Assert.Equal(5, vm.Axes[0].Position);
     }
+
+    private sealed class RecordingGrbl : IGrblService
+    {
+        public List<string> Sent { get; } = new();
+        public int RefreshCount { get; private set; }
+        public bool IsConnected => true;
+        public IObservable<MachineState> State { get; } = new BehaviorSubject<MachineState>(new MachineState(3));
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public Task SendAsync(string line) { Sent.Add(line); return Task.CompletedTask; }
+        public Task RefreshWorkParametersAsync() { RefreshCount++; return Task.CompletedTask; }
+        public void SendRealtime(byte code) { }
+    }
+
+    [Fact]
+    public async Task Zero_axis_writes_active_work_offset_instead_of_G92()
+    {
+        // Regression: the DRO zero must persist into the active work offset
+        // (G10 L20 P0, iSender parity) — G92 only left a temporary shift that
+        // never touched the offsets table.
+        var grbl = new RecordingGrbl();
+        var vm = new DroViewModel(grbl);
+
+        vm.ZeroAxisCommand.Execute("X");
+        await Task.Delay(50);
+
+        Assert.Equal("G10 L20 P0 X0", Assert.Single(grbl.Sent));
+    }
+
+    [Fact]
+    public async Task Zero_all_writes_active_work_offset_instead_of_G92()
+    {
+        var grbl = new RecordingGrbl();
+        var vm = new DroViewModel(grbl);
+
+        vm.ZeroAllCommand.Execute(null);
+        await Task.Delay(50);
+
+        Assert.Equal("G90 G10 L20 P0 X0 Y0 Z0", Assert.Single(grbl.Sent));
+    }
+
+    [Fact]
+    public async Task Zero_pulls_back_work_parameters_so_the_offsets_table_syncs()
+    {
+        // After the zero write the app must $# re-read — otherwise the saved
+        // offset never reaches the Work Parameters table (the controller only
+        // answers explicit queries, it doesn't broadcast dumps on its own).
+        var grbl = new RecordingGrbl();
+        var vm = new DroViewModel(grbl);
+
+        vm.ZeroAllCommand.Execute(null);
+        await Task.Delay(50);
+
+        Assert.Equal(1, grbl.RefreshCount);
+    }
 }
 
 public class DroProxyInitialStateTests

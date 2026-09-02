@@ -179,6 +179,16 @@ public static class StatusReportParser
             {
                 ApplyAccessoryField(field[2..], state);
             }
+            else if (field.StartsWith("WCS:", StringComparison.Ordinal))
+            {
+                // grblHAL reports the ACTIVE work coordinate system (g54..g59.3)
+                // in every status report — the live truth for which offset the
+                // DRO zero (G10 L20 P0) targets; may be empty when reporting is
+                // limited, in which case keep the previous value.
+                var wcs = field[4..].Trim().ToUpperInvariant();
+                if (wcs.Length > 0)
+                    state.ActiveCoordinateSystem = wcs;
+            }
         }
 
         // Reports that only carry machine coords (classic grbl default $10=1)

@@ -49,6 +49,52 @@ public sealed class OffsetsViewModelTests
     }
 
     [Fact]
+    public async Task Selecting_an_offset_activates_it_on_the_controller()
+    {
+        // iSender parity: picking G56 in the editor sends "G56" to the
+        // controller, so the DRO zero (G10 L20 P0 = active system) and any
+        // writes land in the row the user is looking at.
+        var service = new DemoGrblService(new AppSettings());
+        await service.ConnectAsync("demo");
+        var vm = new OffsetsViewModel(service, MakeSettings());
+
+        vm.SelectedOffset = "G56";
+
+        Assert.Equal("G56", vm.SelectedOffset);
+        Assert.Equal("G56", service.WorkParameters.ActiveCoordinateSystem);
+    }
+
+    [Fact]
+    public async Task Editor_follows_an_activation_issued_outside_the_editor()
+    {
+        // G56 can be activated from anywhere (MDI, a program line). The editor
+        // selection must follow, WITHOUT re-sending the activation (that would
+        // echo forever through the snapshot stream).
+        var service = new DemoGrblService(new AppSettings());
+        await service.ConnectAsync("demo");
+        var vm = new OffsetsViewModel(service, MakeSettings());
+
+        await service.SendAsync("G56"); // activation from outside the editor
+
+        Assert.Equal("G56", vm.SelectedOffset);
+    }
+
+    [Fact]
+    public async Task Constructing_the_editor_does_not_change_the_active_offset()
+    {
+        // The initial row selection is programmatic — it must not send G54 and
+        // yank the controller away from the system the user had active.
+        var service = new DemoGrblService(new AppSettings());
+        await service.ConnectAsync("demo");
+        await service.SendAsync("G55");
+
+        var vm = new OffsetsViewModel(service, MakeSettings());
+
+        Assert.Equal("G54", vm.SelectedOffset);
+        Assert.Equal("G55", service.WorkParameters.ActiveCoordinateSystem);
+    }
+
+    [Fact]
     public async Task Get_current_position_updates_selected_row_immediately()
     {
         var settings = new AppSettings();

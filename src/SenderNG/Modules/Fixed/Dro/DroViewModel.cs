@@ -98,7 +98,11 @@ public class DroViewModel : ViewModelBase
             return;
         try
         {
-            await _grbl.SendAsync($"G92 {letter}0");
+            // G10 L20 P0: make the current position read 0 in the ACTIVE work
+            // coordinate system and persist it (iSender parity). Unlike G92 the
+            // change is stored on the controller and shows up in Work Parameters.
+            await _grbl.SendAsync($"G10 L20 P0 {letter}0");
+            await RefreshWorkParametersAsync();
             Status = LocText.Format("module.dro.zeroedAxis", "{0} zeroed", letter);
         }
         catch (Exception ex)
@@ -114,12 +118,31 @@ public class DroViewModel : ViewModelBase
         var words = string.Join(" ", Axes.Select(a => $"{a.Letter}0"));
         try
         {
-            await _grbl.SendAsync($"G92 {words}");
+            // G10 L20 P0: make the current position read 0 in the ACTIVE work
+            // coordinate system and persist it (iSender parity) — G92 only left a
+            // temporary shift that vanished on reset and never touched the offsets.
+            await _grbl.SendAsync($"G90 G10 L20 P0 {words}");
+            await RefreshWorkParametersAsync();
             Status = LocText.Resolve("module.dro.zeroed", "All axes zeroed");
         }
         catch (Exception ex)
         {
             Status = LocText.Format("module.dro.zeroAllFailed", "Zero all failed: {0}", ex.Message);
+        }
+    }
+
+    /// <summary>Pulls a $# re-read so the Work Parameters table reflects the
+    /// zero immediately; non-fatal (the demo is already live; a failed read keeps
+    /// the last snapshot).</summary>
+    private async Task RefreshWorkParametersAsync()
+    {
+        try
+        {
+            await _grbl.RefreshWorkParametersAsync();
+        }
+        catch
+        {
+            // Non-fatal.
         }
     }
 
