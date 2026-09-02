@@ -230,7 +230,9 @@ Many already exist; the gaps are listed per widget.
 
 - [ ] **3D program view** — port ioSender's `GCodeViewer` (RenderControl /
       HelixToolkit) as the third center tab (Program / 3D / Console) or a
-      flyout.
+      flyout. Depends on the machine axis-role schema from ROADMAP's
+      "Machine physical configuration" item: the projection (mill XY, foam
+      X/A two-plane) is determined by the machine model.
 - [ ] **Height-map 3D preview** — ioSender renders the probed grid as a mesh;
       SenderNG has the map data + XML save/load but no 3D visualization.
 - [ ] **Probe-verification preflight** (`ProbeVerify` + `ConfigControl`

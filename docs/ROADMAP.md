@@ -71,6 +71,29 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
 
 ## Other known deferred items
 
+- **Keyboard shortcuts / key-map settings** — global hotkeys for the
+  frequently-used buttons (cycle bar Start/Hold/Resume/Stop, Rewind, jog
+  directions, MDI focus, Home/Unlock/Reset) with a settings screen to remap.
+  Plumbing first: a keymap service (action → key binding, persisted like the
+  other settings), command hookup in MainWindow, then the settings tab.
+  Check ioSender's shortcut set for parity defaults before finalizing.
+- **Machine physical configuration** — the app has no model of the machine's
+  axis layout today: foam cutters are two-carriage machines (X/Y work plane
+  plus an A second plane), mills are XYZ cross-axis, and the app only knows
+  "N axes" from `$I [AXS:]`. This item defines a machine geometry model
+  (axis roles, workplane semantics, kinematics flavor) that drives jog
+  layout, limits presentation and — critically — the g-code plotter, whose
+  projection depends on axis semantics.
+  **Studied together with the 2D/3D program view** (see
+  `docs/iosender-gaps.md` P2): the coupling is real, so the axis-role
+  **schema** is designed first as part of this item; the plotter then builds
+  against that model and the config UI can follow later without blocking it.
+  Subsumes the axis-layout half of Foam CNC mode below.
+- **Continuous jog** — hold-to-jog with continuous motion: velocity-based
+  `$J=` without a target distance (ioSender's Continuous mode), feedrate
+  selection, and stop-on-release (hold realtime byte). Axis layout comes
+  from the existing jog pad, later from Machine physical configuration
+  above.
 - Foam CNC mode: functional foam-specific behavior (mode is persisted but only
   changes jog layout today).
 - Telnet / WebSocket transports: `TcpGrblTransport` covers plain TCP; telnet
