@@ -97,7 +97,6 @@ public class MainViewModel : ViewModelBase, IDisposable
     private IGrblService _grbl;
     private string _status = string.Empty;
     private bool _isConnected;
-    private string? _connectedTo;
     private RealGrblService? _networkService;
     private EventHandler? _connectionChangedHandler;
     private IModule? _selectedModule;
@@ -144,7 +143,6 @@ public class MainViewModel : ViewModelBase, IDisposable
             _localization.Changed += OnLocaleChanged;
         _isDemo = ResolveInner(grbl) is DemoGrblService;
         _isConnected = grbl.IsConnected;
-        _connectedTo = _isDemo ? "demo" : null;
 
         // Tolerant resolve: unit tests construct MainViewModel with a minimal provider.
         var droVm = _services.GetService<Modules.Fixed.DroViewModel>();
@@ -302,32 +300,12 @@ public class MainViewModel : ViewModelBase, IDisposable
         private set
         {
             if (SetField(ref _isDemo, value))
-            {
                 OnPropertyChanged(nameof(Title));
-                OnPropertyChanged(nameof(ConnectionStatus));
-            }
         }
     }
 
     /// <summary>Whether the active controller connection is live (drives the state indicator).</summary>
     public bool IsConnected => _isConnected;
-
-    /// <summary>Status-bar connection summary: which controller (if any) is active.</summary>
-    public string ConnectionStatus =>
-        !IsConnected ? Resolve("app.conn.notConnected", "Not connected")
-        : IsDemo ? Resolve("app.conn.demo", "Demo mode — controller simulated")
-        : string.IsNullOrEmpty(ConnectedTo) ? Resolve("app.conn.connected", "Connected")
-        : LocText.Format("app.conn.connectedTo", "Connected: {0}", ConnectedTo);
-
-    private string? ConnectedTo
-    {
-        get => _connectedTo;
-        set
-        {
-            if (SetField(ref _connectedTo, value))
-                OnPropertyChanged(nameof(ConnectionStatus));
-        }
-    }
 
     /// <summary>Status-bar block progress: executed/total sendable blocks of the
     /// loaded program (comments are not blocks — they stay in the grid but never
@@ -653,7 +631,6 @@ public class MainViewModel : ViewModelBase, IDisposable
         var demo = _services.GetRequiredService<DemoGrblService>();
         SwapInner(demo);
         IsDemo = true;
-        ConnectedTo = "demo";
         if (!demo.IsConnected)
             await Grbl.ConnectAsync("demo");
         Status = LocText.Resolve("app.msg.demoMode", "Demo mode — controller simulated in software");
@@ -812,7 +789,6 @@ public class MainViewModel : ViewModelBase, IDisposable
         try
         {
             Grbl.Disconnect();
-            ConnectedTo = null;
             Status = LocText.Resolve("app.msg.disconnected", "Disconnected");
         }
         catch (Exception ex) { Status = LocText.Format("app.msg.disconnectFailed", "Disconnect failed: {0}", ex.Message); }
@@ -920,7 +896,6 @@ public class MainViewModel : ViewModelBase, IDisposable
             OnPropertyChanged(nameof(SelectedModuleName));
             OnPropertyChanged(nameof(DroHeader));
             OnPropertyChanged(nameof(Title));
-            OnPropertyChanged(nameof(ConnectionStatus));
             OnPropertyChanged(nameof(MachineStateDisplay));
             OnPropertyChanged(nameof(Status));
             OnPropertyChanged(nameof(RunTime));
@@ -1205,7 +1180,6 @@ public class MainViewModel : ViewModelBase, IDisposable
             real.SerialResetMode = resetMode;
         }
         await Grbl.ConnectAsync(port);
-        ConnectedTo = port;
         IsDemo = ResolveInner(Grbl) is DemoGrblService;
         Status = LocText.Format("app.msg.connectedToPort", "Connected: {0}", port);
 
@@ -1247,7 +1221,6 @@ public class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsCheckMode));
         OnPropertyChanged(nameof(StateBrush));
         OnPropertyChanged(nameof(StateForeground));
-        OnPropertyChanged(nameof(ConnectionStatus));
         OnPropertyChanged(nameof(Title));
         (CheckCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         RaiseProgramCommands(); // Start is gated on IsConnected

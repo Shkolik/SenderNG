@@ -70,7 +70,14 @@ Many already exist; the gaps are listed per widget.
 - [x] Outline widget (`Modules/Plugins/Outline`) — feed rate + Go perimeter.
 - [x] Coolant (`Modules/Plugins/Coolant`) — Flood/Mist toggles + overrides.
 - [x] Cutting (`Modules/Plugins/Cutting`) — Feed/Rapids/Speed overrides, spindle
-      CW/CCW/Off + RPM input.
+      CW/CCW/Off + RPM input, plus the live feed/speed readout (FS: report field).
+      The readout mirrors the controller (ioSender parity) — a cycle stop shows
+      100% because grbl resets overrides on soft reset, an app restart shows the
+      controller's *actual* overrides, and the app never invents values. While the
+      machine is in a feed hold it is physically stopped, but grblHAL keeps
+      reporting the programmed feed (F word × override) in FS:, so the widget
+      reads 0 during Hold/Hold:0/Hold:1 and restores the live value on resume.
+      Speed is not zeroed on a hold — a real spindle keeps running through one.
 - [x] Program view (`Modules/Fixed/Program`) — line list with status, program
       limits panel, load/send. 2026-08-31: now backed by the engine: Open File
       runs the file through `GCodeProgram` (the same `GCodeParser` pass the
@@ -112,7 +119,9 @@ Many already exist; the gaps are listed per widget.
       incl. a G10 L1 tool-table save/readback on grblHAL.
 - [x] Grbl settings (`Modules/Fixed/GrblSettings`) — `$$` view/edit.
 - [x] App settings (`Modules/Fixed/AppSettings`).
-- [x] MDI row (editable combo + history + Send).
+- [x] MDI row (editable combo + history + Send). The static signals/limits
+      summary right of the Send button was removed as redundant — the signals
+      panel already shows live state (the summary text never updated).
 - [x] Signals panel (axis indicators + probe state).
 - [x] State indicator (Idle/Run/Alarm/Hold + brush).
 - [x] Cycle bar (Cycle Start / Feed Hold / Stop / Rewind) — the **only** run
@@ -174,10 +183,14 @@ Many already exist; the gaps are listed per widget.
 - [ ] **File actions** (`FileActionControl`) — Load / Save / Close / Run from a
       toolbar; SenderNG has Open (menu + toolbar) and program send in the
       Program view, but no Save/Close file actions.
-- [x] **Status bar parity** — the status bar now shows real values like
-      ioSender: Blocks (executed/total of the loaded program), Message (the
-      live status/alarm line), RunTime (elapsed while a cycle runs) and
-      JogStep (the active jog distance), plus the centered connection status.
+- [x] **Status bar parity** — the status bar shows exactly ioSender's four
+      slots: Blocks (executed/total of the loaded program), Message (the live
+      status/alarm line, star column), RunTime (elapsed while a cycle runs) and
+      JogStep (the active jog distance). The SenderNG-only centered connection
+      slot is gone — it duplicated Message's "Connected: <port>" text (ioSender
+      has no such slot), so connection info flows through Message like upstream.
+      All slots are fixed-width so Block/RunTime/JogStep changes never shift the
+      other texts (Message absorbs the slack in the star column).
 
 ### Deferred scope noted here for completeness (do not start without asking)
 

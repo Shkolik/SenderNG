@@ -225,7 +225,12 @@ public class CuttingViewModel : ViewModelBase
     {
         if (state is null)
             return;
-        Feed = state.Feed;
+        // A feed hold physically stops the machine, but grblHAL keeps reporting the
+        // programmed feed (F word × override) in the FS: field while held, so the
+        // widget would show ~105 mm/min on a stopped machine. Zero the live feed
+        // while in Hold (both Hold:0 decel and Hold:1 stopped). Speed is left as
+        // reported: a real spindle keeps running through a feed hold.
+        Feed = state.Status.StartsWith("Hold", StringComparison.OrdinalIgnoreCase) ? 0 : state.Feed;
         SpindleOvr = state.SpindleOvr;
         Speed = state.Speed;
         FeedOvr = state.FeedOvr;

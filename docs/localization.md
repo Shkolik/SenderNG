@@ -164,7 +164,7 @@ When the user picks a new language in App Settings (`SetLocale("ru")`):
 3. ViewModels that must rebuild computed text subscribe to `Changed` and re-raise the
    relevant `OnPropertyChanged`. `MainViewModel.OnLocaleChanged` is the reference pattern —
    it re-raises `CenterTabs`, `RightModuleViews`, `LeftModules`, `FlyoutModules`,
-   `SelectedModuleName`, `DroHeader`, `Title`, `ConnectionStatus`, `MachineStateDisplay`,
+   `SelectedModuleName`, `DroHeader`, `Title`, `MachineStateDisplay`,
    and `Status`, all marshalled through `UiThread.Post`:
 
 ```csharp
@@ -172,7 +172,6 @@ private void OnLocaleChanged(object? sender, EventArgs e) =>
     UiThread.Post(() =>
     {
         OnPropertyChanged(nameof(Title));
-        OnPropertyChanged(nameof(ConnectionStatus));
         OnPropertyChanged(nameof(Status));
         // ...every locale-dependent computed property
     });

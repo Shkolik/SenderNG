@@ -136,6 +136,32 @@ public class CuttingViewModelTests
     }
 
     [Fact]
+    public void Feed_reads_zero_while_held_and_restores_on_resume()
+    {
+        var grbl = new RecordingGrbl([]);
+        var vm = new CuttingViewModel(grbl);
+
+        // Running: live feed mirrors the report (grblHAL reports F word × override).
+        grbl.Push(new MachineState(3) { Status = "Run", Feed = 105, Speed = 8000 });
+        Assert.Equal(105, vm.Feed);
+
+        // Feed hold: the machine is stopped, but the report still carries the
+        // programmed feed — the widget must show 0 while held (Hold and Hold:0/1).
+        grbl.Push(new MachineState(3) { Status = "Hold", Feed = 105, Speed = 8000 });
+        Assert.Equal(0, vm.Feed);
+        grbl.Push(new MachineState(3) { Status = "Hold:1", Feed = 105, Speed = 8000 });
+        Assert.Equal(0, vm.Feed);
+
+        // Speed is untouched by a feed hold — a real spindle keeps spinning.
+        Assert.Equal(8000, vm.Speed);
+
+        // Resume: live feed comes back.
+        grbl.Push(new MachineState(3) { Status = "Run", Feed = 105, Speed = 8000 });
+        Assert.Equal(105, vm.Feed);
+        Assert.Equal(8000, vm.Speed);
+    }
+
+    [Fact]
     public void Speed_and_spindle_input_include_speed_override()
     {
         var sent = new List<string>();

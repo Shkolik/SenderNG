@@ -409,19 +409,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     </ComboBox.KeyBindings>
                 </ComboBox>
                 <Button Content="{loc:Loc app.mdi.send}" Command="{Binding SendMdiCommand}" CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1" Padding="12,0" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center" />
-                <TextBlock Text="{loc:Loc app.mdi.signalsSummary}" Foreground="#888" FontSize="9" VerticalAlignment="Center" Margin="12,0,0,0" Opacity="0.85" />
             </StackPanel>
         </Border>
 
-        <!-- Row3: StatusBar -->
+        <!-- Row3: StatusBar (ioSender layout: Blocks | Message | RunTime | JogStep).
+             Fixed-width slots so Block/RunTime/JogStep changes never shift the
+             other texts; the star column is Message, absorbing the slack. -->
         <Border Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="4"
                 Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="4,2" HorizontalAlignment="Stretch">
-            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
-                <TextBlock Grid.Column="0" Text="{Binding StatusBarBlocks}" FontSize="10" Foreground="#666" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="1" Text="{Binding Message}" FontSize="10" Foreground="#666" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" MaxWidth="420" />
-                <TextBlock Grid.Column="2" Text="{Binding ConnectionStatus, FallbackValue='Ready'}" FontSize="10" Foreground="#666" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="3" Text="{Binding RunTime}" FontSize="10" Foreground="#666" VerticalAlignment="Center" Margin="10,0,0,0" />
-                <TextBlock Grid.Column="4" Text="{Binding StatusBarJogStep}" FontSize="10" Foreground="#666" VerticalAlignment="Center" Margin="10,0,0,0" />
+            <Grid ColumnDefinitions="110,*,110,95">
+                <TextBlock Grid.Column="0" Text="{Binding StatusBarBlocks}" FontSize="10" Foreground="#666" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="1" Text="{Binding Message}" FontSize="10" Foreground="#666" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="2" Text="{Binding RunTime}" FontSize="10" Foreground="#666" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="3" Text="{Binding StatusBarJogStep}" FontSize="10" Foreground="#666" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" />
             </Grid>
         </Border>
 

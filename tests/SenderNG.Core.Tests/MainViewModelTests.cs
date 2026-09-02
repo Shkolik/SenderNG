@@ -138,7 +138,6 @@ public class MainViewModelTests
         Assert.False(vm.IsDemo);       // the app no longer starts in demo mode
         Assert.False(vm.IsConnected);
         Assert.Equal("NOT CONNECTED", vm.MachineStateDisplay);
-        Assert.Equal("Not connected", vm.ConnectionStatus);
         Assert.Contains("Not connected", vm.Status);
         Assert.Contains("Not connected", vm.Title);
     }

@@ -84,3 +84,16 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
 > resumes, or stops. The session is local orchestration only — the controller is
 > still driven exclusively by the same realtime bytes, now sent once per state
 > transition instead of blindly per button press.
+>
+> Status bar / MDI / Cutting widget updates: the status bar is ioSender's exact
+> four-slot layout (Blocks | Message | RunTime | JogStep) in fixed-width slots, so
+> Block/RunTime/JogStep changes never shift the other texts; the separate centered
+> connection slot is gone — it duplicated Message's "Connected: <port>" text, and
+> connection info flows through Message like upstream. The static signals/limits
+> summary right of the MDI Send button was removed as redundant (the signals panel
+> shows live state). The Cutting widget's live feed reads 0 during a feed hold
+> (grblHAL reports the programmed feed while the machine is stopped) and restores
+> on resume; speed is untouched. Overrides mirror the controller's `Ov:` report
+> (ioSender parity): a cycle stop shows 100% because grbl resets overrides on soft
+> reset, an app restart shows the controller's actual overrides — the app never
+> invents values.
