@@ -1410,8 +1410,16 @@ namespace CNC.GCode
                 // G54 - G59, G59.1 - G59.3
                 if (modalGroups.HasFlag(ModalGroups.G12))
                 {
-                    CoordSystem = (int)coordSystem - 53;
-                    Tokens.Add(new GCodeToken(Commands.G54 + CoordSystem - 1, gcValues.N));
+                    // The command is derived from the parsed word value directly -
+                    // never through Machine.CoordSystem, whose backing table is
+                    // only populated once controller data ($#) has been fetched.
+                    // When the table is empty the property setter stores null and
+                    // the getter returns 0, which would degenerate every selection
+                    // (G54..G59.3) into Commands.G53 and crash the emulator's
+                    // GCAbsLinearMotion cast.
+                    int cs = (int)coordSystem - 53; // 1..9 => G54..G59.3
+                    CoordSystem = cs; // best effort: retained when table is available
+                    Tokens.Add(new GCodeToken(Commands.G54 + cs - 1, gcValues.N));
                 }
 
                 //
@@ -2077,9 +2085,11 @@ namespace CNC.GCode
 
                     case Commands.G53:
                         {
-                            var linear = (GCAbsLinearMotion)token;
-                            lastMotion = token;
-                            block += linear.ToString();
+                            if (token is GCAbsLinearMotion linear)
+                            {
+                                lastMotion = token;
+                                block += linear.ToString();
+                            }
                             break;
                         }
 

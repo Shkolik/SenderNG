@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using CNC.Core.Services;
 using CNC.GCode;
 using CNC.Core;
 using Xunit;
@@ -87,5 +88,47 @@ public class GCodeParserTests
     {
         var b = GCodeParser.Parse("(comment)");
         Assert.Equal(-1, b.Motion); // or 0? check implementation returns -1 for no motion
+    }
+
+    [Theory]
+    [InlineData("G54", "G54")]
+    [InlineData("G55", "G55")]
+    [InlineData("G59", "G59")]
+    [InlineData("G59.3", "G59_3")]
+    public void Coordinate_system_selection_emits_the_requested_command_without_controller_data(string block, string expected)
+    {
+        // Regression: with no controller data ($#) fetched, Machine.CoordSystem's
+        // backing table is empty, its setter stores null and the getter returns 0.
+        // The old emission formula (Commands.G54 + CoordSystem - 1) then degenerated
+        // every selection to Commands.G53, crashing the emulator's GCAbsLinearMotion
+        // cast when the program was opened (InvalidCastException on the UI thread).
+        var program = GCodeProgram.Parse(block + "\n");
+        var token = Assert.Single(program.Tokens);
+        Assert.Equal(expected, token.Command.ToString());
+        Assert.False(program.HasErrors);
+    }
+
+    [Fact]
+    public void Freecad_program_with_coordinate_selection_survives_limits_computation()
+    {
+        // Stand-in for the exact crashing shape of a FreeCAD-exported .nc:
+        // G17 G90 / G21 preamble followed by G54 before any motion.
+        var program = GCodeProgram.Parse("G17 G90\nG21\nG54\nM3 S10000.0\nG0 X0.000 Y0.000 Z2.000\nG1 X15.107 Y11.888 Z0.225 F120.000\nM5\nG17 G90\nM2\n");
+        Assert.False(program.HasErrors);
+        var limits = GCodeLimitsCalculator.Compute(program.Tokens);
+        Assert.NotNull(limits);
+        Assert.DoesNotContain(program.Tokens, t => t is GCodeToken && t.Command == CNC.GCode.Commands.G53);
+    }
+
+    [Fact]
+    public void Emulator_skips_degenerate_G53_token_instead_of_crashing()
+    {
+        // Defense in depth: a non-motion token with Command == G53 must not take
+        // the app down through an InvalidCastException on file open.
+        var emu = new GCodeEmulator(true);
+        var actions = emu.Execute([new GCodeToken(CNC.GCode.Commands.G53, 1)]).ToList();
+        // No throw (was InvalidCastException); the degenerate token is reported
+        // like any other non-motion command instead of being simulated.
+        Assert.Single(actions);
     }
 }

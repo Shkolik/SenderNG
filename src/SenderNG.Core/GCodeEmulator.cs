@@ -327,7 +327,9 @@ namespace CNC.Core
                     // G53: Move in Machine Coordinates
                     case Commands.G53:
                         {
-                            var motion = (GCAbsLinearMotion)token;
+                            if (token is not GCAbsLinearMotion motion)
+                                break; // Degenerate token (no axis words): nothing to simulate
+
                             action.IsInMachineCoord = true;
                             if (action.IsInMachineCoord)
                             {
