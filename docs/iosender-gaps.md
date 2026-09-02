@@ -22,7 +22,11 @@ controller. Demo mode masks these gaps in day-to-day use.
       (injectable `IGrblTransport`) that feeds status reports into
       `StatusReportParser` continuously, plus a suspendable `?` poller
       (ioSender `PollGrbl` semantics). Verified on a real grbl 1.2i board @ COM6
-      (live status, `$$`, `$I`).
+      (live status, `$$`, `$I`). The poller backs off to
+      `IdlePollIntervalMs` (1.5 s) once the controller is settled in Idle with
+      fresh reports and no recent send, so the console isn't spammed with
+      identical `<Idle|...>` lines; jog/run/hold, a send in the 2 s linger
+      window, or a controller that stopped reporting all keep the fast rate.
 - [x] **Full grbl handshake** (`$I` + `[OPT:...]`, grblHAL build/version
       detection) and an exposed `ControllerCapabilities` on `IGrblService`; on
       connect the axis count is pushed into the legacy `GrblInfo` static and the

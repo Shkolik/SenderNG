@@ -8,7 +8,9 @@
 
   <ItemGroup>
     <!-- UI plugin: references Avalonia because CreateView returns a Control. -->
-    <PackageReference Include="Avalonia" Version="12.*" />
+    <!-- Pinned to the same version the host app resolves (floating 12.* caused a
+         framework mismatch that crashed startup with TypeLoadException). -->
+    <PackageReference Include="Avalonia" Version="12.1.1" />
   </ItemGroup>
 
   <ItemGroup>

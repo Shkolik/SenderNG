@@ -71,6 +71,18 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     private int _disconnecting;
     private int _pollIntervalMs = 200;
     private int _healthCheckIntervalMs = 1000;
+    private int _currentPollPeriodMs;
+    // Idle-rate control: when the controller is settled in Idle and nothing was
+    // sent recently, the '?' poll backs off to IdlePollIntervalMs so the console
+    // isn't spammed with identical <Idle|...> lines (ioSender's quieter idle
+    // behaviour). Any send reverts to the fast rate immediately, and a stale
+    // report window (controller stopped talking) or a non-Idle state (jog, run,
+    // hold) keeps the fast rate too. Volatile so PollTick (timer thread) and
+    // SendCoreAsync (caller thread) read each other's writes.
+    private long _lastStatusReportTicks;
+    private long _lastSendTicks;
+    private static readonly TimeSpan FastActivityLingerDefault = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan StatusFreshWindow = TimeSpan.FromSeconds(3);
     private TimeSpan _commandTimeout = TimeSpan.FromSeconds(60);
     // Liveness timestamp: any line the consumer reads (status report or reply)
     // slides the CommandTimeout window, so a controller that keeps talking is
@@ -139,6 +151,24 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         get => _pollIntervalMs;
         set => _pollIntervalMs = Math.Max(50, value);
     }
+
+    /// <summary>
+    /// Back-off '?'-poll interval in ms used while the controller is Idle and
+    /// nothing was sent recently (≥2× the fast interval). Console chatter drops
+    /// from ~5 lines/s to ~1 every 1.5 s; jog, run, hold, a pending send or a
+    /// controller that stopped reporting always keep the fast rate.
+    /// </summary>
+    public int IdlePollIntervalMs { get; set; } = 1500;
+
+    /// <summary>How long after an app send the poller keeps the fast rate even
+    /// though the controller already shows Idle (lets the DRO catch the reply's
+    /// position change, e.g. MDI G92).</summary>
+    public TimeSpan FastActivityLinger { get; set; } = FastActivityLingerDefault;
+
+    /// <summary>Current '?'-timer period in ms — fast or backed-off. Exposed for
+    /// tests so the back-off logic is asserted deterministically instead of by
+    /// counting bytes.</summary>
+    public int CurrentPollPeriodMs => _currentPollPeriodMs;
 
     /// <summary>
     /// How often the transport-health watchdog runs (≥100 ms). While connected it
@@ -327,7 +357,28 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         if (_cts is null || _cts.IsCancellationRequested)
             return;
 
+        _currentPollPeriodMs = _pollIntervalMs;
         _pollTimer = new Timer(_ => PollTick(), null, 0, _pollIntervalMs);
+    }
+
+    /// <summary>Retarget the '?' timer (due immediately, new period).
+    /// <see cref="Timer.Change"/> is thread-safe; PollTick (timer thread) can
+    /// race Disconnect (which disposes the timer) — take a null-safe local and
+    /// swallow the resulting ObjectDisposedException.</summary>
+    private void SetPollRate(int intervalMs)
+    {
+        _currentPollPeriodMs = intervalMs;
+        var timer = _pollTimer;
+        if (timer is null)
+            return;
+        try
+        {
+            timer.Change(0, intervalMs);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Disconnect disposed the timer concurrently; no further ticks anyway.
+        }
     }
 
     /// <summary>
@@ -353,6 +404,21 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     {
         if (_pollerSuspended || !IsConnected || _cts?.IsCancellationRequested == true)
             return;
+
+        // Idle back-off: keep the fast rate while anything may be in motion or
+        // about to happen — non-Idle states, a send in the last linger window,
+        // or a controller that hasn't reported for StatusFreshWindow (assume the
+        // worst, poll fast to find out). Only a settled Idle with fresh reports
+        // and no recent send gets the slow rate.
+        var now = DateTime.UtcNow;
+        var reportFresh = now - new DateTime(Volatile.Read(ref _lastStatusReportTicks), DateTimeKind.Utc) < StatusFreshWindow;
+        var recentlySent = now - new DateTime(Volatile.Read(ref _lastSendTicks), DateTimeKind.Utc) < FastActivityLinger;
+        var idle = _subject.Value.Status.StartsWith("Idle", StringComparison.OrdinalIgnoreCase)
+                   && reportFresh
+                   && !recentlySent;
+        if ((idle ? IdlePollIntervalMs : _pollIntervalMs) != _currentPollPeriodMs)
+            SetPollRate(idle ? IdlePollIntervalMs : _pollIntervalMs);
+
         try
         {
             _transport.WriteByte(0x3F); // '?' - realtime status request
@@ -598,6 +664,13 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     {
         if (!IsConnected)
             throw new InvalidOperationException("Not connected.");
+
+        // A send means the controller may start moving (MDI move, program line,
+        // $H, $J jog): revert to the fast '?' rate immediately so the run-state
+        // and DRO follow without waiting out an idle back-off window.
+        Volatile.Write(ref _lastSendTicks, DateTime.UtcNow.Ticks);
+        if (_currentPollPeriodMs != _pollIntervalMs)
+            SetPollRate(_pollIntervalMs);
 
         // Register the waiter *before* writing so we can't lose a fast reply
         // that lands between the write and the enqueue. The consumer loop
@@ -960,6 +1033,9 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             var state = CloneOf(_subject.Value);
             if (StatusReportParser.Parse(line, state))
             {
+                // Feed the idle back-off: a fresh report is the evidence that
+                // the controller is alive and settled (see PollTick).
+                Volatile.Write(ref _lastStatusReportTicks, DateTime.UtcNow.Ticks);
                 _subject.OnNext(state);
                 continue;
             }

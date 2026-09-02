@@ -344,6 +344,66 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    public async Task Poller_backs_off_when_idle_and_speeds_up_on_activity()
+    {
+        // The '?' poll runs at the fast rate whenever anything may be happening
+        // (jog/run/hold, a recent send, or a controller that stopped reporting)
+        // and backs off to IdlePollIntervalMs only for a settled Idle — that's
+        // what keeps the console quiet without delaying DRO/run-state feedback.
+        var transport = new FakeGrblTransport();
+        using var svc = new RealGrblService(transport)
+        {
+            PollIntervalMs = 50,
+            IdlePollIntervalMs = 150,
+            FastActivityLinger = TimeSpan.FromMilliseconds(100),
+        };
+        await svc.ConnectAsync("fake");
+
+        // Fresh Idle report -> back off to the slow rate.
+        transport.Enqueue("<Idle|MPos:0,0,0>");
+        await WaitUntil(() => svc.CurrentPollPeriodMs == 150);
+
+        // Controller activity without any app send (e.g. a physical start
+        // button or jog wheel) -> fast rate at the very next tick.
+        transport.Enqueue("<Run|MPos:0,0,0>");
+        await WaitUntil(() => svc.CurrentPollPeriodMs == 50);
+
+        // Settled Idle again -> back off once more.
+        transport.Enqueue("<Idle|MPos:0,0,0>");
+        await WaitUntil(() => svc.CurrentPollPeriodMs == 150);
+
+        // An app send must revert to fast immediately, so a run start, MDI
+        // move or jog is followed at full rate without waiting out the back-off.
+        var send = svc.SendAsync("G1 X10");
+        Assert.Equal(50, svc.CurrentPollPeriodMs);
+        transport.Enqueue("ok");
+        await send.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task Poller_stays_fast_when_controller_stops_reporting()
+    {
+        // The back-off requires a FRESH status report as evidence the
+        // controller is alive and settled. If reports stop arriving (transport
+        // hiccup, controller hung), the poller must stay on the fast rate so
+        // the disconnect watchdog and DRO keep getting '?' feedback.
+        var transport = new FakeGrblTransport();
+        using var svc = new RealGrblService(transport)
+        {
+            PollIntervalMs = 50,
+            IdlePollIntervalMs = 150,
+        };
+        await svc.ConnectAsync("fake");
+
+        transport.Enqueue("<Idle|MPos:0,0,0>");
+        await WaitUntil(() => svc.CurrentPollPeriodMs == 150);
+
+        // No further reports: the freshness window expires and the fast rate
+        // returns on its own.
+        await WaitUntil(() => svc.CurrentPollPeriodMs == 50, timeoutMs: 10000);
+    }
+
+    [Fact]
     public async Task Poller_stays_active_while_command_is_in_flight()
     {
         // The '?' poll is the liveness channel for the silence-based
