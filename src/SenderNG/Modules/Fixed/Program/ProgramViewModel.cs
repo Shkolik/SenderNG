@@ -102,7 +102,10 @@ public class ProgramViewModel : ViewModelBase
 
     public int DoneCount => ProgramRows.Count(r => r.Status == "\u2713");
 
-    public string ProgressText => $"{DoneCount}/{ProgramRows.Count}";
+    /// <summary>Sendable lines in the loaded program (comments excluded) — the run's block total.</summary>
+    public int SendableCount { get; private set; }
+
+    public string ProgressText => $"{DoneCount}/{SendableCount}";
 
     public bool IsRunning => _session is not null;
 
@@ -139,7 +142,9 @@ public class ProgramViewModel : ViewModelBase
         LoadedText = text;
         ProgramRows.Clear();
         LimitRows.Clear();
+        SendableCount = program.Entries.Count(e => e.IsSendable);
         OnPropertyChanged(nameof(HasLimits));
+        OnPropertyChanged(nameof(SendableCount));
         OnPropertyChanged(nameof(ProgressText));
 
         foreach (var entry in program.Entries)
@@ -183,7 +188,7 @@ public class ProgramViewModel : ViewModelBase
         // unit tests), enqueued before the completion signal on the UI thread
         // (so the dispatcher drains them before Finalize re-raises state).
         _session = streamer.Start(_program, new UiProgress(ApplyUpdate));
-        RunMessage = LocText.Format("module.program.started", "Run started ({0} lines)", ProgramRows.Count);
+        RunMessage = LocText.Format("module.program.started", "Run started ({0} blocks)", SendableCount);
         OnPropertyChanged(nameof(RunMessage));
         RaiseCommandStates();
 
@@ -278,7 +283,7 @@ public class ProgramViewModel : ViewModelBase
 
         RunMessage = result.Outcome switch
         {
-            ProgramRunOutcome.Completed => LocText.Format("module.program.finished", "Run finished ({0} lines)", result.LinesOk),
+            ProgramRunOutcome.Completed => LocText.Format("module.program.finished", "Run finished ({0} blocks)", result.LinesOk),
             ProgramRunOutcome.Failed => LocText.Format("module.program.failed", "Run failed: {0}", result.Error),
             _ => LocText.Resolve("module.program.stopped", "Run stopped"),
         };

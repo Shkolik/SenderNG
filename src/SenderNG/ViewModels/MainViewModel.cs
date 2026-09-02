@@ -329,15 +329,17 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    /// <summary>Status-bar block progress: executed/total blocks of the loaded program.</summary>
+    /// <summary>Status-bar block progress: executed/total sendable blocks of the
+    /// loaded program (comments are not blocks — they stay in the grid but never
+    /// enter the run counter, so a finished run reads N/N).</summary>
     public string StatusBarBlocks
     {
         get
         {
-            if (_program is null || _program.ProgramRows.Count == 0)
+            if (_program is null || _program.SendableCount == 0)
                 return LocText.Format("app.status.block", "Block: {0}/{1}", "--", "--");
             var exec = _program.ProgramRows.Count(r => r.Status == "\u2713");
-            return LocText.Format("app.status.block", "Block: {0}/{1}", exec, _program.ProgramRows.Count);
+            return LocText.Format("app.status.block", "Block: {0}/{1}", exec, _program.SendableCount);
         }
     }
 

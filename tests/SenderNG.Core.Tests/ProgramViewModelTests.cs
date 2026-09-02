@@ -124,13 +124,33 @@ public class ProgramViewModelRunTests
         vm.LoadGCode("G21\nG0 X10 Y10\nG1 X20 Y20 F100\nM5");
 
         Assert.True(vm.RunCommand.CanExecute(null));
+        Assert.Equal(4, vm.SendableCount);
 
         await vm.RunAsync();
 
         Assert.False(vm.IsRunning);
         Assert.All(vm.ProgramRows, r => Assert.Equal("✓", r.Status));
         Assert.Equal("4/4", vm.ProgressText);
-        Assert.Contains("Run finished", vm.RunMessage);
+        Assert.Contains("Run finished (4 blocks)", vm.RunMessage);
+    }
+
+    [Fact]
+    public async Task Run_counts_sendable_blocks_only_comments_stay_in_the_grid()
+    {
+        var svc = await ConnectDemoAsync();
+        var vm = new ProgramViewModel(svc);
+        vm.LoadGCode("G21\n; heading\nG0 X10 Y10\nG1 X20 Y20 F100\n; tail\nM5");
+
+        Assert.Equal(6, vm.ProgramRows.Count);
+        Assert.Equal(4, vm.SendableCount);
+
+        await vm.RunAsync();
+
+        Assert.Equal("4/4", vm.ProgressText);
+        Assert.Contains("Run finished (4 blocks)", vm.RunMessage);
+        // Comment rows keep their place in the grid but are never streamed.
+        Assert.Equal("·", vm.ProgramRows[1].Status);
+        Assert.Equal("·", vm.ProgramRows[4].Status);
     }
 
     [Fact]

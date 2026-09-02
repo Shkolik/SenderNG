@@ -51,6 +51,9 @@ public class MainViewModelStatusBarTests
         var services = new ServiceCollection();
         services.AddSingleton(settings);
         services.AddSingleton(_ => new DemoGrblService(settings.Load()));
+        // ProgramViewModel resolves IGrblService from DI (used by run paths);
+        // without the alias its grbl is null and RunAsync silently no-ops.
+        services.AddSingleton<IGrblService>(sp => sp.GetRequiredService<DemoGrblService>());
         services.AddSingleton<RealGrblService>();
         services.AddSingleton<ProgramViewModel>();
         return services.BuildServiceProvider();
@@ -97,6 +100,26 @@ public class MainViewModelStatusBarTests
         program.LoadGCode("G0 X0\nG1 X10 F100\nM5");
 
         Assert.Equal("Block: 0/3", vm.StatusBarBlocks);
+    }
+
+    [Fact]
+    public async Task Block_counter_counts_sendable_lines_only_and_reads_n_over_n_when_done()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings);
+        var svc = provider.GetRequiredService<DemoGrblService>();
+        await svc.ConnectAsync("demo");
+        var vm = new MainViewModel(svc, settings, provider);
+
+        var program = provider.GetRequiredService<ProgramViewModel>();
+        program.LoadGCode("G21\n; comment\nG0 X0\nG1 X10 F100\n; another comment\nM5");
+
+        Assert.Equal("Block: 0/4", vm.StatusBarBlocks);
+
+        await program.RunAsync();
+
+        Assert.Equal("Run finished (4 blocks)", program.RunMessage);
+        Assert.Equal("Block: 4/4", vm.StatusBarBlocks);
     }
 
     [Fact]
