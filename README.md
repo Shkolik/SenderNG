@@ -2,7 +2,7 @@
 
 **Lightweight cross-platform (Windows + Linux) grblHAL gcode sender based on [ioSender](https://github.com/terjeio/ioSender) by Io Engineering (Terje Io).**
 
-SenderNG is a diverged, focused fork of ioSender — stripped to foam cutting, 3–4 axis CNC milling, probing, and USB/Ethernet connectivity. Lathe, DragKnife and other heavy modules are deferred. Not affiliated with or endorsed by Io Engineering / upstream ioSender.
+SenderNG is a diverged, focused fork of ioSender — stripped to foam cutting, CNC milling, probing, and USB/Ethernet connectivity. The sender supports as many axes as the controller reports (axis count comes from the firmware, not the app; producing multi-axis g-code is CAM's scope). Lathe, DragKnife and other heavy modules are deferred. Not affiliated with or endorsed by Io Engineering / upstream ioSender.
 
 > **Status:** Private development. Cross-platform Avalonia UI + .NET 10 — engine and shell functional: demo/offline mode, serial + TCP connect, DRO/Jog/Probing widgets, localization (en/ru). Legacy Windows build remains at [Shkolik/ioSender](https://github.com/Shkolik/ioSender) (branch `foamcut`).
 
@@ -11,7 +11,10 @@ SenderNG is a diverged, focused fork of ioSender — stripped to foam cutting, 3
 - Foam cutting and milling
 - Probing (Center/Edge/HeightMap)
 - USB serial + Ethernet (Telnet/WebSocket), YModem/SD
-- 3D viewer and camera will be substituted (Avalonia-compatible libs) — not `HelixToolkit.Wpf` / `AForge.Video.DirectShow`
+- Program-view plotter: isometric/flat 2D projection on Skia — no 3D
+  library (design + lib comparison: `docs/machine-config-research.md`)
+- Camera: deferred — if ever wanted, as a 3rd-party plugin (libs live in
+  the decision tree: `docs/ROADMAP.md`)
 - Deferred: Lathe wizards, DragKnife, Converters
 
 ## Origin & License
@@ -24,7 +27,10 @@ SenderNG is a diverged, focused fork of ioSender — stripped to foam cutting, 3
 
 1. ✅ `src/SenderNG.Core` (`net10.0`) — engine extracted (`Grbl.cs`, `GCodeParser.cs`, `GCodeEmulator.cs`, `NGCExpr.cs` + foam patches) — done
 2. ✅ `src/SenderNG` (`net10.0`) — Avalonia shell, probing UI, settings — done
-3. ⏳ Replace viewer/camera with Avalonia-compatible libs and add V4L2 — open (Linux serial `/dev/ttyUSB*` / `/dev/ttyACM*` is already in)
+3. ⏳ Program-view plotter — isometric/flat 2D projection on Skia, no 3D
+   library (design: `docs/machine-config-research.md`) — open. Camera is
+   deferred (possible future 3rd-party plugin — see `docs/ROADMAP.md`).
+   Linux serial (`/dev/ttyUSB*` / `/dev/ttyACM*`) is already in
 
 ## Development
 
@@ -37,4 +43,4 @@ dotnet run --project src/SenderNG
 ## Acknowledgements
 
 - Terje Io / Io Engineering for ioSender and grblHAL
-- AvaloniaUI, HelixToolkit, OpenCvSharp communities
+- AvaloniaUI community

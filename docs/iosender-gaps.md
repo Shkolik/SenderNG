@@ -207,7 +207,15 @@ Many already exist; the gaps are listed per widget.
       (G10 write + $# readback), not here.
 - [ ] **File actions** (`FileActionControl`) — Load / Save / Close / Run from a
       toolbar; SenderNG has Open (menu + toolbar) and program send in the
-      Program view, but no Save/Close file actions.
+      Program view, but no Save/Close file actions. Verified: ioSender's
+      converters (Excellon `.drl`, HPGL `.plt`) are **open-file types**, not a
+      separate flow — `GCode.File.Load` matches the extension, runs the
+      converter (with a `JobParametersDialog` for feeds/speeds) and writes
+      g-code into the loaded program; **Save exists to persist that output**.
+      SenderNG plan: File actions first, converters (pure C# parsers, BSD)
+      slot in as extra open types feeding the existing `GCodeProgram`
+      pipeline, then Save. Transform menu (Rotate/ArcsToLines/Compress/Wrap)
+      is separate — operates on loaded g-code, see the transforms entry.
 - [x] **Status bar parity** — the status bar shows exactly ioSender's four
       slots: Blocks (executed/total of the loaded program), Message (the live
       status/alarm line, star column), RunTime (elapsed while a cycle runs) and
@@ -228,13 +236,30 @@ Many already exist; the gaps are listed per widget.
 
 ## Priority 2 — 3D view + advanced probing
 
-- [ ] **3D program view** — port ioSender's `GCodeViewer` (RenderControl /
-      HelixToolkit) as the third center tab (Program / 3D / Console) or a
-      flyout. Depends on the machine axis-role schema from ROADMAP's
-      "Machine physical configuration" item: the projection (mill XY, foam
-      X/A two-plane) is determined by the machine model.
+- [ ] **3D program view** — the unified plotter: one layers+tool engine
+      (2D affine projection on a plain canvas — isometric + flat views,
+      no 3D lib — HelixToolkit's Avalonia package exists but is
+      DX11/SharpDX (Windows-only, abandoned dep), see machine-config-
+      research.md) as the third center tab (Program / 3D /
+      Console) or a flyout. Mill = XY flat + XYZ isometric (no XZ/YZ
+      selector — side flats are CAM-verification views, deferred) with a
+      cylinder+tip tool; laser/drag-knife = flat + tool glyph (dot /
+      blade circle with direction tick); foam = two carriage layers
+      (isometric loft | XY/ZA flats) with the wire as the tool. Depends
+      on the machine axis-role schema from ROADMAP's "Machine physical
+      configuration" item (design: docs/machine-config-research.md).
 - [ ] **Height-map 3D preview** — ioSender renders the probed grid as a mesh;
       SenderNG has the map data + XML save/load but no 3D visualization.
+      Renderer candidates (researched with machine-config-research.md): the
+      real gate is the **Avalonia host problem**, not the engine — how GPU
+      output gets into a control. Windows-only → HelixToolkit.Avalonia.
+      SharpDX (hosted DX11 swapchain, scene graph; SharpDX is abandoned but
+      wrapped). Cross-platform → low-level engine with official C# bindings
+      (Diligent, Apache-2.0) rendering offscreen + GPU→CPU readback blit;
+      native island embedding (HWND/X11) only if the viewport becomes a
+      core surface. Height map is small (one grid mesh) — engine choice is
+      interchangeable behind a thin interface; decide the host strategy
+      when this item is scoped.
 - [ ] **Probe-verification preflight** (`ProbeVerify` + `ConfigControl`
       checkboxes) — "Manually validate probe is connected" and "Check probe
       status before start (G59.3)" dialogs.
@@ -270,7 +295,20 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 - [ ] **Errors & alarms dialogs** (`ErrorsAndAlarms`, `GrblAlarmList`,
       `GrblErrorList`) — Help menu currently has About/Libraries placeholders.
 - [ ] **G-code transforms menu** (`GCodeRotate`, `ArcsToLines`, `GCodeCompress`,
-      `GCodeWrap`) — File → Transform submenu.
+      `GCodeWrap`) — File → Transform submenu. Verified mechanics: all four
+      are **token-level** rewrites — they read `GCode.File.Tokens`, produce a
+      new token list, re-serialize via `TokensToGCode` and replace the
+      program (result sends like any file). Rotate = angle + origin (default
+      current DRO pos), handles arcs/splines/canned drills, skips G53 moves.
+      ArcsToLines = runs tokens through the **emulator** for true start
+      positions, then arcs/splines → G1 with tolerance-driven dynamic
+      resolution. Compress = canonical re-serialization (strips comments,
+      merges modal state). Wrap = rotary mapping (X/Y → A/B, diameter,
+      Z0-at-center) with **G93 inverse-time feed switching** for combined
+      moves. SenderNG Core already has parser tokens + emulator, so the port
+      is mechanical — and doing height-map apply / rotation at this token
+      level (instead of the current line-based rewriting) closes the
+      documented G91/arc-Z and rotation-origin limitations at the same time.
 - [x] **Localization** — ioSender ships 9 locales; SenderNG ships an en/ru
       JSON catalog with per-plugin overrides and live switching — see
       `docs/localization.md`; more locales are catalog-only work.

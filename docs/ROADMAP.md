@@ -71,6 +71,15 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
 
 ## Other known deferred items
 
+- **Settings split: `global.json` + machine profiles** — replace the
+  Mill/Foam mode switch with named machine profiles (a profile = machine
+  type preset + connection + per-module settings), per
+  `docs/settings-migration.md`. Prerequisite for Machine physical
+  configuration below: jog/plotter/limits consumers read the active
+  profile's machine type, and a shop with two mills of different
+  geometry becomes expressible. Encompasses the settings-abstraction
+  work (Global vs Profile tiers) plus the profile-manager UI in the App
+  Settings Global group.
 - **Keyboard shortcuts / key-map settings** — global hotkeys for the
   frequently-used buttons (cycle bar Start/Hold/Resume/Stop, Rewind, jog
   directions, MDI focus, Home/Unlock/Reset) with a settings screen to remap.
@@ -79,7 +88,7 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   Check ioSender's shortcut set for parity defaults before finalizing.
 - **Machine physical configuration** — the app has no model of the machine's
   axis layout today: foam cutters are two-carriage machines (X/Y work plane
-  plus an A second plane), mills are XYZ cross-axis, and the app only knows
+  plus an Z/A second plane), mills are XYZ cross-axis, and the app only knows
   "N axes" from `$I [AXS:]`. This item defines a machine geometry model
   (axis roles, workplane semantics, kinematics flavor) that drives jog
   layout, limits presentation and — critically — the g-code plotter, whose
@@ -88,17 +97,48 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   `docs/iosender-gaps.md` P2): the coupling is real, so the axis-role
   **schema** is designed first as part of this item; the plotter then builds
   against that model and the config UI can follow later without blocking it.
-  Subsumes the axis-layout half of Foam CNC mode below.
+  Subsumes the axis-layout half of Foam CNC mode below. Research on how
+  other senders (ioSender, UGS, LinuxCNC, Mach, Centroid, Masso, foam CAM
+  tools) model this lives in `docs/machine-config-research.md`; V1 lean is
+  named presets (Mill / Foam) with a per-axis role map underneath. The
+  foam plotter has field precedents now — GrblHotWire's two flat canvases
+  (XY | ZA, one per carriage plane) and hoWiGS's isometric loft (see the
+  research doc). V1 decision: isometric + flat views on a plain canvas,
+  no 3D lib; true 3D orbit deferred. **Storage prerequisite:** profiles
+  replace the Mill/Foam "mode" split of `settings.json` (one file per
+  machine + `global.json`) — the migration plan is in
+  `docs/settings-migration.md` and lands first.
 - **Continuous jog** — hold-to-jog with continuous motion: velocity-based
   `$J=` without a target distance (ioSender's Continuous mode), feedrate
   selection, and stop-on-release (hold realtime byte). Axis layout comes
   from the existing jog pad, later from Machine physical configuration
   above.
+- **Converters (Excellon `.drl` / HPGL `.plt` → g-code)** — land right
+  **after File actions**: verified in ioSender source, converters are
+  open-file types, not a separate flow — `GCode.File.Load` matches the
+  extension, runs the converter (with a JobParameters dialog for
+  feeds/speeds), and writes g-code into the loaded program; **Save
+  persists that output**. Ports of the BSD `Excellon2GCode` /
+  `HpglToGCode` parsers feeding the existing `GCodeProgram` pipeline (see
+  the File actions entry in `docs/iosender-gaps.md`).
+- **G-code transforms (Rotate / ArcsToLines / Compress / Wrap)** —
+  token-level rewrites over the existing parser/emulator machinery, per
+  the verified mechanics in `docs/iosender-gaps.md`. **Ordering
+  constraint: land before finalizing probing** — the probing module's
+  height-map apply and rotation will be rebuilt on the same token-level
+  machinery (replacing the line-based `ProgramTransform`), so the shared
+  transform infrastructure comes first and probing reuses it. The File →
+  Transform menu itself can follow File actions; converters stay
+  independent open-file types.
 - Foam CNC mode: functional foam-specific behavior (mode is persisted but only
   changes jog layout today).
 - Telnet / WebSocket transports: `TcpGrblTransport` covers plain TCP; telnet
   option negotiation and WebSocket are still not implemented. See
   `docs/p0-controller-plumbing-plan.md` D.3.
+- **Camera** — deferred indefinitely: no planned in-app value. If ever
+  wanted, it comes as a 3rd-party plugin; the old plan's libs
+  (OpenCvSharp / DirectShow / V4L2 capture) live here in the decision tree
+  only, not in the README.
 
 > The full ioSender gap map lives in `docs/iosender-gaps.md`. The cycle-bar
 > realtime bytes, Home/Unlock/Reset bindings, the status read loop / `$I` handshake /
