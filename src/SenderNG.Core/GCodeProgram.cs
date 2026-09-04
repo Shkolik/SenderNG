@@ -66,6 +66,12 @@ public sealed class GCodeProgram
     public IReadOnlyList<GCodeProgramEntry> Entries { get; init; } = [];
     public IReadOnlyList<GCodeToken> Tokens { get; init; } = [];
     public IReadOnlyList<string> Errors { get; init; } = [];
+
+    /// <summary>Significant decimals the parser tracked while reading the file
+    /// (grows with coordinate word precision, 4 after a G20) — transforms use it
+    /// to round rotated values to the file's own resolution.</summary>
+    public int Decimals { get; init; } = 3;
+
     public bool HasErrors => Errors.Count > 0;
 
     public static GCodeProgram Parse(string? text)
@@ -119,6 +125,7 @@ public sealed class GCodeProgram
             Entries = entries,
             Tokens = parser.Tokens,
             Errors = errors,
+            Decimals = parser.Decimals,
         };
     }
 }
