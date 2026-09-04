@@ -177,6 +177,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         });
         SendMdiCommand = new DelegateCommand(_ => _ = SendMdiAsync(), _ => !string.IsNullOrWhiteSpace(MdiInput));
         OpenFileCommand = new DelegateCommand(_ => _ = OpenFileAsync());
+        SaveFileCommand = new DelegateCommand(_ => _ = SaveFileAsync(), _ => HasProgram && !SessionActive);
         CloseFileCommand = new DelegateCommand(_ => CloseFile(), _ => HasProgram && !SessionActive);
         SelectRecentCommand = new DelegateCommand(p => _ = LoadGCodeFileAsync(p as string));
         // Cycle bar — the only run controls (the program pane shows no transport
@@ -273,6 +274,53 @@ public class MainViewModel : ViewModelBase, IDisposable
             Status = LocText.Format("app.msg.profileSwitched", "Profile switched: {0}", profileId);
             OnSettingsChanged();
         });
+    }
+
+    /// <summary>
+    /// Saves the loaded program's text (File → Save / toolbar Save, Ctrl+S).
+    /// Save As is the default action: with no editor there is no dirty document
+    /// to persist, so overwriting the source file is never implied — a
+    /// converter or transform must not silently rewrite the `.drl`/.nc it came
+    /// from. The picker pre-fills the current file name, so overwriting in
+    /// place is one accept-click away; a new name/location is an explicit
+    /// choice. A successfully picked path becomes the program's home (window
+    /// title, next prefill). When an editor lands (dirty flag), quick Save —
+    /// direct overwrite of the home file — can return.
+    /// </summary>
+    private async Task SaveFileAsync()
+    {
+        if (!HasProgram || SessionActive)
+            return;
+        if (_fileDialogs is null)
+        {
+            Status = LocText.Resolve("app.msg.saveNoDialog", "Save: no dialog service available");
+            return;
+        }
+
+        var text = _program?.LoadedText;
+        if (text is null)
+            return;
+
+        var path = await _fileDialogs.SaveFileAsync(
+            "Save G-code file",
+            CurrentFileName ?? "program.nc",
+            "G-code (*.nc;*.ngc;*.gcode;*.gco;*.tap)|*.nc;*.ngc;*.gcode;*.gco;*.tap",
+            "All files|*.*");
+        if (string.IsNullOrWhiteSpace(path))
+            return; // cancelled
+
+        try
+        {
+            await File.WriteAllTextAsync(path, text);
+            CurrentFileName = Path.GetFileName(path);
+            Status = LocText.Format("app.msg.saved", "Saved {0}", Path.GetFileName(path));
+        }
+        catch (Exception ex)
+        {
+            Status = LocText.Format("app.msg.saveFailed", "Save failed: {0}", ex.Message);
+            if (_fileDialogs is not null)
+                await _fileDialogs.ShowErrorAsync("Save failed", ex.Message);
+        }
     }
 
     /// <summary>Unloads the loaded program (rows, limits panel, title suffix) —
@@ -595,10 +643,15 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     public ICommand OpenFileCommand { get; }
 
+    /// <summary>Saves the loaded program's text via the save picker, pre-filled
+    /// with the current file name (Save As semantics — the source is never
+    /// overwritten implicitly; see <see cref="SaveFileAsync"/>).</summary>
+    public ICommand SaveFileCommand { get; }
+
     /// <summary>Unloads the loaded program (File → Close / toolbar Close). Run
     /// control lives on the cycle bar, so there is no toolbar Run — ioSender's
-    /// Load/Save/Run/Close strip is deliberately scoped to Open + Close; Save
-    /// waits for converters/transforms that produce output worth persisting.</summary>
+    /// Load/Save/Run/Close strip is deliberately scoped to Open + Save + Close
+    /// (Save always goes through the picker — see <see cref="SaveFileAsync"/>).</summary>
     public ICommand CloseFileCommand { get; }
 
     public ICommand CycleStartCommand { get; }
@@ -1049,6 +1102,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         (FeedHoldCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (StopCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (RewindCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        (SaveFileCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (CloseFileCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         OnPropertyChanged(nameof(StatusBarBlocks));
     }

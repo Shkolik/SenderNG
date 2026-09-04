@@ -66,6 +66,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <Menu Background="#e8e8e8" CornerRadius="0">
                     <MenuItem Header="{loc:Loc app.menu.file}">
                         <MenuItem Header="{loc:Loc app.menu.file.open}" Command="{Binding OpenFileCommand}" />
+                        <MenuItem Header="{loc:Loc app.menu.file.save}" Command="{Binding SaveFileCommand}" InputGesture="Ctrl+S" />
                         <MenuItem Header="{loc:Loc app.menu.file.close}" Command="{Binding CloseFileCommand}" />
                         <MenuItem Header="{loc:Loc app.menu.file.recent}" ItemsSource="{Binding RecentFiles}">
                             <MenuItem.ItemContainerTheme>
@@ -107,6 +108,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         <Button Command="{Binding OpenFileCommand}" ToolTip.Tip="{loc:Loc app.toolbar.open}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
                             <!-- Folder outline (stroke only) -->
                             <Path Data="M3 5 h4 l2 2 h6 v7 a1 1 0 0 1 -1 1 H4 a1 1 0 0 1 -1 -1 Z"
+                                  Stroke="Black" StrokeThickness="1.5"
+                                  Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Button>
+                        <Button Command="{Binding SaveFileCommand}" ToolTip.Tip="{loc:Loc app.toolbar.save}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                            <!-- Floppy disk (stroke only) -->
+                            <Path Data="M4 3 h10 l2 2 v10 a1 1 0 0 1 -1 1 H4 a1 1 0 0 1 -1 -1 V4 a1 1 0 0 1 1 -1 Z M7 3 v4 h4 V3 Z M7 9 h6 v5 H7 Z"
                                   Stroke="Black" StrokeThickness="1.5"
                                   Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Button>

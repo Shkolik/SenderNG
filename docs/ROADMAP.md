@@ -106,14 +106,16 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   from the existing jog pad, later from Machine physical configuration
   above.
 - **Converters (Excellon `.drl` / HPGL `.plt` → g-code)** — land right
-  **after File actions**: File actions landed scoped (Open + Close only —
-  Run stays on the cycle bar; see `docs/iosender-gaps.md`). Verified in
-  ioSender source, converters are open-file types, not a separate flow —
-  `GCode.File.Load` matches the extension, runs the converter (with a
-  JobParameters dialog for feeds/speeds), and writes g-code into the
-  loaded program; **Save (deferred with this item) persists that output**.
-  Ports of the BSD `Excellon2GCode` / `HpglToGCode` parsers feeding the
-  existing `GCodeProgram` pipeline (see the File actions entry in
+  **after File actions**: File actions landed scoped (Open + Save + Close —
+  Save always goes through the save picker pre-filled with the current file
+  name, so converter output can never silently clobber the `.drl`/`.nc` it
+  came from; Run stays on the cycle bar; see `docs/iosender-gaps.md`).
+  Verified in ioSender source, converters are open-file types, not a
+  separate flow — `GCode.File.Load` matches the extension, runs the
+  converter (with a JobParameters dialog for feeds/speeds), and writes
+  g-code into the loaded program; **Save persists that output**. Ports of
+  the BSD `Excellon2GCode` / `HpglToGCode` parsers feeding the existing
+  `GCodeProgram` pipeline (see the File actions entry in
   `docs/iosender-gaps.md`).
 - **G-code transforms (Rotate / ArcsToLines / Compress / Wrap)** —
   token-level rewrites over the existing parser/emulator machinery, per

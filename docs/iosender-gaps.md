@@ -206,20 +206,27 @@ Many already exist; the gaps are listed per widget.
       Editable offset/tool-table write-back lives in the `Fixed/Offsets` flyout
       (G10 write + $# readback), not here.
 - [x] **File actions (scoped)** (`FileActionControl`) — ioSender's strip is
-      Load / Save / Close / Run; the SenderNG scope decision: **Open + Close
-      now**, **Save deferred**, **Run not ported**. File → Close and the
-      toolbar Close unload the loaded program (rows, limits panel, title)
-      via the same path as the machine-profile switch, gated on a loaded
-      program with no active session; run control stays exclusively on the
-      cycle bar, so a toolbar Run would duplicate it. Save waits for
-      converters/transforms — there is nothing to persist yet. Verified:
-      ioSender's converters (Excellon `.drl`, HPGL `.plt`) are **open-file
-      types**, not a separate flow — `GCode.File.Load` matches the extension,
-      runs the converter (with a `JobParametersDialog` for feeds/speeds) and
-      writes g-code into the loaded program; **Save exists to persist that
-      output**. SenderNG plan: converters (pure C# parsers, BSD) slot in as
-      extra open types feeding the existing `GCodeProgram` pipeline, then
-      Save. Transform menu (Rotate/ArcsToLines/Compress/Wrap) is separate —
+      Load / Save / Close / Run; the SenderNG scope decision: **Open + Save +
+      Close now**, **Run not ported**. File → Save / toolbar Save / Ctrl+S
+      always goes through the **save picker, pre-filled with the current file
+      name** (Save As is the default action). Rationale: with no editor there
+      is no dirty document, so overwriting the source is never implied — a
+      converter or transform must not silently rewrite the `.nc`/`.drl` it
+      came from — and overwriting in place is one accept-click in the dialog
+      when that *is* what the user wants. A picked path becomes the program's
+      home (title, next prefill). When an editor (dirty flag) lands, quick
+      Save can return. File → Close and the toolbar Close unload the loaded
+      program (rows, limits panel, title) via the same path as the
+      machine-profile switch; both are gated on a loaded program with no
+      active session. Run control stays exclusively on the cycle bar, so a
+      toolbar Run would duplicate it. Verified: ioSender's converters
+      (Excellon `.drl`, HPGL `.plt`) are **open-file types**, not a separate
+      flow — `GCode.File.Load` matches the extension, runs the converter
+      (with a `JobParametersDialog` for feeds/speeds) and writes g-code into
+      the loaded program; **Save persists that output**. SenderNG plan:
+      converters (pure C# parsers, BSD) slot in as extra open types feeding
+      the existing `GCodeProgram` pipeline and save through the same picker.
+      Transform menu (Rotate/ArcsToLines/Compress/Wrap) is separate —
       operates on loaded g-code, see the transforms entry.
 - [x] **Status bar parity** — the status bar shows exactly ioSender's four
       slots: Blocks (executed/total of the loaded program), Message (the live
@@ -355,7 +362,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | GotoControl / GotoFlyoutControl | `Plugins/Goto` | done (flyout, homed-gated) |
 | ToolView | `Fixed/Offsets` tool table + Work Parameters/Probe selectors | done — editor (names, touch-off, radius, VisibleTools) + `[None, Tx (name)]` selectors; ioSender's standalone control deliberately not ported |
 | WorkParametersControl | `Fixed/WorkParameters` flyout | done (read/select; editable write-back in `Fixed/Offsets`) |
-| FileActionControl | File → Open/Close | Close landed (P1); Save deferred to converters |
+| FileActionControl | File → Open/Save/Close | P1: Save = picker pre-filled with current name (no implicit overwrite) |
 | StepperCalibrationWizard | — | **missing** (P3) |
 | GCodeViewer / RenderControl | — | **missing** (P2) |
 | ProbeVerify / ConfigControl / MacroDialog | — | **missing** (P2) |

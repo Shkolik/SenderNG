@@ -520,6 +520,109 @@ public class MainViewModelCycleEnablementTests
         Assert.Equal(before, vm.Status); // nothing loaded → nothing closed, no message
     }
 
+    /// <summary>Dialog double: hands back a scripted save path and records the
+    /// suggested file name the VM pre-fills.</summary>
+    private sealed class StubFileDialogs : IFileDialogService
+    {
+        public string? SavePath { get; set; }
+        public string? LastSuggestedName { get; private set; }
+        public Task<string?> OpenFileAsync(string title, params string[] filters) => Task.FromResult<string?>(null);
+        public Task<string?> SaveFileAsync(string title, string suggestedFileName, params string[] filters)
+        {
+            LastSuggestedName = suggestedFileName;
+            return Task.FromResult(SavePath);
+        }
+        public Task ShowErrorAsync(string title, string message) => Task.CompletedTask;
+    }
+
+    private static async Task LoadViaRecentAsync(MainViewModel vm, string file)
+    {
+        vm.SelectRecentCommand.Execute(file); // async load — wait for it to land
+        // "Loaded …" is the load's last assignment, so it is the completion
+        // signal (CanExecute flips earlier, mid-continuation — racy to poll).
+        for (var i = 0; i < 500 && !vm.Status.Contains("Loaded "); i++)
+            await Task.Delay(10);
+        Assert.True(vm.Status.Contains("Loaded "), "program failed to load — status: " + vm.Status);
+    }
+
+    [Fact]
+    public async Task Save_prompts_with_current_file_name_and_writes_to_chosen_path()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings, withProgram: true);
+        var dialogs = new StubFileDialogs();
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, provider, fileDialogs: dialogs);
+        Assert.False(vm.SaveFileCommand.CanExecute(null)); // no program yet
+
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-save-" + Guid.NewGuid().ToString("N"));
+        var source = Path.Combine(dir, "part.nc");
+        var target = Path.Combine(dir, "copy.nc");
+        const string original = "G21\r\n; heading\r\nG0 X10 Y10\r\nM2\r\n";
+        Directory.CreateDirectory(dir);
+        await File.WriteAllTextAsync(source, original);
+        try
+        {
+            await LoadViaRecentAsync(vm, source);
+            Assert.Contains("Loaded part.nc", vm.Status);
+
+            // Save As is the default: the picker pre-fills the loaded name, and
+            // the source file is never written implicitly.
+            dialogs.SavePath = target;
+            vm.SaveFileCommand.Execute(null); // fire-and-forget async command
+
+            for (var i = 0; i < 200 && !vm.Status.Contains("Saved copy.nc"); i++)
+                await Task.Delay(10);
+            Assert.Contains("Saved copy.nc", vm.Status);
+            Assert.Equal("part.nc", dialogs.LastSuggestedName); // pre-filled current name
+            Assert.Equal(original, await File.ReadAllTextAsync(target)); // written with loaded text
+            Assert.Equal(original, await File.ReadAllTextAsync(source)); // source untouched
+            Assert.Equal("copy.nc", vm.CurrentFileName); // picked path becomes the program's home
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task Save_accepting_the_prefilled_name_overwrites_the_source()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings, withProgram: true);
+        var dialogs = new StubFileDialogs();
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, provider, fileDialogs: dialogs);
+
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-save-" + Guid.NewGuid().ToString("N"));
+        var file = Path.Combine(dir, "part.nc");
+        const string original = "G21\r\n; heading\r\nG0 X10 Y10\r\nM2\r\n";
+        Directory.CreateDirectory(dir);
+        await File.WriteAllTextAsync(file, original);
+        try
+        {
+            await LoadViaRecentAsync(vm, file);
+
+            // External edit on disk; accepting the pre-filled name (same path)
+            // is the one explicit click that overwrites — and it restores the
+            // loaded text, line endings and all.
+            await File.WriteAllTextAsync(file, "M2\n");
+            dialogs.SavePath = file;
+            vm.SaveFileCommand.Execute(null);
+
+            for (var i = 0; i < 200 && !vm.Status.Contains("Saved part.nc"); i++)
+                await Task.Delay(10);
+            Assert.Contains("Saved part.nc", vm.Status);
+            Assert.Equal(original, await File.ReadAllTextAsync(file));
+
+            // Close unloads — Save re-disables (nothing left to save).
+            vm.CloseFileCommand.Execute(null);
+            Assert.False(vm.SaveFileCommand.CanExecute(null));
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
     [Fact]
     public async Task Stop_enabled_only_in_hold_and_Hold_only_in_run()
     {
