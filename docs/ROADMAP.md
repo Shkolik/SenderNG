@@ -126,6 +126,21 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   transform infrastructure comes first and probing reuses it. The File →
   Transform menu itself can follow File actions; converters stay
   independent open-file types.
+- **Icon & pictogram asset pass (SVG)** — a design deliverable that must land
+  before Probing is closed. Three sets, drawn by hand as SVG sources:
+  1. **Toolbar / run-control icons** — replace the hand-drawn inline `Path`
+     glyphs (Connect plug, Open folder, Save floppy, Close doc-X, cycle bar
+     Start/Hold/Stop/Rewind, Home/Unlock/Reset, flyout ✕) with one
+     consistent SVG set; the rendering side (shared resource dictionary of
+     `Path` geometries vs an SVG asset pipeline) is decided when the first
+     set lands.
+  2. **Machine-type pictograms** — small diagrams for the profile manager /
+     machine preset picker (Mill XYZ, Foam two-carriage XY | ZA, 2D
+     cutter/laser); Machine physical configuration presets (above) reuse
+     them in the machine list and the future plotter view headers.
+  3. **Probing selector visuals** — the probe direction / touch-off /
+     selection illustrations for the Probing module (ioSender's selector
+     visualization), required before the module is signed off.
 - Foam CNC mode: functional foam-specific behavior (mode is persisted but only
   changes jog layout today).
 - Telnet / WebSocket transports: `TcpGrblTransport` covers plain TCP; telnet
