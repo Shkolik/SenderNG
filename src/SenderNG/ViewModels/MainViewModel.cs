@@ -177,6 +177,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         });
         SendMdiCommand = new DelegateCommand(_ => _ = SendMdiAsync(), _ => !string.IsNullOrWhiteSpace(MdiInput));
         OpenFileCommand = new DelegateCommand(_ => _ = OpenFileAsync());
+        CloseFileCommand = new DelegateCommand(_ => CloseFile(), _ => HasProgram && !SessionActive);
         SelectRecentCommand = new DelegateCommand(p => _ = LoadGCodeFileAsync(p as string));
         // Cycle bar — the only run controls (the program pane shows no transport
         // bar). The machine runs at most one streaming session at a time, so the
@@ -268,12 +269,29 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         UiThread.Post(() =>
         {
-            _program?.ClearProgram();
-            HasProgramLimits = false;
-            CurrentFileName = null;
+            UnloadProgram();
             Status = LocText.Format("app.msg.profileSwitched", "Profile switched: {0}", profileId);
             OnSettingsChanged();
         });
+    }
+
+    /// <summary>Unloads the loaded program (rows, limits panel, title suffix) —
+    /// shared by File → Close and the machine-profile switch (a different
+    /// geometry invalidates the loaded program's limits and jog semantics).</summary>
+    private void UnloadProgram()
+    {
+        _program?.ClearProgram();
+        HasProgramLimits = false;
+        CurrentFileName = null;
+    }
+
+    private void CloseFile()
+    {
+        if (!HasProgram || SessionActive)
+            return;
+        var fileName = CurrentFileName;
+        UnloadProgram();
+        Status = LocText.Format("app.msg.closed", "Closed {0}", fileName ?? string.Empty);
     }
 
     public SettingsService SettingsService { get; }
@@ -576,6 +594,12 @@ public class MainViewModel : ViewModelBase, IDisposable
     public ICommand SendMdiCommand { get; }
 
     public ICommand OpenFileCommand { get; }
+
+    /// <summary>Unloads the loaded program (File → Close / toolbar Close). Run
+    /// control lives on the cycle bar, so there is no toolbar Run — ioSender's
+    /// Load/Save/Run/Close strip is deliberately scoped to Open + Close; Save
+    /// waits for converters/transforms that produce output worth persisting.</summary>
+    public ICommand CloseFileCommand { get; }
 
     public ICommand CycleStartCommand { get; }
 
@@ -1025,6 +1049,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         (FeedHoldCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (StopCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (RewindCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        (CloseFileCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         OnPropertyChanged(nameof(StatusBarBlocks));
     }
 

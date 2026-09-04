@@ -489,6 +489,38 @@ public class MainViewModelCycleEnablementTests
     }
 
     [Fact]
+    public void Close_requires_a_loaded_program_and_unloads_it()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings, withProgram: true);
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, provider);
+        Assert.False(vm.CloseFileCommand.CanExecute(null));
+
+        var program = provider.GetRequiredService<SenderNG.Modules.Fixed.ProgramViewModel>();
+        program.LoadGCode("G0 X0" + "\nG0 Y0");
+        Assert.True(vm.CloseFileCommand.CanExecute(null));
+
+        vm.CloseFileCommand.Execute(null);
+
+        Assert.Empty(program.ProgramRows);
+        Assert.Empty(program.LimitRows);
+        Assert.False(vm.CloseFileCommand.CanExecute(null)); // unload re-gates Close
+        Assert.False(vm.RewindCommand.CanExecute(null));   // and the cycle bar
+    }
+
+    [Fact]
+    public void Close_without_program_does_not_throw()
+    {
+        var settings = MakeSettings();
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, MakeProvider(settings));
+        var before = vm.Status;
+
+        vm.CloseFileCommand.Execute(null); // gated off; Execute is a defensive no-op
+
+        Assert.Equal(before, vm.Status); // nothing loaded → nothing closed, no message
+    }
+
+    [Fact]
     public async Task Stop_enabled_only_in_hold_and_Hold_only_in_run()
     {
         var settings = MakeSettings();
