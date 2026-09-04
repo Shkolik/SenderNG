@@ -86,6 +86,22 @@ public class ProgramViewModelTests
     }
 
     [Fact]
+    public void ClearProgram_unloads_rows_limits_and_loaded_text()
+    {
+        var vm = new ProgramViewModel();
+        vm.LoadGCode("G0 X0\nG1 X10 Y5");
+        Assert.NotEmpty(vm.ProgramRows);
+        Assert.True(vm.HasLimits);
+
+        vm.ClearProgram(); // fired on profile switch — a new machine invalidates geometry
+
+        Assert.Empty(vm.ProgramRows);
+        Assert.Empty(vm.LimitRows);
+        Assert.False(vm.HasLimits);
+        Assert.Equal(0, vm.SendableCount);
+    }
+
+    [Fact]
     public void LoadGCode_with_empty_text_clears_rows()
     {
         var vm = new ProgramViewModel();

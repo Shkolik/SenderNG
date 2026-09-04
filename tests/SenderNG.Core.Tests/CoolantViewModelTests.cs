@@ -143,7 +143,7 @@ public class DemoGrblServiceCoolantTests
     [Fact]
     public async Task Realtime_overrides_toggle_flood_and_mist_independently()
     {
-        var svc = new DemoGrblService(new AppSettings());
+        var svc = new DemoGrblService(new MachineProfile());
         await svc.ConnectAsync("demo");
 
         svc.SendRealtime(GrblRealtime.CoolantFloodToggle);

@@ -205,7 +205,7 @@ public sealed class OffsetsViewModel : ViewModelBase
 
     private readonly IGrblService _grbl;
     private readonly SettingsService _settingsService;
-    private readonly AppSettings _appSettings;
+    private readonly MachineProfile _profile;
     private readonly IDisposable _stateSubscription;
     private readonly IDisposable _workParametersSubscription;
     private MachineState _lastState = new();
@@ -221,9 +221,9 @@ public sealed class OffsetsViewModel : ViewModelBase
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
-        _appSettings = _settingsService.Load();
+        _profile = _settingsService.Load();
 
-        Config = OffsetsConfigStore.Load(_appSettings);
+        Config = OffsetsConfigStore.Load(_profile);
         Config.PropertyChanged += OnConfigPropertyChanged;
         _visibleTools = ReadVisibleTools();
 
@@ -368,7 +368,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     {
         if (_saving)
             return;
-        Config = OffsetsConfigStore.Load(_appSettings);
+        Config = OffsetsConfigStore.Load(_profile);
         Config.PropertyChanged += OnConfigPropertyChanged;
         OnPropertyChanged(nameof(Config));
         OnPropertyChanged(nameof(ShowToolTable));
@@ -389,15 +389,15 @@ public sealed class OffsetsViewModel : ViewModelBase
     }
 
     private int ReadVisibleTools() =>
-        Math.Clamp(_settingsService.Load().Current.VisibleTools, 0, 64);
+        Math.Clamp(_settingsService.Load().VisibleTools, 0, 64);
 
     public void Save()
     {
         _saving = true;
         try
         {
-            OffsetsConfigStore.Save(_appSettings, Config);
-            _settingsService.Save(_appSettings);
+            OffsetsConfigStore.Save(_profile, Config);
+            _settingsService.Save(_profile);
         }
         finally
         {

@@ -45,27 +45,27 @@ public class DemoMachineSettingsViewModel : ViewModelBase, IClosableDialog
 {
     private const int MinAxes = 1;
 
-    private readonly AppSettings _settings;
+    private readonly MachineProfile _profile;
     private readonly DemoGrblService _demo;
     private readonly System.Action? _savedCallback;
     private readonly LocalizationService? _localization;
     private int _numAxes;
-    private string _mode;
+    private string _machineType;
 
     public event EventHandler<bool>? CloseRequested;
 
-    public DemoMachineSettingsViewModel(AppSettings settings, DemoGrblService demo, System.Action? savedCallback = null,
+    public DemoMachineSettingsViewModel(MachineProfile profile, DemoGrblService demo, System.Action? savedCallback = null,
         LocalizationService? localization = null)
     {
-        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(demo);
 
-        _settings = settings;
+        _profile = profile;
         _demo = demo;
         _savedCallback = savedCallback;
         _localization = localization ?? LocalizationService.Current;
-        _numAxes = Math.Clamp(settings.Current.DemoAxes, MinAxes, GrblInfo.AxisLetters.Length);
-        _mode = settings.Mode == "Foam" ? "Foam" : "Mill";
+        _numAxes = Math.Clamp(profile.DemoAxes, MinAxes, GrblInfo.AxisLetters.Length);
+        _machineType = profile.MachineTypeId == "Foam" ? MachineTypes.Foam : MachineTypes.Mill;
 
         OkCommand = new DelegateCommand(_ => Save());
         CancelCommand = new DelegateCommand(_ => RequestClose(false));
@@ -88,28 +88,28 @@ public class DemoMachineSettingsViewModel : ViewModelBase, IClosableDialog
         }
     }
 
-    // Local mode copy: written back to settings only on OK so Cancel leaves
-    // the shared settings graph untouched.
+    // Local machine-type copy: written back to the profile only on OK so Cancel
+    // leaves the shared graph untouched.
     public bool IsMill
     {
-        get => _mode == "Mill";
-        set => SetMode(value ? "Mill" : _mode);
+        get => _machineType == MachineTypes.Mill;
+        set => SetMachineType(value ? MachineTypes.Mill : _machineType);
     }
 
     public bool IsFoam
     {
-        get => _mode == "Foam";
-        set => SetMode(value ? "Foam" : _mode);
+        get => _machineType == MachineTypes.Foam;
+        set => SetMachineType(value ? MachineTypes.Foam : _machineType);
     }
 
     protected void RequestClose(bool result) =>
         CloseRequested?.Invoke(this, result);
 
-    private void SetMode(string mode)
+    private void SetMachineType(string machineType)
     {
-        if (_mode == mode)
+        if (_machineType == machineType)
             return;
-        _mode = mode;
+        _machineType = machineType;
         OnPropertyChanged(nameof(IsMill));
         OnPropertyChanged(nameof(IsFoam));
     }
@@ -120,9 +120,8 @@ public class DemoMachineSettingsViewModel : ViewModelBase, IClosableDialog
         if (clamped != NumAxes)
             NumAxes = clamped;
 
-        // Mode first so the axes land in the newly selected mode's section.
-        _settings.Mode = _mode;
-        _settings.Current.DemoAxes = clamped;
+        _profile.MachineTypeId = _machineType;
+        _profile.DemoAxes = clamped;
         _demo.SetNumAxes(clamped);
 
         RequestClose(true);

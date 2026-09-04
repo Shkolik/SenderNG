@@ -43,12 +43,8 @@ namespace SenderNG.Core.Tests;
 
 public class MainViewModelTests
 {
-    private static AppSettings PortSettings(string port)
-    {
-        var s = new AppSettings();
-        s.Current.Port = port;
-        return s;
-    }
+    private static MachineProfile PortSettings(string port) =>
+        new() { Connection = new MachineConnection { SerialPort = port } };
 
     private sealed class StubModule : IModule
     {
@@ -57,7 +53,6 @@ public class MainViewModelTests
         public int Order => 0;
         public IReadOnlyList<HotKey> HotKeys { get; } = [];
         public void RegisterServices(IServiceCollection services) { }
-        public void RegisterSettings(AppSettings settings) { }
         public object CreateViewModel(IServiceProvider serviceProvider) => new object();
         public object CreateView(object viewModel) => new object();
     }
@@ -81,7 +76,7 @@ public class MainViewModelTests
     public void MainViewModel_IsDemo_true_initially_when_demo_service_registered()
     {
         var settings = MakeSettings();
-        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings));
+        var vm = new MainViewModel(new DemoGrblService(new MachineProfile()), settings, MakeProvider(settings));
 
         Assert.True(vm.IsDemo);
         Assert.IsType<DemoGrblService>(vm.Grbl);
@@ -92,7 +87,7 @@ public class MainViewModelTests
     {
         var settings = MakeSettings();
         IModule[] modules = [new StubModule(), new StubModule()];
-        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings), modules: modules);
+        var vm = new MainViewModel(new DemoGrblService(new MachineProfile()), settings, MakeProvider(settings), modules: modules);
 
         Assert.Equal(2, vm.Modules.Count);
         Assert.All(vm.Modules, m => Assert.IsType<StubModule>(m));
@@ -104,7 +99,7 @@ public class MainViewModelTests
         var settings = MakeSettings();
         IModule[] modules = [new StubModule()];
         Func<IModule, object> factory = m => new ViewStub();
-        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings), modules: modules, viewFactory: factory);
+        var vm = new MainViewModel(new DemoGrblService(new MachineProfile()), settings, MakeProvider(settings), modules: modules, viewFactory: factory);
 
         Assert.Null(vm.SelectedModule);
         Assert.Null(vm.CurrentModuleView);
@@ -119,7 +114,7 @@ public class MainViewModelTests
     public void SelectModuleCommand_ignores_null_parameter()
     {
         var settings = MakeSettings();
-        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings), viewFactory: _ => new ViewStub());
+        var vm = new MainViewModel(new DemoGrblService(new MachineProfile()), settings, MakeProvider(settings), viewFactory: _ => new ViewStub());
 
         vm.SelectModuleCommand.Execute(null);
 
@@ -219,7 +214,7 @@ public class MainViewModelTests
             Assert.Contains($"Connected: 127.0.0.1:{port}", vm.Status);
             // Only successful connects are persisted, into the global settings.
             var saved = new SettingsService(settings.SettingsDir).Load();
-            Assert.Equal($"127.0.0.1:{port}", saved.LastNetworkEndpoint);
+            Assert.Equal($"127.0.0.1:{port}", saved.Connection.LastNetworkEndpoint);
         }
         finally
         {
@@ -245,7 +240,7 @@ public class MainViewModelTests
     public async Task ConnectCommand_sets_status_connected_on_success()
     {
         var settings = MakeSettings();
-        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings));
+        var vm = new MainViewModel(new DemoGrblService(new MachineProfile()), settings, MakeProvider(settings));
 
         vm.ConnectCommand.Execute(null);
         await Task.Yield();
@@ -260,7 +255,7 @@ public class MainViewModelTests
         // port directly; port selection moved into the ConnectViewModel dialog.
         var settings = MakeSettings();
         settings.Save(PortSettings("COM7"));
-        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings));
+        var vm = new MainViewModel(new DemoGrblService(new MachineProfile()), settings, MakeProvider(settings));
 
         vm.ConnectCommand.Execute(null);
         await Task.Yield();
@@ -273,13 +268,13 @@ public class MainViewModelTests
     {
         var settings = MakeSettings();
         settings.Save(PortSettings("COM7"));
-        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, MakeProvider(settings));
+        var vm = new MainViewModel(new DemoGrblService(new MachineProfile()), settings, MakeProvider(settings));
 
         vm.ConnectCommand.Execute(null);
         await Task.Yield();
 
         var saved = new SettingsService(settings.SettingsDir).Load();
-        Assert.Equal("COM7", saved.LastSerialPort);
+        Assert.Equal("COM7", saved.Connection.LastSerialPort);
     }
 
     [Fact]
@@ -293,7 +288,7 @@ public class MainViewModelTests
         await Task.Yield();
 
         var saved = new SettingsService(settings.SettingsDir).Load();
-        Assert.Empty(saved.LastSerialPort);
+        Assert.Empty(saved.Connection.LastSerialPort);
         Assert.StartsWith("Connection failed", vm.Status);
     }
 
@@ -321,7 +316,6 @@ public class MainViewModelLiveVisibilityTests
         public PanelHint Panel => PanelHint.Flyout;
         public IReadOnlyList<HotKey> HotKeys { get; } = [];
         public void RegisterServices(IServiceCollection services) { }
-        public void RegisterSettings(AppSettings settings) { }
         public object CreateViewModel(IServiceProvider serviceProvider) => new object();
         public object CreateView(object viewModel) => new object();
     }
@@ -342,7 +336,7 @@ public class MainViewModelLiveVisibilityTests
         Assert.Contains(vm.FlyoutModules, m => m.Module.Id == "macro");
 
         // App Settings dialog does exactly this: write map + Save.
-        settings.Load().Current.ModulesVisibility["macro"] = false;
+        settings.Load().Modules["macro"] = false;
         settings.Save(settings.Load());
 
         Assert.DoesNotContain(vm.FlyoutModules, m => m.Module.Id == "macro");
@@ -602,7 +596,7 @@ public class MainViewModelStatusButtonsTests
         // mirroring ioSender, which hides door/e-stop/motor LEDs it can't drive.
         var settings = MakeSettings();
         var loaded = settings.Load();
-        loaded.Current.DemoAxes = 3;
+        loaded.DemoAxes = 3;
         settings.Save(loaded);
         var grbl = new RecordingGrbl(); // Capabilities = Unknown -> OptionalSignals = Off
         var vm = new MainViewModel(grbl, settings, MakeProvider(settings));

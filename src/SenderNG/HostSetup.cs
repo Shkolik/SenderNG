@@ -53,12 +53,12 @@ public static class HostSetup
         var builder = Host.CreateApplicationBuilder(args);
 
         builder.Services.AddSingleton<SettingsService>();
-        // Shared AppSettings graph: one instance for every consumer (VMs, services).
+        // Shared active-profile graph: one instance for every consumer (VMs, services).
         builder.Services.AddSingleton(sp => sp.GetRequiredService<SettingsService>().Load());
         // Localization: locale data lives in the UI's OutputDir/Locale (copied on
         // build). Core owns only the mechanism — discover the requested locale and
         // pass its stream into LocalizationService. Locale resolution: explicit
-        // --locale arg wins, else the persisted AppSettings.Language, else English.
+        // --locale arg wins, else the persisted global Language, else English.
         var localeDir = Path.Combine(AppContext.BaseDirectory, "Locale");
         var cliLocale = ResolveLocaleCode(args);
         builder.Services.AddSingleton(sp =>
@@ -66,7 +66,7 @@ public static class HostSetup
             var code = cliLocale;
             if (string.Equals(code, "en", System.StringComparison.OrdinalIgnoreCase))
             {
-                var savedLanguage = sp.GetRequiredService<AppSettings>().Language;
+                var savedLanguage = sp.GetRequiredService<SettingsService>().Global.Language;
                 if (!string.IsNullOrWhiteSpace(savedLanguage))
                     code = savedLanguage;
             }

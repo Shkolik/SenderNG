@@ -83,8 +83,9 @@ public Task SendAsync(string line)
         jogVm.IsSpeed2 = true; // 2000
         jogVm.Save(); // pre-fix this wrote a stale snapshot without Macros
 
-        Assert.True(File.Exists(Path.Combine(dir, "settings.json")));
-        var json = File.ReadAllText(Path.Combine(dir, "settings.json"));
+        var profileFile = Path.Combine(dir, "profiles", settings.Load().Id + ".json");
+        Assert.True(File.Exists(profileFile));
+        var json = File.ReadAllText(profileFile);
         Assert.Contains("Macros", json);
         Assert.Contains("Macro 1", json);
         Assert.Contains("Jog", json);
@@ -101,8 +102,9 @@ public Task SendAsync(string line)
         var (dir, settings) = MakeSettings();
         var grbl = new RecordingGrbl();
 
-        // Probing persists profiles to its own probing.json and must not touch
-        // the shared settings.json graph (so a later macro save keeps both).
+        // Probing persists profiles to its own per-profile companion file
+        // (profiles/<id>.probing.json) and must not touch the shared profile
+        // graph (so a later macro save keeps both).
         var probeVm = new ProbeViewModel(grbl, settings);
         probeVm.NewProfileName = "p";
         probeVm.ProfileAddCommand.Execute(null);
@@ -110,8 +112,9 @@ public Task SendAsync(string line)
         var macroVm = new MacroViewModel(settings, grbl);
         macroVm.AddMacroCommand.Execute(null);
 
-        var json = File.ReadAllText(Path.Combine(dir, "settings.json"));
+        var profileFile = Path.Combine(dir, "profiles", settings.Load().Id + ".json");
+        var json = File.ReadAllText(profileFile);
         Assert.Contains("Macros", json);
-        Assert.True(File.Exists(Path.Combine(dir, "probing.json")));
+        Assert.True(File.Exists(ProfileSettingsPaths.ProbeCompanionPath(dir, settings.Load().Id)));
     }
 }

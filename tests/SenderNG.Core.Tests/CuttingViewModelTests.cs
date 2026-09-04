@@ -194,7 +194,7 @@ public class DemoGrblServiceCuttingTests
     [Fact]
     public async Task Demo_simulates_overrides_and_live_values()
     {
-        var svc = new DemoGrblService(new AppSettings());
+        var svc = new DemoGrblService(new MachineProfile());
         await svc.ConnectAsync("demo");
 
         await svc.SendAsync("M3 S12000 F630");

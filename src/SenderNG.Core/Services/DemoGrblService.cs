@@ -99,17 +99,17 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
     private readonly LocalizationService? _localization;
 
-    public DemoGrblService(AppSettings settings, string? settingsFilePath = null, int pollIntervalMs = 200,
+    public DemoGrblService(MachineProfile settings, string? settingsFilePath = null, int pollIntervalMs = 200,
         LocalizationService? localization = null)
     {
         _localization = localization;
         // Seed the full optional-signal set (demo reports Full capabilities) so
         // the signals panel shows every LED, as before gating was introduced.
-        _subject = new BehaviorSubject<MachineState>(new MachineState(settings.Current.DemoAxes)
+        _subject = new BehaviorSubject<MachineState>(new MachineState(settings.DemoAxes)
         {
             OptionalSignals = ControllerCapabilities.Full.OptionalSignals,
         });
-        var demoAxes = Math.Clamp(settings.Current.DemoAxes, 1, CNC.Core.GrblInfo.AxisLetters.Length);
+        var demoAxes = Math.Clamp(settings.DemoAxes, 1, CNC.Core.GrblInfo.AxisLetters.Length);
         _capabilities = ControllerCapabilities.Full with { NumAxes = demoAxes };
         ResizeWorkParameters(demoAxes);
         // Demo fixture: seed a couple of tip radii (grblHAL reports the R word in

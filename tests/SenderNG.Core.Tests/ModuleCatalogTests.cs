@@ -53,8 +53,6 @@ public class ModuleCatalogTests
         public void RegisterServices(IServiceCollection services) =>
             services.AddSingleton<TestService>();
 
-        public void RegisterSettings(AppSettings settings) { }
-
         public object CreateViewModel(IServiceProvider serviceProvider) => new object();
         public object CreateView(object viewModel) => new object();
     }
@@ -124,4 +122,15 @@ public class ModuleCatalogTests
         Assert.Equal("Ctrl+O", hk.Gesture);
         Assert.Equal("File.Open", hk.ActionId);
     }
+
+    [Fact]
+    public void Settings_provider_defaults_to_profile_scope()
+    {
+        // docs/settings-migration.md §6.4: machine-coupled by default; only
+        // modules that opt in (e.g. Console) persist to global.json.
+        IModuleSettingsProvider provider = new FieldlessProvider();
+        Assert.Equal(SettingsScope.Profile, provider.Scope);
+    }
+
+    private sealed class FieldlessProvider : IModuleSettingsProvider { }
 }

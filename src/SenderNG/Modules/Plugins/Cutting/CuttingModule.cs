@@ -70,7 +70,6 @@ public class CuttingModule : IModule, ILocalizedModule
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<CuttingViewModel>();
 
-    public void RegisterSettings(AppSettings settings) { }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<CuttingViewModel>();

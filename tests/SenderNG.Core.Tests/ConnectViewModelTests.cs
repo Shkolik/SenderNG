@@ -49,19 +49,23 @@ public class ConnectViewModelTests
             ports.Select(p => new SerialPortEntry(p, $"{p} - USB Serial Device", _preferred.Contains(p))).ToArray();
     }
 
-    private static AppSettings SettingsWith(string? port = null, int baud = 115200)
+    private static MachineProfile SettingsWith(string? port = null, int baud = 115200)
     {
-        var s = new AppSettings();
+        var profile = new MachineProfile();
         if (port is not null)
-            s.Current.Port = port;
-        s.Current.BaudRate = baud;
-        return s;
+            profile.Connection.SerialPort = port;
+        profile.Connection.SerialBaudRate = baud;
+        return profile;
     }
+
+    // The Connect dialog reads app-level flags (network availability) from the
+    // global tier; tests that don't touch those just pass a fresh one.
+    private static GlobalSettings Global() => new();
 
     [Fact]
     public void Ports_are_populated_from_com_port_service()
     {
-        var vm = new ConnectViewModel(SettingsWith(), new StubComPorts(["COM3", "COM7"]));
+        var vm = new ConnectViewModel(SettingsWith(), Global(), new StubComPorts(["COM3", "COM7"]));
         Assert.Equal(["COM3", "COM7"], vm.Ports.Select(p => p.Name));
         // FullName is populated from the entry so the dropdown shows device info.
         Assert.Equal("COM3 - USB Serial Device", vm.Ports.First().FullName);
@@ -72,14 +76,14 @@ public class ConnectViewModelTests
     [Fact]
     public void Persisted_port_is_pre_selected_when_available()
     {
-        var vm = new ConnectViewModel(SettingsWith("COM7"), new StubComPorts(["COM3", "COM7"]));
+        var vm = new ConnectViewModel(SettingsWith("COM7"), Global(), new StubComPorts(["COM3", "COM7"]));
         Assert.Equal("COM7", vm.SelectedPort);
     }
 
     [Fact]
     public void Persisted_port_absent_falls_back_to_first_port()
     {
-        var vm = new ConnectViewModel(SettingsWith("COM9"), new StubComPorts(["COM3"]));
+        var vm = new ConnectViewModel(SettingsWith("COM9"), Global(), new StubComPorts(["COM3"]));
         Assert.Equal("COM3", vm.SelectedPort);
     }
 
@@ -88,7 +92,7 @@ public class ConnectViewModelTests
     {
         // Bluetooth/phantom ports sort before the real one (COM4 < COM7); with
         // nothing persisted the dialog must still pick the real USB device.
-        var vm = new ConnectViewModel(SettingsWith(),
+        var vm = new ConnectViewModel(SettingsWith(), Global(),
             new StubComPorts(["COM4", "COM5", "COM7"], preferred: ["COM7"]));
 
         Assert.Equal("COM7", vm.SelectedPort);
@@ -97,7 +101,7 @@ public class ConnectViewModelTests
     [Fact]
     public void First_run_preselection_falls_back_to_any_port_when_none_preferred()
     {
-        var vm = new ConnectViewModel(SettingsWith(),
+        var vm = new ConnectViewModel(SettingsWith(), Global(),
             new StubComPorts(["COM4", "COM5"], preferred: []));
 
         Assert.Equal("COM4", vm.SelectedPort);
@@ -107,8 +111,8 @@ public class ConnectViewModelTests
     public void No_ports_greys_serial_tab()
     {
         var settings = SettingsWith();
-        settings.NetworkAvailable = false;
-        var vm = new ConnectViewModel(settings, new StubComPorts([]));
+        var global = new GlobalSettings { NetworkAvailable = false };
+        var vm = new ConnectViewModel(settings, global, new StubComPorts([]));
         Assert.Empty(vm.SelectedPort);
         Assert.False(vm.SerialEnabled);
 
@@ -121,8 +125,8 @@ public class ConnectViewModelTests
     public void No_ports_defaults_to_demo_tab_when_network_off()
     {
         var settings = SettingsWith();
-        settings.NetworkAvailable = false;
-        var vm = new ConnectViewModel(settings, new StubComPorts([]));
+        var global = new GlobalSettings { NetworkAvailable = false };
+        var vm = new ConnectViewModel(settings, global, new StubComPorts([]));
         Assert.Equal(ConnectMode.Demo, vm.SelectedTab);
     }
 
@@ -130,7 +134,7 @@ public class ConnectViewModelTests
     public void Refresh_re_enumerates_and_keeps_current_selection()
     {
         var ports = new StubComPorts(["COM3"]);
-        var vm = new ConnectViewModel(SettingsWith(), ports);
+        var vm = new ConnectViewModel(SettingsWith(), Global(), ports);
         Assert.Equal("COM3", vm.SelectedPort);
     }
 
@@ -138,7 +142,7 @@ public class ConnectViewModelTests
     public void Connect_reports_serial_result_and_requests_close_true()
     {
         var settings = SettingsWith("COM3", 115200);
-        var vm = new ConnectViewModel(settings, new StubComPorts(["COM3", "COM7"]));
+        var vm = new ConnectViewModel(settings, Global(), new StubComPorts(["COM3", "COM7"]));
 
         vm.SelectedPort = "COM7";
         vm.BaudRate = 250000;
@@ -154,16 +158,16 @@ public class ConnectViewModelTests
         // Persistence of the last successful connection is the caller's job
         // (MainViewModel, only after the connect succeeds) — the dialog must
         // not write settings on click alone.
-        Assert.Equal("COM3", settings.Current.Port);
+        Assert.Equal("COM3", settings.Connection.SerialPort);
     }
 
     [Fact]
     public void Prefills_from_last_successful_serial_connection()
     {
         var settings = SettingsWith("COM3", 115200);
-        settings.LastSerialPort = "COM7";
-        settings.LastSerialBaudRate = 250000;
-        var vm = new ConnectViewModel(settings, new StubComPorts(["COM3", "COM7"]));
+        settings.Connection.LastSerialPort = "COM7";
+        settings.Connection.LastSerialBaudRate = 250000;
+        var vm = new ConnectViewModel(settings, Global(), new StubComPorts(["COM3", "COM7"]));
 
         Assert.Equal("COM7", vm.SelectedPort);
         Assert.Equal(250000, vm.BaudRate);
@@ -173,8 +177,8 @@ public class ConnectViewModelTests
     public void Prefills_from_last_successful_network_endpoint()
     {
         var settings = SettingsWith();
-        settings.LastNetworkEndpoint = "10.0.0.9:23";
-        var vm = new ConnectViewModel(settings, new StubComPorts([]));
+        settings.Connection.LastNetworkEndpoint = "10.0.0.9:23";
+        var vm = new ConnectViewModel(settings, Global(), new StubComPorts([]));
 
         Assert.Equal("10.0.0.9:23", vm.NetworkEndpoint);
     }
@@ -182,7 +186,7 @@ public class ConnectViewModelTests
     [Fact]
     public void Cancel_requests_close_false()
     {
-        var vm = new ConnectViewModel(SettingsWith(), new StubComPorts(["COM3"]));
+        var vm = new ConnectViewModel(SettingsWith(), Global(), new StubComPorts(["COM3"]));
         bool? result = null;
         vm.CloseRequested += (_, r) => result = r;
 
@@ -195,12 +199,12 @@ public class ConnectViewModelTests
     public void Network_tab_follows_settings_availability()
     {
         var settings = SettingsWith();
-        settings.NetworkAvailable = false;
-        var noNet = new ConnectViewModel(settings, new StubComPorts(["COM3"]));
+        var global = new GlobalSettings { NetworkAvailable = false };
+        var noNet = new ConnectViewModel(settings, global, new StubComPorts(["COM3"]));
         Assert.False(noNet.NetworkEnabled);
 
-        settings.NetworkAvailable = true;
-        var yesNet = new ConnectViewModel(settings, new StubComPorts(["COM3"]));
+        global.NetworkAvailable = true;
+        var yesNet = new ConnectViewModel(settings, global, new StubComPorts(["COM3"]));
         Assert.True(yesNet.NetworkEnabled);
     }
 
@@ -208,8 +212,8 @@ public class ConnectViewModelTests
     public void No_ports_defaults_to_network_tab_when_enabled()
     {
         var settings = SettingsWith();
-        settings.NetworkAvailable = true;
-        var vm = new ConnectViewModel(settings, new StubComPorts([]));
+        var global = new GlobalSettings { NetworkAvailable = true };
+        var vm = new ConnectViewModel(settings, global, new StubComPorts([]));
         Assert.Equal(ConnectMode.Network, vm.SelectedTab);
     }
 
@@ -217,8 +221,8 @@ public class ConnectViewModelTests
     public void Network_connect_requires_a_valid_endpoint()
     {
         var settings = SettingsWith();
-        settings.NetworkAvailable = true;
-        var vm = new ConnectViewModel(settings, new StubComPorts([]));
+        var global = new GlobalSettings { NetworkAvailable = true };
+        var vm = new ConnectViewModel(settings, global, new StubComPorts([]));
         vm.SelectedIndex = (int)ConnectMode.Network;
 
         vm.NetworkEndpoint = "not-an-endpoint:";
@@ -232,8 +236,8 @@ public class ConnectViewModelTests
     public void Network_connect_reports_endpoint_result()
     {
         var settings = SettingsWith();
-        settings.NetworkAvailable = true;
-        var vm = new ConnectViewModel(settings, new StubComPorts([]));
+        var global = new GlobalSettings { NetworkAvailable = true };
+        var vm = new ConnectViewModel(settings, global, new StubComPorts([]));
         vm.SelectedIndex = (int)ConnectMode.Network;
         vm.NetworkEndpoint = "10.0.0.5:8080";
 
@@ -250,8 +254,8 @@ public class ConnectViewModelTests
     public void Demo_tab_always_available_and_connectable()
     {
         var settings = SettingsWith();
-        settings.NetworkAvailable = false;
-        var vm = new ConnectViewModel(settings, new StubComPorts([]));
+        var global = new GlobalSettings { NetworkAvailable = false };
+        var vm = new ConnectViewModel(settings, global, new StubComPorts([]));
         Assert.Equal(ConnectMode.Demo, vm.SelectedTab);
         Assert.True(vm.ConnectCommand.CanExecute(null));
 
@@ -268,7 +272,7 @@ public class ConnectViewModelTests
     public void Serial_connect_reports_serial_result()
     {
         var settings = SettingsWith("COM3", 115200);
-        var vm = new ConnectViewModel(settings, new StubComPorts(["COM3", "COM7"]));
+        var vm = new ConnectViewModel(settings, Global(), new StubComPorts(["COM3", "COM7"]));
         vm.SelectedPort = "COM7";
 
         bool? result = null;
@@ -283,17 +287,17 @@ public class ConnectViewModelTests
     [Fact]
     public void Baud_defaults_from_persisted_or_standard()
     {
-        var vm = new ConnectViewModel(SettingsWith("COM3", 250000), new StubComPorts(["COM3"]));
+        var vm = new ConnectViewModel(SettingsWith("COM3", 250000), Global(), new StubComPorts(["COM3"]));
         Assert.Equal(250000, vm.BaudRate);
 
-        var legacy = new ConnectViewModel(SettingsWith("COM3", 12345), new StubComPorts(["COM3"]));
+        var legacy = new ConnectViewModel(SettingsWith("COM3", 12345), Global(), new StubComPorts(["COM3"]));
         Assert.Equal(115200, legacy.BaudRate); // unsupported saved baud falls back
     }
 
     [Fact]
     public void On_connect_reset_dropdown_lists_ioSender_options_and_defaults_to_none()
     {
-        var vm = new ConnectViewModel(SettingsWith(), new StubComPorts(["COM3"]));
+        var vm = new ConnectViewModel(SettingsWith(), Global(), new StubComPorts(["COM3"]));
         Assert.Equal(["No action", "Toggle DTR", "Toggle RTS"], vm.ResetModeOptions.Select(o => o.Name));
         Assert.Equal(ConnectResetMode.None, vm.SelectedResetMode);
         Assert.Equal("No action", vm.SelectedResetModeOption.Name);
@@ -303,8 +307,8 @@ public class ConnectViewModelTests
     public void On_connect_reset_mode_prefills_from_settings()
     {
         var settings = SettingsWith("COM3", 115200);
-        settings.SerialResetMode = ConnectResetMode.ToggleDtr;
-        var vm = new ConnectViewModel(settings, new StubComPorts(["COM3"]));
+        settings.Connection.SerialResetMode = ConnectResetMode.ToggleDtr;
+        var vm = new ConnectViewModel(settings, Global(), new StubComPorts(["COM3"]));
         Assert.Equal(ConnectResetMode.ToggleDtr, vm.SelectedResetMode);
         Assert.Equal("Toggle DTR", vm.SelectedResetModeOption.Name);
     }
@@ -313,7 +317,7 @@ public class ConnectViewModelTests
     public void Serial_connect_reports_reset_mode_in_result()
     {
         var settings = SettingsWith("COM3", 115200);
-        var vm = new ConnectViewModel(settings, new StubComPorts(["COM3", "COM7"]));
+        var vm = new ConnectViewModel(settings, Global(), new StubComPorts(["COM3", "COM7"]));
         vm.SelectedPort = "COM7";
         vm.SelectedResetMode = ConnectResetMode.ToggleDtr;
 
@@ -329,7 +333,7 @@ public class ConnectViewModelTests
     public async Task Auto_discovers_new_com_port_while_dialog_is_open()
     {
         var ports = new MutableComPorts(["COM3"]);
-        var vm = new ConnectViewModel(SettingsWith(), ports);
+        var vm = new ConnectViewModel(SettingsWith(), Global(), ports);
         try
         {
             Assert.Equal(["COM3"], vm.Ports.Select(p => p.Name));
@@ -358,8 +362,8 @@ public class ConnectViewModelTests
         // Start with no ports -> Serial tab is grayed out and unusable.
         var ports = new MutableComPorts([]);
         var settings = SettingsWith();
-        settings.NetworkAvailable = false;
-        var vm = new ConnectViewModel(settings, ports);
+        var global = new GlobalSettings { NetworkAvailable = false };
+        var vm = new ConnectViewModel(settings, global, ports);
         try
         {
             Assert.False(vm.SerialEnabled);

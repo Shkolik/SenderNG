@@ -76,7 +76,6 @@ public class JogModule : IModule, IModuleSettingsProvider, ILocalizedModule
         services.AddSingleton<JogViewModel>();
 
     // No seeding needed: JogConfigStore supplies defaults for both modes.
-    public void RegisterSettings(AppSettings settings) { }
 
     public object CreateViewModel(IServiceProvider serviceProvider)
     {

@@ -71,15 +71,6 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
 
 ## Other known deferred items
 
-- **Settings split: `global.json` + machine profiles** — replace the
-  Mill/Foam mode switch with named machine profiles (a profile = machine
-  type preset + connection + per-module settings), per
-  `docs/settings-migration.md`. Prerequisite for Machine physical
-  configuration below: jog/plotter/limits consumers read the active
-  profile's machine type, and a shop with two mills of different
-  geometry becomes expressible. Encompasses the settings-abstraction
-  work (Global vs Profile tiers) plus the profile-manager UI in the App
-  Settings Global group.
 - **Keyboard shortcuts / key-map settings** — global hotkeys for the
   frequently-used buttons (cycle bar Start/Hold/Resume/Stop, Rewind, jog
   directions, MDI focus, Home/Unlock/Reset) with a settings screen to remap.
@@ -104,10 +95,11 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   foam plotter has field precedents now — GrblHotWire's two flat canvases
   (XY | ZA, one per carriage plane) and hoWiGS's isometric loft (see the
   research doc). V1 decision: isometric + flat views on a plain canvas,
-  no 3D lib; true 3D orbit deferred. **Storage prerequisite:** profiles
-  replace the Mill/Foam "mode" split of `settings.json` (one file per
-  machine + `global.json`) — the migration plan is in
-  `docs/settings-migration.md` and lands first.
+  no 3D lib; true 3D orbit deferred. **Storage prerequisite landed:**
+  profiles replace the Mill/Foam "mode" split (one file per machine +
+  `global.json`, profile manager in App Settings) — see
+  `docs/settings-migration.md`; consumers still keyed on the machine-type
+  preset (e.g. Jog's foam layout) move to the per-axis model below.
 - **Continuous jog** — hold-to-jog with continuous motion: velocity-based
   `$J=` without a target distance (ioSender's Continuous mode), feedrate
   selection, and stop-on-release (hold realtime byte). Axis layout comes

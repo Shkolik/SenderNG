@@ -68,7 +68,7 @@ there at runtime. A locale JSON has three top-level sections:
 
 One app-wide instance is built by `HostSetup.BuildHost`:
 
-- Locale is resolved as `--locale <code>` CLI arg → persisted `AppSettings.Language` → `en`.
+- Locale is resolved as `--locale <code>` CLI arg → persisted `GlobalSettings.Language` in `global.json` → `en`.
 - Loaded via `LocalizationService.LoadFromDirectory(localeDir, code)`.
 - Exposed on DI and assigned to `LocalizationService.Current` — the static that the markup
   extension and `LocText` read, because views can't reach DI.

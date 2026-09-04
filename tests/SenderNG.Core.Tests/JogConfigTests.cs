@@ -41,18 +41,10 @@ namespace SenderNG.Core.Tests;
 
 public class JogConfigTests
 {
-    private static AppSettings NewSettings(string mode = "Mill")
-    {
-        var s = new AppSettings { Mode = mode };
-        // Ensure both modes exist like SettingsService does.
-        _ = s.Current;
-        return s;
-    }
-
     [Fact]
     public void Load_with_no_section_returns_defaults()
     {
-        var config = JogConfigStore.Load(NewSettings());
+        var config = JogConfigStore.Load(new MachineProfile());
 
         Assert.Equal([0.1, 1.0, 10.0], config.Distances);
         Assert.Equal([500.0, 1000.0, 2000.0], config.Speeds);
@@ -61,10 +53,12 @@ public class JogConfigTests
     }
 
     [Fact]
-    public void Save_then_load_roundtrips_per_mode()
+    public void Save_then_load_roundtrips_per_profile()
     {
-        var settings = NewSettings("Mill");
-        JogConfigStore.Save(settings, new JogConfig
+        // Since the settings split each machine keeps its own Jog section: two
+        // profiles with different step sets roundtrip independently.
+        var mill = new MachineProfile();
+        JogConfigStore.Save(mill, new JogConfig
         {
             Distances = [0.01, 0.5, 5],
             Speeds = [100, 200, 300],
@@ -72,8 +66,8 @@ public class JogConfigTests
             SpeedIndex = 2,
         });
 
-        settings.Mode = AppSettings.FoamMode;
-        JogConfigStore.Save(settings, new JogConfig
+        var foam = new MachineProfile();
+        JogConfigStore.Save(foam, new JogConfig
         {
             Distances = [1, 2, 4],
             Speeds = [6000, 7000, 8000],
@@ -81,11 +75,9 @@ public class JogConfigTests
             SpeedIndex = 1,
         });
 
-        var mill = new AppSettings { Mode = AppSettings.MillMode, Modules = settings.Modules };
         Assert.Equal([0.01, 0.5, 5], JogConfigStore.Load(mill).Distances);
         Assert.Equal(2, JogConfigStore.Load(mill).DistanceIndex);
 
-        var foam = new AppSettings { Mode = AppSettings.FoamMode, Modules = settings.Modules };
         Assert.Equal([1, 2, 4], JogConfigStore.Load(foam).Distances);
         Assert.Equal([6000, 7000, 8000], JogConfigStore.Load(foam).Speeds);
         Assert.Equal(1, JogConfigStore.Load(foam).SpeedIndex);
@@ -94,24 +86,21 @@ public class JogConfigTests
     [Fact]
     public void Handles_json_element_shaped_section()
     {
-        // Simulate a settings.json roundtrip: in-memory dict -> JSON -> JsonElement.
+        // Simulate a profile.json roundtrip: in-memory dict -> JSON -> JsonElement.
         var section = new Dictionary<string, object>
         {
-            ["Mill"] = new Dictionary<string, object>
-            {
-                ["Distances"] = new List<double> { 0.2, 2, 20 },
-                ["Speeds"] = new List<double> { 550, 1100, 2200 },
-                ["DistanceIndex"] = 2,
-                ["SpeedIndex"] = 2,
-            },
+            ["Distances"] = new List<double> { 0.2, 2, 20 },
+            ["Speeds"] = new List<double> { 550, 1100, 2200 },
+            ["DistanceIndex"] = 2,
+            ["SpeedIndex"] = 2,
         };
 
         var json = JsonSerializer.Serialize(section);
         using var doc = JsonDocument.Parse(json);
         var element = doc.RootElement.Clone();
 
-        var settings = NewSettings("Mill");
-        settings.Modules["Jog"] = element;
+        var settings = new MachineProfile();
+        settings.ModuleSettings["Jog"] = element;
 
         var config = JogConfigStore.Load(settings);
 
@@ -124,15 +113,12 @@ public class JogConfigTests
     [Fact]
     public void Load_clamps_short_lists_and_indexes()
     {
-        var settings = NewSettings("Mill");
-        settings.Modules["Jog"] = new Dictionary<string, object>
+        var settings = new MachineProfile();
+        settings.ModuleSettings["Jog"] = new Dictionary<string, object>
         {
-            ["Mill"] = new Dictionary<string, object>
-            {
-                ["Distances"] = new List<double> { 0.5, 1 },
-                ["DistanceIndex"] = 99,
-                ["SpeedIndex"] = -7,
-            },
+            ["Distances"] = new List<double> { 0.5, 1 },
+            ["DistanceIndex"] = 99,
+            ["SpeedIndex"] = -7,
         };
 
         var config = JogConfigStore.Load(settings);
@@ -148,22 +134,20 @@ public class JogConfigTests
 public class JogDiagonalsConfigTests
 {
     [Fact]
-    public void Diagonals_roundtrip_per_mode()
+    public void Diagonals_roundtrip_per_profile()
     {
-        var settings = new AppSettings { Mode = "Mill" };
-        _ = settings.Current;
+        var mill = new MachineProfile();
+        var millConfig = JogConfigStore.Load(mill);
+        Assert.True(millConfig.Diagonals); // default on
+        millConfig.Diagonals = false;
+        JogConfigStore.Save(mill, millConfig);
 
-        var mill = JogConfigStore.Load(settings);
-        Assert.True(mill.Diagonals); // default on
-        mill.Diagonals = false;
-        JogConfigStore.Save(settings, mill);
+        // A different machine's profile is unaffected.
+        var foam = new MachineProfile();
+        Assert.True(JogConfigStore.Load(foam).Diagonals);
 
-        settings.Mode = AppSettings.FoamMode;
-        Assert.True(JogConfigStore.Load(settings).Diagonals); // foam unaffected
-
-        JogConfigStore.Save(settings, JogConfigStore.Load(settings));
-        settings.Mode = AppSettings.MillMode;
-        Assert.False(JogConfigStore.Load(settings).Diagonals);
+        JogConfigStore.Save(foam, JogConfigStore.Load(foam));
+        Assert.False(JogConfigStore.Load(mill).Diagonals);
     }
 }
 

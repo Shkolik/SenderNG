@@ -48,7 +48,8 @@ using SenderNG.Core.Localization;
 
 namespace SenderNG.Modules.Fixed;
 
-/// <summary>Console display options, persisted under AppSettings.Modules["Console"].</summary>
+/// <summary>Console display options, persisted under GlobalSettings.ModuleSettings["Console"]
+/// (observability preferences are global — not machine-coupled).</summary>
 public sealed class ConsoleOptions
 {
     public bool Verbose { get; set; }
@@ -62,10 +63,10 @@ public static class ConsoleSettingsStore
 {
     public const string SectionKey = "Console";
 
-    public static ConsoleOptions Load(AppSettings settings)
+    public static ConsoleOptions Load(GlobalSettings settings)
     {
         var options = new ConsoleOptions();
-        if (settings.Modules.TryGetValue(SectionKey, out var raw) && AsObject(raw) is { } section)
+        if (settings.ModuleSettings.TryGetValue(SectionKey, out var raw) && AsObject(raw) is { } section)
         {
             options.Verbose = ReadBool(section, "Verbose") ?? options.Verbose;
             options.FilterRealtime = ReadBool(section, "FilterRealtime") ?? options.FilterRealtime;
@@ -75,9 +76,9 @@ public static class ConsoleSettingsStore
         return options;
     }
 
-    public static void Save(AppSettings settings, ConsoleOptions options)
+    public static void Save(GlobalSettings settings, ConsoleOptions options)
     {
-        settings.Modules[SectionKey] = new Dictionary<string, object?>
+        settings.ModuleSettings[SectionKey] = new Dictionary<string, object?>
         {
             ["Verbose"] = options.Verbose,
             ["FilterRealtime"] = options.FilterRealtime,
@@ -158,7 +159,7 @@ public class ConsoleViewModel : ViewModelBase
         ArgumentNullException.ThrowIfNull(settings);
         _settings = settings;
         _localization = localization;
-        _options = ConsoleSettingsStore.Load(settings.Load());
+        _options = ConsoleSettingsStore.Load(settings.Global);
 
         ClearCommand = new DelegateCommand(_ =>
         {
@@ -272,9 +273,9 @@ public class ConsoleViewModel : ViewModelBase
     {
         try
         {
-            var app = _settings.Load();
-            ConsoleSettingsStore.Save(app, _options);
-            _settings.Save(app);
+            var global = _settings.Global;
+            ConsoleSettingsStore.Save(global, _options);
+            _settings.SaveGlobal(global);
         }
         catch
         {

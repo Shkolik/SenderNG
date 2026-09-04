@@ -58,7 +58,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <Grid ColumnDefinitions="Auto,1,3*">
 
             <!-- LEFT: tree selector - only leaves are selectable -->
-            <Border Grid.Column="0" BorderBrush="#aaa" BorderThickness="0,0,1,0" Padding="8">
+            <Border Grid.Column="0" MinWidth="240" BorderBrush="#aaa" BorderThickness="0,0,1,0" Padding="8">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Auto" Padding="2">
                     <TreeView ItemsSource="{Binding Groups}"
@@ -90,8 +90,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             </TreeDataTemplate>
 
                             <!-- Global leaves -->
-                            <DataTemplate DataType="{x:Type vm:ModeSettingsLeaf}"
-                                          x:DataType="vm:ModeSettingsLeaf">
+                            <DataTemplate DataType="{x:Type vm:ProfileSettingsLeaf}"
+                                          x:DataType="vm:ProfileSettingsLeaf">
                                 <TextBlock Text="{Binding Name}" FontSize="11" Foreground="#222" Margin="2,2" />
                             </DataTemplate>
                             <DataTemplate DataType="{x:Type vm:LanguageSettingsLeaf}"
@@ -118,83 +118,177 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                FontSize="12" Foreground="#888" VerticalAlignment="Top" HorizontalAlignment="Left"
                                TextWrapping="Wrap" IsVisible="{Binding HasNoSelection}" />
 
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasSelection}">
-                        <StackPanel Orientation="Vertical" Spacing="10" Margin="0,2,10,4">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="{Binding SelectedSetting.Name}" FontSize="12" FontWeight="SemiBold"
-                                           Foreground="#222" VerticalAlignment="Center" />
-                            </StackPanel>
-                            <TextBlock Text="{Binding SelectedSetting.Description}" FontSize="11" Foreground="#666"
-                                       TextWrapping="Wrap" IsVisible="{Binding SelectedSetting.HasDescription}" />
-                            <Rectangle Height="1" Fill="#ddd" IsVisible="{Binding SelectedSetting.HasDescription}" />                            <!-- Mode: Mill / Foam -->
-                            <StackPanel Spacing="8" IsVisible="{Binding IsModeLeaf}">
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <RadioButton GroupName="ModeEdit" IsChecked="{Binding SelectedModeLeaf.IsMill}"
-                                                 FontSize="12">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <TextBlock Text="{loc:Loc appSettings.mode.mill}" VerticalAlignment="Center" FontSize="12" />
+                    <!-- Detail editor. Content bound to the selected leaf; each leaf type has its own
+                         DataTemplate so bindings never traverse a null Selected*Leaf path. -->
+                    <ContentControl Content="{Binding SelectedSetting}" IsVisible="{Binding HasSelection}">
+                        <ContentControl.DataTemplates>
+
+                            <!-- Profiles (machine manager) -->
+                            <DataTemplate DataType="{x:Type vm:ProfileSettingsLeaf}"
+                                          x:DataType="vm:ProfileSettingsLeaf">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Orientation="Vertical" Spacing="10" Margin="0,2,10,4">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="#222" VerticalAlignment="Center" />
                                         </StackPanel>
-                                    </RadioButton>
-                                    <RadioButton GroupName="ModeEdit" IsChecked="{Binding SelectedModeLeaf.IsFoam}"
-                                                 FontSize="12">
+                                        <TextBlock Text="{Binding Description}" FontSize="11" Foreground="#666"
+                                                   TextWrapping="Wrap" IsVisible="{Binding HasDescription}" />
+                                        <Rectangle Height="1" Fill="#ddd" IsVisible="{Binding HasDescription}" />
+
+                                        <TextBlock Text="{Binding SwitchBlockedText}" FontSize="11"
+                                                   Foreground="#a33" TextWrapping="Wrap"
+                                                   IsVisible="{Binding ShowSwitchBlocked}" />
+
+                                        <ListBox ItemsSource="{Binding Profiles}"
+                                                 SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+                                                 Height="170" FontSize="11" CornerRadius="0"
+                                                 BorderBrush="#999" BorderThickness="1" Background="White">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:ProfileItem">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <TextBlock Text="&#x2713;" FontWeight="Bold" Foreground="#080"
+                                                                   IsVisible="{Binding IsActive}" />
+                                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                                        <Border Background="#e4e4e4" BorderBrush="#bbb" BorderThickness="1"
+                                                                CornerRadius="2" Padding="4,0" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding MachineTypeId}" FontSize="10" Foreground="#555" />
+                                                        </Border>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <TextBlock Text="{loc:Loc appSettings.mode.foam}" VerticalAlignment="Center" FontSize="12" />
+                                            <Button Content="{loc:Loc appSettings.profiles.activate}" FontSize="11"
+                                                    Command="{Binding ActivateCommand}"
+                                                    Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
+                                            <Button Content="{loc:Loc appSettings.profiles.duplicate}" FontSize="11"
+                                                    Command="{Binding DuplicateCommand}"
+                                                    Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
+                                            <Button Content="{Binding RemoveButtonText}" FontSize="11"
+                                                    Command="{Binding RemoveCommand}"
+                                                    Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
                                         </StackPanel>
-                                    </RadioButton>
-                                </StackPanel>
-                            </StackPanel>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBox Text="{Binding NewName, Mode=TwoWay}" Width="170" Height="24"
+                                                     MinHeight="24" FontSize="11" CornerRadius="0" BorderBrush="#999"
+                                                     BorderThickness="1" VerticalContentAlignment="Center" Padding="4,0"
+                                                     PlaceholderText="{loc:Loc appSettings.profiles.newName}" />
+                                            <ComboBox ItemsSource="{Binding MachineTypeOptions}"
+                                                      SelectedItem="{Binding NewType, Mode=TwoWay}"
+                                                      Width="90" Height="24" MinHeight="24" FontSize="11"
+                                                      CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                                      VerticalContentAlignment="Center" />
+                                            <Button Content="{loc:Loc appSettings.profiles.add}" FontSize="11"
+                                                    Command="{Binding AddCommand}"
+                                                    Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
+                                        </StackPanel>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBox Text="{Binding RenameName, Mode=TwoWay}" Width="170" Height="24"
+                                                     MinHeight="24" FontSize="11" CornerRadius="0" BorderBrush="#999"
+                                                     BorderThickness="1" VerticalContentAlignment="Center" Padding="4,0"
+                                                     PlaceholderText="{loc:Loc appSettings.profiles.renameName}" />
+                                            <Button Content="{loc:Loc appSettings.profiles.rename}" FontSize="11"
+                                                    Command="{Binding RenameCommand}"
+                                                    Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
+                                        </StackPanel>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="{loc:Loc appSettings.profiles.type}" FontSize="11" VerticalAlignment="Center" />
+                                            <ComboBox ItemsSource="{Binding MachineTypeOptions}"
+                                                      SelectedItem="{Binding SelectedMachineType, Mode=TwoWay}"
+                                                      Width="90" Height="24" MinHeight="24" FontSize="11"
+                                                      CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                                      VerticalContentAlignment="Center" />
+                                            <Button Content="{Binding TypeButtonText}" FontSize="11"
+                                                    Command="{Binding ApplyTypeCommand}"
+                                                    Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </DataTemplate>
 
                             <!-- Language -->
-                            <StackPanel Spacing="8" IsVisible="{Binding IsLanguageLeaf}">
-                                <ComboBox ItemsSource="{Binding SelectedLanguageLeaf.AvailableLocales}"
-                                          SelectedItem="{Binding SelectedLanguageLeaf.SelectedLocale, Mode=TwoWay}"
-                                          Width="200" Height="26" MinHeight="26"
-                                          FontSize="12" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                                          VerticalContentAlignment="Center" />
-                            </StackPanel>
+                            <DataTemplate DataType="{x:Type vm:LanguageSettingsLeaf}"
+                                          x:DataType="vm:LanguageSettingsLeaf">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Orientation="Vertical" Spacing="10" Margin="0,2,10,4">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="#222" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Description}" FontSize="11" Foreground="#666"
+                                                   TextWrapping="Wrap" IsVisible="{Binding HasDescription}" />
+                                        <Rectangle Height="1" Fill="#ddd" IsVisible="{Binding HasDescription}" />
+
+                                        <ComboBox ItemsSource="{Binding AvailableLocales}"
+                                                  SelectedItem="{Binding SelectedLocale, Mode=TwoWay}"
+                                                  Width="200" Height="26" MinHeight="26"
+                                                  FontSize="12" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                                  VerticalContentAlignment="Center" />
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </DataTemplate>
 
                             <!-- Module: visibility + settings -->
-                            <StackPanel Spacing="8" IsVisible="{Binding IsModuleLeaf}">
-                                <CheckBox Content="{loc:Loc appSettings.enabled}" IsChecked="{Binding SelectedModuleLeaf.IsVisible, Mode=TwoWay}"
-                                          IsEnabled="{Binding SelectedModuleLeaf.CanHide}" FontSize="12" />
-                                <TextBlock Text="{loc:Loc appSettings.alwaysVisible}" FontSize="10" Foreground="#888"
-                                           IsVisible="{Binding SelectedModuleLeaf.ShowAlwaysVisibleCaption}" />
-
-                                <ContentControl Content="{Binding SelectedModuleLeaf.SettingsView}"
-                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                                IsVisible="{Binding SelectedModuleLeaf.SettingsView, Converter={x:Static ObjectConverters.IsNotNull}}" />
-
-                                <ItemsControl ItemsSource="{Binding SelectedModuleLeaf.BoolFields}"
-                                              IsVisible="{Binding SelectedModuleLeaf.ShowGenericFields}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:BoolSettingEntry">
-                                            <CheckBox Content="{Binding Label}" IsChecked="{Binding Value, Mode=TwoWay}"
-                                                      FontSize="12" Margin="0,2,0,0" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <ItemsControl ItemsSource="{Binding SelectedModuleLeaf.Fields}"
-                                              IsVisible="{Binding SelectedModuleLeaf.ShowGenericFields}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:NumericSettingEntry">
-                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,3,0,0">
-                                            <TextBlock Text="{Binding Label}" FontSize="11"
-                                                       VerticalAlignment="Center" />
-                                            <TextBox Text="{Binding Value}" Width="110" Height="24" MinHeight="24"
-                                                     CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                                                     FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
+                            <DataTemplate DataType="{x:Type vm:ModuleSettingsLeaf}"
+                                          x:DataType="vm:ModuleSettingsLeaf">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Orientation="Vertical" Spacing="10" Margin="0,2,10,4">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="#222" VerticalAlignment="Center" />
                                         </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            </StackPanel>
-                        </StackPanel>
-                    </ScrollViewer>
+                                        <TextBlock Text="{Binding Description}" FontSize="11" Foreground="#666"
+                                                   TextWrapping="Wrap" IsVisible="{Binding HasDescription}" />
+                                        <Rectangle Height="1" Fill="#ddd" IsVisible="{Binding HasDescription}" />
+
+                                        <CheckBox Content="{loc:Loc appSettings.enabled}" IsChecked="{Binding IsVisible, Mode=TwoWay}"
+                                                  IsEnabled="{Binding CanHide}" FontSize="12" />
+                                        <TextBlock Text="{loc:Loc appSettings.alwaysVisible}" FontSize="10" Foreground="#888"
+                                                   IsVisible="{Binding ShowAlwaysVisibleCaption}" />
+
+                                        <ContentControl Content="{Binding SettingsView}"
+                                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                        IsVisible="{Binding SettingsView, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                                        <ItemsControl ItemsSource="{Binding BoolFields}"
+                                                      IsVisible="{Binding ShowGenericFields}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:BoolSettingEntry">
+                                                    <CheckBox Content="{Binding Label}" IsChecked="{Binding Value, Mode=TwoWay}"
+                                                              FontSize="12" Margin="0,2,0,0" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <ItemsControl ItemsSource="{Binding Fields}"
+                                                      IsVisible="{Binding ShowGenericFields}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:NumericSettingEntry">
+                                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,3,0,0">
+                                                        <TextBlock Text="{Binding Label}" FontSize="11"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBox Text="{Binding Value}" Width="110" Height="24" MinHeight="24"
+                                                                 CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                                                 FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </DataTemplate>
+
+                        </ContentControl.DataTemplates>
+                    </ContentControl>
                 </Grid>
             </Border>
         </Grid>

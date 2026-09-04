@@ -46,7 +46,7 @@ public class JogViewModelTests
         var dir = Path.Combine(Path.GetTempPath(), "senderng-tests-" + Guid.NewGuid().ToString("N"));
         var settings = new SettingsService(dir);
         var app = settings.Load();
-        app.Mode = mode;
+        app.MachineTypeId = mode;
         settings.Save(app);
         return settings;
     }
@@ -159,17 +159,18 @@ public Task SendAsync(string line)
     [Fact]
     public void Configs_are_mode_aware()
     {
+        // Each machine keeps its own Jog section (the settings split replaced
+        // the per-mode nesting with per-profile files).
         var settings = MakeSettings("Mill");
         var millVm = new JogViewModel(new RecordingGrbl([]), settings);
         millVm.Config.Distances[0] = 0.05;
         millVm.Save();
 
-        settings.Load().Mode = AppSettings.FoamMode;
-        var foamVm = new JogViewModel(new RecordingGrbl([]), settings);
+        var foamSettings = MakeSettings("Foam");
+        var foamVm = new JogViewModel(new RecordingGrbl([]), foamSettings);
 
-        Assert.Equal(0.1, foamVm.Config.Distances[0]); // Foam untouched
-        var millView = new AppSettings { Mode = AppSettings.MillMode, Modules = settings.Load().Modules };
-        Assert.Equal(0.05, JogConfigStore.Load(millView).Distances[0]); // Mill custom
+        Assert.Equal(0.1, foamVm.Config.Distances[0]); // foam machine untouched
+        Assert.Equal(0.05, JogConfigStore.Load(settings.Load()).Distances[0]); // mill custom
     }
 
     [Fact]
@@ -233,7 +234,7 @@ public class JogLinearAxesTests
         Assert.Equal(3, vm.LinearAxisLetters.Count);
 
         var app = settings.Load();
-        app.Mode = AppSettings.FoamMode;
+        app.MachineTypeId = MachineTypes.Foam;
         settings.Save(app);
 
         Assert.Single(vm.LinearAxisLetters);

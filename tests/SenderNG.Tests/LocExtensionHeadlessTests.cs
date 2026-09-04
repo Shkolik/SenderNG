@@ -66,7 +66,7 @@ public class LocExtensionHeadlessTests
             LocalizationService.Current = HeadlessTestCatalog.Locale;
             var provider = new StubProvider();
             var grbl = new GrblServiceProxy(
-                new DemoGrblService(new AppSettings(), localization: HeadlessTestCatalog.Locale));
+                new DemoGrblService(new MachineProfile(), localization: HeadlessTestCatalog.Locale));
             var vm = new GrblSettingsViewModel(provider, grbl, HeadlessTestCatalog.Locale);
             vm.LoadAsync().GetAwaiter().GetResult();
 

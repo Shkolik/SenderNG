@@ -51,21 +51,21 @@ public sealed class GotoConfig : CNC.Core.ViewModelBase
 }
 
 /// <summary>
-/// Reads/writes the "Goto" section of <c>AppSettings.Modules</c>:
-/// <c>{ "AxisCount": 4 }</c>. Global (not mode-aware) like the connection
-/// settings — the goto axis preference is how the user drives the machine, and
-/// the connected controller's reported axis count is the real cap regardless of
-/// mode. The section may be a Dictionary (in-memory) or a JsonElement (freshly
-/// deserialized settings.json), so both shapes are handled defensively.
+/// Reads/writes the "Goto" section of a <see cref="MachineProfile"/>'s
+/// ModuleSettings: <c>{ "AxisCount": 4 }</c>. Per profile since the settings
+/// split — the goto axis preference is how the user drives that machine, and
+/// the connected controller's reported axis count is the real cap. The section
+/// may be a Dictionary (in-memory) or a JsonElement (freshly deserialized
+/// profile file), so both shapes are handled defensively.
 /// </summary>
 public static class GotoConfigStore
 {
     private const string SectionKey = "Goto";
 
-    public static GotoConfig Load(AppSettings settings)
+    public static GotoConfig Load(MachineProfile profile)
     {
         var config = new GotoConfig();
-        if (settings.Modules.TryGetValue(SectionKey, out var raw) &&
+        if (profile.ModuleSettings.TryGetValue(SectionKey, out var raw) &&
             AsObject(raw) is { } section &&
             ReadDouble(section, "AxisCount") is { } axisCount)
         {
@@ -74,16 +74,16 @@ public static class GotoConfigStore
         return Normalize(config);
     }
 
-    public static void Save(AppSettings settings, GotoConfig config)
+    public static void Save(MachineProfile profile, GotoConfig config)
     {
         Dictionary<string, object?> section;
-        if (settings.Modules.TryGetValue(SectionKey, out var raw) && AsObject(raw) is { } existing)
+        if (profile.ModuleSettings.TryGetValue(SectionKey, out var raw) && AsObject(raw) is { } existing)
             section = existing;
         else
             section = [];
         var normalized = Normalize(config);
         section["AxisCount"] = normalized.AxisCount;
-        settings.Modules[SectionKey] = section;
+        profile.ModuleSettings[SectionKey] = section;
     }
 
     private static GotoConfig Normalize(GotoConfig config)

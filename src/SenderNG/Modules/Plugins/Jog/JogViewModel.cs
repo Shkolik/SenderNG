@@ -57,7 +57,7 @@ public class JogViewModel : ViewModelBase
 
     private readonly IGrblService _grbl;
     private readonly SettingsService _settingsService;
-    private readonly AppSettings _appSettings;
+    private MachineProfile _profile;
     private int _numAxes = 2;
     private bool _suppressReload;
 
@@ -65,9 +65,9 @@ public class JogViewModel : ViewModelBase
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
-        _appSettings = _settingsService.Load();
+        _profile = _settingsService.Load();
 
-        Config = JogConfigStore.Load(_appSettings);
+        Config = JogConfigStore.Load(_profile);
         Config.PropertyChanged += OnConfigPropertyChanged;
         RefreshLinearAxes();
 
@@ -124,7 +124,7 @@ public class JogViewModel : ViewModelBase
 
     public ObservableCollection<LinearAxisRow> LinearAxisLetters { get; } = new();
 
-    public bool IsFoam => _appSettings.Mode == AppSettings.FoamMode;
+    public bool IsFoam => _profile.MachineTypeId == MachineTypes.Foam;
     public bool IsMill => !IsFoam;
 
     public bool ShowDiagonals => Config.Diagonals;
@@ -257,8 +257,8 @@ public class JogViewModel : ViewModelBase
         _suppressReload = true;
         try
         {
-            JogConfigStore.Save(_appSettings, Config);
-            _settingsService.Save(_appSettings);
+            JogConfigStore.Save(_profile, Config);
+            _settingsService.Save(_profile);
         }
         finally
         {
@@ -271,7 +271,13 @@ public class JogViewModel : ViewModelBase
         if (_suppressReload)
             return;
 
-        Config = JogConfigStore.Load(_appSettings);
+        // A profile switch swaps the shared graph: re-point so saves keep
+        // writing to the ACTIVE machine's file, then reload its jog section.
+        var active = _settingsService.Load();
+        if (!ReferenceEquals(active, _profile))
+            _profile = active;
+
+        Config = JogConfigStore.Load(_profile);
         Config.PropertyChanged += OnConfigPropertyChanged;
         OnPropertyChanged(nameof(Config));
         OnPropertyChanged(nameof(IsFoam));

@@ -59,7 +59,6 @@ public class AppSettingsModule : IModule
             sp.GetServices<IModule>(),
             sp.GetRequiredService<SenderNG.Core.Localization.LocalizationService>()));
 
-    public void RegisterSettings(AppSettings settings) { }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<AppSettingsViewModel>();

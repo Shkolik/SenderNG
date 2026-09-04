@@ -129,8 +129,7 @@ public sealed class WorkParametersTests
     [Fact]
     public async Task Demo_work_parameters_send_coordinate_and_tool_selection()
     {
-        var settings = new AppSettings();
-        settings.Current.DemoAxes = 3;
+        var settings = new MachineProfile { DemoAxes = 3 };
         using var grbl = new DemoGrblService(settings);
         await grbl.ConnectAsync("demo");
         var vm = new WorkParametersViewModel(grbl);
@@ -150,7 +149,7 @@ public sealed class WorkParametersTests
     public async Task Tool_selector_lists_none_first_with_names_and_defaults_to_none()
     {
         var settings = MakeSettings();
-        var app = new AppSettings();
+        var app = new MachineProfile();
         using var grbl = new DemoGrblService(app);
         await grbl.ConnectAsync("demo");
         var vm = new WorkParametersViewModel(grbl, settings);
@@ -182,7 +181,7 @@ public sealed class WorkParametersTests
     public async Task Tool_selector_follows_the_visible_tools_setting()
     {
         var settings = MakeSettings();
-        var app = new AppSettings();
+        var app = new MachineProfile();
         using var grbl = new DemoGrblService(app);
         await grbl.ConnectAsync("demo");
         var vm = new WorkParametersViewModel(grbl, settings);
@@ -193,14 +192,14 @@ public sealed class WorkParametersTests
         // App Settings -> Offsets: "Visible tools" 8 -> 2 propagates here (the
         // selector must NOT keep listing all firmware slots).
         var loaded = settings.Load();
-        loaded.Current.VisibleTools = 2;
+        loaded.VisibleTools = 2;
         settings.Save(loaded);
         Assert.Equal(["None", "T1", "T2"], vm.Tools.Select(t => t.DisplayName));
         Assert.Equal(0, vm.SelectedTool); // still None
 
         // 0 hides every slot — only "None" remains selectable.
         loaded = settings.Load();
-        loaded.Current.VisibleTools = 0;
+        loaded.VisibleTools = 0;
         settings.Save(loaded);
         Assert.Equal(["None"], vm.Tools.Select(t => t.DisplayName));
     }

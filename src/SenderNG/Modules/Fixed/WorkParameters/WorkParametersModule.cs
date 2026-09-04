@@ -57,7 +57,6 @@ public sealed class WorkParametersModule : IModule
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<WorkParametersViewModel>();
 
-    public void RegisterSettings(AppSettings settings) { }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<WorkParametersViewModel>();

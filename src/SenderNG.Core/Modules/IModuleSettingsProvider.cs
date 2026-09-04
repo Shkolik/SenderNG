@@ -34,9 +34,29 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace SenderNG.Core.Modules;
 
+/// <summary>Where a module's settings section is persisted (docs/settings-migration.md §6.4).</summary>
+public enum SettingsScope
+{
+    /// <summary>Machine-coupled: the section lives in the active profile's file
+    /// (<c>profiles/&lt;id&gt;.json</c>, <see cref="CNC.Core.Services.MachineProfile.ModuleSettings"/>).
+    /// Default — one machine's jog steps, macros, tools … are not another's.</summary>
+    Profile,
+
+    /// <summary>App-level: the section lives in <c>global.json</c>
+    /// (<see cref="CNC.Core.Services.GlobalSettings.ModuleSettings"/>) and is shared
+    /// by every machine. Built-in example: the Console module's display options.</summary>
+    Global,
+}
+
 /// <summary>Modules implement this to expose editable fields in App Settings.</summary>
 public interface IModuleSettingsProvider
 {
+    /// <summary>Declares where the module's settings section lives. The module's own
+    /// store reads/writes the matching bag: <c>MachineProfile.ModuleSettings</c> for
+    /// <see cref="SettingsScope.Profile"/> (default), <c>GlobalSettings.ModuleSettings</c>
+    /// for <see cref="SettingsScope.Global"/>.</summary>
+    SettingsScope Scope => SettingsScope.Profile;
+
     /// <summary>Numeric fields; default none (prefer CreateSettingsView).</summary>
     IEnumerable<ModuleSettingField> GetSettingFields() => [];
 

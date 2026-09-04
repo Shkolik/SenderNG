@@ -226,7 +226,7 @@ public class ConsoleViewModelTests
         vm.FilterRealtime = true;
         vm.ShowAllRealtime = true;
 
-        var reloaded = ConsoleSettingsStore.Load(new SettingsService(settings.SettingsDir).Load());
+        var reloaded = ConsoleSettingsStore.Load(new SettingsService(settings.SettingsDir).Global);
         Assert.True(reloaded.Verbose);
         Assert.True(reloaded.FilterRealtime);
         Assert.True(reloaded.ShowAllRealtime);

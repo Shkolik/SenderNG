@@ -57,11 +57,11 @@ public class ProbeViewModel : ViewModelBase
 {
     private readonly IGrblService _grbl;
     private readonly SettingsService _settingsService;
-    private readonly AppSettings _appSettings;
+    private MachineProfile _profile;
     private readonly IServiceProvider? _services;
-    private readonly ProbingProfileStore _store;
+    private ProbingProfileStore _store;
     private readonly ProbeRunner _runner;
-    private readonly Dictionary<string, bool> _enabledTools;
+    private Dictionary<string, bool> _enabledTools;
     private CancellationTokenSource? _cts;
 
     public ProbeViewModel(IGrblService grbl, SettingsService settings, IServiceProvider? services = null)
@@ -69,10 +69,11 @@ public class ProbeViewModel : ViewModelBase
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
         _settingsService = settings ?? throw new ArgumentNullException(nameof(settings));
         _services = services;
-        _appSettings = _settingsService.Load();
+        _profile = _settingsService.Load();
 
-        // Module settings hold only the profiles file path + enabled tool checkboxes.
-        var filePath = ReadString(ProbingModule.ProfilesFileKey) ?? Path.Combine(_settingsService.SettingsDir, "probing.json");
+        // Module settings hold only the enabled-tool checkboxes; the per-profile
+        // companion path (profiles/<id>.probing.json) derives from the profile id.
+        var filePath = ProfileSettingsPaths.ProbeCompanionPath(_settingsService.SettingsDir, _profile.Id);
         _enabledTools = ReadEnabledTools();
         _store = new ProbingProfileStore(filePath);
         _runner = new ProbeRunner(grbl);
@@ -88,6 +89,21 @@ public class ProbeViewModel : ViewModelBase
         // the choice list (labels) whenever the settings graph changes.
         _settingsService.Changed += () => UiThread.Post(() =>
         {
+            // A profile switch swaps the shared graph: re-init the companion
+            // store, enabled tools and the profile list for the new machine.
+            var active = _settingsService.Load();
+            if (!ReferenceEquals(active, _profile))
+            {
+                _profile = active;
+                _enabledTools = ReadEnabledTools();
+                _store = new ProbingProfileStore(
+                    ProfileSettingsPaths.ProbeCompanionPath(_settingsService.SettingsDir, active.Id));
+                Profiles.Clear();
+                foreach (var p in _store.Load().Profiles)
+                    Profiles.Add(p);
+                SelectedProfile = Profiles.FirstOrDefault();
+                ApplyToolInstructions();
+            }
             OnPropertyChanged(nameof(ToolChoices));
             OnPropertyChanged(nameof(SelectedToolChoice));
         });
@@ -411,7 +427,7 @@ public class ProbeViewModel : ViewModelBase
     {
         var controllerTools = _grbl.Capabilities.IsKnown && _grbl.Capabilities.NumTools > 0
             ? _grbl.Capabilities.NumTools : 0;
-        return Math.Min(Math.Clamp(_appSettings.Current.VisibleTools, 0, 64), controllerTools);
+        return Math.Min(Math.Clamp(_profile.VisibleTools, 0, 64), controllerTools);
     }
 
     /// <summary>Selected choice (TwoWay ComboBox anchor, re-matched by value after
@@ -1020,18 +1036,10 @@ public class ProbeViewModel : ViewModelBase
 
     // ----------------------------------------------------------------- helpers
 
-    private string? ReadString(string key)
-    {
-        if (_appSettings.Modules.TryGetValue("Probing", out var raw) && raw is Dictionary<string, object> section &&
-            section.TryGetValue(key, out var value) && value is string s)
-            return s;
-        return null;
-    }
-
     private Dictionary<string, bool> ReadEnabledTools()
     {
         var result = ProbingModule.ToolKeys.ToDictionary(k => k, _ => true);
-        if (_appSettings.Modules.TryGetValue("Probing", out var raw) && raw is Dictionary<string, object> section &&
+        if (_profile.ModuleSettings.TryGetValue("Probing", out var raw) && raw is Dictionary<string, object> section &&
             section.TryGetValue(ProbingModule.EnabledToolsKey, out var rawTools) && rawTools is Dictionary<string, object> dict)
         {
             foreach (var key in ProbingModule.ToolKeys)

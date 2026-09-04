@@ -61,7 +61,6 @@ public class AppSettingsViewModelTests
         public bool CanHide { get; }
         public IReadOnlyList<HotKey> HotKeys => [];
         public void RegisterServices(IServiceCollection services) { }
-        public void RegisterSettings(AppSettings settings) { }
         public object CreateViewModel(IServiceProvider sp) => new object();
         public object CreateView(object vm) => new object();
     }
@@ -84,7 +83,6 @@ public class AppSettingsViewModelTests
         public bool CanHide { get; }
         public IReadOnlyList<HotKey> HotKeys => [];
         public void RegisterServices(IServiceCollection services) { }
-        public void RegisterSettings(AppSettings settings) { }
         public object CreateViewModel(IServiceProvider sp) => new object();
         public object CreateView(object vm) => new object();
         public IEnumerable<ModuleSettingBool> GetBoolSettingFields()
@@ -103,7 +101,6 @@ public class AppSettingsViewModelTests
         public bool CanHide => true;
         public IReadOnlyList<HotKey> HotKeys => [];
         public void RegisterServices(IServiceCollection services) { }
-        public void RegisterSettings(AppSettings settings) { }
         public object CreateViewModel(IServiceProvider sp) => new object();
         public object CreateView(object vm) => new object();
         public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
@@ -139,17 +136,8 @@ public class AppSettingsViewModelTests
     private static ModuleSettingsLeaf Leaf(AppSettingsViewModel vm, string id) =>
         vm.ModuleLeaves.First(e => e.Id == id);
 
-    private static ModeSettingsLeaf ModeLeaf(AppSettingsViewModel vm) =>
-        (ModeSettingsLeaf)((AppSettingsGroupItem)vm.Groups[0]).Children[0];
-
-    private static void SetFoam(SettingsService settings, bool foam)
-    {
-        settings.Load().Modes["Mill"] = new ModeSettings { ModulesVisibility = new Dictionary<string, bool> { ["jog"] = foam } };
-        settings.Load().Modes["Foam"] = new ModeSettings { ModulesVisibility = new Dictionary<string, bool> { ["jog"] = !foam } };
-    }
-
     [Fact]
-    public void Toggling_visibility_persists_to_current_mode()
+    public void Toggling_visibility_persists_to_the_active_profile()
     {
         var (dir, settings) = MakeSettings();
         var vm = CreateVm(settings);
@@ -159,27 +147,26 @@ public class AppSettingsViewModelTests
 
         // Fresh service instance proves values hit disk.
         var reloaded = new SettingsService(dir).Load();
-        Assert.False(reloaded.Current.ModulesVisibility["jog"]);
-        Assert.True(reloaded.Current.ModulesVisibility["console"]);
+        Assert.False(reloaded.Modules["jog"]);
+        Assert.True(reloaded.Modules["console"]);
     }
 
     [Fact]
-    public void Mode_switch_reflects_that_mode_visibility()
+    public void Visibility_persists_per_profile_not_per_mode()
     {
-        var (_, settings) = MakeSettings();
-        SetFoam(settings, foam: true); // Mill: jog=true, Foam: jog=false
-
+        // The Mill/Foam mode selector is gone — a machine is a profile, and its
+        // visibility map is the profile's Modules. Two profiles stay independent.
+        var (dir, settings) = MakeSettings();
+        var profile = settings.Load();
         var vm = CreateVm(settings);
-        var jog = Leaf(vm, "jog");
 
-        Assert.True(jog.IsVisible); // Mill map says jog = true
-        ModeLeaf(vm).IsFoam = true;
+        Leaf(vm, "jog").IsVisible = false;
+        Leaf(vm, "console").IsVisible = true;
 
-        Assert.Equal("Foam", settings.Load().Mode);
-        Assert.False(jog.IsVisible); // Foam map says jog = false
-
-        ModeLeaf(vm).IsMill = true;
-        Assert.True(jog.IsVisible);
+        var reloaded = new SettingsService(dir).Load();
+        Assert.False(reloaded.Modules["jog"]);
+        Assert.True(reloaded.Modules["console"]);
+        Assert.Same(profile, settings.Load()); // still the same shared graph
     }
 
     [Fact]
@@ -256,7 +243,7 @@ public class AppSettingsViewModelTests
 
         Assert.Equal("Global", global.Name);
         Assert.Equal("Modules", modules.Name);
-        Assert.Contains(global.Children, c => c is ModeSettingsLeaf);
+        Assert.Contains(global.Children, c => c is ProfileSettingsLeaf);
         Assert.Contains(global.Children, c => c is LanguageSettingsLeaf);
     }
 
@@ -268,7 +255,7 @@ public class AppSettingsViewModelTests
 
         Assert.NotNull(vm.SelectedSetting);
         Assert.True(vm.HasSelection);
-        Assert.True(vm.IsModeLeaf);
+        Assert.True(vm.IsLanguageLeaf); // first leaf under Global is Language
     }
 
     [Fact]
@@ -299,11 +286,11 @@ public class AppSettingsViewModelTests
             try
             {
                 leaf.SelectedLocale = "ru";
-                Assert.Equal("ru", settings.Load().Language);
+                Assert.Equal("ru", settings.Global.Language);
                 // The tree re-localizes immediately on the locale-changed event.
                 Assert.Equal("Ручное перемещение", Leaf(vm, "jog").Name);
                 Assert.Equal("Модули", ((AppSettingsGroupItem)vm.Groups[1]).Name);
-                Assert.Equal("Режим", ((ModeSettingsLeaf)((AppSettingsGroupItem)vm.Groups[0]).Children[0]).Name);
+                Assert.Equal("Язык", leaf.Name);
             }
             finally
             {
@@ -375,6 +362,24 @@ public class AppSettingsViewModelTests
                 Loc.SetLocale("en");
             }
         }
+    }
+
+    [Fact]
+    public void Language_selector_ignores_null_pushed_by_combo_detach()
+    {
+        var (_, settings) = MakeSettings();
+        var vm = CreateVm(settings);
+        var leaf = (LanguageSettingsLeaf)((AppSettingsGroupItem)vm.Groups[0]).Children[1];
+        Assert.Equal("en", leaf.SelectedLocale);
+
+        // Avalonia detaches invisible controls from the visual tree and can push null
+        // through a TwoWay SelectedItem on detach (leaf switch hides this pane). The
+        // setter must ignore it: it must neither corrupt the current locale nor the
+        // persisted global language.
+        leaf.SelectedLocale = null!;
+        Assert.Equal("en", leaf.SelectedLocale);
+        Assert.Equal(string.Empty, settings.Global.Language);
+        Assert.True(leaf.SelectedLocale is not null);
     }
 
     [Fact]
@@ -461,7 +466,7 @@ public class AppSettingsViewModelTests
     }
 
     [Fact]
-    public void Legacy_flat_settings_json_migrates_to_mill_mode()
+    public void Legacy_flat_settings_json_migrates_to_active_mill_profile()
     {
         var dir = Path.Combine(Path.GetTempPath(), "senderng-legacy-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
@@ -475,14 +480,53 @@ public class AppSettingsViewModelTests
             }
             """);
 
+        // Migration turns the legacy mode blocks into profiles; Load() returns
+        // the active one (old Mode = Mill). SettingsMigrator tests cover the
+        // two-profile split in detail.
         var loaded = new SettingsService(dir).Load();
 
-        Assert.Equal(2, loaded.Modes.Count);
-        Assert.Contains(AppSettings.MillMode, loaded.Modes.Keys);
-        Assert.Contains(AppSettings.FoamMode, loaded.Modes.Keys);
-        var mill = loaded.Modes[AppSettings.MillMode];
-        Assert.Equal(5, mill.DemoAxes);
-        Assert.Equal("COM7", mill.Port);
-        Assert.False(mill.ModulesVisibility["jog"]);
+        Assert.Equal("Mill", loaded.MachineTypeId);
+        Assert.Equal(5, loaded.DemoAxes);
+        Assert.Equal("COM7", loaded.Connection.SerialPort);
+        Assert.False(loaded.Modules["jog"]);
+    }
+
+    [Fact]
+    public void Every_settings_tree_node_exposes_IsExpanded_for_the_TreeViewItem_binding()
+    {
+        // Regression: the tree styles every TreeViewItem (groups AND leaves) with
+        // {ReflectionBinding IsExpanded, Mode=TwoWay}. When a leaf type lacked the
+        // accessor, Avalonia logged "Could not find a matching property accessor for
+        // 'IsExpanded'" for each leaf the first time its group was opened.
+        var (_, settings) = MakeSettings();
+        var vm = CreateVm(settings);
+
+        foreach (var group in vm.Groups)
+        {
+            var groupItem = AssertIsExpandedAccessor((AppSettingsGroupItem)group);
+            foreach (var child in groupItem.Children)
+                AssertIsExpandedAccessor((AppSettingsLeaf)child);
+        }
+
+        // Groups expand for real; leaves are inert no-ops (never expandable, but the
+        // accessor keeps the two-way style binding valid without corrupting anything).
+        foreach (var group in vm.Groups.Cast<AppSettingsGroupItem>())
+        {
+            group.IsExpanded = true;
+            Assert.True(group.IsExpanded);
+            foreach (var leaf in group.Children.Cast<AppSettingsLeaf>())
+            {
+                leaf.IsExpanded = true;
+                Assert.False(leaf.IsExpanded);
+            }
+        }
+    }
+
+    private static T AssertIsExpandedAccessor<T>(T node) where T : class
+    {
+        var prop = node.GetType().GetProperty("IsExpanded");
+        Assert.True(prop is { GetMethod.IsPublic: true, SetMethod.IsPublic: true },
+            $"{node.GetType().Name} must expose a public IsExpanded accessor");
+        return node;
     }
 }

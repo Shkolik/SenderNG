@@ -108,7 +108,6 @@ public class ModulePanelTests
         public bool IsVisibleByDefault => true;
         public IReadOnlyList<HotKey> HotKeys => [];
         public void RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection s) { }
-        public void RegisterSettings(AppSettings s) { }
         public object CreateViewModel(System.IServiceProvider sp) => new object();
         public object CreateView(object vm) => new object();
     }
@@ -120,7 +119,6 @@ public class ModulePanelTests
         public int Order => 99;
         public IReadOnlyList<HotKey> HotKeys => [];
         public void RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection s) { }
-        public void RegisterSettings(AppSettings s) { }
         public object CreateViewModel(System.IServiceProvider sp) => new object();
         public object CreateView(object vm) => new object();
     }

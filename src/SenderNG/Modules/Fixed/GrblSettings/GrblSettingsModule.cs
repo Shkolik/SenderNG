@@ -65,7 +65,6 @@ public class GrblSettingsModule : IModule
             sp.GetRequiredService<IGrblService>(),
             sp.GetRequiredService<SenderNG.Core.Localization.LocalizationService>()));
 
-    public void RegisterSettings(AppSettings settings) { }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<GrblSettingsViewModel>();

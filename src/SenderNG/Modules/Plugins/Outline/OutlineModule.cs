@@ -63,29 +63,16 @@ public class OutlineModule : IModule, ILocalizedModule
 
     // Module settings key for the persisted outline feed rate.
     public const string SettingsSection = "Outline";
+
+    /// <summary>ModuleSettings key for the outline feed rate (defaults in the VM).</summary>
     public const string FeedRateKey = "FeedRate";
 
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<OutlineViewModel>();
-
-    public void RegisterSettings(AppSettings settings)
-    {
-        var section = EnsureSection(settings);
-        section.TryAdd(FeedRateKey, (double)OutlineViewModel.DefaultFeedRate);
-    }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<OutlineViewModel>();
 
     public object CreateView(object viewModel) =>
         new OutlineView { DataContext = viewModel };
-
-    private static Dictionary<string, object> EnsureSection(AppSettings settings)
-    {
-        if (settings.Modules.TryGetValue(SettingsSection, out var raw) && raw is Dictionary<string, object> dict)
-            return dict;
-        dict = new Dictionary<string, object>();
-        settings.Modules[SettingsSection] = dict;
-        return dict;
-    }
 }

@@ -61,10 +61,12 @@ public class JogConfig : CNC.Core.ViewModelBase
     public double Speed2 { get => Speeds[1]; set { Speeds[1] = value; OnPropertyChanged(); } }
     public double Speed3 { get => Speeds[2]; set { Speeds[2] = value; OnPropertyChanged(); } }
 }
-// Reads/writes the "Jog" section of AppSettings.Modules:
-// { "Mill": { Distances, Speeds, DistanceIndex, SpeedIndex, Diagonals }, "Foam": {...} }.
-// The section may be a Dictionary<string,object> (in-memory) or a JsonElement
-// (freshly deserialized settings.json), so both shapes are handled defensively.
+// Reads/writes the "Jog" section of a MachineProfile's ModuleSettings:
+// { Distances, Speeds, DistanceIndex, SpeedIndex, Diagonals }.
+// Per profile since the settings split — no mode nesting anymore (the legacy
+// { Mill: {...}, Foam: {...} } shape was unwrapped by SettingsMigrator). The
+// section may be a Dictionary<string,object> (in-memory) or a JsonElement
+// (freshly deserialized profile file), so both shapes are handled defensively.
 public static class JogConfigStore
 {
     private const string SectionKey = "Jog";
@@ -73,56 +75,45 @@ public static class JogConfigStore
     /// <summary>Number of distance/speed steps per selector.</summary>
     public static int StepCount => Size;
 
-    public static JogConfig Load(AppSettings settings)
+    public static JogConfig Load(MachineProfile profile)
     {
         var config = new JogConfig();
 
-        if (settings.Modules.TryGetValue(SectionKey, out var raw))
+        if (profile.ModuleSettings.TryGetValue(SectionKey, out var raw) &&
+            AsObject(raw) is { } entry)
         {
-            var section = AsObject(raw);
-            if (section is not null &&
-                section.TryGetValue(ModeKey(settings), out var modeRaw) &&
-                AsObject(modeRaw) is { } entry)
-            {
-                if (ReadArray(entry, "Distances") is { Count: > 0 } distances)
-                    config.Distances = [.. distances];
-                if (ReadArray(entry, "Speeds") is { Count: > 0 } speeds)
-                    config.Speeds = [.. speeds];
-                if (ReadDouble(entry, "DistanceIndex") is { } di)
-                    config.DistanceIndex = (int)di;
-                if (ReadDouble(entry, "SpeedIndex") is { } si)
-                    config.SpeedIndex = (int)si;
-                if (ReadBool(entry, "Diagonals") is { } diag)
-                    config.Diagonals = diag;
-            }
+            if (ReadArray(entry, "Distances") is { Count: > 0 } distances)
+                config.Distances = [.. distances];
+            if (ReadArray(entry, "Speeds") is { Count: > 0 } speeds)
+                config.Speeds = [.. speeds];
+            if (ReadDouble(entry, "DistanceIndex") is { } di)
+                config.DistanceIndex = (int)di;
+            if (ReadDouble(entry, "SpeedIndex") is { } si)
+                config.SpeedIndex = (int)si;
+            if (ReadBool(entry, "Diagonals") is { } diag)
+                config.Diagonals = diag;
         }
 
         return Normalize(config);
     }
 
-    public static void Save(AppSettings settings, JogConfig config)
+    public static void Save(MachineProfile profile, JogConfig config)
     {
         Dictionary<string, object?> section;
-        if (settings.Modules.TryGetValue(SectionKey, out var raw) && AsObject(raw) is { } existing)
+        if (profile.ModuleSettings.TryGetValue(SectionKey, out var raw) && AsObject(raw) is { } existing)
             section = existing;
         else
             section = [];
 
-        // Normalize before writing so both modes always persist a valid shape.
+        // Normalize before writing so the profile always persists a valid shape.
         var normalized = Normalize(config);
-        section[ModeKey(settings)] = new Dictionary<string, object?>
-        {
-            ["Distances"] = normalized.Distances.ToList(),
-            ["Speeds"] = normalized.Speeds.ToList(),
-            ["DistanceIndex"] = normalized.DistanceIndex,
-            ["SpeedIndex"] = normalized.SpeedIndex,
-            ["Diagonals"] = normalized.Diagonals,
-        };
-        settings.Modules[SectionKey] = section;
+        section["Distances"] = normalized.Distances.ToList();
+        section["Speeds"] = normalized.Speeds.ToList();
+        section["DistanceIndex"] = normalized.DistanceIndex;
+        section["SpeedIndex"] = normalized.SpeedIndex;
+        section["Diagonals"] = normalized.Diagonals;
+        profile.ModuleSettings[SectionKey] = section;
     }
-
-    private static string ModeKey(AppSettings settings) =>
-        settings.Mode == AppSettings.FoamMode ? AppSettings.FoamMode : AppSettings.MillMode;
 
     private static JogConfig Normalize(JogConfig config)
     {

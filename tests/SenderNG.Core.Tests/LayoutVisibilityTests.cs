@@ -58,12 +58,11 @@ public class LayoutVisibilityTests
         public bool IsVisibleByDefault { get; }
         public IReadOnlyList<HotKey> HotKeys => [];
         public void RegisterServices(IServiceCollection services) { }
-        public void RegisterSettings(AppSettings settings) { }
         public object CreateViewModel(IServiceProvider sp) => new object();
         public object CreateView(object vm) => new object();
     }
 
-    private static SettingsService MakeSettings(AppSettings? seed = null)
+    private static SettingsService MakeSettings(MachineProfile? seed = null)
     {
         var dir = Path.Combine(Path.GetTempPath(), "senderng-layout-" + Guid.NewGuid().ToString("N"));
         var svc = new SettingsService(dir);
@@ -80,7 +79,7 @@ public class LayoutVisibilityTests
         return sc.BuildServiceProvider();
     }
 
-    private static MainViewModel CreateVMWithVisibility(AppSettings appSettings, IEnumerable<IModule>? modules = null)
+    private static MainViewModel CreateVMWithVisibility(MachineProfile appSettings, IEnumerable<IModule>? modules = null)
     {
         var settings = MakeSettings(appSettings);
         var provider = MakeProvider(settings);
@@ -98,8 +97,8 @@ public class LayoutVisibilityTests
     [Fact]
     public void CenterModules_excludes_Hidden()
     {
-        var appSettings = new AppSettings();
-        appSettings.Current.ModulesVisibility["gcode-console"] = false;
+        var appSettings = new MachineProfile();
+        appSettings.Modules["gcode-console"] = false;
         var vm = CreateVMWithVisibility(appSettings);
         Assert.DoesNotContain(vm.CenterModules, m => m.Id == "gcode-console");
     }
@@ -107,7 +106,7 @@ public class LayoutVisibilityTests
     [Fact]
     public void CenterModules_includes_Visible()
     {
-        var appSettings = new AppSettings();
+        var appSettings = new MachineProfile();
         var vm = CreateVMWithVisibility(appSettings);
         Assert.Contains(vm.CenterModules, m => m.Id == "gcode-console");
     }
@@ -115,7 +114,7 @@ public class LayoutVisibilityTests
     [Fact]
     public void LeftModules_ordered_by_Order()
     {
-        var appSettings = new AppSettings();
+        var appSettings = new MachineProfile();
         var mods = new IModule[]
         {
             new StubModule("offsets", PanelHint.Left, 30),
@@ -128,8 +127,8 @@ public class LayoutVisibilityTests
     [Fact]
     public void RightModules_excludes_Hidden()
     {
-        var appSettings = new AppSettings();
-        appSettings.Current.ModulesVisibility["jog"] = false;
+        var appSettings = new MachineProfile();
+        appSettings.Modules["jog"] = false;
         var vm = CreateVMWithVisibility(appSettings);
         Assert.DoesNotContain(vm.RightModules, m => m.Id == "jog");
         Assert.Contains(vm.RightModules, m => m.Id == "grbl-settings");
@@ -138,7 +137,7 @@ public class LayoutVisibilityTests
     [Fact]
     public void FlyoutModules_empty_when_none_claimed()
     {
-        var appSettings = new AppSettings();
+        var appSettings = new MachineProfile();
         var vm = CreateVMWithVisibility(appSettings);
         Assert.Empty(vm.FlyoutModules);
     }
@@ -146,7 +145,7 @@ public class LayoutVisibilityTests
     [Fact]
     public void FlyoutModules_contains_Flyout_module()
     {
-        var appSettings = new AppSettings();
+        var appSettings = new MachineProfile();
         var mods = new IModule[] { new StubModule("macro", PanelHint.Flyout, 45) };
         var vm = CreateVMWithVisibility(appSettings, mods);
         Assert.Contains(vm.FlyoutModules, m => m.Module.Id == "macro");
@@ -155,7 +154,7 @@ public class LayoutVisibilityTests
     [Fact]
     public void IsModuleVisible_falls_back_to_IsVisibleByDefault_when_not_in_map()
     {
-        var appSettings = new AppSettings();
+        var appSettings = new MachineProfile();
         var mods = new IModule[] { new StubModule("hidden-by-default", PanelHint.Left, 99, visibleByDefault: false) };
         var vm = CreateVMWithVisibility(appSettings, mods);
         var m = mods[0];
@@ -166,8 +165,8 @@ public class LayoutVisibilityTests
     [Fact]
     public void IsModuleVisible_respects_ModulesVisibility_override()
     {
-        var appSettings = new AppSettings();
-        appSettings.Current.ModulesVisibility["hidden-by-default"] = true;
+        var appSettings = new MachineProfile();
+        appSettings.Modules["hidden-by-default"] = true;
         var mods = new IModule[] { new StubModule("hidden-by-default", PanelHint.Left, 99, visibleByDefault: false) };
         var vm = CreateVMWithVisibility(appSettings, mods);
         Assert.True(vm.IsModuleVisible(mods[0]));

@@ -65,7 +65,7 @@ public class MacroViewModel : ViewModelBase
 {
     private readonly IGrblService _grbl;
     private readonly SettingsService _settingsService;
-    private readonly AppSettings _appSettings;
+    private MachineProfile _profile;
 
     public ObservableCollection<MacroItem> Macros { get; } = new();
 
@@ -91,13 +91,26 @@ public class MacroViewModel : ViewModelBase
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
-        _appSettings = _settingsService.Load();
+        _profile = _settingsService.Load();
 
         RunCommand = new DelegateCommand(_ => _ = RunAsync(SelectedMacro), _ => SelectedMacro is not null);
         AddMacroCommand = new DelegateCommand(_ => AddMacro());
         RemoveMacroCommand = new DelegateCommand(
             _ => RemoveSelected(), _ => SelectedMacro is not null);
 
+        Load();
+        // Macros are machine routines: follow profile switches (reload the list
+        // from the newly active machine, keep saving to its file).
+        _settingsService.Changed += OnSettingsChanged;
+    }
+
+    private void OnSettingsChanged()
+    {
+        var active = _settingsService.Load();
+        if (ReferenceEquals(active, _profile))
+            return;
+        _profile = active;
+        Macros.Clear();
         Load();
     }
 
@@ -112,15 +125,15 @@ public class MacroViewModel : ViewModelBase
 
     public void Save()
     {
-        _appSettings.Modules["Macros"] = Macros
+        _profile.ModuleSettings["Macros"] = Macros
             .Select(m => new Dictionary<string, object> { ["Name"] = m.Name, ["Code"] = m.Code })
             .ToList();
-        _settingsService.Save(_appSettings);
+        _settingsService.Save(_profile);
     }
 
     private void Load()
     {
-        if (!_appSettings.Modules.TryGetValue("Macros", out var raw))
+        if (!_profile.ModuleSettings.TryGetValue("Macros", out var raw))
             return;
 
         var items = raw switch

@@ -81,7 +81,7 @@ public sealed class GotoViewModel : ViewModelBase
 
     private readonly IGrblService _grbl;
     private readonly SettingsService _settingsService;
-    private readonly AppSettings _appSettings;
+    private readonly MachineProfile _profile;
     private readonly IDisposable _stateSubscription;
     private bool _isHomed;
     private int _availableAxes = 3;
@@ -92,9 +92,9 @@ public sealed class GotoViewModel : ViewModelBase
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
-        _appSettings = _settingsService.Load();
+        _profile = _settingsService.Load();
 
-        Config = GotoConfigStore.Load(_appSettings);
+        Config = GotoConfigStore.Load(_profile);
         Config.PropertyChanged += OnConfigPropertyChanged;
 
         GotoHomeCommand = new DelegateCommand(_ => _ = SendAsync("G28", LocText.Resolve("module.goto.goingHome", "Going to home position")));
@@ -179,7 +179,7 @@ public sealed class GotoViewModel : ViewModelBase
     {
         if (_saving)
             return;
-        Config = GotoConfigStore.Load(_appSettings);
+        Config = GotoConfigStore.Load(_profile);
         Config.PropertyChanged += OnConfigPropertyChanged;
         OnPropertyChanged(nameof(Config));
         OnPropertyChanged(nameof(SelectedAxisCount));
@@ -192,8 +192,8 @@ public sealed class GotoViewModel : ViewModelBase
         _saving = true;
         try
         {
-            GotoConfigStore.Save(_appSettings, Config);
-            _settingsService.Save(_appSettings);
+            GotoConfigStore.Save(_profile, Config);
+            _settingsService.Save(_profile);
         }
         finally
         {

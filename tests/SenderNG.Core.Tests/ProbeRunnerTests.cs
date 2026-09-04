@@ -42,7 +42,7 @@ public class ProbeRunnerTests
 {
     private static async Task<DemoGrblService> ConnectDemoAsync()
     {
-        var demo = new DemoGrblService(new AppSettings());
+        var demo = new DemoGrblService(new MachineProfile());
         await demo.ConnectAsync("demo");
         return demo;
     }

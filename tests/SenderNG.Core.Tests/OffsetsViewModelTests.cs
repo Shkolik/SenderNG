@@ -54,7 +54,7 @@ public sealed class OffsetsViewModelTests
         // iSender parity: picking G56 in the editor sends "G56" to the
         // controller, so the DRO zero (G10 L20 P0 = active system) and any
         // writes land in the row the user is looking at.
-        var service = new DemoGrblService(new AppSettings());
+        var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
 
@@ -70,7 +70,7 @@ public sealed class OffsetsViewModelTests
         // G56 can be activated from anywhere (MDI, a program line). The editor
         // selection must follow, WITHOUT re-sending the activation (that would
         // echo forever through the snapshot stream).
-        var service = new DemoGrblService(new AppSettings());
+        var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
 
@@ -84,7 +84,7 @@ public sealed class OffsetsViewModelTests
     {
         // The initial row selection is programmatic — it must not send G54 and
         // yank the controller away from the system the user had active.
-        var service = new DemoGrblService(new AppSettings());
+        var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         await service.SendAsync("G55");
 
@@ -97,8 +97,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public async Task Get_current_position_updates_selected_row_immediately()
     {
-        var settings = new AppSettings();
-        settings.Current.DemoAxes = 5;
+        var settings = new MachineProfile { DemoAxes = 5 };
         using var service = new DemoGrblService(settings);
         await service.ConnectAsync("demo");
         await service.SendAsync("G0 X1 Y2 Z3 A4 B5");
@@ -113,7 +112,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public async Task Set_all_writes_each_reported_coordinate_system()
     {
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
         vm.Rows.Single(x => x.Code == "G54").SetValueAt(0, "12.5");
@@ -131,7 +130,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public async Task Editor_rows_are_restricted_to_g10_writable_systems()
     {
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
 
@@ -146,7 +145,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public async Task Rows_update_live_when_engine_publishes_new_snapshot()
     {
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
         var row = vm.Rows.Single(x => x.Code == "G54");
@@ -226,7 +225,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public async Task Save_tool_table_writes_only_changed_tools()
     {
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
 
@@ -253,7 +252,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public async Task Save_tool_table_reports_nothing_to_save_when_unchanged()
     {
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
 
@@ -267,7 +266,7 @@ public sealed class OffsetsViewModelTests
     public async Task Show_tool_table_preference_persists()
     {
         var settings = MakeSettings();
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, settings);
 
@@ -303,7 +302,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public async Task Demo_shows_tool_table_section_when_enabled()
     {
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
 
@@ -376,8 +375,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public async Task Five_axis_editor_has_exactly_five_axes_and_offset_names()
     {
-        var settings = new AppSettings();
-        settings.Current.DemoAxes = 5;
+        var settings = new MachineProfile { DemoAxes = 5 };
         using var service = new DemoGrblService(settings);
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
@@ -391,7 +389,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public async Task Selection_follows_the_active_tool()
     {
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
 
@@ -404,7 +402,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public async Task Selection_is_not_yanked_from_a_dirty_tool()
     {
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
         await service.SendAsync("T2");
@@ -419,7 +417,7 @@ public sealed class OffsetsViewModelTests
     public async Task Tool_names_are_local_metadata_and_persist()
     {
         var settings = MakeSettings();
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, settings);
 
@@ -443,7 +441,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public async Task Touch_off_copies_machine_position_into_the_tool()
     {
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
         var t1 = vm.Tools.Single(t => t.Id == 1);
@@ -464,7 +462,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public async Task Touch_off_rejects_the_none_slot_and_keeps_values()
     {
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
         var t1 = vm.Tools.Single(t => t.Id == 1);
@@ -511,7 +509,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public async Task Clear_tools_zeroes_every_row_in_the_editor()
     {
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
 
@@ -535,7 +533,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public async Task Clear_all_offsets_uses_plain_zero()
     {
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         await service.ConnectAsync("demo");
         var vm = new OffsetsViewModel(service, MakeSettings());
         vm.Rows.Single(x => x.Code == "G54").SetValueAt(0, "12.5");
@@ -559,7 +557,7 @@ public sealed class OffsetsViewModelTests
     [Fact]
     public void Selector_preselects_the_first_numbered_tool_at_boot()
     {
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         var vm = new OffsetsViewModel(service, MakeSettings());
 
         Assert.Equal(1, vm.SelectedToolId);
@@ -568,33 +566,30 @@ public sealed class OffsetsViewModelTests
     }
 
     [Fact]
-    public void Visible_tools_is_a_per_mode_setting_that_rebuilds_rows()
+    public void Visible_tools_is_a_profile_setting_that_rebuilds_rows()
     {
         var settings = MakeSettings();
-        using var service = new DemoGrblService(new AppSettings());
+        using var service = new DemoGrblService(new MachineProfile());
         var vm = new OffsetsViewModel(service, settings);
         // Demo controller has 4 tool slots, so the default 8 is clamped to 4.
         Assert.Equal([1, 2, 3, 4], vm.Tools.Select(t => t.Id));
         Assert.Equal(8, vm.VisibleTools);
 
-        // Editing the mode-aware setting (App Settings -> Offsets) rebuilds the grid.
+        // Editing the setting (App Settings -> Offsets) rebuilds the grid.
         var app = settings.Load();
-        app.Current.VisibleTools = 3;
+        app.VisibleTools = 3;
         settings.Save(app);
         Assert.Equal([1, 2, 3], vm.Tools.Select(t => t.Id));
         Assert.Equal(3, vm.VisibleTools);
 
-        // Foam keeps its own value (demo still clamps to its 4 slots).
-        app = settings.Load();
-        app.Mode = AppSettings.FoamMode;
-        app.Current.VisibleTools = 2;
+        // Lowering further updates again (demo still clamps to its 4 slots).
+        app.VisibleTools = 2;
         settings.Save(app);
         Assert.Equal([1, 2], vm.Tools.Select(t => t.Id));
         Assert.Equal(2, vm.VisibleTools);
 
-        // Back to Mill: 3 again, and a fresh VM reads the persisted mode value.
-        app = settings.Load();
-        app.Mode = AppSettings.MillMode;
+        // Growing back to 3: the fresh VM reads the persisted profile value.
+        app.VisibleTools = 3;
         settings.Save(app);
         Assert.Equal([1, 2, 3], vm.Tools.Select(t => t.Id));
         var reloaded = new OffsetsViewModel(service, settings);
@@ -608,7 +603,7 @@ public sealed class OffsetsViewModelTests
         var settings = MakeSettings();
         // User asks for 64 slots (grblHAL's compile-time max), but the controller
         // only has 32 — the grid renders 32 rows, never more.
-        settings.Load().Current.VisibleTools = 64;
+        settings.Load().VisibleTools = 64;
         settings.Save(settings.Load());
         var grbl = new ToolGrblStub("c1", axisCount: 3, capsTools: 32);
         var vm = new OffsetsViewModel(grbl, settings);
@@ -619,7 +614,7 @@ public sealed class OffsetsViewModelTests
         Assert.Equal(32, vm.Tools[^1].Id);
 
         // 0 hides the grid entirely.
-        settings.Load().Current.VisibleTools = 0;
+        settings.Load().VisibleTools = 0;
         settings.Save(settings.Load());
         var hidden = new OffsetsViewModel(grbl, settings);
         Assert.Empty(hidden.Tools);
@@ -698,7 +693,7 @@ public sealed class OffsetsViewModelTests
 
         // App Settings -> Offsets: "Visible tools" 8 -> 4.
         var app = settings.Load();
-        app.Current.VisibleTools = 4;
+        app.VisibleTools = 4;
         settings.Save(app);
 
         // Grid rebuilt to 4 rows — and T1 keeps its board value AND its name.
@@ -711,7 +706,7 @@ public sealed class OffsetsViewModelTests
 
         // Growing the count back rebuilds again and still shows the data.
         app = settings.Load();
-        app.Current.VisibleTools = 6;
+        app.VisibleTools = 6;
         settings.Save(app);
         Assert.Equal(6, vm.Tools.Count);
         Assert.Equal("12.5", vm.Tools.Single(t => t.Id == 1).Cells[0].Value);

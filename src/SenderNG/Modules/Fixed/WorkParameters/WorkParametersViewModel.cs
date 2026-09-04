@@ -231,7 +231,7 @@ public sealed class WorkParametersViewModel : ViewModelBase
             ? _grbl.Capabilities.NumTools : snapshotCount;
         if (_settingsService is null)
             return controllerTools;
-        return Math.Min(Math.Clamp(_settingsService.Load().Current.VisibleTools, 0, 64), controllerTools);
+        return Math.Min(Math.Clamp(_settingsService.Load().VisibleTools, 0, 64), controllerTools);
     }
 
     /// <summary>Names are editor-local metadata saved by the Offsets editor, and

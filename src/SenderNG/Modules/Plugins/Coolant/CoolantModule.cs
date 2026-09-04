@@ -52,7 +52,6 @@ public class CoolantModule : IModule
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<CoolantViewModel>();
 
-    public void RegisterSettings(AppSettings settings) { }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<CoolantViewModel>();

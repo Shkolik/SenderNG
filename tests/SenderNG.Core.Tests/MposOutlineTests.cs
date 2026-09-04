@@ -62,12 +62,7 @@ public class MachineStateTests
 
 public class DemoGrblServiceMachinePositionTests
 {
-    private static AppSettings SettingsFor(int demoAxes)
-    {
-        var s = new AppSettings();
-        s.Current.DemoAxes = demoAxes;
-        return s;
-    }
+    private static MachineProfile SettingsFor(int demoAxes) => new() { DemoAxes = demoAxes };
 
     [Fact]
     public async Task Absolute_move_tracks_machine_position_with_zero_offset()

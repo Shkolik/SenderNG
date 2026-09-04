@@ -77,6 +77,20 @@ public class OutlineViewModel : ViewModelBase
             OnPropertyChanged(nameof(HasProgramLimits));
             (GoCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         };
+
+        // The feed rate is a per-profile module setting: follow profile switches
+        // so the cached value never lingers from the previously active machine.
+        _settings.Changed += OnSettingsChanged;
+    }
+
+    private void OnSettingsChanged()
+    {
+        var value = ReadFeedRate(_settings);
+        if (value != _feedRate)
+        {
+            _feedRate = value;
+            OnPropertyChanged(nameof(FeedRate));
+        }
     }
 
     public DelegateCommand GoCommand { get; }
@@ -141,7 +155,7 @@ public class OutlineViewModel : ViewModelBase
     {
         var value = DefaultFeedRate;
         var app = settings.Load();
-        if (app.Modules.TryGetValue(OutlineModule.SettingsSection, out var raw) &&
+        if (app.ModuleSettings.TryGetValue(OutlineModule.SettingsSection, out var raw) &&
             raw is Dictionary<string, object> section &&
             section.TryGetValue(OutlineModule.FeedRateKey, out var stored) &&
             stored is double d && d > 0)
@@ -154,11 +168,11 @@ public class OutlineViewModel : ViewModelBase
     private void SaveFeedRate(int value)
     {
         var app = _settings.Load();
-        if (!app.Modules.TryGetValue(OutlineModule.SettingsSection, out var raw) ||
+        if (!app.ModuleSettings.TryGetValue(OutlineModule.SettingsSection, out var raw) ||
             raw is not Dictionary<string, object> section)
         {
             section = new Dictionary<string, object>();
-            app.Modules[OutlineModule.SettingsSection] = section;
+            app.ModuleSettings[OutlineModule.SettingsSection] = section;
         }
         section[OutlineModule.FeedRateKey] = (double)value;
         _settings.Save(app);

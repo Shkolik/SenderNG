@@ -73,7 +73,8 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
 {
     private const int AutoRefreshIntervalMs = 1000;
 
-    private readonly AppSettings _settings;
+    private readonly MachineProfile _profile;
+    private readonly GlobalSettings _global;
     private readonly IComPortService? _ports;
     private readonly System.Action<System.Action>? _ui;
     private readonly LocalizationService? _localization;
@@ -90,11 +91,13 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
     /// Optional marshaller that runs an action on the UI thread. When absent
     /// (e.g. unit tests, headless) the auto-refresh applies directly.
     /// </param>
-    public ConnectViewModel(AppSettings settings, IComPortService? comPorts = null, System.Action<System.Action>? ui = null,
-        LocalizationService? localization = null)
+    public ConnectViewModel(MachineProfile profile, GlobalSettings global, IComPortService? comPorts = null,
+        System.Action<System.Action>? ui = null, LocalizationService? localization = null)
     {
-        ArgumentNullException.ThrowIfNull(settings);
-        _settings = settings;
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(global);
+        _profile = profile;
+        _global = global;
         _ports = comPorts;
         _ui = ui;
         _localization = localization ?? LocalizationService.Current;
@@ -106,19 +109,19 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
             new(ConnectResetMode.ToggleRts, Resolve("connect.reset.rts", "Toggle RTS")),
         ];
 
-        // Pre-fill from the last *successful* connection (global settings),
-        // falling back to the legacy mode-scoped values, then the standard rate.
-        var savedBaud = settings.LastSerialBaudRate > 0 ? settings.LastSerialBaudRate : settings.Current.BaudRate;
+        // Pre-fill from the profile's last *successful* connection, falling back
+        // to its preferred port/baud, then the standard rate.
+        var savedBaud = _profile.Connection.LastSerialBaudRate > 0
+            ? _profile.Connection.LastSerialBaudRate
+            : _profile.Connection.SerialBaudRate;
         _baudRate = BaudRates.Contains(savedBaud) ? savedBaud : 115200;
-        _networkEndpoint = !string.IsNullOrWhiteSpace(settings.LastNetworkEndpoint)
-            ? settings.LastNetworkEndpoint
-            : string.IsNullOrWhiteSpace(settings.NetworkEndpoint)
-                ? "192.168.1.100:23"
-                : settings.NetworkEndpoint;
+        _networkEndpoint = !string.IsNullOrWhiteSpace(_profile.Connection.LastNetworkEndpoint)
+            ? _profile.Connection.LastNetworkEndpoint
+            : "192.168.1.100:23";
 
         // Restore the persisted On-connect reset action (default: No action).
         _resetMode = ResetModeOptions.FirstOrDefault(
-            r => r.Mode == settings.SerialResetMode, ResetModeOptions[0]).Mode;
+            r => r.Mode == _profile.Connection.SerialResetMode, ResetModeOptions[0]).Mode;
 
         ConnectCommand = new DelegateCommand(_ => Connect(), _ => CanConnect);
         CancelCommand = new DelegateCommand(_ => RequestClose(false));
@@ -221,7 +224,7 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
     public bool SerialEnabled => HasPorts;
 
     /// <summary>Network tab is only available when the global settings say network connectivity is available.</summary>
-    public bool NetworkEnabled => _settings.NetworkAvailable;
+    public bool NetworkEnabled => _global.NetworkAvailable;
 
     private string Resolve(string key, string fallback) =>
         _localization is null ? fallback : _localization.Resolve(key, fallback);
@@ -308,12 +311,12 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
 
         var names = ports.Select(p => p.Name).ToArray();
         // Prefer the current selection, then the last successful port, then the
-        // legacy mode-scoped port. With nothing persisted, pick the first real
+        // profile's preferred port. With nothing persisted, pick the first real
         // (USB/PCI) port over phantom/Bluetooth entries so first-run doesn't
         // default to a virtual port, falling back to any enumerated port.
         SelectedPort = names.Contains(previous) ? previous
-            : names.Contains(_settings.LastSerialPort) ? _settings.LastSerialPort
-            : names.Contains(_settings.Current.Port) ? _settings.Current.Port
+            : names.Contains(_profile.Connection.LastSerialPort) ? _profile.Connection.LastSerialPort
+            : names.Contains(_profile.Connection.SerialPort) ? _profile.Connection.SerialPort
             : (ports.FirstOrDefault(p => p.Preferred)?.Name ?? names.FirstOrDefault()) ?? string.Empty;
 
         OnPropertyChanged(nameof(HasPorts));

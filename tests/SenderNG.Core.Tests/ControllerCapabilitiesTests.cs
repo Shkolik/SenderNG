@@ -228,7 +228,7 @@ public class ControllerCapabilitiesDemoAndProxyTests
     [Fact]
     public void DemoGrblService_reports_full_capabilities()
     {
-        using var demo = new DemoGrblService(new AppSettings());
+        using var demo = new DemoGrblService(new MachineProfile());
         Assert.True(demo.Capabilities.IsKnown);
         Assert.True(demo.Capabilities.CoolantMist);
         Assert.True(demo.Capabilities.CoolantFlood);
@@ -237,7 +237,7 @@ public class ControllerCapabilitiesDemoAndProxyTests
     [Fact]
     public void GrblServiceProxy_forwards_capabilities_from_inner()
     {
-        var inner = new DemoGrblService(new AppSettings());
+        var inner = new DemoGrblService(new MachineProfile());
         var proxy = new GrblServiceProxy(inner);
         Assert.Same(inner.Capabilities, proxy.Capabilities);
     }

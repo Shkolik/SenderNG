@@ -85,14 +85,6 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule
         services.AddSingleton<ProbeViewModel>();
     }
 
-    public void RegisterSettings(AppSettings settings)
-    {
-        var section = EnsureSection(settings);
-        section.TryAdd(ProfilesFileKey, Path.Combine(SettingsService.DefaultDir(), "probing.json"));
-        if (!section.ContainsKey(EnabledToolsKey))
-            section[EnabledToolsKey] = ToolKeys.ToDictionary(k => k, _ => true);
-    }
-
     // Enabled-tool checkboxes appear in the App Settings dialog; the profiles
     // file path is persisted alongside but is not user-editable there.
     public IEnumerable<ModuleSettingBool> GetBoolSettingFields()
@@ -126,12 +118,12 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule
         _settingsService = services.GetService<SettingsService>();
     }
 
-    private static Dictionary<string, object> EnsureSection(AppSettings settings)
+    private static Dictionary<string, object> EnsureSection(MachineProfile settings)
     {
-        if (settings.Modules.TryGetValue("Probing", out var raw) && raw is Dictionary<string, object> dict)
+        if (settings.ModuleSettings.TryGetValue("Probing", out var raw) && raw is Dictionary<string, object> dict)
             return dict;
         dict = new Dictionary<string, object>();
-        settings.Modules["Probing"] = dict;
+        settings.ModuleSettings["Probing"] = dict;
         return dict;
     }
 
@@ -139,7 +131,7 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule
     {
         var result = ToolKeys.ToDictionary(k => k, _ => true);
         var settings = settingsService?.Load();
-        if (settings is null || !settings.Modules.TryGetValue("Probing", out var raw) || raw is not Dictionary<string, object> section)
+        if (settings is null || !settings.ModuleSettings.TryGetValue("Probing", out var raw) || raw is not Dictionary<string, object> section)
             return result;
         if (!section.TryGetValue(EnabledToolsKey, out var rawTools) || rawTools is not Dictionary<string, object> dict)
             return result;

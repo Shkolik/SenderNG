@@ -50,8 +50,7 @@ public sealed class GotoViewModelTests
 
     private static async Task<DemoGrblService> DemoAsync(int demoAxes = 3)
     {
-        var settings = new AppSettings();
-        settings.Current.DemoAxes = demoAxes;
+        var settings = new MachineProfile { DemoAxes = demoAxes };
         var service = new DemoGrblService(settings);
         await service.ConnectAsync("demo");
         return service;
@@ -254,14 +253,14 @@ public sealed class GotoConfigTests
     [Fact]
     public void Load_with_no_section_returns_default()
     {
-        var config = GotoConfigStore.Load(new AppSettings());
+        var config = GotoConfigStore.Load(new MachineProfile());
         Assert.Equal(3, config.AxisCount);
     }
 
     [Fact]
     public void Save_then_load_roundtrips_and_clamps()
     {
-        var settings = new AppSettings();
+        var settings = new MachineProfile();
         GotoConfigStore.Save(settings, new GotoConfig { AxisCount = 4 });
         Assert.Equal(4, GotoConfigStore.Load(settings).AxisCount);
 

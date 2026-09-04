@@ -43,8 +43,8 @@ public sealed class OffsetsConfig : CNC.Core.ViewModelBase
 
     /// <summary>Whether the tool table is shown in the Offsets editor. Hidden on
     /// controllers that can't persist one (classic grbl 1.1 has no G10 L1).
-    /// The visible-tool count is mode-aware and lives in <see cref="ModeSettings"/>
-    /// (App Settings), not here.</summary>
+    /// The visible-tool count is profile-scoped (<see cref="MachineProfile.VisibleTools"/>
+    /// in App Settings), not here.</summary>
     public bool ShowToolTable
     {
         get => _showToolTable;
@@ -71,25 +71,28 @@ public sealed class OffsetsConfig : CNC.Core.ViewModelBase
 }
 
 /// <summary>
-/// Reads/writes the "Offsets" section of <c>AppSettings.Modules</c>:
-/// <c>{ "ShowToolTable": bool }</c>. Global (not mode-aware) like the Goto config —
-/// the tool table is a property of the controller. Handles both the in-memory
-/// Dictionary and the freshly deserialized JsonElement shapes.
+/// Reads/writes the "Offsets" section of a <see cref="MachineProfile"/>'s
+/// ModuleSettings: <c>{ "ShowToolTable": bool, "ToolNames": { controllerKey:
+/// { slot: name } } }</c>. Per profile since the settings split (a toolset
+/// belongs to the machine where it was set up), with the controllerKey
+/// fingerprint still deciding which names apply to the connected controller.
+/// Handles both the in-memory Dictionary and the freshly deserialized
+/// JsonElement shapes.
 /// </summary>
 public static class OffsetsConfigStore
 {
     private const string SectionKey = "Offsets";
 
     /// <summary>Static convenience for controllers that just need the name map
-    /// (e.g. selector labels): loads the Offsets section from the settings graph
+    /// (e.g. selector labels): loads the Offsets section from the profile graph
     /// and returns the names for one controller key (empty when unavailable).</summary>
-    public static Dictionary<int, string> ToolNamesFor(AppSettings settings, string? controllerKey) =>
-        Load(settings).ToolNamesFor(controllerKey ?? "unknown");
+    public static Dictionary<int, string> ToolNamesFor(MachineProfile profile, string? controllerKey) =>
+        Load(profile).ToolNamesFor(controllerKey ?? "unknown");
 
-    public static OffsetsConfig Load(AppSettings settings)
+    public static OffsetsConfig Load(MachineProfile profile)
     {
         var config = new OffsetsConfig();
-        if (settings.Modules.TryGetValue(SectionKey, out var raw) &&
+        if (profile.ModuleSettings.TryGetValue(SectionKey, out var raw) &&
             AsObject(raw) is { } section)
         {
             if (ReadBool(section, "ShowToolTable") is { } show)
@@ -102,16 +105,16 @@ public static class OffsetsConfigStore
         return config;
     }
 
-    public static void Save(AppSettings settings, OffsetsConfig config)
+    public static void Save(MachineProfile profile, OffsetsConfig config)
     {
         Dictionary<string, object?> section;
-        if (settings.Modules.TryGetValue(SectionKey, out var raw) && AsObject(raw) is { } existing)
+        if (profile.ModuleSettings.TryGetValue(SectionKey, out var raw) && AsObject(raw) is { } existing)
             section = existing;
         else
             section = [];
         section["ShowToolTable"] = config.ShowToolTable;
         section["ToolNames"] = config.ToolNames;
-        settings.Modules[SectionKey] = section;
+        profile.ModuleSettings[SectionKey] = section;
     }
 
     private static Dictionary<string, object?>? AsObject(object? value) => value switch

@@ -61,11 +61,6 @@ public class MacroModule : IModule, ILocalizedModule
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<MacroViewModel>();
 
-    public void RegisterSettings(AppSettings settings)
-    {
-        if (!settings.Modules.ContainsKey("Macros"))
-            settings.Modules["Macros"] = new List<object>();
-    }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<MacroViewModel>();

@@ -41,14 +41,9 @@ namespace SenderNG.Core.Tests;
 
 public class DemoMachineSettingsViewModelTests
 {
-    private static AppSettings SettingsWithAxes(int demoAxes, string mode = "Mill")
-    {
-        var s = new AppSettings { Mode = mode };
-        s.Current.DemoAxes = demoAxes;
-        return s;
-    }
+    private static MachineProfile SettingsWithAxes(int demoAxes) => new() { DemoAxes = demoAxes };
 
-    private static AppSettings SettingsWithMode(string mode) => new() { Mode = mode };
+    private static MachineProfile SettingsWithType(string machineType) => new() { MachineTypeId = machineType };
 
     [Theory]
     [InlineData(0, 1)]
@@ -56,33 +51,33 @@ public class DemoMachineSettingsViewModelTests
     [InlineData(15, 9)]
     public void Ok_clamps_NumAxes_to_valid_range(int input, int expected)
     {
-        var settings = new AppSettings();
-        var demo = new DemoGrblService(settings);
-        var vm = new DemoMachineSettingsViewModel(settings, demo) { NumAxes = input };
+        var profile = new MachineProfile();
+        var demo = new DemoGrblService(profile);
+        var vm = new DemoMachineSettingsViewModel(profile, demo) { NumAxes = input };
 
         vm.OkCommand.Execute(null);
 
-        Assert.Equal(expected, settings.Current.DemoAxes);
+        Assert.Equal(expected, profile.DemoAxes);
         Assert.Equal(expected, vm.NumAxes);
     }
 
     [Fact]
     public void Ok_saves_settings_and_applies_to_demo_service()
     {
-        var settings = SettingsWithAxes(3);
-        var demo = new DemoGrblService(settings);
+        var profile = SettingsWithAxes(3);
+        var demo = new DemoGrblService(profile);
         MachineState? received = null;
         using var sub = demo.State.Subscribe(s => received = s);
 
-        var vm = new DemoMachineSettingsViewModel(settings, demo) { NumAxes = 5, IsFoam = true };
+        var vm = new DemoMachineSettingsViewModel(profile, demo) { NumAxes = 5, IsFoam = true };
 
         Assert.True(vm.IsFoam);
         Assert.False(vm.IsMill);
 
         vm.OkCommand.Execute(null);
 
-        Assert.Equal(5, settings.Current.DemoAxes);
-        Assert.Equal("Foam", settings.Mode);
+        Assert.Equal(5, profile.DemoAxes);
+        Assert.Equal("Foam", profile.MachineTypeId);
         Assert.NotNull(received);
         Assert.Equal(5, received.NumAxes);
     }
@@ -90,10 +85,10 @@ public class DemoMachineSettingsViewModelTests
     [Fact]
     public void Ok_invokes_saved_callback()
     {
-        var settings = new AppSettings();
-        var demo = new DemoGrblService(settings);
+        var profile = new MachineProfile();
+        var demo = new DemoGrblService(profile);
         var calls = 0;
-        var vm = new DemoMachineSettingsViewModel(settings, demo, () => calls++);
+        var vm = new DemoMachineSettingsViewModel(profile, demo, () => calls++);
 
         vm.OkCommand.Execute(null);
 
@@ -103,21 +98,21 @@ public class DemoMachineSettingsViewModelTests
     [Fact]
     public void Cancel_does_not_save_or_apply()
     {
-        var settings = SettingsWithAxes(3, "Mill");
-        var demo = new DemoGrblService(settings);
+        var profile = SettingsWithAxes(3);
+        var demo = new DemoGrblService(profile);
         var pushes = 0;
         using var sub = demo.State.Subscribe(_ => pushes++);
         bool? closeResult = null;
-        var vm = new DemoMachineSettingsViewModel(settings, demo, () => throw new InvalidOperationException("callback must not run on cancel"));
+        var vm = new DemoMachineSettingsViewModel(profile, demo, () => throw new InvalidOperationException("callback must not run on cancel"));
         vm.CloseRequested += (_, r) => closeResult = r;
 
         vm.NumAxes = 7;
         vm.IsFoam = true;
         vm.CancelCommand.Execute(null);
 
-        Assert.Equal(3, settings.Current.DemoAxes);
-        Assert.Equal("Mill", settings.Mode);
-        Assert.False(settings.Mode == "Foam");
+        Assert.Equal(3, profile.DemoAxes);
+        Assert.Equal("Mill", profile.MachineTypeId);
+        Assert.False(profile.MachineTypeId == "Foam");
         Assert.Equal(1, pushes);
         Assert.False(closeResult ?? true);
     }
@@ -125,9 +120,9 @@ public class DemoMachineSettingsViewModelTests
     [Fact]
     public void Mode_radios_are_mutually_exclusive()
     {
-        var settings = SettingsWithMode("Mill");
-        var demo = new DemoGrblService(settings);
-        var vm = new DemoMachineSettingsViewModel(settings, demo);
+        var profile = SettingsWithType("Mill");
+        var demo = new DemoGrblService(profile);
+        var vm = new DemoMachineSettingsViewModel(profile, demo);
 
         Assert.True(vm.IsMill);
         Assert.False(vm.IsFoam);

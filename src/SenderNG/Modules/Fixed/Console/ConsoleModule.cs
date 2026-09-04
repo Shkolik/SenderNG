@@ -41,8 +41,15 @@ using SenderNG.Core.Modules;
 
 namespace SenderNG.Modules.Fixed;
 
-public class ConsoleModule : IModule
+public class ConsoleModule : IModule, IModuleSettingsProvider
 {
+    // Console display options (verbose/filter toggles) are app-level — the same
+    // console works the same on every machine — so its section persists in
+    // global.json, not in a profile (ConsoleSettingsStore.Load/Save take
+    // GlobalSettings). The toggles live on the console toolbar, so no fields
+    // are exposed here; the provider exists to declare the scope.
+    public SettingsScope Scope => SettingsScope.Global;
+
     public string Id => "console";
     public string Name => "Console";
     public string Description => "Live G-code console: send commands and watch controller responses.";
@@ -55,7 +62,6 @@ public class ConsoleModule : IModule
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<ConsoleViewModel>();
 
-    public void RegisterSettings(AppSettings settings) { }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<ConsoleViewModel>();

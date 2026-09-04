@@ -61,8 +61,6 @@ public class GotoModule : IModule, IModuleSettingsProvider, ILocalizedModule
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<GotoViewModel>();
 
-    // No seeding needed: GotoConfigStore supplies the default axis count.
-    public void RegisterSettings(AppSettings settings) { }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<GotoViewModel>();

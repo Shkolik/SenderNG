@@ -55,7 +55,6 @@ public class DroModule : IModule
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<DroViewModel>();
 
-    public void RegisterSettings(AppSettings settings) { }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<DroViewModel>();

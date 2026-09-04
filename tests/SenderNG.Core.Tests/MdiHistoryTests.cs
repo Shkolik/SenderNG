@@ -60,7 +60,7 @@ public class MdiHistoryTests
     {
         var settings = MakeSettings();
         var provider = MakeProvider(settings);
-        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, provider);
+        var vm = new MainViewModel(new DemoGrblService(new MachineProfile()), settings, provider);
 
         Assert.Empty(vm.MdiHistory);
         Assert.Equal(string.Empty, vm.MdiInput);
@@ -116,7 +116,7 @@ public class MdiHistoryTests
     {
         var settings = MakeSettings();
         var provider = MakeProvider(settings);
-        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, provider);
+        var vm = new MainViewModel(new DemoGrblService(new MachineProfile()), settings, provider);
         Assert.NotNull(vm.OpenFileCommand);
         Assert.True(vm.OpenFileCommand.CanExecute(null));
     }
@@ -126,7 +126,7 @@ public class MdiHistoryTests
     {
         var settings = MakeSettings();
         var provider = MakeProvider(settings);
-        var vm = new MainViewModel(new DemoGrblService(new AppSettings()), settings, provider);
+        var vm = new MainViewModel(new DemoGrblService(new MachineProfile()), settings, provider);
         Assert.NotNull(vm.CycleStartCommand);
         Assert.NotNull(vm.FeedHoldCommand);
         Assert.NotNull(vm.StopCommand);

@@ -55,7 +55,6 @@ public class ProgramModule : IModule
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<ProgramViewModel>();
 
-    public void RegisterSettings(AppSettings settings) { }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<ProgramViewModel>();

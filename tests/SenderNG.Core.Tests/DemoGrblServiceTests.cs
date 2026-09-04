@@ -41,12 +41,7 @@ namespace SenderNG.Core.Tests;
 
 public class DemoGrblServiceTests
 {
-    private static AppSettings SettingsFor(int demoAxes)
-    {
-        var s = new AppSettings();
-        s.Current.DemoAxes = demoAxes;
-        return s;
-    }
+    private static MachineProfile SettingsFor(int demoAxes) => new() { DemoAxes = demoAxes };
 
     [Fact]
     public async Task Demo_connects_and_returns_state()
@@ -61,14 +56,14 @@ public class DemoGrblServiceTests
     [Fact]
     public void Not_connected_before_connect()
     {
-        var svc = new DemoGrblService(new AppSettings());
+        var svc = new DemoGrblService(new MachineProfile());
         Assert.False(svc.IsConnected);
     }
 
     [Fact]
     public async Task Disconnect_resets_connection()
     {
-        var svc = new DemoGrblService(new AppSettings());
+        var svc = new DemoGrblService(new MachineProfile());
         await svc.ConnectAsync("demo");
         svc.Disconnect();
         Assert.False(svc.IsConnected);
@@ -178,12 +173,7 @@ public class DemoGrblServiceTests
 
 public class DemoGrblServiceG92Tests
 {
-    private static AppSettings SettingsFor(int demoAxes)
-    {
-        var s = new AppSettings();
-        s.Current.DemoAxes = demoAxes;
-        return s;
-    }
+    private static MachineProfile SettingsFor(int demoAxes) => new() { DemoAxes = demoAxes };
 
     [Fact]
     public async Task G92_zeroes_listed_axes_only()
@@ -264,7 +254,7 @@ public class DemoGrblServiceSettingsTests
         var file = Path.Combine(Path.GetTempPath(), "sng-test-" + Guid.NewGuid().ToString("N") + ".txt");
         try
         {
-            var svc = new DemoGrblService(new AppSettings(), file);
+            var svc = new DemoGrblService(new MachineProfile(), file);
             var lines = await svc.GetSettingLinesAsync();
             Assert.Contains("$0=10", lines);
             Assert.Contains("$13=0", lines);
@@ -279,7 +269,7 @@ public class DemoGrblServiceSettingsTests
     [Fact]
     public async Task Send_setting_assignment_updates_store()
     {
-        var svc = new DemoGrblService(new AppSettings());
+        var svc = new DemoGrblService(new MachineProfile());
         await svc.ConnectAsync("demo");
 
         await svc.SendAsync("$13=1");
@@ -292,7 +282,7 @@ public class DemoGrblServiceSettingsTests
     [Fact]
     public async Task Jog_and_motion_unaffected_by_setting_prefix()
     {
-        var svc = new DemoGrblService(new AppSettings());
+        var svc = new DemoGrblService(new MachineProfile());
         await svc.ConnectAsync("demo");
 
         await svc.SendAsync("$J=G91 X5");
@@ -312,14 +302,14 @@ public class DemoGrblServiceSettingsFileTests
         var file = Path.Combine(dir, "grbl-settings-demo.txt");
         try
         {
-            var svc = new DemoGrblService(new AppSettings(), file);
+            var svc = new DemoGrblService(new MachineProfile(), file);
             await svc.ConnectAsync("demo");
             await svc.SendAsync("$13=1");
             await svc.SendAsync("$110=800.000");
 
             Assert.True(File.Exists(file));
 
-            var reloaded = new DemoGrblService(new AppSettings(), file);
+            var reloaded = new DemoGrblService(new MachineProfile(), file);
             var lines = await reloaded.GetSettingLinesAsync();
             Assert.Contains("$13=1", lines);
             Assert.Contains("$110=800.000", lines);
@@ -337,7 +327,7 @@ public class GrblSettingsProxyRoutingTests
     [Fact]
     public async Task Proxy_routes_settings_to_active_inner_service()
     {
-        var demo = new DemoGrblService(new AppSettings());
+        var demo = new DemoGrblService(new MachineProfile());
         IGrblSettingsProvider proxy = new GrblServiceProxy(demo);
 
         var lines = await proxy.GetSettingLinesAsync();
@@ -366,12 +356,7 @@ public class GrblSettingsProxyRoutingTests
 
 public class DemoGrblServiceRealtimeCycleTests
 {
-    private static AppSettings SettingsFor(int demoAxes)
-    {
-        var s = new AppSettings();
-        s.Current.DemoAxes = demoAxes;
-        return s;
-    }
+    private static MachineProfile SettingsFor(int demoAxes) => new() { DemoAxes = demoAxes };
 
     [Fact]
     public async Task Feed_hold_realtime_sets_status_hold()
@@ -428,12 +413,7 @@ public class DemoGrblServiceRealtimeCycleTests
 
 public class DemoGrblServicePollingTests
 {
-    private static AppSettings SettingsFor(int demoAxes)
-    {
-        var s = new AppSettings();
-        s.Current.DemoAxes = demoAxes;
-        return s;
-    }
+    private static MachineProfile SettingsFor(int demoAxes) => new() { DemoAxes = demoAxes };
 
     [Fact]
     public async Task Poll_loop_reemits_state_while_connected()
@@ -475,12 +455,7 @@ public class DemoGrblServicePollingTests
 
 public class DemoGrblServiceStatusCommandTests
 {
-    private static AppSettings SettingsFor(int demoAxes)
-    {
-        var s = new AppSettings();
-        s.Current.DemoAxes = demoAxes;
-        return s;
-    }
+    private static MachineProfile SettingsFor(int demoAxes) => new() { DemoAxes = demoAxes };
 
     [Fact]
     public async Task Send_unlock_and_home_commands_are_accepted()

@@ -148,9 +148,8 @@ public class MainViewModelRecentFilesTests
             Assert.DoesNotContain(Path.Combine(dir, "part1.nc"), vm.RecentFiles);
             Assert.DoesNotContain(Path.Combine(dir, "part2.nc"), vm.RecentFiles);
 
-            // And the persisted copy matches.
-            var reloaded = new SettingsService(dir).Load();
-            Assert.Equal(vm.RecentFiles, reloaded.RecentFiles);
+            // And the persisted copy matches (recent files are app-global).
+            Assert.Equal(vm.RecentFiles, new SettingsService(dir).Global.RecentFiles);
         }
         finally
         {

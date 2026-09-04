@@ -61,7 +61,7 @@ public interface IModule
     /// <summary>Preferred panel where the module's UI should be hosted.</summary>
     PanelHint Panel => PanelHint.Center;
 
-    /// <summary>Whether the module is visible by default (overridable via AppSettings.ModulesVisibility).</summary>
+    /// <summary>Whether the module is visible by default (overridable via the profile's Modules map).</summary>
     bool IsVisibleByDefault => true;
 
     /// <summary>Whether the user may hide this module. Fixed layout modules (DRO, Program, Console, Jog) cannot.</summary>
@@ -73,8 +73,6 @@ public interface IModule
     /// <summary>Registers module-provided services into the shared DI container.</summary>
     void RegisterServices(IServiceCollection services);
 
-    /// <summary>Loads/initializes module settings from the shared application settings.</summary>
-    void RegisterSettings(AppSettings settings);
 
     /// <summary>Creates the module's view model. UI-agnostic (returns object).</summary>
     object CreateViewModel(IServiceProvider serviceProvider);

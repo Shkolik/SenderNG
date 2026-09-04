@@ -52,7 +52,6 @@ public class MposModule : IModule
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<MposViewModel>();
 
-    public void RegisterSettings(AppSettings settings) { }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<MposViewModel>();

@@ -1,4 +1,3 @@
-
 /*
 
 Copyright (c) 2026 Andrew Shkolik
@@ -32,58 +31,63 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-using System;
-using System.IO;
 using CNC.Core.Services;
-using Xunit;
 
 namespace SenderNG.Core.Tests;
 
 public class SettingsServiceTests
 {
+    private static string TempDir() =>
+        Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+
     [Fact]
     public void Load_creates_default_when_missing()
     {
-        var s = new SettingsService(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()));
+        var s = new SettingsService(TempDir());
         var a = s.Load();
         Assert.NotNull(a);
-        Assert.Equal(3, a.Current.DemoAxes);
+        Assert.Equal(MachineProfile.DefaultId, a.Id);
+        Assert.Equal(3, a.DemoAxes);
     }
 
     [Fact]
-    public void Save_persists_portable()
+    public void Save_persists_profile_file()
     {
-        var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var tmp = TempDir();
         Directory.CreateDirectory(tmp);
         var svc = new SettingsService(tmp);
-        var a = new AppSettings();
-        a.Current.DemoAxes = 5;
+        var a = svc.Load();
+        a.DemoAxes = 5;
         svc.Save(a);
-        Assert.True(File.Exists(Path.Combine(tmp, "settings.json")));
+        // The legacy flat settings.json is superseded by profiles/<id>.json.
+        Assert.False(File.Exists(Path.Combine(tmp, "settings.json")));
+        Assert.True(File.Exists(Path.Combine(tmp, "profiles", a.Id + ".json")));
     }
 
     [Fact]
     public void Load_roundtrips_saved_settings()
     {
-        var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var tmp = TempDir();
         Directory.CreateDirectory(tmp);
         var svc = new SettingsService(tmp);
-        var saved = new AppSettings { Mode = "Foam" };
-        saved.Current.DemoAxes = 4;
-        saved.Current.Port = "COM9";
-        saved.Current.BaudRate = 250000;
+        var saved = svc.Load();
+        saved.MachineTypeId = MachineTypes.Foam;
+        saved.DemoAxes = 4;
+        saved.Connection.SerialPort = "COM9";
+        saved.Connection.SerialBaudRate = 250000;
         svc.Save(saved);
-        var loaded = svc.Load();
-        Assert.Equal("Foam", loaded.Mode);
-        Assert.Equal(4, loaded.Current.DemoAxes);
-        Assert.Equal("COM9", loaded.Current.Port);
-        Assert.Equal(250000, loaded.Current.BaudRate);
+
+        var loaded = new SettingsService(tmp).Load();
+        Assert.Equal(MachineTypes.Foam, loaded.MachineTypeId);
+        Assert.Equal(4, loaded.DemoAxes);
+        Assert.Equal("COM9", loaded.Connection.SerialPort);
+        Assert.Equal(250000, loaded.Connection.SerialBaudRate);
     }
 
     [Fact]
     public void Load_returns_cached_instance_so_all_consumers_share_one_graph()
     {
-        var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var tmp = TempDir();
         Directory.CreateDirectory(tmp);
         var svc = new SettingsService(tmp);
 
@@ -96,13 +100,12 @@ public class SettingsServiceTests
     [Fact]
     public void Save_updates_the_cached_instance()
     {
-        var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var tmp = TempDir();
         Directory.CreateDirectory(tmp);
         var svc = new SettingsService(tmp);
 
         var cached = svc.Load();
-        var replacement = new AppSettings();
-        replacement.Current.DemoAxes = 5;
+        var replacement = new MachineProfile { DemoAxes = 5 };
         svc.Save(replacement);
 
         Assert.Same(replacement, svc.Load());

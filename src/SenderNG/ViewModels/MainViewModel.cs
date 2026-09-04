@@ -157,12 +157,12 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         // Seed dynamic signals from initial state (DemoAxes) so UI shows X0 Y0 without connecting
         // Use settings DemoAxes as fallback; live State subscription will correct it immediately if BehaviourSubject replays
-        var seedAxes = _settingsService.Load().Current.DemoAxes;
+        var seedAxes = _settingsService.Load().DemoAxes;
         seedAxes = Math.Clamp(seedAxes, 1, CNC.Core.GrblInfo.AxisLetters.Length);
         RebuildSignalStrip(seedAxes, _grbl.Capabilities.OptionalSignals);
 
-        // Recent files persist across sessions via settings.json.
-        foreach (var f in _settingsService.Load().RecentFiles)
+        // Recent files persist across sessions via global.json.
+        foreach (var f in _settingsService.Global.RecentFiles)
             if (!string.IsNullOrWhiteSpace(f))
                 RecentFiles.Add(f);
 
@@ -203,8 +203,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         ResetCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.Reset, "Reset"));
         MdiHistoryPrevCommand = new DelegateCommand(_ => MdiHistoryPrev());
         MdiHistoryNextCommand = new DelegateCommand(_ => MdiHistoryNext());
-        // placeholder Help/Settings delegates keep Status
-        MachineSettingsCommand = new DelegateCommand(_ => Status = LocText.Resolve("app.msg.machineSettingsPh", "Machine settings (placeholder)"));
+        // The Machine settings menu entry opens App Settings on the Profiles leaf.
+        MachineSettingsCommand = new DelegateCommand(_ => _ = ShowAppSettingsAsync(profiles: true));
         DemoMachineSettingsCommand = new DelegateCommand(_ => _ = ShowDemoMachineSettingsAsync());
         OpenMenuModuleCommand = new DelegateCommand(p => _ = OpenMenuModuleAsync(p as IModule));
         AboutCommand = new DelegateCommand(_ => _ = ShowAboutAsync());
@@ -258,7 +258,22 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         // Status-bar values track live settings (jog step) and program state changes.
         _settingsService.Changed += OnSettingsChanged;
+        // A machine swap invalidates the loaded program (different geometry ⇒
+        // limits/jog semantics differ), so MainViewModel clears it on switch.
+        _settingsService.ProfileSwitched += OnProfileSwitched;
         OnPropertyChanged(nameof(StatusBarJogStep));
+    }
+
+    private void OnProfileSwitched(string profileId)
+    {
+        UiThread.Post(() =>
+        {
+            _program?.ClearProgram();
+            HasProgramLimits = false;
+            CurrentFileName = null;
+            Status = LocText.Format("app.msg.profileSwitched", "Profile switched: {0}", profileId);
+            OnSettingsChanged();
+        });
     }
 
     public SettingsService SettingsService { get; }
@@ -416,7 +431,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     public ObservableCollection<IModule> Modules { get; } = new();
 
     public bool IsModuleVisible(IModule m) =>
-        _settingsService.Load().Current.ModulesVisibility.TryGetValue(m.Id, out var v) ? v : m.IsVisibleByDefault;
+        _settingsService.Load().Modules.TryGetValue(m.Id, out var v) ? v : m.IsVisibleByDefault;
 
     public IEnumerable<NamedModule> LeftModules =>
         Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Left).OrderBy(m => m.Order)
@@ -599,6 +614,37 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     public ICommand SelectRecentCommand { get; }
 
+    /// <summary>Opens the App Settings dialog, optionally on the Profiles leaf
+    /// (Machine settings menu entry). Profile switching is gated while the
+    /// controller is connected or a session is running.</summary>
+    private async Task ShowAppSettingsAsync(bool profiles)
+    {
+        if (_dialogs is null)
+        {
+            Status = LocText.Resolve("app.msg.settingsNoDialog", "App settings: no dialog service available");
+            return;
+        }
+        var module = Modules.FirstOrDefault(m => m.Id == "app-settings");
+        if (module is null)
+        {
+            Status = LocText.Resolve("app.msg.settingsMissing", "App settings module not found");
+            return;
+        }
+        var viewModel = module.CreateViewModel(_services);
+        ApplySettingsDialogGuards(viewModel);
+        if (viewModel is CNC.Core.ViewModels.AppSettingsViewModel settingsVm)
+            settingsVm.PreselectProfiles = profiles;
+        await _dialogs.ShowDialogAsync(module.Name, viewModel, module.DialogPreferredSize);
+    }
+
+    /// <summary>Profile switching is nonsense mid-session: the dialog's switch
+    /// guard blocks it while connected or running.</summary>
+    private void ApplySettingsDialogGuards(object viewModel)
+    {
+        if (viewModel is CNC.Core.ViewModels.AppSettingsViewModel settingsVm)
+            settingsVm.ProfileSwitchAllowed = () => !IsConnected && !SessionActive;
+    }
+
     private async Task ShowAboutAsync()
     {
         var window = new Views.AboutView { DataContext = new AboutViewModel() };
@@ -642,6 +688,10 @@ public class MainViewModel : ViewModelBase, IDisposable
     private async Task ActivateDemoAsync()
     {
         var demo = _services.GetRequiredService<DemoGrblService>();
+        // The demo singleton captured the profile at construction; re-read the
+        // axes of the now-active profile on every activation (a machine swap
+        // must not leave the demo simulating the old one).
+        demo.SetNumAxes(_settingsService.Load().DemoAxes);
         SwapInner(demo);
         IsDemo = true;
         if (!demo.IsConnected)
@@ -739,12 +789,12 @@ public class MainViewModel : ViewModelBase, IDisposable
 
             RecentFiles.Remove(path);
             RecentFiles.Insert(0, path);
-            const int MaxRecentFiles = 10;
-            while (RecentFiles.Count > MaxRecentFiles)
+            var maxRecent = Math.Max(1, _settingsService.Global.MaxRecentFiles);
+            while (RecentFiles.Count > maxRecent)
                 RecentFiles.RemoveAt(RecentFiles.Count - 1);
-            var appSettings = _settingsService.Load();
-            appSettings.RecentFiles = [.. RecentFiles];
-            _settingsService.Save(appSettings);
+            var global = _settingsService.Global;
+            global.RecentFiles = [.. RecentFiles];
+            _settingsService.SaveGlobal(global);
             Status = LocText.Format("app.msg.loaded", "Loaded {0} ({1} lines)", Path.GetFileName(path), program.ProgramRows.Count);
         }
         catch (Exception ex)
@@ -783,7 +833,9 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
         try
         {
-            await _dialogs.ShowDialogAsync(module.Name, module.CreateViewModel(_services), module.DialogPreferredSize);
+            var viewModel = module.CreateViewModel(_services);
+            ApplySettingsDialogGuards(viewModel);
+            await _dialogs.ShowDialogAsync(module.Name, viewModel, module.DialogPreferredSize);
         }
         catch (Exception ex)
         {
@@ -921,6 +973,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         if (_localization is not null)
             _localization.Changed -= OnLocaleChanged;
         _settingsService.Changed -= OnSettingsChanged;
+        _settingsService.ProfileSwitched -= OnProfileSwitched;
     }
 
     private void OnModulesChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -1122,12 +1175,12 @@ public class MainViewModel : ViewModelBase, IDisposable
         // to the persisted port (no auto/first-port magic - that moved into ConnectViewModel).
         if (_dialogs is null)
         {
-            await ConnectToAsync(_settingsService.Load().Current.Port);
+            await ConnectToAsync(_settingsService.Load().Connection.SerialPort);
             return;
         }
 
-        var settings = _settingsService.Load();
-        var vm = new CNC.Core.ViewModels.ConnectViewModel(settings, _comPorts, UiThread.Post);
+        var profile = _settingsService.Load();
+        var vm = new CNC.Core.ViewModels.ConnectViewModel(profile, _settingsService.Global, _comPorts, UiThread.Post);
         // No fixed size: the dialog grows/shrinks with its tab content.
         var result = await _dialogs.ShowDialogAsync("Connect", vm);
         if (result != true)
@@ -1196,23 +1249,23 @@ public class MainViewModel : ViewModelBase, IDisposable
         IsDemo = ResolveInner(Grbl) is DemoGrblService;
         Status = LocText.Format("app.msg.connectedToPort", "Connected: {0}", port);
 
-        // Only a *successful* connection is persisted (global, per connect mode)
-        // so the connect dialog re-opens pre-filled with values that worked.
+        // Only a *successful* connection is persisted (profile tier, per connect
+        // mode) so the connect dialog re-opens pre-filled with values that worked.
         try
         {
-            var app = _settingsService.Load();
+            var profile = _settingsService.Load();
             if (ReferenceEquals(ResolveInner(Grbl), _networkService))
             {
-                app.LastNetworkEndpoint = port;
+                profile.Connection.LastNetworkEndpoint = port;
             }
             else
             {
-                app.LastSerialPort = port;
+                profile.Connection.LastSerialPort = port;
                 if (baud is not null)
-                    app.LastSerialBaudRate = baud.Value;
-                app.SerialResetMode = resetMode;
+                    profile.Connection.LastSerialBaudRate = baud.Value;
+                profile.Connection.SerialResetMode = resetMode;
             }
-            _settingsService.Save(app);
+            _settingsService.Save(profile);
         }
         catch
         {

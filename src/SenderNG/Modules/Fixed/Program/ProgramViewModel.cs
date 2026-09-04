@@ -167,6 +167,22 @@ public class ProgramViewModel : ViewModelBase
         RowsChanged?.Invoke();
     }
 
+    /// <summary>Unloads the loaded program (rows, limits, loaded text) — used
+    /// when the active machine profile changes, since a different geometry
+    /// invalidates limits and jog semantics.</summary>
+    public void ClearProgram()
+    {
+        _program = null;
+        LoadedText = null;
+        ProgramRows.Clear();
+        LimitRows.Clear();
+        SendableCount = 0;
+        OnPropertyChanged(nameof(HasLimits));
+        OnPropertyChanged(nameof(SendableCount));
+        OnPropertyChanged(nameof(ProgressText));
+        RowsChanged?.Invoke();
+    }
+
     private void RefreshLimits()
     {
         LimitRows.Clear();

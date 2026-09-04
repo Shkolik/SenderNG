@@ -122,7 +122,7 @@ public class ProbeViewModelTests : IDisposable
         // App Settings -> Offsets: "Visible tools" 8 -> 2 propagates here (the
         // picker must NOT keep listing all firmware slots).
         var app = _settings.Load();
-        app.Current.VisibleTools = 2;
+        app.VisibleTools = 2;
         _settings.Save(app);
 
         Assert.Equal([0, 1, 2], vm.ToolChoices.Select(t => t.Id));
@@ -137,7 +137,7 @@ public class ProbeViewModelTests : IDisposable
 
         // 0 hides every slot — only "None" remains selectable.
         app = _settings.Load();
-        app.Current.VisibleTools = 0;
+        app.VisibleTools = 0;
         _settings.Save(app);
         Assert.Equal([0], vm.ToolChoices.Select(t => t.Id));
         vm.SelectedToolNumber = 1;
@@ -243,16 +243,12 @@ public class ProbeViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task Profiles_file_path_comes_from_module_settings()
+    public async Task Profiles_file_derives_from_the_profile_id()
     {
-        var customPath = Path.Combine(_dir, "custom-probing.json");
+        // The legacy ProfilesFile override key is gone after the settings split:
+        // the companion path derives from the active profile id.
         var settings = _settings.Load();
-        settings.Modules["Probing"] = new Dictionary<string, object>
-        {
-            ["ProfilesFile"] = customPath,
-            ["EnabledTools"] = new Dictionary<string, object>(),
-        };
-        _settings.Save(settings);
+        var expectedPath = ProfileSettingsPaths.ProbeCompanionPath(_settings.SettingsDir, settings.Id);
 
         var demo = new DemoGrblService(settings);
         var vm = new ProbeViewModel(demo, _settings);
@@ -260,7 +256,7 @@ public class ProbeViewModelTests : IDisposable
         vm.NewProfileName = "custom";
         vm.ProfileAddCommand.Execute(null);
 
-        Assert.True(File.Exists(customPath));
+        Assert.True(File.Exists(expectedPath));
         Assert.Equal(2, new ProbeViewModel(demo, _settings).Profiles.Count);
     }
 

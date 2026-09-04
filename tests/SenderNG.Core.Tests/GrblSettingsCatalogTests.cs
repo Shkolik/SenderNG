@@ -372,7 +372,6 @@ public class LocalizationServiceTests
         public bool CanHide => true;
         public IReadOnlyList<HotKey> HotKeys => [];
         public void RegisterServices(IServiceCollection services) { }
-        public void RegisterSettings(AppSettings settings) { }
         public object CreateViewModel(IServiceProvider sp) => new object();
         public object CreateView(object vm) => new object();
     }
@@ -383,7 +382,7 @@ public class DemoCatalogRoundTripTests
     [Fact]
     public async Task Demo_serves_es_lines_that_parse_back_to_the_catalog()
     {
-        var service = new DemoGrblService(new AppSettings(), localization: TestLocalization.Locale);
+        var service = new DemoGrblService(new MachineProfile(), localization: TestLocalization.Locale);
         var lines = await service.GetSettingDetailLinesAsync();
 
         Assert.Equal(96, lines.Count);
@@ -397,7 +396,7 @@ public class DemoCatalogRoundTripTests
     [Fact]
     public async Task Demo_serves_eg_lines_that_parse_back_to_the_group_tree()
     {
-        var service = new DemoGrblService(new AppSettings(), localization: TestLocalization.Locale);
+        var service = new DemoGrblService(new MachineProfile(), localization: TestLocalization.Locale);
         var lines = await service.GetSettingGroupLinesAsync();
 
         Assert.Equal(18, lines.Count);
@@ -410,7 +409,7 @@ public class DemoCatalogRoundTripTests
     [Fact]
     public async Task Demo_serves_sed_description_with_literal_newline_escapes()
     {
-        var service = new DemoGrblService(new AppSettings(), localization: TestLocalization.Locale);
+        var service = new DemoGrblService(new MachineProfile(), localization: TestLocalization.Locale);
         var line = await service.GetSettingDescriptionAsync(100);
 
         Assert.NotNull(line);
@@ -424,7 +423,7 @@ public class DemoCatalogRoundTripTests
     [Fact]
     public async Task Demo_serves_null_for_unknown_setting_description()
     {
-        var service = new DemoGrblService(new AppSettings(), localization: TestLocalization.Locale);
+        var service = new DemoGrblService(new MachineProfile(), localization: TestLocalization.Locale);
         Assert.Null(await service.GetSettingDescriptionAsync(999_999));
     }
 }

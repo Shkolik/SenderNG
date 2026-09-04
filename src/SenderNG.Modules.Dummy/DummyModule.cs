@@ -69,10 +69,10 @@ public class DummyModule : IModule, ILocalizedModule
 
     public void RegisterServices(IServiceCollection services) { }
 
-    public void RegisterSettings(AppSettings settings)
+    public void RegisterSettings(MachineProfile settings)
     {
-        if (!settings.Modules.ContainsKey("Dummy"))
-            settings.Modules["Dummy"] = new List<object>();
+        if (!settings.ModuleSettings.ContainsKey("Dummy"))
+            settings.ModuleSettings["Dummy"] = new List<object>();
     }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
