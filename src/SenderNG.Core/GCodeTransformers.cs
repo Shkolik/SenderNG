@@ -48,6 +48,189 @@ namespace CNC.GCode;
 public static class GCodeTransformers
 {
     /// <summary>
+    /// Replaces G2/G3 arcs and G5/G5.1 splines with G1 polyline chains — a
+    /// faithful port of ioSender's ArcsToLines transformer. An emulator
+    /// pre-pass (the same <see cref="GCodeEmulator"/> run the limits calculator
+    /// uses) provides the TRUE per-motion start position and modal state at each
+    /// arc/spline token, so chains are correct even when the program starts with
+    /// a curve, accumulates G91 deltas, or changes planes mid-file. Point
+    /// generation reuses the engine's own tolerance-driven math
+    /// (<see cref="GCArc.GeneratePoints"/>, <see cref="GCSpline.GeneratePoints"/>).
+    /// G90 output is absolute; G91 output is deltas (the plan's explicit
+    /// requirement). Non-motion words sharing the curve's block (feed, spindle,
+    /// …) are hoisted ahead of the chain so the feed is in effect for the first
+    /// segment. Everything else passes through untouched.
+    /// </summary>
+    /// <param name="tokens">Engine token stream (caller-owned, never mutated).</param>
+    /// <param name="tolerance">Chord error in mm (or points-per-circle when &gt; 1 —
+    /// the engine's resolution convention); clamped to ≥ 0.001.</param>
+    /// <param name="decimals">Coordinate rounding precision (use <see cref="GCodeProgram.Decimals"/>).</param>
+    /// <param name="startX">Current position X — where curve chains start if the program
+    /// begins with a curve (the emulator is seeded with it).</param>
+    /// <param name="startY">Current position Y.</param>
+    /// <param name="startZ">Current position Z.</param>
+    public static List<string> ArcsToLines(
+        IReadOnlyList<GCodeToken> tokens,
+        double tolerance = 0.1d,
+        int decimals = 3,
+        double startX = 0d, double startY = 0d, double startZ = 0d)
+    {
+        if (tolerance < 0.001d)
+            tolerance = 0.001d;
+
+        // Pass 1: emulator — true start position + modal state per curve token
+        // (keyed by token reference; the emulator yields the original token for
+        // G2/G3/G5/G5.1, exactly like the limits calculator consumes it).
+        var curveInfo = new Dictionary<GCodeToken, CurveInfo>();
+        var emu = new GCodeEmulator(true);
+        emu.SetStartPosition(new Point3D(startX, startY, startZ));
+        foreach (var cmd in emu.Execute([.. tokens]))
+        {
+            if (cmd.Token is GCArc or GCCubicSpline or GCQuadraticSpline)
+                curveInfo[cmd.Token] = new CurveInfo(cmd.Start, emu.Plane,
+                    emu.DistanceMode == DistanceMode.Incremental);
+        }
+
+        var toolPath = new List<GCodeToken>
+        {
+            new GCComment(Commands.Comment, 0, "Arcs to lines transform applied"),
+        };
+
+        // Expanded lines get synthetic line numbers (far above any real file
+        // line) so the serializer keeps each G1 on its own block — merging them
+        // would make the controller run only the last G1. The parse gate
+        // renumbers the result anyway.
+        uint nextLnr = 0x40000000u;
+
+        for (var i = 0; i < tokens.Count; i++)
+        {
+            var token = tokens[i];
+            switch (token.Command)
+            {
+                case Commands.G2:
+                case Commands.G3:
+                case Commands.G5:
+                case Commands.G5_1:
+                    {
+                        // Hoist same-block non-motion words (F/S/M…) ahead of the
+                        // chain: the feed must be in effect for the first G1.
+                        // The parser allows only one motion per block, so every
+                        // same-line token following the curve is a word token.
+                        while (i + 1 < tokens.Count && tokens[i + 1].LineNumber == token.LineNumber)
+                            toolPath.Add(tokens[++i]);
+
+                        if (!curveInfo.TryGetValue(token, out var info))
+                        {
+                            toolPath.Add(token); // defensive: emulator did not yield it — keep the curve
+                            break;
+                        }
+
+                        // GeneratePoints MUTATES the start array it is given (it
+                        // walks the arc through it), so `prev` must be an
+                        // independent copy of the true start position.
+                        var start = new double[] { info.Start.X, info.Start.Y, info.Start.Z };
+                        var trueStart = new double[] { info.Start.X, info.Start.Y, info.Start.Z };
+                        var points = token switch
+                        {
+                            GCArc arc => arc.GeneratePoints(info.Plane, start, tolerance, info.Incremental),
+                            GCCubicSpline cubic => SplinePoints(cubic, start, tolerance, info.Incremental),
+                            GCQuadraticSpline quad => SplinePoints(quad, start, tolerance, info.Incremental),
+                            _ => throw new InvalidOperationException("Unexpected curve token."),
+                        };
+
+                        // The token classes HIDE ToString() with "new", so string
+                        // interpolation (which dispatches virtually) would print the
+                        // type name — call ToString() explicitly to get the words.
+                        var label = token switch
+                        {
+                            GCArc arc => "Arc to lines start: " + arc.ToString(),
+                            GCCubicSpline cubic => "Spline to lines start: " + cubic.ToString(),
+                            GCQuadraticSpline quad => "Spline to lines start: " + quad.ToString(),
+                            _ => "Curve to lines start",
+                        };
+                        toolPath.Add(new GCComment(Commands.Comment, nextLnr++, label));
+
+                        var prev = trueStart;
+                        foreach (var point in points)
+                        {
+                            var values = new double[] { point.X, point.Y, point.Z };
+
+                            if (info.Incremental)
+                            {
+                                // G91: emit deltas between consecutive points; the
+                                // first point equals the start — a zero no-op, skip.
+                                for (var a = 0; a < 3; a++)
+                                    values[a] = NormalizeZero(Math.Round(values[a] - prev[a], decimals));
+                                prev = new double[] { point.X, point.Y, point.Z };
+                                if (values[0] == 0d && values[1] == 0d && values[2] == 0d)
+                                    continue;
+
+                                var flags = AxisFlags.None;
+                                if (values[0] != 0d) flags |= AxisFlags.X;
+                                if (values[1] != 0d) flags |= AxisFlags.Y;
+                                if (values[2] != 0d) flags |= AxisFlags.Z;
+                                toolPath.Add(new GCLinearMotion(Commands.G1, nextLnr++, values, flags));
+                            }
+                            else
+                            {
+                                for (var a = 0; a < 3; a++)
+                                    values[a] = NormalizeZero(Math.Round(values[a], decimals));
+                                toolPath.Add(new GCLinearMotion(Commands.G1, nextLnr++, values, AxisFlags.XYZ));
+                            }
+                        }
+
+                        if (token.Command is Commands.G5 or Commands.G5_1)
+                            toolPath.Add(new GCComment(Commands.Comment, nextLnr++, "Spline to lines end"));
+                    }
+                    break;
+
+                default:
+                    toolPath.Add(token);
+                    break;
+            }
+        }
+
+        return GCodeParser.TokensToGCode(toolPath);
+    }
+
+    /// <summary>True start position + modal state of a curve, captured by the emulator pre-pass.</summary>
+    private readonly record struct CurveInfo(Point3D Start, GCPlane Plane, bool Incremental);
+
+    /// <summary>
+    /// Bezier control points and endpoint resolved to the work frame (the token's
+    /// raw X/Y/Z words are deltas in G91), then the engine's adaptive
+    /// tolerance-driven point generator.
+    /// </summary>
+    private static List<Point3D> SplinePoints(GCCubicSpline spline, double[] start, double tolerance, bool incremental)
+    {
+        var end = new double[] { spline.X, spline.Y, spline.Z };
+        if (incremental)
+            for (var a = 0; a < 3; a++)
+                end[a] += start[a];
+
+        var first = new Point(start[0] + spline.I, start[1] + spline.J);
+        var second = new Point(end[0] + spline.P, end[1] + spline.Q);
+
+        return GCSpline.GeneratePoints(start, first, second, end, tolerance);
+    }
+
+    private static List<Point3D> SplinePoints(GCQuadraticSpline spline, double[] start, double tolerance, bool incremental)
+    {
+        var end = new double[] { spline.X, spline.Y, spline.Z };
+        if (incremental)
+            for (var a = 0; a < 3; a++)
+                end[a] += start[a];
+
+        // Quadratic→cubic conversion (the engine's own formulas, control point 1
+        // at 2/3 of the I/J offset from start, control point 2 mirrored from end).
+        var first = new Point(start[0] + spline.I * 2d / 3d, start[1] + spline.J * 2d / 3d);
+        var second = new Point(end[0] + (start[0] + spline.I - end[0]) * 2d / 3d,
+            end[1] + (start[1] + spline.J - end[1]) * 2d / 3d);
+
+        return GCSpline.GeneratePoints(start, first, second, end, tolerance);
+    }
+
+    /// <summary>
     /// Rotates X/Y geometry of motion tokens by <paramref name="angleRadians"/>
     /// around (originX, originY) — a faithful port of ioSender's GCodeRotate
     /// v0.47. Coverage mirrors upstream: G0/G1 endpoints (G53 machine-coordinate
