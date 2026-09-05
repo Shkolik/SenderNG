@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Collections.ObjectModel;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using CNC.GCode;
 using SenderNG.Localization;
 using SenderNG.Modules.Fixed;
 using SenderNG.ViewModels;
@@ -862,12 +863,12 @@ public class ProbeViewModel : ViewModelBase
 
         var p1 = Pos.From(result.Positions[^2]);
         var p2 = Pos.From(result.Positions[^1]);
-        var angle = ProbeMath.ComputeRotationAngle(ProbeEdge, p1, p2);
-        _probedAngle = angle;
+        var angle = ProbeMath.ComputeRotationRadians(ProbeEdge, p1, p2);
+        _probedAngleRadians = angle;
         LastResult = LocText.Format("module.probing.probedAngle", "Probed angle: {0}°", ProbeMath.ToDegrees(angle));
     }
 
-    private double _probedAngle;
+    private double _probedAngleRadians;
 
     private async Task RunHeightMapAsync(ProbeProgramBuilder builder, Pos start)
     {
@@ -996,6 +997,106 @@ public class ProbeViewModel : ViewModelBase
         }
     }
 
+    // ------------------------------------------------------- rotation origin
+
+    public IReadOnlyList<string> RotationOriginNames { get; } =
+    [
+        LocText.Resolve("module.probing.origin.none", "0, 0"),
+        LocText.Resolve("module.probing.origin.a", "Corner A"),
+        LocText.Resolve("module.probing.origin.b", "Corner B"),
+        LocText.Resolve("module.probing.origin.c", "Corner C"),
+        LocText.Resolve("module.probing.origin.d", "Corner D"),
+        LocText.Resolve("module.probing.origin.center", "Center"),
+        LocText.Resolve("module.probing.origin.ab", "Edge AB"),
+        LocText.Resolve("module.probing.origin.ad", "Edge AD"),
+        LocText.Resolve("module.probing.origin.cb", "Edge CB"),
+        LocText.Resolve("module.probing.origin.cd", "Edge CD"),
+        LocText.Resolve("module.probing.origin.current", "Current position"),
+    ];
+
+    private RotationOrigin _rotationOrigin;
+    public RotationOrigin RotationOrigin
+    {
+        get => _rotationOrigin;
+        set => SetField(ref _rotationOrigin, value);
+    }
+
+    /// <summary>ComboBox anchor for <see cref="RotationOrigin"/> (order must
+    /// match <see cref="RotationOriginNames"/>).</summary>
+    public int RotationOriginIndex
+    {
+        get => (int)RotationOrigin;
+        set => RotationOrigin = (RotationOrigin)Math.Clamp(value, 0, (int)RotationOrigin.CurrentPos);
+    }
+
+    /// <summary>Rotation pivot coordinates for the selected origin — resolved
+    /// at apply time from the loaded program's limits (ioSender's
+    /// <c>apply_Click</c> shape) or the current DRO position.</summary>
+    private (double X, double Y) ResolveRotationOrigin(ProgramViewModel program)
+    {
+        var minX = 0d; var minY = 0d; var maxX = 0d; var maxY = 0d;
+        foreach (var row in program.LimitRows)
+        {
+            switch (row.Letter)
+            {
+                case "X": minX = row.Min; maxX = row.Max; break;
+                case "Y": minY = row.Min; maxY = row.Max; break;
+            }
+        }
+        var centerX = (minX + maxX) / 2d;
+        var centerY = (minY + maxY) / 2d;
+        return RotationOrigin switch
+        {
+            RotationOrigin.A => (minX, minY),
+            RotationOrigin.B => (maxX, minY),
+            RotationOrigin.C => (maxX, maxY),
+            RotationOrigin.D => (minX, maxY),
+            RotationOrigin.Center => (centerX, centerY),
+            RotationOrigin.AB => (centerX, minY),
+            RotationOrigin.AD => (minX, centerY),
+            RotationOrigin.CB => (maxX, centerY),
+            RotationOrigin.CD => (centerX, maxY),
+            RotationOrigin.CurrentPos => CurrentDro(),
+            _ => (0d, 0d),
+        };
+    }
+
+    private (double X, double Y) CurrentDro()
+    {
+        var state = LatestState();
+        if (state is null)
+            return (0d, 0d);
+        var pos = Pos.From(state.Positions);
+        return (pos.X, pos.Y);
+    }
+
+    /// <summary>Loads a transform result through the same engine gate as
+    /// File → Transform (parse → check errors → transform → re-parse → check
+    /// errors → load): a transformed program that would fail while sending is
+    /// never loaded.</summary>
+    private bool LoadTransformedProgram(ProgramViewModel program, string sourceText,
+        Func<GCodeProgram, List<string>> transform, out string error)
+    {
+        var parsed = GCodeProgram.Parse(sourceText);
+        if (parsed.HasErrors)
+        {
+            error = string.Join(Environment.NewLine, parsed.Errors);
+            return false;
+        }
+
+        var resultText = string.Join("\n", transform(parsed));
+        var result = GCodeProgram.Parse(resultText);
+        if (result.HasErrors)
+        {
+            error = string.Join(Environment.NewLine, result.Errors);
+            return false;
+        }
+
+        program.LoadProgram(result, resultText);
+        error = string.Empty;
+        return true;
+    }
+
     private void ApplyHeightMapToProgram()
     {
         if (HeightMapData is null || _services is not { } services)
@@ -1010,14 +1111,28 @@ public class ProbeViewModel : ViewModelBase
             return;
         }
 
-        var transformed = ProgramTransform.ApplyHeightMap(program.LoadedText, HeightMapData);
-        program.LoadGCode(transformed);
-        LastResult = LocText.Resolve("module.probing.heightMapApplied", "Height map applied to program");
+        try
+        {
+            var segmentLength = Math.Min(HeightMapData.GridX, HeightMapData.GridY);
+            if (!LoadTransformedProgram(program, program.LoadedText,
+                    p => GCodeTransformers.ApplyHeightMap(p.Tokens,
+                        (x, y) => HeightMapData.InterpolateZ(x, y), segmentLength, p.Decimals),
+                    out var error))
+            {
+                LastResult = LocText.Format("module.probing.heightMapApplyFailed", "Height map apply failed: {0}", error);
+                return;
+            }
+            LastResult = LocText.Resolve("module.probing.heightMapApplied", "Height map applied to program");
+        }
+        catch (Exception ex)
+        {
+            LastResult = LocText.Format("module.probing.heightMapApplyFailed", "Height map apply failed: {0}", ex.Message);
+        }
     }
 
     private void ApplyRotationToProgram()
     {
-        if (Math.Abs(_probedAngle) < 0.0001 || _services is not { } services)
+        if (Math.Abs(_probedAngleRadians) < 0.0001 || _services is not { } services)
         {
             LastResult = LocText.Resolve("module.probing.probeAngleFirst", "Probe an edge angle first");
             return;
@@ -1029,9 +1144,22 @@ public class ProbeViewModel : ViewModelBase
             return;
         }
 
-        var transformed = ProgramTransform.Rotate(program.LoadedText, _probedAngle, 0, 0);
-        program.LoadGCode(transformed);
-        LastResult = LocText.Resolve("module.probing.programRotated", "Program rotated");
+        try
+        {
+            var (originX, originY) = ResolveRotationOrigin(program);
+            if (!LoadTransformedProgram(program, program.LoadedText,
+                    p => GCodeTransformers.Rotate(p.Tokens, _probedAngleRadians, originX, originY, p.Decimals),
+                    out var error))
+            {
+                LastResult = LocText.Format("module.probing.rotationApplyFailed", "Rotation failed: {0}", error);
+                return;
+            }
+            LastResult = LocText.Resolve("module.probing.programRotated", "Program rotated");
+        }
+        catch (Exception ex)
+        {
+            LastResult = LocText.Format("module.probing.rotationApplyFailed", "Rotation failed: {0}", ex.Message);
+        }
     }
 
     // ----------------------------------------------------------------- helpers

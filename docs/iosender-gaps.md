@@ -281,11 +281,14 @@ Many already exist; the gaps are listed per widget.
       (tool table entry), drives which probe the generated program uses.
 - [ ] **Preview of generated probe program** before running (program is
       available via `ProbeProgramBuilder.Lines`).
-- [ ] **Height-map apply completeness** — line-based `ApplyHeightMap` currently
-      skips G91/incremental programs and arc Z correction (see probing-gaps.md
-      #5).
-- [ ] **Rotation apply origin** — `ProgramTransform.Rotate` always uses (0,0);
-      ioSender lets you pick a program-limit corner (probing-gaps.md #6).
+- [x] **Height-map apply completeness** — rebuilt on the token machinery
+      (`GCodeTransformers.ApplyHeightMap`, 2026-09-05): feeds split at the
+      map grid spacing, arcs split into sub-arcs with helix Z, G91 supported
+      (see probing-gaps.md #5).
+- [x] **Rotation apply origin** — token-level `GCodeTransformers.Rotate` with
+      the in-panel origin selector (program-limits corners / center / edge
+      midpoints / DRO / 0,0), probed slope converted with Atan (2026-09-05,
+      probing-gaps.md #6).
 
 ## Priority 3 — Steppers calibration
 
@@ -320,10 +323,11 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
       tokenize, see `docs/plans/2026-09-04-gcode-transforms.md`).
       **Remaining:** Wrap = rotary mapping (X/Y → A/B, diameter,
       Z0-at-center) with **G93 inverse-time feed switching** for combined
-      moves — deferred until machine presets land — and the probing
-      migration: height-map apply / rotation rebuilt at this token level
-      (instead of the line-based rewriting) closes the documented
-      G91/arc-Z and rotation-origin limitations at the same time.
+      moves — deferred until machine presets land. Probing migration
+      **LANDED (2026-09-05)**: height-map apply and rotation rebuilt at this
+      token level (instead of the line-based rewriting), closing the
+      documented G91/arc-Z and rotation-origin limitations — see
+      `docs/plans/2026-09-04-gcode-transforms.md` M4.
 - [x] **Localization** — ioSender ships 9 locales; SenderNG ships an en/ru
       JSON catalog with per-plugin overrides and live switching — see
       `docs/localization.md`; more locales are catalog-only work.

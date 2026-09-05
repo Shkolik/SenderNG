@@ -59,6 +59,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             </Grid>
         </StackPanel>
 
+        <!-- Rotation pivot (ioSender's OriginControl surface): corners /
+             center / edge midpoints of the loaded program's limits, the
+             current DRO position, or (0,0). Coordinates resolve at apply time. -->
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="{loc:Loc module.probing.rotationOrigin}" FontSize="11"
+                       VerticalAlignment="Center" />
+            <ComboBox ItemsSource="{Binding RotationOriginNames}"
+                      SelectedIndex="{Binding RotationOriginIndex}"
+                      MinWidth="150" Height="26" FontSize="11"
+                      HorizontalAlignment="Left" />
+        </StackPanel>
+
         <Button Content="{loc:Loc module.probing.applyRotation}" Command="{Binding RotationApplyCommand}"
                 HorizontalAlignment="Left" Padding="12,6" Height="30" MinHeight="30"
                 CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1"

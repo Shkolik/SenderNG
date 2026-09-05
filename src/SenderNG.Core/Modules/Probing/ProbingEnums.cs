@@ -97,3 +97,34 @@ public enum CoordinateSystem
     G58 = 5,
     G59 = 6,
 }
+
+/// <summary>
+/// Rotation-apply pivot, ioSender's OriginControl surface: program-limits
+/// corners/edges/center, the current DRO position, or (0, 0). Coordinates
+/// resolve at apply time from the loaded program's limits.
+/// </summary>
+public enum RotationOrigin
+{
+    /// <summary>(0, 0).</summary>
+    None = 0,
+    /// <summary>Program-limits corner A (min X, min Y).</summary>
+    A,
+    /// <summary>Program-limits corner B (max X, min Y).</summary>
+    B,
+    /// <summary>Program-limits corner C (max X, max Y).</summary>
+    C,
+    /// <summary>Program-limits corner D (min X, max Y).</summary>
+    D,
+    /// <summary>Program-limits center.</summary>
+    Center,
+    /// <summary>Top-edge midpoint (center X, min Y).</summary>
+    AB,
+    /// <summary>Left-edge midpoint (min X, center Y).</summary>
+    AD,
+    /// <summary>Right-edge midpoint (max X, center Y).</summary>
+    CB,
+    /// <summary>Bottom-edge midpoint (center X, max Y).</summary>
+    CD,
+    /// <summary>The current DRO (work) position.</summary>
+    CurrentPos,
+}

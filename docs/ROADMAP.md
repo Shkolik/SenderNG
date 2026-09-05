@@ -136,10 +136,12 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   Rotate, ArcsToLines and Compress are in Core (`GCodeTransformers`,
   26 tests) behind the File → Transform menu (dialogs, profile-scoped
   compress comment setting, en/ru — see `docs/plans/2026-09-04-gcode-transforms.md`).
-  **Remaining:** probing migration — height-map apply and rotation rebuilt
-  on the token machinery (replacing the line-based `ProgramTransform`,
-  closing the documented G91/arc-Z and rotation-origin limits) — and Wrap,
-  deferred until the machine physical-configuration presets land.
+  **Remaining:** Wrap — deferred until the machine physical-configuration
+  presets land. Probing migration **LANDED (2026-09-05)**: height-map apply
+  and rotation rebuilt on the token machinery (the line-based
+  `ProgramTransform` is deleted), closing the documented G91/arc-Z and
+  rotation-origin limits (origin picker included) — see
+  `docs/plans/2026-09-04-gcode-transforms.md` M4.
 - **Icon & pictogram asset pass (SVG)** — a design deliverable that must land
   before Probing is closed. Three sets, drawn by hand as SVG sources:
   1. **Toolbar / run-control icons** — replace the hand-drawn inline `Path`

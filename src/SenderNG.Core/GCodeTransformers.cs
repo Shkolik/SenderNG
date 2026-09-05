@@ -469,6 +469,289 @@ public static class GCodeTransformers
         return GCodeParser.TokensToGCode(toolPath);
     }
 
+    /// <summary>
+    /// Applies a Z-height correction surface to the tool path: every feed
+    /// move's Z is adjusted by the interpolated surface height at the move's
+    /// XY. Feeds are split at <paramref name="segmentLength"/> (the map's grid
+    /// spacing) so the corrected path follows the surface; rapids are
+    /// corrected once at their endpoint (upstream parity). XY-plane G2/G3
+    /// arcs are split into sub-arcs (they stay G2/G3 — geometry beyond Z is
+    /// unchanged) with per-segment Z (helix + surface) and recomputed I/J
+    /// (IJK mode) or the original R (radius mode); non-G17 arcs are refused.
+    /// G90 output is absolute; G91 output is deltas (upstream emits absolute
+    /// targets in G91 — broken on a controller). G53 machine-coordinate moves
+    /// pass through untouched — the surface is defined in work coordinates.
+    /// A port of the OpenCNCPilot-derived height-map apply in ioSender's CNC
+    /// Controls Probing (<c>GCodeTransform.ApplyHeightMap</c>).
+    /// </summary>
+    /// <param name="tokens">Engine token stream (caller-owned, never mutated).</param>
+    /// <param name="interpolateZ">Surface height at (x, y) — e.g.
+    /// <see cref="SenderNG.Core.Modules.Probing.HeightMap.InterpolateZ"/>.</param>
+    /// <param name="segmentLength">Split spacing for feeds (the map's min grid
+    /// spacing); ≤ 0 disables splitting.</param>
+    /// <param name="decimals">Coordinate rounding precision (use <see cref="GCodeProgram.Decimals"/>).</param>
+    /// <param name="startX">Current position X — where relative (G91) accumulation starts.</param>
+    /// <param name="startY">Current position Y.</param>
+    /// <param name="startZ">Current position Z.</param>
+    /// <exception cref="InvalidOperationException">An arc outside the G17 (XY)
+    /// plane — refused exactly like upstream.</exception>
+    public static List<string> ApplyHeightMap(
+        IReadOnlyList<GCodeToken> tokens,
+        Func<double, double, double> interpolateZ,
+        double segmentLength,
+        int decimals = 3,
+        double startX = 0d, double startY = 0d, double startZ = 0d)
+    {
+        // G53 is its own token (GCAbsLinearMotion, Command == G53) and falls
+        // through the default pass-through below — machine-coordinate moves
+        // are never corrected, the surface lives in work coordinates.
+        var plane = new GCPlane(Commands.G17, 0);
+        var distanceMode = DistanceMode.Absolute;
+        var pos = new double[] { startX, startY, startZ };
+        var toolPath = new List<GCodeToken>
+        {
+            new GCComment(Commands.Comment, 0, "Height map applied"),
+        };
+
+        // Expanded lines get synthetic line numbers (far above any real file
+        // line) so the serializer keeps each segment on its own block. The
+        // parse gate renumbers the result anyway.
+        uint nextLnr = 0x40000000u;
+
+        for (var i = 0; i < tokens.Count; i++)
+        {
+            var token = tokens[i];
+            switch (token.Command)
+            {
+                case Commands.G0:
+                case Commands.G1:
+                    {
+                        var motion = (GCLinearMotion)token;
+
+                        // Hoist same-block non-motion words (F/S/M…) ahead of
+                        // the segments: the feed must be in effect for the
+                        // first segment (ArcsToLines precedent — the segments
+                        // carry synthetic line numbers, so the serializer can
+                        // not group the words with them).
+                        var blockWords = new List<GCodeToken>();
+                        while (i + 1 < tokens.Count && tokens[i + 1].LineNumber == token.LineNumber)
+                            blockWords.Add(tokens[++i]);
+
+                        if (motion.AxisFlags == AxisFlags.None)
+                        {
+                            toolPath.Add(motion);
+                            toolPath.AddRange(blockWords);
+                            break;
+                        }
+                        toolPath.AddRange(blockWords);
+
+                        var isRelative = distanceMode == DistanceMode.Incremental;
+                        var end = ToAbsolute(pos, motion.Values, isRelative);
+
+                        // Feeds split at the surface grid spacing (upstream
+                        // parity); rapids are corrected once at the endpoint.
+                        var divisions = 1;
+                        if (token.Command == Commands.G1 && segmentLength > 0d)
+                        {
+                            var dx = end[0] - pos[0];
+                            var dy = end[1] - pos[1];
+                            var dz = end[2] - pos[2];
+                            var length = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+                            divisions = Math.Max(1, (int)Math.Ceiling(length / segmentLength));
+                        }
+
+                        var prevAbs = pos;
+                        for (var s = 1; s <= divisions; s++)
+                        {
+                            var ratio = (double)s / divisions;
+                            var segEnd = new double[]
+                            {
+                                pos[0] + (end[0] - pos[0]) * ratio,
+                                pos[1] + (end[1] - pos[1]) * ratio,
+                                pos[2] + (end[2] - pos[2]) * ratio,
+                            };
+
+                            if (isRelative)
+                            {
+                                // G91: deltas between consecutive segment ends.
+                                var delta = new double[]
+                                {
+                                    NormalizeZero(Math.Round(segEnd[0] - prevAbs[0], decimals)),
+                                    NormalizeZero(Math.Round(segEnd[1] - prevAbs[1], decimals)),
+                                    NormalizeZero(Math.Round(segEnd[2] + interpolateZ(segEnd[0], segEnd[1]) - prevAbs[2], decimals)),
+                                };
+                                if (delta[0] == 0d && delta[1] == 0d && delta[2] == 0d)
+                                {
+                                    prevAbs = segEnd;
+                                    continue;
+                                }
+                                var flags = AxisFlags.None;
+                                if (delta[0] != 0d) flags |= AxisFlags.X;
+                                if (delta[1] != 0d) flags |= AxisFlags.Y;
+                                if (delta[2] != 0d) flags |= AxisFlags.Z;
+                                toolPath.Add(new GCLinearMotion(motion.Command, nextLnr++, delta, flags));
+                            }
+                            else
+                            {
+                                var target = new double[]
+                                {
+                                    NormalizeZero(Math.Round(segEnd[0], decimals)),
+                                    NormalizeZero(Math.Round(segEnd[1], decimals)),
+                                    NormalizeZero(Math.Round(segEnd[2] + interpolateZ(segEnd[0], segEnd[1]), decimals)),
+                                };
+                                // Upstream parity: original flags + Z — every
+                                // segment re-states its corrected Z.
+                                toolPath.Add(new GCLinearMotion(motion.Command, nextLnr++, target,
+                                    motion.AxisFlags | AxisFlags.Z));
+                            }
+                            prevAbs = segEnd;
+                        }
+
+                        pos = end;
+                    }
+                    break;
+
+                case Commands.G2:
+                case Commands.G3:
+                    {
+                        var arc = (GCArc)token;
+                        if (plane.Plane != Plane.XY)
+                            throw new InvalidOperationException(
+                                "Height-map apply is not supported for arcs outside the G17 (XY) plane.");
+
+                        // Hoist same-block non-motion words (F/S/M…) ahead of
+                        // the sub-arcs — the feed must be in effect for the
+                        // first segment (ArcsToLines precedent).
+                        while (i + 1 < tokens.Count && tokens[i + 1].LineNumber == token.LineNumber)
+                            toolPath.Add(tokens[++i]);
+
+                        var isRelative = distanceMode == DistanceMode.Incremental;
+                        var start = (double[])pos.Clone();
+                        var center = arc.GetCenter(plane, start, isRelative);
+                        var end = ToAbsolute(pos, arc.Values, isRelative);
+
+                        // Segment endpoints from the engine's arc machinery
+                        // (full circles, P repeats, helix Z, IJK and R modes);
+                        // 0.01 mm chord stepping is far below any grid spacing.
+                        var fine = arc.GeneratePoints(plane, (double[])pos.Clone(), 0.01d, isRelative);
+
+                        // Greedy merge into sub-arcs of <= segmentLength chord.
+                        var segments = new List<(Point3D From, Point3D To)>();
+                        if (segmentLength > 0d && fine.Count >= 2)
+                        {
+                            var segStart = fine[0];
+                            var acc = 0d;
+                            for (var k = 1; k < fine.Count; k++)
+                            {
+                                var dx = fine[k].X - fine[k - 1].X;
+                                var dy = fine[k].Y - fine[k - 1].Y;
+                                acc += Math.Sqrt(dx * dx + dy * dy);
+                                if (acc >= segmentLength || k == fine.Count - 1)
+                                {
+                                    segments.Add((segStart, fine[k]));
+                                    segStart = fine[k];
+                                    acc = 0d;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Degenerate arc (no generated points) or splitting
+                            // disabled: single sub-arc, endpoint corrected.
+                            segments.Add((new Point3D(pos[0], pos[1], pos[2]),
+                                new Point3D(end[0], end[1], end[2])));
+                        }
+
+                        var prevAbs = new double[] { pos[0], pos[1], pos[2] };
+                        Point3D? lastTarget = null;
+                        foreach (var (from, to) in segments)
+                        {
+                            var targetAbs = new double[]
+                            {
+                                NormalizeZero(Math.Round(to.X, decimals)),
+                                NormalizeZero(Math.Round(to.Y, decimals)),
+                                NormalizeZero(Math.Round(to.Z + interpolateZ(to.X, to.Y), decimals)),
+                            };
+
+                            // I/J per sub-arc start: center − start (incremental
+                            // IJK) or the absolute center (G90.1); radius-mode
+                            // sub-arcs keep the original R.
+                            double[] ijk;
+                            if (arc.IsRadiusMode)
+                                ijk = [double.NaN, double.NaN, double.NaN];
+                            else if (arc.IJKMode == IJKMode.Incremental)
+                                ijk = [center[0] - from.X, center[1] - from.Y, 0d];
+                            else
+                                ijk = [center[0], center[1], 0d];
+                            for (var a = 0; a < 3; a++)
+                                ijk[a] = NormalizeZero(Math.Round(ijk[a], decimals));
+                            var ijkFlags = arc.IsRadiusMode
+                                ? IJKFlags.None
+                                : (arc.IjkFlags | IJKFlags.I | IJKFlags.J);
+
+                            if (isRelative)
+                            {
+                                // G91: deltas between consecutive sub-arc ends.
+                                var delta = new double[]
+                                {
+                                    NormalizeZero(Math.Round(to.X - prevAbs[0], decimals)),
+                                    NormalizeZero(Math.Round(to.Y - prevAbs[1], decimals)),
+                                    NormalizeZero(Math.Round(to.Z + interpolateZ(to.X, to.Y) - prevAbs[2], decimals)),
+                                };
+                                prevAbs = new double[] { to.X, to.Y, to.Z };
+                                if (delta[0] == 0d && delta[1] == 0d && delta[2] == 0d)
+                                    continue;
+                                var flags = AxisFlags.None;
+                                if (delta[0] != 0d) flags |= AxisFlags.X;
+                                if (delta[1] != 0d) flags |= AxisFlags.Y;
+                                if (delta[2] != 0d) flags |= AxisFlags.Z;
+                                toolPath.Add(new GCArc(arc.Command, nextLnr++, delta, flags,
+                                    ijk, ijkFlags, arc.R, 0, arc.IJKMode));
+                            }
+                            else
+                            {
+                                var flags = AxisFlags.XYZ;
+                                if (lastTarget is { } lt)
+                                {
+                                    if (targetAbs[0] == lt.X) flags &= ~AxisFlags.X;
+                                    if (targetAbs[1] == lt.Y) flags &= ~AxisFlags.Y;
+                                    if (targetAbs[2] == lt.Z) flags &= ~AxisFlags.Z;
+                                }
+                                lastTarget = new Point3D(targetAbs[0], targetAbs[1], targetAbs[2]);
+                                toolPath.Add(new GCArc(arc.Command, nextLnr++, targetAbs, flags,
+                                    ijk, ijkFlags, arc.R, 0, arc.IJKMode));
+                            }
+                        }
+
+                        pos = end;
+                    }
+                    break;
+
+                case Commands.G17:
+                case Commands.G18:
+                case Commands.G19:
+                    if (token is GCPlane p)
+                        plane = p;
+                    toolPath.Add(token);
+                    break;
+
+                case Commands.G90:
+                case Commands.G91:
+                    distanceMode = token is GCDistanceMode dm
+                        ? dm.DistanceMode
+                        : (token.Command == Commands.G91 ? DistanceMode.Incremental : DistanceMode.Absolute);
+                    toolPath.Add(token);
+                    break;
+
+                default:
+                    toolPath.Add(token);
+                    break;
+            }
+        }
+
+        return GCodeParser.TokensToGCode(toolPath);
+    }
+
     /// <summary>Absolute endpoint of a move: (pos + delta) when relative, else the raw word values.</summary>
     private static double[] ToAbsolute(double[] pos, double[] values, bool isRelative)
     {

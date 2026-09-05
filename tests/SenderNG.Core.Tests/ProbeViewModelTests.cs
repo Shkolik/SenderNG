@@ -32,8 +32,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Reflection;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using Microsoft.Extensions.DependencyInjection;
+using SenderNG.Modules.Fixed;
 using SenderNG.Modules.Plugins;
 using SenderNG.Core.Modules.Probing;
 using Xunit;
@@ -275,6 +278,100 @@ public class ProbeViewModelTests : IDisposable
         // table / Work Parameters widgets update immediately on a real board
         // (the demo is already live, so the publish happens via the G10 L1 path).
         Assert.Equal(1, recording.RefreshCalls);
+    }
+
+    // --------------------------------------------------- apply: height map + rotation
+
+    [Fact]
+    public async Task Height_map_apply_runs_the_real_probe_then_transforms_the_program()
+    {
+        var demo = await ConnectDemoAsync();
+        var services = new ServiceCollection()
+            .AddSingleton<IGrblService>(demo)
+            .AddSingleton<ProgramViewModel>()
+            .BuildServiceProvider();
+        var vm = new ProbeViewModel(demo, _settings, services);
+        var program = services.GetRequiredService<ProgramViewModel>();
+        program.LoadGCode("G1 X10 Y0 F100");
+
+        vm.SelectedTool = ProbingType.HeightMap;
+        await vm.StartAsync();
+
+        Assert.True(vm.HasHeightMap, $"Height map probe failed: {vm.LastResult}");
+        vm.HeightMapApplyCommand.Execute(null);
+
+        Assert.Equal("Height map applied to program", vm.LastResult);
+        // The demo surface is flat -> corrections are 0, but the program is
+        // rebuilt at the token level: split at the grid spacing, Z re-stated,
+        // feed hoisted ahead of the segments.
+        Assert.Equal(
+            [
+                "(Height map applied)",
+                "F100",
+                "G1X5Y0Z0",
+                "G1X10Y0Z0",
+            ],
+            program.LoadedText!.Split('\n'));
+    }
+
+    [Fact]
+    public async Task Height_map_apply_requires_a_map_first()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+        vm.HeightMapApplyCommand.Execute(null);
+
+        Assert.Equal("Probe or load a height map first", vm.LastResult);
+    }
+
+    [Fact]
+    public async Task Rotation_apply_rotates_about_the_selected_origin()
+    {
+        var demo = await ConnectDemoAsync();
+        var services = new ServiceCollection()
+            .AddSingleton<IGrblService>(demo)
+            .AddSingleton<ProgramViewModel>()
+            .BuildServiceProvider();
+        var vm = new ProbeViewModel(demo, _settings, services);
+        var program = services.GetRequiredService<ProgramViewModel>();
+        program.LoadGCode("G1 X50 Y0 F100\nG1 X100 Y0 F100");
+
+        // The angle is normally written by RunRotationAsync after a live probe;
+        // drive the chain from a measured 15° edge (the Core invariant tests
+        // cover the probe-math side of the chain).
+        typeof(ProbeViewModel).GetField("_probedAngleRadians",
+                BindingFlags.NonPublic | BindingFlags.Instance)!
+            .SetValue(vm, 15d * Math.PI / 180d);
+        vm.RotationOrigin = RotationOrigin.C; // program-limits corner (max X, max Y) = (100, 0)
+
+        vm.RotationApplyCommand.Execute(null);
+
+        Assert.Equal("Program rotated", vm.LastResult);
+        // Pivot (100, 0) stays fixed; the (0,0) -> (50,0) move's endpoint
+        // swings to (51.704, -12.941) — the corner resolution is exercised.
+        Assert.Contains("G1X100Y0", program.LoadedText);
+        Assert.Contains("G1X51.704Y-12.941", program.LoadedText);
+    }
+
+    [Fact]
+    public async Task Rotation_apply_is_gated_on_a_probed_angle()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+        vm.RotationApplyCommand.Execute(null);
+
+        Assert.Equal("Probe an edge angle first", vm.LastResult);
+    }
+
+    [Fact]
+    public async Task Rotation_origin_selector_lists_all_pivots_defaulting_to_zero()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+
+        Assert.Equal(11, vm.RotationOriginNames.Count);
+        Assert.Equal(RotationOrigin.None, vm.RotationOrigin);
+        Assert.Equal(0, vm.RotationOriginIndex);
     }
 
     public void Dispose()

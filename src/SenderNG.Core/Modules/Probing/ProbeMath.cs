@@ -138,6 +138,17 @@ public static class ProbeMath
         return angle;
     }
 
+    /// <summary>
+    /// The actual rotation angle (radians, CCW-positive) for the program
+    /// transform: the edge <see cref="ComputeRotationAngle"/> slope converted
+    /// with Atan. ioSender feeds the raw slope into cos/sin as if it were
+    /// radians — a small-angle approximation that over-rotates by ~1% at 10°
+    /// and ~10% at 30° of misalignment; Atan is exact and identical for the
+    /// 1–3° tilts probing realistically measures.
+    /// </summary>
+    public static double ComputeRotationRadians(Edge edge, Pos p1, Pos p2) =>
+        Math.Atan(ComputeRotationAngle(edge, p1, p2));
+
     /// <summary>Degrees for display.</summary>
     public static double ToDegrees(double radians) => Math.Round(Math.Atan(radians) * 180d / Math.PI, 3);
 
