@@ -306,21 +306,19 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 - [ ] **MPG** (manual pulse generator) support.
 - [ ] **Errors & alarms dialogs** (`ErrorsAndAlarms`, `GrblAlarmList`,
       `GrblErrorList`) — Help menu currently has About/Libraries placeholders.
-- [ ] **G-code transforms menu** (`GCodeRotate`, `ArcsToLines`, `GCodeCompress`,
-      `GCodeWrap`) — File → Transform submenu. Verified mechanics: all four
-      are **token-level** rewrites — they read `GCode.File.Tokens`, produce a
-      new token list, re-serialize via `TokensToGCode` and replace the
-      program (result sends like any file). Rotate = angle + origin (default
-      current DRO pos), handles arcs/splines/canned drills, skips G53 moves.
-      ArcsToLines = runs tokens through the **emulator** for true start
-      positions, then arcs/splines → G1 with tolerance-driven dynamic
-      resolution. Compress = canonical re-serialization (strips comments,
-      merges modal state). Wrap = rotary mapping (X/Y → A/B, diameter,
+- [~] **G-code transforms menu** (`GCodeRotate`, `ArcsToLines`, `GCodeCompress`,
+      `GCodeWrap`) — File → Transform submenu. **Rotate / ArcsToLines /
+      Compress LANDED (2026-09-04)** in Core (`GCodeTransformers`) behind the
+      File → Transform menu (Rotate… / Arcs to lines… / Compress dialogs;
+      compress comment handling is a profile-scoped Program setting — the
+      "strip ;-comments" middle mode was dropped because `;` lines never
+      tokenize, see `docs/plans/2026-09-04-gcode-transforms.md`).
+      **Remaining:** Wrap = rotary mapping (X/Y → A/B, diameter,
       Z0-at-center) with **G93 inverse-time feed switching** for combined
-      moves. SenderNG Core already has parser tokens + emulator, so the port
-      is mechanical — and doing height-map apply / rotation at this token
-      level (instead of the current line-based rewriting) closes the
-      documented G91/arc-Z and rotation-origin limitations at the same time.
+      moves — deferred until machine presets land — and the probing
+      migration: height-map apply / rotation rebuilt at this token level
+      (instead of the line-based rewriting) closes the documented
+      G91/arc-Z and rotation-origin limitations at the same time.
 - [x] **Localization** — ioSender ships 9 locales; SenderNG ships an en/ru
       JSON catalog with per-plugin overrides and live switching — see
       `docs/localization.md`; more locales are catalog-only work.

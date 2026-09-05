@@ -119,13 +119,14 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   `docs/iosender-gaps.md`).
 - **G-code transforms (Rotate / ArcsToLines / Compress / Wrap)** —
   token-level rewrites over the existing parser/emulator machinery, per
-  the verified mechanics in `docs/iosender-gaps.md`. **Ordering
-  constraint: land before finalizing probing** — the probing module's
-  height-map apply and rotation will be rebuilt on the same token-level
-  machinery (replacing the line-based `ProgramTransform`), so the shared
-  transform infrastructure comes first and probing reuses it. The File →
-  Transform menu itself can follow File actions; converters stay
-  independent open-file types.
+  the verified mechanics in `docs/iosender-gaps.md`. **LANDED (M1–M3):**
+  Rotate, ArcsToLines and Compress are in Core (`GCodeTransformers`,
+  26 tests) behind the File → Transform menu (dialogs, profile-scoped
+  compress comment setting, en/ru — see `docs/plans/2026-09-04-gcode-transforms.md`).
+  **Remaining:** probing migration — height-map apply and rotation rebuilt
+  on the token machinery (replacing the line-based `ProgramTransform`,
+  closing the documented G91/arc-Z and rotation-origin limits) — and Wrap,
+  deferred until the machine physical-configuration presets land.
 - **Icon & pictogram asset pass (SVG)** — a design deliverable that must land
   before Probing is closed. Three sets, drawn by hand as SVG sources:
   1. **Toolbar / run-control icons** — replace the hand-drawn inline `Path`

@@ -40,6 +40,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using CNC.GCode;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Localization;
 using SenderNG.Modules.Fixed;
@@ -179,6 +180,9 @@ public class MainViewModel : ViewModelBase, IDisposable
         OpenFileCommand = new DelegateCommand(_ => _ = OpenFileAsync());
         SaveFileCommand = new DelegateCommand(_ => _ = SaveFileAsync(), _ => HasProgram && !SessionActive);
         CloseFileCommand = new DelegateCommand(_ => CloseFile(), _ => HasProgram && !SessionActive);
+        RotateProgramCommand = new DelegateCommand(_ => _ = RotateProgramAsync(), _ => HasProgram && !SessionActive);
+        ArcsToLinesProgramCommand = new DelegateCommand(_ => _ = ArcsToLinesProgramAsync(), _ => HasProgram && !SessionActive);
+        CompressProgramCommand = new DelegateCommand(_ => _ = CompressProgramAsync(), _ => HasProgram && !SessionActive);
         SelectRecentCommand = new DelegateCommand(p => _ = LoadGCodeFileAsync(p as string));
         // Cycle bar — the only run controls (the program pane shows no transport
         // bar). The machine runs at most one streaming session at a time, so the
@@ -340,6 +344,129 @@ public class MainViewModel : ViewModelBase, IDisposable
         var fileName = CurrentFileName;
         UnloadProgram();
         Status = LocText.Format("app.msg.closed", "Closed {0}", fileName ?? string.Empty);
+    }
+
+    /// <summary>
+    /// Applies a token-level transform to the loaded program — the shared
+    /// File → Transform path: parse the loaded text, run the transform, re-parse
+    /// the result through the SAME engine gate that refuses bad files on Open
+    /// (a transformed program that would fail while sending is never loaded),
+    /// then swap it in. Limits and the status-bar counters rebuild from the new
+    /// program. The source file on disk is never touched — the Save picker is
+    /// the only write path (see <see cref="SaveFileAsync"/>).
+    /// </summary>
+    /// <param name="transform">Token transform (see <see cref="CNC.GCode.GCodeTransformers"/>).</param>
+    /// <param name="successMessage">Status text; receives the result program and
+    /// the pre-transform row count (for before/after summaries).</param>
+    private async Task<bool> ApplyTransformAsync(
+        Func<GCodeProgram, List<string>> transform,
+        Func<GCodeProgram, int, string> successMessage)
+    {
+        var program = _program;
+        var text = program?.LoadedText;
+        if (program is null || string.IsNullOrEmpty(text))
+            return false;
+
+        var before = program.ProgramRows.Count;
+        try
+        {
+            var parsed = GCodeProgram.Parse(text);
+            if (parsed.HasErrors)
+                throw new InvalidOperationException(string.Join(Environment.NewLine, parsed.Errors));
+
+            var resultText = string.Join("\n", transform(parsed));
+            var result = GCodeProgram.Parse(resultText);
+            if (result.HasErrors)
+                throw new InvalidOperationException(string.Join(Environment.NewLine, result.Errors));
+
+            program.LoadProgram(result, resultText);
+            HasProgramLimits = program.HasLimits;
+            Status = successMessage(result, before);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Status = LocText.Format("app.msg.transformFailed", "Transform failed: {0}", ex.Message);
+            if (_fileDialogs is not null)
+                await _fileDialogs.ShowErrorAsync(
+                    Resolve("app.transform.failedTitle", "Transform failed"), ex.Message);
+            return false;
+        }
+    }
+
+    /// <summary>File → Transform → Rotate…: angle in degrees (CCW-positive) +
+    /// rotation origin. The origin defaults to the current DRO (work) position
+    /// when connected — rotate about where the tool actually is.</summary>
+    private async Task RotateProgramAsync()
+    {
+        if (!HasProgram || SessionActive)
+            return;
+        if (_dialogs is null)
+        {
+            Status = LocText.Resolve("app.msg.transformNoDialog", "Transform: no dialog service available");
+            return;
+        }
+
+        var originX = 0d;
+        var originY = 0d;
+        var dro = _services.GetService<Modules.Fixed.DroViewModel>();
+        if (dro is not null)
+        {
+            var x = dro.Axes.FirstOrDefault(a => a.Letter == "X");
+            var y = dro.Axes.FirstOrDefault(a => a.Letter == "Y");
+            originX = x?.Position ?? 0d;
+            originY = y?.Position ?? 0d;
+        }
+
+        var vm = new CNC.Core.ViewModels.RotateProgramViewModel(originX, originY);
+        var result = await _dialogs.ShowDialogAsync(
+            Resolve("app.transform.rotate.title", "Rotate program"), vm);
+        if (result != true)
+            return;
+
+        var angle = vm.Angle;
+        var angleText = angle.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+        await ApplyTransformAsync(
+            p => GCodeTransformers.Rotate(p.Tokens, angle * Math.PI / 180d, vm.OriginX, vm.OriginY, p.Decimals),
+            (_, _) => LocText.Format("app.msg.rotated", "Rotated by {0}°", angleText));
+    }
+
+    /// <summary>File → Transform → Arcs to lines…: chord tolerance for the
+    /// G1 polyline approximation of arcs and splines.</summary>
+    private async Task ArcsToLinesProgramAsync()
+    {
+        if (!HasProgram || SessionActive)
+            return;
+        if (_dialogs is null)
+        {
+            Status = LocText.Resolve("app.msg.transformNoDialog", "Transform: no dialog service available");
+            return;
+        }
+
+        var vm = new CNC.Core.ViewModels.ArcsToLinesProgramViewModel();
+        var result = await _dialogs.ShowDialogAsync(
+            Resolve("app.transform.arcsToLines.title", "Arcs to lines"), vm);
+        if (result != true)
+            return;
+
+        var tolerance = vm.Tolerance;
+        await ApplyTransformAsync(
+            p => GCodeTransformers.ArcsToLines(p.Tokens, tolerance, p.Decimals),
+            (r, before) => LocText.Format("app.msg.arcsToLines", "Arcs to lines: {0} → {1} lines", before, r.Entries.Count));
+    }
+
+    /// <summary>File → Transform → Compress: canonical re-serialization. Comment
+    /// handling comes from the active profile's Program settings (keep all /
+    /// strip ';' remarks / strip all); modal motion words merge per the
+    /// serializer's compress mode.</summary>
+    private async Task CompressProgramAsync()
+    {
+        if (!HasProgram || SessionActive)
+            return;
+        var mode = ProgramConfigStore.Load(_settingsService.Load()).CompressCommentMode;
+        await ApplyTransformAsync(
+            p => GCodeTransformers.Compress(p.Tokens, mode),
+            (r, before) => LocText.Format("app.msg.compressed", "Compressed: {0} → {1} lines", before, r.Entries.Count));
     }
 
     public SettingsService SettingsService { get; }
@@ -653,6 +780,19 @@ public class MainViewModel : ViewModelBase, IDisposable
     /// Load/Save/Run/Close strip is deliberately scoped to Open + Save + Close
     /// (Save always goes through the picker — see <see cref="SaveFileAsync"/>).</summary>
     public ICommand CloseFileCommand { get; }
+
+    /// <summary>File → Transform → Rotate…: angle + origin, defaulting to the
+    /// current DRO (work) position when connected. Gated like Save/Close — a
+    /// loaded program, no active session.</summary>
+    public ICommand RotateProgramCommand { get; }
+
+    /// <summary>File → Transform → Arcs to lines…: arcs and splines become G1
+    /// chains at a chord tolerance.</summary>
+    public ICommand ArcsToLinesProgramCommand { get; }
+
+    /// <summary>File → Transform → Compress: canonical re-serialization (modal
+    /// motion words merge; comments per the profile's Program setting).</summary>
+    public ICommand CompressProgramCommand { get; }
 
     public ICommand CycleStartCommand { get; }
 
@@ -1104,6 +1244,9 @@ public class MainViewModel : ViewModelBase, IDisposable
         (RewindCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (SaveFileCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (CloseFileCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        (RotateProgramCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        (ArcsToLinesProgramCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        (CompressProgramCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         OnPropertyChanged(nameof(StatusBarBlocks));
     }
 

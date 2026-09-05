@@ -81,6 +81,8 @@ public static class HostSetup
                 CNC.Core.ViewModels.ConnectViewModel v => new Views.ConnectView { DataContext = v },
                 CNC.Core.ViewModels.DemoMachineSettingsViewModel v => new Views.DemoMachineSettingsView { DataContext = v },
                 CNC.Core.ViewModels.AppSettingsViewModel v => new Modules.Fixed.AppSettingsView { DataContext = v },
+                CNC.Core.ViewModels.RotateProgramViewModel v => new Views.RotateProgramView { DataContext = v },
+                CNC.Core.ViewModels.ArcsToLinesProgramViewModel v => new Views.ArcsToLinesProgramView { DataContext = v },
                 Modules.Fixed.GrblSettingsViewModel v => new Modules.Fixed.GrblSettingsView { DataContext = v },
                 _ => throw new NotSupportedException($"No view registered for {vm.GetType().Name}")
             });

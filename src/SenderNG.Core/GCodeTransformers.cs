@@ -42,9 +42,23 @@ namespace CNC.GCode;
 /// Token-level G-code transforms. Each transform consumes the engine's canonical
 /// token stream (the parse pass the streamer and limits use — see
 /// <see cref="GCodeProgram"/>) and returns serialized lines; callers validate the
-/// result by re-parsing through the engine gate before it may replace the loaded    /// program. Tokens passed in are never mutated: transforms reuse pass-through
-    /// tokens by reference and emit new instances for everything they change.
-    /// </summary>
+/// result by re-parsing through the engine gate before it may replace the loaded
+/// program. Tokens passed in are never mutated: transforms reuse pass-through
+/// tokens by reference and emit new instances for everything they change.
+/// </summary>
+/// <summary>How <see cref="GCodeTransformers.Compress"/> treats comment tokens.
+/// Only (...) comments exist in the token stream — ';' remark lines never
+/// tokenize (the parser returns them as non-sendable lines), so any token-level
+/// transform drops them inherently; the choice is only whether (...) CAM
+/// comments survive.</summary>
+public enum GCodeCommentMode
+{
+    /// <summary>Keep (...) comments (default — CAM comments carry operation/tool notes).</summary>
+    Keep,
+    /// <summary>Drop all comments — true minimal output.</summary>
+    StripAll,
+}
+
 public static class GCodeTransformers
 {
     /// <summary>
@@ -494,4 +508,75 @@ public static class GCodeTransformers
 
     /// <summary>Rounds can land on -0 (tiny negative residuals after rotation) — serialize as plain 0.</summary>
     private static double NormalizeZero(double value) => value == 0d ? 0d : value;
+
+    /// <summary>
+    /// Canonical re-serialization of the token stream: the serializer's compress
+    /// mode merges modal motion words (G0/G1/G2/G3/G5, canned drills) within a
+    /// block, dropping words that repeat the previous motion's value. Comments
+    /// are filtered per <paramref name="commentMode"/> (configurable — the
+    /// default keeps them because CAM comments carry operation/tool notes;
+    /// ';' remark lines never tokenize and are dropped by ANY token transform).
+    /// The serializer MUTATES the motion tokens it merges (endpoint words fold
+    /// into the block's previous motion), so motion tokens are cloned first —
+    /// the tokens-never-mutated invariant holds for the caller's stream.
+    /// </summary>
+    /// <param name="tokens">Engine token stream (caller-owned, never mutated).</param>
+    /// <param name="commentMode">Comment filtering policy.</param>
+    public static List<string> Compress(
+        IReadOnlyList<GCodeToken> tokens,
+        GCodeCommentMode commentMode = GCodeCommentMode.Keep)
+    {
+        var working = new List<GCodeToken>(tokens.Count);
+        foreach (var token in tokens)
+        {
+            switch (token.Command)
+            {
+                // The only tokens compress mode mutates — clone them so the
+                // caller's stream stays untouched.
+                case Commands.G0:
+                case Commands.G1:
+                case Commands.G2:
+                case Commands.G3:
+                case Commands.G73:
+                case Commands.G81:
+                case Commands.G82:
+                case Commands.G83:
+                case Commands.G85:
+                case Commands.G86:
+                case Commands.G89:
+                    working.Add(CloneMotion(token));
+                    break;
+
+                case Commands.Comment:
+                    if (commentMode == GCodeCommentMode.Keep)
+                        working.Add(token);
+                    break; // StripAll: comments are dropped
+
+                default:
+                    working.Add(token);
+                    break;
+            }
+        }
+
+        return GCodeParser.TokensToGCode(working, compress: true);
+    }
+
+    /// <summary>Shallow clone of a motion token (values array copied) — compress
+    /// mode merges motion words by mutating them, and transforms never mutate
+    /// the caller's stream.</summary>
+    private static GCodeToken CloneMotion(GCodeToken token) => token switch
+    {
+        // Note: GCAbsLinearMotion is a G53-bearing subclass of GCLinearMotion —
+        // it must be matched first (its ctor takes the wrapped motion command).
+        GCAbsLinearMotion abs => new GCAbsLinearMotion(abs.Command, abs.Motion, abs.LineNumber,
+            (double[])abs.Values.Clone(), abs.AxisFlags),
+        GCLinearMotion lin => new GCLinearMotion(lin.Command, lin.LineNumber,
+            (double[])lin.Values.Clone(), lin.AxisFlags),
+        GCArc arc => new GCArc(arc.Command, arc.LineNumber,
+            (double[])arc.Values.Clone(), arc.AxisFlags,
+            (double[])arc.IJKvalues.Clone(), arc.IjkFlags, arc.R, arc.P, arc.IJKMode),
+        GCCannedDrill drill => new GCCannedDrill(drill.Command, drill.LineNumber,
+            (double[])drill.Values.Clone(), drill.AxisFlags, drill.R, drill.L, drill.P, drill.Q),
+        _ => token,
+    };
 }

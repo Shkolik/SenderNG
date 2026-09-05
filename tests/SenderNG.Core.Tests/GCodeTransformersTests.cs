@@ -377,4 +377,90 @@ public class GCodeTransformersTests
 
         Assert.Equal(before, GCodeParser.TokensToGCode([.. program.Tokens]));
     }
+
+    private static string Compress(string text, GCodeCommentMode mode = GCodeCommentMode.Keep)
+    {
+        var program = GCodeProgram.Parse(text);
+        Assert.False(program.HasErrors, string.Join("; ", program.Errors));
+        var lines = GCodeTransformers.Compress(program.Tokens, mode);
+        return string.Join("\n", lines);
+    }
+
+    [Fact]
+    public void Compress_merges_repeated_modal_words_and_preserves_motion()
+    {
+        const string input =
+            "G21 G90\n" +
+            "G1 X10 Y10 F100\n" +
+            "G1 X20 Y10\n" +
+            "G1 X20 Y20\n" +
+            "M30\n";
+
+        var result = Compress(input);
+        var lines = result.Split('\n');
+
+        // Modal G1 command words vanish after the first motion of a run (the
+        // controller's modal state carries them); word tokens share the block
+        // before the motion (F100G1X10Y10 — engine serialization order). The
+        // serializer's compress drops only words equal to the run's FIRST
+        // motion, so X20/Y20 survive here (upstream semantics).
+        Assert.Contains("F100G1X10Y10", lines);
+        Assert.Contains("X20Y10", lines);
+        Assert.Contains("X20Y20", lines);
+        Assert.DoesNotContain(lines, l => l.StartsWith("G1X20", StringComparison.Ordinal));
+
+        // The motion is unchanged: limits before and after are identical, and
+        // the output re-parses clean through the engine gate.
+        var before = GCodeLimitsCalculator.Compute(GCodeProgram.Parse(input).Tokens);
+        var after = GCodeLimitsCalculator.Compute(GCodeProgram.Parse(result).Tokens);
+        Assert.NotNull(before);
+        Assert.NotNull(after);
+        Assert.Equal(before.Count, after.Count);
+        for (var i = 0; i < before.Count; i++)
+        {
+            Assert.Equal(before[i].Min, after[i].Min, 3);
+            Assert.Equal(before[i].Max, after[i].Max, 3);
+        }
+        Assert.False(GCodeProgram.Parse(result).HasErrors);
+    }
+
+    [Fact]
+    public void Compress_keeps_comments_by_default_and_stripAll_drops_them()
+    {
+        const string input = "(header)\nG21\n; remark\nG1 X0 Y0 F100\n(operation 1)\nM30\n";
+
+        var kept = Compress(input, GCodeCommentMode.Keep);
+        Assert.Contains("(header)", kept.Split('\n'));
+        Assert.Contains("(operation 1)", kept.Split('\n'));
+
+        var stripped = Compress(input, GCodeCommentMode.StripAll);
+        var strippedLines = stripped.Split('\n');
+        Assert.DoesNotContain(strippedLines, l => l.StartsWith("(", StringComparison.Ordinal));
+        Assert.False(GCodeProgram.Parse(stripped).HasErrors);
+    }
+
+    [Fact]
+    public void Compress_drops_semicolon_remark_lines_like_any_token_transform()
+    {
+        // ';' lines never tokenize (the parser returns them as non-sendable
+        // lines), so they cannot survive ANY token-level transform — verify the
+        // inherent behavior is at least consistent between modes.
+        const string input = "; remark\nG1 X0 Y0 F100\n";
+
+        Assert.DoesNotContain(";", Compress(input, GCodeCommentMode.Keep));
+        Assert.DoesNotContain(";", Compress(input, GCodeCommentMode.StripAll));
+    }
+
+    [Fact]
+    public void Compress_does_not_mutate_the_source_tokens()
+    {
+        var program = GCodeProgram.Parse("G0 X10 Y20\nG1 X10 Y30 F100\nG2 X20 Y30 I5 J0\nG81 X5 Y5 R2 Z-1 F100\n");
+        var before = GCodeParser.TokensToGCode([.. program.Tokens]);
+
+        GCodeTransformers.Compress(program.Tokens, GCodeCommentMode.Keep);
+
+        // Compress mode mutates the motion tokens it merges — the transform must
+        // clone them so the caller's stream stays byte-identical.
+        Assert.Equal(before, GCodeParser.TokensToGCode([.. program.Tokens]));
+    }
 }

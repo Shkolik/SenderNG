@@ -66,8 +66,6 @@ public class AvaloniaDialogService : IDialogService
             window.Width = size.Width;
             window.Height = size.Height;
             window.CanResize = true;
-            window.MinWidth = 480;
-            window.MinHeight = 320;
         }
         else
         {

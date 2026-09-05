@@ -664,6 +664,76 @@ public class MainViewModelCycleEnablementTests
         svc.SendRealtime(GrblRealtime.CycleStart);
         Assert.Equal("Run", vm.MachineState);
     }
+
+    [Fact]
+    public void Transform_commands_require_a_loaded_program()
+    {
+        var settings = MakeSettings();
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, MakeProvider(settings));
+
+        Assert.False(vm.RotateProgramCommand.CanExecute(null));
+        Assert.False(vm.ArcsToLinesProgramCommand.CanExecute(null));
+        Assert.False(vm.CompressProgramCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Transform_commands_enabled_after_program_loads()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings, withProgram: true);
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, provider);
+
+        var program = provider.GetRequiredService<SenderNG.Modules.Fixed.ProgramViewModel>();
+        program.LoadGCode("G0 X0" + "\nG0 Y0");
+
+        Assert.True(vm.RotateProgramCommand.CanExecute(null));
+        Assert.True(vm.ArcsToLinesProgramCommand.CanExecute(null));
+        Assert.True(vm.CompressProgramCommand.CanExecute(null));
+
+        vm.CloseFileCommand.Execute(null);
+
+        Assert.False(vm.RotateProgramCommand.CanExecute(null)); // unload re-gates transforms too
+        Assert.False(vm.ArcsToLinesProgramCommand.CanExecute(null));
+        Assert.False(vm.CompressProgramCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Compress_applies_and_reports_before_after_line_counts()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings, withProgram: true);
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, provider);
+
+        var program = provider.GetRequiredService<SenderNG.Modules.Fixed.ProgramViewModel>();
+        program.LoadGCode("(header)\nG21\nG1 X0 Y0 F100\n; remark\nG1 X10 Y0\nM30\n");
+        Assert.Equal(6, program.ProgramRows.Count);
+
+        // StripAll mode comes from the profile's Program settings.
+        var profile = settings.Load();
+        var config = ProgramConfigStore.Load(profile);
+        config.CompressCommentMode = CNC.GCode.GCodeCommentMode.StripAll;
+        ProgramConfigStore.Save(profile, config);
+
+        vm.CompressProgramCommand.Execute(null);
+
+        // (header) and ; remark are gone — 6 → 4 rows; motion preserved.
+        Assert.Contains("Compressed: 6 ", vm.Status);
+        Assert.Equal(4, program.ProgramRows.Count);
+        Assert.DoesNotContain(program.LoadedText!.Split('\n'), l => l.StartsWith("(", StringComparison.Ordinal));
+        Assert.DoesNotContain(program.LoadedText.Split('\n'), l => l.StartsWith(";", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Compress_without_program_does_not_throw()
+    {
+        var settings = MakeSettings();
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, MakeProvider(settings));
+        var before = vm.Status;
+
+        vm.CompressProgramCommand.Execute(null); // gated off; defensive no-op
+
+        Assert.Equal(before, vm.Status);
+    }
 }
 
 public class MainViewModelStatusButtonsTests

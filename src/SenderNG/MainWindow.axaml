@@ -68,6 +68,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         <MenuItem Header="{loc:Loc app.menu.file.open}" Command="{Binding OpenFileCommand}" />
                         <MenuItem Header="{loc:Loc app.menu.file.save}" Command="{Binding SaveFileCommand}" InputGesture="Ctrl+S" />
                         <MenuItem Header="{loc:Loc app.menu.file.close}" Command="{Binding CloseFileCommand}" />
+                        <MenuItem Header="{loc:Loc app.menu.file.transform}">
+                            <MenuItem Header="{loc:Loc app.menu.file.transform.rotate}" Command="{Binding RotateProgramCommand}" />
+                            <MenuItem Header="{loc:Loc app.menu.file.transform.arcsToLines}" Command="{Binding ArcsToLinesProgramCommand}" />
+                            <MenuItem Header="{loc:Loc app.menu.file.transform.compress}" Command="{Binding CompressProgramCommand}" />
+                        </MenuItem>
                         <MenuItem Header="{loc:Loc app.menu.file.recent}" ItemsSource="{Binding RecentFiles}">
                             <MenuItem.ItemContainerTheme>
                                 <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">

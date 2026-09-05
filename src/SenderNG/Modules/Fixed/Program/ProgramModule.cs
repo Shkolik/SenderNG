@@ -41,8 +41,11 @@ using SenderNG.Core.Modules;
 
 namespace SenderNG.Modules.Fixed;
 
-public class ProgramModule : IModule
+public class ProgramModule : IModule, IModuleSettingsProvider
 {
+    private SettingsService? _settingsService;
+    private IServiceProvider? _services;
+
     public string Id => "program";
     public string Name => "Program";
     public string Description => "Load, view and run G-code programs with per-line status tracking.";
@@ -55,6 +58,27 @@ public class ProgramModule : IModule
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<ProgramViewModel>();
 
+    // Program settings are machine-coupled (profile-scoped): one machine's
+    // Compress preferences are not another's.
+    public SettingsScope Scope => SettingsScope.Profile;
+
+    public void AttachServices(IServiceProvider services)
+    {
+        _services = services;
+        _settingsService ??= services.GetRequiredService<SettingsService>();
+    }
+
+    // Module-provided settings UI: the compress comment-mode selector, bound to
+    // a view model that persists through ProgramConfigStore on selection.
+    public object? CreateSettingsView() =>
+        _services is null || _settingsService is null
+            ? null
+            : new ProgramSettingsView
+            {
+                DataContext = new ProgramSettingsViewModel(
+                    _settingsService,
+                    _services.GetService<SenderNG.Core.Localization.LocalizationService>()),
+            };
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<ProgramViewModel>();
