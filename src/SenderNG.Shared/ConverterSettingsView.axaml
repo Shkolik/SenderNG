@@ -47,62 +47,42 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <CheckBox Content="{Binding CutModeLabel}" IsChecked="{Binding CutMode, Mode=TwoWay}"
                   IsVisible="{Binding ShowCutMode}" FontSize="11" />
 
-        <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="6">
-            <StackPanel Grid.Column="0" Spacing="4">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="{Binding ZHomeLabel}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
-                    <TextBox Text="{Binding ZHome, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
-                             CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="{Binding ZRapidsLabel}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
-                    <TextBox Text="{Binding ZRapids, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
-                             CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="{Binding ZSafeLabel}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
-                    <TextBox Text="{Binding ZSafe, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
-                             CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="{Binding ZMinLabel}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
-                    <TextBox Text="{Binding ZMin, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
-                             CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="{Binding ScaleXLabel}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
-                    <TextBox Text="{Binding ScaleX, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
-                             CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                </StackPanel>
-            </StackPanel>
+        <!-- One shared grid: label and input columns are common to every row,
+             so all labels line up with their inputs and the inputs in each
+             column start at the same x (labels right-align onto the inputs). -->
+        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="6"
+              RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="4">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding ZHomeLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ZHome, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding ZRapidsLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ZRapids, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="{Binding ZSafeLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding ZSafe, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="{Binding ZMinLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding ZMin, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="{Binding ScaleXLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding ScaleX, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
 
-            <StackPanel Grid.Column="2" Spacing="4">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="{Binding RpmLabel}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
-                    <TextBox Text="{Binding RPM, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
-                             CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="{Binding ToolDiameterLabel}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
-                    <TextBox Text="{Binding ToolDiameter, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
-                             CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="{Binding FeedRateLabel}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
-                    <TextBox Text="{Binding FeedRate, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
-                             CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="{Binding PlungeRateLabel}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
-                    <TextBox Text="{Binding PlungeRate, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
-                             CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="{Binding ScaleYLabel}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
-                    <TextBox Text="{Binding ScaleY, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
-                             CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                </StackPanel>
-            </StackPanel>
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding RpmLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding RPM, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding ToolDiameterLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding ToolDiameter, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding FeedRateLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding FeedRate, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+            <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding PlungeRateLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <TextBox Grid.Row="3" Grid.Column="3" Text="{Binding PlungeRate, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+            <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding ScaleYLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <TextBox Grid.Row="4" Grid.Column="3" Text="{Binding ScaleY, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
         </Grid>
     </StackPanel>
 </UserControl>
