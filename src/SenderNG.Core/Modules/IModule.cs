@@ -37,7 +37,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace SenderNG.Core.Modules;
 
-public enum PanelHint { Left, Center, Right, Flyout, Menu, Bottom }
+public enum PanelHint { Left, Center, Right, Flyout, Menu, Bottom, Dialog, None }
 
 /// <summary>
 /// Contract for a pluggable sender module. Core stays UI-agnostic: view/view-model
@@ -63,6 +63,11 @@ public interface IModule
 
     /// <summary>Whether the module is visible by default (overridable via the profile's Modules map).</summary>
     bool IsVisibleByDefault => true;
+
+    /// <summary>Whether the module is enabled by default. Declared by the SDK
+    /// contract; nothing consumes it yet — the enabled/visible overhaul is
+    /// tracked in docs/ROADMAP.md.</summary>
+    bool IsEnabledByDefault => true;
 
     /// <summary>Whether the user may hide this module. Fixed layout modules (DRO, Program, Console, Jog) cannot.</summary>
     bool CanHide => true;

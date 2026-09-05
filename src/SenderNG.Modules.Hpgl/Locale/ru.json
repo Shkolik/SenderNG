@@ -1,0 +1,21 @@
+{
+  "strings": {
+    "module.hpgl.name": "HPGL",
+    "module.hpgl.description": "Файлы плоттера HPGL (.plt) → g-code.",
+    "module.hpgl.fileType": "Файлы HPGL",
+    "module.converters.parametersTitle": "Параметры конвертации",
+    "module.converters.zHome": "Z дом",
+    "module.converters.zRapids": "Z быстрые",
+    "module.converters.zSafe": "Z безопасное",
+    "module.converters.zMin": "Z мин",
+    "module.converters.scaleX": "Масштаб X",
+    "module.converters.rpm": "RPM",
+    "module.converters.toolDiameter": "Инстр. Ø",
+    "module.converters.feedRate": "Подача",
+    "module.converters.plungeRate": "Заглубление",
+    "module.converters.scaleY": "Масштаб Y",
+    "module.converters.cutMode": "Фрезерование (снять — лазер)",
+    "module.converters.doNotShowAgain": "Больше не спрашивать",
+    "module.converters.showDialog": "Спрашивать параметры при открытии"
+  }
+}

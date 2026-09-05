@@ -71,6 +71,19 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
 
 ## Other known deferred items
 
+- **Module enabled vs. visible overhaul** — the plugin SDK declares
+  `IsEnabledByDefault` but nothing consumes it yet. Today there is exactly one
+  per-machine flag (`MachineProfile.Modules[id]`, default `IsVisibleByDefault`)
+  driving UI presence only: MainViewModel filters panels/flyouts by it, App
+  Settings renders one checkbox per module (disabled when `CanHide=false` —
+  fixed modules and converters get name-only rows), and `IGCodeFileHandler`
+  dispatch is **unconditional** (no flag gates it); every module's `HotKeys`
+  list is empty (this keyboard-shortcuts item below is the consumer that will
+  force the semantics). Scope when tackled: what "disabled" gates exactly
+  (handler dispatch, hotkeys, UI), where the flag persists (per machine vs.
+  per app), and the App Settings surface. Contract declared in
+  `docs/plugin-development.md` §3.1/§6; deliberately left out of the SDK
+  scope.
 - **Keyboard shortcuts / key-map settings** — global hotkeys for the
   frequently-used buttons (cycle bar Start/Hold/Resume/Stop, Rewind, jog
   directions, MDI focus, Home/Unlock/Reset) with a settings screen to remap.
@@ -105,18 +118,18 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   selection, and stop-on-release (hold realtime byte). Axis layout comes
   from the existing jog pad, later from Machine physical configuration
   above.
-- **Converters (Excellon `.drl` / HPGL `.plt` → g-code)** — land right
-  **after File actions**: File actions landed scoped (Open + Save + Close —
-  Save always goes through the save picker pre-filled with the current file
-  name, so converter output can never silently clobber the `.drl`/`.nc` it
-  came from; Run stays on the cycle bar; see `docs/iosender-gaps.md`).
-  Verified in ioSender source, converters are open-file types, not a
-  separate flow — `GCode.File.Load` matches the extension, runs the
-  converter (with a JobParameters dialog for feeds/speeds), and writes
-  g-code into the loaded program; **Save persists that output**. Ports of
-  the BSD `Excellon2GCode` / `HpglToGCode` parsers feeding the existing
-  `GCodeProgram` pipeline (see the File actions entry in
-  `docs/iosender-gaps.md`).
+- **Converters (Excellon `.drl` / HPGL `.plt` → g-code) — LANDED.** No
+  separate File menu entry: the native Open dialog advertises the converter
+  types and dispatch happens in the open flow (extension match → parameters
+  dialog → convert → load through the same engine gate as `.nc`). Each
+  converter is a **module plugin** (own DLL discovered via the `Modules/`
+  directory scan — no DLL, no converters), implementing the full module
+  contract: own App Settings leaf, own locale catalog, own parameters
+  dialog with a "Do not show again" checkbox (silent converts afterwards,
+  re-enable from settings). App knowledge is a single Core interface
+  (`IGCodeFileHandler`); `IViewFactory` lets any plugin host dialogs. Output
+  is byte-faithful to ioSender v0.47 incl. documented quirks (see
+  `docs/plans/2026-09-04-converters.md`). 46 tests.
 - **G-code transforms (Rotate / ArcsToLines / Compress / Wrap)** —
   token-level rewrites over the existing parser/emulator machinery, per
   the verified mechanics in `docs/iosender-gaps.md`. **LANDED (M1–M3):**

@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Plugin module: discovered at runtime by the host's Modules/ scan. The app
+         must NOT reference this project — only the module's own Locale/*.json and
+         the built DLL are staged into the app output by SenderNG.csproj.
+         Converter-specific scaffolding is linked from the internal SenderNG.Shared
+         folder (not shipped, invisible to the plugin contract); the SDK
+         (SenderNG.Modules.Common) provides the generic machinery. -->
+    <RootNamespace>SenderNG.Modules.Excellon</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Shared converter views are Avalonia controls (parameters dialog + settings
+         leaf), so the plugin references Avalonia like any UI plugin. Pinned to the
+         version the host app resolves (floating 12.* caused a framework mismatch
+         that crashed startup with TypeLoadException). -->
+    <PackageReference Include="Avalonia" Version="12.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SenderNG.Modules.Common\SenderNG.Modules.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Internal converter scaffolding: compiled into this plugin's DLL, never
+         shipped as its own assembly. -->
+    <Compile Include="..\SenderNG.Shared\**\*.cs" Link="Shared\%(RecursiveDir)%(Filename)%(Extension)" />
+    <AvaloniaXaml Include="..\SenderNG.Shared\**\*.axaml" Link="Shared\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

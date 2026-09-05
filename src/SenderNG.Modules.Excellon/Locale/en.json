@@ -1,0 +1,21 @@
+{
+  "strings": {
+    "module.excellon.name": "Excellon",
+    "module.excellon.description": "Excellon (.drl/.xln) PCB drill files → g-code.",
+    "module.excellon.fileType": "Excellon files",
+    "module.converters.parametersTitle": "Converter parameters",
+    "module.converters.zHome": "Z home",
+    "module.converters.zRapids": "Z rapids",
+    "module.converters.zSafe": "Z safe",
+    "module.converters.zMin": "Z min",
+    "module.converters.scaleX": "Scale X",
+    "module.converters.rpm": "RPM",
+    "module.converters.toolDiameter": "Tool Ø",
+    "module.converters.feedRate": "Feed",
+    "module.converters.plungeRate": "Plunge",
+    "module.converters.scaleY": "Scale Y",
+    "module.converters.cutMode": "Spindle cut (uncheck for laser)",
+    "module.converters.doNotShowAgain": "Do not show again",
+    "module.converters.showDialog": "Ask for parameters on open"
+  }
+}

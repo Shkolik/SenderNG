@@ -75,17 +75,23 @@ public static class HostSetup
         builder.Services.AddSingleton<IComPortService, SerialComPortService>();
         builder.Services.AddSingleton<IFileDialogService, AvaloniaFileDialogService>();
         builder.Services.AddSingleton<IDialogService, AvaloniaDialogService>();
-        builder.Services.AddSingleton<Func<object, object>>(sp =>
-            vm => vm switch
-            {
-                CNC.Core.ViewModels.ConnectViewModel v => new Views.ConnectView { DataContext = v },
-                CNC.Core.ViewModels.DemoMachineSettingsViewModel v => new Views.DemoMachineSettingsView { DataContext = v },
-                CNC.Core.ViewModels.AppSettingsViewModel v => new Modules.Fixed.AppSettingsView { DataContext = v },
-                CNC.Core.ViewModels.RotateProgramViewModel v => new Views.RotateProgramView { DataContext = v },
-                CNC.Core.ViewModels.ArcsToLinesProgramViewModel v => new Views.ArcsToLinesProgramView { DataContext = v },
-                Modules.Fixed.GrblSettingsViewModel v => new Modules.Fixed.GrblSettingsView { DataContext = v },
-                _ => throw new NotSupportedException($"No view registered for {vm.GetType().Name}")
-            });
+        // Status-bar sink + per-module error reporters: ModuleCatalog binds one
+        // IErrorReporter per discovered module (keyed by module id) via this
+        // factory; Status(text) reaches the status bar through the sink, which
+        // MainViewModel wires at construction.
+        builder.Services.AddSingleton<StatusSink>();
+        builder.Services.AddSingleton<IErrorReporterFactory, AvaloniaErrorReporterFactory>();
+        // View factory for dialog hosting: the app seeds its own VM→view pairs;
+        // 3rd-party modules register theirs at runtime (idempotent), so a plugin
+        // can show a dialog without the app knowing its view types.
+        var viewFactory = new AvaloniaViewFactory();
+        viewFactory.Register<CNC.Core.ViewModels.ConnectViewModel, Views.ConnectView>();
+        viewFactory.Register<CNC.Core.ViewModels.DemoMachineSettingsViewModel, Views.DemoMachineSettingsView>();
+        viewFactory.Register<CNC.Core.ViewModels.AppSettingsViewModel, Modules.Fixed.AppSettingsView>();
+        viewFactory.Register<CNC.Core.ViewModels.RotateProgramViewModel, Views.RotateProgramView>();
+        viewFactory.Register<CNC.Core.ViewModels.ArcsToLinesProgramViewModel, Views.ArcsToLinesProgramView>();
+        viewFactory.Register<Modules.Fixed.GrblSettingsViewModel, Modules.Fixed.GrblSettingsView>();
+        builder.Services.AddSingleton<IViewFactory>(viewFactory);
         builder.Services.AddSingleton<DemoGrblService>();
         builder.Services.AddSingleton<RealGrblService>();
         // The proxy is THE IGrblService singleton: consumers subscribe once and
@@ -119,9 +125,11 @@ public static class HostSetup
         RegisterModule(builder.Services, new Modules.Plugins.MposModule());
         RegisterModule(builder.Services, new Modules.Plugins.OutlineModule());
 
-        // External module assemblies: discovered via ModuleCatalog assembly scan
-        // (proves the plugin discovery path — Dummy lives in its own project).
-        ModuleCatalog.Scan(builder.Services, typeof(SenderNG.Modules.Dummy.DummyModule).Assembly);
+        // Plugin modules (Dummy, converters, …): every *.dll in OutputDir/Modules
+        // is scanned at startup — drop a DLL in and it loads, remove it and the
+        // app has no idea it ever existed. SenderNG.csproj stages the built-in
+        // plugin assemblies there; real third-party plugins are dropped in.
+        ModuleCatalog.ScanDirectory(builder.Services, Path.Combine(AppContext.BaseDirectory, "Modules"));
 
         // Avalonia-side view factory: module -> view model + view as controls.
         builder.Services.AddSingleton<Func<IModule, object>>(sp =>
@@ -136,7 +144,8 @@ public static class HostSetup
                 fileDialogs: sp.GetRequiredService<IFileDialogService>(),
                 dialogs: sp.GetRequiredService<IDialogService>(),
                 modules: sp.GetServices<IModule>(),
-                viewFactory: sp.GetRequiredService<Func<IModule, object>>()));
+                viewFactory: sp.GetRequiredService<Func<IModule, object>>(),
+                statusSink: sp.GetRequiredService<StatusSink>()));
 
         var host = builder.Build();
 

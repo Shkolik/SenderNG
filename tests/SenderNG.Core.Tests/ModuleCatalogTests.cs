@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Modules;
@@ -97,6 +98,38 @@ public class ModuleCatalogTests
     }
 
     [Fact]
+    public void ScanDirectory_discovers_plugin_modules_from_dll_folder()
+    {
+        // The plugin DLLs are staged into this project's OutputDir/Modules
+        // (same Link trick the app csproj uses) — the real drop-in path.
+        var dir = Path.Combine(AppContext.BaseDirectory, "Modules");
+        Assert.True(Directory.Exists(dir), "plugin staging missing — rebuild the test project: " + dir);
+
+        var sc = new ServiceCollection();
+        ModuleCatalog.ScanDirectory(sc, dir);
+
+        // LoadFrom context: the discovered types differ in identity from the
+        // compile-time references, so match by full name, not type equality.
+        Assert.Contains(sc, d => d.ServiceType.FullName == "SenderNG.Modules.Excellon.ExcellonModule");
+        Assert.Contains(sc, d => d.ServiceType.FullName == "SenderNG.Modules.Hpgl.HpglModule");
+        Assert.Contains(sc, d => d.ServiceType.FullName == "SenderNG.Modules.Dummy.DummyModule");
+
+        using var sp = sc.BuildServiceProvider();
+        var modules = sp.GetServices<IModule>().ToList();
+        Assert.Contains(modules, m => m.Id == "excellon");
+        Assert.Contains(modules, m => m.Id == "hpgl");
+        Assert.Contains(modules, m => m.Id == "dummy");
+    }
+
+    [Fact]
+    public void ScanDirectory_missing_folder_is_a_noop()
+    {
+        var sc = new ServiceCollection();
+        ModuleCatalog.ScanDirectory(sc, Path.Combine(Path.GetTempPath(), "no-such-modules-" + Guid.NewGuid().ToString("N")));
+        Assert.Empty(sc);
+    }
+
+    [Fact]
     public void Scan_discovers_dummy_module_from_external_assembly()
     {
         // SenderNG.Modules.Dummy is a separate project (external plugin assembly);
@@ -133,4 +166,86 @@ public class ModuleCatalogTests
     }
 
     private sealed class FieldlessProvider : IModuleSettingsProvider { }
+
+    // ---- Id collisions: first wins, second rejected at discovery ----
+
+    /// <summary>Two module classes claiming the same id — exactly one may register.</summary>
+    public sealed class CollidingModuleA : IModule
+    {
+        public string Id => "collision-id";
+        public string Name => "Colliding A";
+        public int Order => 0;
+        public IReadOnlyList<HotKey> HotKeys => Array.Empty<HotKey>();
+        public void RegisterServices(IServiceCollection services) { }
+        public object CreateViewModel(IServiceProvider serviceProvider) => new object();
+        public object CreateView(object viewModel) => new object();
+    }
+
+    public sealed class CollidingModuleB : IModule
+    {
+        public string Id => "collision-id";
+        public string Name => "Colliding B";
+        public int Order => 0;
+        public IReadOnlyList<HotKey> HotKeys => Array.Empty<HotKey>();
+        public void RegisterServices(IServiceCollection services) { }
+        public object CreateViewModel(IServiceProvider serviceProvider) => new object();
+        public object CreateView(object viewModel) => new object();
+    }
+
+    [Fact]
+    public void Scan_rejects_second_module_claiming_the_same_id()
+    {
+        // First wins, second rejected — the winner is the first of the two in
+        // assembly metadata order (the same order ModuleCatalog scans).
+        var expectedWinner = typeof(CollidingModuleA).Assembly.GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(IModule).IsAssignableFrom(t))
+            .Select(t => (Type: t, Module: t.GetConstructor(Type.EmptyTypes) is null ? null : (IModule?)Activator.CreateInstance(t)))
+            .Where(x => x.Module is not null && x.Module.Id == "collision-id")
+            .First().Type;
+
+        var sc = new ServiceCollection();
+        ModuleCatalog.Scan(sc, typeof(CollidingModuleA).Assembly);
+
+        Assert.Contains(sc, d => d.ServiceType == expectedWinner);
+        var loser = expectedWinner == typeof(CollidingModuleA) ? typeof(CollidingModuleB) : typeof(CollidingModuleA);
+        Assert.DoesNotContain(sc, d => d.ServiceType == loser);
+
+        using var sp = sc.BuildServiceProvider();
+        Assert.Single(sp.GetServices<IModule>(), m => m.Id == "collision-id");
+    }
+
+    // ---- Per-module error reporter (keyed by module Id) ----
+
+    private sealed class FakeReporter : IErrorReporter
+    {
+        public readonly List<string> Errors = new();
+        public readonly List<string> Statuses = new();
+        public void Error(string text) => Errors.Add(text);
+        public void Status(string text) => Statuses.Add(text);
+    }
+
+    private sealed class FakeReporterFactory : IErrorReporterFactory
+    {
+        public FakeReporter Reporter { get; } = new();
+        public IErrorReporter Create(IModule module) => Reporter;
+    }
+
+    [Fact]
+    public void Scan_registers_per_module_error_reporter_keyed_by_id()
+    {
+        var sc = new ServiceCollection();
+        var factory = new FakeReporterFactory();
+        sc.AddSingleton<IErrorReporterFactory>(factory);
+
+        ModuleCatalog.Scan(sc, typeof(TestModule).Assembly);
+
+        using var sp = sc.BuildServiceProvider();
+        var reporter = sp.GetRequiredKeyedService<IErrorReporter>("Test");
+        Assert.Same(factory.Reporter, reporter);
+
+        reporter.Error("boom");
+        reporter.Status("notice");
+        Assert.Equal(["boom"], factory.Reporter.Errors);
+        Assert.Equal(["notice"], factory.Reporter.Statuses);
+    }
 }

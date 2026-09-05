@@ -44,6 +44,7 @@ using CNC.GCode;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Localization;
 using SenderNG.Modules.Fixed;
+using SenderNG.Services;
 using SenderNG.ViewModels;
 using SenderNG.Core.Commands;
 using SenderNG.Core.Modules;
@@ -92,6 +93,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     private readonly IComPortService? _comPorts;
     private readonly IFileDialogService? _fileDialogs;
     private readonly IDialogService? _dialogs;
+    private readonly List<IGCodeFileHandler> _fileHandlers;
     private readonly Func<IModule, object>? _viewFactory;
     private readonly Dictionary<IModule, object> _moduleViews = new();
     private bool _isDemo;
@@ -127,7 +129,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         IComPortService? comPorts = null,
         Func<IModule, object>? viewFactory = null,
         IFileDialogService? fileDialogs = null,
-        IDialogService? dialogs = null)
+        IDialogService? dialogs = null,
+        StatusSink? statusSink = null)
     {
         ArgumentNullException.ThrowIfNull(grbl);
         ArgumentNullException.ThrowIfNull(settings);
@@ -141,6 +144,10 @@ public class MainViewModel : ViewModelBase, IDisposable
         _fileDialogs = fileDialogs;
         _dialogs = dialogs;
         _viewFactory = viewFactory;
+        // IErrorReporter.Status(text) → status bar (plugins report, the host
+        // surfaces — see ModuleErrorReporter).
+        if (statusSink is not null)
+            statusSink.Sink = message => UiThread.Post(() => Status = message);
         _localization = services.GetService<SenderNG.Core.Localization.LocalizationService>();
         if (_localization is not null)
             _localization.Changed += OnLocaleChanged;
@@ -153,6 +160,9 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         foreach (var module in modules ?? Enumerable.Empty<IModule>())
             Modules.Add(module);
+        // File-format handlers are modules implementing IGCodeFileHandler — the
+        // app knows only the contract; no handler module, no extra filters.
+        _fileHandlers = Modules.OfType<IGCodeFileHandler>().ToList();
 
         Modules.CollectionChanged += OnModulesChanged;
 
@@ -864,7 +874,7 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private async Task ShowAboutAsync()
     {
-        var window = new Views.AboutView { DataContext = new AboutViewModel() };
+        var window = new Views.AboutView { DataContext = new AboutViewModel(Modules) };
         var owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
         if (owner is null)
             window.Show();
@@ -969,14 +979,35 @@ public class MainViewModel : ViewModelBase, IDisposable
             Status = LocText.Resolve("app.msg.openFileNoDialog", "Open file: no dialog service available");
             return;
         }
-        var path = await _fileDialogs.OpenFileAsync(
-            "Open G-code file",
-            "G-code (*.nc;*.ngc;*.gcode;*.gco;*.tap)|*.nc;*.ngc;*.gcode;*.gco;*.tap",
-            "All files|*.*");
+        var path = await _fileDialogs.OpenFileAsync("Open G-code file", OpenFileFilters());
         if (string.IsNullOrWhiteSpace(path))
             return;
 
         await LoadGCodeFileAsync(path);
+    }
+
+    /// <summary>Open dialog filter: g-code + one entry per file-format handler
+    /// module (no separate File menu entry — conversion IS the native open,
+    /// dispatched by extension in <see cref="LoadGCodeFileAsync"/>). The app
+    /// knows only the handler contract: no handler modules, no extra filters.</summary>
+    private string[] OpenFileFilters()
+    {
+        var filters = new List<string>
+        {
+            "G-code (*.nc;*.ngc;*.gcode;*.gco;*.tap)|*.nc;*.ngc;*.gcode;*.gco;*.tap",
+        };
+        foreach (var handler in _fileHandlers)
+        {
+            var ext = string.Join(";", handler.FileExtensions.Split(',').Select(e => "*." + e.Trim()));
+            // Filter label resolves through the locale when the handler opts in
+            // (FileTypeKey); handlers without a key keep their literal label.
+            var label = string.IsNullOrEmpty(handler.FileTypeKey)
+                ? handler.FileType
+                : Resolve(handler.FileTypeKey, handler.FileType);
+            filters.Add($"{label} ({ext})|{ext}");
+        }
+        filters.Add("All files|*.*");
+        return [.. filters];
     }
 
     private async Task LoadGCodeFileAsync(string? path)
@@ -985,34 +1016,25 @@ public class MainViewModel : ViewModelBase, IDisposable
         try
         {
             var text = await File.ReadAllTextAsync(path);
-            // The load gate IS the engine: GCodeProgram parses the file once with
-            // the same GCodeParser the streamer consumes, so a file that would
-            // fail while sending can never be loaded. Errors carry file line
-            // numbers and refuse the load outright (no skip-and-load — a partial
-            // program is a different program than the user opened).
-            var parsed = GCodeProgram.Parse(text);
-            if (parsed.HasErrors)
+
+            // Open file → check if a handler module owns the extension → the
+            // module converts (its own parameters dialog + per-profile settings)
+            // and hands back g-code, loaded through the same engine gate as
+            // plain g-code. Everything else takes the plain g-code path.
+            var handler = FindFileHandler(Path.GetExtension(path));
+            if (handler is not null)
             {
-                Status = LocText.Format("app.msg.validationFailed", "Validation failed: {0} ({1} error(s))", Path.GetFileName(path), parsed.Errors.Count);
-                if (_fileDialogs is not null)
-                    await _fileDialogs.ShowErrorAsync("G-code validation failed", string.Join(Environment.NewLine, parsed.Errors));
+                var converted = await handler.ConvertAsync(_services, Path.GetFileName(path), text);
+                if (converted is null)
+                {
+                    Status = LocText.Format("app.msg.convertFailed", "Conversion failed: {0}", Path.GetFileName(path));
+                    return;
+                }
+                await LoadParsedProgramAsync(path, converted);
                 return;
             }
 
-            var program = _services.GetRequiredService<ProgramViewModel>();
-            program.LoadProgram(parsed, text);
-            HasProgramLimits = program.HasLimits;
-            CurrentFileName = Path.GetFileName(path);
-
-            RecentFiles.Remove(path);
-            RecentFiles.Insert(0, path);
-            var maxRecent = Math.Max(1, _settingsService.Global.MaxRecentFiles);
-            while (RecentFiles.Count > maxRecent)
-                RecentFiles.RemoveAt(RecentFiles.Count - 1);
-            var global = _settingsService.Global;
-            global.RecentFiles = [.. RecentFiles];
-            _settingsService.SaveGlobal(global);
-            Status = LocText.Format("app.msg.loaded", "Loaded {0} ({1} lines)", Path.GetFileName(path), program.ProgramRows.Count);
+            await LoadParsedProgramAsync(path, text);
         }
         catch (Exception ex)
         {
@@ -1020,6 +1042,57 @@ public class MainViewModel : ViewModelBase, IDisposable
             if (_fileDialogs is not null)
                 await _fileDialogs.ShowErrorAsync("Open failed", ex.Message);
         }
+    }
+
+    /// <summary>Finds the handler module that owns an extension (case-insensitive,
+    /// no leading dot). Null when no module claims it.</summary>
+    private IGCodeFileHandler? FindFileHandler(string extension)
+    {
+        var ext = (extension ?? string.Empty).TrimStart('.').ToLowerInvariant();
+        if (ext.Length == 0)
+            return null;
+
+        return _fileHandlers.FirstOrDefault(h =>
+            h.FileExtensions.Split(',', StringSplitOptions.TrimEntries)
+                .Any(e => e.Equals(ext, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>
+    /// The load gate IS the engine: GCodeProgram parses the file once with
+    /// the same GCodeParser the streamer consumes, so a file (or converted
+    /// output) that would fail while sending can never be loaded. Errors
+    /// carry file line numbers and refuse the load outright (no skip-and-load
+    /// — a partial program is a different program than the user opened).
+    /// </summary>
+    private async Task LoadParsedProgramAsync(string path, string text)
+    {
+        var parsed = GCodeProgram.Parse(text);
+        if (parsed.HasErrors)
+        {
+            Status = LocText.Format("app.msg.validationFailed", "Validation failed: {0} ({1} error(s))", Path.GetFileName(path), parsed.Errors.Count);
+            if (_fileDialogs is not null)
+                await _fileDialogs.ShowErrorAsync("G-code validation failed", string.Join(Environment.NewLine, parsed.Errors));
+            return;
+        }
+
+        var program = _services.GetRequiredService<ProgramViewModel>();
+        program.LoadProgram(parsed, text);
+        HasProgramLimits = program.HasLimits;
+        CurrentFileName = Path.GetFileName(path);
+
+        RecentFiles.Remove(path);
+        RecentFiles.Insert(0, path);
+        var maxRecent = Math.Max(1, _settingsService.Global.MaxRecentFiles);
+        while (RecentFiles.Count > maxRecent)
+            RecentFiles.RemoveAt(RecentFiles.Count - 1);
+        var global = _settingsService.Global;
+        global.RecentFiles = [.. RecentFiles];
+        _settingsService.SaveGlobal(global);
+
+        var isConverted = FindFileHandler(Path.GetExtension(path)) is not null;
+        Status = isConverted
+            ? LocText.Format("app.msg.converted", "Converted {0}: {1} lines", Path.GetFileName(path), program.ProgramRows.Count)
+            : LocText.Format("app.msg.loaded", "Loaded {0} ({1} lines)", Path.GetFileName(path), program.ProgramRows.Count);
     }
 
     private async Task ShowDemoMachineSettingsAsync()

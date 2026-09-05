@@ -22,6 +22,36 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SenderNG.Core\SenderNG.Core.csproj" />
     <ProjectReference Include="..\..\src\SenderNG\SenderNG.csproj" />
+    <ProjectReference Include="..\..\src\SenderNG.Modules.Dummy\SenderNG.Modules.Dummy.csproj" />
+    <!-- Compile-time refs to the built-in converter plugins so ConverterTests
+         can unit-test the module classes directly (the ScanDirectory test still
+         discovers the real DLLs from Modules/ via LoadFrom). -->
+    <ProjectReference Include="..\..\src\SenderNG.Modules.Excellon\SenderNG.Modules.Excellon.csproj" />
+    <!-- Aliased: the linked SenderNG.Shared scaffolding is compiled into BOTH
+         plugin DLLs, so shared types resolve from the Excellon assembly and
+         HPGL-specific types come through the alias. -->
+    <ProjectReference Include="..\..\src\SenderNG.Modules.Hpgl\SenderNG.Modules.Hpgl.csproj" Aliases="hpgl" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Plugin staging for the ScanDirectory test: same Link trick the app
+         csproj uses, so OutputDir/Modules contains the discoverable DLLs. -->
+    <None Include="..\..\src\SenderNG.Modules.Common\bin\$(Configuration)\net10.0\SenderNG.Modules.Common.dll">
+      <Link>Modules\SenderNG.Modules.Common.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\src\SenderNG.Modules.Excellon\bin\$(Configuration)\net10.0\SenderNG.Modules.Excellon.dll">
+      <Link>Modules\SenderNG.Modules.Excellon.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\src\SenderNG.Modules.Hpgl\bin\$(Configuration)\net10.0\SenderNG.Modules.Hpgl.dll">
+      <Link>Modules\SenderNG.Modules.Hpgl.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\src\SenderNG.Modules.Dummy\bin\$(Configuration)\net10.0\SenderNG.Modules.Dummy.dll">
+      <Link>Modules\SenderNG.Modules.Dummy.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>

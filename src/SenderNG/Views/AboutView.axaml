@@ -80,6 +80,23 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     </ListBox.ItemTemplate>
                 </ListBox>
             </TabItem>
+            <TabItem>
+                <TabItem.Header>
+                    <TextBlock Text="{loc:Loc about.tab.modules}" FontSize="13" FontWeight="SemiBold" />
+                </TabItem.Header>
+                <ListBox ItemsSource="{Binding Modules}" Margin="4,8,4,4">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ModuleInfoItem">
+                            <StackPanel Spacing="1" Margin="0,4">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Version}" FontSize="11" Foreground="#666" />
+                                <TextBlock Text="{Binding Author}" FontSize="11" Foreground="#666" />
+                                <TextBlock Text="{Binding License}" FontSize="11" Foreground="#666" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </TabItem>
         </TabControl>
 
         <Button Grid.Row="2" HorizontalAlignment="Right" Content="{loc:Loc common.close}"

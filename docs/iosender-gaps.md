@@ -298,7 +298,12 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 
 - [ ] **Lathe wizards** (`CNC Controls Lathe`).
 - [ ] **DragKnife** (`CNC Controls Dragknife`) — transform + config.
-- [ ] **Converters** (`CNC Converters`) — Excellon / HPGL import.
+- [x] **Converters** (`CNC Converters`) — Excellon / HPGL import. **LANDED
+  (2026-09-04):** module plugins — one DLL per converter discovered via the
+  `Modules/` directory scan, each with its own App Settings leaf, locale
+  catalog and parameters dialog ("Do not show again" → silent converts);
+  app knows only the `IGCodeFileHandler` contract; `IViewFactory` hosts
+  plugin dialogs — see `docs/plans/2026-09-04-converters.md`.
 - [ ] **SD card view** (`SDCardView`).
 - [ ] **Camera** (`CNC Controls Camera`, AForge/V4L2) + Camera menu.
 - [ ] **THC monitor / PID log** (`THCMonitorControl`, `PIDLogView`).
@@ -368,7 +373,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | Camera | — | deferred (P4) |
 | Lathe wizards | — | deferred (P4) |
 | Dragknife | — | deferred (P4) |
-| Converters | — | deferred (P4) |
+| Converters | `SenderNG.Modules.Excellon` + `.Hpgl` (module plugins; shared converter scaffolding in the internal `SenderNG.Shared` folder, SDK in `SenderNG.Modules.Common`) | done — open-flow dispatch by extension, per-plugin parameters + ShowDialog, Modules/ scan (see `docs/plans/2026-09-04-converters.md`, `docs/plugin-development.md`) |
 | THC monitor / PID log / Trinamic | — | deferred (P4) |
 
 ## How this was produced

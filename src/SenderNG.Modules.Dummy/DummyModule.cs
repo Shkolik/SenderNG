@@ -49,7 +49,7 @@ namespace SenderNG.Modules.Dummy;
 /// files — the contract for 3rd-party plugins. Keys are namespaced <c>module.dummy.*</c>.
 /// </para>
 /// </summary>
-public class DummyModule : IModule, ILocalizedModule
+public class DummyModule : IModule, ILocalizedModule, IPluginInfo
 {
     public string Id => "dummy";
     public string Name => "Dummy";
@@ -58,6 +58,11 @@ public class DummyModule : IModule, ILocalizedModule
     public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
+
+    // Optional plugin metadata — shown on the About screen.
+    public string Version => "1.0.0";
+    public string Author => "Andrew Shkolik";
+    public string License => "BSD-3-Clause";
 
     public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
         new Dictionary<string, string>

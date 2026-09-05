@@ -63,9 +63,9 @@ public class AboutDialogHeadlessTests
             Assert.NotEmpty(vm.Libraries);
             Assert.Contains(vm.Libraries, l => l.Name == "Avalonia");
 
-            // Both tabs render.
+            // All three tabs render (About / Libraries / Modules).
             var tabs = window.GetVisualDescendants().OfType<TabControl>().First();
-            Assert.Equal(2, tabs.Items.Count);
+            Assert.Equal(3, tabs.Items.Count);
             window.Close();
         }
         finally

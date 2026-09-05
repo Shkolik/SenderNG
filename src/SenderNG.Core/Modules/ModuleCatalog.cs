@@ -33,6 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Reflection;
+using CNC.Core.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace SenderNG.Core.Modules;
@@ -44,16 +45,54 @@ namespace SenderNG.Core.Modules;
 /// </summary>
 public static class ModuleCatalog
 {
+    /// <summary>
+    /// Scans every <c>*.dll</c> in <paramref name="directory"/> for modules
+    /// (the plugin drop-in path: OutputDir/Modules). A missing directory is a
+    /// no-op; a broken or non-module DLL is skipped, never fatal. Assemblies
+    /// are loaded into the LoadFrom context — plugin assemblies must not be
+    /// referenced by the app at compile time or their types would be duplicated.
+    /// Id collisions (two modules claiming the same id) are resolved first-wins
+    /// across the whole directory; the rejected module never registers.
+    /// </summary>
+    public static IServiceCollection ScanDirectory(IServiceCollection services, string directory)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        if (!Directory.Exists(directory))
+            return services;
+
+        // One id-tracking set for the whole directory: the first module
+        // claiming an Id wins, a later module with the same Id is rejected —
+        // a shared settings section must never serve two plugins.
+        var seenIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var dll in Directory.GetFiles(directory, "*.dll"))
+        {
+            try
+            {
+                Scan(services, seenIds, Assembly.LoadFrom(dll));
+            }
+            catch (Exception)
+            {
+                // Broken plugin — skip and keep going.
+            }
+        }
+
+        return services;
+    }
+
     public static IServiceCollection Scan(IServiceCollection services, params Assembly[] assemblies)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        var moduleTypes = assemblies
-            .Where(a => a is not null)
-            .SelectMany(GetModuleTypes)
-            .Distinct();
+        var seenIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var assembly in assemblies.Where(a => a is not null))
+            Scan(services, seenIds, assembly);
 
-        foreach (var type in moduleTypes)
+        return services;
+    }
+
+    private static void Scan(IServiceCollection services, HashSet<string> seenIds, Assembly assembly)
+    {
+        foreach (var type in GetModuleTypes(assembly))
         {
             if (services.Any(d => d.ServiceType == type))
             {
@@ -65,14 +104,25 @@ public static class ModuleCatalog
             if (type.GetConstructor(Type.EmptyTypes) is null)
                 continue;
 
+            var instance = (IModule)Activator.CreateInstance(type)!;
+
+            // Id collision: first wins, second rejected.
+            if (!seenIds.Add(instance.Id))
+                continue;
+
             services.AddSingleton(type);
             services.AddSingleton<IModule>(sp => (IModule)sp.GetRequiredService(type));
 
-            var instance = (IModule)Activator.CreateInstance(type)!;
+            // Per-module error reporter keyed by the module's Id: a plugin
+            // resolves its own reporter via
+            // GetRequiredKeyedService&lt;IErrorReporter&gt;(Id). The implementation
+            // comes lazily from the host's IErrorReporterFactory, bound to this
+            // instance so the common handler knows which name to prefix.
+            services.AddKeyedSingleton<IErrorReporter>(instance.Id,
+                (sp, _) => sp.GetRequiredService<IErrorReporterFactory>().Create(instance));
+
             instance.RegisterServices(services);
         }
-
-        return services;
     }
 
     private static IEnumerable<Type> GetModuleTypes(Assembly assembly)

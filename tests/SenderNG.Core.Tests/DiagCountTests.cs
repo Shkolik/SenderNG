@@ -51,7 +51,8 @@ public class HostModuleRegistrationTests
         var ids = modules.Select(m => m.Id).OrderBy(i => i).ToList();
         Assert.True(modules.Count == modules.DistinctBy(m => m.Id).Count(),
             $"duplicates ({modules.Count}): {string.Join(",", ids)}");
-        // 15 built-in + Dummy plugin discovered via ModuleCatalog assembly scan.
-        Assert.Equal(16, modules.Count);
+        // 15 built-in + 3 staged plugins (Dummy + Excellon + HPGL) discovered
+        // via the Modules/ directory scan — the real drop-in path.
+        Assert.Equal(18, modules.Count);
     }
 }

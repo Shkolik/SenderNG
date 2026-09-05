@@ -437,7 +437,8 @@ public class MainViewModelCycleEnablementTests
         return new SettingsService(dir);
     }
 
-    private static ServiceProvider MakeProvider(SettingsService settings, bool withProgram = false)
+    private static ServiceProvider MakeProvider(SettingsService settings, bool withProgram = false,
+        IDialogService? dialogService = null, IViewFactory? viewFactory = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton(settings);
@@ -445,6 +446,10 @@ public class MainViewModelCycleEnablementTests
         services.AddSingleton<RealGrblService>();
         if (withProgram)
             services.AddSingleton<SenderNG.Modules.Fixed.ProgramViewModel>();
+        if (dialogService is not null)
+            services.AddSingleton<IDialogService>(dialogService);
+        if (viewFactory is not null)
+            services.AddSingleton<IViewFactory>(viewFactory);
         return services.BuildServiceProvider();
     }
 
@@ -521,12 +526,18 @@ public class MainViewModelCycleEnablementTests
     }
 
     /// <summary>Dialog double: hands back a scripted save path and records the
-    /// suggested file name the VM pre-fills.</summary>
+    /// suggested file name and the Open filter list the VM passes.</summary>
     private sealed class StubFileDialogs : IFileDialogService
     {
         public string? SavePath { get; set; }
+        public string? OpenPath { get; set; }
         public string? LastSuggestedName { get; private set; }
-        public Task<string?> OpenFileAsync(string title, params string[] filters) => Task.FromResult<string?>(null);
+        public string[] LastFilters { get; private set; } = [];
+        public Task<string?> OpenFileAsync(string title, params string[] filters)
+        {
+            LastFilters = filters;
+            return Task.FromResult(OpenPath);
+        }
         public Task<string?> SaveFileAsync(string title, string suggestedFileName, params string[] filters)
         {
             LastSuggestedName = suggestedFileName;
@@ -733,6 +744,169 @@ public class MainViewModelCycleEnablementTests
         vm.CompressProgramCommand.Execute(null); // gated off; defensive no-op
 
         Assert.Equal(before, vm.Status);
+    }
+
+    // ---- Converter open flow ----
+
+    private sealed class StubDialogService : IDialogService
+    {
+        public object? LastVm { get; private set; }
+
+        public Task<bool?> ShowDialogAsync(string title, object viewModel, (double Width, double Height)? preferredSize = null)
+        {
+            LastVm = viewModel;
+            var tcs = new TaskCompletionSource<bool?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (viewModel is IClosableDialog closable)
+                closable.CloseRequested += (_, r) => tcs.TrySetResult(r);
+            return tcs.Task;
+        }
+    }
+
+    private sealed class StubViewFactory : IViewFactory
+    {
+        public void Register<TViewModel, TView>() where TView : class { }
+        public object Create(object viewModel) => new object();
+    }
+
+    /// <summary>Handler module under test (a real plugin, injected as the app
+    /// would discover it via the Modules/ scan).</summary>
+    private static readonly SenderNG.Modules.Excellon.ExcellonModule ExcellonModule = new();
+
+    [Fact]
+    public async Task Open_converter_file_shows_parameters_then_converts_and_loads()
+    {
+        var settings = MakeSettings();
+        var dialogSvc = new StubDialogService();
+        var provider = MakeProvider(settings, withProgram: true, dialogService: dialogSvc, viewFactory: new StubViewFactory());
+        var dialogs = new StubFileDialogs();
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, provider,
+            modules: [ExcellonModule], fileDialogs: dialogs, dialogs: dialogSvc);
+
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-convert-" + Guid.NewGuid().ToString("N"));
+        var drl = Path.Combine(dir, "board.drl");
+        const string drlText = "M48\nMETRIC\nT01C2.4\n%\nT01\nX1.5Y1.5\nM95\n";
+        Directory.CreateDirectory(dir);
+        await File.WriteAllTextAsync(drl, drlText);
+        try
+        {
+            dialogs.OpenPath = drl;
+            vm.OpenFileCommand.Execute(null);
+
+            // Open → extension dispatch → module's parameters dialog, pre-filled
+            // from the profile's stored values.
+            for (var i = 0; i < 500 && dialogSvc.LastVm is not SenderNG.Modules.Shared.ConverterParametersViewModel; i++)
+                await Task.Delay(10);
+            var paramsVm = Assert.IsType<SenderNG.Modules.Shared.ConverterParametersViewModel>(dialogSvc.LastVm);
+            Assert.Equal(1, paramsVm.ZRapids); // stored defaults
+
+            paramsVm.OkCommand.Execute(null); // accept → convert → load
+
+            for (var i = 0; i < 500 && !vm.Status.Contains("Converted board.drl"); i++)
+                await Task.Delay(10);
+            Assert.Contains("Converted board.drl", vm.Status);
+            Assert.Equal("board.drl", vm.CurrentFileName);
+
+            // The loaded program is the converted text (it passed the engine gate).
+            var program = provider.GetRequiredService<SenderNG.Modules.Fixed.ProgramViewModel>();
+            Assert.Contains("G81X1.5Y1.5Z-1.8R1", program.LoadedText);
+            Assert.Contains("M30", program.LoadedText);
+
+            // Accepted parameters persisted per module in the profile.
+            Assert.Equal(1, SenderNG.Modules.Shared.ConverterSettingsStore.Load(settings.Load(), "excellon").ZRapids);
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task Open_converter_file_cancel_loads_nothing()
+    {
+        var settings = MakeSettings();
+        var dialogSvc = new StubDialogService();
+        var provider = MakeProvider(settings, withProgram: true, dialogService: dialogSvc, viewFactory: new StubViewFactory());
+        var dialogs = new StubFileDialogs();
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, provider,
+            modules: [ExcellonModule], fileDialogs: dialogs, dialogs: dialogSvc);
+
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-convert-" + Guid.NewGuid().ToString("N"));
+        var drl = Path.Combine(dir, "board.drl");
+        Directory.CreateDirectory(dir);
+        await File.WriteAllTextAsync(drl, "M48\nMETRIC\nT01C2.4\n%\nT01\nX1.5Y1.5\nM95\n");
+        try
+        {
+            dialogs.OpenPath = drl;
+            vm.OpenFileCommand.Execute(null);
+
+            for (var i = 0; i < 500 && dialogSvc.LastVm is not SenderNG.Modules.Shared.ConverterParametersViewModel; i++)
+                await Task.Delay(10);
+            var paramsVm = Assert.IsType<SenderNG.Modules.Shared.ConverterParametersViewModel>(dialogSvc.LastVm);
+
+            paramsVm.CancelCommand.Execute(null);
+            await Task.Delay(100);
+
+            Assert.Null(vm.CurrentFileName); // nothing loaded
+            Assert.DoesNotContain("Converted", vm.Status);
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void Open_dialog_filter_resolves_handler_label_through_locale()
+    {
+        var settings = MakeSettings();
+        var services = new ServiceCollection();
+        services.AddSingleton(settings);
+        services.AddSingleton(new SenderNG.Core.Localization.LocalizationService(
+            JsonStream("""{ "strings": { "module.excellon.fileType": "Excellon files" } }"""),
+            "xx",
+            JsonStream("""{ "strings": { "module.excellon.fileType": "Файлы Excellon" } }""")));
+        var provider = services.BuildServiceProvider();
+        var dialogs = new StubFileDialogs();
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, provider,
+            modules: [ExcellonModule], fileDialogs: dialogs);
+
+        // The filter list is handed to the file dialog before the file is read,
+        // so a nonexistent path still exercises the label resolution.
+        dialogs.OpenPath = "C:\\no-such-dir\\board.drl";
+        vm.OpenFileCommand.Execute(null);
+
+        Assert.Contains(dialogs.LastFilters,
+            f => f.StartsWith("Файлы Excellon (", StringComparison.Ordinal));
+    }
+
+    private static Stream JsonStream(string json) => new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
+
+    [Fact]
+    public async Task Open_gcode_file_ignores_handler_modules()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings, withProgram: true);
+        var dialogs = new StubFileDialogs();
+        var vm = new MainViewModel(new RecordingRealtimeGrbl(), settings, provider,
+            modules: [ExcellonModule], fileDialogs: dialogs);
+
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-open-" + Guid.NewGuid().ToString("N"));
+        var nc = Path.Combine(dir, "part.nc");
+        Directory.CreateDirectory(dir);
+        await File.WriteAllTextAsync(nc, "G21\nG0 X10 Y10\nM2\n");
+        try
+        {
+            dialogs.OpenPath = nc;
+            vm.OpenFileCommand.Execute(null);
+
+            for (var i = 0; i < 500 && !vm.Status.Contains("Loaded part.nc"); i++)
+                await Task.Delay(10);
+            Assert.Contains("Loaded part.nc", vm.Status);
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
     }
 }
 

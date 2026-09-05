@@ -42,11 +42,11 @@ namespace SenderNG.Services;
 
 public class AvaloniaDialogService : IDialogService
 {
-    private readonly Func<object, object> _viewResolver;
+    private readonly IViewFactory _views;
 
-    public AvaloniaDialogService(Func<object, object> viewResolver)
+    public AvaloniaDialogService(IViewFactory views)
     {
-        _viewResolver = viewResolver;
+        _views = views;
     }
 
     public async Task<bool?> ShowDialogAsync(string title, object viewModel, (double Width, double Height)? preferredSize = null)
@@ -56,7 +56,7 @@ public class AvaloniaDialogService : IDialogService
             Title = title,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Background = new SolidColorBrush(Color.Parse("#f6f6f6")),
-            Content = _viewResolver(viewModel),
+            Content = _views.Create(viewModel),
         };
 
         if (preferredSize is { } size)
