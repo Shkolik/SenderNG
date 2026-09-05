@@ -374,16 +374,100 @@ public class ProbeViewModelTests : IDisposable
         Assert.Equal(0, vm.RotationOriginIndex);
     }
 
+    [Fact]
+    public async Task Rotation_determine_x0y0_probes_the_left_edge_and_sets_work_zero()
+    {
+        // End-to-end through the demo: AB probes at (0,4)/(5,4) plus the left
+        // edge probe at (4,5); radius 1 compensation puts the corner at (5,5),
+        // which is written into G54 (G10 L2 P1) after riding to it in machine
+        // coordinates. LatchDistance = 0 so the demo records the fast-probe
+        // targets (the latch pass would offset them by latch + slow travel).
+        var demo = await ConnectDemoAsync();
+        var capturing = new RecordingGrblService(demo);
+        var vm = new ProbeViewModel(capturing, _settings);
+        vm.SelectedTool = ProbingType.Rotation;
+        vm.LatchDistance = 0;
+        vm.ProbeEdge = Edge.AB;
+        vm.AddAction = true;
+
+        await vm.StartAsync();
+
+        Assert.True(capturing.Lines.Contains("G53G0X5Y5"), "Corner move missing: " + string.Join(", ", capturing.Lines));
+        Assert.True(capturing.Lines.Contains("G10L2P1X5Y5"), "Work offset missing: " + string.Join(", ", capturing.Lines));
+        Assert.Equal("X0,Y0 set at the probed corner: G10L2P1X5Y5", vm.LastResult);
+    }
+
+    [Fact]
+    public async Task Rotation_determine_x0y0_with_g92_zeroes_the_corner_position()
+    {
+        var demo = await ConnectDemoAsync();
+        var capturing = new RecordingGrblService(demo);
+        var vm = new ProbeViewModel(capturing, _settings);
+        vm.SelectedTool = ProbingType.Rotation;
+        vm.LatchDistance = 0;
+        vm.IsCoordG92 = true;
+        vm.ProbeEdge = Edge.AB;
+        vm.AddAction = true;
+
+        await vm.StartAsync();
+
+        Assert.True(capturing.Lines.Contains("G53G0X5Y5"));
+        Assert.True(capturing.Lines.Contains("G92X0Y0"));
+        Assert.Equal("X0,Y0 set at the probed corner: G92X0Y0", vm.LastResult);
+    }
+
+    [Fact]
+    public async Task Rotation_determine_x0y0_in_measure_mode_reports_the_corner()
+    {
+        var demo = await ConnectDemoAsync();
+        var capturing = new RecordingGrblService(demo);
+        var vm = new ProbeViewModel(capturing, _settings);
+        vm.SelectedTool = ProbingType.Rotation;
+        vm.LatchDistance = 0;
+        vm.IsCoordMeasure = true;
+        vm.ProbeEdge = Edge.AB;
+        vm.AddAction = true;
+
+        await vm.StartAsync();
+
+        // The corner is still ridden to, but nothing is written to the controller.
+        Assert.True(capturing.Lines.Contains("G53G0X5Y5"));
+        Assert.False(capturing.Lines.Any(l => l.StartsWith("G92") || l.StartsWith("G10")));
+        Assert.Equal("Probed corner: X5 Y5", vm.LastResult);
+    }
+
+    [Fact]
+    public async Task Rotation_determine_x0y0_forces_ab_and_unchecks_on_other_edges()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+        vm.SelectedTool = ProbingType.Rotation;
+
+        // Checking the extra forces the AB edge and the (0,0) pivot.
+        vm.ProbeEdge = Edge.AD;
+        vm.AddAction = true;
+        Assert.Equal(Edge.AB, vm.ProbeEdge);
+        Assert.Equal(RotationOrigin.None, vm.RotationOrigin);
+        Assert.False(vm.RotationOriginEnabled);
+
+        // Picking another edge drops the extra and re-enables the pivot combo.
+        vm.ProbeEdge = Edge.CB;
+        Assert.False(vm.AddAction);
+        Assert.True(vm.RotationOriginEnabled);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_dir, recursive: true); } catch { }
     }
 
-    /// <summary>Wraps an IGrblService, counting RefreshWorkParametersAsync calls.</summary>
+    /// <summary>Wraps an IGrblService, counting RefreshWorkParametersAsync calls
+    /// and recording every sent line.</summary>
     private sealed class RecordingGrblService : CNC.Core.Abstractions.IGrblService
     {
         private readonly IGrblService _inner;
         public int RefreshCalls { get; private set; }
+        public List<string> Lines { get; } = new();
         public RecordingGrblService(IGrblService inner) => _inner = inner;
         public bool IsConnected => _inner.IsConnected;
         public event EventHandler? ConnectionChanged { add => _inner.ConnectionChanged += value; remove => _inner.ConnectionChanged -= value; }
@@ -394,7 +478,7 @@ public class ProbeViewModelTests : IDisposable
         public Task ConnectAsync(string port) => _inner.ConnectAsync(port);
         public void Disconnect() => _inner.Disconnect();
         public void SendRealtime(byte code) => _inner.SendRealtime(code);
-        public Task SendAsync(string line) => _inner.SendAsync(line);
+        public Task SendAsync(string line) { Lines.Add(line); return _inner.SendAsync(line); }
         public Task RefreshWorkParametersAsync() { RefreshCalls++; return _inner.RefreshWorkParametersAsync(); }
     }
 }

@@ -391,7 +391,13 @@ public sealed class ProbeProgramBuilder
     }
 
     /// <summary>Rotation probe: two probe points along the selected edge.</summary>
-    public ProbeProgramBuilder BuildRotation(Edge edge, Pos start)
+    /// <summary>
+    /// Rotation program: two probes along the selected edge, plus — when
+    /// <paramref name="determineX0Y0"/> — a third probe on the left edge
+    /// (AB only, ioSender's AddActionEdge) whose touch position lets the VM
+    /// compute the workpiece corner (see <see cref="ProbeMath.ComputeCorner"/>).
+    /// </summary>
+    public ProbeProgramBuilder BuildRotation(Edge edge, Pos start, bool determineX0Y0 = false)
     {
         _program.Clear();
         Add($"G91F{ProbeFeedRate.ToString("0.###", CultureInfo.InvariantCulture)}");
@@ -430,6 +436,31 @@ public sealed class ProbeProgramBuilder
         AddRapidToMPos(rapidto, probeAxes);
         AddRapidToMPos(start, "Z");
         AddRapidToMPos(start, "XY");
+
+        if (determineX0Y0)
+        {
+            if (edge != Edge.AB)
+                throw new InvalidOperationException("X0/Y0 determination requires the AB edge");
+
+            // Left-edge probe (ioSender AddActionEdge): the approach axis is
+            // the edge probe's offset axis — perpendicular to the probed edge.
+            var actionClearanceAxis = offsetAxis;   // 0 (X) for AB: approach from -X
+            var actionOffsetAxis = clearanceAxis;   // 1 (Y) for AB: Offset past start
+            var actionProbeAxes = actionClearanceAxis == 0 ? "X" : "Y";
+
+            var actionRapid = start.With(actionClearanceAxis, start.Get(actionClearanceAxis) - xyClearance * af[actionClearanceAxis])
+                                   .With(actionOffsetAxis, start.Get(actionOffsetAxis) + Offset * af[actionOffsetAxis])
+                                   .With(2, start.Z - Depth);
+
+            AddRapidToMPos(actionRapid, "XY");
+            AddRapidToMPos(actionRapid, "Z");
+
+            AddProbingAction(actionProbeAxes, af[actionClearanceAxis] == -1.0d);
+
+            AddRapidToMPos(actionRapid, actionProbeAxes);
+            AddRapidToMPos(start, "Z");
+            AddRapidToMPos(start, "XY");
+        }
 
         return this;
     }

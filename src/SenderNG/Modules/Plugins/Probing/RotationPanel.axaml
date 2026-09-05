@@ -67,9 +67,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                        VerticalAlignment="Center" />
             <ComboBox ItemsSource="{Binding RotationOriginNames}"
                       SelectedIndex="{Binding RotationOriginIndex}"
+                      IsEnabled="{Binding RotationOriginEnabled}"
                       MinWidth="150" Height="26" FontSize="11"
                       HorizontalAlignment="Left" />
         </StackPanel>
+
+        <!-- ioSender's "Determine X0,Y0 for right-angled workpiece": adds a
+             third probe point on the left edge; the corner becomes work zero
+             (G92/G10), so the rotation applies about the probed corner. Only
+             valid on the AB edge (VM unchecks it for any other edge) and the
+             pivot is forced to 0,0 (combo disabled). -->
+        <CheckBox Content="{loc:Loc module.probing.determineX0Y0}"
+                  IsChecked="{Binding AddAction}" FontSize="11"
+                  ToolTip.Tip="{loc:Loc module.probing.determineX0Y0Hint}" />
 
         <Button Content="{loc:Loc module.probing.applyRotation}" Command="{Binding RotationApplyCommand}"
                 HorizontalAlignment="Left" Padding="12,6" Height="30" MinHeight="30"

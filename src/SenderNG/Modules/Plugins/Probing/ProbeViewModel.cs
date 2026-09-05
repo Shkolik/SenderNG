@@ -307,6 +307,7 @@ public class ProbeViewModel : ViewModelBase
                 OnPropertyChanged(nameof(IsHeightMap));
                 OnPropertyChanged(nameof(IsEdgeFinder));
                 OnPropertyChanged(nameof(IsEdgeSelectorVisible));
+                OnPropertyChanged(nameof(RotationOriginEnabled));
             }
         }
     }
@@ -317,6 +318,10 @@ public class ProbeViewModel : ViewModelBase
     public bool IsCenter => SelectedTool == ProbingType.CenterFinder;
     public bool IsRotation => SelectedTool == ProbingType.Rotation;
     public bool IsHeightMap => SelectedTool == ProbingType.HeightMap;
+
+    /// <summary>The rotation pivot combo stays usable unless the
+    /// "Determine X0,Y0" extra (which forces the (0,0) pivot) is active.</summary>
+    public bool RotationOriginEnabled => !(AddAction && IsRotation);
     public bool IsEdgeFinder => IsEdgeExternal || IsEdgeInternal;
     public bool IsEdgeSelectorVisible => IsEdgeFinder || IsRotation;
 
@@ -343,7 +348,20 @@ public class ProbeViewModel : ViewModelBase
     // ------------------------------------------------------ tool-specific input
 
     private Edge _probeEdge;
-    public Edge ProbeEdge { get => _probeEdge; set => SetField(ref _probeEdge, value); }
+    public Edge ProbeEdge
+    {
+        get => _probeEdge;
+        set
+        {
+            if (_probeEdge == value)
+                return;
+            // "Determine X0,Y0" only makes sense on the bottom edge (AB):
+            // picking any other edge drops the extra (ioSender behavior).
+            if (IsRotation && AddAction && value != Edge.AB)
+                AddAction = false;
+            SetField(ref _probeEdge, value);
+        }
+    }
     public DelegateCommand SelectEdgeCommand { get; private set; } = null!;
 
     private bool _probeZ;
@@ -390,7 +408,28 @@ public class ProbeViewModel : ViewModelBase
     public bool ProbeFixture { get => _probeFixture; set => SetField(ref _probeFixture, value); }
 
     private bool _addAction;
-    public bool AddAction { get => _addAction; set => SetField(ref _addAction, value); }
+    public bool AddAction
+    {
+        get => _addAction;
+        set
+        {
+            if (SetField(ref _addAction, value))
+            {
+                OnPropertyChanged(nameof(RotationOriginEnabled));
+                // On the rotation tool the extra forces the AB edge and the
+                // (0,0) pivot: after zeroing, work (0,0) IS the probed corner,
+                // so the rotation apply rotates about the corner. The shared
+                // AddAction property is also the tool-length panel's "set
+                // coordinate system" checkbox — its side effects stay out of
+                // the way by applying only while the rotation tool is active.
+                if (value && IsRotation)
+                {
+                    ProbeEdge = Edge.AB;
+                    RotationOrigin = RotationOrigin.None;
+                }
+            }
+        }
+    }
 
     private bool _referenceToolOffset = true;
     public bool ReferenceToolOffset { get => _referenceToolOffset; set => SetField(ref _referenceToolOffset, value); }
@@ -853,18 +892,48 @@ public class ProbeViewModel : ViewModelBase
             return;
         }
 
-        builder.BuildRotation(ProbeEdge, start);
+        var determineX0Y0 = AddAction && ProbeEdge == Edge.AB;
+        builder.BuildRotation(ProbeEdge, start, determineX0Y0);
         var result = await RunAsync(builder);
-        if (!result.Success || result.Positions.Count < 2)
+        var expected = determineX0Y0 ? 3 : 2;
+        if (!result.Success || result.Positions.Count < expected)
         {
-            LastResult = LocText.Resolve("module.probing.twoPosRequired", "Probing failed - two probe positions required");
+            LastResult = LocText.Resolve(determineX0Y0 ? "module.probing.threePosRequired" : "module.probing.twoPosRequired",
+                determineX0Y0 ? "Probing failed - three probe positions required" : "Probing failed - two probe positions required");
             return;
         }
 
-        var p1 = Pos.From(result.Positions[^2]);
-        var p2 = Pos.From(result.Positions[^1]);
+        // Positions arrive in program order: p1/p2 on the probed edge, then
+        // (with the extra) p3 on the left edge.
+        var p1 = Pos.From(result.Positions[0]);
+        var p2 = Pos.From(result.Positions[1]);
         var angle = ProbeMath.ComputeRotationRadians(ProbeEdge, p1, p2);
         _probedAngleRadians = angle;
+
+        if (determineX0Y0)
+        {
+            var p3 = Pos.From(result.Positions[2]);
+            var corner = ProbeMath.ComputeCorner(p1, p2, p3, ProbeMath.ComputeRotationAngle(ProbeEdge, p1, p2),
+                ProbeOffsetX, ProbeOffsetY, ProbeDiameter / 2d, Offset);
+
+            // Ride the spindle to the corner (machine coords), then write the
+            // work offset so the corner reads as X0,Y0: G92 zeroes the current
+            // position, G10 stores the machine position into the system.
+            await _grbl.SendAsync($"G53G0X{ProbeMath.Fmt(corner.X)}Y{ProbeMath.Fmt(corner.Y)}");
+            var pos = CoordMode == CoordinateMode.G92 ? new Pos(0d, 0d, 0d) : corner;
+            var cmd = ProbeMath.OffsetCommand(CoordMode, CoordinateSystem, pos, "XY");
+            if (string.IsNullOrEmpty(cmd))
+            {
+                LastResult = LocText.Format("module.probing.cornerMeasured", "Probed corner: X{0} Y{1}",
+                    ProbeMath.Fmt(corner.X), ProbeMath.Fmt(corner.Y));
+                return;
+            }
+
+            await _grbl.SendAsync(cmd);
+            LastResult = LocText.Format("module.probing.cornerZeroed", "X0,Y0 set at the probed corner: {0}", cmd);
+            return;
+        }
+
         LastResult = LocText.Format("module.probing.probedAngle", "Probed angle: {0}°", ProbeMath.ToDegrees(angle));
     }
 

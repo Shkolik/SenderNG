@@ -214,6 +214,40 @@ public class ProbeProgramBuilderTests
     }
 
     [Fact]
+    public void Rotation_AB_with_determineX0Y0_adds_a_left_edge_probe()
+    {
+        var p = Make().BuildRotation(Edge.AB, Start, determineX0Y0: true);
+
+        // The two AB probes are unchanged; a third probe follows on the left
+        // edge: approach -X at (start.X - clearance, start.Y + Offset), probe +X.
+        Assert.Equal(
+        [
+            "G91F100",
+            "G53G0Y14",
+            "G53G0Z2",
+            "G38.3F100Y10",
+            "!G0Y-0.5",
+            "G38.3F25Y2",
+            "G53G0Y14",
+            "G53G0X15",
+            "G38.3F100Y10",
+            "!G0Y-0.5",
+            "G38.3F25Y2",
+            "G53G0Y14",
+            "G53G0Z5",
+            "G53G0X10Y20",
+            "G53G0X4Y25",
+            "G53G0Z2",
+            "G38.3F100X10",
+            "!G0X-0.5",
+            "G38.3F25X2",
+            "G53G0X4",
+            "G53G0Z5",
+            "G53G0X10Y20",
+        ], p.Lines);
+    }
+
+    [Fact]
     public void HeightMap_probes_grid_in_snake_path()
     {
         var map = new HeightMap(10, 10, new Vec2(0, 0), new Vec2(20, 10));

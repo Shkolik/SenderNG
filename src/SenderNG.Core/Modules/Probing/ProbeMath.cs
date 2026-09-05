@@ -164,6 +164,34 @@ public static class ProbeMath
     };
 
     /// <summary>
+    /// The workpiece corner (X0,Y0 target) from the rotation probe with the
+    /// "Determine X0,Y0 for right-angled workpiece" extra (ioSender's
+    /// OnActionCompleted). The three raw probe positions are: p1/p2 along the
+    /// bottom edge (AB, approached +Y), p3 on the left edge (approached +X);
+    /// the corner is the intersection of the two edge lines. The left-edge
+    /// line is defined by p3 and a synthetic p4 = p3 + Offset·(slope, −1),
+    /// perpendicular to the bottom edge by construction (slope = the probed
+    /// edge slope, small-angle — exactly upstream's shape). AB-only: the
+    /// approach signs below are hard-coded for AB (upstream forces the AB
+    /// edge when the extra is enabled); other edges would need sign
+    /// parameters. The returned Z is 0 — the caller only consumes X/Y.
+    /// </summary>
+    public static Pos ComputeCorner(Pos p1, Pos p2, Pos p3, double probedSlope,
+        double probeOffsetX, double probeOffsetY, double probeRadius, double offset)
+    {
+        // Probe radius + spindle-to-tip offset in each approach direction.
+        p1 = p1.With(1, p1.Y + probeOffsetY + probeRadius);
+        p2 = p2.With(1, p2.Y + probeOffsetY + probeRadius);
+        p3 = p3.With(0, p3.X + probeOffsetX + probeRadius);
+        var p4 = new Pos(p3.X + offset * probedSlope, p3.Y - offset, 0d);
+
+        var divisor = (p1.X - p2.X) * (p3.Y - p4.Y) - (p1.Y - p2.Y) * (p3.X - p4.X);
+        var x = ((p1.X * p2.Y - p1.Y * p2.X) * (p3.X - p4.X) - (p1.X - p2.X) * (p3.X * p4.Y - p3.Y * p4.X)) / divisor;
+        var y = ((p1.X * p2.Y - p1.Y * p2.X) * (p3.Y - p4.Y) - (p1.Y - p2.Y) * (p3.X * p4.Y - p3.Y * p4.X)) / divisor;
+        return new Pos(x, y, 0d);
+    }
+
+    /// <summary>
     /// The controller command that stores the probed tool length <paramref name="z"/>
     /// (mm, tip-down Z) into tool <paramref name="tool"/> of the tool table via
     /// G10 L1 Pn. grblHAL-only: classic grbl 1.1 / 1.2i forks have no G10 L1 and

@@ -135,4 +135,47 @@ public class ProbeMathTests
         Assert.Equal("G10L1P0Z0", ProbeMath.ToolLengthTableCommand(0, 0));
         Assert.Equal("G10L1P7Z1.25", ProbeMath.ToolLengthTableCommand(7, 1.25));
     }
+
+    [Fact]
+    public void ComputeCorner_finds_the_corner_of_a_square_workpiece()
+    {
+        // Bottom edge at y = 50, left edge at x = 25; probe radius 0.5 so the
+        // raw touches sit one radius outside the edges (approach +Y / +X).
+        var corner = ProbeMath.ComputeCorner(
+            new Pos(0, 49.5, 0), new Pos(100, 49.5, 0), new Pos(24.5, 60, 0),
+            probedSlope: 0d, probeOffsetX: 0d, probeOffsetY: 0d, probeRadius: 0.5d, offset: 30d);
+
+        Assert.Equal(25d, corner.X, 6);
+        Assert.Equal(50d, corner.Y, 6);
+    }
+
+    [Fact]
+    public void ComputeCorner_intersects_a_sloped_bottom_edge_exactly()
+    {
+        // Bottom edge y = 50 + 0.1x through (0,50)/(100,60); left edge through
+        // (25,65) perpendicular to it. Closed-form intersection:
+        //   t = 12.5/30.3 -> (26.2376..., 52.6237...)
+        var corner = ProbeMath.ComputeCorner(
+            new Pos(0, 50, 0), new Pos(100, 60, 0), new Pos(25, 65, 0),
+            probedSlope: 0.1d, probeOffsetX: 0d, probeOffsetY: 0d, probeRadius: 0d, offset: 30d);
+
+        Assert.Equal(26.2376237623762376d, corner.X, 9);
+        Assert.Equal(52.6237623762376237d, corner.Y, 9);
+        // And the corner really sits on the probed bottom-edge line.
+        Assert.Equal(50d + 0.1d * corner.X, corner.Y, 9);
+    }
+
+    [Fact]
+    public void ComputeCorner_applies_probe_offsets_and_radius_in_approach_direction()
+    {
+        // Touch positions include the spindle-to-tip offsets: the corner
+        // shifts by exactly ProbeOffsetX/Y plus the radius.
+        var corner = ProbeMath.ComputeCorner(
+            new Pos(0, 49, 0), new Pos(100, 49, 0), new Pos(24, 60, 0),
+            probedSlope: 0d, probeOffsetX: 1d, probeOffsetY: 0.5d, probeRadius: 0.5d, offset: 30d);
+
+        // p1/p2.Y + 0.5 + 0.5 = 50; p3.X + 1 + 0.5 = 25.5
+        Assert.Equal(25.5d, corner.X, 6);
+        Assert.Equal(50d, corner.Y, 6);
+    }
 }

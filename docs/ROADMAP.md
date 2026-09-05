@@ -139,9 +139,10 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   **Remaining:** Wrap — deferred until the machine physical-configuration
   presets land. Probing migration **LANDED (2026-09-05)**: height-map apply
   and rotation rebuilt on the token machinery (the line-based
-  `ProgramTransform` is deleted), closing the documented G91/arc-Z and
-  rotation-origin limits (origin picker included) — see
-  `docs/plans/2026-09-04-gcode-transforms.md` M4.
+  `ProgramTransform` is deleted), closing the documented G91/arc-Z,
+  rotation-origin limits (origin picker included), and the "Determine X0,Y0
+  for right-angled workpiece" corner extra — see
+  `docs/plans/2026-09-04-gcode-transforms.md` M4–M5.
 - **Icon & pictogram asset pass (SVG)** — a design deliverable that must land
   before Probing is closed. Three sets, drawn by hand as SVG sources:
   1. **Toolbar / run-control icons** — replace the hand-drawn inline `Path`

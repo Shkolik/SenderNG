@@ -289,6 +289,10 @@ Many already exist; the gaps are listed per widget.
       the in-panel origin selector (program-limits corners / center / edge
       midpoints / DRO / 0,0), probed slope converted with Atan (2026-09-05,
       probing-gaps.md #6).
+- [x] **"Determine X0,Y0 for right-angled workpiece"** — third left-edge probe
+      computes the corner (`ProbeMath.ComputeCorner`); corner becomes work
+      zero (G92/G10) and the rotation applies about it (2026-09-05, closes
+      probing-gaps.md "Rotation extras").
 
 ## Priority 3 — Steppers calibration
 
@@ -326,8 +330,9 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
       moves — deferred until machine presets land. Probing migration
       **LANDED (2026-09-05)**: height-map apply and rotation rebuilt at this
       token level (instead of the line-based rewriting), closing the
-      documented G91/arc-Z and rotation-origin limitations — see
-      `docs/plans/2026-09-04-gcode-transforms.md` M4.
+      documented G91/arc-Z and rotation-origin limitations, plus the
+      "Determine X0,Y0" corner extra — see
+      `docs/plans/2026-09-04-gcode-transforms.md` M4–M5.
 - [x] **Localization** — ioSender ships 9 locales; SenderNG ships an en/ru
       JSON catalog with per-plugin overrides and live switching — see
       `docs/localization.md`; more locales are catalog-only work.
