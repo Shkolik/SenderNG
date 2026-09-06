@@ -40,8 +40,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:Class="SenderNG.Modules.Plugins.CenterFinderPanel"
              x:DataType="vm:ProbeViewModel">
 
-    <Grid ColumnDefinitions="Auto,*">
-        <StackPanel Spacing="10" Margin="0,4" HorizontalAlignment="Stretch" VerticalAlignment="Top" x:Name="CenterFinderPanelStack">
+    <StackPanel Spacing="10" HorizontalAlignment="Stretch" VerticalAlignment="Top">
             <StackPanel Orientation="Horizontal" Spacing="4">
                 <RadioButton Classes="tool" Content="{loc:Loc module.probing.inside, DText='Inside'}" FontSize="12" GroupName="center"
                              IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Inside}" />
@@ -51,9 +50,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
             <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6"
                     HorizontalAlignment="Left">
-                <StackPanel Spacing="4">
+                <StackPanel Spacing="4" HorizontalAlignment="Stretch">
                     <TextBlock Text="{loc:Loc module.probing.dimensions, DText='Workpiece dimensions'}" FontWeight="SemiBold" FontSize="11" />
-                    <Grid ColumnDefinitions="Auto,100,60" RowDefinitions="Auto,Auto" HorizontalAlignment="Left">
+                    <Grid ColumnDefinitions="Auto,100,Auto" RowDefinitions="Auto,Auto" HorizontalAlignment="Stretch">
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc module.probing.xSize, DText='X size:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding WorkpieceSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
@@ -76,12 +75,5 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                          Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                          FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
             </Grid>
-        </StackPanel>
-        <!-- Preview textbox -->
-        <TextBox Grid.Column="1" Margin="16,0,0,0" IsReadOnly="True" Text="{Binding PreviewText}" Width="250" HorizontalAlignment="Left"
-                 Height="{Binding Bounds.Height, ElementName=CenterFinderPanelStack}"
-                 FontFamily="Consolas, Courier New, monospace" FontSize="12" TextWrapping="NoWrap"
-                 ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
-                 VerticalContentAlignment="Top" VerticalAlignment="Top" Padding="4,2" />
-    </Grid>
+    </StackPanel>
 </UserControl>

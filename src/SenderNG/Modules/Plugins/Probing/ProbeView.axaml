@@ -45,7 +45,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="800"
              x:Class="SenderNG.Modules.Plugins.ProbeView"
              x:DataType="vm:ProbeViewModel"
-             panels:ProbeDesignState.PinnedTool="HeightMap">
+             panels:ProbeDesignState.PinnedTool="CenterFinder">
 
     <UserControl.Styles>
         <!-- Flat group-box look: bordered card with a small header -->
@@ -328,7 +328,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 </TabControl.ItemTemplate>
                 <TabControl.ContentTemplate>
                     <DataTemplate x:DataType="vm:ProbeToolTab" x:CompileBindings="False">
-                        <Grid RowDefinitions="Auto,*">
+                        <Grid RowDefinitions="Auto,*" Margin="0,4">
+                            <!-- Instructions + warning banner -->
                             <Border Margin="0,0,0,4" Padding="6" HorizontalAlignment="Stretch"
                                     Background="#fff8e1" BorderBrush="#e0c060" BorderThickness="1">
                                 <StackPanel>
@@ -337,9 +338,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                                Foreground="Red" FontWeight="Bold" FontSize="10" Margin="0,4,0,0" />
                                 </StackPanel>
                             </Border>
-                            <ContentControl Grid.Row="1" Content="{Binding View}"
-                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                                            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+                            <!-- Tool panel fills the left; the single shared
+                                 G-code preview (fixed 250px) sits on the right,
+                                 top-aligned to match the panel's content height. -->
+                            <Grid Grid.Row="1" Margin="0,6" ColumnDefinitions="*,250">
+                                <ContentControl x:Name="ToolHost" Grid.Column="0" Content="{Binding View}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Top"
+                                                HorizontalContentAlignment="Stretch" />
+                                <TextBox Grid.Column="1" Margin="16,0,0,0" IsReadOnly="True"
+                                         Text="{Binding $parent[TabControl].DataContext.PreviewText}"
+                                         HorizontalAlignment="Stretch" VerticalAlignment="Top"
+                                         Height="{Binding Bounds.Height, ElementName=ToolHost}"
+                                         FontFamily="Consolas, Courier New, monospace" FontSize="12" TextWrapping="NoWrap"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                         VerticalContentAlignment="Top" Padding="4,2" />
+                            </Grid>
                         </Grid>
                     </DataTemplate>
                 </TabControl.ContentTemplate>
