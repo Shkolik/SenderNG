@@ -259,16 +259,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
             <!-- Probe/touchplate XY offsets -->
             <Border Grid.Row="5" Classes="group">
-                <Grid ColumnDefinitions="*,60,44" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="3">
+                <Grid ColumnDefinitions="24,60,34,*,24,60,44" RowDefinitions="Auto,Auto,Auto" RowSpacing="3">
                     <TextBlock Text="{loc:Loc module.probing.xyOffsets, DText='Probe/touchplate XY offsets'}" FontWeight="SemiBold"
                                FontSize="11" Grid.ColumnSpan="3" Margin="0,0,0,3" />
                     <TextBlock Grid.Row="1" Classes="fld" Text="X:" ToolTip.Tip="{loc:Loc module.probing.xOffsetHint, DText='X offset from the probe to the controlled point'}" />
                     <TextBox Grid.Row="1" Grid.Column="1" Classes="num" Text="{Binding ProbeOffsetX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
                     <TextBlock Grid.Row="1" Grid.Column="2" Classes="unit" Text="mm" />
-                    <TextBlock Grid.Row="2" Classes="fld" Text="Y:" ToolTip.Tip="{loc:Loc module.probing.yOffsetHint, DText='Y offset from the probe to the controlled point'}" />
-                    <TextBox Grid.Row="2" Grid.Column="1" Classes="num" Text="{Binding ProbeOffsetY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
-                    <TextBlock Grid.Row="2" Grid.Column="2" Classes="unit" Text="mm" />
-                    <CheckBox Grid.Row="3" Grid.ColumnSpan="3" Content="{loc:Loc module.probing.isTouchPlate, DText='Is touch plate'}" FontSize="11" IsChecked="{Binding TouchPlateIsXY}" />
+                    
+					<TextBlock Grid.Row="1" Grid.Column="4" Classes="fld" Text="Y:" ToolTip.Tip="{loc:Loc module.probing.yOffsetHint, DText='Y offset from the probe to the controlled point'}" />
+                    <TextBox Grid.Row="1" Grid.Column="5" Classes="num" Text="{Binding ProbeOffsetY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
+                    <TextBlock Grid.Row="1" Grid.Column="6" Classes="unit" Text="mm" />
+                    <CheckBox Grid.Row="2" Grid.ColumnSpan="3" Content="{loc:Loc module.probing.isTouchPlate, DText='Is touch plate'}" FontSize="11" IsChecked="{Binding TouchPlateIsXY}" />
                 </Grid>
             </Border>
 
