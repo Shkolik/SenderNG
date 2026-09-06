@@ -41,7 +41,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:DataType="vm:ProbeViewModel">
 
     <Grid ColumnDefinitions="Auto,*">
-        <StackPanel Spacing="8" Margin="0,4">
+        <StackPanel Spacing="8" Margin="0,4" VerticalAlignment="Top" x:Name="EdgeFinderPanelStack">
             <StackPanel Orientation="Horizontal" Spacing="24">
                 <!-- Edge/corner selector (diagram: D top-left, C top-right, A bottom-left, B bottom-right).
                      Fixed-size grid with square cells that the buttons fill completely (jog-widget style). -->
@@ -68,14 +68,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
                 <StackPanel Spacing="4" VerticalAlignment="Top">
                     <CheckBox Content="{loc:Loc module.probing.probeZ, DText='Probe Z'}" IsChecked="{Binding ProbeZ}" FontSize="11" />
-                    <Grid ColumnDefinitions="100,*">
+                    <Grid ColumnDefinitions="Auto,100">
                         <TextBlock Text="{loc:Loc module.probing.workpieceHeight, DText='Workpiece height:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBox Grid.Column="1" Text="{Binding WorkpieceHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
                                  IsEnabled="{Binding ProbeZ}" />
                     </Grid>
-                    <Grid ColumnDefinitions="100,*">
+                    <Grid ColumnDefinitions="Auto,100">
                         <TextBlock Text="{loc:Loc module.probing.edgeOffset, DText='Edge offset:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
                                    ToolTip.Tip="{loc:Loc module.probing.edgeOffsetHint, DText='0 uses half the probe diameter'}" />
                         <TextBox Grid.Column="1" Text="{Binding WorkpieceXYEdgeOffset, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
@@ -86,11 +86,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 </StackPanel>
             </StackPanel>
         </StackPanel>
-        <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Top" Spacing="4">
-            <TextBox IsReadOnly="True" Text="{Binding PreviewText}" Height="160" MinWidth="252"
-                     FontFamily="Consolas, Courier New, monospace" FontSize="10" TextWrapping="NoWrap"
-                     ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
-                     VerticalContentAlignment="Top" Padding="4,2" />
-        </StackPanel>
+        <!-- Preview textbox -->
+        <TextBox Grid.Column="1" Margin="16,0,0,0" IsReadOnly="True" Text="{Binding PreviewText}" Width="250" HorizontalAlignment="Left"
+                 Height="{Binding Bounds.Height, ElementName=EdgeFinderPanelStack}"
+                 FontFamily="Consolas, Courier New, monospace" FontSize="12" TextWrapping="NoWrap"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 VerticalContentAlignment="Top" VerticalAlignment="Top" Padding="4,2" />
     </Grid>
 </UserControl>

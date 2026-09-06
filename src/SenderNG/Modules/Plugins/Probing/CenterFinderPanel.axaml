@@ -41,7 +41,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:DataType="vm:ProbeViewModel">
 
     <Grid ColumnDefinitions="Auto,*">
-        <StackPanel Spacing="10" Margin="0,4" HorizontalAlignment="Stretch">
+        <StackPanel Spacing="10" Margin="0,4" HorizontalAlignment="Stretch" VerticalAlignment="Top" x:Name="CenterFinderPanelStack">
             <StackPanel Orientation="Horizontal" Spacing="4">
                 <RadioButton Classes="tool" Content="{loc:Loc module.probing.inside, DText='Inside'}" FontSize="12" GroupName="center"
                              IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Inside}" />
@@ -53,7 +53,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     HorizontalAlignment="Left">
                 <StackPanel Spacing="4">
                     <TextBlock Text="{loc:Loc module.probing.dimensions, DText='Workpiece dimensions'}" FontWeight="SemiBold" FontSize="11" />
-                    <Grid ColumnDefinitions="100,100,60" RowDefinitions="Auto,Auto" Width="270" HorizontalAlignment="Left">
+                    <Grid ColumnDefinitions="Auto,100,60" RowDefinitions="Auto,Auto" HorizontalAlignment="Left">
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc module.probing.xSize, DText='X size:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding WorkpieceSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
@@ -69,7 +69,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 </StackPanel>
             </Border>
 
-            <Grid ColumnDefinitions="100,*" Width="210" HorizontalAlignment="Left">
+            <Grid ColumnDefinitions="Auto,100" HorizontalAlignment="Left">
                 <TextBlock Text="{loc:Loc module.probing.passes, DText='Passes:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
                            ToolTip.Tip="{loc:Loc module.probing.passesHint, DText='More than one pass is usually needed for accurate dimensions'}" />
                 <TextBox Grid.Column="1" Classes="int" Text="{Binding Passes, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
@@ -77,11 +77,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                          FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
             </Grid>
         </StackPanel>
-        <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Top" Spacing="4">
-            <TextBox IsReadOnly="True" Text="{Binding PreviewText}" Height="160" MinWidth="252"
-                     FontFamily="Consolas, Courier New, monospace" FontSize="10" TextWrapping="NoWrap"
-                     ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
-                     VerticalContentAlignment="Top" Padding="4,2" />
-        </StackPanel>
+        <!-- Preview textbox -->
+        <TextBox Grid.Column="1" Margin="16,0,0,0" IsReadOnly="True" Text="{Binding PreviewText}" Width="250" HorizontalAlignment="Left"
+                 Height="{Binding Bounds.Height, ElementName=CenterFinderPanelStack}"
+                 FontFamily="Consolas, Courier New, monospace" FontSize="12" TextWrapping="NoWrap"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 VerticalContentAlignment="Top" VerticalAlignment="Top" Padding="4,2" />
     </Grid>
 </UserControl>

@@ -301,57 +301,52 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					   FontFamily="Consolas,monospace" IsVisible="{Binding LastResult, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 		</Grid>
 
-        <!-- ============================ Right: tool strip + panel ============================ -->
-        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto">
+        <!-- ============================ Right: tool tabs + panel ============================ -->
+        <Grid Grid.Column="1" RowDefinitions="*,Auto">
 
-            <!-- Tool toggle strip (ioSender's inner TabControl as buttons, one row) -->
-            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="6,6,2,0" x:Name="ToolToggleStrip">
-				<RadioButton Classes="tool" GroupName="tool" Content="{loc:Loc module.probing.tipTool, DText='Tool length'}"
-                             IsChecked="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=ToolLength}"
-                             IsVisible="{Binding ToolLengthEnabled}" />
-                <RadioButton Classes="tool" GroupName="tool" Content="{loc:Loc module.probing.edgeExternal, DText='Edge external'}"
-                             IsChecked="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}"
-                             IsVisible="{Binding EdgeExternalEnabled}" />
-                <RadioButton Classes="tool" GroupName="tool" Content="{loc:Loc module.probing.edgeInternal, DText='Edge internal'}"
-                             IsChecked="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}"
-                             IsVisible="{Binding EdgeInternalEnabled}" />
-                <RadioButton Classes="tool" GroupName="tool" Content="{loc:Loc module.probing.rotation, DText='Rotation'}"
-                             IsChecked="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Rotation}"
-                             IsVisible="{Binding RotationEnabled}" />
-                <RadioButton Classes="tool" GroupName="tool" Content="{loc:Loc module.probing.tabCenter, DText='Center'}"
-                             IsChecked="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CenterFinder}"
-                             IsVisible="{Binding CenterEnabled}" />
-                <RadioButton Classes="tool" GroupName="tool" Content="{loc:Loc module.probing.heightmap, DText='Height map'}"
-                             IsChecked="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=HeightMap}"
-                             IsVisible="{Binding HeightMapEnabled}" />
-            </StackPanel>
-
-            <!-- Instructions + warning -->
-            <Border Grid.Row="1" Margin="6" Padding="6" HorizontalAlignment="Stretch"
-                    Background="#fff8e1" BorderBrush="#e0c060" BorderThickness="1">
-                <StackPanel HorizontalAlignment="Left">
-                    <TextBlock Text="{Binding Instructions}" TextWrapping="Wrap" FontSize="11" Foreground="#333" />
-                    <TextBlock Text="{loc:Loc module.probing.warning, DText='Warning! Use with care - incorrect parameters may damage your probe!'}"
-                               Foreground="Red" FontWeight="Bold" FontSize="10" Margin="0,4,0,0" />
-                </StackPanel>
-            </Border>
-
-            <!-- Per-tool panel: in the designer only the panel pinned via
-                 panels:ProbeDesignState.PinnedTool on the root renders (all
-                 Is* bindings fail without a DataContext, so every panel
-                 would otherwise stack on top of the others); at runtime the
-                 Is* bindings select the active tool. -->
-            <Grid Grid.Row="2" Margin="6" MaxWidth="{Binding Path=Bounds.Width, ElementName=ToolToggleStrip}">
-                <panels:ToolLengthPanel IsVisible="{Binding IsToolLength}" />
-                <panels:EdgeFinderPanel IsVisible="{Binding IsEdgeExternal}" />
-                <panels:EdgeFinderPanel IsVisible="{Binding IsEdgeInternal}" />
-                <panels:CenterFinderPanel IsVisible="{Binding IsCenter}" />
-                <panels:RotationPanel IsVisible="{Binding IsRotation}" />
-                <panels:HeightMapPanel IsVisible="{Binding IsHeightMap}" />
-            </Grid>
+            <!-- Tool tabs: one per tool (ProbeViewModel.ToolTabs), styled like
+                 the app's center-panel/About tabs (13 SemiBold headers,
+                 CornerRadius 0). Each tab's content shows the per-tool
+                 instructions/warning banner above the tool panel. Tabs of
+                 disabled tools are hidden via the container theme; the
+                 SelectedIndex maps to SelectedTool via
+                 ProbeViewModel.SelectedToolIndex. In the designer only the
+                 tab pinned via panels:ProbeDesignState.PinnedTool on the root
+                 is selected, so exactly one panel renders. -->
+            <TabControl Grid.Row="0" CornerRadius="0" Background="White" Margin="6,6,6,6"
+                        ItemsSource="{Binding ToolTabs}"
+                        SelectedIndex="{Binding SelectedToolIndex, Mode=TwoWay}">
+                <TabControl.ItemContainerTheme>
+                    <ControlTheme TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}" x:CompileBindings="False">
+                        <Setter Property="IsVisible" Value="{Binding IsEnabled}" />
+                    </ControlTheme>
+                </TabControl.ItemContainerTheme>
+                <TabControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ProbeToolTab">
+                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" />
+                    </DataTemplate>
+                </TabControl.ItemTemplate>
+                <TabControl.ContentTemplate>
+                    <DataTemplate x:DataType="vm:ProbeToolTab" x:CompileBindings="False">
+                        <Grid RowDefinitions="Auto,*">
+                            <Border Margin="0,0,0,4" Padding="6" HorizontalAlignment="Stretch"
+                                    Background="#fff8e1" BorderBrush="#e0c060" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding $parent[TabControl].DataContext.Instructions}" TextWrapping="Wrap" FontSize="11" Foreground="#333" />
+                                    <TextBlock Text="{loc:Loc module.probing.warning, DText='Warning! Use with care - incorrect parameters may damage your probe!'}"
+                                               Foreground="Red" FontWeight="Bold" FontSize="10" Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Border>
+                            <ContentControl Grid.Row="1" Content="{Binding View}"
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+                        </Grid>
+                    </DataTemplate>
+                </TabControl.ContentTemplate>
+            </TabControl>
 
             <!-- Start / Stop -->
-            <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="6" Margin="6,0,6,8">
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="6,0,6,8">
                 <Button Content="{loc:Loc common.start, DText='Start'}" Command="{Binding StartCommand}" Width="90" Height="30" MinHeight="30"
                         CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1"
                         VerticalContentAlignment="Center" />

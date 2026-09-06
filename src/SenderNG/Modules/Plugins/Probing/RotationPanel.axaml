@@ -41,9 +41,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:DataType="vm:ProbeViewModel">
 
     <Grid ColumnDefinitions="Auto,*">
-        <StackPanel Spacing="10" Margin="0,4" HorizontalAlignment="Stretch">
+        <StackPanel Spacing="10" Margin="0,4" HorizontalAlignment="Stretch" VerticalAlignment="Top" x:Name="RotationPanelStack">
             <TextBlock Text="{loc:Loc module.probing.rotationDesc, DText='Probe two points along an edge to measure the angle of the workpiece.'}"
-                       FontSize="11" Foreground="#333" TextWrapping="Wrap" />
+                       FontSize="11" Foreground="#333" TextWrapping="Wrap" MaxWidth="360" HorizontalAlignment="Left" />
 
             <StackPanel Orientation="Horizontal" Spacing="16">
                 <TextBlock Text="{loc:Loc module.probing.edge, DText='Edge:'}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -88,11 +88,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     FontSize="11" VerticalContentAlignment="Center"
                     ToolTip.Tip="{loc:Loc module.probing.applyRotationHint, DText=&quot;Rotates the loaded program's X/Y coordinates by the probed angle&quot;}" />
         </StackPanel>
-        <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Top" Spacing="4">
-            <TextBox IsReadOnly="True" Text="{Binding PreviewText}" Height="160" MinWidth="252"
-                     FontFamily="Consolas, Courier New, monospace" FontSize="10" TextWrapping="NoWrap"
-                     ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
-                     VerticalContentAlignment="Top" Padding="4,2" />
-        </StackPanel>
+        <!-- Preview textbox -->
+        <TextBox Grid.Column="1" Margin="16,0,0,0" IsReadOnly="True" Text="{Binding PreviewText}" Width="250" HorizontalAlignment="Left"
+                 Height="{Binding Bounds.Height, ElementName=RotationPanelStack}"
+                 FontFamily="Consolas, Courier New, monospace" FontSize="12" TextWrapping="NoWrap"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 VerticalContentAlignment="Top" VerticalAlignment="Top" Padding="4,2" />
     </Grid>
 </UserControl>

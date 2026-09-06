@@ -35,6 +35,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using Avalonia.Controls;
+using Avalonia.Threading;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using CNC.GCode;
@@ -42,6 +45,7 @@ using SenderNG.Localization;
 using SenderNG.Modules.Fixed;
 using SenderNG.ViewModels;
 using SenderNG.Core.Commands;
+using SenderNG.Core.Localization;
 using SenderNG.Core.Modules.Probing;
 
 namespace SenderNG.Modules.Plugins;
@@ -85,6 +89,7 @@ public class ProbeViewModel : ViewModelBase
 
         WireCommands();
         ApplyToolInstructions();
+        ToolTabs = BuildToolTabs();
 
         // Live probe-program preview: regenerate whenever any input changes
         // (PreviewText itself is exempt — its own change must not re-trigger a
@@ -110,6 +115,7 @@ public class ProbeViewModel : ViewModelBase
             {
                 _profile = active;
                 _enabledTools = ReadEnabledTools();
+                ToolTabs = BuildToolTabs();
                 _store = new ProbingProfileStore(
                     ProfileSettingsPaths.ProbeCompanionPath(_settingsService.SettingsDir, active.Id));
                 Profiles.Clear();
@@ -120,6 +126,7 @@ public class ProbeViewModel : ViewModelBase
             }
             OnPropertyChanged(nameof(ToolChoices));
             OnPropertyChanged(nameof(SelectedToolChoice));
+            OnPropertyChanged(nameof(ToolTabs));
         });
     }
 
@@ -145,6 +152,7 @@ public class ProbeViewModel : ViewModelBase
         ProbeCenter = Center.Inside;
         SelectedTool = pinnedTool;
         ApplyToolInstructions();
+        ToolTabs = BuildToolTabs();
         RefreshPreview();
     }
 
@@ -350,6 +358,8 @@ public class ProbeViewModel : ViewModelBase
                 OnPropertyChanged(nameof(IsEdgeFinder));
                 OnPropertyChanged(nameof(IsEdgeSelectorVisible));
                 OnPropertyChanged(nameof(RotationOriginEnabled));
+                OnPropertyChanged(nameof(SelectedToolIndex));
+                ApplyToolInstructions();
             }
         }
     }
@@ -360,6 +370,52 @@ public class ProbeViewModel : ViewModelBase
     public bool IsCenter => SelectedTool == ProbingType.CenterFinder;
     public bool IsRotation => SelectedTool == ProbingType.Rotation;
     public bool IsHeightMap => SelectedTool == ProbingType.HeightMap;
+
+    /// <summary>Zero-based index of <see cref="SelectedTool"/> in ProbeView's
+    /// tool tabs (Tool length, Edge external, Edge internal, Rotation, Center,
+    /// Height map); two-way bound to the TabControl's SelectedIndex so tab
+    /// clicks switch the active tool and vice versa.</summary>
+    public int SelectedToolIndex
+    {
+        get => SelectedTool switch
+        {
+            ProbingType.EdgeFinderExternal => 1,
+            ProbingType.EdgeFinderInternal => 2,
+            ProbingType.Rotation => 3,
+            ProbingType.CenterFinder => 4,
+            ProbingType.HeightMap => 5,
+            _ => 0,
+        };
+        set => SelectedTool = value switch
+        {
+            1 => ProbingType.EdgeFinderExternal,
+            2 => ProbingType.EdgeFinderInternal,
+            3 => ProbingType.Rotation,
+            4 => ProbingType.CenterFinder,
+            5 => ProbingType.HeightMap,
+            _ => ProbingType.ToolLength,
+        };
+    }
+
+    /// <summary>The six tool tabs of ProbeView's TabControl, in strip order
+    /// (Tool length … Height map). Each tab carries the localized header, its
+    /// tool panel (DataContext pinned to this view model) and the enabled
+    /// state read from the machine profile; rebuilt on profile switches.
+    /// The TabControl's ItemTemplate renders the header, the ContentTemplate
+    /// shows the instructions/warning banner above the panel.</summary>
+    public IReadOnlyList<ProbeToolTab> ToolTabs { get; private set; } = Array.Empty<ProbeToolTab>();
+
+    private IReadOnlyList<ProbeToolTab> BuildToolTabs() => new ProbeToolTab[]
+    {
+        new("module.probing.tipTool", "Tool length", MakePanel<ToolLengthPanel>(), ToolLengthEnabled),
+        new("module.probing.edgeExternal", "Edge external", MakePanel<EdgeFinderPanel>(), EdgeExternalEnabled),
+        new("module.probing.edgeInternal", "Edge internal", MakePanel<EdgeFinderPanel>(), EdgeInternalEnabled),
+        new("module.probing.rotation", "Rotation", MakePanel<RotationPanel>(), RotationEnabled),
+        new("module.probing.tabCenter", "Center", MakePanel<CenterFinderPanel>(), CenterEnabled),
+        new("module.probing.heightmap", "Height map", MakePanel<HeightMapPanel>(), HeightMapEnabled),
+    };
+
+    private UserControl MakePanel<T>() where T : UserControl, new() => new T { DataContext = this };
 
     /// <summary>The rotation pivot combo stays usable unless the
     /// "Determine X0,Y0" extra (which forces the (0,0) pivot) is active.</summary>
@@ -1367,4 +1423,50 @@ public class ProbeViewModel : ViewModelBase
         }
         return result;
     }
+}
+
+/// <summary>One tab of ProbeView's tool TabControl (see
+/// <see cref="ProbeViewModel.ToolTabs"/>): the localized header, the tool
+/// panel view, and whether the tool is enabled for the machine. The header
+/// re-resolves on <see cref="LocalizationService.Changed"/> so tab names
+/// follow a live locale switch, same as the {loc:Loc} markup extension.
+/// (Design mode has no localization service: the English fallback is used.)</summary>
+public sealed class ProbeToolTab : INotifyPropertyChanged
+{
+    private readonly string _key;
+    private readonly string _fallback;
+    private string _name;
+
+    public ProbeToolTab(string key, string fallback, UserControl view, bool isEnabled)
+    {
+        _key = key;
+        _fallback = fallback;
+        _name = LocText.Resolve(key, fallback);
+        View = view;
+        IsEnabled = isEnabled;
+
+        var loc = LocalizationService.Current;
+        if (loc is not null)
+            loc.Changed += (_, _) => Dispatcher.UIThread.Post(() => Name = LocText.Resolve(_key, _fallback));
+    }
+
+    /// <summary>The localized tab header; raises <see cref="PropertyChanged"/>
+    /// when the active locale changes.</summary>
+    public string Name
+    {
+        get => _name;
+        private set
+        {
+            if (_name == value)
+                return;
+            _name = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));
+        }
+    }
+
+    public UserControl View { get; }
+
+    public bool IsEnabled { get; }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 }
