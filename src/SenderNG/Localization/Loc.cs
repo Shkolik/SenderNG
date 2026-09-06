@@ -35,10 +35,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-using System;
 using System.Reactive.Linq;
 using Avalonia;
 using Avalonia.Data;
+using Avalonia.Controls;
 using Avalonia.Threading;
 using SenderNG.Core.Localization;
 
@@ -60,9 +60,16 @@ public sealed class LocExtension
 
     public string Key { get; set; } = string.Empty;
 
+    public string DText { get; set; } = string.Empty;
+
     /// <summary>A binding that re-emits the resolved string on every locale change.</summary>
     public BindingBase ProvideValue(IServiceProvider? provider)
     {
+        if (Design.IsDesignMode && !string.IsNullOrEmpty(DText))
+        {
+            return new Binding { Source = DText };
+        }
+
         return LocSource.HotKey(Key).ToBinding();
     }
 }

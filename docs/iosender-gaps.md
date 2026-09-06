@@ -279,8 +279,9 @@ Many already exist; the gaps are listed per widget.
       `ProbingMacros`).
 - [ ] **Multi-probe selector** (`cbxProbe`) — physical probe vs toolsetter
       (tool table entry), drives which probe the generated program uses.
-- [ ] **Preview of generated probe program** before running (program is
-      available via `ProbeProgramBuilder.Lines`).
+- [x] **Preview of generated probe program** before running — every probing
+      tool panel has a "Show preview" checkbox + read-only textbox (ioSender
+      layout); regenerates live on input changes (2026-09-05).
 - [x] **Height-map apply completeness** — rebuilt on the token machinery
       (`GCodeTransformers.ApplyHeightMap`, 2026-09-05): feeds split at the
       map grid spacing, arcs split into sub-arcs with helix Z, G91 supported

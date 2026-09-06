@@ -40,49 +40,57 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:Class="SenderNG.Modules.Plugins.EdgeFinderPanel"
              x:DataType="vm:ProbeViewModel">
 
-    <StackPanel Spacing="8" Margin="0,4">
-        <StackPanel Orientation="Horizontal" Spacing="24">
-            <!-- Edge/corner selector (diagram: D top-left, C top-right, A bottom-left, B bottom-right).
-                 Fixed-size grid with square cells that the buttons fill completely (jog-widget style). -->
-            <Grid Width="132" Height="132" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Top">
-                <RadioButton Grid.Row="0" Grid.Column="0" Classes="edge" Content="D"
-                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=D}" />
-                <RadioButton Grid.Row="0" Grid.Column="1" Classes="edge" Content="CD"
-                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CD}" />
-                <RadioButton Grid.Row="0" Grid.Column="2" Classes="edge" Content="C"
-                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=C}" />
-                <RadioButton Grid.Row="1" Grid.Column="0" Classes="edge" Content="AD"
-                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AD}" />
-                <RadioButton Grid.Row="1" Grid.Column="1" Classes="edge" Content="Z"
-                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Z}" />
-                <RadioButton Grid.Row="1" Grid.Column="2" Classes="edge" Content="CB"
-                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CB}" />
-                <RadioButton Grid.Row="2" Grid.Column="0" Classes="edge" Content="A"
-                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=A}" />
-                <RadioButton Grid.Row="2" Grid.Column="1" Classes="edge" Content="AB"
-                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AB}" />
-                <RadioButton Grid.Row="2" Grid.Column="2" Classes="edge" Content="B"
-                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=B}" />
-            </Grid>
+    <Grid ColumnDefinitions="Auto,*">
+        <StackPanel Spacing="8" Margin="0,4">
+            <StackPanel Orientation="Horizontal" Spacing="24">
+                <!-- Edge/corner selector (diagram: D top-left, C top-right, A bottom-left, B bottom-right).
+                     Fixed-size grid with square cells that the buttons fill completely (jog-widget style). -->
+                <Grid Width="132" Height="132" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Top">
+                    <RadioButton Grid.Row="0" Grid.Column="0" Classes="edge" Content="D"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=D}" />
+                    <RadioButton Grid.Row="0" Grid.Column="1" Classes="edge" Content="CD"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CD}" />
+                    <RadioButton Grid.Row="0" Grid.Column="2" Classes="edge" Content="C"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=C}" />
+                    <RadioButton Grid.Row="1" Grid.Column="0" Classes="edge" Content="AD"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AD}" />
+                    <RadioButton Grid.Row="1" Grid.Column="1" Classes="edge" Content="Z"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Z}" />
+                    <RadioButton Grid.Row="1" Grid.Column="2" Classes="edge" Content="CB"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CB}" />
+                    <RadioButton Grid.Row="2" Grid.Column="0" Classes="edge" Content="A"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=A}" />
+                    <RadioButton Grid.Row="2" Grid.Column="1" Classes="edge" Content="AB"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AB}" />
+                    <RadioButton Grid.Row="2" Grid.Column="2" Classes="edge" Content="B"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=B}" />
+                </Grid>
 
-            <StackPanel Spacing="4" VerticalAlignment="Top">
-                <CheckBox Content="{loc:Loc module.probing.probeZ}" IsChecked="{Binding ProbeZ}" FontSize="11" />
-                <Grid ColumnDefinitions="100,*">
-                    <TextBlock Text="{loc:Loc module.probing.workpieceHeight}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Column="1" Text="{Binding WorkpieceHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
-                             IsEnabled="{Binding ProbeZ}" />
-                </Grid>
-                <Grid ColumnDefinitions="100,*">
-                    <TextBlock Text="{loc:Loc module.probing.edgeOffset}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
-                               ToolTip.Tip="{loc:Loc module.probing.edgeOffsetHint}" />
-                    <TextBox Grid.Column="1" Text="{Binding WorkpieceXYEdgeOffset, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
-                             IsEnabled="{Binding ProbeZ}" />
-                </Grid>
+                <StackPanel Spacing="4" VerticalAlignment="Top">
+                    <CheckBox Content="{loc:Loc module.probing.probeZ, DText='Probe Z'}" IsChecked="{Binding ProbeZ}" FontSize="11" />
+                    <Grid ColumnDefinitions="100,*">
+                        <TextBlock Text="{loc:Loc module.probing.workpieceHeight, DText='Workpiece height:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBox Grid.Column="1" Text="{Binding WorkpieceHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                 FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
+                                 IsEnabled="{Binding ProbeZ}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="100,*">
+                        <TextBlock Text="{loc:Loc module.probing.edgeOffset, DText='Edge offset:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
+                                   ToolTip.Tip="{loc:Loc module.probing.edgeOffsetHint, DText='0 uses half the probe diameter'}" />
+                        <TextBox Grid.Column="1" Text="{Binding WorkpieceXYEdgeOffset, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                 FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
+                                 IsEnabled="{Binding ProbeZ}" />
+                    </Grid>
+                </StackPanel>
             </StackPanel>
         </StackPanel>
-    </StackPanel>
+        <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Top" Spacing="4">
+            <TextBox IsReadOnly="True" Text="{Binding PreviewText}" Height="160" MinWidth="252"
+                     FontFamily="Consolas, Courier New, monospace" FontSize="10" TextWrapping="NoWrap"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     VerticalContentAlignment="Top" Padding="4,2" />
+        </StackPanel>
+    </Grid>
 </UserControl>

@@ -56,6 +56,14 @@ public partial class ProbeView : UserControl
     {
         InitializeComponent();
         AddHandler(InputElement.TextInputEvent, OnNumericTextInput, RoutingStrategies.Tunnel);
+
+        // The designer never provides a DataContext, so every IsVisible
+        // binding fails and all six tool panels stack on top of each other.
+        // Give the preview a design-time view model pinned to the tool named
+        // by ProbeDesignState.PinnedTool on the root — edit that XAML value
+        // to switch which panel the designer shows.
+        if (Design.IsDesignMode)
+            DataContext = ProbeViewModel.CreateDesignInstance(ProbeDesignState.GetPinnedTool(this));
     }
 
     private void OnNumericTextInput(object? sender, TextInputEventArgs e)

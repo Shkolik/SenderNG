@@ -86,6 +86,19 @@ public class ProbeViewModel : ViewModelBase
         WireCommands();
         ApplyToolInstructions();
 
+        // Live probe-program preview: regenerate whenever any input changes
+        // (PreviewText itself is exempt — its own change must not re-trigger a
+        // rebuild). Building a probe program is microseconds, so the preview is
+        // always on, no checkbox.
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(PreviewText))
+                RefreshPreview();
+        };
+
+        // Seed the box with the current tool's program (defaults) right away.
+        RefreshPreview();
+
         // Names are editor-local metadata saved by the Offsets editor: re-build
         // the choice list (labels) whenever the settings graph changes.
         _settingsService.Changed += () => UiThread.Post(() =>
@@ -109,6 +122,35 @@ public class ProbeViewModel : ViewModelBase
             OnPropertyChanged(nameof(SelectedToolChoice));
         });
     }
+
+    /// <summary>
+    /// Design-time instance for the Avalonia previewer (no services wired):
+    /// enough state to render ProbeView realistically — the tool pinned via
+    /// <see cref="ProbeDesignState.PinnedTool"/> selects the visible panel,
+    /// sample values feed the numeric fields, and the probe-program preview
+    /// and instructions are generated for the pinned tool. Never used at
+    /// runtime.
+    /// </summary>
+    private ProbeViewModel(ProbingType pinnedTool)
+    {
+        _grbl = null!;
+        _settingsService = null!;
+        _profile = null!;
+        _store = null!;
+        _runner = null!;
+        _enabledTools = new Dictionary<string, bool>();
+        NewProfileName = "Default";
+        Profiles.Add(ProbingProfile.CreateDefault());
+        ProbeEdge = Edge.AD;
+        ProbeCenter = Center.Inside;
+        SelectedTool = pinnedTool;
+        ApplyToolInstructions();
+        RefreshPreview();
+    }
+
+    /// <summary>Designer-only factory: a populated view model pinned to
+    /// <paramref name="pinnedTool"/> so exactly one tool panel is visible.</summary>
+    public static ProbeViewModel CreateDesignInstance(ProbingType pinnedTool) => new(pinnedTool);
 
     private void WireCommands()
     {
@@ -322,6 +364,81 @@ public class ProbeViewModel : ViewModelBase
     /// <summary>The rotation pivot combo stays usable unless the
     /// "Determine X0,Y0" extra (which forces the (0,0) pivot) is active.</summary>
     public bool RotationOriginEnabled => !(AddAction && IsRotation);
+
+    // ------------------------------------------------------------ probe preview
+
+    /// <summary>
+    /// Shows the G-code the current tool would run (built live from the
+    /// settings, never executed). Always on — regenerates on any input change
+    /// (ioSender gates this behind a Preview checkbox and only refreshes on
+    /// tab switch; building a probe program is microseconds, so live refresh
+    /// is free).
+    /// </summary>
+    private string _previewText = string.Empty;
+    public string PreviewText
+    {
+        get => _previewText;
+        private set => SetField(ref _previewText, value);
+    }
+
+    private void RefreshPreview()
+    {
+        // ioSender zeroes the start position in preview mode: the shown program
+        // is deterministic and independent of the current DRO position.
+        var start = new Pos(0d, 0d, 0d);
+        try
+        {
+            var builder = new ProbeProgramBuilder(Snapshot());
+            switch (SelectedTool)
+            {
+                case ProbingType.ToolLength:
+                    builder.BuildToolLength(probeFixture: ProbeFixture);
+                    break;
+
+                case ProbingType.EdgeFinderExternal:
+                case ProbingType.EdgeFinderInternal:
+                    if (ProbeEdge != Edge.None)
+                        builder.BuildEdgeFinder(ProbeEdge, start, SelectedTool == ProbingType.EdgeFinderInternal);
+                    break;
+
+                case ProbingType.CenterFinder:
+                    if (ProbeCenter != Center.None)
+                        // One pass: the follow-up passes start from the measured
+                        // center, which a preview cannot know (ioSender: preview = 1).
+                        builder.BuildCenterFinder(ProbeCenter, start, WorkpieceSizeX, WorkpieceSizeY);
+                    break;
+
+                case ProbingType.Rotation:
+                    if (ProbeEdge is Edge.AD or Edge.AB or Edge.CB or Edge.CD)
+                        builder.BuildRotation(ProbeEdge, start, AddAction && ProbeEdge == Edge.AB);
+                    break;
+
+                case ProbingType.HeightMap:
+                    var map = new HeightMap(HmGridSizeX, HmGridSizeY, new Vec2(HmMinX, HmMinY), new Vec2(HmMaxX, HmMaxY));
+                    builder.BuildHeightMap(map, start, HmAddPause);
+                    break;
+            }
+
+            // Optional Z probe phase of the edge finder (ioSender's
+            // "; Post XY probe" preview section): the contact point is only
+            // known after the XY probe, so the preview substitutes the start.
+            if (SelectedTool is ProbingType.EdgeFinderExternal or ProbingType.EdgeFinderInternal
+                && ProbeEdge != Edge.None && ProbeZ && ProbeEdge != Edge.Z)
+            {
+                var zBuilder = new ProbeProgramBuilder(Snapshot());
+                zBuilder.BuildEdgeFinder(Edge.Z, start, SelectedTool == ProbingType.EdgeFinderInternal);
+                PreviewText = string.Join("\n", builder.Lines.Append("; Post XY probe").Concat(zBuilder.Lines));
+                return;
+            }
+
+            PreviewText = string.Join("\n", builder.Lines);
+        }
+        catch (Exception ex)
+        {
+            // Invalid height-map grid etc.: surface the reason in the preview box.
+            PreviewText = ex.Message;
+        }
+    }
     public bool IsEdgeFinder => IsEdgeExternal || IsEdgeInternal;
     public bool IsEdgeSelectorVisible => IsEdgeFinder || IsRotation;
 
@@ -437,7 +554,7 @@ public class ProbeViewModel : ViewModelBase
     /// <summary>True when the connected controller can persist a tool table
     /// (G10 L1 — grblHAL-only; classic grbl 1.1 / 1.2i forks reject it).</summary>
     public bool HasToolTable =>
-        _grbl.Capabilities.IsGrblHAL && _grbl.Capabilities.NumTools > 0;
+        _grbl is not null && _grbl.Capabilities.IsGrblHAL && _grbl.Capabilities.NumTools > 0;
 
     /// <summary>Tool-table slots to store a probed length into (0..N, matching
     /// the Offsets editor — slot 0 renders as "None", apply a dynamic G43.1
@@ -453,7 +570,9 @@ public class ProbeViewModel : ViewModelBase
         {
             var tools = new List<ToolSelectorItem>();
             var max = EffectiveToolCount();
-            var names = OffsetsConfigStore.ToolNamesFor(_settingsService.Load(), _grbl.ControllerKey);
+            var names = _settingsService is null
+                ? new Dictionary<int, string>()
+                : OffsetsConfigStore.ToolNamesFor(_settingsService.Load(), _grbl.ControllerKey);
             for (var i = 0; i <= max; i++)
                 tools.Add(new ToolSelectorItem(i, names.GetValueOrDefault(i, string.Empty)));
             return tools;
@@ -465,6 +584,9 @@ public class ProbeViewModel : ViewModelBase
     /// just the "None" option.</summary>
     private int EffectiveToolCount()
     {
+        // The design-time instance has no services: report no tool-table slots.
+        if (_grbl is null || _profile is null)
+            return 0;
         var controllerTools = _grbl.Capabilities.IsKnown && _grbl.Capabilities.NumTools > 0
             ? _grbl.Capabilities.NumTools : 0;
         return Math.Min(Math.Clamp(_profile.VisibleTools, 0, 64), controllerTools);

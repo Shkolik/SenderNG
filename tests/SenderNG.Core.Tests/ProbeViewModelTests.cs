@@ -392,8 +392,8 @@ public class ProbeViewModelTests : IDisposable
 
         await vm.StartAsync();
 
-        Assert.True(capturing.Lines.Contains("G53G0X5Y5"), "Corner move missing: " + string.Join(", ", capturing.Lines));
-        Assert.True(capturing.Lines.Contains("G10L2P1X5Y5"), "Work offset missing: " + string.Join(", ", capturing.Lines));
+        Assert.Contains("G53G0X5Y5", capturing.Lines);
+        Assert.Contains("G10L2P1X5Y5", capturing.Lines);
         Assert.Equal("X0,Y0 set at the probed corner: G10L2P1X5Y5", vm.LastResult);
     }
 
@@ -411,8 +411,8 @@ public class ProbeViewModelTests : IDisposable
 
         await vm.StartAsync();
 
-        Assert.True(capturing.Lines.Contains("G53G0X5Y5"));
-        Assert.True(capturing.Lines.Contains("G92X0Y0"));
+        Assert.Contains("G53G0X5Y5", capturing.Lines);
+        Assert.Contains("G92X0Y0", capturing.Lines);
         Assert.Equal("X0,Y0 set at the probed corner: G92X0Y0", vm.LastResult);
     }
 
@@ -431,8 +431,8 @@ public class ProbeViewModelTests : IDisposable
         await vm.StartAsync();
 
         // The corner is still ridden to, but nothing is written to the controller.
-        Assert.True(capturing.Lines.Contains("G53G0X5Y5"));
-        Assert.False(capturing.Lines.Any(l => l.StartsWith("G92") || l.StartsWith("G10")));
+        Assert.Contains("G53G0X5Y5", capturing.Lines);
+        Assert.DoesNotContain(capturing.Lines, l => l.StartsWith("G92") || l.StartsWith("G10"));
         Assert.Equal("Probed corner: X5 Y5", vm.LastResult);
     }
 
@@ -454,6 +454,72 @@ public class ProbeViewModelTests : IDisposable
         vm.ProbeEdge = Edge.CB;
         Assert.False(vm.AddAction);
         Assert.True(vm.RotationOriginEnabled);
+    }
+
+    // ------------------------------------------------------------- preview
+
+    [Fact]
+    public async Task Preview_show_generates_the_current_tool_program_and_updates_live()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+        vm.SelectedTool = ProbingType.ToolLength;
+        vm.ProbeFixture = false;
+
+        // Always on: the box is seeded at construction, no checkbox involved.
+        Assert.Equal(
+            ["G91F100", "G38.3F100Z-10", "!G0Z0.5", "G38.3F25Z-2"],
+            vm.PreviewText.Split('\n'));
+
+        // Live regeneration: tweaking an input rebuilds the program.
+        vm.ProbeDistance = 15;
+        Assert.Contains("G38.3F100Z-15", vm.PreviewText.Split('\n'));
+    }
+
+    [Fact]
+    public async Task Preview_switching_tools_regenerates_the_program()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+        vm.SelectedTool = ProbingType.Rotation;
+        vm.ProbeEdge = Edge.AB;
+
+        Assert.Contains("G38.3F100Y10", vm.PreviewText.Split('\n'));
+
+        vm.SelectedTool = ProbingType.HeightMap;
+        Assert.Contains("#Probing point 1 of", vm.PreviewText);
+        Assert.Contains("G38.3F100Z-10", vm.PreviewText.Split('\n'));
+    }
+
+    [Fact]
+    public async Task Preview_rotation_with_determine_x0y0_shows_the_left_edge_probe()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+        vm.SelectedTool = ProbingType.Rotation;
+        vm.ProbeEdge = Edge.AB;
+        vm.AddAction = true;
+        vm.LatchDistance = 0; // one G38 per probe action
+
+        // Two Y probes on the bottom edge plus the X probe on the left edge.
+        var lines = vm.PreviewText.Split('\n');
+        Assert.Equal(3, lines.Count(l => l.Contains("G38", StringComparison.Ordinal)));
+        Assert.Contains("G38.3F100X10", lines);
+    }
+
+    [Fact]
+    public async Task Preview_edge_finder_shows_the_z_probe_phase_when_enabled()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+        vm.SelectedTool = ProbingType.EdgeFinderExternal;
+        vm.ProbeEdge = Edge.A;
+        vm.ProbeZ = true;
+
+        // Both phases, separated like ioSender's preview.
+        var lines = vm.PreviewText.Split('\n');
+        Assert.Contains("; Post XY probe", lines);
+        Assert.Contains("G38.3F100Z-10", lines);
     }
 
     public void Dispose()

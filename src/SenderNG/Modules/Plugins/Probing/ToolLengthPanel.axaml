@@ -41,43 +41,52 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:Class="SenderNG.Modules.Plugins.ToolLengthPanel"
              x:DataType="vm:ProbeViewModel">
 
-    <StackPanel Spacing="8" Margin="0,4">
-        <TextBlock Text="{loc:Loc module.probing.toolLengthDesc}"
-                   FontSize="11" Foreground="#333" TextWrapping="Wrap" />
+    <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="8" Margin="0,4" VerticalAlignment="Top" x:Name="ToolLengthPanelStack">
+            <TextBlock Text="{loc:Loc module.probing.toolLengthDesc, DText='Probe Z downward onto the touch plate / fixture to establish the tool length offset.'}"
+                       FontSize="11" Foreground="#333" TextWrapping="Wrap" MaxWidth="360" HorizontalAlignment="Left"/>
 
-        <CheckBox Content="{loc:Loc module.probing.probeFixture}" IsChecked="{Binding ProbeFixture}" FontSize="11" />
-        <CheckBox Content="{loc:Loc module.probing.establishReference}" IsChecked="{Binding ReferenceToolOffset}" FontSize="11" />
+            <CheckBox Content="{loc:Loc module.probing.probeFixture, DText='Probe fixture @ G59.3'}" IsChecked="{Binding ProbeFixture}" FontSize="11" />
+            <CheckBox Content="{loc:Loc module.probing.establishReference, DText='Establish reference offset'}" IsChecked="{Binding ReferenceToolOffset}" FontSize="11" />
 
-        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="6">
-            <TextBlock Text="{loc:Loc module.probing.withTool}" FontSize="11" Foreground="#333" VerticalAlignment="Center" />
-            <ComboBox Grid.Column="1" ItemsSource="{Binding ToolChoices}"
-                      SelectedItem="{Binding SelectedToolChoice, Mode=TwoWay}"
-                      IsEnabled="{Binding HasToolTable}"
-                      FontSize="11" Width="130" Height="26" CornerRadius="0">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="core:ToolSelectorItem">
-                        <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
-            <TextBlock Grid.Column="2" Text="{loc:Loc module.probing.storeProbed}"
-                       FontSize="10" Foreground="#888" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-        </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="{loc:Loc module.probing.withTool, DText='with tool:'}" FontSize="11" Foreground="#333" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding ToolChoices}"
+                          SelectedItem="{Binding SelectedToolChoice, Mode=TwoWay}"
+                          IsEnabled="{Binding HasToolTable}"
+                          FontSize="11" Width="130" Height="26" CornerRadius="0">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="core:ToolSelectorItem">
+                            <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="{loc:Loc module.probing.storeProbed, DText='store probed length into the tool table (grblHAL)'}"
+                           FontSize="10" Foreground="#888" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="140" />
+            </StackPanel>
 
-        <CheckBox Content="{loc:Loc module.probing.setCoordSystem}" IsChecked="{Binding AddAction}" FontSize="11" />
+            <CheckBox Content="{loc:Loc module.probing.setCoordSystem, DText='Set coordinate system or offset'}" IsChecked="{Binding AddAction}" FontSize="11" />
 
-        <StackPanel Spacing="4" IsVisible="{Binding ProbeFixture}">
-            <TextBlock Text="{loc:Loc module.probing.fixtureProbing}"
-                       FontSize="10" Foreground="#888" TextWrapping="Wrap" />
+            <TextBlock IsVisible="{Binding ProbeFixture}" Text="{loc:Loc module.probing.fixtureProbing, DText='Fixture probing rapids to the fixture origin (0,0) and probes from there;'}"
+                           FontSize="10" Foreground="#888" TextWrapping="Wrap" MaxWidth="360" HorizontalAlignment="Left" />
+            
+            <StackPanel Spacing="4" IsVisible="{Binding AddAction}">
+                <Grid ColumnDefinitions="110,120" Width="230" HorizontalAlignment="Left">
+                    <TextBlock Text="{loc:Loc module.probing.workpieceHeight, DText='Workpiece height:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBox Grid.Column="1" Text="{Binding WorkpieceHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
+                </Grid>
+            </StackPanel>
         </StackPanel>
-
-        <StackPanel Spacing="4" IsVisible="{Binding AddAction}">
-            <Grid ColumnDefinitions="110,120" Width="230" HorizontalAlignment="Left">
-                <TextBlock Text="{loc:Loc module.probing.workpieceHeight}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <TextBox Grid.Column="1" Text="{Binding WorkpieceHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                         Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                         FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
-            </Grid>
-        </StackPanel>
-    </StackPanel>
+        
+		<!-- Preview textbox-->
+		<TextBox Grid.Column="1" Margin="16,0,0,0" IsReadOnly="True" 
+				Text="{Binding PreviewText}" Width="250" HorizontalAlignment="Left"
+                Height="{Binding Bounds.Height, ElementName=ToolLengthPanelStack}"
+                FontFamily="Consolas, Courier New, monospace" FontSize="12" TextWrapping="NoWrap"
+                ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                VerticalContentAlignment="Top" VerticalAlignment="Top" Padding="4,2" />
+        
+    </Grid>
 </UserControl>

@@ -40,64 +40,73 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:Class="SenderNG.Modules.Plugins.HeightMapPanel"
              x:DataType="vm:ProbeViewModel">
 
-    <StackPanel Spacing="10" Margin="0,4" HorizontalAlignment="Stretch">
-        <TextBlock Text="{loc:Loc module.probing.heightmapDesc}"
-                   FontSize="11" Foreground="#333" TextWrapping="Wrap" />
+    <Grid ColumnDefinitions="Auto,*">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto" Margin="0,4" RowSpacing="6"
+			  HorizontalAlignment="Stretch" VerticalAlignment="Top" x:Name="HeightMapPanelStack">
+            <TextBlock Grid.Row="0" Text="{loc:Loc module.probing.heightmapDesc, DText='Probe a Z grid over the area. The map is stored relative to the first probed point.'}"
+                       FontSize="11" Foreground="#333" TextWrapping="Wrap" MaxWidth="360" HorizontalAlignment="Left" />
 
-        <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6"
-                HorizontalAlignment="Left">
-            <StackPanel Spacing="4">
-                <TextBlock Text="{loc:Loc module.probing.area}" FontWeight="SemiBold" FontSize="11" />
-                <Grid ColumnDefinitions="90,*,90,*" RowDefinitions="Auto,Auto" Width="430" HorizontalAlignment="Left">
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc module.probing.minX}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding HmMinX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,12,4" />
-                    <TextBlock Grid.Row="0" Grid.Column="2" Text="{loc:Loc module.probing.maxX}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding HmMaxX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,0,4" />
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc module.probing.minY}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding HmMinY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,12,0" />
-                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{loc:Loc module.probing.maxY}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding HmMaxY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
-                </Grid>
+            <Border Grid.Row="1" CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6"
+                    HorizontalAlignment="Stretch">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="{loc:Loc module.probing.area, DText='Area'}" FontWeight="SemiBold" FontSize="11" />
+                    <Grid ColumnDefinitions="*,64,*,64" RowDefinitions="Auto,Auto" HorizontalAlignment="Stretch">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc module.probing.minX, DText='Min X:'}" FontSize="11" VerticalAlignment="Center" Margin="6,0" />
+                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding HmMinX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                 FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,12,4" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{loc:Loc module.probing.maxX, DText='Max X:'}" FontSize="11" VerticalAlignment="Center" Margin="6,0" />
+                        <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding HmMaxX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                 FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,0,4" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc module.probing.minY, DText='Min Y:'}" FontSize="11" VerticalAlignment="Center" Margin="6,0" />
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding HmMinY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                 FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,12,0" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{loc:Loc module.probing.maxY, DText='Max Y:'}" FontSize="11" VerticalAlignment="Center" Margin="6,0" />
+                        <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding HmMaxY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                 FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="2" CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6"
+                    HorizontalAlignment="Stretch">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="{loc:Loc module.probing.grid, DText='Grid'}" FontWeight="SemiBold" FontSize="11" />
+                    <Grid ColumnDefinitions="*,64,*,64" HorizontalAlignment="Stretch">
+                        <TextBlock Grid.Column="0" Text="{loc:Loc module.probing.gridX, DText='Grid X:'}" FontSize="11" VerticalAlignment="Center" Margin="6,0" />
+                        <TextBox Grid.Column="1" Text="{Binding HmGridSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                 FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,12,0" />
+                        <TextBlock Grid.Column="2" Text="{loc:Loc module.probing.gridY, DText='Grid Y:'}" FontSize="11" VerticalAlignment="Center" Margin="6,0" />
+                        <TextBox Grid.Column="3" Text="{Binding HmGridSizeY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                 FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
+                    </Grid>
+                    <CheckBox Content="{loc:Loc module.probing.lockXY, DText='Lock X/Y grid size'}" IsChecked="{Binding HmLockXY}" FontSize="11" />
+                    <CheckBox Content="{loc:Loc module.probing.addPause, DText='Add pause between points'}" IsChecked="{Binding HmAddPause}" FontSize="11"
+                              ToolTip.Tip="{loc:Loc module.probing.addPauseHint, DText='Wait for cycle start between probe points'}" />
+                    <CheckBox Content="{loc:Loc module.probing.setToolOffset, DText='Set tool offset after probing'}" IsChecked="{Binding HmSetToolOffset}" FontSize="11" />
+                </StackPanel>
+            </Border>
+
+            <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="6">
+                <Button Content="{loc:Loc module.probing.saveMap, DText='Save map'}" Command="{Binding HeightMapSaveCommand}" Padding="12,5" Height="28" MinHeight="28"
+                        CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" FontSize="11" VerticalContentAlignment="Center" />
+                <Button Content="{loc:Loc module.probing.loadMap, DText='Load map'}" Command="{Binding HeightMapLoadCommand}" Padding="12,5" Height="28" MinHeight="28"
+                        CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" FontSize="11" VerticalContentAlignment="Center" />
+                <Button Content="{loc:Loc module.probing.applyToProgram, DText='Apply to program'}" Command="{Binding HeightMapApplyCommand}" Padding="12,5" Height="28" MinHeight="28"
+                        CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" FontSize="11" VerticalContentAlignment="Center"
+                        IsEnabled="{Binding HasHeightMap}" />
             </StackPanel>
-        </Border>
+        </Grid>
 
-        <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6"
-                HorizontalAlignment="Left">
-            <StackPanel Spacing="4">
-                <TextBlock Text="{loc:Loc module.probing.grid}" FontWeight="SemiBold" FontSize="11" />
-                <Grid ColumnDefinitions="90,*,90,*" Width="430" HorizontalAlignment="Left">
-                    <TextBlock Grid.Column="0" Text="{loc:Loc module.probing.gridX}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Column="1" Text="{Binding HmGridSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,12,0" />
-                    <TextBlock Grid.Column="2" Text="{loc:Loc module.probing.gridY}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Grid.Column="3" Text="{Binding HmGridSizeY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                             FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
-                </Grid>
-                <CheckBox Content="{loc:Loc module.probing.lockXY}" IsChecked="{Binding HmLockXY}" FontSize="11" />
-                <CheckBox Content="{loc:Loc module.probing.addPause}" IsChecked="{Binding HmAddPause}" FontSize="11"
-                          ToolTip.Tip="{loc:Loc module.probing.addPauseHint}" />
-                <CheckBox Content="{loc:Loc module.probing.setToolOffset}" IsChecked="{Binding HmSetToolOffset}" FontSize="11" />
-            </StackPanel>
-        </Border>
-
-        <StackPanel Orientation="Horizontal" Spacing="6">
-            <Button Content="{loc:Loc module.probing.saveMap}" Command="{Binding HeightMapSaveCommand}" Padding="12,5" Height="28" MinHeight="28"
-                    CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" FontSize="11" VerticalContentAlignment="Center" />
-            <Button Content="{loc:Loc module.probing.loadMap}" Command="{Binding HeightMapLoadCommand}" Padding="12,5" Height="28" MinHeight="28"
-                    CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" FontSize="11" VerticalContentAlignment="Center" />
-            <Button Content="{loc:Loc module.probing.applyToProgram}" Command="{Binding HeightMapApplyCommand}" Padding="12,5" Height="28" MinHeight="28"
-                    CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" FontSize="11" VerticalContentAlignment="Center"
-                    IsEnabled="{Binding HasHeightMap}" />
-        </StackPanel>
-    </StackPanel>
+		<TextBox Grid.Column="1" IsReadOnly="True" Text="{Binding PreviewText}" Width="250"
+				 Height="{Binding Bounds.Height, ElementName=HeightMapPanelStack}"
+                 FontFamily="Consolas, Courier New, monospace" FontSize="12" TextWrapping="NoWrap"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 VerticalContentAlignment="Top" VerticalAlignment="Top" Padding="4,2" Margin="16,0,0,0" />
+    </Grid>
 </UserControl>

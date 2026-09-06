@@ -40,51 +40,59 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:Class="SenderNG.Modules.Plugins.RotationPanel"
              x:DataType="vm:ProbeViewModel">
 
-    <StackPanel Spacing="10" Margin="0,4" HorizontalAlignment="Stretch">
-        <TextBlock Text="{loc:Loc module.probing.rotationDesc}"
-                   FontSize="11" Foreground="#333" TextWrapping="Wrap" />
+    <Grid ColumnDefinitions="Auto,*">
+        <StackPanel Spacing="10" Margin="0,4" HorizontalAlignment="Stretch">
+            <TextBlock Text="{loc:Loc module.probing.rotationDesc, DText='Probe two points along an edge to measure the angle of the workpiece.'}"
+                       FontSize="11" Foreground="#333" TextWrapping="Wrap" />
 
-        <StackPanel Orientation="Horizontal" Spacing="16">
-            <TextBlock Text="{loc:Loc module.probing.edge}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-            <!-- Same flat button style as the edge finder selector: fixed grid, square cells -->
-            <Grid Width="176" Height="44" ColumnDefinitions="*,*,*,*">
-                <RadioButton Grid.Column="0" Classes="edge" GroupName="redge" Content="AD"
-                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AD}" />
-                <RadioButton Grid.Column="1" Classes="edge" GroupName="redge" Content="AB"
-                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AB}" />
-                <RadioButton Grid.Column="2" Classes="edge" GroupName="redge" Content="CB"
-                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CB}" />
-                <RadioButton Grid.Column="3" Classes="edge" GroupName="redge" Content="CD"
-                             IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CD}" />
-            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <TextBlock Text="{loc:Loc module.probing.edge, DText='Edge:'}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <!-- Same flat button style as the edge finder selector: fixed grid, square cells -->
+                <Grid Width="176" Height="44" ColumnDefinitions="*,*,*,*">
+                    <RadioButton Grid.Column="0" Classes="edge" GroupName="redge" Content="AD"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AD}" />
+                    <RadioButton Grid.Column="1" Classes="edge" GroupName="redge" Content="AB"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AB}" />
+                    <RadioButton Grid.Column="2" Classes="edge" GroupName="redge" Content="CB"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CB}" />
+                    <RadioButton Grid.Column="3" Classes="edge" GroupName="redge" Content="CD"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CD}" />
+                </Grid>
+            </StackPanel>
+
+            <!-- Rotation pivot (ioSender's OriginControl surface): corners /
+                 center / edge midpoints of the loaded program's limits, the
+                 current DRO position, or (0,0). Coordinates resolve at apply time. -->
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="{loc:Loc module.probing.rotationOrigin, DText='Rotation origin:'}" FontSize="11"
+                           VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding RotationOriginNames}"
+                          SelectedIndex="{Binding RotationOriginIndex}"
+                          IsEnabled="{Binding RotationOriginEnabled}"
+                          MinWidth="150" Height="26" FontSize="11"
+                          HorizontalAlignment="Left" />
+            </StackPanel>
+
+            <!-- ioSender's "Determine X0,Y0 for right-angled workpiece": adds a
+                 third probe point on the left edge; the corner becomes work zero
+                 (G92/G10), so the rotation applies about the probed corner. Only
+                 valid on the AB edge (VM unchecks it for any other edge) and the
+                 pivot is forced to 0,0 (combo disabled). -->
+            <CheckBox Content="{loc:Loc module.probing.determineX0Y0, DText='Determine X0, Y0 for right-angled workpiece'}"
+                      IsChecked="{Binding AddAction}" FontSize="11"
+                      ToolTip.Tip="{loc:Loc module.probing.determineX0Y0Hint, DText='Adds a probe point on the left edge and sets X0,Y0 at the probed corner'}" />
+
+            <Button Content="{loc:Loc module.probing.applyRotation, DText='Apply rotation to loaded program'}" Command="{Binding RotationApplyCommand}"
+                    HorizontalAlignment="Left" Padding="12,6" Height="30" MinHeight="30"
+                    CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1"
+                    FontSize="11" VerticalContentAlignment="Center"
+                    ToolTip.Tip="{loc:Loc module.probing.applyRotationHint, DText=&quot;Rotates the loaded program's X/Y coordinates by the probed angle&quot;}" />
         </StackPanel>
-
-        <!-- Rotation pivot (ioSender's OriginControl surface): corners /
-             center / edge midpoints of the loaded program's limits, the
-             current DRO position, or (0,0). Coordinates resolve at apply time. -->
-        <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock Text="{loc:Loc module.probing.rotationOrigin}" FontSize="11"
-                       VerticalAlignment="Center" />
-            <ComboBox ItemsSource="{Binding RotationOriginNames}"
-                      SelectedIndex="{Binding RotationOriginIndex}"
-                      IsEnabled="{Binding RotationOriginEnabled}"
-                      MinWidth="150" Height="26" FontSize="11"
-                      HorizontalAlignment="Left" />
+        <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Top" Spacing="4">
+            <TextBox IsReadOnly="True" Text="{Binding PreviewText}" Height="160" MinWidth="252"
+                     FontFamily="Consolas, Courier New, monospace" FontSize="10" TextWrapping="NoWrap"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     VerticalContentAlignment="Top" Padding="4,2" />
         </StackPanel>
-
-        <!-- ioSender's "Determine X0,Y0 for right-angled workpiece": adds a
-             third probe point on the left edge; the corner becomes work zero
-             (G92/G10), so the rotation applies about the probed corner. Only
-             valid on the AB edge (VM unchecks it for any other edge) and the
-             pivot is forced to 0,0 (combo disabled). -->
-        <CheckBox Content="{loc:Loc module.probing.determineX0Y0}"
-                  IsChecked="{Binding AddAction}" FontSize="11"
-                  ToolTip.Tip="{loc:Loc module.probing.determineX0Y0Hint}" />
-
-        <Button Content="{loc:Loc module.probing.applyRotation}" Command="{Binding RotationApplyCommand}"
-                HorizontalAlignment="Left" Padding="12,6" Height="30" MinHeight="30"
-                CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1"
-                FontSize="11" VerticalContentAlignment="Center"
-                ToolTip.Tip="{loc:Loc module.probing.applyRotationHint}" />
-    </StackPanel>
+    </Grid>
 </UserControl>

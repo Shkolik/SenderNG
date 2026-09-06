@@ -34,6 +34,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Management;
+using System.Text.RegularExpressions;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 
@@ -51,6 +53,13 @@ namespace SenderNG.Core.Tests;
 /// port). If no port identifies as a grbl / grblHAL controller the test skips with a
 /// warning line rather than failing — the project's CI / other machines have no board.
 ///
+/// Ghost ports are filtered out before scanning: Bluetooth SPP ports (a paired
+/// adapter with no peer) enumerate like real serial ports but can block the
+/// synchronous SerialPort.Open far longer than any handshake timeout. On Windows
+/// the candidate list keeps only ports backed by a physical device (PnP class
+/// "Ports"); elsewhere the unfiltered list is used and every discovery attempt is
+/// bounded by a deadline, so a wedged port is abandoned instead of hanging the suite.
+///
 /// Signals/limits remain untested on hardware as noted in p0-controller-plumbing-plan.
 /// </summary>
 // Writes GrblInfo.NumAxes around handshakes, which other classes read —
@@ -67,7 +76,55 @@ public class RealGrblHardwareTests
         var fromEnv = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
         if (!string.IsNullOrWhiteSpace(fromEnv))
             return [fromEnv.Trim()];
-        return AvailablePorts;
+
+        var ports = AvailablePorts;
+        var physical = PhysicalPortsOnly(ports);
+        return physical.Length > 0 ? physical : ports;
+    }
+
+    /// <summary>
+    /// Windows PnP filter: keeps only ports backed by a physical serial device.
+    /// Ghost Bluetooth SPP ports — a paired adapter with no peer connected —
+    /// enumerate like real ports and can block the synchronous
+    /// <c>SerialPort.Open</c> for a long time (observed: a "semaphore timeout"
+    /// after ~5s, longer under load). PnP class alone can't tell them apart: the
+    /// Bluetooth stack registers SPP ports under the same "Ports" class as USB
+    /// serial, so their device name ("Standard Serial over Bluetooth link") is
+    /// the discriminator. Falls back to the unfiltered list when PnP can't be
+    /// queried (non-Windows, stripped-down systems) — the bounded discovery
+    /// attempt still protects the suite there.
+    /// </summary>
+    private static string[] PhysicalPortsOnly(string[] ports)
+    {
+        if (!OperatingSystem.IsWindows())
+            return ports;
+        try
+        {
+            var physical = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using var searcher = new ManagementObjectSearcher(
+                "SELECT Name, PNPClass FROM Win32_PnPEntity WHERE Name LIKE '%(COM%'");
+            foreach (ManagementObject device in searcher.Get())
+            {
+                var name = device["Name"]?.ToString() ?? string.Empty;
+                var match = Regex.Match(name, @"\(COM\d+\)$");
+                if (!match.Success ||
+                    name.Contains("Bluetooth", StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(device["PNPClass"]?.ToString(), "Ports", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                physical.Add(match.Value.Trim('(', ')'));
+            }
+
+            var kept = ports.Where(p => physical.Contains(p)).ToArray();
+            if (kept.Length != ports.Length)
+                Console.WriteLine(
+                    $"INFO   skipping non-physical ports: {string.Join(", ", ports.Except(kept, StringComparer.OrdinalIgnoreCase))}");
+            return kept;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"INFO   PnP port filter unavailable ({ex.GetType().Name}) — using all enumerated ports");
+            return ports;
+        }
     }
 
     [Fact]
@@ -87,7 +144,8 @@ public class RealGrblHardwareTests
 
         foreach (var port in candidates)
         {
-            if (TryIdentifyBoard(port, out var svc, out var received))
+            var attempt = TryIdentifyBoardBounded(port);
+            if (attempt.Service is { } svc && attempt.Received is { } received)
             {
                 await ExerciseBoard(port, svc, received, preAxes, preHAL);
                 return; // exercised the first real board found
@@ -100,19 +158,43 @@ public class RealGrblHardwareTests
             $"answered the $I handshake as a grbl/grblHAL controller");
     }
 
+    /// <summary>Budget for one discovery attempt: the connect path legitimately
+    /// takes up to ~20s worst case (DTR reset boot + $I retries), so a port that
+    /// silently swallows the handshake is abandoned after 25s instead of hanging
+    /// the suite. The abandoned attempt keeps running in the background and is
+    /// reaped when the testhost exits.</summary>
+    private static readonly TimeSpan PortAttemptBudget = TimeSpan.FromSeconds(25);
+
+    private sealed record DiscoveryResult(RealGrblService? Service, ConcurrentQueue<string>? Received);
+
+    /// <summary>
+    /// Run <see cref="TryIdentifyBoard"/> under a deadline — a ghost/wedged port
+    /// (e.g. Bluetooth SPP with no peer) can block the synchronous
+    /// <c>SerialPort.Open</c> far longer than any handshake timeout.
+    /// </summary>
+    private static DiscoveryResult TryIdentifyBoardBounded(string port)
+    {
+        var attempt = Task.Run(() => TryIdentifyBoard(port));
+        if (!attempt.Wait(PortAttemptBudget))
+        {
+            Console.WriteLine($"INFO   '{port}' did not answer within {PortAttemptBudget.TotalSeconds:0}s — abandoned");
+            return new DiscoveryResult(null, null);
+        }
+        return attempt.Result;
+    }
+
     /// <summary>
     /// Connect to <paramref name="port"/> and keep the connected service only when
     /// the $I handshake identified a grbl / grblHAL controller. Any opened port is
     /// closed before returning (the caller only receives an owned, connected board).
     /// </summary>
-    private static bool TryIdentifyBoard(string port, out RealGrblService svc, out ConcurrentQueue<string> received)
+    private static DiscoveryResult TryIdentifyBoard(string port)
     {
         // Hardware mutates the GrblInfo global (axis count, grblHAL flag); capture so a
         // real run can't leak those values into later unit tests in the same process.
         var savedAxes = CNC.Core.GrblInfo.NumAxes;
         var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
-        received = new ConcurrentQueue<string>();
-        var keep = false;
+        var received = new ConcurrentQueue<string>();
         var candidate = new RealGrblService();
         try
         {
@@ -125,29 +207,21 @@ public class RealGrblHardwareTests
             if (candidate.Capabilities.IsKnown)
             {
                 // Keep the connected board for the caller; the poll loop continues.
-                svc = candidate;
-                keep = true;
-                return true;
+                Console.WriteLine($"OK  identified grbl/grblHAL controller on '{port}'");
+                return new DiscoveryResult(candidate, received);
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"INFO   '{port}' connect attempt failed: {ex.GetType().Name}: {ex.Message}");
         }
-        finally
-        {
-            if (!keep)
-            {
-                candidate.Dispose();
-                // This attempt didn't hand off a board to the caller, so undo the
-                // GrblInfo mutation it may have made before anyone asserted on it.
-                CNC.Core.GrblInfo.NumAxes = savedAxes;
-                CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
-            }
-        }
 
-        svc = null!;
-        return false;
+        candidate.Dispose();
+        // This attempt didn't hand off a board to the caller, so undo the
+        // GrblInfo mutation it may have made before anyone asserted on it.
+        CNC.Core.GrblInfo.NumAxes = savedAxes;
+        CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+        return new DiscoveryResult(null, null);
     }
 
     private static async Task ExerciseBoard(
@@ -254,7 +328,9 @@ public class RealGrblHardwareTests
             var deadline = DateTime.UtcNow.AddSeconds(120);
             while (DateTime.UtcNow < deadline && !reconnected)
             {
-                foreach (var candidate in AvailablePorts)
+                // Physical ports only: a re-plugged board is a physical device,
+                // and chasing ghost Bluetooth ports here would hang the reconnect.
+                foreach (var candidate in PhysicalPortsOnly(AvailablePorts))
                 {
                     try
                     {
@@ -933,7 +1009,8 @@ public class RealGrblHardwareTests
 
         foreach (var port in candidates)
         {
-            if (!TryIdentifyBoard(port, out var svc, out var received))
+            var attempt = TryIdentifyBoardBounded(port);
+            if (attempt.Service is not { } svc || attempt.Received is not { } received)
             {
                 Console.WriteLine($"INFO   '{port}' did not answer $I as grbl/grblHAL — trying next port");
                 continue;
