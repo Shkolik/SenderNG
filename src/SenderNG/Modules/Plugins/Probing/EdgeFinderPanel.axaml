@@ -53,44 +53,112 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
         <StackPanel Orientation="Horizontal" Spacing="24">
                 <!-- Edge/corner selector (diagram: D top-left, C top-right, A bottom-left, B bottom-right).
-                     Fixed-size grid with square cells that the buttons fill completely (jog-widget style). -->
-                <Grid Width="132" Height="132" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Top">
-                    <RadioButton Grid.Row="0" Grid.Column="0" Classes="edge" Content="D"
-                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=D}" />
-                    <RadioButton Grid.Row="0" Grid.Column="1" Classes="edge" Content="CD"
-                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CD}" />
-                    <RadioButton Grid.Row="0" Grid.Column="2" Classes="edge" Content="C"
-                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=C}" />
-                    <RadioButton Grid.Row="1" Grid.Column="0" Classes="edge" Content="AD"
-                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AD}" />
-                    <RadioButton Grid.Row="1" Grid.Column="1" Classes="edge" Content="Z"
-                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Z}" />
-                    <RadioButton Grid.Row="1" Grid.Column="2" Classes="edge" Content="CB"
-                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CB}" />
-                    <RadioButton Grid.Row="2" Grid.Column="0" Classes="edge" Content="A"
-                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=A}" />
-                    <RadioButton Grid.Row="2" Grid.Column="1" Classes="edge" Content="AB"
-                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AB}" />
-                    <RadioButton Grid.Row="2" Grid.Column="2" Classes="edge" Content="B"
-                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=B}" />
+                     Each cell stacks the external pictogram over its internal ("I") variant; the
+                     mode radio above flips which one is visible, so the picture always shows the
+                     actual approach direction. Z is shared by both modes. -->
+                <Grid Width="180" Height="180" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Top">
+                    <RadioButton Grid.Row="0" Grid.Column="0" Classes="img" Width="60" Height="60"
+                                 ToolTip.Tip="{loc:Loc module.probing.cornerD, DText='Probe the top-left corner'}"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=D}">
+                        <Grid>
+                            <Image x:Name="CornerDImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
+                            <Image x:Name="CornerDIntImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                        </Grid>
+                    </RadioButton>
+                    <RadioButton Grid.Row="0" Grid.Column="1" Classes="img" Width="60" Height="60"
+                                 ToolTip.Tip="{loc:Loc module.probing.edgeCD, DText='Probe the top edge'}"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CD}">
+                        <Grid>
+                            <Image x:Name="EdgeCDImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
+                            <Image x:Name="EdgeCDIntImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                        </Grid>
+                    </RadioButton>
+                    <RadioButton Grid.Row="0" Grid.Column="2" Classes="img" Width="60" Height="60"
+                                 ToolTip.Tip="{loc:Loc module.probing.cornerC, DText='Probe the top-right corner'}"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=C}">
+                        <Grid>
+                            <Image x:Name="CornerCImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
+                            <Image x:Name="CornerCIntImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                        </Grid>
+                    </RadioButton>
+                    <RadioButton Grid.Row="1" Grid.Column="0" Classes="img" Width="60" Height="60"
+                                 ToolTip.Tip="{loc:Loc module.probing.edgeAD, DText='Probe the left edge'}"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AD}">
+                        <Grid>
+                            <Image x:Name="EdgeADImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
+                            <Image x:Name="EdgeADIntImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                        </Grid>
+                    </RadioButton>
+                    <RadioButton Grid.Row="1" Grid.Column="1" Classes="img" Width="60" Height="60"
+                                 ToolTip.Tip="{loc:Loc module.probing.probeZ, DText='Probe Z'}"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Z}">
+                        <Image x:Name="EdgeZImage" Stretch="Fill" />
+                    </RadioButton>
+                    <RadioButton Grid.Row="1" Grid.Column="2" Classes="img" Width="60" Height="60"
+                                 ToolTip.Tip="{loc:Loc module.probing.edgeCB, DText='Probe the right edge'}"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CB}">
+                        <Grid>
+                            <Image x:Name="EdgeCBImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
+                            <Image x:Name="EdgeCBIntImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                        </Grid>
+                    </RadioButton>
+                    <RadioButton Grid.Row="2" Grid.Column="0" Classes="img" Width="60" Height="60"
+                                 ToolTip.Tip="{loc:Loc module.probing.cornerA, DText='Probe the bottom-left corner'}"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=A}">
+                        <Grid>
+                            <Image x:Name="CornerAImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
+                            <Image x:Name="CornerAIntImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                        </Grid>
+                    </RadioButton>
+                    <RadioButton Grid.Row="2" Grid.Column="1" Classes="img" Width="60" Height="60"
+                                 ToolTip.Tip="{loc:Loc module.probing.edgeAB, DText='Probe the bottom edge'}"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AB}">
+                        <Grid>
+                            <Image x:Name="EdgeABImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
+                            <Image x:Name="EdgeABIntImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                        </Grid>
+                    </RadioButton>
+                    <RadioButton Grid.Row="2" Grid.Column="2" Classes="img" Width="60" Height="60"
+                                 ToolTip.Tip="{loc:Loc module.probing.cornerB, DText='Probe the bottom-right corner'}"
+                                 IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=B}">
+                        <Grid>
+                            <Image x:Name="CornerBImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
+                            <Image x:Name="CornerBIntImage" Stretch="Fill"
+                                   IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                        </Grid>
+                    </RadioButton>
                 </Grid>
 
                 <StackPanel Spacing="4" VerticalAlignment="Top">
                     <CheckBox Content="{loc:Loc module.probing.probeZ, DText='Probe Z'}" IsChecked="{Binding ProbeZ}" FontSize="11" />
-                    <Grid ColumnDefinitions="Auto,100">
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="4">
                         <TextBlock Text="{loc:Loc module.probing.workpieceHeight, DText='Workpiece height:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBox Grid.Column="1" Text="{Binding WorkpieceHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
-                                 IsEnabled="{Binding ProbeZ}" />
-                    </Grid>
-                    <Grid ColumnDefinitions="Auto,100">
-                        <TextBlock Text="{loc:Loc module.probing.edgeOffset, DText='Edge offset:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
+                                 IsEnabled="{Binding ProbeZ}" Margin="4,0"/>
+
+						<TextBlock Grid.Row="1" Text="{loc:Loc module.probing.edgeOffset, DText='Edge offset:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
                                    ToolTip.Tip="{loc:Loc module.probing.edgeOffsetHint, DText='0 uses half the probe diameter'}" />
-                        <TextBox Grid.Column="1" Text="{Binding WorkpieceXYEdgeOffset, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+						<TextBox Grid.Row="1" Grid.Column="1" Text="{Binding WorkpieceXYEdgeOffset, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
-                                 IsEnabled="{Binding ProbeZ}" />
+                                 IsEnabled="{Binding ProbeZ}" Margin="4,0"/>
                     </Grid>
                 </StackPanel>
             </StackPanel>

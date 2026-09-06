@@ -384,6 +384,10 @@ WIDGET = {
         "module.probing.edgeAB": ("Probe the bottom edge", "Пробинг нижней кромки"),
         "module.probing.edgeCB": ("Probe the right edge", "Пробинг правой кромки"),
         "module.probing.edgeCD": ("Probe the top edge", "Пробинг верхней кромки"),
+        "module.probing.cornerA": ("Probe the bottom-left corner", "Пробинг нижнего левого угла"),
+        "module.probing.cornerB": ("Probe the bottom-right corner", "Пробинг нижнего правого угла"),
+        "module.probing.cornerC": ("Probe the top-right corner", "Пробинг верхнего правого угла"),
+        "module.probing.cornerD": ("Probe the top-left corner", "Пробинг верхнего левого угла"),
         "module.probing.applyRotation": ("Apply rotation", "Применить поворот"),
         # Rotation origin selector (order matches the RotationOrigin enum)
         "module.probing.origin.none": ("0, 0", "0, 0"),
