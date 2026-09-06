@@ -40,7 +40,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:Class="SenderNG.Modules.Plugins.HeightMapPanel"
              x:DataType="vm:ProbeViewModel">
 
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6"
+    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6"
 		  HorizontalAlignment="Stretch" VerticalAlignment="Top">
             <TextBlock Grid.Row="0" Text="{loc:Loc module.probing.heightmapDesc, DText='Probe a Z grid over the area. The map is stored relative to the first probed point.'}"
                        FontSize="11" Foreground="#333" TextWrapping="Wrap" MaxWidth="360" HorizontalAlignment="Left" />
@@ -91,14 +91,5 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 </StackPanel>
             </Border>
 
-            <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="6">
-                <Button Content="{loc:Loc module.probing.saveMap, DText='Save map'}" Command="{Binding HeightMapSaveCommand}" Padding="12,5" Height="28" MinHeight="28"
-                        CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" FontSize="11" VerticalContentAlignment="Center" />
-                <Button Content="{loc:Loc module.probing.loadMap, DText='Load map'}" Command="{Binding HeightMapLoadCommand}" Padding="12,5" Height="28" MinHeight="28"
-                        CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" FontSize="11" VerticalContentAlignment="Center" />
-                <Button Content="{loc:Loc module.probing.applyToProgram, DText='Apply to program'}" Command="{Binding HeightMapApplyCommand}" Padding="12,5" Height="28" MinHeight="28"
-                        CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" FontSize="11" VerticalContentAlignment="Center"
-                        IsEnabled="{Binding HasHeightMap}" />
-            </StackPanel>
     </Grid>
 </UserControl>

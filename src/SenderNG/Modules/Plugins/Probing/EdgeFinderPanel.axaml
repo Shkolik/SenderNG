@@ -41,7 +41,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:DataType="vm:ProbeViewModel">
 
     <StackPanel Spacing="8" VerticalAlignment="Top">
-            <StackPanel Orientation="Horizontal" Spacing="24">
+        <!-- External/internal mode of the merged Edge finder tab: which side the
+             probe approaches the probed surface from. Internal mirrors the moves
+             about the edge/corner (P1 fix) and flips the radius-compensation sign. -->
+        <StackPanel Orientation="Horizontal" Spacing="4">
+            <RadioButton Classes="tool" Content="{loc:Loc module.probing.external, DText='External'}" FontSize="12"
+                         IsChecked="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
+            <RadioButton Classes="tool" Content="{loc:Loc module.probing.internal, DText='Internal'}" FontSize="12"
+                         IsChecked="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="24">
                 <!-- Edge/corner selector (diagram: D top-left, C top-right, A bottom-left, B bottom-right).
                      Fixed-size grid with square cells that the buttons fill completely (jog-widget style). -->
                 <Grid Width="132" Height="132" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Top">

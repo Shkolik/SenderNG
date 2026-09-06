@@ -48,13 +48,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <TextBlock Text="{loc:Loc module.probing.edge, DText='Edge:'}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
                 <!-- Same flat button style as the edge finder selector: fixed grid, square cells -->
                 <Grid Width="176" Height="44" ColumnDefinitions="*,*,*,*">
-                    <RadioButton Grid.Column="0" Classes="edge" GroupName="redge" Content="AD"
+                    <RadioButton Grid.Column="0" Classes="edge" Content="AD"
                                  IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AD}" />
-                    <RadioButton Grid.Column="1" Classes="edge" GroupName="redge" Content="AB"
+                    <RadioButton Grid.Column="1" Classes="edge" Content="AB"
                                  IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=AB}" />
-                    <RadioButton Grid.Column="2" Classes="edge" GroupName="redge" Content="CB"
+                    <RadioButton Grid.Column="2" Classes="edge" Content="CB"
                                  IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CB}" />
-                    <RadioButton Grid.Column="3" Classes="edge" GroupName="redge" Content="CD"
+                    <RadioButton Grid.Column="3" Classes="edge" Content="CD"
                                  IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=CD}" />
                 </Grid>
             </StackPanel>
@@ -80,11 +80,5 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <CheckBox Content="{loc:Loc module.probing.determineX0Y0, DText='Determine X0, Y0 for right-angled workpiece'}"
                       IsChecked="{Binding AddAction}" FontSize="11"
                       ToolTip.Tip="{loc:Loc module.probing.determineX0Y0Hint, DText='Adds a probe point on the left edge and sets X0,Y0 at the probed corner'}" />
-
-            <Button Content="{loc:Loc module.probing.applyRotation, DText='Apply rotation to loaded program'}" Command="{Binding RotationApplyCommand}"
-                    HorizontalAlignment="Left" Padding="12,6" Height="30" MinHeight="30"
-                    CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1"
-                    FontSize="11" VerticalContentAlignment="Center"
-                    ToolTip.Tip="{loc:Loc module.probing.applyRotationHint, DText=&quot;Rotates the loaded program's X/Y coordinates by the probed angle&quot;}" />
     </StackPanel>
 </UserControl>

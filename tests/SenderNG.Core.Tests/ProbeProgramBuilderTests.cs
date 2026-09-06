@@ -145,6 +145,84 @@ public class ProbeProgramBuilderTests
     }
 
     [Fact]
+    public void EdgeFinder_internal_edge_AD_mirrors_probe_direction()
+    {
+        // Left edge: external approaches from -X and probes X+; internal must
+        // approach from +X (inside the pocket) and probe X- toward the wall.
+        var p = Make().BuildEdgeFinder(Edge.AD, Start, internalFinder: true);
+
+        Assert.Equal(
+        [
+            "G91F100",
+            "G53G0X16",
+            "G53G0Z2",
+            "G38.3F100X-10",
+            "!G0X0.5",
+            "G38.3F25X-2",
+            "G53G0X16",
+            "G53G0Z5",
+        ], p.Lines);
+    }
+
+    [Fact]
+    public void EdgeFinder_internal_edge_AB_mirrors_probe_direction()
+    {
+        // Bottom edge: external approaches from -Y and probes Y+; internal
+        // approaches from +Y (inside the pocket) and probes Y- toward the wall.
+        var p = Make().BuildEdgeFinder(Edge.AB, Start, internalFinder: true);
+
+        Assert.Equal(
+        [
+            "G91F100",
+            "G53G0Y26",
+            "G53G0Z2",
+            "G38.3F100Y-10",
+            "!G0Y0.5",
+            "G38.3F25Y-2",
+            "G53G0Y26",
+            "G53G0Z5",
+        ], p.Lines);
+    }
+
+    [Fact]
+    public void EdgeFinder_internal_edge_CB_mirrors_probe_direction()
+    {
+        // Right edge: external probes X- from the +X side; internal probes X+.
+        var p = Make().BuildEdgeFinder(Edge.CB, Start, internalFinder: true);
+
+        Assert.Equal(
+        [
+            "G91F100",
+            "G53G0X4",
+            "G53G0Z2",
+            "G38.3F100X10",
+            "!G0X-0.5",
+            "G38.3F25X2",
+            "G53G0X4",
+            "G53G0Z5",
+        ], p.Lines);
+    }
+
+    [Fact]
+    public void EdgeFinder_internal_edge_CD_mirrors_probe_direction()
+    {
+        // Top edge: external probes Y- from the +Y side; internal probes Y+.
+        var p = Make().BuildEdgeFinder(Edge.CD, Start, internalFinder: true);
+
+        Assert.Equal(
+        [
+            "G91F100",
+            "G53G0Y14",
+            "G53G0Z2",
+            "G38.3F100Y10",
+            "!G0Y-0.5",
+            "G38.3F25Y2",
+            "G53G0Y14",
+            "G53G0Z5",
+        ], p.Lines);
+    }
+
+    [Fact]
     public void CenterFinder_inside_probes_both_axes_from_midpoint()
     {
         var p = Make().BuildCenterFinder(Center.Inside, new Pos(0, 0, 0), sizeX: 40, sizeY: 30);

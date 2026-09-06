@@ -72,8 +72,7 @@ VIEW_EN = {
     },
     "probing": {
         "module.probing.tool-length": "Tool length offset",
-        "module.probing.edge-external": "Edge finder, external",
-        "module.probing.edge-internal": "Edge finder, internal",
+        "module.probing.edge-finder": "Edge finder",
         "module.probing.rotation": "Rotation",
         "module.probing.center": "Center finder",
         "module.probing.heightmap": "Height map",
@@ -101,8 +100,7 @@ VIEW_RU = {
     },
     "probing": {
         "module.probing.tool-length": "Смещение длины инструмента",
-        "module.probing.edge-external": "Поиск кромки, снаружи",
-        "module.probing.edge-internal": "Поиск кромки, внутри",
+        "module.probing.edge-finder": "Поиск кромки",
         "module.probing.rotation": "Поворот",
         "module.probing.center": "Поиск центра",
         "module.probing.heightmap": "Карта высот",
@@ -346,6 +344,8 @@ WIDGET = {
         "module.probing.tipTool": ("Tool length", "Длина инструмента"),
         "module.probing.edgeExternal": ("Edge external", "Снаружи по кромке"),
         "module.probing.edgeInternal": ("Edge internal", "Внутри по кромке"),
+        "module.probing.external": ("External", "Снаружи"),
+        "module.probing.internal": ("Internal", "Внутри"),
         "module.probing.tabRotation": ("Rotation", "Поворот"),
         "module.probing.tabCenter": ("Center", "Центр"),
         "module.probing.warning": ("Warning! Use with care - incorrect parameters may damage your probe!",
@@ -380,7 +380,7 @@ WIDGET = {
         "module.probing.rotationDesc": ("Probe two points along an edge to measure the angle of the workpiece.",
                                           "Измерьте две точки вдоль кромки, чтобы определить угол заготовки."),
         "module.probing.edge": ("Edge:", "Кромка:"),
-        "module.probing.applyRotation": ("Apply rotation to loaded program", "Применить поворот к загруженной программе"),
+        "module.probing.applyRotation": ("Apply rotation", "Применить поворот"),
         "module.probing.applyRotationHint": ("Rotates the loaded program's X/Y coordinates by the probed angle",
                                                 "Поворачивает координаты X/Y загруженной программы на измеренный угол"),
         # Height map panel

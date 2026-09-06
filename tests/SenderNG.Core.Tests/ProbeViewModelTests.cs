@@ -522,9 +522,133 @@ public class ProbeViewModelTests : IDisposable
         Assert.Contains("G38.3F100Z-10", lines);
     }
 
+    [Fact]
+    public void Enabled_tools_roundtrip_through_module_settings()
+    {
+        // Seed the profile with the height map disabled, then save + reload
+        // from disk. Plain STJ deserialization turns the nested module section
+        // into JsonElement, which used to defeat the Dictionary<string, object>
+        // reads and made every tool appear enabled again (regression: unchecking
+        // a tool in App Settings did not persist).
+        var profile = _settings.Load();
+        profile.ModuleSettings["Probing"] = new Dictionary<string, object>
+        {
+            [ProbingModule.EnabledToolsKey] = new Dictionary<string, object>
+            {
+                ["tool-length"] = true,
+                ["edge-finder"] = true,
+                ["rotation"] = true,
+                ["center"] = true,
+                ["heightmap"] = false,
+            },
+        };
+        _settings.Save(profile);
+
+        var onDisk = ProfilesStore.TryLoad(_dir, MachineProfile.DefaultId)!;
+        Assert.IsNotType<Dictionary<string, object>>(onDisk.ModuleSettings["Probing"]);
+
+        // A fresh SettingsService re-reads the file (restart-equivalent); the
+        // view model must see the height map as disabled and hide its tab.
+        var freshSettings = new SettingsService(_dir);
+        var vm = new ProbeViewModel(new StubGrbl(), freshSettings);
+        Assert.False(vm.HeightMapEnabled);
+        Assert.True(vm.ToolLengthEnabled);
+        Assert.True(vm.EdgeFinderEnabled);
+
+        // The App Settings checkbox reads the persisted state after a reopen...
+        var module = new ProbingModule();
+        module.AttachServices(new ServiceCollection().AddSingleton(freshSettings).BuildServiceProvider());
+        var fields = module.GetBoolSettingFields().ToDictionary(f => f.Key!);
+        Assert.False(fields["module.probing.heightmap"].Get());
+        Assert.True(fields["module.probing.tool-length"].Get());
+
+        // ...and toggling through the field setter persists across a fresh read.
+        fields["module.probing.heightmap"].Set(true);
+        var module2 = new ProbingModule();
+        module2.AttachServices(new ServiceCollection().AddSingleton(new SettingsService(_dir)).BuildServiceProvider());
+        Assert.True(module2.GetBoolSettingFields().Single(f => f.Key == "module.probing.heightmap").Get());
+        fields["module.probing.heightmap"].Set(false);
+        var module3 = new ProbingModule();
+        module3.AttachServices(new ServiceCollection().AddSingleton(new SettingsService(_dir)).BuildServiceProvider());
+        Assert.False(module3.GetBoolSettingFields().Single(f => f.Key == "module.probing.heightmap").Get());
+    }
+
+    [Fact]
+    public void Enabled_tools_toggle_roundtrips_in_memory_without_restart()
+    {
+        // The App Settings flow in one session: uncheck tools through the
+        // module field setter (mutates the shared graph + saves), then reopen
+        // the dialog (fresh module on the SAME SettingsService). Regression:
+        // the setter stored a Dictionary<string, bool> which the generic `is`
+        // checks in ReadEnabledTools reject (generic invariance), so the
+        // in-memory re-read defaulted every tool back to enabled — the dialog
+        // showed ALL tools checked until the app was restarted (only the disk
+        // re-read produced a tolerated JsonElement shape).
+        var module = new ProbingModule();
+        module.AttachServices(new ServiceCollection().AddSingleton(_settings).BuildServiceProvider());
+        var fields = module.GetBoolSettingFields().ToDictionary(f => f.Key!);
+        fields["module.probing.heightmap"].Set(false);
+        fields["module.probing.center"].Set(false);
+
+        var reopened = new ProbingModule();
+        reopened.AttachServices(new ServiceCollection().AddSingleton(_settings).BuildServiceProvider());
+        var reopenedFields = reopened.GetBoolSettingFields().ToDictionary(f => f.Key!);
+        Assert.False(reopenedFields["module.probing.heightmap"].Get());
+        Assert.False(reopenedFields["module.probing.center"].Get());
+        Assert.True(reopenedFields["module.probing.tool-length"].Get());
+
+        // Toggling back re-enables both, still without touching disk re-reads.
+        reopenedFields["module.probing.heightmap"].Set(true);
+        reopenedFields["module.probing.center"].Set(true);
+        var reopened2 = new ProbingModule();
+        reopened2.AttachServices(new ServiceCollection().AddSingleton(_settings).BuildServiceProvider());
+        var fields2 = reopened2.GetBoolSettingFields().ToDictionary(f => f.Key!);
+        Assert.True(fields2["module.probing.heightmap"].Get());
+        Assert.True(fields2["module.probing.center"].Get());
+    }
+
+    [Fact]
+    public void Enabled_tools_toggle_applies_to_the_open_view_model()
+    {
+        // The probe panel is open when the user edits App Settings: the toggle
+        // must reach the live VM through SettingsService.Changed (same profile
+        // instance — the profile-switch branch cannot catch this). Regression:
+        // enabled tools were re-read only on profile switches, so the change
+        // required an app restart to show up.
+        var vm = new ProbeViewModel(new StubGrbl(), _settings);
+        Assert.True(vm.CenterEnabled);
+        Assert.True(vm.ToolTabs[3].IsEnabled);
+
+        var module = new ProbingModule();
+        module.AttachServices(new ServiceCollection().AddSingleton(_settings).BuildServiceProvider());
+        var fields = module.GetBoolSettingFields().ToDictionary(f => f.Key!);
+
+        fields["module.probing.center"].Set(false);
+        Assert.False(vm.CenterEnabled);
+        Assert.False(vm.ToolTabs[3].IsEnabled);
+        Assert.True(vm.ToolTabs[0].IsEnabled);
+
+        // Re-enabling restores the tab in place (panels are never recreated).
+        fields["module.probing.center"].Set(true);
+        Assert.True(vm.CenterEnabled);
+        Assert.True(vm.ToolTabs[3].IsEnabled);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_dir, recursive: true); } catch { }
+    }
+
+    /// <summary>Minimal non-connecting IGrblService for VM construction tests.</summary>
+    private sealed class StubGrbl : CNC.Core.Abstractions.IGrblService
+    {
+        private readonly System.Reactive.Subjects.BehaviorSubject<MachineState> _subject = new(new MachineState(3));
+        public bool IsConnected => false;
+        public System.IObservable<MachineState> State => _subject;
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public void SendRealtime(byte code) { }
+        public Task SendAsync(string line) => Task.CompletedTask;
     }
 
     /// <summary>Wraps an IGrblService, counting RefreshWorkParametersAsync calls

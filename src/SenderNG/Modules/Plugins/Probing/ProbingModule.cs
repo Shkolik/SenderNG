@@ -32,6 +32,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Modules;
@@ -56,8 +58,7 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule
     public static string[] ToolKeys { get; } =
     [
         "tool-length",
-        "edge-external",
-        "edge-internal",
+        "edge-finder",
         "rotation",
         "center",
         "heightmap",
@@ -67,8 +68,7 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule
         new Dictionary<string, string>
         {
             ["module.probing.tool-length"] = "Tool length offset",
-            ["module.probing.edge-external"] = "Edge finder, external",
-            ["module.probing.edge-internal"] = "Edge finder, internal",
+            ["module.probing.edge-finder"] = "Edge finder",
             ["module.probing.rotation"] = "Rotation",
             ["module.probing.center"] = "Center finder",
             ["module.probing.heightmap"] = "Height map",
@@ -89,7 +89,13 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule
     // file path is persisted alongside but is not user-editable there.
     public IEnumerable<ModuleSettingBool> GetBoolSettingFields()
     {
-        var tools = ReadTools(_settingsService);
+        // Boxed: the setter stores this dictionary into the shared profile's
+        // ModuleSettings, and the in-memory re-read (dialog reopen in the same
+        // session) requires a Dictionary<string, object> value — a
+        // Dictionary<string, bool> defeats the generic `is` checks (generic
+        // invariance) and silently re-enables every tool.
+        var tools = ReadEnabledTools(_settingsService?.Load())
+            .ToDictionary(kv => kv.Key, kv => (object)kv.Value);
 
         string Label(string key) => LocalizationKeys.TryGetValue("module.probing." + key, out var en)
             ? en
@@ -98,7 +104,7 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule
         foreach (var key in ToolKeys)
         {
             yield return new ModuleSettingBool(Label(key),
-                () => tools.TryGetValue(key, out var v) && v,
+                () => tools.TryGetValue(key, out var v) && v is true,
                 value =>
                 {
                     tools[key] = value;
@@ -120,25 +126,101 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule
 
     private static Dictionary<string, object> EnsureSection(MachineProfile settings)
     {
-        if (settings.ModuleSettings.TryGetValue("Probing", out var raw) && raw is Dictionary<string, object> dict)
-            return dict;
-        dict = new Dictionary<string, object>();
-        settings.ModuleSettings["Probing"] = dict;
-        return dict;
+        if (settings.ModuleSettings.TryGetValue("Probing", out var raw))
+        {
+            if (raw is Dictionary<string, object> dict)
+                return dict;
+            // ModuleSettings values deserialize as JsonElement (no custom
+            // STJ converters): materialize so sibling keys (e.g. ProfilesFile)
+            // survive the next save instead of being replaced by a fresh dict.
+            if (raw is JsonElement { ValueKind: JsonValueKind.Object } section)
+            {
+                dict = new Dictionary<string, object>();
+                foreach (var prop in section.EnumerateObject())
+                    dict[prop.Name] = Materialize(prop.Value)!;
+                settings.ModuleSettings["Probing"] = dict;
+                return dict;
+            }
+        }
+        var fresh = new Dictionary<string, object>();
+        settings.ModuleSettings["Probing"] = fresh;
+        return fresh;
     }
 
-    private static Dictionary<string, bool> ReadTools(SettingsService? settingsService)
+    /// <summary>Converts a deserialized JsonElement back into plain CLR values
+    /// (nested objects become dictionaries, numbers doubles, booleans bools).
+    /// Used when materializing a module section loaded from disk so writes
+    /// preserve sibling keys in a serializable shape.</summary>
+    private static object Materialize(object value) => value switch
+    {
+        JsonElement el => el.ValueKind switch
+        {
+            JsonValueKind.Object => el.EnumerateObject().ToDictionary(p => p.Name, p => Materialize(p.Value)),
+            JsonValueKind.Array => el.EnumerateArray().Select(e => Materialize(e)).ToList(),
+            JsonValueKind.String => el.GetString() ?? string.Empty,
+            JsonValueKind.Number => el.GetDouble(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => string.Empty,
+        },
+        _ => value,
+    };
+
+    /// <summary>Enabled-tool state with legacy-key migration. Settings saved
+    /// before the Edge finder merge (P2) stored per-mode keys
+    /// (<c>edge-external</c> / <c>edge-internal</c>); the single
+    /// <c>edge-finder</c> flag replaces them, defaulting to enabled when
+    /// either legacy mode was enabled (an absent legacy key means that mode's
+    /// default, i.e. enabled). Reads tolerate both an in-memory
+    /// <c>Dictionary&lt;string, object&gt;</c> section and the JsonElement shape
+    /// produced by a save/load round-trip (plain STJ deserialization of
+    /// <c>MachineProfile.ModuleSettings</c>).</summary>
+    internal static Dictionary<string, bool> ReadEnabledTools(MachineProfile? profile)
     {
         var result = ToolKeys.ToDictionary(k => k, _ => true);
-        var settings = settingsService?.Load();
-        if (settings is null || !settings.ModuleSettings.TryGetValue("Probing", out var raw) || raw is not Dictionary<string, object> section)
+        if (profile is null ||
+            !profile.ModuleSettings.TryGetValue("Probing", out var raw) ||
+            raw is not (Dictionary<string, object> or JsonElement { ValueKind: JsonValueKind.Object }) ||
+            !TryGetTools(raw, out var rawTools))
+        {
             return result;
-        if (!section.TryGetValue(EnabledToolsKey, out var rawTools) || rawTools is not Dictionary<string, object> dict)
-            return result;
+        }
+
+        bool? Flag(string key) => rawTools switch
+        {
+            Dictionary<string, object> dict when dict.TryGetValue(key, out var v) && v is bool b => b,
+            JsonElement { ValueKind: JsonValueKind.Object } el when
+                el.TryGetProperty(key, out var p) && p.ValueKind is JsonValueKind.True or JsonValueKind.False => p.GetBoolean(),
+            _ => null,
+        };
+
         foreach (var key in ToolKeys)
-            if (dict.TryGetValue(key, out var v) && v is bool b)
-                result[key] = b;
+            if (Flag(key) is bool enabled)
+                result[key] = enabled;
+
+        if (Flag("edge-finder") is null &&
+            (Flag("edge-external") is not null || Flag("edge-internal") is not null))
+        {
+            bool ModeEnabled(string key) => Flag(key) is null || Flag(key) == true;
+            result["edge-finder"] = ModeEnabled("edge-external") || ModeEnabled("edge-internal");
+        }
         return result;
+    }
+
+    private static bool TryGetTools(object section, out object rawTools)
+    {
+        switch (section)
+        {
+            case Dictionary<string, object> dict when dict.TryGetValue(EnabledToolsKey, out var tools):
+                rawTools = tools;
+                return rawTools is Dictionary<string, object> or JsonElement { ValueKind: JsonValueKind.Object };
+            case JsonElement { ValueKind: JsonValueKind.Object } el when el.TryGetProperty(EnabledToolsKey, out var tools):
+                rawTools = tools;
+                return rawTools is Dictionary<string, object> or JsonElement { ValueKind: JsonValueKind.Object };
+            default:
+                rawTools = null!;
+                return false;
+        }
     }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>

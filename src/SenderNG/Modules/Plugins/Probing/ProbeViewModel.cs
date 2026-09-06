@@ -109,13 +109,11 @@ public class ProbeViewModel : ViewModelBase
         _settingsService.Changed += () => UiThread.Post(() =>
         {
             // A profile switch swaps the shared graph: re-init the companion
-            // store, enabled tools and the profile list for the new machine.
+            // store and the profile list for the new machine.
             var active = _settingsService.Load();
             if (!ReferenceEquals(active, _profile))
             {
                 _profile = active;
-                _enabledTools = ReadEnabledTools();
-                ToolTabs = BuildToolTabs();
                 _store = new ProbingProfileStore(
                     ProfileSettingsPaths.ProbeCompanionPath(_settingsService.SettingsDir, active.Id));
                 Profiles.Clear();
@@ -124,9 +122,19 @@ public class ProbeViewModel : ViewModelBase
                 SelectedProfile = Profiles.FirstOrDefault();
                 ApplyToolInstructions();
             }
+
+            // Enabled-tool checkboxes live in the shared profile's module
+            // settings: re-read on every save (not just profile switches) so
+            // App Settings toggles apply to the open tab immediately.
+            _enabledTools = ReadEnabledTools();
+            // Push the new enabled flags into the existing tabs instead of
+            // rebuilding ToolTabs: a rebuild constructs a second set of
+            // tool panels while the first is still alive, and their
+            // RadioButtons re-register the same GroupNames with Avalonia's
+            // per-root RadioButtonGroupManager ("same key already added").
+            ApplyEnabledTools();
             OnPropertyChanged(nameof(ToolChoices));
             OnPropertyChanged(nameof(SelectedToolChoice));
-            OnPropertyChanged(nameof(ToolTabs));
         });
     }
 
@@ -148,6 +156,7 @@ public class ProbeViewModel : ViewModelBase
         _enabledTools = new Dictionary<string, bool>();
         NewProfileName = "Default";
         Profiles.Add(ProbingProfile.CreateDefault());
+        WireCommands();
         ProbeEdge = Edge.AD;
         ProbeCenter = Center.Inside;
         SelectedTool = pinnedTool;
@@ -182,7 +191,7 @@ public class ProbeViewModel : ViewModelBase
         ProfileDeleteCommand = new DelegateCommand(_ => DeleteProfile());
         HeightMapSaveCommand = new DelegateCommand(_ => _ = SaveHeightMapAsync());
         HeightMapLoadCommand = new DelegateCommand(_ => _ = LoadHeightMapAsync());
-        HeightMapApplyCommand = new DelegateCommand(_ => ApplyHeightMapToProgram());
+        HeightMapApplyCommand = new DelegateCommand(_ => ApplyHeightMapToProgram(), _ => HasHeightMap);
         RotationApplyCommand = new DelegateCommand(_ => ApplyRotationToProgram());
     }
 
@@ -342,11 +351,26 @@ public class ProbeViewModel : ViewModelBase
     // ------------------------------------------------------------- tool strip
 
     private ProbingType _selectedTool = ProbingType.ToolLength;
+
+    /// <summary>Last selected mode of the merged Edge finder tab. The tab
+    /// itself is one tool (EdgeFinderExternal/EdgeFinderInternal both map to
+    /// its index), so the radio choice must be remembered here: switching
+    /// away to another tab overwrites <see cref="SelectedTool"/> and the mode
+    /// would otherwise reset to External on return.</summary>
+    private bool _edgeFinderInternal;
+
     public ProbingType SelectedTool
     {
         get => _selectedTool;
         set
         {
+            // Remember the merged edge-finder tab's mode so re-entering the
+            // tab (SelectedToolIndex setter) restores it.
+            if (value == ProbingType.EdgeFinderInternal)
+                _edgeFinderInternal = true;
+            else if (value == ProbingType.EdgeFinderExternal)
+                _edgeFinderInternal = false;
+
             if (SetField(ref _selectedTool, value))
             {
                 OnPropertyChanged(nameof(IsToolLength));
@@ -372,34 +396,37 @@ public class ProbeViewModel : ViewModelBase
     public bool IsHeightMap => SelectedTool == ProbingType.HeightMap;
 
     /// <summary>Zero-based index of <see cref="SelectedTool"/> in ProbeView's
-    /// tool tabs (Tool length, Edge external, Edge internal, Rotation, Center,
-    /// Height map); two-way bound to the TabControl's SelectedIndex so tab
-    /// clicks switch the active tool and vice versa.</summary>
+    /// tool tabs (Tool length, Edge finder, Rotation, Center, Height map);
+    /// two-way bound to the TabControl's SelectedIndex so tab clicks switch
+    /// the active tool and vice versa. Both edge-finder modes (external /
+    /// internal, chosen by the radios inside the merged tab) map to index 1.</summary>
     public int SelectedToolIndex
     {
         get => SelectedTool switch
         {
-            ProbingType.EdgeFinderExternal => 1,
-            ProbingType.EdgeFinderInternal => 2,
-            ProbingType.Rotation => 3,
-            ProbingType.CenterFinder => 4,
-            ProbingType.HeightMap => 5,
+            ProbingType.EdgeFinderExternal or ProbingType.EdgeFinderInternal => 1,
+            ProbingType.Rotation => 2,
+            ProbingType.CenterFinder => 3,
+            ProbingType.HeightMap => 4,
             _ => 0,
         };
         set => SelectedTool = value switch
         {
-            1 => ProbingType.EdgeFinderExternal,
-            2 => ProbingType.EdgeFinderInternal,
-            3 => ProbingType.Rotation,
-            4 => ProbingType.CenterFinder,
-            5 => ProbingType.HeightMap,
+            // Restore the mode the radios last selected (the internal/external
+            // choice is not a tab identity, see _edgeFinderInternal); entering
+            // the tab for the first time defaults to external.
+            1 => _edgeFinderInternal ? ProbingType.EdgeFinderInternal : ProbingType.EdgeFinderExternal,
+            2 => ProbingType.Rotation,
+            3 => ProbingType.CenterFinder,
+            4 => ProbingType.HeightMap,
             _ => ProbingType.ToolLength,
         };
     }
 
-    /// <summary>The six tool tabs of ProbeView's TabControl, in strip order
-    /// (Tool length … Height map). Each tab carries the localized header, its
-    /// tool panel (DataContext pinned to this view model) and the enabled
+    /// <summary>The five tool tabs of ProbeView's TabControl (Tool length …
+    /// Height map; Edge external and Edge internal share one "Edge finder"
+    /// tab whose radios pick the mode). Each tab carries the localized header,
+    /// its tool panel (DataContext pinned to this view model) and the enabled
     /// state read from the machine profile; rebuilt on profile switches.
     /// The TabControl's ItemTemplate renders the header, the ContentTemplate
     /// shows the instructions/warning banner above the panel.</summary>
@@ -408,8 +435,7 @@ public class ProbeViewModel : ViewModelBase
     private IReadOnlyList<ProbeToolTab> BuildToolTabs() => new ProbeToolTab[]
     {
         new("module.probing.tipTool", "Tool length", MakePanel<ToolLengthPanel>(), ToolLengthEnabled),
-        new("module.probing.edgeExternal", "Edge external", MakePanel<EdgeFinderPanel>(), EdgeExternalEnabled),
-        new("module.probing.edgeInternal", "Edge internal", MakePanel<EdgeFinderPanel>(), EdgeInternalEnabled),
+        new("module.probing.edge-finder", "Edge finder", MakePanel<EdgeFinderPanel>(), EdgeFinderEnabled),
         new("module.probing.rotation", "Rotation", MakePanel<RotationPanel>(), RotationEnabled),
         new("module.probing.tabCenter", "Center", MakePanel<CenterFinderPanel>(), CenterEnabled),
         new("module.probing.heightmap", "Height map", MakePanel<HeightMapPanel>(), HeightMapEnabled),
@@ -503,8 +529,9 @@ public class ProbeViewModel : ViewModelBase
     public bool IsToolEnabled(ProbingType tool) => tool switch
     {
         ProbingType.ToolLength => _enabledTools.GetValueOrDefault("tool-length", true),
-        ProbingType.EdgeFinderExternal => _enabledTools.GetValueOrDefault("edge-external", true),
-        ProbingType.EdgeFinderInternal => _enabledTools.GetValueOrDefault("edge-internal", true),
+        // The merged Edge finder tab covers both modes (see ProbingModule.ToolKeys).
+        ProbingType.EdgeFinderExternal or ProbingType.EdgeFinderInternal =>
+            _enabledTools.GetValueOrDefault("edge-finder", true),
         ProbingType.Rotation => _enabledTools.GetValueOrDefault("rotation", true),
         ProbingType.CenterFinder => _enabledTools.GetValueOrDefault("center", true),
         ProbingType.HeightMap => _enabledTools.GetValueOrDefault("heightmap", true),
@@ -512,11 +539,25 @@ public class ProbeViewModel : ViewModelBase
     };
 
     public bool ToolLengthEnabled => IsToolEnabled(ProbingType.ToolLength);
-    public bool EdgeExternalEnabled => IsToolEnabled(ProbingType.EdgeFinderExternal);
-    public bool EdgeInternalEnabled => IsToolEnabled(ProbingType.EdgeFinderInternal);
+    public bool EdgeFinderEnabled => IsToolEnabled(ProbingType.EdgeFinderExternal);
     public bool CenterEnabled => IsToolEnabled(ProbingType.CenterFinder);
     public bool RotationEnabled => IsToolEnabled(ProbingType.Rotation);
     public bool HeightMapEnabled => IsToolEnabled(ProbingType.HeightMap);
+
+    /// <summary>Copy the current profile's enabled flags into the existing
+    /// tabs. Tab order must match <see cref="BuildToolTabs"/> (Tool length,
+    /// Edge finder, Rotation, Center, Height map). See the profile-switch
+    /// handler in the constructor for why panels are never recreated.</summary>
+    private void ApplyEnabledTools()
+    {
+        if (ToolTabs.Count != 5)
+            return;
+        ToolTabs[0].IsEnabled = ToolLengthEnabled;
+        ToolTabs[1].IsEnabled = EdgeFinderEnabled;
+        ToolTabs[2].IsEnabled = RotationEnabled;
+        ToolTabs[3].IsEnabled = CenterEnabled;
+        ToolTabs[4].IsEnabled = HeightMapEnabled;
+    }
 
     // ------------------------------------------------------ tool-specific input
 
@@ -705,15 +746,36 @@ public class ProbeViewModel : ViewModelBase
     public bool HmSetToolOffset { get => _hmSetToolOffset; set => SetField(ref _hmSetToolOffset, value); }
 
     public HeightMap? HeightMapData { get; private set; }
+
+    private bool _hasHeightMap;
     public bool HasHeightMap
     {
-        get => HeightMapData is not null;
-        private set => OnPropertyChanged(nameof(HasHeightMap));
+        get => _hasHeightMap;
+        private set
+        {
+            if (SetField(ref _hasHeightMap, value))
+                (HeightMapApplyCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        }
     }
 
     // Coordinate writing: G10 (with system) / G92 / Measure.
     private CoordinateMode _coordMode = CoordinateMode.G10;
-    public CoordinateMode CoordMode { get => _coordMode; set => SetField(ref _coordMode, value); }
+    public CoordinateMode CoordMode
+    {
+        get => _coordMode;
+        set
+        {
+            if (SetField(ref _coordMode, value))
+            {
+                // The radio IsChecked bindings read these computed flags; without
+                // the notification the second radio would stay visually checked
+                // until some unrelated change re-rendered the group.
+                OnPropertyChanged(nameof(IsCoordG10));
+                OnPropertyChanged(nameof(IsCoordG92));
+                OnPropertyChanged(nameof(IsCoordMeasure));
+            }
+        }
+    }
     public bool IsCoordG10 { get => CoordMode == CoordinateMode.G10; set { if (value) CoordMode = CoordinateMode.G10; } }
     public bool IsCoordG92 { get => CoordMode == CoordinateMode.G92; set { if (value) CoordMode = CoordinateMode.G92; } }
     public bool IsCoordMeasure { get => CoordMode == CoordinateMode.Measure; set { if (value) CoordMode = CoordinateMode.Measure; } }
@@ -783,6 +845,11 @@ public class ProbeViewModel : ViewModelBase
     public async Task StartAsync()
     {
         if (IsRunning)
+            return;
+
+        // Design-time instance (CreateDesignInstance) wires commands so the
+        // action bar renders enabled, but must never reach the controller.
+        if (_grbl is null)
             return;
 
         IsConnected = _grbl.IsConnected;
@@ -1411,39 +1478,32 @@ public class ProbeViewModel : ViewModelBase
 
     // ----------------------------------------------------------------- helpers
 
-    private Dictionary<string, bool> ReadEnabledTools()
-    {
-        var result = ProbingModule.ToolKeys.ToDictionary(k => k, _ => true);
-        if (_profile.ModuleSettings.TryGetValue("Probing", out var raw) && raw is Dictionary<string, object> section &&
-            section.TryGetValue(ProbingModule.EnabledToolsKey, out var rawTools) && rawTools is Dictionary<string, object> dict)
-        {
-            foreach (var key in ProbingModule.ToolKeys)
-                if (dict.TryGetValue(key, out var v) && v is bool b)
-                    result[key] = b;
-        }
-        return result;
-    }
+    private Dictionary<string, bool> ReadEnabledTools() => ProbingModule.ReadEnabledTools(_profile);
 }
 
 /// <summary>One tab of ProbeView's tool TabControl (see
 /// <see cref="ProbeViewModel.ToolTabs"/>): the localized header, the tool
 /// panel view, and whether the tool is enabled for the machine. The header
 /// re-resolves on <see cref="LocalizationService.Changed"/> so tab names
-/// follow a live locale switch, same as the {loc:Loc} markup extension.
-/// (Design mode has no localization service: the English fallback is used.)</summary>
+/// follow a live locale switch, same as the {loc:Loc} markup extension;
+/// <see cref="IsEnabled"/> is updated in place on profile switches so the
+/// panels are never recreated. (Design mode has no localization service: the
+/// English fallback is used.)</summary>
 public sealed class ProbeToolTab : INotifyPropertyChanged
 {
     private readonly string _key;
     private readonly string _fallback;
+    private readonly UserControl _view;
     private string _name;
+    private bool _isEnabled;
 
     public ProbeToolTab(string key, string fallback, UserControl view, bool isEnabled)
     {
         _key = key;
         _fallback = fallback;
         _name = LocText.Resolve(key, fallback);
-        View = view;
-        IsEnabled = isEnabled;
+        _view = view;
+        _isEnabled = isEnabled;
 
         var loc = LocalizationService.Current;
         if (loc is not null)
@@ -1464,9 +1524,21 @@ public sealed class ProbeToolTab : INotifyPropertyChanged
         }
     }
 
-    public UserControl View { get; }
+    public UserControl View => _view;
 
-    public bool IsEnabled { get; }
+    /// <summary>Whether the machine profile enables the tool. Set in place on
+    /// profile switches (see <see cref="ProbeViewModel.ApplyEnabledTools"/>).</summary>
+    public bool IsEnabled
+    {
+        get => _isEnabled;
+        internal set
+        {
+            if (_isEnabled == value)
+                return;
+            _isEnabled = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEnabled)));
+        }
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 }

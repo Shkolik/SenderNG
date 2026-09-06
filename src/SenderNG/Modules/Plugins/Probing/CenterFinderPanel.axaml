@@ -42,28 +42,29 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     <StackPanel Spacing="10" HorizontalAlignment="Stretch" VerticalAlignment="Top">
             <StackPanel Orientation="Horizontal" Spacing="4">
-                <RadioButton Classes="tool" Content="{loc:Loc module.probing.inside, DText='Inside'}" FontSize="12" GroupName="center"
+                <RadioButton Classes="tool" Content="{loc:Loc module.probing.inside, DText='Inside'}" FontSize="12"
                              IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Inside}" />
-                <RadioButton Classes="tool" Content="{loc:Loc module.probing.outside, DText='Outside'}" FontSize="12" GroupName="center"
+                <RadioButton Classes="tool" Content="{loc:Loc module.probing.outside, DText='Outside'}" FontSize="12"
                              IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Outside}" />
             </StackPanel>
 
             <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6"
-                    HorizontalAlignment="Left">
+                    HorizontalAlignment="Stretch">
                 <StackPanel Spacing="4" HorizontalAlignment="Stretch">
                     <TextBlock Text="{loc:Loc module.probing.dimensions, DText='Workpiece dimensions'}" FontWeight="SemiBold" FontSize="11" />
-                    <Grid ColumnDefinitions="Auto,100,Auto" RowDefinitions="Auto,Auto" HorizontalAlignment="Stretch">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc module.probing.xSize, DText='X size:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding WorkpieceSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                                 FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,0,4" />
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc module.probing.ySize, DText='Y size:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding WorkpieceSizeY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                    <!-- X / Y sizes on one line, lock between them -->
+                    <Grid ColumnDefinitions="Auto,100,44,Auto,100,*" HorizontalAlignment="Stretch">
+                        <TextBlock Text="X:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBox Grid.Column="1" Text="{Binding WorkpieceSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
-                        <CheckBox Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Classes="padlock"
-                                  VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="{Binding WorkpieceLockXY}"
+                        <CheckBox Grid.Column="2" Classes="padlock" VerticalAlignment="Center"
+                                  IsChecked="{Binding WorkpieceLockXY}"
                                   ToolTip.Tip="{loc:Loc module.probing.lockHint, DText='Locked: X and Y sizes stay equal. Unlock to probe in one direction only.'}" />
+                        <TextBlock Grid.Column="3" Text="Y:" FontSize="11" VerticalAlignment="Center" Margin="6,0,6,0" />
+                        <TextBox Grid.Column="4" Text="{Binding WorkpieceSizeY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                 FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
                     </Grid>
                 </StackPanel>
             </Border>

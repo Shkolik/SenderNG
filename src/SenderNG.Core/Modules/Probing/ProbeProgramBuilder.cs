@@ -280,17 +280,20 @@ public sealed class ProbeProgramBuilder
                 if (!internalFinder)
                     AddRapidToMPos(start, "Z");
                 break;
+            // Single edges: an internal finder probes from inside the pocket,
+            // so the whole sequence (approach side, probe and retract signs)
+            // mirrors about the edge — exactly what flipping "negative" does.
             case Edge.AD:
-                AddEdge('X', false);
+                AddEdge('X', internalFinder);
                 break;
             case Edge.AB:
-                AddEdge('Y', false);
+                AddEdge('Y', internalFinder);
                 break;
             case Edge.CB:
-                AddEdge('X', true);
+                AddEdge('X', !internalFinder);
                 break;
             case Edge.CD:
-                AddEdge('Y', true);
+                AddEdge('Y', !internalFinder);
                 break;
         }
 
