@@ -42,10 +42,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     <StackPanel Spacing="10" HorizontalAlignment="Stretch" VerticalAlignment="Top">
             <StackPanel Orientation="Horizontal" Spacing="4">
-                <RadioButton Classes="tool" Content="{loc:Loc module.probing.inside, DText='Inside'}" FontSize="12"
-                             IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Inside}" />
-                <RadioButton Classes="tool" Content="{loc:Loc module.probing.outside, DText='Outside'}" FontSize="12"
-                             IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Outside}" />
+                <!-- Pictograms load in code-behind on attach (see
+                     OnAttachedToVisualTree) so unit tests can construct this
+                     panel without Avalonia's asset services. -->
+                <RadioButton Classes="img" Width="120" Height="120"
+                             IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Inside}"
+                             ToolTip.Tip="{loc:Loc module.probing.inside, DText='Inside'}">
+                    <Image x:Name="CenterInImage" />
+                </RadioButton>
+                <RadioButton Classes="img" Width="120" Height="120"
+                             IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Outside}"
+                             ToolTip.Tip="{loc:Loc module.probing.outside, DText='Outside'}">
+                    <Image x:Name="CenterOutImage" />
+                </RadioButton>
             </StackPanel>
 
             <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6"

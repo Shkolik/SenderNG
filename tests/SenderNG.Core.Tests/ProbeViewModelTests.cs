@@ -38,6 +38,7 @@ using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Modules.Fixed;
 using SenderNG.Modules.Plugins;
+using SenderNG.Core.Localization;
 using SenderNG.Core.Modules.Probing;
 using Xunit;
 
@@ -372,6 +373,46 @@ public class ProbeViewModelTests : IDisposable
         Assert.Equal(11, vm.RotationOriginNames.Count);
         Assert.Equal(RotationOrigin.None, vm.RotationOrigin);
         Assert.Equal(0, vm.RotationOriginIndex);
+    }
+
+    [Fact]
+    public void Rotation_origin_names_are_positional_and_follow_live_locale_change()
+    {
+        // Labels are positional (no A/B/C/D letters): the probing diagram's
+        // letter convention differs from ioSender's, and AB is the BOTTOM edge
+        // here — ioSender's "Edge AB (top)" was actively wrong for us.
+        var locDir = Path.Combine(Path.GetTempPath(), "senderng-loc-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(locDir);
+        File.WriteAllText(Path.Combine(locDir, "en.json"),
+            """{"strings": {"module.probing.origin.a": "Bottom-left corner", "module.probing.origin.ab": "Bottom edge", "module.probing.origin.cd": "Top edge"}}""");
+        File.WriteAllText(Path.Combine(locDir, "ru.json"),
+            """{"strings": {"module.probing.origin.a": "Левый нижний угол", "module.probing.origin.ab": "Нижняя кромка", "module.probing.origin.cd": "Верхняя кромка"}}""");
+        var svc = LocalizationService.LoadFromDirectory(locDir);
+        var previous = LocalizationService.Current;
+        LocalizationService.Current = svc;
+        try
+        {
+            var vm = new ProbeViewModel(new StubGrbl(), _settings);
+
+            Assert.Equal("Bottom-left corner", vm.RotationOriginNames[1]);
+            Assert.Equal("Bottom edge", vm.RotationOriginNames[6]);
+            Assert.Equal("Top edge", vm.RotationOriginNames[9]);
+
+            // Live locale switch: the selector must follow without a restart
+            // (the VM re-resolves the names on LocalizationService.Changed;
+            // SetLocale is always raised on the UI thread in the app, so the
+            // update is synchronous).
+            svc.SetLocale("ru");
+
+            Assert.Equal("Левый нижний угол", vm.RotationOriginNames[1]);
+            Assert.Equal("Нижняя кромка", vm.RotationOriginNames[6]);
+            Assert.Equal("Верхняя кромка", vm.RotationOriginNames[9]);
+        }
+        finally
+        {
+            LocalizationService.Current = previous;
+            Directory.Delete(locDir, true);
+        }
     }
 
     [Fact]

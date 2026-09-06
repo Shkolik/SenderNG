@@ -107,23 +107,25 @@ public enum RotationOrigin
 {
     /// <summary>(0, 0).</summary>
     None = 0,
-    /// <summary>Program-limits corner A (min X, min Y).</summary>
+    /// <summary>Program-limits corner A (min X, min Y) — bottom-left in the
+    /// probing diagram (A bottom-left, B bottom-right, C top-right,
+    /// D top-left).</summary>
     A,
-    /// <summary>Program-limits corner B (max X, min Y).</summary>
+    /// <summary>Program-limits corner B (max X, min Y) — bottom-right.</summary>
     B,
-    /// <summary>Program-limits corner C (max X, max Y).</summary>
+    /// <summary>Program-limits corner C (max X, max Y) — top-right.</summary>
     C,
-    /// <summary>Program-limits corner D (min X, max Y).</summary>
+    /// <summary>Program-limits corner D (min X, max Y) — top-left.</summary>
     D,
     /// <summary>Program-limits center.</summary>
     Center,
-    /// <summary>Top-edge midpoint (center X, min Y).</summary>
+    /// <summary>Bottom-edge midpoint (center X, min Y).</summary>
     AB,
     /// <summary>Left-edge midpoint (min X, center Y).</summary>
     AD,
     /// <summary>Right-edge midpoint (max X, center Y).</summary>
     CB,
-    /// <summary>Bottom-edge midpoint (center X, max Y).</summary>
+    /// <summary>Top-edge midpoint (center X, max Y).</summary>
     CD,
     /// <summary>The current DRO (work) position.</summary>
     CurrentPos,

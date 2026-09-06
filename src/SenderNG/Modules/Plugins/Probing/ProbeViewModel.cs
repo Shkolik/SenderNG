@@ -91,6 +91,16 @@ public class ProbeViewModel : ViewModelBase
         ApplyToolInstructions();
         ToolTabs = BuildToolTabs();
 
+        // RotationOriginNames is resolved live (like the {loc:Loc} markup
+        // extension): re-raise it when the active locale switches so the
+        // selector's items follow without a restart. LocalizationService.
+        // Changed is only raised by SetLocale (language picker, UI thread),
+        // so the update is safe synchronously. Design mode has no
+        // localization service — the English fallback is used there.
+        var loc = LocalizationService.Current;
+        if (loc is not null)
+            loc.Changed += (_, _) => OnPropertyChanged(nameof(RotationOriginNames));
+
         // Live probe-program preview: regenerate whenever any input changes
         // (PreviewText itself is exempt — its own change must not re-trigger a
         // rebuild). Building a probe program is microseconds, so the preview is
@@ -1313,18 +1323,27 @@ public class ProbeViewModel : ViewModelBase
 
     // ------------------------------------------------------- rotation origin
 
-    public IReadOnlyList<string> RotationOriginNames { get; } =
+    /// <summary>Combo labels for <see cref="RotationOrigin"/> (order matches
+    /// the enum). Rebuilt on every locale change — a live property, not a
+    /// snapshot — so the selector follows a language switch without restart.
+    /// Names are positional only (no A/B/C/D letters): the rotation diagram
+    /// uses its own letter convention, so "Edge AB" would be actively
+    /// misleading (AB is the bottom edge here, ioSender's letters were
+    /// flipped).</summary>
+    public IReadOnlyList<string> RotationOriginNames => BuildRotationOriginNames();
+
+    private static IReadOnlyList<string> BuildRotationOriginNames() =>
     [
         LocText.Resolve("module.probing.origin.none", "0, 0"),
-        LocText.Resolve("module.probing.origin.a", "Corner A"),
-        LocText.Resolve("module.probing.origin.b", "Corner B"),
-        LocText.Resolve("module.probing.origin.c", "Corner C"),
-        LocText.Resolve("module.probing.origin.d", "Corner D"),
+        LocText.Resolve("module.probing.origin.a", "Bottom-left corner"),
+        LocText.Resolve("module.probing.origin.b", "Bottom-right corner"),
+        LocText.Resolve("module.probing.origin.c", "Top-right corner"),
+        LocText.Resolve("module.probing.origin.d", "Top-left corner"),
         LocText.Resolve("module.probing.origin.center", "Center"),
-        LocText.Resolve("module.probing.origin.ab", "Edge AB"),
-        LocText.Resolve("module.probing.origin.ad", "Edge AD"),
-        LocText.Resolve("module.probing.origin.cb", "Edge CB"),
-        LocText.Resolve("module.probing.origin.cd", "Edge CD"),
+        LocText.Resolve("module.probing.origin.ab", "Bottom edge"),
+        LocText.Resolve("module.probing.origin.ad", "Left edge"),
+        LocText.Resolve("module.probing.origin.cb", "Right edge"),
+        LocText.Resolve("module.probing.origin.cd", "Top edge"),
         LocText.Resolve("module.probing.origin.current", "Current position"),
     ];
 

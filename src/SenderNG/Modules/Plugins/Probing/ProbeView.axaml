@@ -125,6 +125,28 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <Setter Property="Background" Value="#ddd" />
             <Setter Property="BorderBrush" Value="#666" />
         </Style>
+        <!-- Pictogram selector buttons (ioSender-style image radios): the picture
+             itself is the button (no radio bullet), the unchecked picture is
+             dimmed so the selected action reads at a glance. The picture is the
+             RadioButton's Content (an Image child); the shared template just
+             presents it. -->
+        <Style Selector="RadioButton.img">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <!-- Size is set per tool on the buttons themselves (center finder
+                 120x120, rotation 80x80, matching ioSender). -->
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="Transparent">
+                        <ContentPresenter Content="{TemplateBinding Content}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="RadioButton.img:not(:checked)">
+            <Setter Property="Opacity" Value="0.5" />
+        </Style>
         <!-- Padlock checkbox (jog-widget style): open lock when unchecked, closed when checked. -->
         <Style Selector="CheckBox.padlock">
             <Setter Property="Template">

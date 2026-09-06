@@ -50,6 +50,19 @@ public static class Converters
     public static IsFlyoutModuleConverter IsFlyout => IsFlyoutModuleConverter.Instance;
     public static EnumToBoolConverter EnumToBool => EnumToBoolConverter.Instance;
     public static NumericTextConverter NumericText => NumericTextConverter.Instance;
+    public static BoolNotConverter BoolNot => BoolNotConverter.Instance;
+}
+
+/// <summary>Inverts a bool; used to show one of two stacked pictures (e.g. the
+/// rotation AB pictogram with/without the extra probe point).</summary>
+public sealed class BoolNotConverter : IValueConverter
+{
+    public static readonly BoolNotConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value is not true;
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => global::Avalonia.Data.BindingOperations.DoNothing;
 }
 
 /// <summary>

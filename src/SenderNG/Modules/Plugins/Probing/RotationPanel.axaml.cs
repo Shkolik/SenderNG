@@ -1,4 +1,3 @@
-
 /*
 
 Copyright (c) 2026 Andrew Shkolik
@@ -32,11 +31,32 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 
 namespace SenderNG.Modules.Plugins;
 
 public partial class RotationPanel : UserControl
 {
     public RotationPanel() => InitializeComponent();
+
+    /// <summary>Edge pictograms load on attach (not at XAML parse time): the
+    /// unit tests construct this panel without an Avalonia app, and decoding an
+    /// avares asset there would fail. The AB cell has two stacked pictures —
+    /// plain and "extra probe point" — and the swap is a visibility binding on
+    /// AddAction, so no reload is needed when the option toggles.</summary>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        RotationADImage.Source = Load("rotationAD.png");
+        RotationCDImage.Source = Load("rotationCD.png");
+        RotationABPlainImage.Source = Load("rotationAB.png");
+        RotationABExtraImage.Source = Load("rotationABextra.png");
+        RotationCBImage.Source = Load("rotationCB.png");
+    }
+
+    private static Bitmap Load(string name) =>
+        new(AssetLoader.Open(new Uri($"avares://SenderNG/Assets/Probing/{name}")));
 }

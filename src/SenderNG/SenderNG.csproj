@@ -23,6 +23,9 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\banner.png" />
+    <!-- Probing tool pictograms (ioSender-origin placeholders; same-size
+         replacements will drop in later). Referenced via avares://SenderNG/Assets/Probing/*.png -->
+    <AvaloniaResource Include="Assets\Probing\*.png" />
   </ItemGroup>
 
   <ItemGroup>
