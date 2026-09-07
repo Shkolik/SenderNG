@@ -51,5 +51,9 @@ public partial class CenterFinderPanel : UserControl
         base.OnAttachedToVisualTree(e);
         CenterInImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG/Assets/Probing/centerI.png")));
         CenterOutImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG/Assets/Probing/centerO.png")));
+        CenterXInImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG/Assets/Probing/centerXIn.png")));
+        CenterXOutImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG/Assets/Probing/centerXOut.png")));
+        CenterYInImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG/Assets/Probing/centerYIn.png")));
+        CenterYOutImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG/Assets/Probing/centerYOut.png")));
     }
 }

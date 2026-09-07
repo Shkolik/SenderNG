@@ -301,8 +301,9 @@ public sealed class ProbeProgramBuilder
     }
 
     /// <summary>
-    /// Center finder program for one pass. <paramref name="sizeX"/>/<paramref name="sizeY"/>
-    /// of 0 probe that axis only (mirrors ioSender's FindMode).
+    /// Center finder program for one pass. The legacy <see cref="Center.Inside"/>/<see cref="Center.Outside"/>
+    /// modes probe both axes (a size of 0 skips that axis, mirroring ioSender's FindMode); the
+    /// X/Y variants probe a single axis only and need the matching size.
     /// </summary>
     public ProbeProgramBuilder BuildCenterFinder(Center center, Pos start, double sizeX, double sizeY)
     {
@@ -312,43 +313,95 @@ public sealed class ProbeProgramBuilder
         var xyClearance = XYClearance + ProbeRadius;
         var rapidto = start.With(2, start.Z - Depth);
 
+        // Inside pocket: probe -axis from the near wall side, then +axis from the other side.
+        void AddInsideX()
+        {
+            var rapid = sizeX / 2d - xyClearance;
+            if (rapid > 1d)
+            {
+                rapidto = rapidto.With(0, start.X - rapid);
+                AddRapidToMPos(rapidto, "X");
+                rapidto = rapidto.With(0, start.X + rapid);
+            }
+
+            AddProbingAction("X", true);
+            AddRapidToMPos(rapidto, "X");
+            AddProbingAction("X", false);
+            AddRapidToMPos(start, "X");
+        }
+
+        void AddInsideY()
+        {
+            var rapid = sizeY / 2d - xyClearance;
+            if (rapid > 1d)
+            {
+                rapidto = rapidto.With(1, start.Y - rapid);
+                AddRapidToMPos(rapidto, "Y");
+                rapidto = rapidto.With(1, start.Y + rapid);
+            }
+
+            AddProbingAction("Y", true);
+            AddRapidToMPos(rapidto, "Y");
+            AddProbingAction("Y", false);
+            AddRapidToMPos(start, "Y");
+        }
+
+        // Outside workpiece: probe +axis from the negative side, then -axis from the positive side.
+        void AddOutsideX()
+        {
+            AddRapidToMPos(rapidto, "X");
+            AddRapidToMPos(rapidto, "Z");
+            AddProbingAction("X", false);
+            AddRapidToMPos(rapidto, "X");
+            AddRapidToMPos(start, "Z");
+            rapidto = rapidto.With(0, rapidto.X + sizeX + xyClearance * 2d);
+            AddRapidToMPos(rapidto, "X");
+            AddRapidToMPos(rapidto, "Z");
+            AddProbingAction("X", true);
+            AddRapidToMPos(rapidto, "X");
+            AddRapidToMPos(start, "Z");
+            AddRapidToMPos(start, "X");
+        }
+
+        void AddOutsideY()
+        {
+            AddRapidToMPos(rapidto, "Y");
+            AddRapidToMPos(rapidto, "Z");
+            AddProbingAction("Y", false);
+            AddRapidToMPos(rapidto, "Y");
+            AddRapidToMPos(start, "Z");
+            rapidto = rapidto.With(1, rapidto.Y + sizeY + xyClearance * 2d);
+            AddRapidToMPos(rapidto, "Y");
+            AddRapidToMPos(rapidto, "Z");
+            AddProbingAction("Y", true);
+            AddRapidToMPos(rapidto, "Y");
+        }
+
         switch (center)
         {
             case Center.Inside:
                 AddRapidToMPos(rapidto, "Z");
 
                 if (sizeY > 0d)
-                {
-                    var rapid = sizeX / 2d - xyClearance;
-                    if (rapid > 1d)
-                    {
-                        rapidto = rapidto.With(0, start.X - rapid);
-                        AddRapidToMPos(rapidto, "X");
-                        rapidto = rapidto.With(0, start.X + rapid);
-                    }
-
-                    AddProbingAction("X", true);
-                    AddRapidToMPos(rapidto, "X");
-                    AddProbingAction("X", false);
-                    AddRapidToMPos(start, "X");
-                }
+                    AddInsideX();
 
                 if (sizeX > 0d)
-                {
-                    var rapid = sizeY / 2d - xyClearance;
-                    if (rapid > 1d)
-                    {
-                        rapidto = rapidto.With(1, start.Y - rapid);
-                        AddRapidToMPos(rapidto, "Y");
-                        rapidto = rapidto.With(1, start.Y + rapid);
-                    }
+                    AddInsideY();
 
-                    AddProbingAction("Y", true);
-                    AddRapidToMPos(rapidto, "Y");
-                    AddProbingAction("Y", false);
-                    AddRapidToMPos(start, "Y");
-                }
+                AddRapidToMPos(start, "Z");
+                break;
 
+            case Center.XInside:
+                AddRapidToMPos(rapidto, "Z");
+                if (sizeX > 0d)
+                    AddInsideX();
+                AddRapidToMPos(start, "Z");
+                break;
+
+            case Center.YInside:
+                AddRapidToMPos(rapidto, "Z");
+                if (sizeY > 0d)
+                    AddInsideY();
                 AddRapidToMPos(start, "Z");
                 break;
 
@@ -357,35 +410,25 @@ public sealed class ProbeProgramBuilder
                                  .With(1, start.Y - (sizeY / 2d + xyClearance));
 
                 if (sizeY > 0d)
-                {
-                    AddRapidToMPos(rapidto, "X");
-                    AddRapidToMPos(rapidto, "Z");
-                    AddProbingAction("X", false);
-                    AddRapidToMPos(rapidto, "X");
-                    AddRapidToMPos(start, "Z");
-                    rapidto = rapidto.With(0, rapidto.X + sizeX + xyClearance * 2d);
-                    AddRapidToMPos(rapidto, "X");
-                    AddRapidToMPos(rapidto, "Z");
-                    AddProbingAction("X", true);
-                    AddRapidToMPos(rapidto, "X");
-                    AddRapidToMPos(start, "Z");
-                    AddRapidToMPos(start, "X");
-                }
+                    AddOutsideX();
 
                 if (sizeX > 0d)
-                {
-                    AddRapidToMPos(rapidto, "Y");
-                    AddRapidToMPos(rapidto, "Z");
-                    AddProbingAction("Y", false);
-                    AddRapidToMPos(rapidto, "Y");
-                    AddRapidToMPos(start, "Z");
-                    rapidto = rapidto.With(1, rapidto.Y + sizeY + xyClearance * 2d);
-                    AddRapidToMPos(rapidto, "Y");
-                    AddRapidToMPos(rapidto, "Z");
-                    AddProbingAction("Y", true);
-                    AddRapidToMPos(rapidto, "Y");
-                }
+                    AddOutsideY();
 
+                AddRapidToMPos(start, "Z");
+                break;
+
+            case Center.XOutside:
+                rapidto = rapidto.With(0, start.X - (sizeX / 2d + xyClearance));
+                if (sizeX > 0d)
+                    AddOutsideX();
+                AddRapidToMPos(start, "Z");
+                break;
+
+            case Center.YOutside:
+                rapidto = rapidto.With(1, start.Y - (sizeY / 2d + xyClearance));
+                if (sizeY > 0d)
+                    AddOutsideY();
                 AddRapidToMPos(start, "Z");
                 break;
         }

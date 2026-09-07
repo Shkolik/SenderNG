@@ -268,6 +268,104 @@ public class ProbeProgramBuilderTests
     }
 
     [Fact]
+    public void CenterFinder_XInside_probes_only_the_X_pair()
+    {
+        // Single-axis mode: same moves as the legacy Inside X block, no Y
+        // moves even though sizeY is given.
+        var p = Make().BuildCenterFinder(Center.XInside, new Pos(0, 0, 0), sizeX: 40, sizeY: 30);
+
+        Assert.Equal(
+        [
+            "G91F100",
+            "G53G0Z-3",
+            "G53G0X-14",
+            "G38.3F100X-10",
+            "!G0X0.5",
+            "G38.3F25X-2",
+            "G53G0X14",
+            "G38.3F100X10",
+            "!G0X-0.5",
+            "G38.3F25X2",
+            "G53G0X0",
+            "G53G0Z0",
+        ], p.Lines);
+    }
+
+    [Fact]
+    public void CenterFinder_YInside_probes_only_the_Y_pair()
+    {
+        var p = Make().BuildCenterFinder(Center.YInside, new Pos(0, 0, 0), sizeX: 40, sizeY: 30);
+
+        Assert.Equal(
+        [
+            "G91F100",
+            "G53G0Z-3",
+            "G53G0Y-9",
+            "G38.3F100Y-10",
+            "!G0Y0.5",
+            "G38.3F25Y-2",
+            "G53G0Y9",
+            "G38.3F100Y10",
+            "!G0Y-0.5",
+            "G38.3F25Y2",
+            "G53G0Y0",
+            "G53G0Z0",
+        ], p.Lines);
+    }
+
+    [Fact]
+    public void CenterFinder_XOutside_probes_only_the_X_pair()
+    {
+        var p = Make().BuildCenterFinder(Center.XOutside, new Pos(0, 0, 0), sizeX: 40, sizeY: 30);
+
+        Assert.Equal(
+        [
+            "G91F100",
+            "G53G0X-26",
+            "G53G0Z-3",
+            "G38.3F100X10",
+            "!G0X-0.5",
+            "G38.3F25X2",
+            "G53G0X-26",
+            "G53G0Z0",
+            "G53G0X26",
+            "G53G0Z-3",
+            "G38.3F100X-10",
+            "!G0X0.5",
+            "G38.3F25X-2",
+            "G53G0X26",
+            "G53G0Z0",
+            "G53G0X0",
+            "G53G0Z0",
+        ], p.Lines);
+    }
+
+    [Fact]
+    public void CenterFinder_YOutside_probes_only_the_Y_pair()
+    {
+        var p = Make().BuildCenterFinder(Center.YOutside, new Pos(0, 0, 0), sizeX: 40, sizeY: 30);
+
+        Assert.Equal(
+        [
+            "G91F100",
+            "G53G0Y-21",
+            "G53G0Z-3",
+            "G38.3F100Y10",
+            "!G0Y-0.5",
+            "G38.3F25Y2",
+            "G53G0Y-21",
+            "G53G0Z0",
+            "G53G0Y21",
+            "G53G0Z-3",
+            "G38.3F100Y-10",
+            "!G0Y0.5",
+            "G38.3F25Y-2",
+            "G53G0Y21",
+            "G53G0Z0",
+        ], p.Lines);
+    }
+
+    [Fact]
     public void Rotation_AB_probes_Y_at_two_X_positions()
     {
         var p = Make().BuildRotation(Edge.AB, Start);

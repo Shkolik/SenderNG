@@ -110,6 +110,53 @@ public class ProbeMathTests
     }
 
     [Fact]
+    public void Center_XInside_computes_midpoint_on_the_X_pair_only()
+    {
+        var probes = new[]
+        {
+            new Pos(-24, 0, 2),  // X- touch
+            new Pos(24, 0, 2),   // X+ touch
+        };
+
+        var (center, xd, yd) = ProbeMath.ComputeCenter(Center.XInside, new Pos(0, 0, 5), probes, 2d, 40, 30);
+
+        Assert.Equal(0, center.X);
+        Assert.Equal(0, center.Y);   // Y pair never probed
+        Assert.Equal(50, xd);        // |24 - (-24)| + 2
+        Assert.Equal(0, yd);
+    }
+
+    [Fact]
+    public void Center_XInside_probes_X_even_when_only_sizeY_is_given()
+    {
+        // Regression: the legacy modes gate the X pair on sizeY (ioSender's
+        // FindMode); the axis-specific modes must follow their own axis.
+        var probes = new[] { new Pos(-24, 0, 2), new Pos(24, 0, 2) };
+
+        var (center, xd, _) = ProbeMath.ComputeCenter(Center.XInside, new Pos(0, 0, 5), probes, 2d, sizeX: 0, sizeY: 40);
+
+        Assert.Equal(0, center.X);
+        Assert.Equal(50, xd);
+    }
+
+    [Fact]
+    public void Center_YOutside_computes_midpoint_on_the_Y_pair_only()
+    {
+        var probes = new[]
+        {
+            new Pos(0, -21, 2),  // Y- touch
+            new Pos(0, 21, 2),   // Y+ touch
+        };
+
+        var (center, xd, yd) = ProbeMath.ComputeCenter(Center.YOutside, new Pos(0, 0, 5), probes, 2d, 40, 30);
+
+        Assert.Equal(0, center.X);
+        Assert.Equal(0, center.Y);
+        Assert.Equal(0, xd);
+        Assert.Equal(40, yd);        // |21 - (-21)| - 2
+    }
+
+    [Fact]
     public void RotationAngle_flat_edge_is_zero_and_vertical_edge_inverts()
     {
         var flat = ProbeMath.ComputeRotationAngle(Edge.AB, new Pos(10, 20, 2), new Pos(20, 20, 2));

@@ -168,10 +168,20 @@ public class ProbeViewModel : ViewModelBase
         Profiles.Add(ProbingProfile.CreateDefault());
         WireCommands();
         ProbeEdge = Edge.AD;
-        ProbeCenter = Center.Inside;
+        ProbeCenter = Center.XInside;
         SelectedTool = pinnedTool;
         ApplyToolInstructions();
         ToolTabs = BuildToolTabs();
+
+        // Live preview in the designer too: re-seed whenever any input changes
+        // (same subscription as the runtime ctor), so toggling modes in the
+        // previewer updates the shown program.
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(PreviewText))
+                RefreshPreview();
+        };
+
         RefreshPreview();
     }
 
@@ -1113,10 +1123,13 @@ public class ProbeViewModel : ViewModelBase
     {
         if (ProbeCenter == Center.None)
         {
-            LastResult = LocText.Resolve("module.probing.selectCenterFirst", "Select inside or outside probing first");
+            LastResult = LocText.Resolve("module.probing.selectCenterFirst", "Select a center probing mode first");
             return;
         }
-        if (WorkpieceSizeX <= 0 && WorkpieceSizeY <= 0)
+
+        var needX = ProbeCenter is Center.XInside or Center.XOutside;
+        var needY = ProbeCenter is Center.YInside or Center.YOutside;
+        if (needX ? WorkpieceSizeX <= 0 : needY ? WorkpieceSizeY <= 0 : WorkpieceSizeX <= 0 && WorkpieceSizeY <= 0)
         {
             LastResult = LocText.Resolve("module.probing.sizeMustBeSet", "Workpiece size must be set");
             return;
@@ -1130,7 +1143,7 @@ public class ProbeViewModel : ViewModelBase
             if (!result.Success)
                 return;
 
-            var expected = (WorkpieceSizeY > 0 && WorkpieceSizeX > 0) ? 4 : 2;
+            var expected = needX || needY ? 2 : (WorkpieceSizeY > 0 && WorkpieceSizeX > 0) ? 4 : 2;
             if (result.Positions.Count < expected)
             {
                 LastResult = LocText.Resolve("module.probing.notEnoughPos", "Probing failed - not enough probe positions");
@@ -1152,22 +1165,37 @@ public class ProbeViewModel : ViewModelBase
 
     private void ApplyCenterOffset(Pos center, double xd, double yd)
     {
+        var singleAxis = ProbeCenter switch
+        {
+            Center.XInside or Center.XOutside => "X",
+            Center.YInside or Center.YOutside => "Y",
+            _ => null,
+        };
+
         if (CoordMode == CoordinateMode.Measure)
         {
-            LastResult = LocText.Format("module.probing.xDistance", "Probing completed: X distance {0}, Y distance {1}", ProbeMath.Fmt(xd), ProbeMath.Fmt(yd));
+            LastResult = singleAxis != null
+                ? LocText.Format("module.probing.axisDistance", "Probing completed: {0} distance {1}", singleAxis, ProbeMath.Fmt(singleAxis == "X" ? xd : yd))
+                : LocText.Format("module.probing.xDistance", "Probing completed: X distance {0}, Y distance {1}", ProbeMath.Fmt(xd), ProbeMath.Fmt(yd));
             return;
         }
 
-        var axes = WorkpieceSizeY > 0 && WorkpieceSizeX > 0 ? "XY" : (WorkpieceSizeX > 0 ? "Y" : "X");
+        var axes = singleAxis ?? (WorkpieceSizeY > 0 && WorkpieceSizeX > 0 ? "XY" : (WorkpieceSizeX > 0 ? "Y" : "X"));
         var pos = CoordMode == CoordinateMode.G92
             ? new Pos(ProbeOffsetX, ProbeOffsetY, 0)
-            : new Pos(center.X + ProbeOffsetX, center.Y + ProbeOffsetY, 0);
+            : singleAxis == "X"
+                ? new Pos(center.X + ProbeOffsetX, 0, 0)
+                : singleAxis == "Y"
+                    ? new Pos(0, center.Y + ProbeOffsetY, 0)
+                    : new Pos(center.X + ProbeOffsetX, center.Y + ProbeOffsetY, 0);
 
         var cmd = ProbeMath.OffsetCommand(CoordMode, CoordinateSystem, pos, axes);
         if (!string.IsNullOrEmpty(cmd))
         {
             _ = _grbl.SendAsync(cmd);
-            LastResult = LocText.Format("module.probing.xDistanceArrow", "Probing completed: X distance {0}, Y distance {1} -> {2}", ProbeMath.Fmt(xd), ProbeMath.Fmt(yd), cmd);
+            LastResult = singleAxis != null
+                ? LocText.Format("module.probing.axisDistanceArrow", "Probing completed: {0} distance {1} -> {2}", singleAxis, ProbeMath.Fmt(singleAxis == "X" ? xd : yd), cmd)
+                : LocText.Format("module.probing.xDistanceArrow", "Probing completed: X distance {0}, Y distance {1} -> {2}", ProbeMath.Fmt(xd), ProbeMath.Fmt(yd), cmd);
         }
     }
 

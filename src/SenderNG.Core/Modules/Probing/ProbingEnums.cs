@@ -68,12 +68,22 @@ public enum Edge
     CD,
 }
 
-/// <summary>Center finder mode: probe the inside walls or the outside of a workpiece.</summary>
+/// <summary>Center finder mode. <see cref="Inside"/>/<see cref="Outside"/> probe both
+/// axes (legacy, ioSender's FindMode); the X/Y variants probe a single axis only.</summary>
 public enum Center
 {
     None = 0,
     Inside,
     Outside,
+
+    /// <summary>Probe the pocket walls in X only (probe inside a pocket/hole).</summary>
+    XInside,
+    /// <summary>Probe the workpiece outside in X only (left and right sides).</summary>
+    XOutside,
+    /// <summary>Probe the pocket walls in Y only.</summary>
+    YInside,
+    /// <summary>Probe the workpiece outside in Y only (front and back sides).</summary>
+    YOutside,
 }
 
 /// <summary>How the probed position is written to the controller.</summary>

@@ -41,10 +41,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:DataType="vm:ProbeViewModel">
 
     <StackPanel Spacing="10" HorizontalAlignment="Stretch" VerticalAlignment="Top">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-                <!-- Pictograms load in code-behind on attach (see
-                     OnAttachedToVisualTree) so unit tests can construct this
-                     panel without Avalonia's asset services. -->
+            <!-- One row: the classic Inside/Outside pair, then the 2x2 mode grid
+                 (X modes on top, Y modes below). Pictograms load in code-behind
+                 on attach (see OnAttachedToVisualTree) so unit tests can
+                 construct this panel without Avalonia's asset services. -->
+            <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Left">
                 <RadioButton Classes="img" Width="120" Height="120"
                              IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Inside}"
                              ToolTip.Tip="{loc:Loc module.probing.inside, DText='Inside'}">
@@ -55,6 +56,29 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                              ToolTip.Tip="{loc:Loc module.probing.outside, DText='Outside'}">
                     <Image x:Name="CenterOutImage" />
                 </RadioButton>
+                <Grid ColumnDefinitions="58,58" RowDefinitions="58,58" ColumnSpacing="4" RowSpacing="4"
+                      Margin="4,0,0,0">
+                    <RadioButton Classes="img" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                 IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=XInside}"
+                                 ToolTip.Tip="{loc:Loc module.probing.centerXInside, DText='Center X (inside a pocket)'}">
+                        <Image x:Name="CenterXInImage" Stretch="Fill" />
+                    </RadioButton>
+                    <RadioButton Grid.Column="1" Classes="img" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                 IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=XOutside}"
+                                 ToolTip.Tip="{loc:Loc module.probing.centerXOutside, DText='Center X (outside of workpiece)'}">
+                        <Image x:Name="CenterXOutImage" Stretch="Fill" />
+                    </RadioButton>
+                    <RadioButton Grid.Row="1" Classes="img" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                 IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=YInside}"
+                                 ToolTip.Tip="{loc:Loc module.probing.centerYInside, DText='Center Y (inside a pocket)'}">
+                        <Image x:Name="CenterYInImage" Stretch="Fill" />
+                    </RadioButton>
+                    <RadioButton Grid.Row="1" Grid.Column="1" Classes="img" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                 IsChecked="{Binding ProbeCenter, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=YOutside}"
+                                 ToolTip.Tip="{loc:Loc module.probing.centerYOutside, DText='Center Y (outside of workpiece)'}">
+                        <Image x:Name="CenterYOutImage" Stretch="Fill" />
+                    </RadioButton>
+                </Grid>
             </StackPanel>
 
             <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6"

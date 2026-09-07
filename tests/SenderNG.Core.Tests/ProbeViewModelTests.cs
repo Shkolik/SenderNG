@@ -720,6 +720,30 @@ public class ProbeViewModelTests : IDisposable
         Assert.True(vm.ToolTabs[3].IsEnabled);
     }
 
+    [Fact]
+    public void Center_single_axis_modes_preview_only_that_axis()
+    {
+        var vm = new ProbeViewModel(new StubGrbl(), _settings);
+        vm.SelectedTool = ProbingType.CenterFinder;
+        vm.WorkpieceSizeX = 40;
+        vm.WorkpieceSizeY = 30;
+
+        vm.ProbeCenter = Center.XInside;
+        Assert.Contains("G38.3F100X-10", vm.PreviewText);
+        Assert.DoesNotContain("G38.3F100Y", vm.PreviewText);
+
+        vm.ProbeCenter = Center.YOutside;
+        Assert.Contains("G38.3F100Y10", vm.PreviewText);
+        Assert.DoesNotContain("G38.3F100X", vm.PreviewText);
+    }
+
+    [Fact]
+    public void Center_design_instance_defaults_to_X_inside()
+    {
+        var vm = ProbeViewModel.CreateDesignInstance(ProbingType.CenterFinder);
+        Assert.Equal(Center.XInside, vm.ProbeCenter);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_dir, recursive: true); } catch { }

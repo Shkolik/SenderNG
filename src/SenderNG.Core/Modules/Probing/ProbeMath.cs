@@ -105,8 +105,14 @@ public static class ProbeMath
     public static (Pos Center, double XDistance, double YDistance) ComputeCenter(
         Center center, Pos start, Pos[] probes, double probeDiameter, double sizeX, double sizeY)
     {
-        var probeX = sizeY > 0d;
-        var probeY = sizeX > 0d;
+        // Single-axis modes probe exactly one pair; the legacy modes keep
+        // ioSender's FindMode convention (Y size gates the X pair and vice versa).
+        var (probeX, probeY) = center switch
+        {
+            Center.XInside or Center.XOutside => (true, false),
+            Center.YInside or Center.YOutside => (false, true),
+            _ => (sizeY > 0d, sizeX > 0d),
+        };
 
         var centerX = probeX ? probes[0].X + (probes[1].X - probes[0].X) / 2d : 0d;
         var centerY = probeY ? probes[^1].Y + (probes[^2].Y - probes[^1].Y) / 2d : 0d;
@@ -114,7 +120,7 @@ public static class ProbeMath
         var xDistance = probeX ? Math.Abs(probes[1].X - probes[0].X) : 0d;
         var yDistance = probeY ? Math.Abs(probes[^2].Y - probes[^1].Y) : 0d;
 
-        if (center == Center.Inside)
+        if (center is Center.Inside or Center.XInside or Center.YInside)
         {
             if (probeX) xDistance += probeDiameter;
             if (probeY) yDistance += probeDiameter;
