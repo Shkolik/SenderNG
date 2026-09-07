@@ -34,9 +34,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Collections;
 using System.Globalization;
+using Avalonia;
 using Avalonia.Data;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
+using SenderNG.Core.Modules.Probing;
 
 namespace SenderNG.Converters;
 
@@ -51,6 +53,77 @@ public static class Converters
     public static EnumToBoolConverter EnumToBool => EnumToBoolConverter.Instance;
     public static NumericTextConverter NumericText => NumericTextConverter.Instance;
     public static BoolNotConverter BoolNot => BoolNotConverter.Instance;
+    public static EnumAndBoolConverter EnumAndBool => EnumAndBoolConverter.Instance;
+    public static ZDotMarginConverter ZDotMargin => ZDotMarginConverter.Instance;
+}
+
+/// <summary>MultiBinding: value[0] is an enum equal to the ConverterParameter
+/// AND value[1] is true. Used for the edge finder's Z-probe marker — the red
+/// dot shows on the selected edge/corner only when Probe Z is on (ioSender's
+/// EnumValueToVisibleConverter, bool flavor).</summary>
+public sealed class EnumAndBoolConverter : IMultiValueConverter
+{
+    public static readonly EnumAndBoolConverter Instance = new();
+
+    public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        // MultiBinding feeds the converter intermediate/error values (e.g.
+        // BindingNotification) while child bindings start up, before the
+        // DataContext arrives — those must not reach Enum.Parse.
+        if (values.Count < 2 || values[0] is not Enum || parameter is null)
+            return false;
+        var target = Enum.Parse(values[0].GetType(), parameter.ToString()!, ignoreCase: true);
+        return values[0].Equals(target) && values[1] is true;
+    }
+}
+
+/// <summary>Positions the edge finder's Z-probe marker (red dot) within the
+/// selected cell. External probing sits it on the workpiece near the corner /
+/// edge; internal probing mirrors it OUTSIDE the cell onto the pocket wall —
+/// the dot must stay on material, not float over the pocket opening. Margins
+/// are ioSender's exact values (35 in from the cell corner externally, -43
+/// beyond it internally).</summary>
+public sealed class ZDotMarginConverter : IValueConverter
+{
+    public static readonly ZDotMarginConverter Instance = new();
+
+    private static readonly Dictionary<string, Thickness> External = new()
+    {
+        ["D"] = new(35, 35, 0, 0),
+        ["CD"] = new(0, 35, 0, 0),
+        ["C"] = new(0, 35, 35, 0),
+        ["AD"] = new(35, 0, 0, 0),
+        ["Z"] = new(0),
+        ["CB"] = new(0, 0, 35, 0),
+        ["A"] = new(35, 0, 0, 35),
+        ["AB"] = new(0, 0, 0, 35),
+        ["B"] = new(0, 0, 35, 35),
+    };
+
+    private static readonly Dictionary<string, Thickness> Internal = new()
+    {
+        ["D"] = new(-43, -43, 0, 0),
+        ["CD"] = new(0, -43, 0, 0),
+        ["C"] = new(0, -43, -43, 0),
+        ["AD"] = new(-43, 0, 0, 0),
+        ["Z"] = new(0),
+        ["CB"] = new(0, 0, -43, 0),
+        ["A"] = new(-43, 0, 0, -43),
+        ["AB"] = new(0, 0, 0, -43),
+        ["B"] = new(0, 0, -43, -43),
+    };
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        // value is the SelectedTool enum; guard the startup BindingNotification.
+        if (value is not ProbingType tool || parameter is null)
+            return new Thickness(0);
+        var table = tool == ProbingType.EdgeFinderInternal ? Internal : External;
+        return table.TryGetValue(parameter.ToString()!, out var margin) ? margin : new Thickness(0);
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
 }
 
 /// <summary>Inverts a bool; used to show one of two stacked pictures (e.g. the

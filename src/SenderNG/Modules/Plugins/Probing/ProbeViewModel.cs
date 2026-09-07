@@ -377,7 +377,15 @@ public class ProbeViewModel : ViewModelBase
             // Remember the merged edge-finder tab's mode so re-entering the
             // tab (SelectedToolIndex setter) restores it.
             if (value == ProbingType.EdgeFinderInternal)
+            {
                 _edgeFinderInternal = true;
+                // Internal probing measures a pocket: there is no top surface
+                // at its center to probe, so the Z cell doesn't exist in this
+                // mode. Move off Z (the ProbeEdge setter then restores the
+                // auto-forced ProbeZ flag).
+                if (ProbeEdge == Edge.Z)
+                    ProbeEdge = Edge.AD;
+            }
             else if (value == ProbingType.EdgeFinderExternal)
                 _edgeFinderInternal = false;
 
@@ -572,6 +580,7 @@ public class ProbeViewModel : ViewModelBase
     // ------------------------------------------------------ tool-specific input
 
     private Edge _probeEdge;
+    private bool _zForcedProbeZ; // ProbeZ was auto-checked by selecting Z; restore on leaving
     public Edge ProbeEdge
     {
         get => _probeEdge;
@@ -583,13 +592,36 @@ public class ProbeViewModel : ViewModelBase
             // picking any other edge drops the extra (ioSender behavior).
             if (IsRotation && AddAction && value != Edge.AB)
                 AddAction = false;
+            // Selecting the Z cell means the top surface is measured too: force
+            // ProbeZ on (and remember it was forced) so the height probe always
+            // runs; leaving Z restores the user's previous choice (ioSender
+            // behavior). The checkbox is locked while Z is selected.
+            if (value == Edge.Z)
+            {
+                if (!_probeZ)
+                {
+                    _zForcedProbeZ = true;
+                    ProbeZ = true;
+                }
+            }
+            else if (_probeEdge == Edge.Z && _zForcedProbeZ)
+            {
+                _zForcedProbeZ = false;
+                ProbeZ = false;
+            }
             SetField(ref _probeEdge, value);
+            OnPropertyChanged(nameof(IsProbeZEditable));
         }
     }
     public DelegateCommand SelectEdgeCommand { get; private set; } = null!;
 
     private bool _probeZ;
     public bool ProbeZ { get => _probeZ; set => SetField(ref _probeZ, value); }
+
+    /// <summary>The "Probe Z" checkbox is locked on while the Z cell is
+    /// selected — the Z probe is implied by the Z action and can't be turned
+    /// off (ioSender behavior).</summary>
+    public bool IsProbeZEditable => _probeEdge != Edge.Z;
 
     private double _workpieceHeight;
     public double WorkpieceHeight { get => _workpieceHeight; set => SetField(ref _workpieceHeight, value); }

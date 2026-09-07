@@ -564,6 +564,51 @@ public class ProbeViewModelTests : IDisposable
     }
 
     [Fact]
+    public void Edge_finder_Z_cell_forces_ProbeZ_and_restores_it_on_leaving()
+    {
+        var vm = new ProbeViewModel(new StubGrbl(), _settings);
+        Assert.False(vm.ProbeZ);
+        Assert.True(vm.IsProbeZEditable);
+
+        // Selecting the Z cell implies the top-surface probe: auto-checked.
+        vm.ProbeEdge = Edge.Z;
+        Assert.True(vm.ProbeZ);
+        Assert.False(vm.IsProbeZEditable); // checkbox locked while Z is selected
+
+        // Leaving Z restores the pre-Z state (ProbeZ was auto-forced, not user-chosen).
+        vm.ProbeEdge = Edge.AD;
+        Assert.False(vm.ProbeZ);
+        Assert.True(vm.IsProbeZEditable);
+
+        // A manual choice survives the Z trip (ioSender behavior).
+        vm.ProbeZ = true;
+        vm.ProbeEdge = Edge.Z;
+        vm.ProbeEdge = Edge.CD;
+        Assert.True(vm.ProbeZ);
+        Assert.True(vm.IsProbeZEditable);
+
+        // Internal probing has no Z cell (a center probe inside a pocket would
+        // touch the pocket bottom, not the top surface): entering internal
+        // mode while Z is selected moves to an edge and restores the
+        // auto-forced Probe Z.
+        vm.ProbeZ = false;
+        vm.ProbeEdge = Edge.Z;
+        Assert.True(vm.ProbeZ);
+        vm.SelectedTool = ProbingType.EdgeFinderInternal;
+        Assert.Equal(Edge.AD, vm.ProbeEdge);
+        Assert.False(vm.ProbeZ);
+        Assert.True(vm.IsProbeZEditable);
+
+        // A manually chosen Probe Z survives the internal switch (not forced).
+        vm.ProbeZ = true;
+        vm.ProbeEdge = Edge.Z;
+        vm.SelectedTool = ProbingType.EdgeFinderInternal;
+        Assert.Equal(Edge.AD, vm.ProbeEdge);
+        Assert.True(vm.ProbeZ);
+        Assert.True(vm.IsProbeZEditable);
+    }
+
+    [Fact]
     public void Enabled_tools_roundtrip_through_module_settings()
     {
         // Seed the profile with the height map disabled, then save + reload

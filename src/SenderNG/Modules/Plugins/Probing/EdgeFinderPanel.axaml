@@ -44,12 +44,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <!-- External/internal mode of the merged Edge finder tab: which side the
              probe approaches the probed surface from. Internal mirrors the moves
              about the edge/corner (P1 fix) and flips the radius-compensation sign. -->
-        <StackPanel Orientation="Horizontal" Spacing="4">
-            <RadioButton Classes="tool" Content="{loc:Loc module.probing.external, DText='External'}" FontSize="12"
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="12" Width="180" HorizontalAlignment="Left">
+            <RadioButton Grid.Column="0" Classes="tool" Content="{loc:Loc module.probing.external, DText='External'}" FontSize="12"
                          IsChecked="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
-            <RadioButton Classes="tool" Content="{loc:Loc module.probing.internal, DText='Internal'}" FontSize="12"
+            <RadioButton Grid.Column="1" Classes="tool" Content="{loc:Loc module.probing.internal, DText='Internal'}" FontSize="12"
                          IsChecked="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
-        </StackPanel>
+        </Grid>
 
         <StackPanel Orientation="Horizontal" Spacing="24">
                 <!-- Edge/corner selector (diagram: D top-left, C top-right, A bottom-left, B bottom-right).
@@ -65,6 +65,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="CornerDIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                            <Rectangle x:Name="ZDotD" Width="8" Height="8" Fill="Red"
+                                       Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=D}">
+                                <Rectangle.IsVisible>
+                                    <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="D">
+                                        <Binding Path="ProbeEdge" />
+                                        <Binding Path="ProbeZ" />
+                                    </MultiBinding>
+                                </Rectangle.IsVisible>
+                            </Rectangle>
                         </Grid>
                     </RadioButton>
                     <RadioButton Grid.Row="0" Grid.Column="1" Classes="img" Width="60" Height="60"
@@ -75,6 +84,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="EdgeCDIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                            <Rectangle x:Name="ZDotCD" Width="8" Height="8" Fill="Red"
+                                       Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=CD}">
+                                <Rectangle.IsVisible>
+                                    <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="CD">
+                                        <Binding Path="ProbeEdge" />
+                                        <Binding Path="ProbeZ" />
+                                    </MultiBinding>
+                                </Rectangle.IsVisible>
+                            </Rectangle>
                         </Grid>
                     </RadioButton>
                     <RadioButton Grid.Row="0" Grid.Column="2" Classes="img" Width="60" Height="60"
@@ -85,6 +103,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="CornerCIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                            <Rectangle x:Name="ZDotC" Width="8" Height="8" Fill="Red"
+                                       Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=C}">
+                                <Rectangle.IsVisible>
+                                    <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="C">
+                                        <Binding Path="ProbeEdge" />
+                                        <Binding Path="ProbeZ" />
+                                    </MultiBinding>
+                                </Rectangle.IsVisible>
+                            </Rectangle>
                         </Grid>
                     </RadioButton>
                     <RadioButton Grid.Row="1" Grid.Column="0" Classes="img" Width="60" Height="60"
@@ -95,12 +122,36 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="EdgeADIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                            <Rectangle x:Name="ZDotAD" Width="8" Height="8" Fill="Red"
+                                       Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=AD}">
+                                <Rectangle.IsVisible>
+                                    <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="AD">
+                                        <Binding Path="ProbeEdge" />
+                                        <Binding Path="ProbeZ" />
+                                    </MultiBinding>
+                                </Rectangle.IsVisible>
+                            </Rectangle>
                         </Grid>
                     </RadioButton>
+                    <!-- The Z cell only exists in external mode: a center probe
+                         inside a pocket would touch the pocket bottom, not the
+                         top surface. The VM also moves ProbeEdge off Z when
+                         entering internal mode. -->
                     <RadioButton Grid.Row="1" Grid.Column="1" Classes="img" Width="60" Height="60"
                                  ToolTip.Tip="{loc:Loc module.probing.probeZ, DText='Probe Z'}"
+                                 IsVisible="{Binding IsEdgeExternal}"
                                  IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Z}">
-                        <Image x:Name="EdgeZImage" Stretch="Fill" />
+                        <Grid>
+                            <Image x:Name="EdgeZImage" Stretch="Fill" />
+                            <Rectangle x:Name="ZDotZ" Width="8" Height="8" Fill="Red" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Rectangle.IsVisible>
+                                    <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="Z">
+                                        <Binding Path="ProbeEdge" />
+                                        <Binding Path="ProbeZ" />
+                                    </MultiBinding>
+                                </Rectangle.IsVisible>
+                            </Rectangle>
+                        </Grid>
                     </RadioButton>
                     <RadioButton Grid.Row="1" Grid.Column="2" Classes="img" Width="60" Height="60"
                                  ToolTip.Tip="{loc:Loc module.probing.edgeCB, DText='Probe the right edge'}"
@@ -110,6 +161,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="EdgeCBIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                            <Rectangle x:Name="ZDotCB" Width="8" Height="8" Fill="Red"
+                                       Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=CB}">
+                                <Rectangle.IsVisible>
+                                    <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="CB">
+                                        <Binding Path="ProbeEdge" />
+                                        <Binding Path="ProbeZ" />
+                                    </MultiBinding>
+                                </Rectangle.IsVisible>
+                            </Rectangle>
                         </Grid>
                     </RadioButton>
                     <RadioButton Grid.Row="2" Grid.Column="0" Classes="img" Width="60" Height="60"
@@ -120,6 +180,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="CornerAIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                            <Rectangle x:Name="ZDotA" Width="8" Height="8" Fill="Red"
+                                       Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=A}">
+                                <Rectangle.IsVisible>
+                                    <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="A">
+                                        <Binding Path="ProbeEdge" />
+                                        <Binding Path="ProbeZ" />
+                                    </MultiBinding>
+                                </Rectangle.IsVisible>
+                            </Rectangle>
                         </Grid>
                     </RadioButton>
                     <RadioButton Grid.Row="2" Grid.Column="1" Classes="img" Width="60" Height="60"
@@ -130,6 +199,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="EdgeABIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                            <Rectangle x:Name="ZDotAB" Width="8" Height="8" Fill="Red"
+                                       Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=AB}">
+                                <Rectangle.IsVisible>
+                                    <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="AB">
+                                        <Binding Path="ProbeEdge" />
+                                        <Binding Path="ProbeZ" />
+                                    </MultiBinding>
+                                </Rectangle.IsVisible>
+                            </Rectangle>
                         </Grid>
                     </RadioButton>
                     <RadioButton Grid.Row="2" Grid.Column="2" Classes="img" Width="60" Height="60"
@@ -140,12 +218,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="CornerBIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
+                            <Rectangle x:Name="ZDotB" Width="8" Height="8" Fill="Red"
+                                       Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=B}">
+                                <Rectangle.IsVisible>
+                                    <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="B">
+                                        <Binding Path="ProbeEdge" />
+                                        <Binding Path="ProbeZ" />
+                                    </MultiBinding>
+                                </Rectangle.IsVisible>
+                            </Rectangle>
                         </Grid>
                     </RadioButton>
                 </Grid>
 
                 <StackPanel Spacing="4" VerticalAlignment="Top">
-                    <CheckBox Content="{loc:Loc module.probing.probeZ, DText='Probe Z'}" IsChecked="{Binding ProbeZ}" FontSize="11" />
+                    <CheckBox Content="{loc:Loc module.probing.probeZ, DText='Probe Z'}" IsChecked="{Binding ProbeZ}" IsEnabled="{Binding IsProbeZEditable}" FontSize="11" />
                     <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="4">
                         <TextBlock Text="{loc:Loc module.probing.workpieceHeight, DText='Workpiece height:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBox Grid.Column="1" Text="{Binding WorkpieceHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
