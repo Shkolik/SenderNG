@@ -105,14 +105,20 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   other senders (ioSender, UGS, LinuxCNC, Mach, Centroid, Masso, foam CAM
   tools) model this lives in `docs/machine-config-research.md`; V1 lean is
   named presets (Mill / Foam) with a per-axis role map underneath. The
+  **schema is designed and decided** (2026-09-07):
+  `docs/machine-axis-schema.md` — positional roles + controller letters
+  (`[AXS:]` parsing, jog migration, demo seeding are the agreed first
+  landing); the plotter consumes it separately. The
   foam plotter has field precedents now — GrblHotWire's two flat canvases
   (XY | ZA, one per carriage plane) and hoWiGS's isometric loft (see the
   research doc). V1 decision: isometric + flat views on a plain canvas,
-  no 3D lib; true 3D orbit deferred. **Storage prerequisite landed:**
+  no 3D lib; true 3D orbit deferred.  **Storage prerequisite landed:**
   profiles replace the Mill/Foam "mode" split (one file per machine +
   `global.json`, profile manager in App Settings) — see
-  `docs/settings-migration.md`; consumers still keyed on the machine-type
-  preset (e.g. Jog's foam layout) move to the per-axis model below.
+  `docs/settings-migration.md`. **Schema landed and consumers migrated
+  (2026-09-07):** Jog's layout derives from the preset's planes + controller
+  letters (M2), fresh profiles seed demo axes from the preset (M3); the
+  plotter (P2) and Wrap remain the open consumers.
 - **Continuous jog** — hold-to-jog with continuous motion: velocity-based
   `$J=` without a target distance (ioSender's Continuous mode), feedrate
   selection, and stop-on-release (hold realtime byte). Axis layout comes
@@ -159,7 +165,9 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
      selection illustrations for the Probing module (ioSender's selector
      visualization), required before the module is signed off.
 - Foam CNC mode: functional foam-specific behavior (mode is persisted but only
-  changes jog layout today).
+  changes jog layout today — the layout itself is now schema-driven:
+  machine-type preset planes + controller `[AXS:]` letters,
+  `docs/machine-axis-schema.md`).
 - Telnet / WebSocket transports: `TcpGrblTransport` covers plain TCP; telnet
   option negotiation and WebSocket are still not implemented. See
   `docs/p0-controller-plumbing-plan.md` D.3.

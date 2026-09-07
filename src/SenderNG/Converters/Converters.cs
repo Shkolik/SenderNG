@@ -70,10 +70,10 @@ public sealed class EnumAndBoolConverter : IMultiValueConverter
         // MultiBinding feeds the converter intermediate/error values (e.g.
         // BindingNotification) while child bindings start up, before the
         // DataContext arrives — those must not reach Enum.Parse.
-        if (values.Count < 2 || values[0] is not Enum || parameter is null)
+        if (values.Count < 2 || values[0] is not Enum probed || parameter is null)
             return false;
-        var target = Enum.Parse(values[0].GetType(), parameter.ToString()!, ignoreCase: true);
-        return values[0].Equals(target) && values[1] is true;
+        var target = Enum.Parse(probed.GetType(), parameter.ToString()!, ignoreCase: true);
+        return probed.Equals(target) && values[1] is true;
     }
 }
 

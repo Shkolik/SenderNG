@@ -205,6 +205,7 @@ WIDGET = {
         "module.jog.speed": ("Speed (mm/min)", "Скорость (мм/мин)"),
         "module.jog.feedHold": ("Feed hold", "Пауза подачи"),
         "module.jog.syncGantries": ("Synchronize both gantries", "Синхронизировать обе каретки"),
+        "module.jog.planeHidden": ("Second carriage plane hidden — the controller reports fewer axes", "Вторая плоскость каретки скрыта — контроллер сообщает меньше осей"),
     },
     "dro": {
         "module.dro.zeroAxis": ("Zero axis", "Обнулить ось"),

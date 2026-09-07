@@ -462,6 +462,19 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             // Legacy static is authoritative for parsing/expressions; only update
             // when the handshake actually identified the board.
             GrblInfo.IsGrblHAL = Capabilities.IsGrblHAL;
+
+            // Axis letters follow the same connect lifecycle as the count: a
+            // board reporting [AXS:n:letters] remaps them (foam boards flashed
+            // XYUV), one that doesn't resets to the conventional default — per
+            // connect, so switching boards never leaks the previous letter set.
+            // Set BEFORE NumAxes: the NumAxes setter rebuilds
+            // PositionFormatString/AxisFlags from the letters via
+            // AxisIndexToLetter. The length check is belt-and-braces (the parser
+            // already drops mismatched letter lists).
+            GrblInfo.AxisLetters =
+                Capabilities.AxisLetters.Length == Capabilities.NumAxes
+                    ? Capabilities.AxisLetters
+                    : GrblInfo.DefaultAxisLetters;
             GrblInfo.NumAxes = Capabilities.NumAxes;
 
             // Grow the live state so users immediately see the extra axes and

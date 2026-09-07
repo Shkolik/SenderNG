@@ -150,48 +150,52 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             </StackPanel>
         </StackPanel>
 
-        <!-- XY cross (both modes); in Foam+Together it jogs both gantries mirrored.
-             Explicit 3x3 Grid (not UniformGrid): hidden diagonal cells stay reserved,
-             so toggling diagonals never reflows the layout. -->
+        <!-- XY cross (plane 1): letters come from the machine-type schema (the
+             controller's [AXS:] letters override the conventional ones); in
+             Foam+Together each direction also carries the matching plane-2 words
+             (the '|…' part). Explicit 3x3 Grid (not UniformGrid): hidden diagonal
+             cells stay reserved, so toggling diagonals never reflows the layout. -->
         <Grid Width="174" Height="174" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Center">
-            <Button Grid.Row="0" Grid.Column="0" Classes="jog diag" Content="↖" Command="{Binding JogCommand}" CommandParameter="X-,Y+|Z-,A+"
+            <Button Grid.Row="0" Grid.Column="0" Classes="jog diag" Content="↖" Command="{Binding JogCommand}" CommandParameter="{Binding UpLeftTag}"
                     IsVisible="{Binding ShowDiagonals}" />
-            <Button Grid.Row="0" Grid.Column="1" Classes="jog" Content="Y+" Command="{Binding JogCommand}" CommandParameter="Y+|A+" />
-            <Button Grid.Row="0" Grid.Column="2" Classes="jog diag" Content="↗" Command="{Binding JogCommand}" CommandParameter="X+,Y+|Z+,A+"
+            <Button Grid.Row="0" Grid.Column="1" Classes="jog" Content="{Binding P1VPlus}" Command="{Binding JogCommand}" CommandParameter="{Binding UpTag}" />
+            <Button Grid.Row="0" Grid.Column="2" Classes="jog diag" Content="↗" Command="{Binding JogCommand}" CommandParameter="{Binding UpRightTag}"
                     IsVisible="{Binding ShowDiagonals}" />
-            <Button Grid.Row="1" Grid.Column="0" Classes="jog" Content="X-" Command="{Binding JogCommand}" CommandParameter="X-|Z-" />
+            <Button Grid.Row="1" Grid.Column="0" Classes="jog" Content="{Binding P1HMinus}" Command="{Binding JogCommand}" CommandParameter="{Binding LeftTag}" />
             <Button Grid.Row="1" Grid.Column="1" Classes="jog" Content="{loc:Loc common.stop}" Background="#e04545" BorderBrush="#b03535" Foreground="White" FontSize="11"
                     Command="{Binding StopCommand}" ToolTip.Tip="{loc:Loc module.jog.feedHold}" />
-            <Button Grid.Row="1" Grid.Column="2" Classes="jog" Content="X+" Command="{Binding JogCommand}" CommandParameter="X+|Z+" />
-            <Button Grid.Row="2" Grid.Column="0" Classes="jog diag" Content="↙" Command="{Binding JogCommand}" CommandParameter="X-,Y-|Z-,A-"
+            <Button Grid.Row="1" Grid.Column="2" Classes="jog" Content="{Binding P1HPlus}" Command="{Binding JogCommand}" CommandParameter="{Binding RightTag}" />
+            <Button Grid.Row="2" Grid.Column="0" Classes="jog diag" Content="↙" Command="{Binding JogCommand}" CommandParameter="{Binding DownLeftTag}"
                     IsVisible="{Binding ShowDiagonals}" />
-            <Button Grid.Row="2" Grid.Column="1" Classes="jog" Content="Y-" Command="{Binding JogCommand}" CommandParameter="Y-|A-" />
-            <Button Grid.Row="2" Grid.Column="2" Classes="jog diag" Content="↘" Command="{Binding JogCommand}" CommandParameter="X+,Y-|Z+,A-"
+            <Button Grid.Row="2" Grid.Column="1" Classes="jog" Content="{Binding P1VMinus}" Command="{Binding JogCommand}" CommandParameter="{Binding DownTag}" />
+            <Button Grid.Row="2" Grid.Column="2" Classes="jog diag" Content="↘" Command="{Binding JogCommand}" CommandParameter="{Binding DownRightTag}"
                     IsVisible="{Binding ShowDiagonals}" />
         </Grid>
 
-        <!-- Foam only: padlock between the crosses, vertically centered on the middle row -->
-        <CheckBox IsVisible="{Binding IsFoam}" Classes="padlock" IsChecked="{Binding Together}"
+        <!-- Multi-plane only: padlock between the crosses; hidden when plane 2
+             is clamped away (Together cannot engage without it) -->
+        <CheckBox IsVisible="{Binding TogetherVisible}" Classes="padlock" IsChecked="{Binding Together}"
                   ToolTip.Tip="{loc:Loc module.jog.syncGantries}" VerticalAlignment="Center" Margin="0,0,0,0" />
 
-        <!-- Foam only: ZA cross -->
-        <Grid IsVisible="{Binding IsFoam}" Width="174" Height="174" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Center">
-            <Button Grid.Row="0" Grid.Column="0" Classes="jog diag" Content="↖" Command="{Binding JogCommand}" CommandParameter="Z-,A+"
+        <!-- Plane 2 cross (multi-plane machines): hidden when the controller
+             reports fewer axes than the preset's planes need -->
+        <Grid IsVisible="{Binding Plane2Visible}" Width="174" Height="174" ColumnDefinitions="*,*,*" RowDefinitions="*,*,*" VerticalAlignment="Center">
+            <Button Grid.Row="0" Grid.Column="0" Classes="jog diag" Content="↖" Command="{Binding JogCommand}" CommandParameter="{Binding SecondUpLeftTag}"
                     IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
-            <Button Grid.Row="0" Grid.Column="1" Classes="jog" Content="A+" Command="{Binding JogCommand}" CommandParameter="A+"
+            <Button Grid.Row="0" Grid.Column="1" Classes="jog" Content="{Binding P2VPlus}" Command="{Binding JogCommand}" CommandParameter="{Binding SecondUpTag}"
                     IsEnabled="{Binding ZaCrossEnabled}" />
-            <Button Grid.Row="0" Grid.Column="2" Classes="jog diag" Content="↗" Command="{Binding JogCommand}" CommandParameter="Z+,A+"
+            <Button Grid.Row="0" Grid.Column="2" Classes="jog diag" Content="↗" Command="{Binding JogCommand}" CommandParameter="{Binding SecondUpRightTag}"
                     IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
-            <Button Grid.Row="1" Grid.Column="0" Classes="jog" Content="Z-" Command="{Binding JogCommand}" CommandParameter="Z-"
+            <Button Grid.Row="1" Grid.Column="0" Classes="jog" Content="{Binding P2HMinus}" Command="{Binding JogCommand}" CommandParameter="{Binding SecondLeftTag}"
                     IsEnabled="{Binding ZaCrossEnabled}" />
             <Button Grid.Row="1" Grid.Column="1" Classes="jog" Content="•" IsEnabled="False" />
-            <Button Grid.Row="1" Grid.Column="2" Classes="jog" Content="Z+" Command="{Binding JogCommand}" CommandParameter="Z+"
+            <Button Grid.Row="1" Grid.Column="2" Classes="jog" Content="{Binding P2HPlus}" Command="{Binding JogCommand}" CommandParameter="{Binding SecondRightTag}"
                     IsEnabled="{Binding ZaCrossEnabled}" />
-            <Button Grid.Row="2" Grid.Column="0" Classes="jog diag" Content="↙" Command="{Binding JogCommand}" CommandParameter="Z-,A-"
+            <Button Grid.Row="2" Grid.Column="0" Classes="jog diag" Content="↙" Command="{Binding JogCommand}" CommandParameter="{Binding SecondDownLeftTag}"
                     IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
-            <Button Grid.Row="2" Grid.Column="1" Classes="jog" Content="A-" Command="{Binding JogCommand}" CommandParameter="A-"
+            <Button Grid.Row="2" Grid.Column="1" Classes="jog" Content="{Binding P2VMinus}" Command="{Binding JogCommand}" CommandParameter="{Binding SecondDownTag}"
                     IsEnabled="{Binding ZaCrossEnabled}" />
-            <Button Grid.Row="2" Grid.Column="2" Classes="jog diag" Content="↘" Command="{Binding JogCommand}" CommandParameter="Z+,A-"
+            <Button Grid.Row="2" Grid.Column="2" Classes="jog diag" Content="↘" Command="{Binding JogCommand}" CommandParameter="{Binding SecondDownRightTag}"
                     IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
         </Grid>
 
@@ -216,6 +220,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
+
+        <!-- Under-axed multi-plane machine: the second plane is hidden (schema
+             decision #3) — explain why instead of showing a dead cross -->
+        <TextBlock IsVisible="{Binding Plane2HiddenHintVisible}" Text="{loc:Loc module.jog.planeHidden}"
+                   Width="150" TextWrapping="Wrap" FontSize="10" Foreground="#888" VerticalAlignment="Center" Margin="0,0,8,0" />
 
     </StackPanel>
     </ScrollViewer>

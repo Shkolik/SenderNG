@@ -322,3 +322,65 @@ public class ControllerCapabilitiesDemoAndProxyTests
         public void SendRealtime(byte code) { }
     }
 }
+
+/// <summary>
+/// [AXS:] letter parsing (machine-axis-schema M1): letters reach
+/// <see cref="ControllerCapabilities.AxisLetters"/> only when the letter list
+/// is a bare ASCII-letter run whose length matches the resolved axis count —
+/// otherwise empty (conventional fallback; the count stays authoritative).
+/// The verbatim <see cref="ControllerCapabilities.RawAxes"/> fingerprint value
+/// is unaffected either way.
+/// </summary>
+public class ControllerAxisLetterTests
+{
+    [Fact]
+    public void AXS_count_and_letters_parse_into_capabilities()
+    {
+        var caps = ControllerInfoParser.ParseInfo(
+            ["[VER:1.2i.20260521:]", "[OPT:V,15,128]", "[AXS:5:XYZAB]"]);
+        Assert.True(caps.IsKnown);
+        Assert.Equal(5, caps.NumAxes);
+        Assert.Equal("XYZAB", caps.AxisLetters);
+        // Fingerprint keeps count+letters verbatim, independent of the parse.
+        Assert.Equal("5:XYZAB", caps.RawAxes);
+    }
+
+    [Fact]
+    public void Classic_grbl_without_AXS_keeps_letters_empty()
+    {
+        var caps = ControllerInfoParser.ParseInfo(
+            ["Grbl 1.1h ['$' for help]", "[OPT:V,15,128]"]);
+        Assert.Equal(3, caps.NumAxes);
+        Assert.Equal(string.Empty, caps.AxisLetters);
+    }
+
+    [Fact]
+    public void AXS_letter_count_mismatch_drops_letters()
+    {
+        // 4 letters against a claimed 5 axes — shapes disagree, the count stays
+        // authoritative and no letters are promoted.
+        var caps = ControllerInfoParser.ParseInfo(
+            ["[VER:1.2i.20260521:]", "[OPT:V,15,128]", "[AXS:5:XYZA]"]);
+        Assert.Equal(5, caps.NumAxes);
+        Assert.Equal(string.Empty, caps.AxisLetters);
+    }
+
+    [Fact]
+    public void AXS_without_count_yields_no_letters()
+    {
+        // [AXS:XYZAB]: a letter run with no count segment — nothing to agree
+        // with, so no letters; NumAxes falls back to the [OPT:]/default 3.
+        var caps = ControllerInfoParser.ParseInfo(
+            ["[VER:1.2i.20260521:]", "[OPT:V,15,128]", "[AXS:XYZAB]"]);
+        Assert.Equal(3, caps.NumAxes);
+        Assert.Equal(string.Empty, caps.AxisLetters);
+    }
+
+    [Fact]
+    public void Demo_full_capabilities_report_no_letter_remap()
+    {
+        // The demo board runs the conventional letter order: empty letters mean
+        // "no remap" to every consumer.
+        Assert.Equal(string.Empty, ControllerCapabilities.Full.AxisLetters);
+    }
+}

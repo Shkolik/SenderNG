@@ -58,7 +58,9 @@ public class JogViewModel : ViewModelBase
     private readonly IGrblService _grbl;
     private readonly SettingsService _settingsService;
     private MachineProfile _profile;
+    private MachineType _machineType = MachineTypeCatalog.Resolve(MachineTypes.Mill);
     private int _numAxes = 2;
+    private string _letters = string.Empty;
     private bool _suppressReload;
 
     public JogViewModel(IGrblService grbl, SettingsService settingsService)
@@ -69,6 +71,9 @@ public class JogViewModel : ViewModelBase
 
         Config = JogConfigStore.Load(_profile);
         Config.PropertyChanged += OnConfigPropertyChanged;
+        _machineType = MachineTypeCatalog.Resolve(_profile.MachineTypeId);
+        _letters = CNC.Core.GrblInfo.AxisLetters;
+        RefreshGeometry();
         RefreshLinearAxes();
 
         JogCommand = new DelegateCommand(p => _ = JogAsync(p as string));
@@ -124,8 +129,96 @@ public class JogViewModel : ViewModelBase
 
     public ObservableCollection<LinearAxisRow> LinearAxisLetters { get; } = new();
 
-    public bool IsFoam => _profile.MachineTypeId == MachineTypes.Foam;
-    public bool IsMill => !IsFoam;
+    // ---- Machine geometry (docs/machine-axis-schema.md, M2) ----
+    // The layout derives from the profile's machine-type preset
+    // (MachineTypeCatalog), not from machine-type strings: planes drive the
+    // crosses, roles pair the letters, and the controller's handshake letters
+    // ([AXS:]) override the conventional display.
+
+    /// <summary>Multi-plane machine (foam): the schema's IsMultiPlane — the
+    /// padlock/second-cross gate without a "Foam" string check.</summary>
+    public bool IsMultiPlane => _machineType.IsMultiPlane;
+
+    /// <summary>Plane 2 (second carriage) is drivable: a multi-plane preset AND
+    /// enough reported axes (foam needs 4). Under-axed boards hide the plane
+    /// and show the hint (decision #3, docs/machine-axis-schema.md).</summary>
+    public bool Plane2Visible => IsMultiPlane && _numAxes >= _machineType.AxisCount;
+
+    /// <summary>Shown when a multi-plane machine meets fewer axes than its planes need.</summary>
+    public bool Plane2HiddenHintVisible => IsMultiPlane && !Plane2Visible;
+
+    /// <summary>The Together padlock only means something when both planes are drivable.</summary>
+    public bool TogetherVisible => Plane2Visible;
+
+    // Plane letters: the controller's [AXS:] letters when the handshake
+    // reported them, the preset's conventional order otherwise (a foam board
+    // flashed XYUV shows U/V on the second cross).
+    public string P1H => LetterFor(0);
+    public string P1V => LetterFor(1);
+    public string P2H => LetterFor(2);
+    public string P2V => LetterFor(3);
+
+    public string P1HPlus => P1H + "+";
+    public string P1HMinus => P1H + "-";
+    public string P1VPlus => P1V + "+";
+    public string P1VMinus => P1V + "-";
+    public string P2HPlus => P2H + "+";
+    public string P2HMinus => P2H + "-";
+    public string P2VPlus => P2V + "+";
+    public string P2VMinus => P2V + "-";
+
+    // Plane-1 cross tags: part 1 = plane-1 words, part 2 (after '|') = the
+    // coupled plane-2 words the Together padlock adds ("X+|Z+" = both
+    // horizontals, "Y+|A+" = both verticals — the mirrored-gantry semantics).
+    // No plane 2 (mill, or clamped foam) -> single part.
+    public string UpLeftTag => CrossTag($"{P1H}-,{P1V}+", $"{P2H}-,{P2V}+");
+    public string UpTag => CrossTag($"{P1V}+", $"{P2V}+");
+    public string UpRightTag => CrossTag($"{P1H}+,{P1V}+", $"{P2H}+,{P2V}+");
+    public string LeftTag => CrossTag($"{P1H}-", $"{P2H}-");
+    public string RightTag => CrossTag($"{P1H}+", $"{P2H}+");
+    public string DownLeftTag => CrossTag($"{P1H}-,{P1V}-", $"{P2H}-,{P2V}-");
+    public string DownTag => CrossTag($"{P1V}-", $"{P2V}-");
+    public string DownRightTag => CrossTag($"{P1H}+,{P1V}-", $"{P2H}+,{P2V}-");
+
+    // Plane-2 cross tags: single-plane moves (that cross jogs tower 2 alone).
+    public string SecondUpLeftTag => $"{P2H}-,{P2V}+";
+    public string SecondUpTag => $"{P2V}+";
+    public string SecondUpRightTag => $"{P2H}+,{P2V}+";
+    public string SecondLeftTag => $"{P2H}-";
+    public string SecondRightTag => $"{P2H}+";
+    public string SecondDownLeftTag => $"{P2H}-,{P2V}-";
+    public string SecondDownTag => $"{P2V}-";
+    public string SecondDownRightTag => $"{P2H}+,{P2V}-";
+
+    private static string LetterFor(int axisIndex)
+    {
+        var letters = CNC.Core.GrblInfo.AxisLetters;
+        return axisIndex < letters.Length
+            ? letters.Substring(axisIndex, 1)
+            : MachineType.ConventionalLetters.Substring(axisIndex, 1);
+    }
+
+    private string CrossTag(string plane1, string plane2) => Plane2Visible ? $"{plane1}|{plane2}" : plane1;
+
+    private void RefreshGeometry()
+    {
+        OnPropertyChanged(nameof(IsMultiPlane));
+        OnPropertyChanged(nameof(Plane2Visible));
+        OnPropertyChanged(nameof(Plane2HiddenHintVisible));
+        OnPropertyChanged(nameof(TogetherVisible));
+        foreach (var property in new[]
+                 {
+                     nameof(P1H), nameof(P1V), nameof(P2H), nameof(P2V),
+                     nameof(P1HPlus), nameof(P1HMinus), nameof(P1VPlus), nameof(P1VMinus),
+                     nameof(P2HPlus), nameof(P2HMinus), nameof(P2VPlus), nameof(P2VMinus),
+                     nameof(UpLeftTag), nameof(UpTag), nameof(UpRightTag), nameof(LeftTag),
+                     nameof(RightTag), nameof(DownLeftTag), nameof(DownTag), nameof(DownRightTag),
+                     nameof(SecondUpLeftTag), nameof(SecondUpTag), nameof(SecondUpRightTag),
+                     nameof(SecondLeftTag), nameof(SecondRightTag), nameof(SecondDownLeftTag),
+                     nameof(SecondDownTag), nameof(SecondDownRightTag),
+                 })
+            OnPropertyChanged(property);
+    }
 
     public bool ShowDiagonals => Config.Diagonals;
 
@@ -222,7 +315,7 @@ public class JogViewModel : ViewModelBase
             .Select(ToWord);
 
         string words;
-        if (IsFoam && Together && parts.Length == 2)
+        if (IsMultiPlane && Together && parts.Length == 2)
         {
             // Mirrored gantries: send both pairs in one jog command.
             words = string.Join(" ", parts.SelectMany(SelectWords));
@@ -280,8 +373,8 @@ public class JogViewModel : ViewModelBase
         Config = JogConfigStore.Load(_profile);
         Config.PropertyChanged += OnConfigPropertyChanged;
         OnPropertyChanged(nameof(Config));
-        OnPropertyChanged(nameof(IsFoam));
-        OnPropertyChanged(nameof(IsMill));
+        _machineType = MachineTypeCatalog.Resolve(_profile.MachineTypeId);
+        RefreshGeometry();
         OnPropertyChanged(nameof(ShowDiagonals));
         OnPropertyChanged(nameof(SelectedDistanceIndex));
         OnPropertyChanged(nameof(SelectedSpeedIndex));
@@ -297,26 +390,49 @@ public class JogViewModel : ViewModelBase
         if (state is null)
             return;
 
+        // Letters ride along with the count: the handshake pushes the [AXS:]
+        // letters right before the first state report, and a reconnect to a
+        // different board can change them without changing the axis count.
+        var letters = CNC.Core.GrblInfo.AxisLetters;
         var n = Math.Clamp(state.NumAxes, 2, Letters.Length);
-        if (n == _numAxes)
+        if (n == _numAxes && letters == _letters)
             return;
 
         _numAxes = n;
+        _letters = letters;
+        RefreshGeometry();
         RefreshLinearAxes();
     }
 
-    // Crossed axis count: Mill crosses the first 2 (X,Y), Foam the first 4 (X,Y,Z,A).
-    // The rest render as linear +/- rows.
-    private int CrossedAxes => IsFoam ? 4 : 2;
+    // Crossed axis count: the H/V roles of the planes that fit the reported
+    // axes (mill: X/Y of plane 1; foam: both towers = 4; foam clamped to 3
+    // axes: plane 1 only). The mill's Depth role (Z) and clamped-away axes
+    // render as linear +/- rows.
+    private int CrossedAxes
+    {
+        get
+        {
+            var hv = 0;
+            for (var i = 0; i < _machineType.Planes.Count; i++)
+            {
+                var planeHv = _machineType.Planes[i].Roles.Count(r =>
+                    r is AxisRoleKind.Horizontal or AxisRoleKind.Vertical);
+                if (hv + planeHv <= _numAxes)
+                    hv += planeHv;
+            }
+            return hv;
+        }
+    }
 
     private void RefreshLinearAxes()
     {
-        var count = Math.Max(0, _numAxes - CrossedAxes);
-        // Rebuild (not just resize): the crossed-axis count changes with mode,
-        // so existing rows must be re-lettered (foam starts at B, mill at Z).
+        var crossed = CrossedAxes;
+        var count = Math.Max(0, _numAxes - crossed);
+        // Rebuild (not just resize): the crossed-axis count changes with the
+        // machine type / clamping, so existing rows must be re-lettered.
         LinearAxisLetters.Clear();
         for (var i = 0; i < count; i++)
-            LinearAxisLetters.Add(new LinearAxisRow(Letters[CrossedAxes + i]));
+            LinearAxisLetters.Add(new LinearAxisRow(LetterFor(crossed + i)));
     }
 
     private static string Fmt(double value) =>

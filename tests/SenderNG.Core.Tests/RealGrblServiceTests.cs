@@ -764,6 +764,58 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    public async Task Connect_applies_I_axis_letters_and_resets_them_without_AXS()
+    {
+        // A board reporting [AXS:4:XYZA] remaps the legacy letter set (XYUV-style
+        // foam boards are the target case); a follow-up connect to a board with
+        // no [AXS:] line must reset to the conventional default — per connect,
+        // so switching boards never leaks the previous board's letter set.
+        var savedLetters = CNC.Core.GrblInfo.AxisLetters;
+        var savedAxes = CNC.Core.GrblInfo.NumAxes;
+        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        try
+        {
+            var transport = new FakeGrblTransport { AutoReply = false };
+            using var svc = new RealGrblService(transport);
+
+            var connectTask = svc.ConnectAsync("fake");
+            await WaitUntil(() => transport.Sent.Contains("$I"), 3000);
+            transport.Enqueue("GrblHAL 1.1h ['$' for help]");
+            transport.Enqueue("[VER:1.1f.20260827:grblHAL]");
+            transport.Enqueue("[OPT:V,15,128]");
+            transport.Enqueue("[AXS:4:XYZA]");
+            transport.Enqueue("ok");
+            await connectTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Equal(4, svc.Capabilities.NumAxes);
+            Assert.Equal("XYZA", svc.Capabilities.AxisLetters);
+            Assert.Equal("XYZA", CNC.Core.GrblInfo.AxisLetters);
+
+            // Second connect: classic grbl without [AXS:] -> conventional default.
+            var transport2 = new FakeGrblTransport { AutoReply = false };
+            using var svc2 = new RealGrblService(transport2);
+
+            var connect2 = svc2.ConnectAsync("fake");
+            await WaitUntil(() => transport2.Sent.Contains("$I"), 3000);
+            transport2.Enqueue("Grbl 1.1h ['$' for help]");
+            transport2.Enqueue("[VER:1.1h.20190825:]");
+            transport2.Enqueue("[OPT:V,15,128]");
+            transport2.Enqueue("ok");
+            await connect2.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Equal(3, svc2.Capabilities.NumAxes);
+            Assert.Equal(string.Empty, svc2.Capabilities.AxisLetters);
+            Assert.Equal(CNC.Core.GrblInfo.DefaultAxisLetters, CNC.Core.GrblInfo.AxisLetters);
+        }
+        finally
+        {
+            CNC.Core.GrblInfo.AxisLetters = savedLetters;
+            CNC.Core.GrblInfo.NumAxes = savedAxes;
+            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+        }
+    }
+
+    [Fact]
     public async Task Connect_forwards_serial_reset_mode_to_transport()
     {
         // The dialog's "On connect" mode (Toggle DTR) must reach the transport when

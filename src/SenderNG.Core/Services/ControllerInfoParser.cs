@@ -76,6 +76,7 @@ public static class ControllerInfoParser
         var opt = string.Empty;
         var axesLine = string.Empty;
         var rawAxes = string.Empty;
+        var axisLetters = string.Empty;
         var identity = string.Empty;
         var optionalSignals = CNC.Core.Signals.Off;
         var hasSettingEnums = false;
@@ -121,7 +122,15 @@ public static class ControllerInfoParser
                         if (kv.Length > 1)
                         {
                             rawAxes = kv[1];
-                            axesLine = kv[1].Split(':')[0];
+                            var segments = kv[1].Split(':');
+                            axesLine = segments[0];
+                            // The letter list is the last segment when it is a bare
+                            // ASCII-letter run ([AXS:5:XYZAB] -> "XYZAB"). Promoted to
+                            // AxisLetters below only when it agrees with the resolved
+                            // axis count.
+                            if (segments.Length > 1 && segments[^1].Length > 0
+                                && segments[^1].All(char.IsAsciiLetter))
+                                axisLetters = segments[^1];
                         }
                         break;
                     case "OPT":
@@ -209,6 +218,12 @@ public static class ControllerInfoParser
         if (int.TryParse(axesLine, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) && n > 0)
             axes = n;
 
+        // Letters survive only when the [AXS:] letter list length matches the
+        // resolved axis count — otherwise drop them (consumers keep their
+        // conventional default; the count stays authoritative).
+        if (axisLetters.Length != axes)
+            axisLetters = string.Empty;
+
         // Classic grbl reports the safety door via a '+' in the first [OPT:] letter
         // field (ioSender: `if (s[0].Contains('+')) OptionalSignals |= SafetyDoor`).
         if (optLetters.Contains('+'))
@@ -227,6 +242,7 @@ public static class ControllerInfoParser
             NumTools = tools,
             RawOptions = opt,
             RawAxes = rawAxes,
+            AxisLetters = axisLetters,
             // Classic grbl 1.1 has no way to signal ENABLE_M7 via $I; grblHAL exposes
             // it via an explicit 'M' option. Default: flood+spindle on, mist only when
             // the firmware is grblHAL (the reliable signal we have).

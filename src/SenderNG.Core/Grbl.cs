@@ -118,7 +118,12 @@ namespace CNC.Core
     public static class GrblInfo
     {
         private static int _numAxes=3;
-        public static string AxisLetters { get; private set; } = "XYZABCUVW";
+        // DefaultAxisLetters is the no-remap fallback when a connect's handshake
+        // reports no [AXS:] letters; public set (like NumAxes/IsGrblHAL) because
+        // RealGrblService pushes the board's letters per connect and tests
+        // save/restore the static.
+        public const string DefaultAxisLetters = "XYZABCUVW";
+        public static string AxisLetters { get; set; } = DefaultAxisLetters;
         public static string SignalLetters { get; private set; } = "XYZABCUVWEPRDHSBTOMF";
         public static string PositionFormatString { get; private set; } = string.Empty;
         public static string Version { get; private set; } = string.Empty;

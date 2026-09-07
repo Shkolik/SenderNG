@@ -396,3 +396,31 @@ public class ProfileSwitchReReadTests
         Assert.DoesNotContain("p", vm.Profiles.Select(p => p.Name));
     }
 }
+
+/// <summary>
+/// Fresh profiles seed machine-coupled defaults from the type preset
+/// (docs/machine-axis-schema.md M3): the demo controller simulates the type's
+/// axis count (Foam needs 4 so both towers exist). Duplicates are machine
+/// copies, not templates — they keep the source's configured values.
+/// </summary>
+public class ProfileDemoAxesSeedTests
+{
+    [Fact]
+    public void Fresh_profiles_seed_demo_axes_from_the_machine_type()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-profiles-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var settings = new SettingsService(dir);
+
+        var foam = settings.CreateProfile("Foam demo", MachineTypes.Foam);
+        Assert.Equal(4, foam.DemoAxes);
+
+        var mill = settings.CreateProfile("Mill demo", MachineTypes.Mill);
+        Assert.Equal(3, mill.DemoAxes);
+
+        foam.DemoAxes = 6;
+        settings.Save(foam);
+        var copy = settings.CreateProfile("Foam copy", MachineTypes.Foam, copyFromId: foam.Id);
+        Assert.Equal(6, copy.DemoAxes);
+    }
+}

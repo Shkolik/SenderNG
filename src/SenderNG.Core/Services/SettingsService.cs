@@ -172,8 +172,19 @@ public class SettingsService
     public MachineProfile CreateProfile(string name, string machineTypeId, string? copyFromId = null)
     {
         var id = UniqueId(name);
+        // Fresh profiles seed machine-coupled defaults from the type preset
+        // (machine-axis-schema.md M3): the demo controller simulates the type's
+        // axis count (Foam needs 4 so both towers exist). Duplicates keep the
+        // source machine's configured values — a copy is that machine, not a
+        // fresh template.
         var profile = copyFromId is null
-            ? new MachineProfile { Id = id, Name = name, MachineTypeId = machineTypeId }
+            ? new MachineProfile
+            {
+                Id = id,
+                Name = name,
+                MachineTypeId = machineTypeId,
+                DemoAxes = MachineTypeCatalog.Resolve(machineTypeId).DefaultDemoAxes,
+            }
             : Clone(ProfilesStore.TryLoad(_dir, copyFromId), id, name);
         ProfilesStore.Save(_dir, profile);
         _global ??= GlobalSettingsStore.Load(_dir);

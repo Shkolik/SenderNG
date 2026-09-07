@@ -81,7 +81,11 @@ Many already exist; the gaps are listed per widget.
       controller immediately; positions always come from the controller's MPos /
       WCO report fields (WPos is derived controller-style, never local math).
 - [x] Jog widget (`Modules/Plugins/Jog`) — cross + linear axes, distances/speeds,
-      foam Z/A cross, padlock.
+      foam Z/A cross, padlock. Layout is schema-driven (2026-09-07,
+      `docs/machine-axis-schema.md`): crosses from the machine-type preset's
+      planes, letters from the controller's `[AXS:]` report (XYUV-style boards
+      display correctly), and an under-axed multi-plane machine hides its
+      second plane with a status hint instead of showing a dead cross.
 - [x] MPos widget (`Modules/Plugins/Mpos`) — machine-position readouts.
 - [x] Outline widget (`Modules/Plugins/Outline`) — feed rate + Go perimeter.
 - [x] Coolant (`Modules/Plugins/Coolant`) — Flood/Mist toggles + overrides.
@@ -257,9 +261,12 @@ Many already exist; the gaps are listed per widget.
       selector — side flats are CAM-verification views, deferred) with a
       cylinder+tip tool; laser/drag-knife = flat + tool glyph (dot /
       blade circle with direction tick); foam = two carriage layers
-      (isometric loft | XY/ZA flats) with the wire as the tool. Depends
+      (isometric loft | XY/ZA flats) with the wire as the tool.      Depends
       on the machine axis-role schema from ROADMAP's "Machine physical
-      configuration" item (design: docs/machine-config-research.md).
+      configuration" item — **designed, decided and landed**
+      (`docs/machine-axis-schema.md`, 2026-09-07): the plotter's schema
+      blocker is gone; it consumes `MachineType.Planes` (layer decomposition)
+      and `GrblInfo.AxisLetters` (labels).
 - [ ] **Height-map 3D preview** — ioSender renders the probed grid as a mesh;
       SenderNG has the map data + XML save/load but no 3D visualization.
       Renderer candidates (researched with machine-config-research.md): the
@@ -346,11 +353,13 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 - [ ] **`Grbl.cs` stubs** — ~320 lines vs upstream 3438; caps parsing ported,
       rest compile-only stubs. Clean up as features touch them.
 - [ ] **`GrblInfo` static state** — global mutable static; partly mitigated by
-      pure `ParseCaps`.
-- [~] **Build warnings** — the nullability cluster (CS8602/CS8600/CS8601/
-      CS8603/CS8604/CS8618/CS8620/CS8622/CS8625) was swept to zero; ~18
-      warnings remain (mostly xUnit1031, a few CS86xx); keep the count flat
-      while working (architecture §9).
+      pure `ParseCaps`.- [x] **Build warnings** — the nullability cluster (CS8602/CS8600/CS8601/CS8603/
+      CS8604/CS8618/CS8620/CS8622/CS8625) was swept to zero, and the follow-up
+      "~18 warnings remain (mostly xUnit1031, a few CS86xx)" claim proved stale:
+      a full rebuild on 2026-09-07 showed only two CS8602 in `Converters.cs`
+      (the `EnumAndBoolConverter` guard didn't flow null-state into the indexer
+      accesses — fixed by hoisting `values[0]` into the pattern local). The
+      build is warning-free; keep it that way (architecture §9).
 
 ## Reference matrix (ioSender → SenderNG)
 

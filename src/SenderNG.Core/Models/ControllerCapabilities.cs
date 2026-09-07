@@ -95,6 +95,16 @@ public sealed record ControllerCapabilities
     /// (XYZC).</summary>
     public string RawAxes { get; init; } = string.Empty;
 
+    /// <summary>Axis letters the controller reports via <c>[AXS:n:letters]</c>
+    /// (e.g. "XYZA"), promoted only when the letter count matches
+    /// <see cref="NumAxes"/>; empty when the board emitted no <c>[AXS:]</c>
+    /// line (classic grbl) or the shapes disagree. Empty means "no remap
+    /// reported" — consumers fall back to the conventional XYZABCUVW order
+    /// (<see cref="MachineType.ConventionalLetters"/>). Deliberately NOT part
+    /// of <see cref="ControllerKey"/>: the key already carries the verbatim
+    /// <see cref="RawAxes"/> these letters were parsed from.</summary>
+    public string AxisLetters { get; init; } = string.Empty;
+
     /// <summary>
     /// Stable cross-session identity for scoping editor-local metadata (tool
     /// names): the <c>$I</c> firmware fingerprint only — deliberately WITHOUT the

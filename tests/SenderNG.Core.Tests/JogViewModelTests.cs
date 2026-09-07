@@ -256,3 +256,112 @@ public class JogProxyInitialStateTests
         Assert.Equal(["B", "C"], vm.LinearAxisLetters.Select(r => r.Letter));
     }
 }
+
+/// <summary>
+/// Schema-driven jog layout (docs/machine-axis-schema.md M2): crosses derive
+/// from the machine-type preset's planes, letters follow the controller's
+/// [AXS:] report, and an under-axed multi-plane machine hides its second
+/// plane (decision #3) instead of showing a dead cross.
+/// </summary>
+public class JogSchemaLayoutTests
+{
+    [Fact]
+    public void Mill_has_no_second_plane_and_single_part_tags()
+    {
+        var vm = new JogViewModel(new JogViewModelTests.RecordingGrbl([], numAxes: 4), JogViewModelTests.MakeSettings());
+        Assert.False(vm.IsMultiPlane);
+        Assert.False(vm.Plane2Visible);
+        Assert.False(vm.Plane2HiddenHintVisible);
+        // Plane-1 tags carry no coupled part; the conventional letters apply.
+        Assert.Equal("X+", vm.RightTag);
+        Assert.Equal("X", vm.P1H);
+        Assert.Equal("Z", vm.P2H); // letter resolves, cross stays hidden
+    }
+
+    [Fact]
+    public void Foam_on_four_axes_shows_second_plane_and_coupled_tags()
+    {
+        var vm = new JogViewModel(new JogViewModelTests.RecordingGrbl([], numAxes: 4), JogViewModelTests.MakeSettings("Foam"));
+        Assert.True(vm.IsMultiPlane);
+        Assert.True(vm.Plane2Visible);
+        Assert.False(vm.Plane2HiddenHintVisible);
+        Assert.True(vm.TogetherVisible);
+        Assert.Equal("X+|Z+", vm.RightTag);       // both horizontals
+        Assert.Equal("Y+|A+", vm.UpTag);          // both verticals
+        Assert.Equal("X-,Y+|Z-,A+", vm.UpLeftTag);
+        Assert.Equal("Z+", vm.SecondRightTag);    // plane-2 cross is single-plane
+        Assert.Equal("A", vm.P2V);
+    }
+
+    [Fact]
+    public void Foam_on_three_axes_hides_second_plane_and_falls_back_to_linear_z()
+    {
+        var vm = new JogViewModel(new JogViewModelTests.RecordingGrbl([], numAxes: 3), JogViewModelTests.MakeSettings("Foam"));
+        Assert.True(vm.IsMultiPlane);
+        Assert.False(vm.Plane2Visible);
+        Assert.True(vm.Plane2HiddenHintVisible);
+        Assert.False(vm.TogetherVisible);
+        // The dead Z/A cross is gone; Z is still reachable as a linear row.
+        Assert.Equal(["Z"], vm.LinearAxisLetters.Select(r => r.Letter));
+        // Plane-1 tags carry no second part (Together cannot engage).
+        Assert.Equal("X+", vm.RightTag);
+    }
+
+    [Fact]
+    public void Controller_axis_letters_override_the_conventional_display()
+    {
+        var saved = CNC.Core.GrblInfo.AxisLetters;
+        try
+        {
+            CNC.Core.GrblInfo.AxisLetters = "XYUV"; // foam board flashed XYUV
+            var vm = new JogViewModel(new JogViewModelTests.RecordingGrbl([], numAxes: 4), JogViewModelTests.MakeSettings("Foam"));
+
+            Assert.Equal("X", vm.P1H);
+            Assert.Equal("U", vm.P2H);
+            Assert.Equal("V", vm.P2V);
+            Assert.Equal("X+|U+", vm.RightTag);
+            Assert.Equal("Y+|V+", vm.UpTag);
+            Assert.Equal("U+", vm.SecondRightTag);
+        }
+        finally
+        {
+            CNC.Core.GrblInfo.AxisLetters = saved;
+        }
+    }
+
+    [Fact]
+    public void Together_tag_from_the_vm_jogs_both_planes()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new JogViewModelTests.RecordingGrbl(sent), JogViewModelTests.MakeSettings("Foam"));
+        vm.Together = true;
+
+        vm.JogCommand.Execute(vm.UpLeftTag); // "X-,Y+|Z-,A+"
+
+        Assert.Equal(["$J=G91 X-1 Y1 Z-1 A1 F1000"], sent);
+    }
+
+    [Fact]
+    public void Letters_refresh_on_state_push_without_axis_count_change()
+    {
+        // A reconnect to a board with different letters but the same axis count
+        // must still re-letter the crosses (ApplyState compares letters too).
+        var saved = CNC.Core.GrblInfo.AxisLetters;
+        try
+        {
+            CNC.Core.GrblInfo.AxisLetters = "XYZA";
+            var grbl = new JogViewModelTests.RecordingGrbl([], numAxes: 4);
+            var vm = new JogViewModel(grbl, JogViewModelTests.MakeSettings("Foam"));
+            Assert.Equal("A", vm.P2V);
+
+            CNC.Core.GrblInfo.AxisLetters = "XYZB";
+            grbl.Push(new MachineState(4)); // same count, different letters
+
+            Assert.Equal("B", vm.P2V);
+        }
+        finally
+        {
+            CNC.Core.GrblInfo.AxisLetters = saved;
+        }
+    }
+}

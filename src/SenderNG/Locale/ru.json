@@ -208,6 +208,7 @@
     "module.jog.speed": "Скорость (мм/мин)",
     "module.jog.feedHold": "Пауза подачи",
     "module.jog.syncGantries": "Синхронизировать обе каретки",
+    "module.jog.planeHidden": "Вторая плоскость каретки скрыта — контроллер сообщает меньше осей",
     "module.dro.zeroAxis": "Обнулить ось",
     "module.dro.zeroAll": "Обнулить все оси",
     "module.work-parameters.offset": "Смещение",
