@@ -401,6 +401,9 @@ public class ProbeViewModel : ViewModelBase
 
             if (SetField(ref _selectedTool, value))
             {
+                // The result is tool-local: showing the previous tool's
+                // message on another tab would be misleading.
+                LastResult = string.Empty;
                 OnPropertyChanged(nameof(IsToolLength));
                 OnPropertyChanged(nameof(IsEdgeExternal));
                 OnPropertyChanged(nameof(IsEdgeInternal));

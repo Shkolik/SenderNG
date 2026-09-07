@@ -74,6 +74,25 @@ public class ProbeViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task Switching_tools_clears_the_last_result()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+
+        await vm.StartAsync(); // default tool: ToolLength
+        Assert.NotEmpty(vm.LastResult);
+
+        // The result is tool-local: another tab must not show the TLO message.
+        vm.SelectedTool = ProbingType.HeightMap;
+        Assert.Equal(string.Empty, vm.LastResult);
+
+        // The edge-finder internal/external flip (same tab, radio switch) is
+        // a tool change too and clears as well.
+        vm.SelectedTool = ProbingType.EdgeFinderInternal;
+        Assert.Equal(string.Empty, vm.LastResult);
+    }
+
+    [Fact]
     public async Task Tool_table_availability_reflects_controller_capabilities()
     {
         var demo = await ConnectDemoAsync();

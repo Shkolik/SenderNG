@@ -182,7 +182,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <Grid ColumnDefinitions="Auto,Auto">
 
         <!-- ============================ Left: profiles + settings ============================ -->
-        <Grid Margin="6,4" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="2" MinWidth="200">
+        <Grid Margin="6,4" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="2" MinWidth="200">
 
             <!-- Profile selector (combo fills the line, ... opens the profile menu) -->
             <Grid Grid.Row="0" ColumnDefinitions="*,32">
@@ -294,10 +294,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <CheckBox Grid.Row="2" Grid.ColumnSpan="3" Content="{loc:Loc module.probing.isTouchPlate, DText='Is touch plate'}" FontSize="11" IsChecked="{Binding TouchPlateIsXY}" />
                 </Grid>
             </Border>
-
-            <!-- Last result -->
-            <TextBlock Grid.Row="6" Text="{Binding LastResult}" TextWrapping="Wrap" FontSize="10" Foreground="#555"
-                       FontFamily="Consolas,monospace" IsVisible="{Binding LastResult, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
         </Grid>
 
         <!-- ============================ Right: tool tabs + panel ============================ -->
@@ -328,10 +324,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <DataTemplate x:DataType="vm:ProbeToolTab" x:CompileBindings="False">
                     <!-- No stretch row: the content hugs its rows (banner /
                          tool + preview /
-                         actions), so Start/Stop stays close to the tool
-                         controls instead of being pinned to the bottom of a
-                         tall tab area. -->
-                    <Grid RowDefinitions="Auto,Auto,Auto" Margin="0,4" VerticalAlignment="Top">
+                         actions / last result), so Start/Stop stays close to
+                         the tool controls instead of being pinned to the
+                         bottom of a tall tab area. -->
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto" Margin="0,4" VerticalAlignment="Top">
                         <!-- Instructions + warning banner -->
                         <Border Margin="0,0,0,4" Padding="6" HorizontalAlignment="Stretch"
                                 Background="#fff8e1" BorderBrush="#e0c060" BorderThickness="1">
@@ -428,6 +424,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                     CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1"
                                     VerticalContentAlignment="Center" />
                         </StackPanel>
+                        <!-- Last result: under the action row so the outcome is
+                             visible next to the buttons that produce it. Bound
+                             through the TabControl (the row above re-binds its
+                             DataContext the same way); tool-local, cleared on
+                             tab switch. -->
+                        <TextBlock Grid.Row="3" Margin="0,0,0,2"
+                                   Text="{Binding $parent[TabControl].DataContext.LastResult}"
+                                   TextWrapping="Wrap" FontSize="10" Foreground="#555"
+                                   FontFamily="Consolas,monospace"
+                                   IsVisible="{Binding $parent[TabControl].DataContext.LastResult, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     </Grid>
                 </DataTemplate>
             </TabControl.ContentTemplate>
