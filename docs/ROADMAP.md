@@ -119,11 +119,21 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   (2026-09-07):** Jog's layout derives from the preset's planes + controller
   letters (M2), fresh profiles seed demo axes from the preset (M3); the
   plotter (P2) and Wrap remain the open consumers.
-- **Continuous jog** — hold-to-jog with continuous motion: velocity-based
-  `$J=` without a target distance (ioSender's Continuous mode), feedrate
-  selection, and stop-on-release (hold realtime byte). Axis layout comes
-  from the existing jog pad, later from Machine physical configuration
-  above.
+- **Continuous jog** — hold-to-jog with continuous motion (ioSender's
+  Continuous mode), feedrate selection, and stop-on-release (0x85
+  JogCancel). Axis layout comes from the existing jog pad, later from
+  Machine physical configuration above. **Researched and designed
+  (2026-09-07):** `docs/continuous-jog.md` — ioSender's single-command
+  model (`$J=G91 <axis><MaxTravel> F<feed>` once per press, 0x85 on
+  release; no repeat loop) adopted over the originally sketched
+  repeat-`$J=`-every-100ms approach; continuous ships as a 4th distance
+  step, not a separate toggle. Distance source settled: per-axis `$130+`
+  max travel fetched at connect (ioSender parity) — no fallback constant;
+  continuous jog is gated until the handshake reports travel (mega5x 1.2i
+  and classic 1.1h 4-axis builds report it for all axes). **Implementation
+  plan ready for handoff (2026-09-07):**
+  `docs/continuous-jog-implementation.md` — file-by-file change list,
+  code shapes, tests, and acceptance checklist.
 - **Converters (Excellon `.drl` / HPGL `.plt` → g-code) — LANDED.** No
   separate File menu entry: the native Open dialog advertises the converter
   types and dispatch happens in the open flow (extension match → parameters
@@ -168,6 +178,8 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   changes jog layout today — the layout itself is now schema-driven:
   machine-type preset planes + controller `[AXS:]` letters,
   `docs/machine-axis-schema.md`).
+  Continuous jog (hold-to-jog: velocity-based `$J=` + stop-on-release 0x85)
+  is the next item — design doc at `docs/continuous-jog.md`.
 - Telnet / WebSocket transports: `TcpGrblTransport` covers plain TCP; telnet
   option negotiation and WebSocket are still not implemented. See
   `docs/p0-controller-plumbing-plan.md` D.3.
@@ -185,6 +197,17 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
 > resumes, or stops. The session is local orchestration only — the controller is
 > still driven exclusively by the same realtime bytes, now sent once per state
 > transition instead of blindly per button press.
+>
+> Cross-cutting tech debt: `Grbl.cs` is ~271L vs upstream 3438L (foamcut's full
+> `Grbl.cs` is 2535L) — `ParseCaps` + `[OPT:...]` field extraction ported; the
+> `Grbl` partial class's `GrblViewModel`, `GrblParserState` (modal state),
+> `GrblWorkParameters` (coordinate/tool tables), `GrblSettings` (settings lookup),
+> `GrblAuxIO`, `PollGrbl`, and the `AxisLetter`/`Position`/`CoordinateSystem`/`Tool`
+> WPF `ViewModelBase` leftovers are compile-only stubs kept so the ported engine
+> files that reference them still compile. The real service uses the portable
+> `ControllerCapabilities` + `WorkParameters` + `MachineState` model instead.
+> `GrblInfo` static state is global mutable (partly mitigated by pure `ParseCaps`).
+> Clean up as features touch them.
 >
 > Status bar / MDI / Cutting widget updates: the status bar is ioSender's exact
 > four-slot layout (Blocks | Message | RunTime | JogStep) in fixed-width slots, so
