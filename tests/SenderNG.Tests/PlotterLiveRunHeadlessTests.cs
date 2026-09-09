@@ -680,6 +680,97 @@ var mid = frames[frames.Count / 2].Bitmap;
         Assert.True(isoCross2 > 4, "iso plane1 machine-origin cross must be drawn");
     }
 
+    /// <summary>The quadrant viewports place each foam plane's tile, but the
+    /// shared pan must carry the true-scale profile PAST the screen-center
+    /// line — the per-slot render clip used to trim the raster right at the
+    /// quadrant boundary (aux geometry drawn outside the clip survived the
+    /// move; the profile did not).</summary>
+    [AvaloniaFact]
+    public async Task Foam_2d_pan_keeps_profiles_beyond_their_quadrant()
+    {
+        var (_, _, prog2, plotter2, window2) = Setup(MachineTypes.Foam, 4, WingVaryingProgram(400));
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var planeCanvas = window2.GetVisualDescendants().Single(c => c.GetType().Name == "PlaneCanvas");
+
+        var t = planeCanvas.GetType();
+        static object? GF(object o, string n) =>
+            o.GetType().GetField(n, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(o)
+            ?? o.GetType().BaseType!.GetField(n, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(o);
+        var zoom = (double)GF(planeCanvas, "_zoom")!;
+        var pan = (Avalonia.Vector)GF(planeCanvas, "_pan")!;
+        var w0 = ((double MinX, double MinY, double MaxX, double MaxY))
+            t.GetMethod("SlotWorldBounds", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .Invoke(planeCanvas, new object[] { 0 })!;
+        var left0 = (int)Math.Round(zoom * w0.MinX + pan.X);
+        var right0 = (int)Math.Round(zoom * w0.MaxX + pan.X);
+        var top0 = (int)Math.Round(-zoom * w0.MaxY + pan.Y);
+        var bottom0 = (int)Math.Round(-zoom * w0.MinY + pan.Y);
+        var area = new Rect(planeCanvas.Bounds.Size);
+        var centerX = (int)Math.Round(area.Center.X);
+        Assert.True(right0 < centerX, $"plane 0 must start fully inside its quadrant, right={right0} center={centerX}");
+
+        // Pan plane 0 right so its right half crosses the canvas center line.
+        var dx = centerX + 120 - right0;
+        var panField = t.GetField("_pan", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        panField.SetValue(planeCanvas, new Avalonia.Vector(pan.X + dx, pan.Y));
+        planeCanvas.InvalidateVisual();
+        for (var i = 0; i < 3; i++)
+            await Pump();
+        var frame = CaptureFrame(window2);
+
+        var cox = 1;
+        var coy = -1;
+        using (var fb = frame.Lock())
+        {
+            var bgra = fb.Format.ToString().Contains("Bgra") || fb.Format.ToString().Contains("Pbgra");
+            var row = new byte[fb.RowBytes];
+            for (var y = 0; y < 60 && coy == -1; y++)
+            {
+                Marshal.Copy(fb.Address + y * fb.RowBytes, row, 0, fb.RowBytes);
+                var bright = 0;
+                for (var x = 200; x < 720; x += 8)
+                {
+                    var o = x * 4;
+                    var (r, g, b) = bgra ? (row[o + 2], row[o + 1], row[o]) : (row[o], row[o + 1], row[o + 2]);
+                    if (r > 245 && g > 245 && b > 245) bright++;
+                }
+                if (bright >= 60) coy = y;
+            }
+        }
+
+        int CountRect(WriteableBitmap bmp, Func<byte, byte, byte, bool> match, int x0, int x1, int y0, int y1)
+        {
+            using var fb = bmp.Lock();
+            var bgra = fb.Format.ToString().Contains("Bgra") || fb.Format.ToString().Contains("Pbgra");
+            var row = new byte[fb.RowBytes];
+            var count = 0;
+            for (var y = Math.Max(0, y0); y < Math.Min(fb.Size.Height, y1); y++)
+            {
+                Marshal.Copy(fb.Address + y * fb.RowBytes, row, 0, fb.RowBytes);
+                for (var x = Math.Max(0, x0); x < Math.Min(fb.Size.Width, x1); x++)
+                {
+                    var o = x * 4;
+                    var (r, g, b) = bgra ? (row[o + 2], row[o + 1], row[o]) : (row[o], row[o + 1], row[o + 2]);
+                    if (match(r, g, b))
+                        count++;
+                }
+            }
+            return count;
+        }
+        // Idle feed is grey #808080, AA-washed against white.
+        bool LineGrey(byte r, byte g, byte b) =>
+            Math.Abs(r - g) <= 14 && Math.Abs(g - b) <= 14 && r is >= 100 and <= 220;
+
+        var rightMoved = (int)Math.Round(zoom * w0.MaxX + pan.X + dx);
+        // Probe the vertical strip just right of the canvas center, still inside
+        // plane 0's own tile (the ~8mm gap keeps plane 1 some pixels further).
+        var (sx0, sx1, sy0, sy1) = (cox + centerX + 6, cox + rightMoved - 6, coy + top0 + 6, coy + bottom0 - 6);
+        var pastCenter = CountRect(frame, LineGrey, sx0, Math.Max(sx0 + 1, sx1), sy0, Math.Max(sy0 + 1, sy1));
+        Assert.True(pastCenter > 30,
+            $"dragging plane 0 across the center must keep the profile visible beyond it, got {pastCenter} px right of x={centerX}");
+    }
+
     private static (double X, double Y) GreyCentroid(WriteableBitmap bmp, Func<int, bool>? xFilter = null)
     {
         using var fb = bmp.Lock();

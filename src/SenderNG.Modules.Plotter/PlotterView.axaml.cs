@@ -595,19 +595,20 @@ public partial class PlotterView : UserControl
             EnsureCacheArrays();
             DetectFrontierChanges();
 
+            // The slot viewports are the planes' HOME positions, not bounds:
+            // the true-scale composition shares ONE transform, so panning /
+            // zooming moves a plane's raster across the screen-center line and
+            // it must NOT be trimmed at its quadrant edge (M9). The framework
+            // already clips the drawing to the control bounds.
             for (var slot = 0; slot < SlotCount; slot++)
             {
-                var viewport = SlotViewport(slot, area);
-                using var _ = context.PushClip(viewport);
                 if (!BlitOrBake(context, slot))
                     DrawSlotPathWorld(context, slot, new BakePens(1)); // pre-first-bake fallback
                 DrawSlotFrontier(context, slot);
             }
             // Origin crosses (M9 removed the grid lines, only crosses remain)
-            // are a shared overlay drawn OUTSIDE the per-slot clips — the
-            // to-scale tiles put a plane's machine origin at a tile corner that
-            // can fall just outside its own quadrant's clip, which would
-            // otherwise hide the cross.
+            // are a crisp shared overlay drawn last so they never sit under a
+            // raster edge.
             for (var slot = 0; slot < SlotCount; slot++)
                 DrawSlotGrid(context, slot);
             DrawCoupling(context, area);
