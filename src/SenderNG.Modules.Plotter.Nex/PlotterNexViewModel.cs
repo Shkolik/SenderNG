@@ -240,6 +240,9 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
                 indices.Length >= 3 ? (float)positions[indices[2]] : 0f));
         }
 
+        if (factory.Loft is not null && points.Count >= 2)
+            factory.Loft.SetWirePlane([points[0], points[1]]);
+
         factory.Tool.UpdatePosition(new Endpoint([.. points]));
         Bump();
     }

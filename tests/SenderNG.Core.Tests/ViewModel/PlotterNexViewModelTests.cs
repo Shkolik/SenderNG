@@ -178,6 +178,73 @@ public class PlotterNexViewModelTests : IDisposable
     }
 
     [Fact]
+    public void Foam_controller_state_feeds_both_tool_endpoints_and_the_loft()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene, MachineTypes.Foam);
+
+        // Foam has 4 axes: tower 1 (X,Y) = indices 0,1; tower 2 (Z,A) = indices 2,3.
+        _grbl.Source.Emit(new MachineState { Positions = new double[] { 10, 20, 30, 40 } });
+
+        var tool = scene.Tools[^1];
+        var endpoint = tool.Positions[^1];
+        Assert.Equal(2, endpoint.Points.Length);
+        Assert.Equal(new Vector3(10, 20, 0), endpoint.Points[0]);
+        Assert.Equal(new Vector3(30, 40, 0), endpoint.Points[1]);
+
+        // The loft follows the wire every controller tick — never empty.
+        var loft = scene.Lofts[^1];
+        var polygon = loft.Calls[^1];
+        Assert.Equal(2, polygon.Length);
+        Assert.Equal(endpoint.Points[0], polygon[0]);
+        Assert.Equal(endpoint.Points[1], polygon[1]);
+    }
+
+    [Fact]
+    public void Foam_rows_changed_synchronizes_run_states_across_both_planes()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene, MachineTypes.Foam);
+
+        // Multi-segment foam program where EVERY motion moves both towers
+        // (X/Y on plane 0, Z/A on plane 1) — the keys to the synchronous
+        // frontier check, since each plane must emit the same segment indices
+        // and line numbers.
+        source.Load(
+            "G21\n" +
+            "G0 X10 Y5 Z10 A12 F240\n" +
+            "G1 X20 Y8 Z20 A24\n" +
+            "G1 X30 Y5 Z30 A36\n" +
+            "G1 Y20 A48\n");
+
+        Assert.Empty(scene.Layers[^2].RunStateCalls);
+        Assert.Empty(scene.Layers[^1].RunStateCalls);
+
+        // Ack rows 1..3 (rows 0 and 4 untouched) — the run frontier moved;
+        // every plane layer must walk the same rows in lockstep.
+        source.AckRows(1, 4, ProgramRowState.Sent);
+
+        Assert.Equal(
+            [(0, RunState.InFlight), (1, RunState.InFlight), (2, RunState.InFlight), (3, RunState.Pending)],
+            scene.Layers[^2].RunStateCalls);
+        Assert.Equal(scene.Layers[^2].RunStateCalls, scene.Layers[^1].RunStateCalls);
+    }
+
+    [Fact]
+    public void Mill_controller_state_never_calls_the_loft()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene, MachineTypes.Mill);
+
+        _grbl.Source.Emit(new MachineState { Positions = new double[] { 1, 2, 3 } });
+
+        Assert.Empty(scene.Lofts);
+    }
+
+    [Fact]
     public void Late_scene_attach_rebuilds_an_already_loaded_program()
     {
         // Task 8 wiring: the Vulkan scene is built off the UI thread and arrives
@@ -279,6 +346,7 @@ public class PlotterNexViewModelTests : IDisposable
     {
         public List<RecorderPlaneLayer> Layers { get; } = [];
         public List<RecorderTool> Tools { get; } = [];
+        public List<RecorderLoft> Lofts { get; } = [];
 
         public void SetViewPreset(ViewPreset preset) { }
         public void Pan(PanDelta delta) { }
@@ -296,7 +364,12 @@ public class PlotterNexViewModelTests : IDisposable
             return layer;
         }
 
-        public ILoftSurface AddLoftSurface() => new NullLoft();
+        public ILoftSurface AddLoftSurface()
+        {
+            var loft = new RecorderLoft();
+            Lofts.Add(loft);
+            return loft;
+        }
 
         public IPlotTool CreateTool(ToolShape shape)
         {
@@ -306,11 +379,12 @@ public class PlotterNexViewModelTests : IDisposable
         }
 
         public void Dispose() { }
+    }
 
-        private sealed class NullLoft : ILoftSurface
-        {
-            public void SetWirePlane(Vector3[] polygon) { }
-        }
+    private sealed class RecorderLoft : ILoftSurface
+    {
+        public List<Vector3[]> Calls { get; } = [];
+        public void SetWirePlane(Vector3[] polygon) => Calls.Add(polygon);
     }
 
     private sealed class RecorderTool : IPlotTool
