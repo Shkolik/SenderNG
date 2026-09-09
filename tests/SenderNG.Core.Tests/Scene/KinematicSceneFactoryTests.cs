@@ -42,24 +42,55 @@ public class KinematicSceneFactoryTests
     [Fact]
     public void Mill_creates_one_plane_layer_and_a_single_point_tool()
     {
-        var f = new KinematicSceneFactory(new FakePlotScene());
-        var scene = f.BuildScene(MachineTypeCatalog.Resolve(MachineTypes.Mill));
+        var fake = new FakePlotScene();
+        var f = new KinematicSceneFactory(fake);
+        f.BuildScene(MachineTypeCatalog.Resolve(MachineTypes.Mill));
         Assert.Equal(1, f.PlaneCount);
         Assert.NotNull(f.PlaneLayer(0));
         Assert.NotNull(f.Tool);
         Assert.Null(f.Loft);
+
+        Assert.Single(fake.CarriagePlanes);
+        Assert.Empty(fake.LoftSurfaces);
+        Assert.Single(fake.ToolShapes);
+        Assert.Equal(ToolShape.Cone, fake.ToolShapes[0]);
+        Assert.Single(((FakePlotTool)f.Tool!).Positions[0].Points);
     }
 
     [Fact]
     public void Foam_creates_two_synchronized_planes_and_a_wire_loft()
     {
-        var f = new KinematicSceneFactory(new FakePlotScene());
-        var scene = f.BuildScene(MachineTypeCatalog.Resolve(MachineTypes.Foam));
+        var fake = new FakePlotScene();
+        var f = new KinematicSceneFactory(fake);
+        f.BuildScene(MachineTypeCatalog.Resolve(MachineTypes.Foam));
         Assert.Equal(2, f.PlaneCount);
         Assert.NotNull(f.PlaneLayer(0));
         Assert.NotNull(f.PlaneLayer(1));
         Assert.NotNull(f.Loft);
         Assert.NotNull(f.Tool);
+
+        Assert.Equal(2, fake.CarriagePlanes.Count);
+        Assert.Single(fake.LoftSurfaces);
+        Assert.Single(fake.ToolShapes);
+        Assert.Equal(ToolShape.Cone, fake.ToolShapes[0]);
+        Assert.Equal(2, ((FakePlotTool)f.Tool!).Positions[0].Points.Length);
+    }
+
+    [Fact]
+    public void Empty_planes_creates_empty_scene_without_crash()
+    {
+        var fake = new FakePlotScene();
+        var f = new KinematicSceneFactory(fake);
+        f.BuildScene(new MachineType { Id = "proto", Name = "Proto", Planes = [] });
+        Assert.Equal(0, f.PlaneCount);
+        Assert.NotNull(f.Tool);
+        Assert.Null(f.Loft);
+
+        Assert.Empty(fake.CarriagePlanes);
+        Assert.Empty(fake.LoftSurfaces);
+        Assert.Single(fake.ToolShapes);
+        Assert.Equal(ToolShape.Cone, fake.ToolShapes[0]);
+        Assert.Single(((FakePlotTool)f.Tool!).Positions[0].Points);
     }
 }
 
