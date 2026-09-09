@@ -85,15 +85,6 @@ public sealed class NexPlotTool : IPlotTool
         root.AddChild(_coneNodeB);
     }
 
-    /// <summary>The wire node (for scene removal).</summary>
-    internal Node WireNode => _segmentNode;
-
-    /// <summary>The first cone node (for scene removal).</summary>
-    internal Node ConeNodeA => _coneNodeA;
-
-    /// <summary>The second cone node (for scene removal).</summary>
-    internal Node ConeNodeB => _coneNodeB;
-
     /// <inheritdoc/>
     /// <remarks>POC only creates <see cref="ToolShape.Cone"/>; other shapes fall
     /// back to the cone geometry (a cylinder/sphere/crosshair tool is future work).</remarks>

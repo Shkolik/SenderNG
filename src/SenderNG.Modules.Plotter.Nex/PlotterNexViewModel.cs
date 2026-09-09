@@ -188,6 +188,18 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(PlaneCount));
     }
 
+    /// <summary>Drop the attached scene factory — the host view disposed its GPU
+    /// scene (visual-tree detach). The next <see cref="AttachScene"/> is a fresh
+    /// build; a loaded program reapplies onto it there.</summary>
+    public void ReleaseScene()
+    {
+        _sceneFactory = null;
+        _scene = null;
+        OnPropertyChanged(nameof(Scene));
+        OnPropertyChanged(nameof(PlaneCount));
+        OnPropertyChanged(nameof(HasGeometry));
+    }
+
     public void Dispose()
     {
         _programSource.ProgramChanged -= OnProgramChanged;

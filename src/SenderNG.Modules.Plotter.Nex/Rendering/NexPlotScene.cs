@@ -60,7 +60,11 @@ namespace SenderNG.Modules.Plotter.Nex.Rendering;
 /// Because <see cref="OrbitCameraController.Camera"/> is read-only (verified in
 /// the spike), a preset swap switches which of the two (camera, controller)
 /// pairs is exposed through <see cref="ActiveCameraController"/> so the host
-/// view can re-bind it.
+/// view can re-bind it. The locked pair uses <see cref="OrthoZoomController"/>:
+/// the stock orbit controller's <c>OnZoomDelta</c> only walks Position along
+/// the view axis, which is invisible in an orthographic projection — the
+/// wrapper intercepts it and scales <see cref="OrthographicCamera.Width"/>
+/// instead (the pointer-zoom half of <see cref="ZoomAround"/>).
 ///
 /// Program reloads: the kinematic factory ends every build with
 /// CreateTool, so the next AddCarriagePlane/AddLoftSurface/CreateTool after a
@@ -124,7 +128,9 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             {
                 EnableExternalMemoryWin32 = true,
                 RequiredDeviceLuid = d3d11.AdapterLuid,
-                EnableValidation = true
+                // False: relying on validation layers being installed would
+                // degrade machines without them to the VulkanUnavailable notice.
+                EnableValidation = false
             });
         }
         else
@@ -160,7 +166,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             Up = Vector3.UnitY,
             Fov = 0.8f
         };
-        _lockedController = new OrbitCameraController(_orthoCamera) { RotationSensitivity = 0f };
+        _lockedController = new OrthoZoomController(_orthoCamera);
         _orbitController = new OrbitCameraController(_perspectiveCamera) { RotationSensitivity = 1f };
         _activeController = _orbitController;
         _activeCamera = _perspectiveCamera;
@@ -549,5 +555,50 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         public IRenderDataProvider? DataProvider => _data;
 
         public ICameraParamsProvider Update(RenderContext context, float deltaTime) => _camera();
+    }
+
+    /// <summary>
+    /// Rotation-locked controller for the orthographic snap presets: delegates
+    /// everything to the stock orbit controller (rotation suppressed via a
+    /// zero sensitivity) but intercepts <see cref="ICameraController.OnZoomDelta"/>
+    /// to scale <see cref="OrthographicCamera.Width"/> instead of walking
+    /// Position along the view axis (which an orthographic projection cannot show).
+    /// Mirrors the <see cref="ZoomAround"/> ortho branch's clamp.
+    /// </summary>
+    private sealed class OrthoZoomController : ICameraController
+    {
+        private readonly OrbitCameraController _inner;
+        private readonly OrthographicCamera _ortho;
+
+        public OrthoZoomController(OrthographicCamera camera)
+        {
+            _ortho = camera;
+            _inner = new OrbitCameraController(camera)
+            {
+                RotationSensitivity = 0f,
+                PanSensitivity = 1f,
+                ZoomSensitivity = 1f,
+            };
+        }
+
+        public Camera Camera => _inner.Camera;
+        public float ViewportWidth { get => _inner.ViewportWidth; set => _inner.ViewportWidth = value; }
+        public float ViewportHeight { get => _inner.ViewportHeight; set => _inner.ViewportHeight = value; }
+
+        public void OnRotateBegin(float x, float y, Vector3? position) => _inner.OnRotateBegin(x, y, position);
+        public void OnRotateDelta(float dx, float dy) => _inner.OnRotateDelta(dx, dy);
+        public void OnPanBegin(float x, float y, Vector3? position) => _inner.OnPanBegin(x, y, position);
+        public void OnPanDelta(float dx, float dy) => _inner.OnPanDelta(dx, dy);
+
+        public void OnZoomDelta(float delta, Vector3? position)
+        {
+            _ = position;
+            if (delta != 0f)
+                _ortho.Width = Math.Clamp(_ortho.Width / delta, 0.1f, 100000f);
+        }
+
+        public void Update(float deltaTime) => _inner.Update(deltaTime);
+        public void Reset() => _inner.Reset();
+        public void FocusOn(Vector3 position, float? radius = null) => _inner.FocusOn(position, radius);
     }
 }

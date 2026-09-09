@@ -67,11 +67,18 @@ public partial class PlotterNexView : UserControl, INotifyPropertyChanged
     private PlotterNexViewModel? _vm;
     private NexPlotScene? _scene;
     private int _sceneGeneration;
+    private bool _attached;
 
     public PlotterNexView()
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        // Tab switches detach the view from the visual tree; the scene must be
+        // released there (the engine would otherwise leak on a view re-create)
+        // and rebuilt on the return trip — mirroring PlotterView's survivable
+        // attach/detach pattern.
+        AttachedToVisualTree += (_, _) => OnAttachedToVisualTree();
+        DetachedFromVisualTree += OnDetachedFromVisualTree;
         FallbackTitle.Text = LocalizationService.Current?.Resolve(
             "module.plotterNex.vulkanUnavailable", "3D plotting unavailable") ?? "3D plotting unavailable";
         FallbackHint.Text = LocalizationService.Current?.Resolve(
@@ -99,7 +106,8 @@ public partial class PlotterNexView : UserControl, INotifyPropertyChanged
         _vm = DataContext as PlotterNexViewModel;
         if (_vm is null)
             return;
-        _vm.PropertyChanged += OnVmPropertyChanged;
+        if (_attached)
+            _vm.PropertyChanged += OnVmPropertyChanged;
         EnsureScene();
     }
 
@@ -108,13 +116,41 @@ public partial class PlotterNexView : UserControl, INotifyPropertyChanged
         if (e.PropertyName == nameof(PlotterNexViewModel.VulkanUnavailable)
             && _vm!.VulkanUnavailable && _scene is not null)
         {
-            // Engine built fine but something downstream reported failure:
-            // release the GPU resources and surface the fallback.
+            // Engine or downstream reported failure: release the GPU resources
+            // and the VM's factory (the scene is gone; a later rebuild reattaches
+            // a fresh one) and surface the fallback.
             var scene = _scene;
             _scene = null;
             scene.Dispose();
+            _vm.ReleaseScene();
             RaiseSceneBindings();
         }
+    }
+
+    private void OnAttachedToVisualTree()
+    {
+        _attached = true;
+        if (_vm is null)
+            return;
+        _vm.PropertyChanged += OnVmPropertyChanged;
+        EnsureScene();
+    }
+
+    /// <summary>Release the GPU scene when the view leaves the tree — the engine
+    /// must never leak across a view re-create. Bumping the scene generation also
+    /// cancels any in-flight async build whose result lands late; the VM drops
+    /// its factory so the return trip rebuilds a fresh scene.</summary>
+    private void OnDetachedFromVisualTree(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        _attached = false;
+        if (_vm is not null)
+            _vm.PropertyChanged -= OnVmPropertyChanged;
+        _sceneGeneration++;
+        var scene = _scene;
+        _scene = null;
+        scene?.Dispose();
+        _vm?.ReleaseScene();
+        RaiseSceneBindings();
     }
 
     /// <summary>Build the scene on the thread pool; AttachScene on the UI thread.
