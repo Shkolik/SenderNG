@@ -41,6 +41,7 @@
     <ProjectReference Include="..\SenderNG.Modules.Excellon\SenderNG.Modules.Excellon.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Hpgl\SenderNG.Modules.Hpgl.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Plotter\SenderNG.Modules.Plotter.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\SenderNG.Modules.Plotter.Nex\SenderNG.Modules.Plotter.Nex.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -89,6 +90,14 @@
     </None>
     <None Include="..\SenderNG.Modules.Plotter\Locale\**\*.json">
       <Link>Modules\plotter\Locale\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\net10.0\SenderNG.Modules.Plotter.Nex.dll">
+      <Link>Modules\SenderNG.Modules.Plotter.Nex.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\SenderNG.Modules.Plotter.Nex\Locale\**\*.json">
+      <Link>Modules\plotter-nex\Locale\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
