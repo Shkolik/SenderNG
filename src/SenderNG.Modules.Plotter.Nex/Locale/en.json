@@ -2,6 +2,10 @@
   "strings": {
     "module.plotterNex.name": "Plot 3D",
     "module.plotterNex.description": "G-code 3D path plotter: HelixToolkit.Nex orbit view (PoC).",
-    "module.plotterNex.placeholder": "3D plotter (PoC)"
+    "module.plotterNex.placeholder": "3D plotter (PoC)",
+    "module.plotterNex.noProgram": "No program loaded.",
+    "module.plotterNex.noMotion": "Program contains no motion.",
+    "module.plotterNex.building": "Plotting…",
+    "module.plotterNex.buildFailed": "Program could not be plotted."
   }
 }

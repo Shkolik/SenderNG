@@ -35,47 +35,375 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.ComponentModel;
+using System.Numerics;
+using System.Runtime.CompilerServices;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Localization;
+using SenderNG.Modules.Plotter.Nex.Model;
+using SenderNG.Modules.Plotter.Nex.Scene;
 
 namespace SenderNG.Modules.Plotter.Nex;
 
 /// <summary>
-/// Placeholder view model for the 3D plotter. Implements
-/// <see cref="INotifyPropertyChanged"/> and <see cref="IDisposable"/> to honor
-/// the host's lifecycle expectations, but carries no rendering logic yet — the
-/// real viewport data flow (geometry building, orbit camera state, live-run
-/// overlay) lands in a later task.
+/// 3D plotter view model: turns the loaded program (geometry) into per-plane
+/// toolpath segments, maps the controller's send row-state frontier onto those
+/// segments as run states (pending / in-flight / executed / error), and tracks
+/// the live machine position as the tool appearance. The actual GPU scene is
+/// created by whatever <see cref="ISceneFactory"/> is attached (the view wires
+/// it in Task 6; headless tests pass a recorder directly — the headless
+/// dispatcher keeps every callback inline on the caller's thread).
 /// <para>
-/// The constructor takes the same resolved services the module's
-/// <c>CreateViewModel</c> obtains; the real tasks will consume them.
+/// Geometry rebuild follows the Skia plotter's contract: synchronous small
+/// builds, a fire-and-forget rebuild for large programs behind a generation
+/// counter, and StatusText degradation (no program / no motion / build
+/// failure) instead of exceptions. <see cref="FrontierVersion"/> bumps on every
+/// program/run/position change so the view can repaint cheaply.
 /// </para>
 /// </summary>
 public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
 {
+    /// <summary>Programs with fewer tokens are built synchronously; larger ones
+    /// are processed off the UI thread and posted back (generation-guarded).</summary>
+    public const int AsyncBuildThreshold = 4000;
+
+    private readonly ILoadedProgramSource _programSource;
+    private readonly IGrblService _grbl;
+    private readonly SettingsService _settings;
+    private readonly LocalizationService _localization;
+    private readonly IDisposable _stateSubscription;
+
+    private ISceneFactory? _sceneFactory;
+    private IPlotScene? _scene;
+    private MachineType _machineType;
+    private uint[][] _planeOutputLines = [];
+    private Dictionary<uint, int> _lineToRow = new();
+    private int _generation;
+    private bool _vulkanUnavailable;
+
     public PlotterNexViewModel(
         ILoadedProgramSource programSource,
         IGrblService grbl,
         SettingsService settings,
-        LocalizationService localization)
+        LocalizationService localization,
+        ISceneFactory? sceneFactory = null)
     {
-        ProgramSource = programSource;
-        Grbl = grbl;
-        Settings = settings;
-        Localization = localization;
+        _programSource = programSource;
+        _grbl = grbl;
+        _settings = settings;
+        _localization = localization;
+        _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
+
+        _programSource.ProgramChanged += OnProgramChanged;
+        _programSource.RowsChanged += OnRowsChanged;
+        _stateSubscription = _grbl.State.Subscribe(state => PostUi(() => OnControllerState(state)));
+
+        if (sceneFactory is not null)
+            AttachScene(sceneFactory);
+
+        if (_programSource.Program is not null)
+            Rebuild();
+        else
+            ApplyEmpty();
     }
 
-    // The services resolved by the module — held for the tasks that wire the
-    // real viewport. Intentionally minimal for now.
-    public ILoadedProgramSource ProgramSource { get; }
-    public IGrblService Grbl { get; }
-    public SettingsService Settings { get; }
-    public LocalizationService Localization { get; }
+    /// <summary>The current GPU scene, or null until a scene factory is
+    /// attached (without one the view model stays inert — Scene null,
+    /// HasGeometry false, no event flows and nothing throws).</summary>
+    public IPlotScene? Scene => _scene;
 
-#pragma warning disable CS0067 // Placeholder: the event is never raised yet.
+    /// <summary>Machine planes: the fabric's layer count, or the machine
+    /// type's planes while no fabric is attached.</summary>
+    public int PlaneCount => _sceneFactory?.PlaneCount ?? _machineType.Planes.Count;
+
+    /// <summary>"{done}/{sendable}" live-run progress over the program rows.</summary>
+    public string ProgressText => $"{_programSource.DoneCount}/{_programSource.SendableCount}";
+
+    /// <summary>Monotonic stamp bumped whenever program, run state or tool
+    /// position changes — a cheap "repaint" trigger for the view.</summary>
+    public int FrontierVersion { get; private set; }
+
+    /// <summary>True when the last acceptable program actually produced
+    /// geometry (a scene is attached and at least one plane has segments).</summary>
+    public bool HasGeometry => _scene is not null && _planeOutputLines.Any(p => p.Length > 0);
+
+    /// <summary>Healthy empty when geometry is ready; holds a reason otherwise
+    /// (no program loaded, program has no motion, build in progress, build
+    /// failed).</summary>
+    public string? StatusText { get; private set; }
+
+    /// <summary>Set by the view when its Vulkan adapter reports no device —
+    /// surfaced on the diagnostics screen; false by default.</summary>
+    public bool VulkanUnavailable
+    {
+        get => _vulkanUnavailable;
+        set
+        {
+            if (_vulkanUnavailable == value)
+                return;
+            _vulkanUnavailable = value;
+            OnPropertyChanged();
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
-#pragma warning restore CS0067
 
-    public void Dispose() { }
+    /// <summary>
+    /// Attach the scene factory. The view supplies it on first shape; a
+    /// headless test may supply it at construction. Re-attaching is a wiring
+    /// bug (a second live shape, an unstubbed first one) — it throws.
+    /// </summary>
+    public void AttachScene(ISceneFactory factory)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        if (_sceneFactory is not null)
+            throw new InvalidOperationException("A scene factory is already attached.");
+        _sceneFactory = factory;
+        BuildScene();
+        OnPropertyChanged(nameof(Scene));
+        OnPropertyChanged(nameof(PlaneCount));
+    }
+
+    public void Dispose()
+    {
+        _programSource.ProgramChanged -= OnProgramChanged;
+        _programSource.RowsChanged -= OnRowsChanged;
+        _stateSubscription.Dispose();
+    }
+
+    private void OnProgramChanged() => PostUi(() =>
+    {
+        _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
+        OnPropertyChanged(nameof(PlaneCount));
+        Rebuild();
+    });
+
+    private void OnRowsChanged() => PostUi(() =>
+    {
+        ApplyRunStates();
+        OnPropertyChanged(nameof(ProgressText));
+        Bump();
+    });
+
+    private void OnControllerState(MachineState state)
+    {
+        var positions = state.Positions;
+        var factory = _sceneFactory;
+        if (positions is null || factory?.Tool is null)
+            return;
+
+        var points = new List<Vector3>(_machineType.Planes.Count);
+        for (var p = 0; p < _machineType.Planes.Count; p++)
+        {
+            var indices = _machineType.PlaneAxisIndices(p);
+            if (positions.Length <= indices[^1])
+                return; // Controller reports fewer axes than the machine needs.
+            points.Add(new Vector3(
+                (float)positions[indices[0]],
+                (float)positions[indices[1]],
+                indices.Length >= 3 ? (float)positions[indices[2]] : 0f));
+        }
+
+        factory.Tool.UpdatePosition(new Endpoint([.. points]));
+        Bump();
+    }
+
+    private void Rebuild()
+    {
+        var program = _programSource.Program;
+        var generation = ++_generation;
+        if (program is null || program.Tokens.Count == 0)
+        {
+            ApplyEmpty();
+            return;
+        }
+
+        if (program.Tokens.Count <= AsyncBuildThreshold)
+        {
+            ApplyBuild(BuildGeometry(program, _machineType), generation);
+            return;
+        }
+
+        // Large program: build off the UI thread, swap under the generation
+        // guard so a program opened while the build runs does not get stomped.
+        StatusText = _localization.Resolve("module.plotterNex.building", "Plotting…");
+        OnPropertyChanged(nameof(StatusText));
+        Bump();
+
+        var machineType = _machineType;
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var geometry = BuildGeometry(program, machineType);
+                PostUi(() =>
+                {
+                    if (generation != _generation)
+                        return;
+                    ApplyBuild(geometry, generation);
+                });
+            }
+            catch (Exception)
+            {
+                PostUi(() =>
+                {
+                    if (generation != _generation)
+                        return;
+                    StatusText = _localization.Resolve(
+                        "module.plotterNex.buildFailed", "Program could not be plotted.");
+                    OnPropertyChanged(nameof(StatusText));
+                    Bump();
+                });
+            }
+        });
+    }
+
+    private void ApplyBuild(Geometry geometry, int generation)
+    {
+        if (generation != _generation)
+            return;
+
+        // Re-register fresh plane layers and a fresh tool each build — the
+        // scene objects have no "clear" API, and a new program must not leave
+        // stale segments behind.
+        if (_sceneFactory is not null)
+        {
+            BuildScene();
+            for (var p = 0; p < _machineType.Planes.Count; p++)
+                ToolpathSceneBuilder.PopulatePlane(
+                    _sceneFactory.PlaneLayer(p), geometry.SourceSegments, _machineType.PlaneAxisIndices(p));
+        }
+
+        _planeOutputLines = geometry.PlaneOutputLines;
+        _lineToRow = geometry.LineToRow;
+        StatusText = geometry.Status;
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(HasGeometry));
+        OnPropertyChanged(nameof(Scene));
+        OnPropertyChanged(nameof(PlaneCount));
+        OnPropertyChanged(nameof(ProgressText));
+        Bump();
+    }
+
+    private void ApplyEmpty()
+    {
+        _planeOutputLines = [];
+        _lineToRow = new Dictionary<uint, int>();
+        StatusText = _localization.Resolve("module.plotterNex.noProgram", "No program loaded.");
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(HasGeometry));
+        Bump();
+    }
+
+    private Geometry BuildGeometry(GCodeProgram program, MachineType type)
+    {
+        var segments = ToolpathBuilder.Build(program.Tokens);
+        if (segments.Count == 0)
+        {
+            return new Geometry([], [], new Dictionary<uint, int>(),
+                _localization.Resolve("module.plotterNex.noMotion", "Program contains no motion."));
+        }
+
+        var lineToRow = BuildLineToRow(program);
+        var planeOutputLines = new uint[type.Planes.Count][];
+        for (var p = 0; p < type.Planes.Count; p++)
+            planeOutputLines[p] = PlaneOutputLines(segments, type.PlaneAxisIndices(p));
+
+        return new Geometry(segments, planeOutputLines, lineToRow, Status: null);
+    }
+
+    /// <summary>Entry index by physical line number — blank/comment lines never
+    /// carry run state, so only truly parseable lines map.</summary>
+    private static Dictionary<uint, int> BuildLineToRow(GCodeProgram program)
+    {
+        var lineToRow = new Dictionary<uint, int>();
+        for (var i = 0; i < program.Entries.Count; i++)
+        {
+            var fileLine = program.Entries[i].FileLine;
+            if (fileLine > 0 && !lineToRow.ContainsKey((uint)fileLine))
+                lineToRow[(uint)fileLine] = i;
+        }
+        return lineToRow;
+    }
+
+    /// <summary>
+    /// The <see cref="ToolpathSegment.LineNumber"/> of each output segment — in
+    /// output order — so run-state index <c>i</c> lands on the very segment
+    /// <see cref="ToolpathSceneBuilder.PopulatePlane"/> added at <c>i</c>.
+    /// Mirrors PopulatePlane exactly: a segment is emitted only when one of its
+    /// plane-mapped axes moves by more than the 1e-9 epsilon.
+    /// KEEP IN SYNC with PopulatePlane's move filter.
+    /// </summary>
+    private static uint[] PlaneOutputLines(
+        IReadOnlyList<ToolpathSegment> segments, int[] planeAxisIndices)
+    {
+        var lines = new List<uint>();
+        foreach (var segment in segments)
+        {
+            var moves = false;
+            for (var k = 0; k < planeAxisIndices.Length; k++)
+            {
+                if (Math.Abs(segment.From[planeAxisIndices[k]] - segment.To[planeAxisIndices[k]]) > 1e-9)
+                {
+                    moves = true;
+                    break;
+                }
+            }
+            if (moves)
+                lines.Add(segment.LineNumber);
+        }
+        return [.. lines];
+    }
+
+    /// <summary>Row-state frontier → segment run state. Idle (not yet sent) is
+    /// <see cref="RunState.Pending"/>; anything unknown also stays Pending.</summary>
+    private void ApplyRunStates()
+    {
+        var factory = _sceneFactory;
+        if (factory is null)
+            return;
+
+        var lineToRow = _lineToRow;
+        for (var p = 0; p < _planeOutputLines.Length; p++)
+        {
+            var lines = _planeOutputLines[p];
+            var layer = factory.PlaneLayer(p);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (!lineToRow.TryGetValue(lines[i], out var row))
+                    continue; // Not a real program line (synthesized move) — stays Pending.
+                layer.SetSegmentRunState(i, MapRowState(_programSource.GetRowState(row)));
+            }
+        }
+    }
+
+    private static RunState MapRowState(ProgramRowState rowState) => rowState switch
+    {
+        ProgramRowState.Sent => RunState.InFlight,
+        ProgramRowState.Ok => RunState.Executed,
+        ProgramRowState.Error => RunState.Error,
+        _ => RunState.Pending,
+    };
+
+    private void BuildScene()
+    {
+        _scene = _sceneFactory!.BuildScene(_machineType);
+    }
+
+    private void Bump()
+    {
+        FrontierVersion++;
+        OnPropertyChanged(nameof(FrontierVersion));
+    }
+
+    private static void PostUi(Action action) => PlotterNexUi.Post(action);
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private sealed record Geometry(
+        IReadOnlyList<ToolpathSegment> SourceSegments,
+        uint[][] PlaneOutputLines,
+        Dictionary<uint, int> LineToRow,
+        string? Status);
 }

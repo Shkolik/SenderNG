@@ -2,6 +2,10 @@
   "strings": {
     "module.plotterNex.name": "График 3D",
     "module.plotterNex.description": "Постройщик траектории G-кода в 3D: орбитальный вид HelixToolkit.Nex (PoC).",
-    "module.plotterNex.placeholder": "График 3D (PoC)"
+    "module.plotterNex.placeholder": "График 3D (PoC)",
+    "module.plotterNex.noProgram": "Программа не загружена.",
+    "module.plotterNex.noMotion": "Программа не содержит движений.",
+    "module.plotterNex.building": "Построение…",
+    "module.plotterNex.buildFailed": "Не удалось построить программу."
   }
 }
