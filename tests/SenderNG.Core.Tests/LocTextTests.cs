@@ -37,6 +37,7 @@ using SenderNG.Core.Localization;
 
 namespace SenderNG.Core.Tests;
 
+[Collection("LocalizationState")] // serializes with other tests mutating LocalizationService.Current
 public class LocTextTests
 {
     private static readonly LocalizationService Locale = TestLocalization.Locale;

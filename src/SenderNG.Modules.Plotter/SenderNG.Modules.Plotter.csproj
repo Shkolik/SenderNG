@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- UI plugin: references Avalonia because CreateView returns a Control. -->
+    <!-- Pinned to the same version the host app resolves (floating 12.* caused a
+         framework mismatch that crashed startup with TypeLoadException). -->
+    <PackageReference Include="Avalonia" Version="12.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SenderNG.Core\SenderNG.Core.csproj" />
+  </ItemGroup>
+
+</Project>

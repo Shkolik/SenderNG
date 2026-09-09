@@ -16,9 +16,7 @@
 > sequencing summary: **`docs/p0-controller-plumbing-plan.md`**.
 
 Nothing on a real machine works reliably until `RealGrblService` can talk to a
-controller. Demo mode masks these gaps in day-to-day use.
-
-- [x] **Status-report read loop** — `RealGrblService` now runs a background reader
+controller. Demo mode masks these gaps in day-to-day use.- [x] **Status-report read loop** — `RealGrblService` now runs a background reader
       (injectable `IGrblTransport`) that feeds status reports into
       `StatusReportParser` continuously, plus a suspendable `?` poller
       (ioSender `PollGrbl` semantics). Verified on a real grbl 1.2i board @ COM6
@@ -27,6 +25,12 @@ controller. Demo mode masks these gaps in day-to-day use.
       fresh reports and no recent send, so the console isn't spammed with
       identical `<Idle|...>` lines; jog/run/hold, a send in the 2 s linger
       window, or a controller that stopped reporting all keep the fast rate.
+
+SenderNG's jog is **click-to-jog** (each button press sends one `$J=G91 …`
+command). **Continuous jog** (hold-to-jog with velocity-based `$J=` and
+stop-on-release via 0x85 JogCancel) is the next item — see `docs/continuous-jog.md`.
+
+
 - [x] **Full grbl handshake** (`$I` + `[OPT:...]`, grblHAL build/version
       detection) and an exposed `ControllerCapabilities` on `IGrblService`; on
       connect the axis count is pushed into the legacy `GrblInfo` static and the
@@ -324,8 +328,12 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 - [ ] **THC monitor / PID log** (`THCMonitorControl`, `PIDLogView`).
 - [ ] **Trinamic view** (`TrinamicView`).
 - [ ] **MPG** (manual pulse generator) support.
-- [ ] **Errors & alarms dialogs** (`ErrorsAndAlarms`, `GrblAlarmList`,
-      `GrblErrorList`) — Help menu currently has About/Libraries placeholders.
+- [-] **Errors & alarms dialogs** (`ErrorsAndAlarms`, `GrblAlarmList`,
+      `GrblErrorList`) — deferred: grbl errors/alarms are reported in place
+      (console decoration via `GrblErrorCodes.Decorate`, status bar message,
+      program-row error detail). A browseable alarm/error history dialog is a
+      nice-to-have, not a core gap; Help menu has About + Libraries tabs + a
+      Modules tab surfaced from `IPluginInfo` metadata.
 - [~] **G-code transforms menu** (`GCodeRotate`, `ArcsToLines`, `GCodeCompress`,
       `GCodeWrap`) — File → Transform submenu. **Rotate / ArcsToLines /
       Compress LANDED (2026-09-04)** in Core (`GCodeTransformers`) behind the
@@ -386,7 +394,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | WorkParametersControl | `Fixed/WorkParameters` flyout | done (read/select; editable write-back in `Fixed/Offsets`) |
 | FileActionControl | File → Open/Save/Close | P1: Save = picker pre-filled with current name (no implicit overwrite) |
 | StepperCalibrationWizard | — | **missing** (P3) |
-| GCodeViewer / RenderControl | — | **missing** (P2) |
+| GCodeViewer / RenderControl | `Modules/Plotter` plugin | done (2026-09-08) — flat quadrant views + iso loft, frontier coloring (P2) |
 | ProbeVerify / ConfigControl / MacroDialog | — | **missing** (P2) |
 | SDCardView | — | deferred (P4) |
 | Camera | — | deferred (P4) |

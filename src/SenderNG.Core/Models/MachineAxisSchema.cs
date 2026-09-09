@@ -107,6 +107,20 @@ public sealed class MachineType
         axisIndex >= 0 && axisIndex < ConventionalLetters.Length
             ? ConventionalLetters[axisIndex]
             : '?';
+
+    /// <summary>Axis indices (flattened role positions) backing carriage plane
+    /// <paramref name="plane"/> — e.g. foam plane 1 → [2, 3]. Consumers slice
+    /// per-axis data (toolpath segments, limits rows) with these instead of
+    /// keeping any letter→index dictionaries.</summary>
+    public int[] PlaneAxisIndices(int plane)
+    {
+        if (plane < 0 || plane >= Planes.Count)
+            throw new ArgumentOutOfRangeException(nameof(plane));
+        var offset = 0;
+        for (var p = 0; p < plane; p++)
+            offset += Planes[p].Roles.Count;
+        return Enumerable.Range(offset, Planes[plane].Roles.Count).ToArray();
+    }
 }
 
 /// <summary>

@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Modules;
@@ -55,8 +56,13 @@ public class ProgramModule : IModule, IModuleSettingsProvider
     public bool CanHide => false;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
-    public void RegisterServices(IServiceCollection services) =>
+    public void RegisterServices(IServiceCollection services)
+    {
         services.AddSingleton<ProgramViewModel>();
+        // The plugin-facing program surface: external modules (the plotter)
+        // resolve this interface — never the app-assembly view-model type.
+        services.AddSingleton<ILoadedProgramSource>(sp => sp.GetRequiredService<ProgramViewModel>());
+    }
 
     // Program settings are machine-coupled (profile-scoped): one machine's
     // Compress preferences are not another's.

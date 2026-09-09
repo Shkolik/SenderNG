@@ -456,6 +456,8 @@
     "app.msg.saveFailed": "Save failed: {0}",
     "app.msg.closed": "Closed {0}",
     "app.msg.openFailed": "Open failed: {0}",
+    "app.msg.loading": "Loading {0}…",
+    "app.msg.loadingProgram": "Loading…",
     "app.msg.moduleNoDialog": "{0}: no dialog service available",
     "app.msg.moduleFailed": "{0} failed: {1}",
     "app.msg.disconnectFailed": "Disconnect failed: {0}",

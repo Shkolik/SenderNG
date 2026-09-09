@@ -39,6 +39,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Windows.Input;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
@@ -54,12 +55,47 @@ public record GCodeProgramRow(int Line, string Status, string Data, string? Deta
 
 public record ProgramLimitRow(string Letter, double Min, double Max);
 
-public class ProgramViewModel : ViewModelBase
+/// <summary>
+/// ObservableCollection with bulk-update suppression: mutations between
+/// <see cref="BeginUpdate"/> and <see cref="EndUpdate"/> raise no per-item
+/// CollectionChanged events; <see cref="EndUpdate"/> raises one Reset. The
+/// program list binds to it, so loading/rewinding a 100k-line file no longer
+/// forces layout work per row on the UI thread.
+/// </summary>
+public sealed class BatchObservableCollection<T> : ObservableCollection<T>
+{
+    private int _batchDepth;
+
+    public void BeginUpdate() => _batchDepth++;
+
+    public void EndUpdate()
+    {
+        if (_batchDepth == 0)
+            throw new InvalidOperationException("EndUpdate without BeginUpdate");
+        if (--_batchDepth == 0)
+            OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+    }
+
+    protected override void OnCollectionChanged(NotifyCollectionChangedEventArgs e)
+    {
+        if (_batchDepth == 0)
+            base.OnCollectionChanged(e);
+    }
+}
+
+// ILoadedProgramSource: the read-only program surface external plugins (the
+// plotter) resolve from DI — they must not reference this app-assembly type.
+public class ProgramViewModel : ViewModelBase, ILoadedProgramSource
 {
     private readonly IGrblService? _grbl;
     private ProgramStreamSession? _session;
     private GCodeProgram? _program;
     private MachineState _machineState = new();
+    // Incremental acked count (O(1) reads): a per-read scan of ProgramRows is
+    // O(n) and ProgressText/DoneCount are re-read on EVERY row update, so a
+    // scan made a run O(n²) — large programs froze the UI thread for seconds
+    // (the plotter header re-read these counters per frontier tick).
+    private int _doneCount;
     private IDisposable? _stateSubscription;
     private IDisposable? _workParametersSubscription;
 
@@ -94,7 +130,13 @@ public class ProgramViewModel : ViewModelBase
         }
     }
 
-    public ObservableCollection<GCodeProgramRow> ProgramRows { get; } = new();
+    /// <summary>Rows with batched change notifications: a big file's load/rewind
+    /// adds tens of thousands of items, and an ObservableCollection raises a
+    /// CollectionChanged per item — the program list (and every observer) did
+    /// layout work per row and the UI froze for seconds. Load/rewind/finalize
+    /// wrap their bulk mutations in Begin/EndUpdate; per-line run updates stay
+    /// unbatched (the list must track the live frontier row by row).</summary>
+    public BatchObservableCollection<GCodeProgramRow> ProgramRows { get; } = new();
 
     public ObservableCollection<ProgramLimitRow> LimitRows { get; } = new();
 
@@ -102,6 +144,43 @@ public class ProgramViewModel : ViewModelBase
 
     /// <summary>Raw program text as loaded (transforms such as height map/rotation rewrite it).</summary>
     public string? LoadedText { get; private set; }
+
+    // ---- ILoadedProgramSource: the plugin-facing program surface ----
+
+    /// <summary>The engine-parsed program behind the rows (null when nothing is loaded).</summary>
+    public GCodeProgram? Program => _program;
+
+    /// <summary>The loaded program was replaced or cleared — content observers
+    /// (the plotter) rebuild their geometry from <see cref="Program"/> on it.
+    /// Raised by both the Open flow and the transforms (they all reload through
+    /// <see cref="LoadProgram"/>, so a transformed program is picked up for free).</summary>
+    public event Action? ProgramChanged;
+
+    /// <summary>Row count (index-aligned with <see cref="GCodeProgram.Entries"/>).</summary>
+    int ILoadedProgramSource.RowCount => ProgramRows.Count;
+
+    ProgramRowState ILoadedProgramSource.GetRowState(int index)
+    {
+        if (index < 0 || index >= ProgramRows.Count)
+            return ProgramRowState.Idle;
+        return ProgramRows[index].Status switch
+        {
+            "@" => ProgramRowState.Sent,
+            "\u2713" => ProgramRowState.Ok,
+            "\u2715" => ProgramRowState.Error,
+            _ => ProgramRowState.Idle,
+        };
+    }
+
+    int ILoadedProgramSource.SendableCount => SendableCount;
+
+    int ILoadedProgramSource.DoneCount => DoneCount;
+
+    /// <summary>Highest row index whose send state has changed (run frontier as
+    /// a row index) — maintained incrementally in <see cref="ApplyUpdate"/>,
+    /// reset on load/clear/rewind. O(1) reads (observers bound their recolor
+    /// windows with it instead of scanning rows).</summary>
+    public int TouchedRow { get; private set; }
 
     // Raised after any row status/progress change — the status bar's block
     // counter and any other observers re-read their state on it.
@@ -113,12 +192,18 @@ public class ProgramViewModel : ViewModelBase
     // (rows are uniform height, so the index maps to an exact scroll offset).
     public event Action<int>? ScrollRequested;
 
-    public int DoneCount => ProgramRows.Count(r => r.Status == "\u2713");
+    /// <summary>Acknowledged sendable rows — O(1) (incrementally tracked in
+    /// <see cref="ApplyUpdate"/>; resets on load/clear/rewind).</summary>
+    public int DoneCount => _doneCount;
 
     /// <summary>Sendable lines in the loaded program (comments excluded) — the run's block total.</summary>
     public int SendableCount { get; private set; }
 
     public string ProgressText => $"{DoneCount}/{SendableCount}";
+
+    /// <summary>True while a program is being parsed/analyzed off the UI thread
+    /// (the open-file flow) — the program view shows a loading overlay.</summary>
+    public bool IsBusy { get; private set; }
 
     public bool IsRunning => _session is not null;
 
@@ -148,23 +233,46 @@ public class ProgramViewModel : ViewModelBase
         OnPropertyChanged(nameof(ProgressText));
     }
 
-    /// <summary>Loads an engine-parsed program (the Open File path): rows keep real file line numbers, limits come from the single parse pass.</summary>
-    public void LoadProgram(GCodeProgram program, string? text)
+    /// <summary>Loads an engine-parsed program (the Open File path): rows keep
+    /// real file line numbers, limits come from the single parse pass. The
+    /// limits may arrive precomputed (the app computes them off the UI thread —
+    /// the emulator pass is seconds on big files); null falls back to the
+    /// inline computation (tests, transforms).</summary>
+    public void LoadProgram(GCodeProgram program, string? text, IReadOnlyList<AxisLimits>? limits = null)
     {
         _program = program;
         LoadedText = text;
-        ProgramRows.Clear();
-        LimitRows.Clear();
+        _doneCount = 0;
+        TouchedRow = 0;
         SendableCount = program.Entries.Count(e => e.IsSendable);
         OnPropertyChanged(nameof(HasLimits));
         OnPropertyChanged(nameof(SendableCount));
         OnPropertyChanged(nameof(ProgressText));
 
+        ProgramRows.BeginUpdate();
+        ProgramRows.Clear();
         foreach (var entry in program.Entries)
             ProgramRows.Add(new GCodeProgramRow(entry.FileLine, "\u00b7", entry.Text, null));
+        ProgramRows.EndUpdate();
 
-        RefreshLimits();
+        if (limits is not null)
+            ApplyLimits(limits);
+        else
+            RefreshLimits();
+        ProgramChanged?.Invoke();
         RowsChanged?.Invoke();
+    }
+
+    /// <summary>Rows from a precomputed limits pass (single emulator run, off the UI thread).</summary>
+    private void ApplyLimits(IReadOnlyList<AxisLimits> limits)
+    {
+        LimitRows.Clear();
+        if (limits is not null)
+        {
+            foreach (var l in limits)
+                LimitRows.Add(new ProgramLimitRow(l.Letter.ToString(), l.Min, l.Max));
+        }
+        OnPropertyChanged(nameof(HasLimits));
     }
 
     /// <summary>Unloads the loaded program (rows, limits, loaded text) — used
@@ -176,10 +284,13 @@ public class ProgramViewModel : ViewModelBase
         LoadedText = null;
         ProgramRows.Clear();
         LimitRows.Clear();
+        _doneCount = 0;
+        TouchedRow = 0;
         SendableCount = 0;
         OnPropertyChanged(nameof(HasLimits));
         OnPropertyChanged(nameof(SendableCount));
         OnPropertyChanged(nameof(ProgressText));
+        ProgramChanged?.Invoke();
         RowsChanged?.Invoke();
     }
 
@@ -202,11 +313,25 @@ public class ProgramViewModel : ViewModelBase
     public void LoadGCode(string? text) =>
         LoadProgram(GCodeProgram.Parse(text), text);
 
+    /// <summary>Marks the program busy while the open-file flow parses and
+    /// analyzes it off the UI thread (the view shows a loading overlay).</summary>
+    public void SetBusy(bool busy)
+    {
+        if (IsBusy == busy)
+            return;
+        IsBusy = busy;
+        OnPropertyChanged(nameof(IsBusy));
+    }
+
     /// <summary>Reset the loaded program to the start: all rows return to the un-sent state and the view scrolls to the first line.</summary>
     public void Rewind()
     {
+        ProgramRows.BeginUpdate();
         for (var i = 0; i < ProgramRows.Count; i++)
             ProgramRows[i] = ProgramRows[i] with { Status = "\u00b7", Detail = null };
+        ProgramRows.EndUpdate();
+        _doneCount = 0;
+        TouchedRow = 0;
         RowsChanged?.Invoke();
         ScrollRequested?.Invoke(0);
     }
@@ -300,12 +425,19 @@ public class ProgramViewModel : ViewModelBase
             return;
 
         var row = ProgramRows[index];
-        ProgramRows[index] = update.Status switch
+        if (row.Status == "\u2713")
+            _doneCount--; // a re-sent line loses its previous ack
+        var updated = update.Status switch
         {
             ProgramLineStatus.Sent => row with { Status = "@" },
             ProgramLineStatus.Ok => row with { Status = "\u2713", Detail = null },
             _ => row with { Status = "\u2715", Detail = update.Detail },
         };
+        if (updated.Status == "\u2713")
+            _doneCount++;
+        if (index > TouchedRow)
+            TouchedRow = index;
+        ProgramRows[index] = updated;
         OnPropertyChanged(nameof(ProgressText));
         RowsChanged?.Invoke();
         ScrollRequested?.Invoke(index);
@@ -314,11 +446,13 @@ public class ProgramViewModel : ViewModelBase
     private void Finalize(ProgramRunResult result)
     {
         // Lines still in flight never resolved; return them to idle.
+        ProgramRows.BeginUpdate();
         for (var i = 0; i < ProgramRows.Count; i++)
         {
             if (ProgramRows[i].Status == "@")
                 ProgramRows[i] = ProgramRows[i] with { Status = "\u00b7" };
         }
+        ProgramRows.EndUpdate();
 
         RunMessage = result.Outcome switch
         {

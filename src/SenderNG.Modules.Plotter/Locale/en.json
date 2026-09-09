@@ -1,0 +1,13 @@
+{
+  "strings": {
+    "module.plotter.name": "Plot",
+    "module.plotter.description": "G-code path plotter: program toolpath with live run overlay.",
+    "module.plotter.noProgram": "No program loaded.",
+    "module.plotter.noMotion": "Program contains no motion.",
+    "module.plotter.axisMismatch": "Machine needs {0} axes; program has {1}. Unrenderable planes are hidden.",
+    "module.plotter.buildFailed": "Program could not be plotted.",
+    "module.plotter.building": "Plotting…",
+    "module.plotter.isometric": "Iso",
+    "module.plotter.loft": "Loft"
+  }
+}

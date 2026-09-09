@@ -70,9 +70,27 @@ public parameterless constructor as a singleton, applies its
 `RegisterServices`, and skips broken/non-module DLLs silently — a bad plugin
 never takes the app down. A missing `Modules/` directory is a no-op.
 
-**`Id` collisions:** the first module claiming an `Id` wins; a later module
-with the same `Id` is rejected at discovery — its services, handlers and UI
-never register. A shared settings section must never serve two plugins.
+**`Id` collisions — first wins among peer plugins, by scan order.** The Id gate
+is local to one `Modules/` scan: DLLs load in directory enumeration order
+(alphabetical on Windows in practice, unordered elsewhere — treat it as
+unspecified), the first `IModule` claiming an `Id` registers, and any later
+module with the same `Id` is rejected **silently** — its services, handlers
+and UI never register, and nothing is logged or shown (asserted by the
+`collision-id` test in `ModuleCatalogTests`). What this means for plugin
+authors:
+
+- **Swap-in contract:** replacing one plugin with another is a file swap —
+  delete the old DLL (and its `Locale/`), drop in the new one. Id equality is
+  irrelevant for a swap. If both DLLs are present at once with the same Id,
+  which one loads is decided by scan order — delete the one you don't want.
+- **Coexistence** of two plugins of the same kind (two plotters, two
+  visualizations) works when their Ids differ. A shared settings section must
+  never serve two plugins — that is what the rule protects.
+- **Built-in modules are not gated by this rule.** The app registers its
+  fixed modules (DRO, Program, Console, Jog, Probing, …) directly, before the
+  scan, with no Id check — the scan's Id set does not know them. A plugin
+  claiming a built-in Id would therefore load as a duplicate (shared settings
+  section, duplicated UI), not be rejected. Never claim an app-owned Id.
 
 ### 3.2 `IPluginInfo` — OPTIONAL metadata (new, per SDK review)
 
@@ -365,7 +383,7 @@ Test the module class directly — no host needed.
 | Discovery | `ModuleCatalog.ScanDirectory` | SenderNG.Core | implemented |
 | Plugin metadata | `IPluginInfo` { Version, Author, License } — optional, About screen | SenderNG.Core + host | implemented |
 | Error surfacing | `IErrorReporter` — `Error(text)` → dialog, `Status(text)` → statusbar; bound per module | SenderNG.Core + host | implemented |
-| `Id` collision policy | first wins; second rejected at discovery | `ModuleCatalog` | implemented |
+| `Id` collision policy | first wins among scan peers (scan order, loser rejected silently); built-ins register before the scan, ungated | `ModuleCatalog` | implemented |
 
 ## 9. Review status
 

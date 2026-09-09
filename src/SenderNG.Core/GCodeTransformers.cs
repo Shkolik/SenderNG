@@ -215,7 +215,9 @@ public static class GCodeTransformers
     /// raw X/Y/Z words are deltas in G91), then the engine's adaptive
     /// tolerance-driven point generator.
     /// </summary>
-    private static List<Point3D> SplinePoints(GCCubicSpline spline, double[] start, double tolerance, bool incremental)
+    // Internal: also consumed by ToolpathBuilder (the plotter's Core walk) —
+    // same control-point math, one implementation.
+    internal static List<Point3D> SplinePoints(GCCubicSpline spline, double[] start, double tolerance, bool incremental)
     {
         var end = new double[] { spline.X, spline.Y, spline.Z };
         if (incremental)
@@ -228,7 +230,7 @@ public static class GCodeTransformers
         return GCSpline.GeneratePoints(start, first, second, end, tolerance);
     }
 
-    private static List<Point3D> SplinePoints(GCQuadraticSpline spline, double[] start, double tolerance, bool incremental)
+    internal static List<Point3D> SplinePoints(GCQuadraticSpline spline, double[] start, double tolerance, bool incremental)
     {
         var end = new double[] { spline.X, spline.Y, spline.Z };
         if (incremental)

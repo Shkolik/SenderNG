@@ -41,6 +41,7 @@ using Xunit;
 /// Regression: RegisterModule used to register every built-in module twice under
 /// IModule (generic inference from the IModule-typed parameter), doubling sidebar entries.
 /// </summary>
+[Collection("LocalizationState")] // BuildHost sets LocalizationService.Current
 public class HostModuleRegistrationTests
 {
     [Fact]
@@ -51,8 +52,8 @@ public class HostModuleRegistrationTests
         var ids = modules.Select(m => m.Id).OrderBy(i => i).ToList();
         Assert.True(modules.Count == modules.DistinctBy(m => m.Id).Count(),
             $"duplicates ({modules.Count}): {string.Join(",", ids)}");
-        // 15 built-in + 3 staged plugins (Dummy + Excellon + HPGL) discovered
-        // via the Modules/ directory scan — the real drop-in path.
-        Assert.Equal(18, modules.Count);
+        // 15 built-in + 4 staged plugins (Dummy + Excellon + HPGL + Plotter)
+        // discovered via the Modules/ directory scan — the real drop-in path.
+        Assert.Equal(19, modules.Count);
     }
 }

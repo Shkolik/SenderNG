@@ -112,7 +112,11 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   foam plotter has field precedents now — GrblHotWire's two flat canvases
   (XY | ZA, one per carriage plane) and hoWiGS's isometric loft (see the
   research doc). V1 decision: isometric + flat views on a plain canvas,
-  no 3D lib; true 3D orbit deferred.  **Storage prerequisite landed:**
+  no 3D lib; true 3D orbit deferred. **Plotter LANDED (2026-09-08, M0–M5):**
+  external plugin (`src/SenderNG.Modules.Plotter`) — flat quadrant views
+  (foam: both carriages on one canvas, diagonal quadrants), two-carriage iso
+  loft, live frontier coloring + tool glyph, vector render path (30fps
+  throttle + interaction decimation — the M4 raster cache was reverted in M5). See  **Storage prerequisite landed:**
   profiles replace the Mill/Foam "mode" split (one file per machine +
   `global.json`, profile manager in App Settings) — see
   `docs/settings-migration.md`. **Schema landed and consumers migrated

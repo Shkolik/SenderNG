@@ -1,0 +1,13 @@
+{
+  "strings": {
+    "module.plotter.name": "График",
+    "module.plotter.description": "Постройщик траектории G-кода: путь программы с живым ходом обработки.",
+    "module.plotter.noProgram": "Программа не загружена.",
+    "module.plotter.noMotion": "Программа не содержит перемещений.",
+    "module.plotter.axisMismatch": "Станку требуется {0} осей; в программе {1}. Нерендеримые плоскости скрыты.",
+    "module.plotter.buildFailed": "Не удалось построить траекторию программы.",
+    "module.plotter.building": "Построение траектории…",
+    "module.plotter.isometric": "Изо",
+    "module.plotter.loft": "Лофт"
+  }
+}

@@ -17,6 +17,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SenderNG\SenderNG.csproj" />
     <ProjectReference Include="..\..\src\SenderNG.Core\SenderNG.Core.csproj" />
+    <!-- Compile-time ref to the plotter UI plugin so PlotterViewHeadlessTests
+         can render it headlessly (the plugin DLL is also staged into
+         Modules/ for discovery tests). -->
+    <ProjectReference Include="..\..\src\SenderNG.Modules.Plotter\SenderNG.Modules.Plotter.csproj" />
   </ItemGroup>
 
   <ItemGroup>

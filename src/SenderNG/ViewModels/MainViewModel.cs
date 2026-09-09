@@ -1066,17 +1066,26 @@ public class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     private async Task LoadParsedProgramAsync(string path, string text)
     {
-        var parsed = GCodeProgram.Parse(text);
+        var program = _services.GetRequiredService<ProgramViewModel>();
+        // Parse and the limits emulator pass run off the UI thread: on big
+        // files both take seconds, and the app must stay responsive (the
+        // program view shows a loading overlay while IsBusy). The load gate
+        // still refuses bad files — just not by freezing the UI to decide.
+        program.SetBusy(true);
+        Status = LocText.Format("app.msg.loading", "Loading {0}…", Path.GetFileName(path));
+        var parsed = await Task.Run(() => GCodeProgram.Parse(text));
         if (parsed.HasErrors)
         {
+            program.SetBusy(false);
             Status = LocText.Format("app.msg.validationFailed", "Validation failed: {0} ({1} error(s))", Path.GetFileName(path), parsed.Errors.Count);
             if (_fileDialogs is not null)
                 await _fileDialogs.ShowErrorAsync("G-code validation failed", string.Join(Environment.NewLine, parsed.Errors));
             return;
         }
 
-        var program = _services.GetRequiredService<ProgramViewModel>();
-        program.LoadProgram(parsed, text);
+        var limits = await Task.Run(() => GCodeLimitsCalculator.Compute(parsed.Tokens));
+        program.SetBusy(false);
+        program.LoadProgram(parsed, text, limits);
         HasProgramLimits = program.HasLimits;
         CurrentFileName = Path.GetFileName(path);
 

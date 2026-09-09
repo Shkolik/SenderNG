@@ -55,7 +55,12 @@ public sealed class UiHeadlessApp : Application
 {
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<UiHeadlessApp>()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions());
+            // Real software rendering (Skia) instead of the managed headless
+            // drawing stub: needed so CaptureRenderedFrame() works (plotter
+            // smoke tests assert actual pixels). Frame capture throws
+            // NotSupportedException without .UseSkia() + UseHeadlessDrawing=false.
+            .UseSkia()
+            .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
 
     public override void OnFrameworkInitializationCompleted()
     {

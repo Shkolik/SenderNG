@@ -44,6 +44,7 @@ using Xunit;
 
 namespace SenderNG.Core.Tests;
 
+[Collection("LocalizationState")] // serializes with other tests mutating LocalizationService.Current
 public class ProbeViewModelTests : IDisposable
 {
     private readonly string _dir;

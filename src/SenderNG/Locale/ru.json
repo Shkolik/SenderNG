@@ -545,6 +545,8 @@
     "app.msg.saveFailed": "Ошибка сохранения: {0}",
     "app.msg.closed": "Закрыто: {0}",
     "app.msg.openFailed": "Ошибка открытия: {0}",
+    "app.msg.loading": "Загрузка: {0}…",
+    "app.msg.loadingProgram": "Загрузка…",
     "app.msg.moduleNoDialog": "{0}: служба диалогов недоступна",
     "app.msg.moduleFailed": "{0} не выполнено: {1}",
     "app.msg.disconnectFailed": "Ошибка отключения: {0}",

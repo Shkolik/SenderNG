@@ -23,6 +23,7 @@ BSD 3-Clause License: see this file for the full license text.
          fixed 24px + 1px hairline, which the view code-behind needs for exact
          centered auto-scroll — keep the heights in sync. -->
     <Border BorderBrush="#aaa" BorderThickness="1" CornerRadius="0" Background="White">
+        <Grid>
         <DockPanel>
             <!-- Program grid header: Line (44px) | Status (28px) | Data (1*),
                  with 1px separator columns so the vertical gridlines line up
@@ -63,5 +64,17 @@ BSD 3-Clause License: see this file for the full license text.
                 </ListBox.ItemTemplate>
             </ListBox>
         </DockPanel>
+        <!-- Loading overlay: big files parse + analyze off the UI thread now,
+             so the app stays responsive — but the user must SEE the work is
+             happening (indeterminate bar + label), not stare at an empty
+             grid wondering where their file went. -->
+        <Border IsVisible="{Binding IsBusy}" Background="#99ffffff" CornerRadius="0">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+                <ProgressBar IsIndeterminate="True" Width="220" Height="10" />
+                <TextBlock Text="{loc:Loc app.msg.loadingProgram}" FontSize="12" Foreground="#555"
+                           HorizontalAlignment="Center" />
+            </StackPanel>
+        </Border>
+        </Grid>
     </Border>
 </UserControl>

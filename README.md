@@ -11,7 +11,7 @@ SenderNG is a diverged, focused fork of ioSender — stripped to foam cutting, C
 - Foam cutting and milling
 - Probing (Center/Edge/HeightMap)
 - USB serial + Ethernet (Telnet/WebSocket), YModem/SD
-- Program-view plotter: isometric/flat 2D projection on Skia — no 3D
+- Program-view plotter plugin: isometric/flat 2D projection on Skia — no 3D
   library (design + lib comparison: `docs/machine-config-research.md`)
 - Camera: deferred — if ever wanted, as a 3rd-party plugin (libs live in
   the decision tree: `docs/ROADMAP.md`)
@@ -27,8 +27,9 @@ SenderNG is a diverged, focused fork of ioSender — stripped to foam cutting, C
 
 1. ✅ `src/SenderNG.Core` (`net10.0`) — engine extracted (`Grbl.cs`, `GCodeParser.cs`, `GCodeEmulator.cs`, `NGCExpr.cs` + foam patches) — done
 2. ✅ `src/SenderNG` (`net10.0`) — Avalonia shell, probing UI, settings — done
-3. ⏳ Program-view plotter — isometric/flat 2D projection on Skia, no 3D
-   library (design: `docs/machine-config-research.md`) — open. Camera is
+3. ✅ Program-view plotter plugin — isometric/flat quadrant views + two-carriage
+   iso loft on Skia, no 3D library (design: `docs/machine-config-research.md`,
+   plan: `docs/plans/2026-09-07-plotter.md`) — done (2026-09-08). Camera is
    deferred (possible future 3rd-party plugin — see `docs/ROADMAP.md`).
    Linux serial (`/dev/ttyUSB*` / `/dev/ttyACM*`) is already in
 
