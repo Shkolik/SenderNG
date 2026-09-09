@@ -73,6 +73,19 @@ public static class ToolpathSceneBuilder
                 (float)seg.To[planeAxisIndices[1]],
                 planeAxisIndices.Length >= 3 ? (float)seg.To[planeAxisIndices[2]] : 0f);
 
+            var moves = false;
+            for (var k = 0; k < planeAxisIndices.Length; k++)
+            {
+                if (Math.Abs(seg.From[planeAxisIndices[k]] - seg.To[planeAxisIndices[k]]) > 1e-9)
+                {
+                    moves = true;
+                    break;
+                }
+            }
+
+            if (!moves)
+                continue;
+
             layer.AddSegment(new LineSegment(from, to), seg.Rapid ? MotionType.Rapid : MotionType.Cut);
             count++;
         }

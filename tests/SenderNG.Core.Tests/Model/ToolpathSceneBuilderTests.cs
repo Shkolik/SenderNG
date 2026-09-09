@@ -50,7 +50,8 @@ public class ToolpathSceneBuilderTests
         var segs = new[]
         {
             new ToolpathSegment(new[]{0.0,0,0}, new[]{10.0,5,0}, Rapid:false, LineNumber:1),
-            new ToolpathSegment(new[]{10.0,5,0}, new[]{10.0,5,0}, Rapid:true,  LineNumber:2),
+            new ToolpathSegment(new[]{10.0,5,0}, new[]{20.0,5,0}, Rapid:true,  LineNumber:2),
+            new ToolpathSegment(new[]{20.0,5,0}, new[]{20.0,5,0}, Rapid:false, LineNumber:3),
         };
         var n = ToolpathSceneBuilder.PopulatePlane(layer, segs, new[]{0,1});
         Assert.Equal(2, n);
