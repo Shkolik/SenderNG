@@ -177,6 +177,33 @@ public class PlotterNexViewModelTests : IDisposable
         Assert.Equal(new Vector3(1, 2, 3), Assert.Single(endpoint.Points));
     }
 
+    [Fact]
+    public void Late_scene_attach_rebuilds_an_already_loaded_program()
+    {
+        // Task 8 wiring: the Vulkan scene is built off the UI thread and arrives
+        // AFTER the program. The VM must rebuild the loaded program onto it.
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        var settings = new SettingsService(_settingsDir);
+        var profile = settings.Load();
+        profile.MachineTypeId = MachineTypes.Mill;
+        settings.Save(profile);
+
+        using var vm = new PlotterNexViewModel(source, _grbl, settings,
+            new LocalizationService(new MemoryStream("{ \"strings\": {} }"u8.ToArray())));
+
+        source.Load(MillProgram());
+        Assert.Null(vm.Scene);
+        Assert.False(vm.HasGeometry);
+
+        vm.AttachScene(new KinematicSceneFactory(scene));
+
+        Assert.NotNull(vm.Scene);
+        Assert.True(vm.HasGeometry);
+        Assert.Equal(1, vm.PlaneCount);
+        Assert.Equal(3, scene.Layers[^1].Added.Count);
+    }
+
     /// <summary>Read-only program facade over a parsed G-code string, with an
     /// AckRows live-run tick — mirrors the Skia headless stub.</summary>
     private sealed class StubProgramSource : ILoadedProgramSource

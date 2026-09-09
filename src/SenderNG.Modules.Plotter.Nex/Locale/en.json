@@ -6,6 +6,8 @@
     "module.plotterNex.noProgram": "No program loaded.",
     "module.plotterNex.noMotion": "Program contains no motion.",
     "module.plotterNex.building": "Plotting…",
-    "module.plotterNex.buildFailed": "Program could not be plotted."
+    "module.plotterNex.buildFailed": "Program could not be plotted.",
+    "module.plotterNex.vulkanUnavailable": "3D plotting unavailable",
+    "module.plotterNex.vulkanUnavailableHint": "No Vulkan 1.3 device could be created — 2D plotting stays available."
   }
 }

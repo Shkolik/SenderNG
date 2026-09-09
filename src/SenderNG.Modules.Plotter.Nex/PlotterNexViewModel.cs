@@ -99,12 +99,17 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         _stateSubscription = _grbl.State.Subscribe(state => PostUi(() => OnControllerState(state)));
 
         if (sceneFactory is not null)
+        {
             AttachScene(sceneFactory);
-
-        if (_programSource.Program is not null)
+        }
+        else if (_programSource.Program is not null)
+        {
             Rebuild();
+        }
         else
+        {
             ApplyEmpty();
+        }
     }
 
     /// <summary>The current GPU scene, or null until a scene factory is
@@ -149,9 +154,12 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>
-    /// Attach the scene factory. The view supplies it on first shape; a
-    /// headless test may supply it at construction. Re-attaching is a wiring
-    /// bug (a second live shape, an unstubbed first one) — it throws.
+    /// Attach a late-arriving scene factory (the view builds the Vulkan scene
+    /// off the UI thread and hands it in). If a program is already loaded it is
+    /// rebuilt onto the fresh scene so the plot appears immediately — this is
+    /// the Task 8 "scene arrives after the program" wiring. A headless test
+    /// may supply the factory at construction. Re-attaching is a wiring bug
+    /// (a second live shape, an unstubbed first one) — it throws.
     /// </summary>
     public void AttachScene(ISceneFactory factory)
     {
@@ -159,7 +167,23 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         if (_sceneFactory is not null)
             throw new InvalidOperationException("A scene factory is already attached.");
         _sceneFactory = factory;
-        BuildScene();
+
+        if (_programSource.Program is not null)
+        {
+            // A loaded program rebuilds onto the scene so the plot appears
+            // immediately — this is the Task 8 "scene arrives after the
+            // program" wiring (the synchronous path; small programs only).
+            Rebuild();
+        }
+        else
+        {
+            // No program yet: register the fabric shape (plane layers + tool)
+            // so live pose updates have objects to land on while the plot is
+            // empty. The program registers onto it when it loads.
+            BuildScene();
+            ApplyEmpty();
+        }
+
         OnPropertyChanged(nameof(Scene));
         OnPropertyChanged(nameof(PlaneCount));
     }

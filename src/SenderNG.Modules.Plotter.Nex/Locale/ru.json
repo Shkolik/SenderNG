@@ -6,6 +6,8 @@
     "module.plotterNex.noProgram": "Программа не загружена.",
     "module.plotterNex.noMotion": "Программа не содержит движений.",
     "module.plotterNex.building": "Построение…",
-    "module.plotterNex.buildFailed": "Не удалось построить программу."
+    "module.plotterNex.buildFailed": "Не удалось построить программу.",
+    "module.plotterNex.vulkanUnavailable": "3D-построение недоступно",
+    "module.plotterNex.vulkanUnavailableHint": "Не удалось создать устройство Vulkan 1.3 — 2D-построение продолжает работать."
   }
 }
