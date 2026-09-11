@@ -45,16 +45,38 @@ namespace SenderNG.Modules.Plotter.Nex.Scene;
 public static class CameraGestures
 {
     /// <summary>Camera-side basis from direction of view: forward toward the
-    /// target, right, and planar up (perpendicular to forward).</summary>
+    /// target, right, and planar up (perpendicular to forward). Degenerate
+    /// views (target at the camera, or up parallel to forward) resolve to a
+    /// fixed right-handed basis instead of NaNs.</summary>
     public static void GetCameraBasis(Camera camera, out Vector3 forward, out Vector3 right, out Vector3 up)
     {
-        forward = Vector3.Normalize(camera.Target - camera.Position);
-        if (forward.LengthSquared() < 1e-12f)
+        var toTarget = camera.Target - camera.Position;
+        if (toTarget.LengthSquared() < 1e-12f)
             forward = -Vector3.UnitZ;
-        right = Vector3.Normalize(Vector3.Cross(forward, camera.Up));
-        if (right.LengthSquared() < 1e-12f)
-            right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
+        else
+            forward = Vector3.Normalize(toTarget);
+        var side = Vector3.Cross(forward, camera.Up);
+        if (side.LengthSquared() < 1e-12f)
+            right = Vector3.Normalize(Vector3.Cross(forward, ReferenceAxis(forward)));
+        else
+            right = Vector3.Normalize(side);
         up = Vector3.Normalize(Vector3.Cross(right, forward));
+    }
+
+    /// <summary>Unit axis with the smallest-magnitude component against
+    /// <paramref name="v"/>, guaranteeing a non-zero cross product even for
+    /// axis-aligned vectors (a fixed UnitY reference degenerates for Y-axial
+    /// views).</summary>
+    private static Vector3 ReferenceAxis(Vector3 v)
+    {
+        var ax = MathF.Abs(v.X);
+        var ay = MathF.Abs(v.Y);
+        var az = MathF.Abs(v.Z);
+        if (ax <= ay && ax <= az)
+            return Vector3.UnitX;
+        if (ay <= az)
+            return Vector3.UnitY;
+        return Vector3.UnitZ;
     }
 
     /// <summary>World delta for a "drag the model" pan in an orthographic

@@ -97,4 +97,48 @@ public class CameraGesturesTests
         Assert.Equal(Vector3.Zero, CameraGestures.ScreenPanDelta(cam, new Vector2(5f, 5f), 0f, 100f));
         Assert.Equal(Vector3.Zero, CameraGestures.ScreenPanDelta(cam, new Vector2(5f, 5f), 100f, 0f));
     }
+
+    [Fact]
+    public void Basis_reverts_to_minus_z_when_target_coincides_with_position()
+    {
+        var cam = new OrthographicCamera
+        {
+            Position = new Vector3(0f, 0f, 100f),
+            Target = new Vector3(0f, 0f, 100f),
+            Up = Vector3.UnitY,
+            Width = 100f,
+        };
+
+        CameraGestures.GetCameraBasis(cam, out var forward, out var right, out var up);
+        Assert.Equal(-Vector3.UnitZ, forward);
+        Assert.True(float.IsFinite(right.Length()));
+        Assert.True(float.IsFinite(up.Length()));
+        Assert.Equal(1f, right.Length(), 5);
+        Assert.Equal(1f, up.Length(), 5);
+        Assert.Equal(0f, Vector3.Dot(right, up), 5);
+    }
+
+    [Fact]
+    public void Basis_and_pan_stay_finite_when_up_is_parallel_to_forward()
+    {
+        var cam = new OrthographicCamera
+        {
+            Position = new Vector3(0f, 100f, 0f),
+            Target = Vector3.Zero,
+            Up = Vector3.UnitY,
+            Width = 100f,
+        };
+
+        CameraGestures.GetCameraBasis(cam, out var forward, out var right, out var up);
+        Assert.Equal(1f, forward.Length(), 5);
+        Assert.Equal(1f, right.Length(), 5);
+        Assert.Equal(1f, up.Length(), 5);
+        Assert.Equal(0f, Vector3.Dot(right, up), 5);
+        Assert.Equal(0f, Vector3.Dot(right, forward), 5);
+        Assert.Equal(0f, Vector3.Dot(up, forward), 5);
+        Assert.All(new[] { right.X, right.Y, right.Z, up.X, up.Y, up.Z }, f => Assert.True(float.IsFinite(f)));
+
+        var delta = CameraGestures.ScreenPanDelta(cam, new Vector2(10f, 20f), 1000f, 500f);
+        Assert.True(float.IsFinite(delta.X) && float.IsFinite(delta.Y) && float.IsFinite(delta.Z));
+    }
 }
