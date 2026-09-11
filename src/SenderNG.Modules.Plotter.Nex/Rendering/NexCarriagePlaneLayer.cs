@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Numerics;
+using HelixToolkit.Nex.Engine;
 using HelixToolkit.Nex.Geometries;
 using HelixToolkit.Nex.Graphics;
 using HelixToolkit.Nex.Maths;
@@ -65,12 +66,16 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
     private readonly List<MotionType> _motionTypes = [];
 
     /// <summary>Create the layer under <paramref name="root"/> and attach its line node.</summary>
-    public NexCarriagePlaneLayer(Node root)
+    public NexCarriagePlaneLayer(Node root, Engine engine)
     {
         _geometry = new Geometry(Topology.Line, isDynamic: true);
+        // Register with the engine so Geometry.Valid becomes true; otherwise the
+        // node never reaches the line draw stream and renders nothing.
+        engine.Add(_geometry);
         _node = root.World.CreateLineNode("carriage-plane");
         _node.Geometry = _geometry;
         _node.LineThickness = 1.6f;
+        _node.LineColor = Color4.White;
         root.AddChild(_node);
     }
 
@@ -88,6 +93,8 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         _geometry.VertexColors.Add(v);
         _motionTypes.Add(type);
         _geometry.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
+        // Re-set the geometry reference so the draw stream refreshes its LineCount.
+        _node.Geometry = _geometry;
     }
 
     /// <inheritdoc/>

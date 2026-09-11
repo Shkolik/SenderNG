@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Numerics;
+using HelixToolkit.Nex.Engine;
 using HelixToolkit.Nex.Geometries;
 using HelixToolkit.Nex.Graphics;
 using HelixToolkit.Nex.Maths;
@@ -65,23 +66,30 @@ public sealed class NexPlotTool : IPlotTool
     private ToolShape _shape;
 
     /// <summary>Create the tool under <paramref name="root"/>.</summary>
-    public NexPlotTool(Node root, ToolShape shape)
+    public NexPlotTool(Node root, Engine engine, ToolShape shape)
     {
         _shape = shape;
         _segmentGeometry = new Geometry(Topology.Line, isDynamic: true);
+        // Register with the engine so Geometry.Valid becomes true; otherwise the
+        // nodes never reach the line draw stream and render nothing.
+        engine.Add(_segmentGeometry);
         _segmentNode = root.World.CreateLineNode("tool-wire");
         _segmentNode.Geometry = _segmentGeometry;
         _segmentNode.LineThickness = 1.4f;
+        _segmentNode.LineColor = Color4.White;
         root.AddChild(_segmentNode);
 
         var coneGeometry = BuildConeGeometry();
+        engine.Add(coneGeometry);
         _coneNodeA = root.World.CreateLineNode("tool-cone");
         _coneNodeA.Geometry = coneGeometry;
         _coneNodeA.LineThickness = 1.1f;
+        _coneNodeA.LineColor = Color4.White;
         root.AddChild(_coneNodeA);
         _coneNodeB = root.World.CreateLineNode("tool-cone-2");
         _coneNodeB.Geometry = coneGeometry;
         _coneNodeB.LineThickness = 1.1f;
+        _coneNodeB.LineColor = Color4.White;
         root.AddChild(_coneNodeB);
     }
 
@@ -118,6 +126,8 @@ public sealed class NexPlotTool : IPlotTool
         _segmentGeometry.VertexColors.Add(color);
         _segmentGeometry.VertexColors.Add(color);
         _segmentGeometry.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
+        // Re-set the geometry reference so the draw stream refreshes its LineCount.
+        _segmentNode.Geometry = _segmentGeometry;
         _coneNodeA.Transform.Translation = p0;
         _coneNodeB.Transform.Translation = p1;
     }
@@ -128,6 +138,17 @@ public sealed class NexPlotTool : IPlotTool
         _segmentNode.Dispose();
         _coneNodeA.Dispose();
         _coneNodeB.Dispose();
+    }
+
+    /// <summary>DIAGNOSTIC (temporary): CPU-side line/vertex/bounds state of the
+    /// three tool nodes.</summary>
+    internal string DumpContent()
+    {
+        var a = _coneNodeA.Geometry;
+        var b = _coneNodeB.Geometry;
+        return $"wire(en={_segmentNode.Enabled}, lc={_segmentNode.LineCount}, vc={_segmentGeometry.Vertices.Count}) "
+            + $"coneA(en={_coneNodeA.Enabled}, lc={_coneNodeA.LineCount}, vc={(a is null ? -1 : a.Vertices.Count)}, r={(a is null ? -1f : a.BoundingSphereLocal.Radius):F2}) "
+            + $"coneB(en={_coneNodeB.Enabled}, lc={_coneNodeB.LineCount}, vc={(b is null ? -1 : b.Vertices.Count)})";
     }
 
     /// <summary>Wireframe cone with apex at the origin opening along +Z

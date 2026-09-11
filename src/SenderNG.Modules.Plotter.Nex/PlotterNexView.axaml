@@ -36,7 +36,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:hx="clr-namespace:HelixToolkit.Nex.Avalonia;assembly=HelixToolkit.Nex.Avalonia"
              xmlns:vm="clr-namespace:SenderNG.Modules.Plotter.Nex"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="500"
              x:Class="SenderNG.Modules.Plotter.Nex.PlotterNexView"
@@ -45,24 +44,20 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:CompileBindings="False">
 
     <!-- The Nex engine and viewport client live on the code-behind (they are
-         concrete Nex types; the view model stays headless). The HelixViewport
-         binds Engine / ViewportClient / CameraController to code-behind
-         properties raised through INPC. -->
+         concrete Nex types; the view model stays headless). The scene is
+         rendered into a D3D11 shared texture and read back to a WriteableBitmap
+         by a DispatcherTimer tick in the code-behind; GpuImage shows the result.
+         (The composition presenter path — HelixViewport — is disabled: it
+         deadlocks, upstream. See NexGpuReadback.) -->
     <Grid Background="#101418">
 
         <!-- Scene view + chrome, replaced entirely by the fallback border when
              Vulkan creation failed (see NexPlotScene in the code-behind). -->
         <Panel x:Name="ScenePanel" IsVisible="{Binding !VulkanUnavailable, Mode=OneWay}">
-            <hx:HelixViewport x:Name="Viewport"
-                              Engine="{Binding #Root.Engine}"
-                              ViewportClient="{Binding #Root.ViewportClient}"
-                              CameraController="{Binding #Root.CameraController}"
-                              RotateMouseButton="Left"
-                              PanMouseButton="Middle"
-                              PointerRingEnabled="False" />
+            <Image x:Name="GpuImage" Stretch="UniformToFill" />
 
-            <!-- Snap toolbar: switching a preset also re-binds the viewport's
-                 camera controller to the scene's new active pair. -->
+            <!-- Snap toolbar: switching a preset re-frames the scene's active
+                 camera; the next readback tick picks it up. -->
             <StackPanel Orientation="Horizontal" Spacing="4"
                         HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
                 <Border Padding="6" Background="#80101518">
@@ -83,6 +78,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <TextBlock Text="{Binding StatusText, Mode=OneWay}"
                            Foreground="#DDD" FontSize="12" TextTrimming="CharacterEllipsis" />
             </Border>
+
+            <!-- Live viewport render diagnostics (POC). "t N" counts readback ticks
+                 that presented a full frame to the bitmap, "N fps" reports
+                 completed frames per second. A ticking counter with no FPS
+                 means copy/bitmap work never completes; no counter at all
+                 means the render loop never started. -->
+            <StackPanel Orientation="Vertical" Spacing="2"
+                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10"
+                        IsHitTestVisible="False">
+                <TextBlock x:Name="CtxText" Text="ctx –" Foreground="#AFF" FontSize="11" />
+                <TextBlock x:Name="RenderText" Text="t – / – fps" Foreground="#AFF" FontSize="11" />
+            </StackPanel>
         </Panel>
 
         <!-- Fallback shown when no Vulkan device could be created. -->

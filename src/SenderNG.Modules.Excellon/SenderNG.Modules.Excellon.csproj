@@ -1,11 +1,11 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <!-- Plugin module: discovered at runtime by the host's Modules/ scan. The app
-         must NOT reference this project — only the module's own Locale/*.json and
+         must NOT reference this project â€” only the module's own Locale/*.json and
          the built DLL are staged into the app output by SenderNG.csproj.
          Converter-specific scaffolding is linked from the internal SenderNG.Shared
          folder (not shipped, invisible to the plugin contract); the SDK
@@ -18,7 +18,7 @@
          leaf), so the plugin references Avalonia like any UI plugin. Pinned to the
          version the host app resolves (floating 12.* caused a framework mismatch
          that crashed startup with TypeLoadException). -->
-    <PackageReference Include="Avalonia" Version="12.1.1" />
+    <PackageReference Include="Avalonia" Version="12.0.0" />
   </ItemGroup>
 
   <ItemGroup>

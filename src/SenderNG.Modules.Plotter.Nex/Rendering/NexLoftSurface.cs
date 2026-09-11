@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Numerics;
+using HelixToolkit.Nex.Engine;
 using HelixToolkit.Nex.Geometries;
 using HelixToolkit.Nex.Graphics;
 using HelixToolkit.Nex.Maths;
@@ -58,12 +59,16 @@ public sealed class NexLoftSurface : ILoftSurface
     private readonly LineNode _node;
 
     /// <summary>Create the loft surface under <paramref name="root"/>.</summary>
-    public NexLoftSurface(Node root)
+    public NexLoftSurface(Node root, Engine engine)
     {
         _geometry = new Geometry(Topology.Line, isDynamic: true);
+        // Register with the engine so Geometry.Valid becomes true; otherwise the
+        // node never reaches the line draw stream and renders nothing.
+        engine.Add(_geometry);
         _node = root.World.CreateLineNode("loft-surface");
         _node.Geometry = _geometry;
         _node.LineThickness = 0.9f;
+        _node.LineColor = Color4.White;
         root.AddChild(_node);
     }
 
@@ -88,5 +93,7 @@ public sealed class NexLoftSurface : ILoftSurface
             }
         }
         _geometry.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
+        // Re-set the geometry reference so the draw stream refreshes its LineCount.
+        _node.Geometry = _geometry;
     }
 }

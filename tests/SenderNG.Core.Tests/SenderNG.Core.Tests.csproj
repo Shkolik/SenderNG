@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -44,27 +44,27 @@
   <ItemGroup>
     <!-- Plugin staging for the ScanDirectory test: same Link trick the app
          csproj uses, so OutputDir/Modules contains the discoverable DLLs. -->
-    <None Include="..\..\src\SenderNG.Modules.Common\bin\$(Configuration)\net10.0\SenderNG.Modules.Common.dll">
+    <None Include="..\..\src\SenderNG.Modules.Common\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Common.dll">
       <Link>Modules\SenderNG.Modules.Common.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\..\src\SenderNG.Modules.Excellon\bin\$(Configuration)\net10.0\SenderNG.Modules.Excellon.dll">
+    <None Include="..\..\src\SenderNG.Modules.Excellon\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Excellon.dll">
       <Link>Modules\SenderNG.Modules.Excellon.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\..\src\SenderNG.Modules.Hpgl\bin\$(Configuration)\net10.0\SenderNG.Modules.Hpgl.dll">
+    <None Include="..\..\src\SenderNG.Modules.Hpgl\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Hpgl.dll">
       <Link>Modules\SenderNG.Modules.Hpgl.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\..\src\SenderNG.Modules.Dummy\bin\$(Configuration)\net10.0\SenderNG.Modules.Dummy.dll">
+    <None Include="..\..\src\SenderNG.Modules.Dummy\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Dummy.dll">
       <Link>Modules\SenderNG.Modules.Dummy.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\..\src\SenderNG.Modules.Plotter\bin\$(Configuration)\net10.0\SenderNG.Modules.Plotter.dll">
+    <None Include="..\..\src\SenderNG.Modules.Plotter\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.dll">
       <Link>Modules\SenderNG.Modules.Plotter.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\net10.0\SenderNG.Modules.Plotter.Nex.dll">
+    <None Include="..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.Nex.dll">
       <Link>Modules\SenderNG.Modules.Plotter.Nex.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -78,5 +78,22 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <!-- Mirror of the app's StageNexPluginClosure: the Nex module DLL is staged
+       flat above, and its package closure + natives land in Modules\plotter-nex\
+       so the real drop-in ScanDirectory test exercises the folder resolver. -->
+  <Target Name="StageNexPluginClosure" AfterTargets="Build">
+    <ItemGroup>
+      <_NexClosure Include="..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\*.dll"
+                   Exclude="..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.Nex.dll;
+                            ..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\SenderNG.Core.dll;
+                            ..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\CNC.Core.dll;
+                            ..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\Avalonia*.dll" />
+      <_NexNative Include="..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\runtimes\win-x64\native\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_NexClosure);@(_NexNative)"
+          DestinationFolder="$(OutputPath)Modules\plotter-nex"
+          SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

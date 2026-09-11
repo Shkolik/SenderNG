@@ -60,9 +60,26 @@ public static class ModuleCatalog
         if (!Directory.Exists(directory))
             return services;
 
-        // One id-tracking set for the whole directory: the first module
-        // claiming an Id wins, a later module with the same Id is rejected —
-        // a shared settings section must never serve two plugins.
+        // The drop-in folder keeps each plugin flat (Modules\Foo.dll) while its
+        // package closure and locale live in Modules\Foo\ — scanning stays a
+        // cheap FLAT *.dll pass (no native binaries / no third-party assemblies
+        // to trip GetTypes), and adding/removing a plugin is one dll + one
+        // folder. The LoadFrom'd main DLL does not natively probe subfolders for
+        // its managed dependencies, so an AssemblyResolve probe serves them from
+        // the plugin folder. Registered for the process lifetime: resolving the
+        // module types during the scan is only the first touch — the closure
+        // assemblies' own dependencies get JIT-resolved later (e.g. HelixToolkit
+        // engine code touching Vortice), and must find the same folder. Native
+        // binaries are not assemblies; the managed DLLs that P/Invoke them are
+        // LoadFrom'd from the same folder, whose own directory the loader probes
+        // for unmanaged libraries.
+        Interlocked.Exchange(ref _pluginFolder, directory);
+        if (Interlocked.Exchange(ref _pluginFolderProbeRegistered, 1) == 0)
+        {
+            AppDomain.CurrentDomain.AssemblyResolve += (_, e) =>
+                _pluginFolder.Length == 0 ? null : TryResolvePluginFolderDependency(_pluginFolder, e.Name);
+        }
+
         var seenIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var dll in Directory.GetFiles(directory, "*.dll"))
         {
@@ -78,6 +95,24 @@ public static class ModuleCatalog
 
         return services;
     }
+
+    /// <summary>Serves a managed dependency from the plugin's own folder
+    /// (<c>Modules\&lt;id&gt;\&lt;shortname&gt;.dll</c>) when the normal load
+    /// path cannot resolve it. Returns null so resolution can continue.</summary>
+    private static Assembly? TryResolvePluginFolderDependency(string rootDir, string assemblyFullName)
+    {
+        var shortName = new AssemblyName(assemblyFullName).Name ?? assemblyFullName;
+        foreach (var folder in Directory.GetDirectories(rootDir))
+        {
+            var candidate = Path.Combine(folder, shortName + ".dll");
+            if (File.Exists(candidate))
+                return Assembly.LoadFrom(candidate);
+        }
+        return null;
+    }
+
+    private static string _pluginFolder = "";
+    private static int _pluginFolderProbeRegistered;
 
     public static IServiceCollection Scan(IServiceCollection services, params Assembly[] assemblies)
     {

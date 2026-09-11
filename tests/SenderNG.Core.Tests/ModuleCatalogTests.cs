@@ -113,12 +113,17 @@ public class ModuleCatalogTests
         Assert.Contains(sc, d => d.ServiceType.FullName == "SenderNG.Modules.Excellon.ExcellonModule");
         Assert.Contains(sc, d => d.ServiceType.FullName == "SenderNG.Modules.Hpgl.HpglModule");
         Assert.Contains(sc, d => d.ServiceType.FullName == "SenderNG.Modules.Dummy.DummyModule");
+        // The Nex module's types live in the HelixToolkit.Nex / Vortice closure
+        // shipped in Modules\plotter-nex\ — discovery proves the folder resolver
+        // served the dependencies during GetTypes.
+        Assert.Contains(sc, d => d.ServiceType.FullName == "SenderNG.Modules.Plotter.Nex.PlotterNexModule");
 
         using var sp = sc.BuildServiceProvider();
         var modules = sp.GetServices<IModule>().ToList();
         Assert.Contains(modules, m => m.Id == "excellon");
         Assert.Contains(modules, m => m.Id == "hpgl");
         Assert.Contains(modules, m => m.Id == "dummy");
+        Assert.Contains(modules, m => m.Id == "plotter-nex");
     }
 
     [Fact]

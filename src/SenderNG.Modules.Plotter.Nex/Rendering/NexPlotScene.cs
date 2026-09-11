@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Numerics;
+using System.Text;
 using HelixToolkit.Nex.Engine;
 using HelixToolkit.Nex.Engine.CameraControllers;
 using HelixToolkit.Nex.Engine.Cameras;
@@ -112,6 +113,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private readonly List<NexPlotTool> _liveTools = [];
     private readonly List<LineNode> _contentNodes = [];
     private bool _buildComplete;
+    private long _lastContentVertices = -1;
 
     /// <summary>Create the scene and the whole render pipeline.</summary>
     /// <remarks>
@@ -196,7 +198,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         if (_buildComplete)
             ResetBuild();
         _buildComplete = false;
-        var layer = new NexCarriagePlaneLayer(_root);
+        var layer = new NexCarriagePlaneLayer(_root, _engine);
         _liveLayers.Add(layer);
         _contentNodes.Add(layer.Node);
         return layer;
@@ -208,7 +210,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         if (_buildComplete)
             ResetBuild();
         _buildComplete = false;
-        var loft = new NexLoftSurface(_root);
+        var loft = new NexLoftSurface(_root, _engine);
         _liveLofts.Add(loft);
         return loft;
     }
@@ -219,7 +221,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         if (_buildComplete)
             ResetBuild();
         _buildComplete = false;
-        var tool = new NexPlotTool(_root, shape);
+        var tool = new NexPlotTool(_root, _engine, shape);
         _liveTools.Add(tool);
         _buildComplete = true;
         return tool;
@@ -262,6 +264,8 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             Line(minX, yy, maxX, yy, color);
         }
         g.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
+        // Re-set the geometry reference so the draw stream refreshes its LineCount.
+        _gridNode.Geometry = g;
     }
 
     /// <inheritdoc/>
@@ -277,6 +281,8 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             FillArrow(g, arrow.Pos, AxisDirection(arrow.Label), len, color);
         }
         g.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
+        // Re-set the geometry reference so the draw stream refreshes its LineCount.
+        _axesNode.Geometry = g;
     }
 
     /// <inheritdoc/>
@@ -300,13 +306,17 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         Seg(origin - Vector3.UnitY * tick, origin + Vector3.UnitY * tick);
         Seg(origin - Vector3.UnitZ * tick, origin + Vector3.UnitZ * tick);
         g.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
+        // Re-set the geometry reference so the draw stream refreshes its LineCount.
+        _originNode.Geometry = g;
     }
 
     /// <inheritdoc/>
-    public void SetWorkEnvelope(SBounds box) => FillEnvelope(_workGeometry, box, WorkEnvelopeColor);
+    public void SetWorkEnvelope(SBounds box)
+        => FillEnvelope(_workGeometry, _workNode, box, WorkEnvelopeColor);
 
     /// <inheritdoc/>
-    public void SetJobEnvelope(SBounds box) => FillEnvelope(_jobGeometry, box, JobEnvelopeColor);
+    public void SetJobEnvelope(SBounds box)
+        => FillEnvelope(_jobGeometry, _jobNode, box, JobEnvelopeColor);
 
     /// <inheritdoc/>
     public void SetViewPreset(ViewPreset preset)
@@ -376,6 +386,11 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// <inheritdoc/>
     public void Dispose()
     {
+        // The viewport's render loop submits asynchronously; destroying any
+        // GPU resource the queue may still reference is a use-after-free the
+        // driver surfaces as native corruption. Fence all teardown (the
+        // reference viewport/bridge do the same before resizing/releasing).
+        _engine.WaitForIdle();
         foreach (var tool in _liveTools)
             tool.Dispose();
         foreach (var loft in _liveLofts)
@@ -401,6 +416,9 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
 
     private void ResetBuild()
     {
+        // Same fence as Dispose: the render loop may still be submitting while
+        // a program reload swaps the content nodes.
+        _engine.WaitForIdle();
         foreach (var tool in _liveTools)
             tool.Dispose();
         foreach (var loft in _liveLofts)
@@ -417,9 +435,14 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private LineNode AddChromeNode(string name, float thickness, out Geometry geometry)
     {
         geometry = new Geometry(Topology.Line, isDynamic: true);
+        // Register the geometry with the engine so Geometry.Valid becomes true;
+        // otherwise LineDrawInfo.Valid stays false and the node never reaches a
+        // draw stream (LineRenderNode.CanRender requires a non-empty stream).
+        _engine.Add(geometry);
         var node = _root.World.CreateLineNode(name);
         node.Geometry = geometry;
         node.LineThickness = thickness;
+        node.LineColor = Color4.White;
         _root.AddChild(node);
         return node;
     }
@@ -511,7 +534,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         Seg(tip, back - Vector3.UnitY);
     }
 
-    private static void FillEnvelope(Geometry g, SBounds box, Color4 color)
+    private static void FillEnvelope(Geometry g, LineNode node, SBounds box, Color4 color)
     {
         g.Vertices.Clear();
         g.VertexColors.Clear();
@@ -539,6 +562,8 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         Seg(c4, c5); Seg(c5, c6); Seg(c6, c7); Seg(c7, c4); // top
         Seg(c0, c4); Seg(c1, c5); Seg(c2, c6); Seg(c3, c7); // verticals
         g.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
+        // Re-set the geometry reference so the draw stream refreshes its LineCount.
+        node.Geometry = g;
     }
 
     private sealed class SceneClient : IViewportClient
@@ -555,6 +580,168 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         public IRenderDataProvider? DataProvider => _data;
 
         public ICameraParamsProvider Update(RenderContext context, float deltaTime) => _camera();
+    }
+
+    /// <summary>Render data for one frame (the readback view's per-frame
+    /// <c>Engine.RenderOffscreen</c> call).</summary>
+    public IRenderDataProvider WorldData => _client.DataProvider!;
+
+    /// <summary>DIAGNOSTIC (temporary): camera framing plus geometry extent, to
+    /// check whether content actually falls inside the view frustum (the camera
+    /// is framed once in the ctor when content is empty — a stale framing leaves
+    /// the whole plot outside the view and nothing draws).</summary>
+    public string DumpCamera()
+    {
+        var cam = _activeCamera;
+        var sb = new StringBuilder();
+        if (cam is OrthographicCamera ortho)
+        {
+            sb.Append($"ortho(w={ortho.Width:0.###} pos={ortho.Position} target={ortho.Target} near={ortho.NearPlane} far={ortho.FarPlane}) ");
+        }
+        else if (cam is PerspectiveCamera persp)
+        {
+            sb.Append(
+                $"persp(fov={persp.Fov:0.###} pos={persp.Position} target={persp.Target} near={persp.NearPlane} far={persp.FarPlane}) "
+            );
+        }
+        else
+        {
+            sb.Append($"cam({cam.GetType().Name}) ");
+        }
+        var (center, radius, span) = ContentMetrics();
+        sb.Append($"content(center={center} radius={radius:0.###} span={span})");
+        var min = new Vector3(float.MaxValue);
+        var max = new Vector3(float.MinValue);
+        foreach (var n in _contentNodes)
+        {
+            var g = n.Geometry;
+            if (g is null) continue;
+            for (var i = 0; i < g.Vertices.Count; i++)
+            {
+                var v = g.Vertices[i];
+                min = Vector3.Min(min, new Vector3(v.X, v.Y, v.Z));
+                max = Vector3.Max(max, new Vector3(v.X, v.Y, v.Z));
+            }
+        }
+        if (min.X == float.MaxValue)
+        {
+            sb.Append(" ext(none)");
+        }
+        else
+        {
+            sb.Append($" ext(min={min} max={max})");
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>DIAGNOSTIC (temporary): when true, the scene disables the GPU
+    /// frustum-cull node each frame so geometry visibility no longer depends on
+    /// MeshInfo bounds.</summary>
+    public bool DiagnosticDisableCulling { get; set; } = true;
+
+    /// <summary>DIAGNOSTIC (temporary): CPU-side state of every line node owned
+    /// by this scene — enabled flag, stream validity, line count, vertex count
+    /// and local bounding-sphere radius.</summary>
+    public string DumpContent()
+    {
+        var sb = new StringBuilder();
+        void NodeInfo(LineNode n)
+        {
+            var g = n.Geometry;
+            sb.Append(
+                $"{n.Name}(en={n.Enabled}, v={n.IsLineValid}, lc={n.LineCount}, vc={(g is null ? -1 : g.Vertices.Count)}, r={(g is null ? -1f : g.BoundingSphereLocal.Radius):F2}, col={n.LineColor.EncodeToUInt():X8}) "
+            );
+        }
+
+        sb.Append("chrome[ ");
+        NodeInfo(_gridNode);
+        NodeInfo(_axesNode);
+        NodeInfo(_originNode);
+        NodeInfo(_workNode);
+        NodeInfo(_jobNode);
+        sb.Append("] content[ ");
+        foreach (var n in _contentNodes)
+            NodeInfo(n);
+        sb.Append($"] lofts({_liveLofts.Count})[ ");
+        foreach (var l in _liveLofts)
+            NodeInfo(l.Node);
+        sb.Append($"] tools({_liveTools.Count})[ ");
+        foreach (var t in _liveTools)
+            sb.Append(t.DumpContent() + " ");
+        sb.Append("]");
+        return sb.ToString();
+    }
+
+    /// <summary>The headless Vulkan context the engine renders with.</summary>
+    public IContext Context => _context;
+
+    /// <summary>Per-frame camera for the readback view. Abstracted as a method
+    /// so the host never needs the Avalonia viewport client interface to tick
+    /// the scene.</summary>
+    public ICameraParamsProvider UpdateViewport(RenderContext renderContext, float deltaTime)
+    {
+        EnsureChromeUpToDate();
+        return _client.Update(renderContext, deltaTime);
+    }
+
+    /// <summary>Rebuild the static chrome (grid, axis arrows, origin, work/job
+    /// envelopes) whenever the total content vertex count changes, so the
+    /// chrome is always sized to the loaded model even though no caller ever
+    /// invokes the Set* chrome methods. The check is O(planes) per frame; the
+    /// rebuild is O(verticies) and only happens when content actually moved.</summary>
+    private void EnsureChromeUpToDate()
+    {
+        long sum = 0;
+        foreach (var n in _contentNodes)
+        {
+            var g = n.Geometry;
+            if (g is not null)
+                sum += g.Vertices.Count;
+        }
+        if (sum != _lastContentVertices)
+        {
+            _lastContentVertices = sum;
+            if (sum > 0)
+                BuildAutoChrome();
+        }
+    }
+
+    private void BuildAutoChrome()
+    {
+        var (center, radius, span) = ContentMetrics();
+        var hx = Math.Max(span.X, 1f) * 0.5f;
+        var hy = Math.Max(span.Y, 1f) * 0.5f;
+        var hz = Math.Max(span.Z, 1f) * 0.5f;
+        var box = new SBounds(
+            center.X - hx, center.Y - hy, center.Z - hz,
+            center.X + hx, center.Y + hy, center.Z + hz
+        );
+        var major = NiceStep(Math.Max(radius * 0.25, 1));
+        SetGrid(box, major / 5, major);
+        AddAxisArrows(
+        [
+            (Vector3.Zero, "X"),
+            (Vector3.Zero, "Y"),
+            (Vector3.Zero, "Z"),
+        ]);
+        SetOrigin(Vector3.Zero);
+        SetWorkEnvelope(box);
+        SetJobEnvelope(box);
+    }
+
+    private static double NiceStep(double raw)
+    {
+        var exp = Math.Floor(Math.Log10(raw));
+        var mag = Math.Pow(10, exp);
+        var norm = raw / mag;
+        var nice = norm switch
+        {
+            < 1.5f => 1.0,
+            < 3.5f => 2.0,
+            < 7.5f => 5.0,
+            _ => 10.0
+        };
+        return nice * mag;
     }
 
     /// <summary>

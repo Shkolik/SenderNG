@@ -49,6 +49,14 @@ class Program
         // OnFrameworkInitializationCompleted needs them when it builds the host
         // (e.g. --locale <code>), so stash them before the lifetime takes over.
         App.StartupArgs = args;
+#if DEBUG
+        // Surface Avalonia/HelixToolkit Trace logs (LogToTrace) to the console so
+        // the nightly HelixViewport's "perf"/"tick failed" lines are visible while
+        // debugging the freeze.
+        System.Diagnostics.Trace.Listeners.Add(
+            new System.Diagnostics.TextWriterTraceListener(System.Console.Error));
+        System.Diagnostics.Trace.AutoFlush = true;
+#endif
         BuildAvaloniaApp()
             .StartWithClassicDesktopLifetime(args);
     }

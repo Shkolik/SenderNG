@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
@@ -10,15 +10,15 @@
     <!-- Pinned to match Avalonia.Desktop/Win32/etc. below: a floating 12.* once
          resolved to 12.1.2 while the platform packages stayed on 12.1.1, which
          crashed startup with TypeLoadException (PopupImpl.SetHitTestVisible). -->
-    <PackageReference Include="Avalonia" Version="12.1.1" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.1" />
+    <PackageReference Include="Avalonia" Version="12.0.0" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.0.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.0" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.0" />
     <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">
       <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.*" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.*" />
   </ItemGroup>
 
   <ItemGroup>
@@ -56,7 +56,7 @@
          OutputDir/Modules/<id>/Locale (registered by the host). Linked here from
          the plugin projects so they land in the app output; real third-party
          plugins are dropped into Modules/ by hand. -->
-    <None Include="..\SenderNG.Modules.Dummy\bin\$(Configuration)\net10.0\SenderNG.Modules.Dummy.dll">
+    <None Include="..\SenderNG.Modules.Dummy\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Dummy.dll">
       <Link>Modules\SenderNG.Modules.Dummy.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -64,11 +64,11 @@
       <Link>Modules\dummy\Locale\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\SenderNG.Modules.Common\bin\$(Configuration)\net10.0\SenderNG.Modules.Common.dll">
+    <None Include="..\SenderNG.Modules.Common\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Common.dll">
       <Link>Modules\SenderNG.Modules.Common.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\SenderNG.Modules.Excellon\bin\$(Configuration)\net10.0\SenderNG.Modules.Excellon.dll">
+    <None Include="..\SenderNG.Modules.Excellon\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Excellon.dll">
       <Link>Modules\SenderNG.Modules.Excellon.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -76,7 +76,7 @@
       <Link>Modules\excellon\Locale\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\SenderNG.Modules.Hpgl\bin\$(Configuration)\net10.0\SenderNG.Modules.Hpgl.dll">
+    <None Include="..\SenderNG.Modules.Hpgl\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Hpgl.dll">
       <Link>Modules\SenderNG.Modules.Hpgl.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -84,7 +84,7 @@
       <Link>Modules\hpgl\Locale\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\SenderNG.Modules.Plotter\bin\$(Configuration)\net10.0\SenderNG.Modules.Plotter.dll">
+    <None Include="..\SenderNG.Modules.Plotter\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.dll">
       <Link>Modules\SenderNG.Modules.Plotter.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -92,7 +92,7 @@
       <Link>Modules\plotter\Locale\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\net10.0\SenderNG.Modules.Plotter.Nex.dll">
+    <None Include="..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.Nex.dll">
       <Link>Modules\SenderNG.Modules.Plotter.Nex.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -101,4 +101,38 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <!-- The Nex plugin ships MOST of its code in external assemblies
+       (HelixToolkit.Nex.*, Vortice.*, SharpGen.Runtime, ZLinq, Glslang.NET,
+       SixLabors.ImageSharp, the Microsoft.Extensions 10.x closure) and native
+       binaries (vma.dll, spirv-reflect.dll, glslang.dll). Per the drop-in
+       layout, the plugin DLL stays FLAT in Modules\ while its package closure
+       and native binaries live in Modules\plotter-nex\ — ModuleCatalog's
+       flat *.dll scan never touches them (no BadImageFormat/GetTypes noise on
+       startup), and its AssemblyResolve probe serves them from the folder.
+       Staged as a post-Build Copy, not a None+Link glob: the app's build-order
+       reference means the plugin's bin is only populated when the build RAN,
+       so evaluation-time globs would see an empty bin on a clean build and
+       copy nothing.
+       Excluded: the module DLL (staged explicitly above), the host-owned
+       SenderNG.Core / CNC.Core, and Avalonia (the app root already has the
+       pinned 12.1.1 — same identity, so LoadFrom unification serves the
+       module's reference; a second copy would invite duplicate-load noise).
+       Native files stage from the plugin's win-x64 folder (the app's are
+       win-x64-only); a future multi-rid app would need all rids. LoadFrom'd
+       managed DLLs probe their own directory for unmanaged libraries, so the
+       flattened natives resolve from Modules\plotter-nex itself. -->
+  <Target Name="StageNexPluginClosure" AfterTargets="Build">
+    <ItemGroup>
+      <_NexClosure Include="..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\*.dll"
+                   Exclude="..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.Nex.dll;
+                            ..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\SenderNG.Core.dll;
+                            ..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\CNC.Core.dll;
+                            ..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\Avalonia*.dll" />
+      <_NexNative Include="..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\runtimes\win-x64\native\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_NexClosure);@(_NexNative)"
+          DestinationFolder="$(OutputPath)Modules\plotter-nex"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>
