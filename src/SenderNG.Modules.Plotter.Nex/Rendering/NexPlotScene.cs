@@ -735,7 +735,11 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             }
             else
             {
+                // No content: hide the model bounding box and fall back to a
+                // fixed reference grid so an unloaded (or never-loaded) plot is
+                // a clean 10×10 field instead of the last model's chrome.
                 _contentFramed = false;
+                BuildEmptyChrome();
             }
         }
     }
@@ -761,6 +765,32 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         SetOrigin(Vector3.Zero);
         SetWorkEnvelope(box);
         SetJobEnvelope(box);
+    }
+
+    /// <summary>Chrome for the no-content state: a fixed square 10×10 reference
+    /// grid spanning a 100×100 field with no bounding-box envelopes — sized to
+    /// the empty-content fallback framing so it fills the view.</summary>
+    private void BuildEmptyChrome()
+    {
+        SetGrid(new SBounds(-50, -50, 0, 50, 50, 0), minor: 2, major: 10);
+        AddAxisArrows(
+        [
+            (Vector3.Zero, "X"),
+            (Vector3.Zero, "Y"),
+            (Vector3.Zero, "Z"),
+        ]);
+        SetOrigin(Vector3.Zero);
+        ClearNode(_workGeometry, _workNode);
+        ClearNode(_jobGeometry, _jobNode);
+    }
+
+    private static void ClearNode(Geometry g, LineNode node)
+    {
+        g.Vertices.Clear();
+        g.VertexColors.Clear();
+        g.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
+        // Re-set the geometry reference so the draw stream refreshes its LineCount.
+        node.Geometry = g;
     }
 
     private static double NiceStep(double raw)

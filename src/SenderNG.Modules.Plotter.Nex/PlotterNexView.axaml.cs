@@ -265,6 +265,12 @@ public partial class PlotterNexView : UserControl
             {
                 Interval = TimeSpan.FromMilliseconds(TickIntervalMs),
             };
+        }
+        // The timer survives tab switches (DisableTick stops + unsubscribes it),
+        // so re-subscribe explicitly — otherwise the restarted timer fires with
+        // no handler and the view goes dead (nothing drawn, diag frozen).
+        if (!_tickSubscribed)
+        {
             _tick.Tick += OnTick;
             _tickSubscribed = true;
         }

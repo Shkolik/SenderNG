@@ -141,6 +141,29 @@ public class PlotterNexViewModelTests : IDisposable
     }
 
     [Fact]
+    public void Closing_the_program_clears_the_plotted_content()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene);
+
+        source.Load(MillProgram());
+        Assert.True(vm.HasGeometry);
+        Assert.Equal(3, scene.Layers[^1].Added.Count);
+
+        // File → Close clears the loaded program through ProgramChanged.
+        source.Clear();
+
+        Assert.False(vm.HasGeometry);
+        Assert.False(string.IsNullOrEmpty(vm.StatusText));
+        // The fabric is re-registered empty so the view has nothing stale to
+        // draw: the latest plane layer carries no segments and a fresh tool
+        // was created.
+        Assert.Empty(scene.Layers[^1].Added);
+        Assert.True(scene.Tools.Count > 0);
+    }
+
+    [Fact]
     public void Rows_changed_maps_row_states_to_segment_run_states()
     {
         var source = new StubProgramSource();
@@ -292,6 +315,14 @@ public class PlotterNexViewModelTests : IDisposable
         {
             Program = GCodeProgram.Parse(gcode);
             _states = new ProgramRowState[Program.Entries.Count];
+            TouchedRow = 0;
+            ProgramChanged?.Invoke();
+        }
+
+        public void Clear()
+        {
+            Program = null;
+            _states = [];
             TouchedRow = 0;
             ProgramChanged?.Invoke();
         }

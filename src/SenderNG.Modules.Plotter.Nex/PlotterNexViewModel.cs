@@ -183,10 +183,10 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         }
         else
         {
-            // No program yet: register the fabric shape (plane layers + tool)
-            // so live pose updates have objects to land on while the plot is
-            // empty. The program registers onto it when it loads.
-            BuildScene();
+            // No program yet: ApplyEmpty registers the fabric shape (plane
+            // layers + tool) so live pose updates have objects to land on
+            // while the plot is empty. The program registers onto it when it
+            // loads.
             ApplyEmpty();
         }
 
@@ -336,6 +336,11 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
 
     private void ApplyEmpty()
     {
+        // Re-register fresh (empty) fabric like ApplyBuild does — the scene
+        // objects have no "clear" API, so a cleared program (File → Close)
+        // would otherwise leave the previous model's segments and tool drawn.
+        if (_sceneFactory is not null)
+            BuildScene();
         _planeOutputLines = [];
         _lineToRow = new Dictionary<uint, int>();
         StatusText = _localization.Resolve("module.plotterNex.noProgram", "No program loaded.");
