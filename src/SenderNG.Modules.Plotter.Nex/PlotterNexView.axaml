@@ -43,67 +43,67 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:DataType="vm:PlotterNexViewModel"
              x:CompileBindings="False">
 
-    <!-- The Nex engine and viewport client live on the code-behind (they are
-         concrete Nex types; the view model stays headless). The scene is
-         rendered into a D3D11 shared texture and read back to a WriteableBitmap
-         by a DispatcherTimer tick in the code-behind; GpuImage shows the result.
-         (The composition presenter path — HelixViewport — is disabled: it
-         deadlocks, upstream. See NexGpuReadback.) -->
-    <Grid Background="#101418">
-
-        <!-- Scene view + chrome, replaced entirely by the fallback border when
-             Vulkan creation failed (see NexPlotScene in the code-behind). -->
-        <Panel x:Name="ScenePanel" IsVisible="{Binding !VulkanUnavailable, Mode=OneWay}">
-            <Image x:Name="GpuImage" Stretch="UniformToFill" />
-
-            <!-- Snap toolbar: switching a preset re-frames the scene's active
-                 camera; the next readback tick picks it up. -->
-            <StackPanel Orientation="Horizontal" Spacing="4"
-                        HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
-                <Border Padding="6" Background="#80101518">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <Border Width="1" Height="24" Background="#405555" VerticalAlignment="Center" />
-                        <Button Content="XY" Click="OnSnapXy" />
-                        <Button Content="XZ" Click="OnSnapXz" />
-                        <Button Content="YZ" Click="OnSnapYz" />
-                        <Button Content="3D" Click="OnSnapIso" />
+    <!-- Skia-plotter-matching chrome: light #e8e8e8 header bar with dark text
+         and a #aaa frame, the 3D viewport filling the rest. The Nex engine and
+         viewport client live on the code-behind (they are concrete Nex types;
+         the view model stays headless). The scene is rendered into a D3D11
+         shared texture and read back to a WriteableBitmap by a DispatcherTimer
+         tick in the code-behind; GpuImage shows the result. (The composition
+         presenter path — HelixViewport — is disabled: it deadlocks, upstream.
+         See NexGpuReadback.) -->
+    <Border BorderBrush="#aaa" BorderThickness="1" Background="White">
+        <DockPanel>
+            <!-- Header bar (Skia PlotterView row): view snaps right, status left. -->
+            <Border DockPanel.Dock="Top" Background="#e8e8e8" Height="24">
+                <DockPanel Margin="8,0,6,0">
+                    <StackPanel Orientation="Horizontal" Spacing="4"
+                                DockPanel.Dock="Right" VerticalAlignment="Center">
+                        <Button Content="XY" FontSize="11" Padding="8,1" Click="OnSnapXy" />
+                        <Button Content="XZ" FontSize="11" Padding="8,1" Click="OnSnapXz" />
+                        <Button Content="YZ" FontSize="11" Padding="8,1" Click="OnSnapYz" />
+                        <Button Content="3D" FontSize="11" Padding="8,1" Click="OnSnapIso" />
                     </StackPanel>
-                </Border>
-            </StackPanel>
-
-            <!-- Status strip: healthy empty when geometry is plotted, a reason
-                 otherwise (no program / no motion / building / failed). -->
-            <Border HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
-                    Padding="10,4" Background="#B0101418" IsHitTestVisible="False">
-                <TextBlock Text="{Binding StatusText, Mode=OneWay}"
-                           Foreground="#DDD" FontSize="12" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding PlaneLettersText, Mode=OneWay}"
+                                   FontSize="11" FontWeight="SemiBold" Foreground="#333" />
+                        <TextBlock Text="{Binding ProgressText, Mode=OneWay}"
+                                   FontSize="11" Foreground="#666" Margin="12,0,0,0" />
+                        <TextBlock x:Name="StatusTextBlock"
+                                   Text="{Binding StatusText, Mode=OneWay}"
+                                   FontSize="11" Foreground="#b03030" Margin="12,0,0,0"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </DockPanel>
             </Border>
 
-            <!-- Live viewport render diagnostics (POC). "t N" counts readback ticks
-                 that presented a full frame to the bitmap, "N fps" reports
-                 completed frames per second. A ticking counter with no FPS
-                 means copy/bitmap work never completes; no counter at all
-                 means the render loop never started. -->
-            <StackPanel Orientation="Vertical" Spacing="2"
-                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10"
-                        IsHitTestVisible="False">
-                <TextBlock x:Name="CtxText" Text="ctx –" Foreground="#AFF" FontSize="11" />
-                <TextBlock x:Name="RenderText" Text="t – / – fps" Foreground="#AFF" FontSize="11" />
-            </StackPanel>
-        </Panel>
+            <Panel x:Name="ScenePanel" IsVisible="{Binding !VulkanUnavailable, Mode=OneWay}">
+                <Image x:Name="GpuImage" Stretch="UniformToFill" />
 
-        <!-- Fallback shown when no Vulkan device could be created. -->
-        <Border Background="#22262B" IsVisible="{Binding VulkanUnavailable, Mode=OneWay}">
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="460">
-                <TextBlock x:Name="FallbackTitle"
-                           Text="3D plotting unavailable"
-                           FontSize="16" FontWeight="SemiBold"
-                           Foreground="#EEE" HorizontalAlignment="Center" />
-                <TextBlock x:Name="FallbackHint"
-                           Text="No Vulkan 1.3 device could be created — 2D plotting stays available."
-                           Foreground="#AAA" TextWrapping="Wrap" HorizontalAlignment="Center" />
-            </StackPanel>
-        </Border>
+                <!-- Live viewport render diagnostics (POC). "t N" counts readback
+                     ticks that presented a full frame to the bitmap, "N fps"
+                     reports completed frames per second. A ticking counter with
+                     no FPS means copy/bitmap work never completes; no counter at
+                     all means the render loop never started. -->
+                <StackPanel Orientation="Vertical" Spacing="2"
+                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
+                            IsHitTestVisible="False">
+                    <TextBlock x:Name="CtxText" Text="ctx –" Foreground="#666" FontSize="11" />
+                    <TextBlock x:Name="RenderText" Text="t – / – fps" Foreground="#666" FontSize="11" />
+                </StackPanel>
+            </Panel>
 
-    </Grid>
+            <!-- Fallback shown when no Vulkan device could be created. -->
+            <Border Background="#22262B" IsVisible="{Binding VulkanUnavailable, Mode=OneWay}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="460">
+                    <TextBlock x:Name="FallbackTitle"
+                               Text="3D plotting unavailable"
+                               FontSize="16" FontWeight="SemiBold"
+                               Foreground="#EEE" HorizontalAlignment="Center" />
+                    <TextBlock x:Name="FallbackHint"
+                               Text="No Vulkan 1.3 device could be created — 2D plotting stays available."
+                               Foreground="#AAA" TextWrapping="Wrap" HorizontalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </DockPanel>
+    </Border>
 </UserControl>

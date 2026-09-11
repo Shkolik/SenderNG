@@ -121,6 +121,12 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     /// type's planes while no fabric is attached.</summary>
     public int PlaneCount => _sceneFactory?.PlaneCount ?? _machineType.Planes.Count;
 
+    /// <summary>Display letters per plane, joined for the header ("XYZ" or
+    /// "XY | ZA") — mirrors the Skia plotter's PlaneLetters.</summary>
+    public string PlaneLettersText => string.Join(" | ", _machineType.Planes
+        .Select((_, p) => new string(
+            _machineType.PlaneAxisIndices(p).Select(AxisLetter).ToArray())));
+
     /// <summary>"{done}/{sendable}" live-run progress over the program rows.</summary>
     public string ProgressText => $"{_programSource.DoneCount}/{_programSource.SendableCount}";
 
@@ -186,6 +192,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
 
         OnPropertyChanged(nameof(Scene));
         OnPropertyChanged(nameof(PlaneCount));
+        OnPropertyChanged(nameof(PlaneLettersText));
     }
 
     /// <summary>Drop the attached scene factory — the host view disposed its GPU
@@ -197,6 +204,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         _scene = null;
         OnPropertyChanged(nameof(Scene));
         OnPropertyChanged(nameof(PlaneCount));
+        OnPropertyChanged(nameof(PlaneLettersText));
         OnPropertyChanged(nameof(HasGeometry));
     }
 
@@ -211,6 +219,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     {
         _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
         OnPropertyChanged(nameof(PlaneCount));
+        OnPropertyChanged(nameof(PlaneLettersText));
         Rebuild();
     });
 
@@ -320,6 +329,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(HasGeometry));
         OnPropertyChanged(nameof(Scene));
         OnPropertyChanged(nameof(PlaneCount));
+        OnPropertyChanged(nameof(PlaneLettersText));
         OnPropertyChanged(nameof(ProgressText));
         Bump();
     }
@@ -427,6 +437,16 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     private void BuildScene()
     {
         _scene = _sceneFactory!.BuildScene(_machineType);
+    }
+
+    /// <summary>Controller letter for a flattened axis index — the controller's
+    /// handshake letters win, the preset's conventional letters are the fallback.</summary>
+    private char AxisLetter(int axisIndex)
+    {
+        var letters = _grbl.Capabilities.AxisLetters;
+        if (!string.IsNullOrEmpty(letters) && axisIndex < letters.Length)
+            return letters[axisIndex];
+        return _machineType.ConventionalLetter(axisIndex);
     }
 
     private void Bump()

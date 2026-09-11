@@ -374,8 +374,11 @@ public partial class PlotterNexView : UserControl
                     $"[T{_readbackTicks}.cam] {scene.DumpCamera()} vp={rc.CameraParams.ViewProjection}"
                 );
             }
-            // Light near-white stage: grid/grey toolpaths read clearly on it.
-            rc.RenderParams.BackgroundColor = new HelixToolkit.Nex.Maths.Color4(0.95f, 0.95f, 0.95f, 1.0f);
+            // Near-white stage: the pipeline applies ACES filmic tone mapping, which
+            // compresses highlights (a 0.95 clear reads ~200/255). Feed a
+            // brighter clear so the mapped output lands ~250/255 (near-white)
+            // while the grey toolpaths and RGB axes stay readable against it.
+            rc.RenderParams.BackgroundColor = new HelixToolkit.Nex.Maths.Color4(5.0f, 5.0f, 5.0f, 1.0f);
 
             // DIAGNOSTIC (temporary): A/B the GPU frustum culling — with it
             // disabled, visibility no longer depends on MeshInfo bounds, so we
