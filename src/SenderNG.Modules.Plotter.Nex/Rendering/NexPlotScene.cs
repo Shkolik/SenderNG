@@ -114,6 +114,8 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private readonly List<LineNode> _contentNodes = [];
     private bool _buildComplete;
     private long _lastContentVertices = -1;
+    private ViewPreset _preset = ViewPreset.Isometric3D;
+    private bool _contentFramed;
 
     /// <summary>Create the scene and the whole render pipeline.</summary>
     /// <remarks>
@@ -321,6 +323,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// <inheritdoc/>
     public void SetViewPreset(ViewPreset preset)
     {
+        _preset = preset;
         var (center, radius, span) = ContentMetrics();
         switch (preset)
         {
@@ -702,7 +705,22 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         {
             _lastContentVertices = sum;
             if (sum > 0)
+            {
                 BuildAutoChrome();
+                // The ctor frames the camera once against empty content; reframe
+                // to the real content on its first arrival so the initial view is
+                // centered like the snap-button frames instead of skewed toward
+                // the origin.
+                if (!_contentFramed)
+                {
+                    _contentFramed = true;
+                    SetViewPreset(_preset);
+                }
+            }
+            else
+            {
+                _contentFramed = false;
+            }
         }
     }
 
