@@ -755,7 +755,11 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             center.X + hx, center.Y + hy, center.Z + hz
         );
         var major = NiceStep(Math.Max(radius * 0.25, 1));
-        SetGrid(box, major / 5, major);
+        // Origin-corner grid: starts at machine (0,0) and runs 20% past the
+        // model's positive extent so the plot has breathing room past the box.
+        var gridMaxX = Math.Max(span.X, 1f) * 1.2f;
+        var gridMaxY = Math.Max(span.Y, 1f) * 1.2f;
+        SetGrid(new SBounds(0, 0, box.MinZ, gridMaxX, gridMaxY, box.MinZ), major / 5, major);
         AddAxisArrows(
         [
             (Vector3.Zero, "X"),
