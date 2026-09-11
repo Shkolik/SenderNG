@@ -770,11 +770,20 @@ public partial class PlotterNexView : UserControl
         try
         {
             scene.SetViewPreset(preset);
+            UpdateSnapButtons(preset);
         }
         catch
         {
             _vm!.VulkanUnavailable = true;
         }
+    }
+
+    private void UpdateSnapButtons(ViewPreset preset)
+    {
+        SnapXyButton.IsChecked = preset == ViewPreset.XY;
+        SnapXzButton.IsChecked = preset == ViewPreset.XZ;
+        SnapYzButton.IsChecked = preset == ViewPreset.YZ;
+        SnapIsoButton.IsChecked = preset == ViewPreset.Isometric3D;
     }
 
     private void OnSnapXy(object? sender, RoutedEventArgs e) => Snap(ViewPreset.XY);

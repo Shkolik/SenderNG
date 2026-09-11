@@ -116,6 +116,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private long _lastContentVertices = -1;
     private ViewPreset _preset = ViewPreset.Isometric3D;
     private bool _contentFramed;
+    private float _orthoZoom = 1f;
 
     /// <summary>Create the scene and the whole render pipeline.</summary>
     /// <remarks>
@@ -193,6 +194,12 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
 
     /// <summary>Controller the view must bind right now (camera swaps per preset).</summary>
     public ICameraController ActiveCameraController => _activeController;
+
+    /// <summary>Live orthographic zoom: world units across the view width.
+    /// Seeded from the model's bounding-box diagonal on every preset frame
+    /// (<see cref="SetViewPreset"/>), then adjusted by the wheel-zoom
+    /// controller — the tracked base for the zoom/pan work.</summary>
+    public float OrthoZoom => _orthoCamera.Width;
 
     /// <inheritdoc/>
     public ICarriagePlaneLayer AddCarriagePlane()
@@ -325,34 +332,43 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     {
         _preset = preset;
         var (center, radius, span) = ContentMetrics();
+        // One zoom basis for every orthographic projection: the model's
+        // bounding-box diagonal. Per-plane spans made a long thin board
+        // huge in YZ (max(Y,Z) is small) and tiny-consistent ones awkward;
+        // a common world-units-per-pixel keeps all projections at the same
+        // apparent scale, and is the tracked base for the wheel zoom.
+        _orthoZoom = MathF.Max(span.Length() * 1.1f, 1f);
         switch (preset)
         {
             case ViewPreset.XY:
-                _orthoCamera.Width = MathF.Max(MathF.Max(span.X, span.Y) * 1.4f, 1f);
+                _orthoCamera.Width = _orthoZoom;
                 _orthoCamera.Position = center + Vector3.UnitZ * (radius * 2f);
                 _orthoCamera.Target = center;
                 _orthoCamera.Up = Vector3.UnitY;
                 Activate(_lockedController, _orthoCamera);
                 break;
             case ViewPreset.XZ:
-                _orthoCamera.Width = MathF.Max(MathF.Max(span.X, span.Z) * 1.4f, 1f);
-                _orthoCamera.Position = center + Vector3.UnitY * (radius * 2f);
+                _orthoCamera.Width = _orthoZoom;
+                _orthoCamera.Position = center - Vector3.UnitY * (radius * 2f);
                 _orthoCamera.Target = center;
                 _orthoCamera.Up = Vector3.UnitZ;
                 Activate(_lockedController, _orthoCamera);
                 break;
             case ViewPreset.YZ:
-                _orthoCamera.Width = MathF.Max(MathF.Max(span.Y, span.Z) * 1.4f, 1f);
-                _orthoCamera.Position = center + Vector3.UnitX * (-radius * 2f);
+                _orthoCamera.Width = _orthoZoom;
+                _orthoCamera.Position = center + Vector3.UnitX * (radius * 2f);
                 _orthoCamera.Target = center;
-                _orthoCamera.Up = Vector3.UnitY;
+                _orthoCamera.Up = Vector3.UnitZ;
                 Activate(_lockedController, _orthoCamera);
                 break;
             default:
-                var dir = Vector3.Normalize(new Vector3(1f, 0.75f, 1f));
-                _perspectiveCamera.Position = center + dir * (radius * 2.2f);
+                // Skia's iso projector exactly: X -> right/down, Y -> left/down,
+                // Z -> straight up. The camera offset must be -normalize(1,1,-1)
+                // (front-upper corner); +normalize(1,1,-1) looks from underneath.
+                _perspectiveCamera.Position = center
+                    + Vector3.Normalize(new Vector3(-1f, -1f, 1f)) * (radius * 2.2f);
                 _perspectiveCamera.Target = center;
-                _perspectiveCamera.Up = Vector3.UnitY;
+                _perspectiveCamera.Up = Vector3.Normalize(new Vector3(0.5f, 0.5f, 1f));
                 _perspectiveCamera.FarPlane = MathF.Max(1000f, radius * 10f);
                 Activate(_orbitController, _perspectiveCamera);
                 break;

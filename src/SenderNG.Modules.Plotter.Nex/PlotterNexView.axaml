@@ -58,10 +58,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <DockPanel Margin="8,0,6,0">
                     <StackPanel Orientation="Horizontal" Spacing="4"
                                 DockPanel.Dock="Right" VerticalAlignment="Center">
-                        <Button Content="XY" FontSize="11" Padding="8,1" Click="OnSnapXy" />
-                        <Button Content="XZ" FontSize="11" Padding="8,1" Click="OnSnapXz" />
-                        <Button Content="YZ" FontSize="11" Padding="8,1" Click="OnSnapYz" />
-                        <Button Content="3D" FontSize="11" Padding="8,1" Click="OnSnapIso" />
+                        <ToggleButton x:Name="SnapXyButton" Content="XY" FontSize="11" Padding="8,1" Click="OnSnapXy" />
+                        <ToggleButton x:Name="SnapXzButton" Content="XZ" FontSize="11" Padding="8,1" Click="OnSnapXz" />
+                        <ToggleButton x:Name="SnapYzButton" Content="YZ" FontSize="11" Padding="8,1" Click="OnSnapYz" />
+                        <ToggleButton x:Name="SnapIsoButton" Content="3D" FontSize="11" Padding="8,1" Click="OnSnapIso" IsChecked="True" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="{Binding PlaneLettersText, Mode=OneWay}"
