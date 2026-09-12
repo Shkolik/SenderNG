@@ -79,6 +79,61 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <Panel x:Name="ScenePanel" IsVisible="{Binding !VulkanUnavailable, Mode=OneWay}">
                 <Image x:Name="GpuImage" Stretch="UniformToFill" />
 
+                <!-- Navigation input: LMB drag pans, wheel zooms at the cursor,
+                     RMB drag orbits (3D only). Bottom-right: − ⛶ + overlay with a
+                     percent readout above it. -->
+                <Panel x:Name="PlotInput"
+                       Background="Transparent"
+                       PointerPressed="OnPlotInputPointerPressed"
+                       PointerMoved="OnPlotInputPointerMoved"
+                       PointerReleased="OnPlotInputPointerReleased"
+                       PointerWheelChanged="OnPlotInputPointerWheelChanged">
+                    <Panel.Styles>
+                        <!-- Text-only nav buttons: no chrome. Idle gray; darker +
+                             semi-bold on hover and press. -->
+                        <Style Selector="Button.navBtn">
+                            <Setter Property="Width" Value="32" />
+                            <Setter Property="Height" Value="32" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="FontSize" Value="24" />
+                            <Setter Property="Foreground" Value="#777" />
+                            <Setter Property="FontWeight" Value="Normal" />
+                            <Setter Property="HorizontalContentAlignment" Value="Center" />
+                            <Setter Property="VerticalContentAlignment" Value="Center" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="0" />
+                            <Setter Property="Template">
+                                <ControlTemplate TargetType="Button">
+                                    <ContentPresenter x:Name="PART_ContentPresenter"
+                                                      Background="Transparent"
+                                                      Content="{TemplateBinding Content}"
+                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                      HorizontalContentAlignment="Center"
+                                                      VerticalContentAlignment="Center" />
+                                </ControlTemplate>
+                            </Setter>
+                        </Style>
+                        <Style Selector="Button.navBtn:pointerover">
+                            <Setter Property="Foreground" Value="#444" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Style>
+                        <Style Selector="Button.navBtn:pressed">
+                            <Setter Property="Foreground" Value="#222" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Style>
+                    </Panel.Styles>
+                    <StackPanel Orientation="Vertical" Spacing="6"
+                                HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12">
+                        <TextBlock x:Name="ZoomPctText" Text="100%" FontSize="12" Foreground="#777"
+                                   HorizontalAlignment="Center" IsVisible="False" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button x:Name="ZoomOutButton" Classes="navBtn" Content="−" Click="OnZoomOut" />
+                            <Button x:Name="ReframeButton" Classes="navBtn" Content="⛶" Click="OnReframe" />
+                            <Button x:Name="ZoomInButton" Classes="navBtn" Content="+" Click="OnZoomIn" />
+                        </StackPanel>
+                    </StackPanel>
+                </Panel>
+
                 <!-- Live viewport render diagnostics (POC). "t N" counts readback
                      ticks that presented a full frame to the bitmap, "N fps"
                      reports completed frames per second. A ticking counter with

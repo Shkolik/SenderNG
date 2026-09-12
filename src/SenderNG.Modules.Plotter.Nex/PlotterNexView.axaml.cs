@@ -40,6 +40,8 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Avalonia;
+using Avalonia.Input;
+using Vector2 = System.Numerics.Vector2;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
@@ -95,6 +97,11 @@ public partial class PlotterNexView : UserControl
     private long _windowStart;
     private double _fps;
     private int _probeCounter;
+
+    private bool _panActive;
+    private bool _orbitActive;
+    private Vector2 _lastPanPx;
+    private Vector2 _lastOrbitPx;
 
     public PlotterNexView()
     {
@@ -315,6 +322,8 @@ public partial class PlotterNexView : UserControl
         }
         var w = (uint)Math.Max(1, Math.Round(wDip * scale));
         var h = (uint)Math.Max(1, Math.Round(hDip * scale));
+        scene.SetViewportSize((int)w, (int)h);
+        UpdateZoomLabel(scene);
         if (_readback is null)
         {
             try
@@ -486,6 +495,22 @@ public partial class PlotterNexView : UserControl
             return;
         _lastDiag = text;
         RenderText.Text = text;
+    }
+
+    /// <summary>Percent readout above the zoom cluster — hidden while zoom is
+    /// effectively the fitted 100%.</summary>
+    private void UpdateZoomLabel(NexPlotScene scene)
+    {
+        var pct = scene.ZoomPercent;
+        if (Math.Abs(pct - 100.0) < 0.5)
+        {
+            if (ZoomPctText.IsVisible)
+                ZoomPctText.IsVisible = false;
+            return;
+        }
+        ZoomPctText.Text = $"{pct:0}%";
+        if (!ZoomPctText.IsVisible)
+            ZoomPctText.IsVisible = true;
     }
 
     private void AccumulateFps()
@@ -767,6 +792,78 @@ public partial class PlotterNexView : UserControl
         sb.Append(']');
         return sb.ToString();
     }
+
+    private float PxScale() => (float)(TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0);
+
+    private Vector2 ToPx(Point dip, float scale) => new((float)(dip.X * scale), (float)(dip.Y * scale));
+
+    private void OnPlotInputPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var scene = _scene;
+        if (scene is null)
+            return;
+        var px = ToPx(e.GetPosition(PlotInput), PxScale());
+        if (e.GetCurrentPoint(PlotInput).Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed)
+        {
+            _panActive = true;
+            _lastPanPx = px;
+            e.Pointer.Capture(PlotInput);
+        }
+        else if (e.GetCurrentPoint(PlotInput).Properties.PointerUpdateKind == PointerUpdateKind.RightButtonPressed)
+        {
+            _orbitActive = true;
+            _lastOrbitPx = px;
+            e.Pointer.Capture(PlotInput);
+        }
+    }
+
+    private void OnPlotInputPointerMoved(object? sender, PointerEventArgs e)
+    {
+        var scene = _scene;
+        if (scene is null)
+            return;
+        var px = ToPx(e.GetPosition(PlotInput), PxScale());
+        if (_panActive)
+        {
+            scene.PanByScreenDelta(px - _lastPanPx);
+            _lastPanPx = px;
+        }
+        else if (_orbitActive)
+        {
+            scene.RotateByScreenDelta(px - _lastOrbitPx);
+            _lastOrbitPx = px;
+        }
+    }
+
+    private void OnPlotInputPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        _panActive = false;
+        _orbitActive = false;
+        e.Pointer.Capture(null);
+    }
+
+    private void OnPlotInputPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        var scene = _scene;
+        if (scene is null)
+            return;
+        var px = ToPx(e.GetPosition(PlotInput), PxScale());
+        scene.ZoomAround(px, Math.Pow(1.25, e.Delta.Y));
+    }
+
+    private void OnZoomIn(object? sender, RoutedEventArgs e) => CenterZoom(1.25);
+
+    private void OnZoomOut(object? sender, RoutedEventArgs e) => CenterZoom(1.0 / 1.25);
+
+    private void CenterZoom(double factor)
+    {
+        var scene = _scene;
+        if (scene is null)
+            return;
+        scene.ZoomAround(new Vector2(_wPx * 0.5f, _hPx * 0.5f), factor);
+    }
+
+    private void OnReframe(object? sender, RoutedEventArgs e) => _scene?.Reframe();
 
     private void Snap(ViewPreset preset)
     {
