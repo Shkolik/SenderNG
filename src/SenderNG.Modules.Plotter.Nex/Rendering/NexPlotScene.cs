@@ -391,7 +391,13 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         if (ReferenceEquals(_activeCamera, _orthoCamera))
             CameraGestures.AnchorZoom(_orthoCamera, screenPoint, factor, _viewportWpx, _viewportHpx);
         else
+        {
             CameraGestures.AnchorZoom(_perspectiveCamera, screenPoint, factor, _viewportWpx, _viewportHpx);
+            // AnchorZoom rewrites Position, changing the real distance to
+            // target; resync the orbit radius so the next RMB drag preserves
+            // the post-zoom distance instead of snapping back to the old one.
+            _orbitRadius = (_perspectiveCamera.Target - _perspectiveCamera.Position).Length();
+        }
     }
 
     /// <inheritdoc/>
