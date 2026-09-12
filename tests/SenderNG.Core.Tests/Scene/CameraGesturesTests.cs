@@ -230,6 +230,47 @@ public class CameraGesturesTests
         Assert.Equal(Vector3.Zero, persp.Target);
     }
 
+    [Fact]
+    public void Spherical_state_round_trips_through_ApplySpherical()
+    {
+        var cam = new PerspectiveCamera
+        {
+            Position = new Vector3(3f, 4f, 5f),
+            Target = new Vector3(1f, 1f, 1f),
+            Up = Vector3.UnitY,
+            Fov = 0.8f,
+        };
+        CameraGestures.SphericalState(cam, out var theta, out var phi, out var radius);
+        CameraGestures.ApplySpherical(cam, theta, phi, radius);
+
+        Assert.Equal(3f, cam.Position.X, 4);
+        Assert.Equal(4f, cam.Position.Y, 4);
+        Assert.Equal(5f, cam.Position.Z, 4);
+        Assert.Equal(1f, cam.Up.Length(), 4);
+    }
+
+    [Fact]
+    public void ApplyOrbit_keeps_target_fixed_distance_and_clamps_pole()
+    {
+        var cam = new PerspectiveCamera
+        {
+            Position = new Vector3(50f, 50f, 50f),
+            Target = new Vector3(10f, 20f, 30f),
+            Up = Vector3.UnitY,
+            Fov = 0.8f,
+        };
+        CameraGestures.SphericalState(cam, out var theta, out var phi, out var radius);
+
+        for (var i = 0; i < 100; i++)
+            CameraGestures.ApplyOrbit(cam, new Vector2(8f, 40f), 0.005f, invertY: true, ref theta, ref phi, radius);
+
+        Assert.InRange(phi, 0.1f, MathF.PI - 0.1f);
+        Assert.Equal(10f, cam.Target.X, 4);
+        Assert.Equal(20f, cam.Target.Y, 4);
+        Assert.Equal(30f, cam.Target.Z, 4);
+        Assert.Equal(radius, (cam.Position - cam.Target).Length(), 4);
+    }
+
     private static Vector3 WorldAtCursorOrtho(OrthographicCamera cam, Vector2 cursor)
     {
         CameraGestures.GetCameraBasis(cam, out _, out var r, out var u);

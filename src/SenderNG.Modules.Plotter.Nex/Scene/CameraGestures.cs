@@ -155,4 +155,52 @@ public static class CameraGestures
         camera.Position = newTarget - dir * newDist;
         camera.Target = newTarget;
     }
+
+    /// <summary>Derive orbit state from a camera: theta/XZ-plane-from-+Z,
+    /// phi/from-+Y, radius — the stock OrbitCameraController convention.
+    /// Used to resync the scene's orbit state after a preset reframe.</summary>
+    public static void SphericalState(PerspectiveCamera camera, out float theta, out float phi, out float radius)
+    {
+        var offset = camera.Position - camera.Target;
+        radius = offset.Length();
+        if (radius < 1e-3f)
+            radius = 1f;
+        var normalized = offset / radius;
+        phi = MathF.Acos(Math.Clamp(normalized.Y, -1f, 1f));
+        theta = MathF.Atan2(normalized.X, normalized.Z);
+    }
+
+    /// <summary>Recompute camera Position/Up from orbit state, mirroring the
+    /// stock controller's formulas exactly.</summary>
+    public static void ApplySpherical(PerspectiveCamera camera, float theta, float phi, float radius)
+    {
+        phi = Math.Clamp(phi, 0.1f, MathF.PI - 0.1f);
+        var sinPhi = MathF.Sin(phi);
+        var cosPhi = MathF.Cos(phi);
+        var sinTheta = MathF.Sin(theta);
+        var cosTheta = MathF.Cos(theta);
+        var offset = new Vector3(
+            radius * sinPhi * sinTheta,
+            radius * cosPhi,
+            radius * sinPhi * cosTheta
+        );
+        camera.Position = camera.Target + offset;
+        var right = new Vector3(cosTheta, 0f, -sinTheta);
+        var offsetDir = offset / radius;
+        var up = Vector3.Normalize(Vector3.Cross(offsetDir, right));
+        if (up.LengthSquared() <= 1e-12f)
+            up = Vector3.UnitY;
+        camera.Up = up;
+    }
+
+    /// <summary>Orbit by a screen-pixel delta. Left/right yaws around the
+    /// planet's pole; up/down pitches (inverted by default like the stock
+    /// controller). Radius is preserved; Target never moves.</summary>
+    public static void ApplyOrbit(PerspectiveCamera camera, Vector2 deltaPx, float sensitivity, bool invertY, ref float theta, ref float phi, float radius)
+    {
+        theta -= deltaPx.X * sensitivity;
+        phi += (invertY ? -1f : 1f) * deltaPx.Y * sensitivity;
+        phi = Math.Clamp(phi, 0.1f, MathF.PI - 0.1f);
+        ApplySpherical(camera, theta, phi, radius);
+    }
 }
