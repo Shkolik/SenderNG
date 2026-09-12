@@ -72,6 +72,7 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
     private readonly Geometry _doneGeometry;
     private readonly LineNode _doneNode;
     private readonly List<bool> _executed = [];
+    private readonly List<RunState> _appliedStates = [];
 
     /// <summary>Create the layer under <paramref name="root"/> and attach its line node.</summary>
     public NexCarriagePlaneLayer(Node root, Engine engine)
@@ -111,6 +112,7 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         _geometry.VertexColors.Add(v);
         _motionTypes.Add(type);
         _executed.Add(false);
+        _appliedStates.Add(RunState.Pending);
         _geometry.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
         // Re-set the geometry reference so the draw stream refreshes its LineCount.
         _node.Geometry = _geometry;
@@ -121,6 +123,9 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
     {
         if (segmentIndex < 0 || segmentIndex >= _motionTypes.Count)
             return;
+        if (_appliedStates[segmentIndex] == state)
+            return;
+        _appliedStates[segmentIndex] = state;
         var color = state == RunState.Pending ? BaseColor(_motionTypes[segmentIndex]) : StateColor(state);
         var v = color.ToVector4();
         _geometry.VertexColors[segmentIndex * 2] = v;

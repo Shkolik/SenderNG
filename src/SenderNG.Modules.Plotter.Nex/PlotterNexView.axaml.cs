@@ -78,6 +78,7 @@ public partial class PlotterNexView : UserControl
 {
     private const double TickIntervalMs = 33.0;
     private const float FixedDeltaTime = 1f / 30f;
+    private const int RunStateApplyIntervalTicks = 3;
 
     private PlotterNexViewModel? _vm;
     private NexPlotScene? _scene;
@@ -307,7 +308,13 @@ public partial class PlotterNexView : UserControl
             return;
         }
 
-        _vm?.ApplyRunStateWindow();
+        // Cadence-tune the run-state color re-upload: the tick loop drives the
+        // 30Hz paint/readback, but each apply MarksDirty(VertexColor) on the
+        // plane (36k+ segments), forcing a full dynamic-buffer re-upload every
+        // tick -> sustained churn right after cycle start correlates with
+        // VK_ERROR_DEVICE_LOST. Apply at ~10Hz instead.
+        if (_readbackTicks % RunStateApplyIntervalTicks == 0)
+            _vm?.ApplyRunStateWindow();
 
         var tl = TopLevel.GetTopLevel(this);
         var scale = tl?.RenderScaling ?? 1.0;
