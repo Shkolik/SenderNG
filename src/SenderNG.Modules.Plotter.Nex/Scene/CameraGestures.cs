@@ -102,4 +102,57 @@ public static class CameraGestures
         GetCameraBasis(camera, out _, out var right, out var up);
         return (right * deltaPx.X - up * deltaPx.Y) * wpp;
     }
+
+    /// <summary>Ortho zoom anchoring the world point under the cursor: rescale
+    /// Width by 1/factor and shift Position/Target so that world point stays at
+    /// the same screen position. No-op on degenerate input; width clamped to
+    /// [0.1, 100000].</summary>
+    public static void AnchorZoom(OrthographicCamera camera, Vector2 screenPx, double factor, float viewportWpx, float viewportHpx)
+    {
+        if (factor <= 0 || viewportWpx < 1f || viewportHpx < 1f)
+            return;
+        GetCameraBasis(camera, out _, out var right, out var up);
+        var wppOld = camera.Width / viewportWpx;
+        var sxW = (screenPx.X - viewportWpx * 0.5f) * wppOld;
+        var syW = (screenPx.Y - viewportHpx * 0.5f) * wppOld;
+        var anchor = camera.Target + right * sxW - up * syW;
+
+        var newW = Math.Clamp(camera.Width / (float)factor, 0.1f, 100000f);
+        var wppNew = newW / viewportWpx;
+        var sxW2 = (screenPx.X - viewportWpx * 0.5f) * wppNew;
+        var syW2 = (screenPx.Y - viewportHpx * 0.5f) * wppNew;
+        var newTarget = anchor - (right * sxW2 - up * syW2);
+
+        camera.Position += newTarget - camera.Target;
+        camera.Target = newTarget;
+        camera.Width = newW;
+    }
+
+    /// <summary>Perspective zoom anchoring the world point under the cursor at
+    /// target depth. Distance clamped to [0.05, 10000]; no-op on degenerate
+    /// input.</summary>
+    public static void AnchorZoom(PerspectiveCamera camera, Vector2 screenPx, double factor, float viewportWpx, float viewportHpx)
+    {
+        if (factor <= 0 || viewportWpx < 1f || viewportHpx < 1f || camera.Fov <= 0f)
+            return;
+        var offset = camera.Target - camera.Position;
+        var dist = offset.Length();
+        if (dist < 0.01f)
+            return;
+        GetCameraBasis(camera, out _, out var right, out var up);
+        var wppOld = 2f * dist * MathF.Tan(camera.Fov * 0.5f) / viewportHpx;
+        var sxW = (screenPx.X - viewportWpx * 0.5f) * wppOld;
+        var syW = (screenPx.Y - viewportHpx * 0.5f) * wppOld;
+        var anchor = camera.Target + right * sxW - up * syW;
+
+        var newDist = Math.Clamp(dist / (float)factor, 0.05f, 10000f);
+        var wppNew = 2f * newDist * MathF.Tan(camera.Fov * 0.5f) / viewportHpx;
+        var sxW2 = (screenPx.X - viewportWpx * 0.5f) * wppNew;
+        var syW2 = (screenPx.Y - viewportHpx * 0.5f) * wppNew;
+        var newTarget = anchor - (right * sxW2 - up * syW2);
+
+        var dir = Vector3.Normalize(offset);
+        camera.Position = newTarget - dir * newDist;
+        camera.Target = newTarget;
+    }
 }

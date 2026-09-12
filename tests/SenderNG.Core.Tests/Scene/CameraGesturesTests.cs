@@ -141,4 +141,111 @@ public class CameraGesturesTests
         var delta = CameraGestures.ScreenPanDelta(cam, new Vector2(10f, 20f), 1000f, 500f);
         Assert.True(float.IsFinite(delta.X) && float.IsFinite(delta.Y) && float.IsFinite(delta.Z));
     }
+
+    [Fact]
+    public void Ortho_zoom_keeps_cursor_world_point_fixed_for_in_and_out()
+    {
+        var cam = new OrthographicCamera
+        {
+            Position = new Vector3(0f, 0f, 100f),
+            Target = Vector3.Zero,
+            Up = Vector3.UnitY,
+            Width = 100f,
+        };
+        var cursor = new Vector2(700f, 300f);
+
+        foreach (var factor in new[] { 1.4, 0.7 })
+        {
+            var before = WorldAtCursorOrtho(cam, cursor);
+            CameraGestures.AnchorZoom(cam, cursor, factor, 1000f, 500f);
+            var after = WorldAtCursorOrtho(cam, cursor);
+            Assert.Equal(before.X, after.X, 4);
+            Assert.Equal(before.Y, after.Y, 4);
+            Assert.Equal(before.Z, after.Z, 4);
+        }
+    }
+
+    [Fact]
+    public void Ortho_zoom_clamps_width_at_bounds()
+    {
+        var cam = new OrthographicCamera
+        {
+            Position = new Vector3(0f, 0f, 100f),
+            Target = Vector3.Zero,
+            Up = Vector3.UnitY,
+            Width = 1f,
+        };
+        CameraGestures.AnchorZoom(cam, new Vector2(10f, 10f), 1e9f, 100f, 100f);
+        Assert.Equal(0.1f, cam.Width, 5);
+        CameraGestures.AnchorZoom(cam, new Vector2(10f, 10f), 1e-9f, 100f, 100f);
+        Assert.Equal(100000f, cam.Width, 1);
+    }
+
+    [Fact]
+    public void Perspective_zoom_keeps_cursor_world_point_fixed()
+    {
+        var cam = new PerspectiveCamera
+        {
+            Position = new Vector3(0f, 0f, 100f),
+            Target = Vector3.Zero,
+            Up = Vector3.UnitY,
+            Fov = 0.8f,
+        };
+        var cursor = new Vector2(650f, 350f);
+
+        foreach (var factor in new[] { 1.4, 0.7 })
+        {
+            var before = WorldAtCursorPersp(cam, cursor);
+            CameraGestures.AnchorZoom(cam, cursor, factor, 1000f, 500f);
+            var after = WorldAtCursorPersp(cam, cursor);
+            Assert.Equal(before.X, after.X, 4);
+            Assert.Equal(before.Y, after.Y, 4);
+            Assert.Equal(before.Z, after.Z, 4);
+        }
+    }
+
+    [Fact]
+    public void Zoom_degrades_to_noop_for_invalid_inputs()
+    {
+        var cam = new OrthographicCamera
+        {
+            Position = new Vector3(0f, 0f, 100f),
+            Target = Vector3.Zero,
+            Up = Vector3.UnitY,
+            Width = 100f,
+        };
+        CameraGestures.AnchorZoom(cam, new Vector2(5f, 5f), 0f, 100f, 100f);
+        Assert.Equal(100f, cam.Width, 5);
+
+        var persp = new PerspectiveCamera
+        {
+            Position = new Vector3(0f, 0f, 100f),
+            Target = Vector3.Zero,
+            Up = Vector3.UnitY,
+            Fov = 0f,
+        };
+        var pos = persp.Position;
+        CameraGestures.AnchorZoom(persp, new Vector2(5f, 5f), 1.5, 100f, 100f);
+        Assert.Equal(pos, persp.Position);
+        Assert.Equal(Vector3.Zero, persp.Target);
+    }
+
+    private static Vector3 WorldAtCursorOrtho(OrthographicCamera cam, Vector2 cursor)
+    {
+        CameraGestures.GetCameraBasis(cam, out _, out var r, out var u);
+        var wpp = cam.Width / 1000f;
+        var sxW = (cursor.X - 500f) * wpp;
+        var syW = (cursor.Y - 250f) * wpp;
+        return cam.Target + r * sxW - u * syW;
+    }
+
+    private static Vector3 WorldAtCursorPersp(PerspectiveCamera cam, Vector2 cursor)
+    {
+        var dist = (cam.Target - cam.Position).Length();
+        var wpp = 2f * dist * MathF.Tan(cam.Fov * 0.5f) / 500f;
+        CameraGestures.GetCameraBasis(cam, out _, out var r, out var u);
+        var sxW = (cursor.X - 500f) * wpp;
+        var syW = (cursor.Y - 250f) * wpp;
+        return cam.Target + r * sxW - u * syW;
+    }
 }
