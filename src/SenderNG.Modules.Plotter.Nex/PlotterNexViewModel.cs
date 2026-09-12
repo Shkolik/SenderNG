@@ -67,6 +67,11 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     /// are processed off the UI thread and posted back (generation-guarded).</summary>
     public const int AsyncBuildThreshold = 4000;
 
+    /// <summary>Coalesced run-state window cap — a frontier jump larger than
+    /// this falls back to the full rescan instead of walking tens of thousands
+    /// of rows on the UI thread (Skia OverlayCap idiom).</summary>
+    internal const int RunStateWindowCap = 4096;
+
     private readonly ILoadedProgramSource _programSource;
     private readonly IGrblService _grbl;
     private readonly SettingsService _settings;
@@ -81,6 +86,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     private int _generation;
     private bool _vulkanUnavailable;
     private string? _lastControllerPose;
+    private int _lastAppliedTouched = -1; // last TouchedRow whose rows were fully applied
 
     public PlotterNexViewModel(
         ILoadedProgramSource programSource,
@@ -231,7 +237,6 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnRowsChanged() => PostUi(() =>
     {
-        ApplyRunStates();
         OnPropertyChanged(nameof(ProgressText));
         Bump();
     });
@@ -416,14 +421,53 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         return [.. lines];
     }
 
-    /// <summary>Row-state frontier → segment run state. Idle (not yet sent) is
-    /// <see cref="RunState.Pending"/>; anything unknown also stays Pending.</summary>
-    private void ApplyRunStates()
+    /// <summary>Coalesced per-frame frontier apply, driven by the view's tick
+    /// loop (Skia pattern): each ack raises RowsChanged cheaply; the next tick
+    /// applies only rows in (lastAppliedTouched, TouchedRow]. A TouchedRow
+    /// regression (rewind) triggers one full rescan. Cap: a huge window falls
+    /// back to the full rescan instead of walking tens of thousands of rows
+    /// on the UI thread.</summary>
+    public void ApplyRunStateWindow()
+    {
+        var factory = _sceneFactory;
+        if (factory is null || _planeOutputLines.Length == 0)
+            return;
+        var touched = _programSource.TouchedRow;
+        if (touched < _lastAppliedTouched)
+        {
+            FullApplyRunStates();
+            return;
+        }
+        var endpointStart = Math.Max(0, _lastAppliedTouched + 1);
+        for (var p = 0; p < _planeOutputLines.Length; p++)
+        {
+            var lines = _planeOutputLines[p];
+            var end = touched;
+            var low = LowerBoundRow(lines, endpointStart);
+            var high = LowerBoundRow(lines, end + 1);
+            if (high - low > RunStateWindowCap)
+            {
+                FullApplyRunStates();
+                return;
+            }
+            if (high <= low)
+                continue;
+            var layer = factory.PlaneLayer(p);
+            for (var i = low; i < high; i++)
+            {
+                if (!_lineToRow.TryGetValue(lines[i], out var row))
+                    continue; // synthesized move — stays Pending
+                layer.SetSegmentRunState(i, MapRowState(_programSource.GetRowState(row)));
+            }
+        }
+        _lastAppliedTouched = touched;
+    }
+
+    private void FullApplyRunStates()
     {
         var factory = _sceneFactory;
         if (factory is null)
             return;
-
         var lineToRow = _lineToRow;
         for (var p = 0; p < _planeOutputLines.Length; p++)
         {
@@ -432,10 +476,33 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
             for (var i = 0; i < lines.Length; i++)
             {
                 if (!lineToRow.TryGetValue(lines[i], out var row))
-                    continue; // Not a real program line (synthesized move) — stays Pending.
+                    continue;
                 layer.SetSegmentRunState(i, MapRowState(_programSource.GetRowState(row)));
             }
+            layer.RebuildExecuted();
         }
+        _lastAppliedTouched = _programSource.TouchedRow;
+    }
+
+    /// <summary>First index in <paramref name="lines"/> whose mapped row is ≥
+    /// <paramref name="targetRow"/> — rows are monotonic along a plane's output
+    /// lines (output order follows program order). Missing rows are -1 and sort
+    /// before every target.</summary>
+    private int LowerBoundRow(uint[] lines, int targetRow)
+    {
+        if (targetRow <= 0)
+            return 0;
+        int lo = 0, hi = lines.Length;
+        while (lo < hi)
+        {
+            var mid = (lo + hi) / 2;
+            var row = _lineToRow.TryGetValue(lines[mid], out var r) ? r : -1;
+            if (row < targetRow)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        return lo;
     }
 
     private static RunState MapRowState(ProgramRowState rowState) => rowState switch

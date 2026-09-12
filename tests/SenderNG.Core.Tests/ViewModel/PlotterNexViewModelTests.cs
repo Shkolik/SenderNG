@@ -173,15 +173,37 @@ public class PlotterNexViewModelTests : IDisposable
         var layer = scene.Layers[^1];
         Assert.Empty(layer.RunStateCalls);
 
-        // Rows 1..2 (the two first G1 motions) acked ok — the run frontier moved.
         source.AckRows(1, 3);
+        vm.ApplyRunStateWindow();
 
-        // Output segments are lines 2,3,4 → rows 1,2,3; rows 1,2 are Ok
-        // (Executed), row 3 is still Idle (Pending).
         Assert.Equal(
-            [(0, RunState.Executed), (1, RunState.Executed), (2, RunState.Pending)],
+            [(0, RunState.Executed), (1, RunState.Executed)],
             layer.RunStateCalls);
         Assert.True(vm.FrontierVersion > 0);
+    }
+
+    [Fact]
+    public void ApplyRunStateWindow_applies_only_newly_touched_rows()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene);
+        source.Load(MillProgram()); // 3 output segments, rows 1..3
+        var layer = scene.Layers[^1];
+
+        source.AckRows(1, 3); // rows 1,2 Ok — touched = 2
+        vm.ApplyRunStateWindow();
+
+        // Only rows in (prevTouched, touched] get SetSegmentRunState: indices 0,1.
+        Assert.Equal(
+            [(0, RunState.Executed), (1, RunState.Executed)],
+            layer.RunStateCalls);
+
+        source.AckRows(3, 4); // row 3 Ok — touched = 3
+        vm.ApplyRunStateWindow();
+        Assert.Equal(
+            [(0, RunState.Executed), (1, RunState.Executed), (2, RunState.Executed)],
+            layer.RunStateCalls);
     }
 
     [Fact]
@@ -248,9 +270,13 @@ public class PlotterNexViewModelTests : IDisposable
         // Ack rows 1..3 (rows 0 and 4 untouched) — the run frontier moved;
         // every plane layer must walk the same rows in lockstep.
         source.AckRows(1, 4, ProgramRowState.Sent);
+        vm.ApplyRunStateWindow();
 
+        // Window (prev=-1, touched=3] maps to output segments 0..2 (rows 1..3,
+        // all Sent → InFlight); segment 3 (row 4) is not yet touched so it gets
+        // no call.
         Assert.Equal(
-            [(0, RunState.InFlight), (1, RunState.InFlight), (2, RunState.InFlight), (3, RunState.Pending)],
+            [(0, RunState.InFlight), (1, RunState.InFlight), (2, RunState.InFlight)],
             scene.Layers[^2].RunStateCalls);
         Assert.Equal(scene.Layers[^2].RunStateCalls, scene.Layers[^1].RunStateCalls);
     }

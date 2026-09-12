@@ -56,4 +56,9 @@
     <ProjectReference Include="..\SenderNG.Core\SenderNG.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Headless tests assert internal surface (RapidColor, RunStateWindowCap, ...). -->
+    <InternalsVisibleTo Include="SenderNG.Core.Tests" />
+  </ItemGroup>
+
 </Project>

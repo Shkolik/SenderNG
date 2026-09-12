@@ -147,6 +147,7 @@ public sealed class FakeCarriagePlaneLayer : ICarriagePlaneLayer
 
     public void AddSegment(LineSegment seg, MotionType type) => Segments.Add((seg, type));
     public void SetSegmentRunState(int segmentIndex, RunState state) { }
+    public void RebuildExecuted() { }
 }
 
 /// <summary>Test double for ILoftSurface that records wire plane sets.</summary>

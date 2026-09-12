@@ -125,6 +125,7 @@ public class PlotSceneAbstractionTests
     {
         public void AddSegment(LineSegment seg, MotionType type) { }
         public void SetSegmentRunState(int segmentIndex, RunState state) { }
+        public void RebuildExecuted() { }
     }
 
     private sealed class StubLoftSurface : ILoftSurface

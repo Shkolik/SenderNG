@@ -44,4 +44,8 @@ public interface ICarriagePlaneLayer
 
     /// <summary>Set the run state of a segment by index.</summary>
     void SetSegmentRunState(int segmentIndex, RunState state);
+
+    /// <summary>Rebuild the executed overlay from the current run-state set
+    /// (called on rewind; rare O(n)).</summary>
+    void RebuildExecuted();
 }

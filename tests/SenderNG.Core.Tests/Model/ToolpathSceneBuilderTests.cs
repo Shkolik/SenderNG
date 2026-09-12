@@ -81,10 +81,13 @@ public sealed class RecorderPlaneLayer : ICarriagePlaneLayer
 {
     public List<(Vector3 From, Vector3 To, MotionType Type)> Added { get; } = [];
     public List<(int SegmentIndex, RunState State)> RunStateCalls { get; } = [];
+    public List<int> RebuildCalls { get; } = [];
 
     public void AddSegment(LineSegment seg, MotionType type) =>
         Added.Add((seg.From, seg.To, type));
 
     public void SetSegmentRunState(int segmentIndex, RunState state) =>
         RunStateCalls.Add((segmentIndex, state));
+
+    public void RebuildExecuted() => RebuildCalls.Add(1);
 }

@@ -56,10 +56,15 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
 {
     // Skia-plotter-compatible palette (opaque Color4 values).
     private static readonly Color4 CutColor = new(0.5f, 0.5f, 0.5f, 1f);
-    private static readonly Color4 RapidColor = new(0.78f, 0.78f, 0.78f, 1f);
+    internal static readonly Color4 RapidColor = new(0.9f, 0.12f, 0.12f, 1f);
     private static readonly Color4 ExecutedColor = new(0.106f, 0.62f, 0.243f, 1f);
     private static readonly Color4 InFlightColor = new(0.878f, 0.588f, 0.125f, 1f);
     private static readonly Color4 ErrorColor = new(0.75f, 0.19f, 0.19f, 1f);
+
+    internal const float BaseLineThickness = 1.6f;
+    internal const float ExecutedLineThickness = 2.4f;
+
+    internal static bool IsExecuted(RunState state) => state == RunState.Executed;
 
     private readonly Geometry _geometry;
     private readonly LineNode _node;
@@ -74,7 +79,7 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         engine.Add(_geometry);
         _node = root.World.CreateLineNode("carriage-plane");
         _node.Geometry = _geometry;
-        _node.LineThickness = 1.6f;
+        _node.LineThickness = BaseLineThickness;
         _node.LineColor = Color4.White;
         root.AddChild(_node);
     }
@@ -119,6 +124,11 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         RunState.Error => ErrorColor,
         _ => throw new ArgumentOutOfRangeException(nameof(state)),
     };
+
+    /// <summary>Rebuild the executed overlay from the current run-state set
+    /// (rewind only; rare O(n)). The done overlay node lands in Task 3 — for
+    /// now the recolor surface alone is enough.</summary>
+    public void RebuildExecuted() { }
 
     /// <summary>Diagnostic (temporary): the executed-overlay node's segment count.
     /// Full geometry accounting lands with the done-node in a later task.</summary>
