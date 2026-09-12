@@ -751,6 +751,9 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         return sb.ToString();
     }
 
+    /// <summary>Diagnostic (temporary): one executed-overlay summary per layer.</summary>
+    public string[] LiveLayerDumps() => [.. _liveLayers.Select(l => l.DumpExecutedOverlay())];
+
     /// <summary>The headless Vulkan context the engine renders with.</summary>
     public IContext Context => _context;
 

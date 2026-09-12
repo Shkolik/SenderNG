@@ -69,6 +69,9 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
     private readonly Geometry _geometry;
     private readonly LineNode _node;
     private readonly List<MotionType> _motionTypes = [];
+    private readonly Geometry _doneGeometry;
+    private readonly LineNode _doneNode;
+    private readonly List<bool> _executed = [];
 
     /// <summary>Create the layer under <paramref name="root"/> and attach its line node.</summary>
     public NexCarriagePlaneLayer(Node root, Engine engine)
@@ -82,6 +85,16 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         _node.LineThickness = BaseLineThickness;
         _node.LineColor = Color4.White;
         root.AddChild(_node);
+
+        _doneGeometry = new Geometry(Topology.Line, isDynamic: true);
+        // Register with the engine so Geometry.Valid becomes true; otherwise the
+        // node never reaches the line draw stream and renders nothing.
+        engine.Add(_doneGeometry);
+        _doneNode = root.World.CreateLineNode("plane-done");
+        _doneNode.Geometry = _doneGeometry;
+        _doneNode.LineThickness = ExecutedLineThickness;
+        _doneNode.LineColor = ExecutedColor;
+        root.AddChild(_doneNode);
     }
 
     /// <summary>The underlying line node (for scene framing and removal).</summary>
@@ -97,6 +110,7 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         _geometry.VertexColors.Add(v);
         _geometry.VertexColors.Add(v);
         _motionTypes.Add(type);
+        _executed.Add(false);
         _geometry.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
         // Re-set the geometry reference so the draw stream refreshes its LineCount.
         _node.Geometry = _geometry;
@@ -112,6 +126,38 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         _geometry.VertexColors[segmentIndex * 2] = v;
         _geometry.VertexColors[segmentIndex * 2 + 1] = v;
         _geometry.MarkDirty(GeometryBufferType.VertexColor);
+
+        // Overlay bookkeeping: append the done segment exactly once per
+        // Pending/InFlight → Executed transition; the flag flip keeps window
+        // re-visits (same segment ticked across rows) idempotent. Rewind
+        // (Executed → any other state) rebuilds the overlay from the flags.
+        var wasExecuted = _executed[segmentIndex];
+        var nowExecuted = IsExecuted(state);
+        _executed[segmentIndex] = nowExecuted;
+        if (nowExecuted && !wasExecuted)
+            AppendDoneSegment(segmentIndex);
+        else if (!nowExecuted && wasExecuted)
+            RebuildFromExecuted();
+    }
+
+    /// <summary>Append one done segment (two vertices + two colors) to the
+    /// green thickness overlay node.</summary>
+    private void AppendDoneSegment(int segmentIndex)
+    {
+        var v = ExecutedColor.ToVector4();
+        _doneGeometry.Vertices.Add(_geometry.Vertices[segmentIndex * 2]);
+        _doneGeometry.Vertices.Add(_geometry.Vertices[segmentIndex * 2 + 1]);
+        _doneGeometry.VertexColors.Add(v);
+        _doneGeometry.VertexColors.Add(v);
+        MarkDoneDirty();
+    }
+
+    /// <summary>Flush the done geometry to the draw stream: mark both buffers
+    /// dirty and re-set the geometry reference so LineCount refreshes.</summary>
+    private void MarkDoneDirty()
+    {
+        _doneGeometry.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
+        _doneNode.Geometry = _doneGeometry;
     }
 
     private static Color4 BaseColor(MotionType type) =>
@@ -125,12 +171,28 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         _ => throw new ArgumentOutOfRangeException(nameof(state)),
     };
 
-    /// <summary>Rebuild the executed overlay from the current run-state set
-    /// (rewind only; rare O(n)). The done overlay node lands in Task 3 — for
-    /// now the recolor surface alone is enough.</summary>
-    public void RebuildExecuted() { }
+    /// <inheritdoc/>
+    public void RebuildExecuted() => RebuildFromExecuted();
 
-    /// <summary>Diagnostic (temporary): the executed-overlay node's segment count.
-    /// Full geometry accounting lands with the done-node in a later task.</summary>
-    public string DumpExecutedOverlay() => "done:0";
+    /// <summary>Clear and re-append the done overlay from the current executed
+    /// set (rewind only; rare O(n)).</summary>
+    private void RebuildFromExecuted()
+    {
+        _doneGeometry.Vertices.Clear();
+        _doneGeometry.VertexColors.Clear();
+        for (var i = 0; i < _executed.Count; i++)
+        {
+            if (_executed[i])
+                AppendDoneSegment(i);
+        }
+        MarkDoneDirty();
+    }
+
+    /// <summary>Diagnostic (temporary): executed-overlay vertex count (2 per
+    /// done segment).</summary>
+    internal int ExecutedVerticesCount => _doneGeometry.Vertices.Count;
+
+    /// <summary>Diagnostic (temporary): executed overlay accounting.</summary>
+    public string DumpExecutedOverlay() =>
+        $"done verts={_doneGeometry.Vertices.Count} executedSegs={_executed.Count(x => x)}";
 }
