@@ -376,7 +376,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// <inheritdoc/>
     public void Pan(PanDelta delta)
     {
-        var v = delta.WorldDelta;
+        var v = -delta.WorldDelta;
         _perspectiveCamera.Position += v;
         _perspectiveCamera.Target += v;
         _orthoCamera.Position += v;
