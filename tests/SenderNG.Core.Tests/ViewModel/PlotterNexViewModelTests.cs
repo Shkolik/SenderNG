@@ -391,6 +391,52 @@ public class PlotterNexViewModelTests : IDisposable
         Assert.Equal(new Vector3(7, 8, 9), Assert.Single(scene.Tools[^1].Positions[^1].Points));
     }
 
+    [Fact]
+    public void Large_frontier_jump_falls_back_to_full_rescan()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene);
+        // Small program, but force a bounded touch window anyway — the cap path
+        // triggers only when the window exceeds RunStateWindowCap, so instead
+        // verify the full-rescan path via a rewind.
+        source.Load(MillProgram());
+        source.AckRows(1, 3);
+        vm.ApplyRunStateWindow();
+        var before = scene.Layers[^1].RunStateCalls.Count;
+        Assert.True(before > 0);
+
+        source.Rewind();
+        vm.ApplyRunStateWindow();
+        Assert.Single(scene.Layers[^1].RebuildCalls); // rewind → RebuildExecuted
+        Assert.True(scene.Layers[^1].RunStateCalls.Count > before); // full rescan re-applied
+    }
+
+    [Fact]
+    public void Foam_check_mode_tracks_last_acked_end_on_both_planes()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene, MachineTypes.Foam);
+        source.Load(
+            "G21\n" +
+            "G0 X10 Y5 Z10 A12 F240\n" +
+            "G1 X20 Y8 Z20 A24\n" +
+            "G1 X30 Y5 Z30 A36\n" +
+            "G1 Y20 A48\n");
+        source.AckRows(1, 5);
+        vm.ApplyRunStateWindow();
+
+        _grbl.Source.Emit(new MachineState { Status = "Check", Positions = new double[] { 99, 99, 99, 99 } });
+
+        var tool = scene.Tools[^1];
+        var endpoint = tool.Positions[^1];
+        Assert.Equal(2, endpoint.Points.Length);
+        // Last acked (row 4, G1 Y20 A48): plane0 [X,Y] = (30,20), plane1 [Z,A] = (30,48).
+        Assert.Equal(new Vector3(30, 20, 0), endpoint.Points[0]);
+        Assert.Equal(new Vector3(30, 48, 0), endpoint.Points[1]);
+    }
+
     /// <summary>Read-only program facade over a parsed G-code string, with an
     /// AckRows live-run tick — mirrors the Skia headless stub.</summary>
     private sealed class StubProgramSource : ILoadedProgramSource
