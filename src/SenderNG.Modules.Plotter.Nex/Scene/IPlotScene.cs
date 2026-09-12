@@ -63,6 +63,15 @@ public interface IPlotScene : IDisposable
     /// (no-op in the rotation-locked orthographic presets).</summary>
     void RotateByScreenDelta(Vector2 screenDeltaPx);
 
+    /// <summary>Begin an orbit gesture: pin the rotation origin to the world
+    /// point on the target-depth plane under the cursor. No-op in the
+    /// rotation-locked orthographic presets.</summary>
+    void BeginOrbit(Vector2 screenPointPx);
+
+    /// <summary>End the orbit gesture; subsequent RotateByScreenDelta calls
+    /// no-op until the next BeginOrbit.</summary>
+    void EndOrbit();
+
     /// <summary>Re-run the current preset's framing: reset pan, recenter,
     /// reseed the fit zoom (and return to the iso angle in 3D).</summary>
     void Reframe();

@@ -110,9 +110,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private float _viewportHpx = 1f;
     private float _fitOrthoWidth = 1f;
     private float _fitDist = 1f;
-    private float _orbitTheta;
-    private float _orbitPhi = MathF.PI * 0.5f;
-    private float _orbitRadius = 1f;
+    private Vector3? _orbitOrigin;
 
     /// <summary>Create the scene and the whole render pipeline.</summary>
     /// <remarks>
@@ -365,10 +363,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
                 _perspectiveCamera.FarPlane = MathF.Max(1000f, radius * 10f);
                 _activeCamera = _perspectiveCamera;
                 _fitDist = radius * 2.2f;
-                // Re-sync the orbit state so the first RMB drag orbits the
-                // freshly framed camera instead of stale construction state.
-                CameraGestures.SphericalState(
-                    _perspectiveCamera, out _orbitTheta, out _orbitPhi, out _orbitRadius);
                 break;
         }
     }
@@ -393,10 +387,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         else
         {
             CameraGestures.AnchorZoom(_perspectiveCamera, screenPoint, factor, _viewportWpx, _viewportHpx);
-            // AnchorZoom rewrites Position, changing the real distance to
-            // target; resync the orbit radius so the next RMB drag preserves
-            // the post-zoom distance instead of snapping back to the old one.
-            _orbitRadius = (_perspectiveCamera.Target - _perspectiveCamera.Position).Length();
         }
     }
 
@@ -421,11 +411,38 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// <inheritdoc/>
     public void RotateByScreenDelta(Vector2 screenDeltaPx)
     {
-        if (ReferenceEquals(_activeCamera, _perspectiveCamera))
-            CameraGestures.ApplyOrbit(
-                _perspectiveCamera, screenDeltaPx, OrbitSensitivity, invertY: true,
-                ref _orbitTheta, ref _orbitPhi, _orbitRadius);
+        if (ReferenceEquals(_activeCamera, _perspectiveCamera) == false)
+            return;
+        if (_orbitOrigin is not Vector3 origin)
+            return;
+        CameraGestures.RotateAroundPoint(
+            _perspectiveCamera, origin, screenDeltaPx, OrbitSensitivity, invertY: true, useWorldUp: false);
     }
+
+    /// <inheritdoc/>
+    public void BeginOrbit(Vector2 screenPointPx)
+    {
+        if (ReferenceEquals(_activeCamera, _perspectiveCamera) == false)
+        {
+            _orbitOrigin = null;
+            return;
+        }
+        var cam = _perspectiveCamera;
+        var dist = (cam.Target - cam.Position).Length();
+        if (dist < 0.01f)
+        {
+            _orbitOrigin = cam.Target;
+            return;
+        }
+        CameraGestures.GetCameraBasis(cam, out _, out var right, out var up);
+        var wpp = 2f * dist * MathF.Tan(cam.Fov * 0.5f) / MathF.Max(_viewportHpx, 1f);
+        var sxW = (screenPointPx.X - _viewportWpx * 0.5f) * wpp;
+        var syW = (screenPointPx.Y - _viewportHpx * 0.5f) * wpp;
+        _orbitOrigin = cam.Target + right * sxW - up * syW;
+    }
+
+    /// <inheritdoc/>
+    public void EndOrbit() => _orbitOrigin = null;
 
     /// <inheritdoc/>
     public void Reframe() => SetViewPreset(_preset);

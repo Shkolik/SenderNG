@@ -385,6 +385,8 @@ public class PlotterNexViewModelTests : IDisposable
         public void SetViewportSize(int wPx, int hPx) { }
         public void PanByScreenDelta(Vector2 screenDeltaPx) { }
         public void RotateByScreenDelta(Vector2 screenDeltaPx) { }
+        public void BeginOrbit(Vector2 screenPointPx) { }
+        public void EndOrbit() { }
         public void Reframe() { }
         public void AddAxisArrows(IReadOnlyList<(Vector3 Pos, string Label)> arrows) { }
         public void SetGrid(BoundingBox bounds, double minor, double major) { }
