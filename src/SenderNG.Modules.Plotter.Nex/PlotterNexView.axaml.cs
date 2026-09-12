@@ -813,6 +813,7 @@ public partial class PlotterNexView : UserControl
         {
             _orbitActive = true;
             _lastOrbitPx = px;
+            scene.BeginOrbit(px);
             e.Pointer.Capture(PlotInput);
         }
     }
@@ -839,6 +840,7 @@ public partial class PlotterNexView : UserControl
     {
         _panActive = false;
         _orbitActive = false;
+        _scene?.EndOrbit();
         e.Pointer.Capture(null);
     }
 
