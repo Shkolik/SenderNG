@@ -147,8 +147,8 @@ public sealed class NexPlotTool : IPlotTool
         var a = _coneNodeA.Geometry;
         var b = _coneNodeB.Geometry;
         return $"wire(en={_segmentNode.Enabled}, lc={_segmentNode.LineCount}, vc={_segmentGeometry.Vertices.Count}) "
-            + $"coneA(en={_coneNodeA.Enabled}, lc={_coneNodeA.LineCount}, vc={(a is null ? -1 : a.Vertices.Count)}, r={(a is null ? -1f : a.BoundingSphereLocal.Radius):F2}) "
-            + $"coneB(en={_coneNodeB.Enabled}, lc={_coneNodeB.LineCount}, vc={(b is null ? -1 : b.Vertices.Count)})";
+            + $"coneA(en={_coneNodeA.Enabled}, lc={_coneNodeA.LineCount}, vc={(a is null ? -1 : a.Vertices.Count)}, r={(a is null ? -1f : a.BoundingSphereLocal.Radius):F2}, t={_coneNodeA.Transform.Translation}) "
+            + $"coneB(en={_coneNodeB.Enabled}, lc={_coneNodeB.LineCount}, vc={(b is null ? -1 : b.Vertices.Count)}, t={_coneNodeB.Transform.Translation})";
     }
 
     /// <summary>Wireframe cone with apex at the origin opening along +Z

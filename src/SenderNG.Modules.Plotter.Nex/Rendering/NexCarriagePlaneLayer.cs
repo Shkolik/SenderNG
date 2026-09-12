@@ -119,4 +119,8 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         RunState.Error => ErrorColor,
         _ => throw new ArgumentOutOfRangeException(nameof(state)),
     };
+
+    /// <summary>Diagnostic (temporary): the executed-overlay node's segment count.
+    /// Full geometry accounting lands with the done-node in a later task.</summary>
+    public string DumpExecutedOverlay() => "done:0";
 }

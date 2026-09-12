@@ -80,6 +80,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     private Dictionary<uint, int> _lineToRow = new();
     private int _generation;
     private bool _vulkanUnavailable;
+    private string? _lastControllerPose;
 
     public PlotterNexViewModel(
         ILoadedProgramSource programSource,
@@ -157,6 +158,11 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    /// <summary>Diagnostic (temporary): the raw controller axes that last drove
+    /// the tool endpoint — lets the tick log correlate "VM saw X" with "node
+    /// transform shows Y" for the stuck-at-origin cone.</summary>
+    public string? LastControllerPose => _lastControllerPose;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>
@@ -232,6 +238,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnControllerState(MachineState state)
     {
+        _lastControllerPose = $"status={state.Status} pos={string.Join(",", state.Positions ?? [])}";
         var positions = state.Positions;
         var factory = _sceneFactory;
         if (positions is null || factory?.Tool is null)

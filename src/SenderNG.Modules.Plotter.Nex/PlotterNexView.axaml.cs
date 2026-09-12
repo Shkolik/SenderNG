@@ -426,7 +426,7 @@ public partial class PlotterNexView : UserControl
             }
             if (_probeCounter % 60 == 1)
             {
-                PoolDiagnostics.LogLine($"[T{_readbackTicks}.scene] culling={!scene.DiagnosticDisableCulling} {scene.DumpContent()}");
+                PoolDiagnostics.LogLine($"[T{_readbackTicks}.scene] culling={!scene.DiagnosticDisableCulling} {scene.DumpContent()} vm={_vm!.LastControllerPose}");
                 PoolDiagnostics.LogLine($"[T{_readbackTicks}.streams] {DumpLineStreams(scene.Context, scene.WorldData)}");
                 PoolDiagnostics.LogLine($"[T{_readbackTicks}.fetch] {DumpFetchInputs(scene.Context, scene.WorldData)}");
             }
