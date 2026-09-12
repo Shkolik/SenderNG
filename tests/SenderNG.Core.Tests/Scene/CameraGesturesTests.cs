@@ -250,25 +250,98 @@ public class CameraGesturesTests
     }
 
     [Fact]
-    public void ApplyOrbit_keeps_target_fixed_distance_and_clamps_pole()
+    public void RotateAroundPoint_right_drag_spins_model_right_and_preserves_radius()
     {
+        var origin = Vector3.Zero;
         var cam = new PerspectiveCamera
         {
-            Position = new Vector3(50f, 50f, 50f),
-            Target = new Vector3(10f, 20f, 30f),
+            Position = new Vector3(0f, 0f, 100f),
+            Target = origin,
             Up = Vector3.UnitY,
             Fov = 0.8f,
         };
-        CameraGestures.SphericalState(cam, out var theta, out var phi, out var radius);
+        CameraGestures.RotateAroundPoint(cam, origin, new Vector2(30f, 0f), 0.01f, invertY: true, useWorldUp: false);
 
-        for (var i = 0; i < 100; i++)
-            CameraGestures.ApplyOrbit(cam, new Vector2(8f, 40f), 0.005f, invertY: true, ref theta, ref phi, radius);
+        // Pure yaw about the (screen/camera) up axis from the base pose: the camera
+        // swings toward -X so the model's right (+X) side turns to face the viewer.
+        Assert.True(cam.Position.X < 0f, $"expected Position.X<0, got {cam.Position.X}");
+        Assert.Equal(0f, cam.Position.Y, 4);
+        var forward = Vector3.Normalize(cam.Target - cam.Position);
+        Assert.True(forward.X > 0f, $"expected forward.X>0, got {forward.X}");
+        Assert.Equal(100f, (origin - cam.Position).Length(), 4);
+        Assert.Equal(origin.X, cam.Target.X, 4);
+        Assert.Equal(origin.Y, cam.Target.Y, 4);
+        Assert.Equal(origin.Z, cam.Target.Z, 4);
+    }
 
-        Assert.InRange(phi, 0.1f, MathF.PI - 0.1f);
-        Assert.Equal(10f, cam.Target.X, 4);
-        Assert.Equal(20f, cam.Target.Y, 4);
-        Assert.Equal(30f, cam.Target.Z, 4);
-        Assert.Equal(radius, (cam.Position - cam.Target).Length(), 4);
+    [Fact]
+    public void RotateAroundPoint_pitch_is_unclamped_rounds_full_circle()
+    {
+        var origin = Vector3.Zero;
+        var cam = new PerspectiveCamera
+        {
+            Position = new Vector3(0f, 0f, 100f),
+            Target = origin,
+            Up = Vector3.UnitY,
+            Fov = 0.8f,
+        };
+        // The old clamp kept |Position.Y| <= radius * cos(0.1) ~= 99.5. Dragging
+        // down (Δy>0) with invertY pitches about the camera-right axis; iterations
+        // accumulate well past a full 360° orbit, proving nothing clamps.
+        var crossedPole = false;
+        for (var i = 0; i < 500 && !crossedPole; i++)
+        {
+            CameraGestures.RotateAroundPoint(cam, origin, new Vector2(0f, 10f), 0.005f, invertY: true, useWorldUp: false);
+            if (cam.Position.Y > 99.5f)
+                crossedPole = true;
+        }
+        Assert.True(crossedPole, "camera never passed the old clamped band (no-clamp broken)");
+        Assert.True(float.IsFinite(cam.Position.X) && float.IsFinite(cam.Position.Y) && float.IsFinite(cam.Position.Z));
+        Assert.Equal(100f, (origin - cam.Position).Length(), 2);
+    }
+
+    [Fact]
+    public void RotateAroundPoint_origin_stays_fixed_under_cursor()
+    {
+        var cam = new PerspectiveCamera
+        {
+            Position = new Vector3(0f, 0f, 100f),
+            Target = Vector3.Zero,
+            Up = Vector3.UnitY,
+            Fov = 0.8f,
+        };
+        var cursor = new Vector2(650f, 250f);
+        var origin = TargetDepthWorld(cam, cursor);
+        for (var i = 0; i < 40; i++)
+        {
+            CameraGestures.RotateAroundPoint(cam, origin, new Vector2(5f, 0f), 0.005f, invertY: true, useWorldUp: false);
+            var screen = WorldToScreen(cam, origin);
+            Assert.Equal(650f, screen.X, 1);
+            Assert.Equal(250f, screen.Y, 1);
+        }
+    }
+
+    [Fact]
+    public void RotateAroundPoint_camera_up_yaw_differs_from_world_up_on_rolled_camera()
+    {
+        var camP = new PerspectiveCamera
+        {
+            Position = new Vector3(10f, 0f, 0f),
+            Target = Vector3.Zero,
+            Up = new Vector3(0f, 0f, 1f),
+            Fov = 0.8f,
+        };
+        var camQ = new PerspectiveCamera
+        {
+            Position = camP.Position,
+            Target = camP.Target,
+            Up = camP.Up,
+            Fov = camP.Fov,
+        };
+        var delta = new Vector2(20f, 0f);
+        CameraGestures.RotateAroundPoint(camP, Vector3.Zero, delta, 0.01f, invertY: true, useWorldUp: false);
+        CameraGestures.RotateAroundPoint(camQ, Vector3.Zero, delta, 0.01f, invertY: true, useWorldUp: true);
+        Assert.NotEqual(camP.Position, camQ.Position);
     }
 
     private static Vector3 WorldAtCursorOrtho(OrthographicCamera cam, Vector2 cursor)
@@ -288,5 +361,24 @@ public class CameraGesturesTests
         var sxW = (cursor.X - 500f) * wpp;
         var syW = (cursor.Y - 250f) * wpp;
         return cam.Target + r * sxW - u * syW;
+    }
+
+    private static Vector3 TargetDepthWorld(PerspectiveCamera cam, Vector2 cursor)
+    {
+        var dist = (cam.Target - cam.Position).Length();
+        var wpp = 2f * dist * MathF.Tan(cam.Fov * 0.5f) / 500f;
+        CameraGestures.GetCameraBasis(cam, out _, out var r, out var u);
+        var sxW = (cursor.X - 500f) * wpp;
+        var syW = (cursor.Y - 250f) * wpp;
+        return cam.Target + r * sxW - u * syW;
+    }
+
+    private static Vector2 WorldToScreen(PerspectiveCamera cam, Vector3 world)
+    {
+        var dist = (cam.Target - cam.Position).Length();
+        var wpp = 2f * dist * MathF.Tan(cam.Fov * 0.5f) / 500f;
+        CameraGestures.GetCameraBasis(cam, out _, out var r, out var u);
+        var rel = world - cam.Target;
+        return new Vector2(500f + Vector3.Dot(rel, r) / wpp, 250f - Vector3.Dot(rel, u) / wpp);
     }
 }

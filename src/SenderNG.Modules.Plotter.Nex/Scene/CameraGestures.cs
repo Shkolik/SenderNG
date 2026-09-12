@@ -193,14 +193,35 @@ public static class CameraGestures
         camera.Up = up;
     }
 
-    /// <summary>Orbit by a screen-pixel delta. Left/right yaws around the
-    /// planet's pole; up/down pitches (inverted by default like the stock
-    /// controller). Radius is preserved; Target never moves.</summary>
-    public static void ApplyOrbit(PerspectiveCamera camera, Vector2 deltaPx, float sensitivity, bool invertY, ref float theta, ref float phi, float radius)
+    /// <summary>Orbit the camera around a fixed world <paramref name="origin"/>
+    /// by a screen-pixel delta, ioSender/Helix-turntable style: left/right
+    /// rotates about the camera-up axis (or the fixed model-up when
+    /// <paramref name="useWorldUp"/> is true) so dragging right spins the model
+    /// right; up/down rotates about the camera-right axis. Both the camera
+    /// Target and Position orbit <paramref name="origin"/> together and the Up
+    /// transforms with the rotation; angles are radians per pixel and are not
+    /// clamped (full 360°).</summary>
+    public static void RotateAroundPoint(PerspectiveCamera camera, Vector3 origin, Vector2 deltaPx, float sensitivity, bool invertY, bool useWorldUp)
     {
-        theta -= deltaPx.X * sensitivity;
-        phi += (invertY ? -1f : 1f) * deltaPx.Y * sensitivity;
-        phi = Math.Clamp(phi, 0.1f, MathF.PI - 0.1f);
-        ApplySpherical(camera, theta, phi, radius);
+        if (sensitivity <= 0f)
+            return;
+        GetCameraBasis(camera, out _, out var right, out var up);
+
+        var yaw = -deltaPx.X * sensitivity;
+        var pitch = (invertY ? -1f : 1f) * deltaPx.Y * sensitivity;
+        var axisX = useWorldUp ? Vector3.UnitY : up;
+        var axisY = right;
+
+        var q = Quaternion.CreateFromAxisAngle(axisX, yaw)
+              * Quaternion.CreateFromAxisAngle(axisY, pitch);
+
+        var relativeTarget = Vector3.Transform(origin - camera.Target, q);
+        var relativePosition = Vector3.Transform(origin - camera.Position, q);
+
+        camera.Target = origin - relativeTarget;
+        camera.Position = origin - relativePosition;
+        camera.Up = Vector3.Transform(camera.Up, q);
+        if (camera.Up.LengthSquared() <= 1e-12f)
+            camera.Up = Vector3.UnitY;
     }
 }
