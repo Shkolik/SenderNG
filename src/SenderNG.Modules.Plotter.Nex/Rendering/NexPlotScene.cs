@@ -37,7 +37,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Numerics;
 using System.Text;
 using HelixToolkit.Nex.Engine;
-using HelixToolkit.Nex.Engine.CameraControllers;
 using HelixToolkit.Nex.Engine.Cameras;
 using HelixToolkit.Nex.Geometries;
 using HelixToolkit.Nex.Graphics;
@@ -55,17 +54,8 @@ namespace SenderNG.Modules.Plotter.Nex.Rendering;
 
 /// <summary>
 /// IPlotScene implemented against a live Nex (Vulkan) engine. Owns the whole
-/// render pipeline: device context, engine, world data, cameras/controllers and
+/// render pipeline: device context, engine, world data, cameras and
 /// every node (static chrome plus dynamic build content).
-///
-/// Because <see cref="OrbitCameraController.Camera"/> is read-only (verified in
-/// the spike), a preset swap switches which of the two (camera, controller)
-/// pairs is exposed through <see cref="ActiveCameraController"/> so the host
-/// view can re-bind it. The locked pair uses <see cref="OrthoZoomController"/>:
-/// the stock orbit controller's <c>OnZoomDelta</c> only walks Position along
-/// the view axis, which is invisible in an orthographic projection — the
-/// wrapper intercepts it and scales <see cref="OrthographicCamera.Width"/>
-/// instead (the pointer-zoom half of <see cref="ZoomAround"/>).
 ///
 /// Program reloads: the kinematic factory ends every build with
 /// CreateTool, so the next AddCarriagePlane/AddLoftSurface/CreateTool after a
@@ -88,11 +78,10 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private readonly WorldDataProvider _worldData;
     private readonly Node _root;
 
+    private const float OrbitSensitivity = 0.005f;
+
     private readonly OrthographicCamera _orthoCamera;
     private readonly PerspectiveCamera _perspectiveCamera;
-    private readonly ICameraController _lockedController;
-    private readonly ICameraController _orbitController;
-    private ICameraController _activeController;
     private Camera _activeCamera;
 
     private readonly SceneClient _client;
@@ -117,6 +106,13 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private ViewPreset _preset = ViewPreset.Isometric3D;
     private bool _contentFramed;
     private float _orthoZoom = 1f;
+    private float _viewportWpx = 1f;
+    private float _viewportHpx = 1f;
+    private float _fitOrthoWidth = 1f;
+    private float _fitDist = 1f;
+    private float _orbitTheta;
+    private float _orbitPhi = MathF.PI * 0.5f;
+    private float _orbitRadius = 1f;
 
     /// <summary>Create the scene and the whole render pipeline.</summary>
     /// <remarks>
@@ -171,9 +167,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             Up = Vector3.UnitY,
             Fov = 0.8f
         };
-        _lockedController = new OrthoZoomController(_orthoCamera);
-        _orbitController = new OrbitCameraController(_perspectiveCamera) { RotationSensitivity = 1f };
-        _activeController = _orbitController;
         _activeCamera = _perspectiveCamera;
 
         _client = new SceneClient(_worldData, () => _activeCamera);
@@ -192,13 +185,10 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// <summary>Viewport client the host's HelixViewport binds to.</summary>
     public IViewportClient ViewportClient => _client;
 
-    /// <summary>Controller the view must bind right now (camera swaps per preset).</summary>
-    public ICameraController ActiveCameraController => _activeController;
-
     /// <summary>Live orthographic zoom: world units across the view width.
     /// Seeded from the model's bounding-box diagonal on every preset frame
-    /// (<see cref="SetViewPreset"/>), then adjusted by the wheel-zoom
-    /// controller — the tracked base for the zoom/pan work.</summary>
+    /// (<see cref="SetViewPreset"/>), then adjusted by the wheel zoom — the
+    /// tracked base for the zoom/pan work.</summary>
     public float OrthoZoom => _orthoCamera.Width;
 
     /// <inheritdoc/>
@@ -345,21 +335,24 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
                 _orthoCamera.Position = center + Vector3.UnitZ * (radius * 2f);
                 _orthoCamera.Target = center;
                 _orthoCamera.Up = Vector3.UnitY;
-                Activate(_lockedController, _orthoCamera);
+                _activeCamera = _orthoCamera;
+                _fitOrthoWidth = _orthoZoom;
                 break;
             case ViewPreset.XZ:
                 _orthoCamera.Width = _orthoZoom;
                 _orthoCamera.Position = center - Vector3.UnitY * (radius * 2f);
                 _orthoCamera.Target = center;
                 _orthoCamera.Up = Vector3.UnitZ;
-                Activate(_lockedController, _orthoCamera);
+                _activeCamera = _orthoCamera;
+                _fitOrthoWidth = _orthoZoom;
                 break;
             case ViewPreset.YZ:
                 _orthoCamera.Width = _orthoZoom;
                 _orthoCamera.Position = center + Vector3.UnitX * (radius * 2f);
                 _orthoCamera.Target = center;
                 _orthoCamera.Up = Vector3.UnitZ;
-                Activate(_lockedController, _orthoCamera);
+                _activeCamera = _orthoCamera;
+                _fitOrthoWidth = _orthoZoom;
                 break;
             default:
                 // Skia's iso projector exactly: X -> right/down, Y -> left/down,
@@ -370,7 +363,12 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
                 _perspectiveCamera.Target = center;
                 _perspectiveCamera.Up = Vector3.Normalize(new Vector3(0.5f, 0.5f, 1f));
                 _perspectiveCamera.FarPlane = MathF.Max(1000f, radius * 10f);
-                Activate(_orbitController, _perspectiveCamera);
+                _activeCamera = _perspectiveCamera;
+                _fitDist = radius * 2.2f;
+                // Re-sync the orbit state so the first RMB drag orbits the
+                // freshly framed camera instead of stale construction state.
+                CameraGestures.SphericalState(
+                    _perspectiveCamera, out _orbitTheta, out _orbitPhi, out _orbitRadius);
                 break;
         }
     }
@@ -386,20 +384,64 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     }
 
     /// <inheritdoc/>
-    /// <remarks>POC: screen-point anchoring is skipped — a plain center zoom.</remarks>
     public void ZoomAround(Vector2 screenPoint, double factor)
     {
-        _ = screenPoint;
-        if (factor <= 0) return;
-        if (ReferenceEquals(_activeCamera, _orthoCamera))
-        {
-            _orthoCamera.Width = Math.Clamp(_orthoCamera.Width / (float)factor, 0.1f, 100000f);
+        if (factor <= 0)
             return;
+        if (ReferenceEquals(_activeCamera, _orthoCamera))
+            CameraGestures.AnchorZoom(_orthoCamera, screenPoint, factor, _viewportWpx, _viewportHpx);
+        else
+            CameraGestures.AnchorZoom(_perspectiveCamera, screenPoint, factor, _viewportWpx, _viewportHpx);
+    }
+
+    /// <inheritdoc/>
+    public void SetViewportSize(int wPx, int hPx)
+    {
+        _viewportWpx = Math.Max(1, wPx);
+        _viewportHpx = Math.Max(1, hPx);
+    }
+
+    /// <inheritdoc/>
+    public void PanByScreenDelta(Vector2 screenDeltaPx)
+    {
+        Vector3 v;
+        if (ReferenceEquals(_activeCamera, _orthoCamera))
+            v = CameraGestures.ScreenPanDelta(_orthoCamera, screenDeltaPx, _viewportWpx, _viewportHpx);
+        else
+            v = CameraGestures.ScreenPanDelta(_perspectiveCamera, screenDeltaPx, _viewportWpx, _viewportHpx);
+        Pan(new PanDelta(v));
+    }
+
+    /// <inheritdoc/>
+    public void RotateByScreenDelta(Vector2 screenDeltaPx)
+    {
+        if (ReferenceEquals(_activeCamera, _perspectiveCamera))
+            CameraGestures.ApplyOrbit(
+                _perspectiveCamera, screenDeltaPx, OrbitSensitivity, invertY: true,
+                ref _orbitTheta, ref _orbitPhi, _orbitRadius);
+    }
+
+    /// <inheritdoc/>
+    public void Reframe() => SetViewPreset(_preset);
+
+    /// <summary>Zoom relative to the fitted view (100 = fitted). Ortho scales
+    /// the live Width against the preset-seeded fit; perspective scales the
+    /// target distance. Zooming in reads &gt;100%.</summary>
+    public double ZoomPercent
+    {
+        get
+        {
+            if (ReferenceEquals(_activeCamera, _orthoCamera))
+            {
+                if (_orthoCamera.Width <= 0f)
+                    return 100.0;
+                return 100.0 * _fitOrthoWidth / _orthoCamera.Width;
+            }
+            var dist = (_perspectiveCamera.Target - _perspectiveCamera.Position).Length();
+            if (dist <= 0f)
+                return 100.0;
+            return 100.0 * _fitDist / dist;
         }
-        var offset = _perspectiveCamera.Target - _perspectiveCamera.Position;
-        var length = offset.Length();
-        if (length < 0.01f) return;
-        _perspectiveCamera.Position = _perspectiveCamera.Target - Vector3.Normalize(offset) * (length / (float)factor);
     }
 
     /// <inheritdoc/>
@@ -425,12 +467,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         _worldData.Dispose();
         _engine.Teardown();
         _context.Dispose();
-    }
-
-    private void Activate(ICameraController controller, Camera camera)
-    {
-        _activeController = controller;
-        _activeCamera = camera;
     }
 
     private void ResetBuild()
@@ -810,50 +846,5 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             _ => 10.0
         };
         return nice * mag;
-    }
-
-    /// <summary>
-    /// Rotation-locked controller for the orthographic snap presets: delegates
-    /// everything to the stock orbit controller (rotation suppressed via a
-    /// zero sensitivity) but intercepts <see cref="ICameraController.OnZoomDelta"/>
-    /// to scale <see cref="OrthographicCamera.Width"/> instead of walking
-    /// Position along the view axis (which an orthographic projection cannot show).
-    /// Mirrors the <see cref="ZoomAround"/> ortho branch's clamp.
-    /// </summary>
-    private sealed class OrthoZoomController : ICameraController
-    {
-        private readonly OrbitCameraController _inner;
-        private readonly OrthographicCamera _ortho;
-
-        public OrthoZoomController(OrthographicCamera camera)
-        {
-            _ortho = camera;
-            _inner = new OrbitCameraController(camera)
-            {
-                RotationSensitivity = 0f,
-                PanSensitivity = 1f,
-                ZoomSensitivity = 1f,
-            };
-        }
-
-        public Camera Camera => _inner.Camera;
-        public float ViewportWidth { get => _inner.ViewportWidth; set => _inner.ViewportWidth = value; }
-        public float ViewportHeight { get => _inner.ViewportHeight; set => _inner.ViewportHeight = value; }
-
-        public void OnRotateBegin(float x, float y, Vector3? position) => _inner.OnRotateBegin(x, y, position);
-        public void OnRotateDelta(float dx, float dy) => _inner.OnRotateDelta(dx, dy);
-        public void OnPanBegin(float x, float y, Vector3? position) => _inner.OnPanBegin(x, y, position);
-        public void OnPanDelta(float dx, float dy) => _inner.OnPanDelta(dx, dy);
-
-        public void OnZoomDelta(float delta, Vector3? position)
-        {
-            _ = position;
-            if (delta != 0f)
-                _ortho.Width = Math.Clamp(_ortho.Width / delta, 0.1f, 100000f);
-        }
-
-        public void Update(float deltaTime) => _inner.Update(deltaTime);
-        public void Reset() => _inner.Reset();
-        public void FocusOn(Vector3 position, float? radius = null) => _inner.FocusOn(position, radius);
     }
 }

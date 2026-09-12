@@ -51,6 +51,22 @@ public interface IPlotScene : IDisposable
     /// <summary>Zoom around a screen-space point by the given factor.</summary>
     void ZoomAround(Vector2 screenPoint, double factor);
 
+    /// <summary>Set the viewport size in physical pixels (basis for all
+    /// screen→world conversion).</summary>
+    void SetViewportSize(int wPx, int hPx);
+
+    /// <summary>Pan so the model follows the cursor: screen-pixel delta in
+    /// physical pixels.</summary>
+    void PanByScreenDelta(Vector2 screenDeltaPx);
+
+    /// <summary>Orbit the 3D camera about its target by a screen-pixel delta
+    /// (no-op in the rotation-locked orthographic presets).</summary>
+    void RotateByScreenDelta(Vector2 screenDeltaPx);
+
+    /// <summary>Re-run the current preset's framing: reset pan, recenter,
+    /// reseed the fit zoom (and return to the iso angle in 3D).</summary>
+    void Reframe();
+
     /// <summary>Add axis arrows with labels to the scene.</summary>
     void AddAxisArrows(IReadOnlyList<(Vector3 Pos, string Label)> arrows);
 
