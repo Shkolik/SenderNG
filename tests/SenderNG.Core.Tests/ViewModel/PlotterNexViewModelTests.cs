@@ -320,6 +320,77 @@ public class PlotterNexViewModelTests : IDisposable
         Assert.Equal(3, scene.Layers[^1].Added.Count);
     }
 
+    [Fact]
+    public void Check_mode_tracks_the_last_acked_segment_end()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene);
+        source.Load(MillProgram());
+        source.AckRows(1, 3); // rows 1,2 Ok → last acked end = segment 1's To
+        vm.ApplyRunStateWindow();
+
+        _grbl.Source.Emit(new MachineState
+        {
+            Status = "Check",
+            Positions = new double[] { 7, 8, 9 },
+        });
+
+        var tool = scene.Tools[^1];
+        var endpoint = tool.Positions[^1];
+        // Mill plane [X,Y,Z]: last acked segment To is (20,5,0), not the report (7,8,9).
+        Assert.Equal(new Vector3(20, 5, 0), Assert.Single(endpoint.Points));
+    }
+
+    [Fact]
+    public void Live_position_wins_outside_check_mode()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene);
+        source.Load(MillProgram());
+        source.AckRows(1, 3);
+        vm.ApplyRunStateWindow();
+
+        _grbl.Source.Emit(new MachineState { Status = "Run", Positions = new double[] { 7, 8, 9 } });
+
+        var tool = scene.Tools[^1];
+        Assert.Equal(new Vector3(7, 8, 9), Assert.Single(tool.Positions[^1].Points));
+    }
+
+    [Fact]
+    public void Check_mode_before_first_ack_falls_back_to_live()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene);
+        source.Load(MillProgram());
+
+        _grbl.Source.Emit(new MachineState { Status = "Check", Positions = new double[] { 7, 8, 9 } });
+
+        var tool = scene.Tools[^1];
+        Assert.Equal(new Vector3(7, 8, 9), Assert.Single(tool.Positions[^1].Points));
+    }
+
+    [Fact]
+    public void Rewind_clears_the_acked_end_cache()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene);
+        source.Load(MillProgram());
+        source.AckRows(1, 3);
+        vm.ApplyRunStateWindow();
+
+        // Simulate the app's Rewind: TouchedRow → 0 and all rows idle.
+        source.Rewind();
+        vm.ApplyRunStateWindow();
+
+        _grbl.Source.Emit(new MachineState { Status = "Check", Positions = new double[] { 7, 8, 9 } });
+        // Acked end cleared → fall back to live.
+        Assert.Equal(new Vector3(7, 8, 9), Assert.Single(scene.Tools[^1].Positions[^1].Points));
+    }
+
     /// <summary>Read-only program facade over a parsed G-code string, with an
     /// AckRows live-run tick — mirrors the Skia headless stub.</summary>
     private sealed class StubProgramSource : ILoadedProgramSource
@@ -358,6 +429,13 @@ public class PlotterNexViewModelTests : IDisposable
             for (var i = from; i < to && i < _states.Length; i++)
                 _states[i] = state;
             TouchedRow = Math.Max(TouchedRow, Math.Min(to - 1, _states.Length - 1));
+            RowsChanged?.Invoke();
+        }
+
+        public void Rewind()
+        {
+            _states = new ProgramRowState[_states.Length];
+            TouchedRow = 0;
             RowsChanged?.Invoke();
         }
     }

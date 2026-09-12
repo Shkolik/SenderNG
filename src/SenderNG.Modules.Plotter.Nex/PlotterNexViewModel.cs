@@ -87,6 +87,11 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     private bool _vulkanUnavailable;
     private string? _lastControllerPose;
     private int _lastAppliedTouched = -1; // last TouchedRow whose rows were fully applied
+    private bool _isCheckMode;
+    private Vector3?[] _ackedEnds = [];
+    private IReadOnlyList<ToolpathSegment> _sourceSegments = [];
+    private int _ackedEndRowBaseline = -1;
+    private Dictionary<int, ToolpathSegment> _lastSegmentByRow = new();
 
     public PlotterNexViewModel(
         ILoadedProgramSource programSource,
@@ -169,6 +174,14 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     /// transform shows Y" for the stuck-at-origin cone.</summary>
     public string? LastControllerPose => _lastControllerPose;
 
+    /// <summary>True while grbl check mode is active — the controller verifies
+    /// blocks but never moves, so the tool cone must use the acked-end source.</summary>
+    internal bool IsCheckMode => _isCheckMode;
+
+    /// <summary>Per-plane end of the last acked (✓) segment — the tool source
+    /// in Check mode, the fallback otherwise.</summary>
+    internal Vector3?[] AckedEnd => _ackedEnds;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>
@@ -237,13 +250,51 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnRowsChanged() => PostUi(() =>
     {
+        AdvanceAckedEnd();
         OnPropertyChanged(nameof(ProgressText));
         Bump();
     });
 
+    /// <summary>Advance the per-plane acked-end cache ONLY through the rows
+    /// touched since last time (each row's segment visited once, so O(new rows)
+    /// across an ack burst — never O(all segments) per ack). Rewind resets.</summary>
+    private void AdvanceAckedEnd()
+    {
+        var touched = _programSource.TouchedRow;
+        if (touched < _ackedEndRowBaseline)
+        {
+            _ackedEnds = new Vector3?[_machineType.Planes.Count];
+            _ackedEndRowBaseline = touched;
+            return;
+        }
+        if (_ackedEnds.Length != _machineType.Planes.Count)
+            _ackedEnds = new Vector3?[_machineType.Planes.Count];
+        for (var i = _ackedEndRowBaseline + 1; i <= touched; i++)
+        {
+            var seg = LastSegmentForRow(i);
+            if (seg is null || _programSource.GetRowState(i) != ProgramRowState.Ok)
+                continue;
+            for (var p = 0; p < _machineType.Planes.Count; p++)
+            {
+                var indices = _machineType.PlaneAxisIndices(p);
+                if (seg.To.Length < indices[^1])
+                    continue;
+                _ackedEnds[p] = new Vector3(
+                    (float)seg.To[indices[0]],
+                    (float)seg.To[indices[1]],
+                    indices.Length >= 3 ? (float)seg.To[indices[2]] : 0f);
+            }
+        }
+        _ackedEndRowBaseline = touched;
+    }
+
+    private ToolpathSegment? LastSegmentForRow(int row) =>
+        _lastSegmentByRow.TryGetValue(row, out var s) ? s : null;
+
     private void OnControllerState(MachineState state)
     {
         _lastControllerPose = $"status={state.Status} pos={string.Join(",", state.Positions ?? [])}";
+        _isCheckMode = state.Status.Equals("Check", StringComparison.OrdinalIgnoreCase);
         var positions = state.Positions;
         var factory = _sceneFactory;
         if (positions is null || factory?.Tool is null)
@@ -255,11 +306,18 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
             var indices = _machineType.PlaneAxisIndices(p);
             if (positions.Length <= indices[^1])
                 return; // Controller reports fewer axes than the machine needs.
-            points.Add(new Vector3(
+            var live = new Vector3(
                 (float)positions[indices[0]],
                 (float)positions[indices[1]],
-                indices.Length >= 3 ? (float)positions[indices[2]] : 0f));
+                indices.Length >= 3 ? (float)positions[indices[2]] : 0f);
+            var acked = p < _ackedEnds.Length ? _ackedEnds[p] : null;
+            Vector3? resolved = _isCheckMode ? (acked ?? live) : live;
+            if (resolved is null)
+                continue; // both null — keep the last pose for this plane
+            points.Add(resolved.Value);
         }
+        if (points.Count == 0)
+            return;
 
         if (factory.Loft is not null && points.Count >= 2)
             factory.Loft.SetWirePlane([points[0], points[1]]);
@@ -336,6 +394,11 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
 
         _planeOutputLines = geometry.PlaneOutputLines;
         _lineToRow = geometry.LineToRow;
+        _sourceSegments = geometry.SourceSegments;
+        _lastSegmentByRow = BuildLastSegmentByRow(geometry.SourceSegments, geometry.LineToRow);
+        _ackedEnds = new Vector3?[_machineType.Planes.Count];
+        _ackedEndRowBaseline = -1;
+        _lastAppliedTouched = -1;
         StatusText = geometry.Status;
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(HasGeometry));
@@ -355,6 +418,11 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
             BuildScene();
         _planeOutputLines = [];
         _lineToRow = new Dictionary<uint, int>();
+        _sourceSegments = [];
+        _lastSegmentByRow = new();
+        _ackedEnds = new Vector3?[_machineType.Planes.Count];
+        _ackedEndRowBaseline = -1;
+        _lastAppliedTouched = -1;
         StatusText = _localization.Resolve("module.plotterNex.noProgram", "No program loaded.");
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(HasGeometry));
@@ -390,6 +458,21 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
                 lineToRow[(uint)fileLine] = i;
         }
         return lineToRow;
+    }
+
+    /// <summary>Row index → final output segment in that row (headers/comments
+    /// have none). One segment per sendable row in output order.</summary>
+    private static Dictionary<int, ToolpathSegment> BuildLastSegmentByRow(
+        IReadOnlyList<ToolpathSegment> segments, Dictionary<uint, int> lineToRow)
+    {
+        var map = new Dictionary<int, ToolpathSegment>();
+        foreach (var seg in segments)
+        {
+            if (!lineToRow.TryGetValue(seg.LineNumber, out var row))
+                continue;
+            map[row] = seg; // later output wins for a row with several segments
+        }
+        return map;
     }
 
     /// <summary>
