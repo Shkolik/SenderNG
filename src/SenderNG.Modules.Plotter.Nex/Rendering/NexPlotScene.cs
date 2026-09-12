@@ -319,6 +319,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     public void SetViewPreset(ViewPreset preset)
     {
         _preset = preset;
+        _orbitOrigin = null;
         var (center, radius, span) = ContentMetrics();
         // One zoom basis for every orthographic projection: the model's
         // bounding-box diagonal. Per-plane spans made a long thin board

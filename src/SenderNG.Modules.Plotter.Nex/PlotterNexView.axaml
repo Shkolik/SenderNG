@@ -87,6 +87,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                        PointerPressed="OnPlotInputPointerPressed"
                        PointerMoved="OnPlotInputPointerMoved"
                        PointerReleased="OnPlotInputPointerReleased"
+                       PointerCaptureLost="OnPlotInputPointerCaptureLost"
                        PointerWheelChanged="OnPlotInputPointerWheelChanged">
                     <Panel.Styles>
                         <!-- Text-only nav buttons: no chrome. Idle gray; darker +

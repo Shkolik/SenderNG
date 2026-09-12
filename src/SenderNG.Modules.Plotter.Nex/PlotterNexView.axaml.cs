@@ -844,6 +844,14 @@ public partial class PlotterNexView : UserControl
         e.Pointer.Capture(null);
     }
 
+    private void OnPlotInputPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        _panActive = false;
+        _orbitActive = false;
+        _scene?.EndOrbit();
+        e.Pointer.Capture(null);
+    }
+
     private void OnPlotInputPointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
         var scene = _scene;
