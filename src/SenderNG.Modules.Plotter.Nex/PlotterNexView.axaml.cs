@@ -97,6 +97,7 @@ public partial class PlotterNexView : UserControl
     private long _windowStart;
     private double _fps;
     private int _probeCounter;
+    private int _lastProbe;
 
     private bool _panActive;
     private bool _orbitActive;
@@ -306,6 +307,8 @@ public partial class PlotterNexView : UserControl
             return;
         }
 
+        _vm?.ApplyRunStateWindow();
+
         var tl = TopLevel.GetTopLevel(this);
         var scale = tl?.RenderScaling ?? 1.0;
         // GpuImage.Bounds is 0 until the bitmap gives the Image an intrinsic
@@ -402,19 +405,29 @@ public partial class PlotterNexView : UserControl
             if (cullNode is not null)
                 cullNode.Enabled = !scene.DiagnosticDisableCulling;
 
-            Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.pre-waitall"));
+            // The WaitAlls below stay every tick (the D3D11 readback has no
+            // inter-API fence and must read GPU-complete output); only the
+            // full-resolution pool scans / disk log writes throttle to a coarse
+            // cadence.
+            if (_probeCounter % 30 == 1)
+                Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.pre-waitall"));
             scene.Context.WaitAll(true);
-            Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-waitall"));
+            if (_probeCounter % 30 == 1)
+                Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-waitall"));
 
             scene.Engine.BeginFrame();
-            Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-beginframe"));
+            if (_probeCounter % 30 == 1)
+                Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-beginframe"));
 
             var cmd = scene.Engine.RenderOffscreen(rc, scene.WorldData, pipeline.EngineTarget, null);
             var lineDraws = 0;
             foreach (var s in scene.WorldData.LineDrawStreams.AllStreams)
                 lineDraws += (int)s.Count;
-            Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-renderoffscreen"));
-            PoolDiagnostics.LogLine($"[T{_readbackTicks}.draws] drawCalls={cmd.DrawCallCount} dispatchCalls={cmd.DispatchCallCount} lineStreamDraws={lineDraws} targetValid={pipeline.EngineTarget.Valid} statsDc={rc.Statistics.DrawCalls}");
+            if (_probeCounter % 30 == 1)
+            {
+                Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-renderoffscreen"));
+                PoolDiagnostics.LogLine($"[T{_readbackTicks}.draws] drawCalls={cmd.DrawCallCount} dispatchCalls={cmd.DispatchCallCount} lineStreamDraws={lineDraws} targetValid={pipeline.EngineTarget.Valid} statsDc={rc.Statistics.DrawCalls}");
+            }
             if (_probeCounter % 60 == 1)
             {
                 // DIAGNOSTIC: render-time line material pipeline state. If
@@ -441,7 +454,8 @@ public partial class PlotterNexView : UserControl
             // FinalOutputTexture — present only controls swapchain presentation.
             var presentHandle = default(HelixToolkit.Nex.Handle<HelixToolkit.Nex.Graphics.Texture>);
             scene.Engine.Submit(cmd, presentHandle, pipeline.EngineSyncInfo);
-            Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-submit"));
+            if (_probeCounter % 30 == 1)
+                Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-submit"));
 
             // The D3D11 readback has no inter-API fence (NexGpuReadback sync is
             // intentionally NONE), so the Vulkan render must be GPU-complete
@@ -450,32 +464,34 @@ public partial class PlotterNexView : UserControl
             // (black) frame — this is exactly why the view stayed black even
             // after the geometry fix restored the draw submissions.
             scene.Context.WaitAll(true);
-            Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-waitall-before-readback"));
+            if (_probeCounter % 30 == 1)
+                Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-waitall-before-readback"));
 
             using var fb = _bitmap.Lock();
             if (!pipeline.CopyFrame(fb.Address, fb.RowBytes))
                 return;
-            // DIAGNOSTIC: probe the engine-produced frame EVERY tick (not just
-            // every 30th) and export to pool_diag.log so we can tell whether the
-            // Vulkan render actually reaches the readback. Also run the reverse
-            // test every 30th tick: D3D11 clears the shared texture red and reads
-            // it back — red means the D3D11 readback path works and the missing
-            // link is the Vulkan import/write; black means readback itself fails.
-            var probe = ProbeFrame(fb.Address, fb.RowBytes, (int)w, (int)h);
+            // DIAGNOSTIC: probe the engine-produced frame every 30th tick and
+            // export to pool_diag.log so we can tell whether the Vulkan render
+            // actually reaches the readback. Same cadence as the reverse test:
+            // D3D11 clears the shared texture red and reads it back — red means
+            // the D3D11 readback path works and the missing link is the Vulkan
+            // import/write; black means readback itself fails.
             _probeCounter++;
             if (_probeCounter % 30 == 1)
             {
+                var probe = ProbeFrame(fb.Address, fb.RowBytes, (int)w, (int)h);
+                _lastProbe = probe;
                 PoolDiagnostics.LogLine(pipeline.DiagTestD3D11Write());
-            }
-            PoolDiagnostics.LogLine($"[T{_readbackTicks}.probe] max={probe} nonbg={CountNonBackground(fb.Address, fb.RowBytes, (int)w, (int)h)} counter={_probeCounter}");
-            if (_probeCounter % 60 == 1)
-            {
-                PoolDiagnostics.LogLine(DumpFrameGrid(fb.Address, fb.RowBytes, (int)w, (int)h));
+                PoolDiagnostics.LogLine($"[T{_readbackTicks}.probe] max={probe} nonbg={CountNonBackground(fb.Address, fb.RowBytes, (int)w, (int)h)} counter={_probeCounter}");
+                if (_probeCounter % 60 == 1)
+                {
+                    PoolDiagnostics.LogLine(DumpFrameGrid(fb.Address, fb.RowBytes, (int)w, (int)h));
+                }
             }
             GpuImage.InvalidateVisual();
             _readbackTicks++;
             AccumulateFps();
-            RenderText.Text = $"t {_readbackTicks} / {_fps:F0} fps [p{probe}]";
+            RenderText.Text = $"t {_readbackTicks} / {_fps:F0} fps [p{_lastProbe}]";
         }
         catch (Exception ex)
         {
