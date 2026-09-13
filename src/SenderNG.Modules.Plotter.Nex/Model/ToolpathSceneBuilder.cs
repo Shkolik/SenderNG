@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Numerics;
 using CNC.Core.Services;
 using SenderNG.Modules.Plotter.Nex.Scene;
+using SenderNG.Modules.Plotter.Nex.Settings;
 
 namespace SenderNG.Modules.Plotter.Nex.Model;
 
@@ -50,28 +51,23 @@ public static class ToolpathSceneBuilder
 {
     /// <summary>
     /// Adds every non-degenerate segment as a <see cref="LineSegment"/> into the
-    /// given plane layer, mapping axis indices per <c>planeAxisIndices</c>.
-    /// Segments where no mapped axis moves by more than 1e-9 are dropped (mirrors
-    /// Skia's per-plane slice degenerate-segment filter).
+    /// given plane layer, mapping each endpoint through
+    /// <see cref="PlaneWorldMapper.ToWorld"/> per <c>geometry</c>. The degenerate
+    /// filter still runs on the raw machine-axis positions
+    /// (<c>planeAxisIndices</c>).
     /// </summary>
     /// <returns>Count of segments added (for run-state indexing).</returns>
     public static int PopulatePlane(
         ICarriagePlaneLayer layer,
         IReadOnlyList<ToolpathSegment> segments,
-        int[] planeAxisIndices)
+        int[] planeAxisIndices,
+        NexPlaneGeometry geometry)
     {
         var count = 0;
         foreach (var seg in segments)
         {
-            var from = new Vector3(
-                (float)seg.From[planeAxisIndices[0]],
-                (float)seg.From[planeAxisIndices[1]],
-                planeAxisIndices.Length >= 3 ? (float)seg.From[planeAxisIndices[2]] : 0f);
-
-            var to = new Vector3(
-                (float)seg.To[planeAxisIndices[0]],
-                (float)seg.To[planeAxisIndices[1]],
-                planeAxisIndices.Length >= 3 ? (float)seg.To[planeAxisIndices[2]] : 0f);
+            var from = PlaneWorldMapper.ToWorld(geometry, seg.From, planeAxisIndices);
+            var to = PlaneWorldMapper.ToWorld(geometry, seg.To, planeAxisIndices);
 
             var moves = false;
             for (var k = 0; k < planeAxisIndices.Length; k++)

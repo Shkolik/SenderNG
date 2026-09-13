@@ -38,6 +38,7 @@ using System.Numerics;
 using CNC.Core.Services;
 using SenderNG.Modules.Plotter.Nex.Model;
 using SenderNG.Modules.Plotter.Nex.Scene;
+using SenderNG.Modules.Plotter.Nex.Settings;
 
 namespace SenderNG.Core.Tests;
 
@@ -53,7 +54,12 @@ public class ToolpathSceneBuilderTests
             new ToolpathSegment(new[]{10.0,5,0}, new[]{20.0,5,0}, Rapid:true,  LineNumber:2),
             new ToolpathSegment(new[]{20.0,5,0}, new[]{20.0,5,0}, Rapid:false, LineNumber:3),
         };
-        var n = ToolpathSceneBuilder.PopulatePlane(layer, segs, new[]{0,1});
+        var n = ToolpathSceneBuilder.PopulatePlane(layer, segs, new[]{0,1},
+            new SenderNG.Modules.Plotter.Nex.Settings.NexPlaneGeometry
+            {
+                WorldAxes = [0, 1],
+                Origin = [0, 0, 0],
+            });
         Assert.Equal(2, n);
         Assert.Equal(2, layer.Added.Count);
         Assert.Equal(new Vector3(0,0,0), layer.Added[0].From);
@@ -73,6 +79,30 @@ public class ToolpathSceneBuilderTests
         Assert.Equal(2, b.Length);
         Assert.Equal(new[]{0.0,5.0}, b[0]);
         Assert.Equal(new[]{0.0,10.0}, b[1]);
+    }
+
+    [Fact]
+    public void Foam_populate_separates_plane_one_by_wire_length_on_world_x()
+    {
+        var layer = new RecorderPlaneLayer();
+        var segs = new[]
+        {
+            new ToolpathSegment(new[]{0.0,0,0,0}, new[]{10.0,5,20,24}, Rapid:false, LineNumber:1),
+        };
+
+        // Foam plane 1: machine slots [2,3] = [Z,A] -> world Y,Z; world X = wire position (+50).
+        var geometry = new SenderNG.Modules.Plotter.Nex.Settings.NexPlaneGeometry
+        {
+            WorldAxes = [1, 2],
+            Origin = [50, 0, 0],
+        };
+
+        var n = ToolpathSceneBuilder.PopulatePlane(layer, segs, new[] { 2, 3 }, geometry);
+
+        Assert.Equal(1, n);
+        var seg = Assert.Single(layer.Added);
+        Assert.Equal(new System.Numerics.Vector3(50, 0, 0), seg.From); // From=[0,0,0,0] maps to the origin with machine slots zeroed
+        Assert.Equal(new System.Numerics.Vector3(50, 20, 24), seg.To);
     }
 }
 

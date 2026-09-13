@@ -42,6 +42,7 @@ using CNC.Core.Services;
 using SenderNG.Core.Localization;
 using SenderNG.Modules.Plotter.Nex.Model;
 using SenderNG.Modules.Plotter.Nex.Scene;
+using SenderNG.Modules.Plotter.Nex.Settings;
 
 namespace SenderNG.Modules.Plotter.Nex;
 
@@ -412,7 +413,8 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
             BuildScene();
             for (var p = 0; p < _machineType.Planes.Count; p++)
                 ToolpathSceneBuilder.PopulatePlane(
-                    _sceneFactory.PlaneLayer(p), geometry.SourceSegments, _machineType.PlaneAxisIndices(p));
+                    _sceneFactory.PlaneLayer(p), geometry.SourceSegments, _machineType.PlaneAxisIndices(p),
+                    PlotterNexConfig.Defaults(_machineType).Planes[p]);
         }
 
         _planeOutputLines = geometry.PlaneOutputLines;
