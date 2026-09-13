@@ -7,6 +7,7 @@
  * staged DLL, mirroring PlotterModuleTests.
  */
 
+using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Modules;
 using SenderNG.Modules.Plotter.Nex;
@@ -79,5 +80,39 @@ public class PlotterNexModuleTests
         using var sp = sc.BuildServiceProvider();
         var modules = sp.GetServices<IModule>().ToList();
         Assert.Contains(modules, m => m.Id == "plotter-nex");
+    }
+
+    [Fact]
+    public void Module_implements_settings_provider_with_scope_profile()
+    {
+        var module = new PlotterNexModule();
+
+        Assert.IsAssignableFrom<IModuleSettingsProvider>(module);
+        Assert.Equal(SettingsScope.Profile, ((IModuleSettingsProvider)module).Scope);
+    }
+
+    [Fact]
+    public void Settings_view_unavailable_before_services_attached_and_available_after()
+    {
+        var module = new PlotterNexModule();
+        Assert.Null(module.CreateSettingsView()); // not attached yet
+
+        var dir = Path.Combine(Path.GetTempPath(), "plotter-nex-settings-tests-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var settingsService = new SettingsService(dir);
+            var sc = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+            module.RegisterServices(sc);
+            sc.AddSingleton(settingsService);
+            sc.AddSingleton(settingsService.Load());
+            using var sp = sc.BuildServiceProvider();
+            module.AttachServices(sp);
+
+            Assert.NotNull(module.CreateSettingsView());
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
     }
 }

@@ -39,6 +39,7 @@ using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
+using SenderNG.Modules.Plotter.Nex.Settings;
 
 namespace SenderNG.Modules.Plotter.Nex;
 
@@ -59,8 +60,10 @@ namespace SenderNG.Modules.Plotter.Nex;
 /// services. No app-assembly type is referenced, so the plugin stays swappable.
 /// </para>
 /// </summary>
-public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo
+public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IModuleSettingsProvider
 {
+    private IServiceProvider? _services;
+
     public string Id => "plotter-nex";
     public string Name => "Plot 3D";
     public string Description => "G-code 3D path plotter: HelixToolkit.Nex orbit view (PoC).";
@@ -88,7 +91,8 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo
             ["module.plotterNex.placeholder"] = "3D plotter (PoC)",
         };
 
-    public void RegisterServices(IServiceCollection services) { }
+    public void RegisterServices(IServiceCollection services) =>
+        services.AddSingleton<PlotterNexSettingsViewModel>();
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         new PlotterNexViewModel(
@@ -96,6 +100,15 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo
             serviceProvider.GetRequiredService<IGrblService>(),
             serviceProvider.GetRequiredService<SettingsService>(),
             serviceProvider.GetRequiredService<LocalizationService>());
+
+    // Settings fields must work before the module's own view is opened (App Settings dialog).
+    public void AttachServices(IServiceProvider services) =>
+        _services = services;
+
+    public object? CreateSettingsView() =>
+        _services is null
+            ? null
+            : new PlotterNexSettingsView { DataContext = _services.GetRequiredService<PlotterNexSettingsViewModel>() };
 
     public object CreateView(object viewModel) =>
         new PlotterNexView { DataContext = viewModel };
