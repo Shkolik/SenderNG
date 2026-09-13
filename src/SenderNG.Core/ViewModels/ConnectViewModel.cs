@@ -55,7 +55,7 @@ public enum ConnectMode
 
 /// <summary>What the user picked in the connect dialog (valid after Connect closes true).</summary>
 public sealed record ConnectResult(ConnectMode Mode, string? Port, int BaudRate, string? Endpoint,
-    ConnectResetMode SerialResetMode = ConnectResetMode.None);
+    ConnectResetMode SerialResetMode = ConnectResetMode.None, string? ProfileId = null);
 
 /// <summary>A named "On connect" reset option for the Serial tab (ioSender dropdown).</summary>
 public sealed record ResetModeOption(ConnectResetMode Mode, string Name);
@@ -73,11 +73,13 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
 {
     private const int AutoRefreshIntervalMs = 1000;
 
-    private readonly MachineProfile _profile;
     private readonly GlobalSettings _global;
     private readonly IComPortService? _ports;
     private readonly System.Action<System.Action>? _ui;
     private readonly LocalizationService? _localization;
+    private MachineProfile _profile;
+    private IReadOnlyList<MachineProfile> _allProfiles;
+    private ProfileItem? _selectedProfile;
     private Timer? _autoRefreshTimer;
     private string _selectedPort = string.Empty;
     private int _baudRate = 115200;
@@ -92,7 +94,8 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
     /// (e.g. unit tests, headless) the auto-refresh applies directly.
     /// </param>
     public ConnectViewModel(MachineProfile profile, GlobalSettings global, IComPortService? comPorts = null,
-        System.Action<System.Action>? ui = null, LocalizationService? localization = null)
+        System.Action<System.Action>? ui = null, LocalizationService? localization = null,
+        IEnumerable<MachineProfile>? profiles = null)
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(global);
@@ -108,25 +111,14 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
             new(ConnectResetMode.ToggleDtr, Resolve("connect.reset.dtr", "Toggle DTR")),
             new(ConnectResetMode.ToggleRts, Resolve("connect.reset.rts", "Toggle RTS")),
         ];
-
-        // Pre-fill from the profile's last *successful* connection, falling back
-        // to its preferred port/baud, then the standard rate.
-        var savedBaud = _profile.Connection.LastSerialBaudRate > 0
-            ? _profile.Connection.LastSerialBaudRate
-            : _profile.Connection.SerialBaudRate;
-        _baudRate = BaudRates.Contains(savedBaud) ? savedBaud : 115200;
-        _networkEndpoint = !string.IsNullOrWhiteSpace(_profile.Connection.LastNetworkEndpoint)
-            ? _profile.Connection.LastNetworkEndpoint
-            : "192.168.1.100:23";
-
-        // Restore the persisted On-connect reset action (default: No action).
-        _resetMode = ResetModeOptions.FirstOrDefault(
-            r => r.Mode == _profile.Connection.SerialResetMode, ResetModeOptions[0]).Mode;
+        _allProfiles = profiles is null || !profiles.Any() ? [profile] : profiles.ToList();
+        Profiles = _allProfiles.Select(p => new ProfileItem(p.Id, p.Name, p.MachineTypeId)).ToList();
+        _selectedProfile = Profiles.FirstOrDefault(p => p.Id == profile.Id) ?? Profiles[0];
 
         ConnectCommand = new DelegateCommand(_ => Connect(), _ => CanConnect);
         CancelCommand = new DelegateCommand(_ => RequestClose(false));
 
-        RefreshPorts();
+        ApplyPrefill(_profile);
 
         // Default to the first usable tab: Serial when ports exist, otherwise
         // Network when enabled, otherwise Demo (always available).
@@ -217,6 +209,24 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
 
     public ConnectMode SelectedTab => (ConnectMode)SelectedIndex;
 
+    public IReadOnlyList<ProfileItem> Profiles { get; }
+
+    public bool ProfileSelectorVisible => Profiles.Count > 1;
+
+    public ProfileItem SelectedProfile
+    {
+        get => _selectedProfile!;
+        set
+        {
+            if (value is null || value.Id == _selectedProfile?.Id) return;
+            var profile = _allProfiles.FirstOrDefault(p => p.Id == value.Id);
+            if (profile is null) return;
+            _selectedProfile = value;
+            OnPropertyChanged();
+            ApplyPrefill(profile);
+        }
+    }
+
     /// <summary>Serial tab usable: at least one port was enumerated.</summary>
     public bool HasPorts => Ports.Count > 0;
 
@@ -285,19 +295,39 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
         switch (SelectedTab)
         {
             case ConnectMode.Serial:
-                Result = new ConnectResult(ConnectMode.Serial, SelectedPort, BaudRate, null, SelectedResetMode);
+                Result = new ConnectResult(ConnectMode.Serial, SelectedPort, BaudRate, null, SelectedResetMode, _profile.Id);
                 break;
             case ConnectMode.Network:
-                Result = new ConnectResult(ConnectMode.Network, null, 0, NetworkEndpoint?.Trim());
+                Result = new ConnectResult(ConnectMode.Network, null, 0, NetworkEndpoint?.Trim(), ProfileId: _profile.Id);
                 break;
             default:
-                Result = new ConnectResult(ConnectMode.Demo, null, 0, null);
+                Result = new ConnectResult(ConnectMode.Demo, null, 0, null, ProfileId: _profile.Id);
                 break;
         }
 
         // Persistence of the last successful connection happens in the caller
         // (MainViewModel) only after the connect actually succeeds.
         RequestClose(true);
+    }
+
+    private void ApplyPrefill(MachineProfile profile)
+    {
+        _profile = profile;
+        var savedBaud = profile.Connection.LastSerialBaudRate > 0
+            ? profile.Connection.LastSerialBaudRate
+            : profile.Connection.SerialBaudRate;
+        _baudRate = BaudRates.Contains(savedBaud) ? savedBaud : 115200;
+        _networkEndpoint = !string.IsNullOrWhiteSpace(profile.Connection.LastNetworkEndpoint)
+            ? profile.Connection.LastNetworkEndpoint
+            : "192.168.1.100:23";
+        _resetMode = ResetModeOptions.FirstOrDefault(
+            r => r.Mode == profile.Connection.SerialResetMode, ResetModeOptions[0]).Mode;
+        OnPropertyChanged(nameof(BaudRate));
+        OnPropertyChanged(nameof(NetworkEndpoint));
+        OnPropertyChanged(nameof(SelectedResetMode));
+        OnPropertyChanged(nameof(SelectedResetModeOption));
+        _selectedPort = string.Empty;
+        RefreshPorts();
     }
 
     public void RefreshPorts()

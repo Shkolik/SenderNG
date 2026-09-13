@@ -62,6 +62,18 @@ public class ConnectViewModelTests
     // global tier; tests that don't touch those just pass a fresh one.
     private static GlobalSettings Global() => new();
 
+    private static MachineProfile ProfileWithId(string id, string lastPort, int baud = 115200,
+        string endpoint = "192.168.1.100:23", ConnectResetMode resetMode = ConnectResetMode.None)
+    {
+        var profile = new MachineProfile { Id = id, Name = id };
+        profile.Connection.LastSerialPort = lastPort;
+        profile.Connection.LastSerialBaudRate = baud;
+        profile.Connection.SerialBaudRate = baud;
+        profile.Connection.LastNetworkEndpoint = endpoint;
+        profile.Connection.SerialResetMode = resetMode;
+        return profile;
+    }
+
     [Fact]
     public void Ports_are_populated_from_com_port_service()
     {
@@ -387,6 +399,81 @@ public class ConnectViewModelTests
         {
             vm.Dispose();
         }
+    }
+
+    [Fact]
+    public void ProfileSelectorVisible_false_when_single_profile()
+    {
+        var vm = new ConnectViewModel(SettingsWith(), Global(), new StubComPorts(["COM3"]));
+        Assert.Equal(1, vm.Profiles.Count);
+        Assert.False(vm.ProfileSelectorVisible);
+    }
+
+    [Fact]
+    public void ProfileSelectorVisible_true_when_multiple_profiles()
+    {
+        var active = SettingsWith();
+        var second = ProfileWithId("other", "COM3");
+        var vm = new ConnectViewModel(active, Global(), new StubComPorts(["COM3"]), profiles: [active, second]);
+        Assert.True(vm.ProfileSelectorVisible);
+        Assert.Equal(["default", "other"], vm.Profiles.Select(p => p.Id));
+    }
+
+    [Fact]
+    public void SelectedProfile_defaults_to_the_active_profile()
+    {
+        var active = SettingsWith("COM7", 250000);
+        var second = ProfileWithId("other", "COM3");
+        var vm = new ConnectViewModel(active, Global(), new StubComPorts(["COM3", "COM7"]),
+            profiles: [active, second]);
+        Assert.Equal(active.Id, vm.SelectedProfile.Id);
+    }
+
+    [Fact]
+    public void Switching_SelectedProfile_rebinds_prefills_and_keeps_tab()
+    {
+        var profileA = SettingsWith("COM7", 250000);
+        profileA.Connection.LastSerialPort = "COM7";
+        profileA.Connection.LastSerialBaudRate = 250000;
+        profileA.Connection.LastNetworkEndpoint = "10.0.0.9:23";
+        profileA.Connection.SerialResetMode = ConnectResetMode.ToggleDtr;
+        var profileB = ProfileWithId("B", "COM3", 115200, "192.168.1.100:23", ConnectResetMode.None);
+
+        var vm = new ConnectViewModel(profileA, Global(), new StubComPorts(["COM3", "COM7"]),
+            profiles: [profileA, profileB]);
+        Assert.Equal("COM7", vm.SelectedPort);
+        Assert.Equal(0, vm.SelectedIndex);
+
+        vm.SelectedProfile = vm.Profiles.First(p => p.Id == "B");
+
+        Assert.Equal("COM3", vm.SelectedPort);
+        Assert.Equal(115200, vm.BaudRate);
+        Assert.Equal("192.168.1.100:23", vm.NetworkEndpoint);
+        Assert.Equal(ConnectResetMode.None, vm.SelectedResetMode);
+        Assert.Equal(0, vm.SelectedIndex);
+    }
+
+    [Fact]
+    public void Connect_result_carries_the_chosen_profile_id()
+    {
+        var profileA = SettingsWith("COM7", 250000);
+        profileA.Connection.LastSerialPort = "COM7";
+        profileA.Connection.LastSerialBaudRate = 250000;
+        profileA.Connection.LastNetworkEndpoint = "10.0.0.9:23";
+        profileA.Connection.SerialResetMode = ConnectResetMode.ToggleDtr;
+        var profileB = ProfileWithId("B", "COM3", 115200);
+
+        var vm = new ConnectViewModel(profileA, Global(), new StubComPorts(["COM3", "COM7"]),
+            profiles: [profileA, profileB]);
+        vm.SelectedProfile = vm.Profiles.First(p => p.Id == "B");
+        vm.SelectedIndex = (int)ConnectMode.Serial;
+
+        bool? result = null;
+        vm.CloseRequested += (_, r) => result = r;
+        vm.ConnectCommand.Execute(null);
+
+        Assert.True(result);
+        Assert.Equal("B", vm.Result!.ProfileId);
     }
 
     private sealed class MutableComPorts(string[] ports) : IComPortService
