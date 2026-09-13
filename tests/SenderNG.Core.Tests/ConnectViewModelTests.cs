@@ -405,8 +405,15 @@ public class ConnectViewModelTests
     public void ProfileSelectorVisible_false_when_single_profile()
     {
         var vm = new ConnectViewModel(SettingsWith(), Global(), new StubComPorts(["COM3"]));
-        Assert.Equal(1, vm.Profiles.Count);
-        Assert.False(vm.ProfileSelectorVisible);
+        try
+        {
+            Assert.Equal(1, vm.Profiles.Count);
+            Assert.False(vm.ProfileSelectorVisible);
+        }
+        finally
+        {
+            vm.Dispose();
+        }
     }
 
     [Fact]
@@ -415,8 +422,15 @@ public class ConnectViewModelTests
         var active = SettingsWith();
         var second = ProfileWithId("other", "COM3");
         var vm = new ConnectViewModel(active, Global(), new StubComPorts(["COM3"]), profiles: [active, second]);
-        Assert.True(vm.ProfileSelectorVisible);
-        Assert.Equal(["default", "other"], vm.Profiles.Select(p => p.Id));
+        try
+        {
+            Assert.True(vm.ProfileSelectorVisible);
+            Assert.Equal(["default", "other"], vm.Profiles.Select(p => p.Id));
+        }
+        finally
+        {
+            vm.Dispose();
+        }
     }
 
     [Fact]
@@ -426,7 +440,14 @@ public class ConnectViewModelTests
         var second = ProfileWithId("other", "COM3");
         var vm = new ConnectViewModel(active, Global(), new StubComPorts(["COM3", "COM7"]),
             profiles: [active, second]);
-        Assert.Equal(active.Id, vm.SelectedProfile.Id);
+        try
+        {
+            Assert.Equal(active.Id, vm.SelectedProfile.Id);
+        }
+        finally
+        {
+            vm.Dispose();
+        }
     }
 
     [Fact]
@@ -441,16 +462,23 @@ public class ConnectViewModelTests
 
         var vm = new ConnectViewModel(profileA, Global(), new StubComPorts(["COM3", "COM7"]),
             profiles: [profileA, profileB]);
-        Assert.Equal("COM7", vm.SelectedPort);
-        Assert.Equal(0, vm.SelectedIndex);
+        try
+        {
+            Assert.Equal("COM7", vm.SelectedPort);
+            Assert.Equal(0, vm.SelectedIndex);
 
-        vm.SelectedProfile = vm.Profiles.First(p => p.Id == "B");
+            vm.SelectedProfile = vm.Profiles.First(p => p.Id == "B");
 
-        Assert.Equal("COM3", vm.SelectedPort);
-        Assert.Equal(115200, vm.BaudRate);
-        Assert.Equal("192.168.1.100:23", vm.NetworkEndpoint);
-        Assert.Equal(ConnectResetMode.None, vm.SelectedResetMode);
-        Assert.Equal(0, vm.SelectedIndex);
+            Assert.Equal("COM3", vm.SelectedPort);
+            Assert.Equal(115200, vm.BaudRate);
+            Assert.Equal("192.168.1.100:23", vm.NetworkEndpoint);
+            Assert.Equal(ConnectResetMode.None, vm.SelectedResetMode);
+            Assert.Equal(0, vm.SelectedIndex);
+        }
+        finally
+        {
+            vm.Dispose();
+        }
     }
 
     [Fact]
@@ -465,15 +493,22 @@ public class ConnectViewModelTests
 
         var vm = new ConnectViewModel(profileA, Global(), new StubComPorts(["COM3", "COM7"]),
             profiles: [profileA, profileB]);
-        vm.SelectedProfile = vm.Profiles.First(p => p.Id == "B");
-        vm.SelectedIndex = (int)ConnectMode.Serial;
+        try
+        {
+            vm.SelectedProfile = vm.Profiles.First(p => p.Id == "B");
+            vm.SelectedIndex = (int)ConnectMode.Serial;
 
-        bool? result = null;
-        vm.CloseRequested += (_, r) => result = r;
-        vm.ConnectCommand.Execute(null);
+            bool? result = null;
+            vm.CloseRequested += (_, r) => result = r;
+            vm.ConnectCommand.Execute(null);
 
-        Assert.True(result);
-        Assert.Equal("B", vm.Result!.ProfileId);
+            Assert.True(result);
+            Assert.Equal("B", vm.Result!.ProfileId);
+        }
+        finally
+        {
+            vm.Dispose();
+        }
     }
 
     private sealed class MutableComPorts(string[] ports) : IComPortService

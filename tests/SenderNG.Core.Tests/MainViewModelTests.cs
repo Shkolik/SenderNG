@@ -366,6 +366,27 @@ public class MainViewModelTests
         Assert.Equal(foamId, freshSettings.Global.ActiveProfileId);
         Assert.True(vm.IsConnected);
     }
+
+    [Fact]
+    public async Task Connect_dialog_cancel_does_not_activate_selected_alternate_profile()
+    {
+        var settings = MakeSettings();
+        var defaultId = settings.Global.ActiveProfileId;
+        var foamId = settings.CreateProfile("Foam", MachineTypes.Foam).Id;
+        var provider = MakeProvider(settings);
+        var dialogs = new StubDialogService();
+        var vm = new MainViewModel(provider.GetRequiredService<DemoGrblService>(), settings, provider, dialogs: dialogs);
+
+        var task = vm.ShowConnectDialogAsync();
+        var connectVm = Assert.IsType<CNC.Core.ViewModels.ConnectViewModel>(dialogs.LastVm);
+        connectVm.SelectedProfile = connectVm.Profiles.First(p => p.Id == foamId);
+        connectVm.CancelCommand.Execute(null);
+        await task;
+
+        var freshSettings = new SettingsService(settings.SettingsDir);
+        Assert.Equal(defaultId, freshSettings.Global.ActiveProfileId);
+        Assert.False(vm.IsConnected);
+    }
 }
 
 public class MainViewModelLiveVisibilityTests

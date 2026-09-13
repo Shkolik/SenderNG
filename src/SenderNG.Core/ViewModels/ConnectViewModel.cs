@@ -111,7 +111,8 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
             new(ConnectResetMode.ToggleDtr, Resolve("connect.reset.dtr", "Toggle DTR")),
             new(ConnectResetMode.ToggleRts, Resolve("connect.reset.rts", "Toggle RTS")),
         ];
-        _allProfiles = profiles is null || !profiles.Any() ? [profile] : profiles.ToList();
+        var list = profiles?.ToList();
+        _allProfiles = list is null || list.Count == 0 ? [profile] : list;
         Profiles = _allProfiles.Select(p => new ProfileItem(p.Id, p.Name, p.MachineTypeId)).ToList();
         _selectedProfile = Profiles.FirstOrDefault(p => p.Id == profile.Id) ?? Profiles[0];
 

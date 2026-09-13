@@ -45,9 +45,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <Border Width="360" Padding="10" Background="#f6f6f6">
         <StackPanel Spacing="6">
 
-            <!-- MinHeight pins the dialog to the height of the (tallest) Serial tab
-                 so switching to the shorter Network/Demo tabs doesn't make the
-                 dialog jump; it can still grow if content needs more room. -->
             <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ProfileSelectorVisible}">
                 <TextBlock Text="{loc:Loc connect.profile}" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
                 <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
@@ -66,6 +63,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     </ComboBox.ItemTemplate>
                 </ComboBox>
             </StackPanel>
+            <!-- MinHeight pins the dialog to the height of the (tallest) Serial tab
+                 so switching to the shorter Network/Demo tabs doesn't make the
+                 dialog jump; it can still grow if content needs more room. -->
             <TabControl SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
                         CornerRadius="0" Background="White"
                         BorderBrush="#999" BorderThickness="1" MinHeight="200">
