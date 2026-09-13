@@ -767,6 +767,20 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// host-visible writes.</summary>
     public void PumpCarriagePlanes() => _liveLayers.ForEach(l => l.Pump());
 
+    /// <summary>Swap-pump the tool connector wires and loft surfaces (see
+    /// <see cref="NexLoftSurface.Pump"/> and <see cref="NexPlotTool.Pump"/>). Called
+    /// from the view's tick loop so per-status-poll position changes reach the GPU
+    /// as fresh static geometries instead of in-place host-visible writes — the
+    /// 2-point wire + loft in-place dynamic uploads raced the live render loop and
+    /// produced VK_ERROR_DEVICE_LOST on the foam scenes (mill scenes ran wireless).</summary>
+    public void PumpToolWireAndLofts()
+    {
+        foreach (var loft in _liveLofts)
+            loft.Pump();
+        foreach (var tool in _liveTools)
+            tool.Pump();
+    }
+
     /// <summary>The headless Vulkan context the engine renders with.</summary>
     public IContext Context => _context;
 

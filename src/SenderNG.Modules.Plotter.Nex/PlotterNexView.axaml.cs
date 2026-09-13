@@ -326,6 +326,12 @@ public partial class PlotterNexView : UserControl
             scene.PumpCarriagePlanes();
         }
 
+        // Same swap-pump cure for the tool connector wire and loft surface:
+        // their positions stage on status polls (PostUi) and reach the GPU here
+        // as fresh staged static geometries instead of in-place host-visible
+        // mapped writes racing the in-flight frame.
+        scene.PumpToolWireAndLofts();
+
         var tl = TopLevel.GetTopLevel(this);
         var scale = tl?.RenderScaling ?? 1.0;
         // GpuImage.Bounds is 0 until the bitmap gives the Image an intrinsic

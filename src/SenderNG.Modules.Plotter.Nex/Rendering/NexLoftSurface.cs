@@ -45,9 +45,14 @@ using SenderNG.Modules.Plotter.Nex.Scene;
 namespace SenderNG.Modules.Plotter.Nex.Rendering;
 
 /// <summary>
-/// One wire-plane loop (the polygon outline) as a dynamic line list. Cheap and
-/// synchronous — the caller throttles <see cref="SetWirePlane"/> frequency,
-/// so the whole loop is simply rebuilt on each call.
+/// One wire-plane loop (the polygon outline) rendered as a swap-pumped static
+/// line list. <see cref="SetWirePlane"/> mutates CPU staging only (no GPU
+/// work); the GPU gets a fresh STATIC geometry through
+/// <see cref="NexPlotScene.PumpToolWireAndLofts"/> (a low-Hz pump polled from
+/// the view, same as the carriage planes). This deliberately NEVER writes
+/// host-visible mapped buffers that in-flight frames read — in-place dynamic
+/// uploads raced the live render loop and produced VK_ERROR_DEVICE_LOST on the
+/// loft scenes (helix engine 1.3.0-alpha.41, driver 32.0.15.9608).
 /// </summary>
 public sealed class NexLoftSurface : ILoftSurface
 {
@@ -55,18 +60,22 @@ public sealed class NexLoftSurface : ILoftSurface
     // alpha handling in the Nex line shader is unverified).
     private static readonly Color4 WireColor = new(0.42f, 0.42f, 0.54f, 1f);
 
-    private readonly Geometry _geometry;
+    private readonly Engine _engine;
+    private readonly Geometry _staging;
     private readonly LineNode _node;
+    private readonly RebuildGate _rebuildGate = new();
+    private Geometry? _renderedGeometry;
 
-    /// <summary>Create the loft surface under <paramref name="root"/>.</summary>
+    /// <summary>Create the loft surface under <paramref name="root"/>. The node
+    /// stays geometry-less until the first <see cref="Pump"/>.</summary>
     public NexLoftSurface(Node root, Engine engine)
     {
-        _geometry = new Geometry(Topology.Line, isDynamic: true);
-        // Register with the engine so Geometry.Valid becomes true; otherwise the
-        // node never reaches the line draw stream and renders nothing.
-        engine.Add(_geometry);
+        _engine = engine;
+        // Staging container only — never registered with the engine, never
+        // attached to a node, so nothing here produces GPU buffers. All GPU
+        // content arrives via Pump() as a fresh static geometry.
+        _staging = new Geometry(Topology.Line, isDynamic: true);
         _node = root.World.CreateLineNode("loft-surface");
-        _node.Geometry = _geometry;
         _node.LineThickness = 0.9f;
         _node.LineColor = Color4.White;
         root.AddChild(_node);
@@ -78,22 +87,58 @@ public sealed class NexLoftSurface : ILoftSurface
     /// <inheritdoc/>
     public void SetWirePlane(Vector3[] polygon)
     {
-        _geometry.Vertices.Clear();
-        _geometry.VertexColors.Clear();
-        if (polygon is not null && polygon.Length >= 2)
+        FillLoop(_staging, polygon);
+        // GPU content never changes here — mark the swap-pump pending instead.
+        _rebuildGate.MarkDirty();
+    }
+
+    /// <summary>Fill <paramref name="target"/> with the closed polygon loop:
+    /// one line per edge (two vertices + two tints), ending back at the first
+    /// point. Any short/null polygon clears the target (loop with nothing to
+    /// draw).</summary>
+    internal static void FillLoop(Geometry target, Vector3[]? polygon)
+    {
+        target.Vertices.Clear();
+        target.VertexColors.Clear();
+        if (polygon is null || polygon.Length < 2)
+            return;
+        var color = WireColor.ToVector4();
+        for (var i = 0; i < polygon.Length; i++)
         {
-            var color = WireColor.ToVector4();
-            for (var i = 0; i < polygon.Length; i++)
-            {
-                var next = (i + 1) % polygon.Length;
-                _geometry.Vertices.Add(new Vector4(polygon[i], 1f));
-                _geometry.Vertices.Add(new Vector4(polygon[next], 1f));
-                _geometry.VertexColors.Add(color);
-                _geometry.VertexColors.Add(color);
-            }
+            var next = (i + 1) % polygon.Length;
+            target.Vertices.Add(new Vector4(polygon[i], 1f));
+            target.Vertices.Add(new Vector4(polygon[next], 1f));
+            target.VertexColors.Add(color);
+            target.VertexColors.Add(color);
         }
-        _geometry.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
-        // Re-set the geometry reference so the draw stream refreshes its LineCount.
-        _node.Geometry = _geometry;
+    }
+
+    /// <summary>Swap-pump: copy the staging loop into a fresh STATIC geometry,
+    /// register it via the engine's staged buffer upload (device-local
+    /// destination — never a mapped write into a buffer a frame is reading),
+    /// swap it in as the node's geometry, and defer the previous geometry for
+    /// frame-boundary removal. Rebuilds are coalesced by <see cref="RebuildGate"/>
+    /// (position changes arrive at status-poll cadence), so this never rewrites
+    /// a live buffer in place.</summary>
+    internal void Pump()
+    {
+        if (!_rebuildGate.RebuildDue(DateTime.UtcNow))
+            return;
+
+        var loop = NexCarriagePlaneLayer.BuildStatic(_staging);
+        var old = _renderedGeometry;
+        if (loop.Vertices.Count > 0)
+        {
+            _engine.Add(loop);
+            _node.Geometry = loop;
+            _renderedGeometry = loop;
+        }
+        else
+        {
+            _node.Geometry = null;
+            _renderedGeometry = null;
+        }
+
+        old?.Dispose();
     }
 }

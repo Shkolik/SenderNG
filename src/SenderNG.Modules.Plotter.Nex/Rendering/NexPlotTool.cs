@@ -64,22 +64,26 @@ public sealed class NexPlotTool : IPlotTool
     private const float ConeRadius = 1.5f;
     private const int ConeSegments = 16;
 
-    private readonly Geometry _segmentGeometry;
+    private readonly Engine _engine;
+    private readonly Geometry _stagingSegmentGeometry;
     private readonly LineNode _segmentNode;
     private readonly LineNode _coneNodeA;
     private readonly LineNode _coneNodeB;
+    private readonly RebuildGate _rebuildGate = new();
+    private Geometry? _renderedSegmentGeometry;
     private ToolShape _shape;
 
-    /// <summary>Create the tool under <paramref name="root"/>.</summary>
+    /// <summary>Create the tool under <paramref name="root"/>. The connector
+    /// wire starts geometry-less until the first <see cref="Pump"/>.</summary>
     public NexPlotTool(Node root, Engine engine, ToolShape shape)
     {
         _shape = shape;
-        _segmentGeometry = new Geometry(Topology.Line, isDynamic: true);
-        // Register with the engine so Geometry.Valid becomes true; otherwise the
-        // nodes never reach the line draw stream and render nothing.
-        engine.Add(_segmentGeometry);
+        _engine = engine;
+        // Staging container only — never registered with the engine, never
+        // attached to a node, so nothing here produces GPU buffers. All GPU
+        // wire content arrives via Pump() as a fresh static geometry.
+        _stagingSegmentGeometry = new Geometry(Topology.Line, isDynamic: true);
         _segmentNode = root.World.CreateLineNode("tool-wire");
-        _segmentNode.Geometry = _segmentGeometry;
         _segmentNode.LineThickness = 1.4f;
         _segmentNode.LineColor = Color4.White;
         root.AddChild(_segmentNode);
@@ -117,6 +121,10 @@ public sealed class NexPlotTool : IPlotTool
             SetConePosition(_coneNodeB, ParkedPosition);
             SetConePosition(_coneNodeA,
                 endpoints.Points.Length == 1 ? endpoints.Points[0] : Vector3.Zero);
+            // Stage an empty wire; the pump clears the rendered segment.
+            FillWire(_stagingSegmentGeometry, null, null);
+            // GPU content never changes here — mark the swap-pump pending instead.
+            _rebuildGate.MarkDirty();
             return;
         }
 
@@ -124,18 +132,54 @@ public sealed class NexPlotTool : IPlotTool
         _coneNodeB.Enabled = true;
         var p0 = endpoints.Points[0];
         var p1 = endpoints.Points[1];
-        _segmentGeometry.Vertices.Clear();
-        _segmentGeometry.VertexColors.Clear();
-        var color = ToolColor.ToVector4();
-        _segmentGeometry.Vertices.Add(new Vector4(p0, 1f));
-        _segmentGeometry.Vertices.Add(new Vector4(p1, 1f));
-        _segmentGeometry.VertexColors.Add(color);
-        _segmentGeometry.VertexColors.Add(color);
-        _segmentGeometry.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
-        // Re-set the geometry reference so the draw stream refreshes its LineCount.
-        _segmentNode.Geometry = _segmentGeometry;
+        FillWire(_stagingSegmentGeometry, p0, p1);
+        // GPU content never changes here — mark the swap-pump pending instead.
+        _rebuildGate.MarkDirty();
         SetConePosition(_coneNodeA, p0);
         SetConePosition(_coneNodeB, p1);
+    }
+
+    /// <summary>Fill <paramref name="target"/> with the connector wire: two
+    /// vertices + two tool-tint colors at the two endpoints, cleared when a
+    /// <c>null</c> endpoint is given (single-point/parked machines).</summary>
+    internal static void FillWire(Geometry target, Vector3? p0, Vector3? p1)
+    {
+        target.Vertices.Clear();
+        target.VertexColors.Clear();
+        if (p0 is null || p1 is null)
+            return;
+        var color = ToolColor.ToVector4();
+        target.Vertices.Add(new Vector4(p0.Value, 1f));
+        target.Vertices.Add(new Vector4(p1.Value, 1f));
+        target.VertexColors.Add(color);
+        target.VertexColors.Add(color);
+    }
+
+    /// <summary>Swap-pump the connector wire (see <see cref="NexLoftSurface.Pump"/>):
+    /// stage its GPU content as a fresh STATIC geometry under the engine's
+    /// staged upload, swap it in as the node's geometry, and defer the previous
+    /// geometry's removal. The cones are untouched — their transforms ride the
+    /// NodeInfo path (proven safe in the mill scene at the same cadence).</summary>
+    internal void Pump()
+    {
+        if (!_rebuildGate.RebuildDue(DateTime.UtcNow))
+            return;
+
+        var wire = NexCarriagePlaneLayer.BuildStatic(_stagingSegmentGeometry);
+        var old = _renderedSegmentGeometry;
+        if (wire.Vertices.Count > 0)
+        {
+            _engine.Add(wire);
+            _segmentNode.Geometry = wire;
+            _renderedSegmentGeometry = wire;
+        }
+        else
+        {
+            _segmentNode.Geometry = null;
+            _renderedSegmentGeometry = null;
+        }
+
+        old?.Dispose();
     }
 
     /// <summary>Write the cone transform and notify the ECS change so the engine
@@ -161,7 +205,7 @@ public sealed class NexPlotTool : IPlotTool
     {
         var a = _coneNodeA.Geometry;
         var b = _coneNodeB.Geometry;
-        return $"wire(en={_segmentNode.Enabled}, lc={_segmentNode.LineCount}, vc={_segmentGeometry.Vertices.Count}) "
+        return $"wire(en={_segmentNode.Enabled}, lc={_segmentNode.LineCount}, vc={_stagingSegmentGeometry.Vertices.Count}) "
             + $"coneA(en={_coneNodeA.Enabled}, lc={_coneNodeA.LineCount}, vc={(a is null ? -1 : a.Vertices.Count)}, r={(a is null ? -1f : a.BoundingSphereLocal.Radius):F2}, t={_coneNodeA.Transform.Translation}) "
             + $"coneB(en={_coneNodeB.Enabled}, lc={_coneNodeB.LineCount}, vc={(b is null ? -1 : b.Vertices.Count)}, t={_coneNodeB.Transform.Translation})";
     }
