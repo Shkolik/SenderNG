@@ -82,6 +82,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     private ISceneFactory? _sceneFactory;
     private IPlotScene? _scene;
     private MachineType _machineType;
+    private NexPlaneGeometry[] _planeGeometries = [];
     private uint[][] _planeOutputLines = [];
     private Dictionary<uint, int> _lineToRow = new();
     private int _generation;
@@ -108,6 +109,9 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         _settings = settings;
         _localization = localization;
         _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
+
+        _planeGeometries = ResolvePlaneGeometries(_machineType);
+        _settings.Changed += OnSettingsChanged;
 
         _programSource.ProgramChanged += OnProgramChanged;
         _programSource.RowsChanged += OnRowsChanged;
@@ -238,6 +242,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
 
     public void Dispose()
     {
+        _settings.Changed -= OnSettingsChanged;
         _programSource.ProgramChanged -= OnProgramChanged;
         _programSource.RowsChanged -= OnRowsChanged;
         _stateSubscription.Dispose();
@@ -246,10 +251,30 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     private void OnProgramChanged() => PostUi(() =>
     {
         _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
+        _planeGeometries = ResolvePlaneGeometries(_machineType);
         OnPropertyChanged(nameof(PlaneCount));
         OnPropertyChanged(nameof(PlaneLettersText));
         Rebuild();
     });
+
+    private void OnSettingsChanged()
+    {
+        _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
+        _planeGeometries = ResolvePlaneGeometries(_machineType);
+        OnPropertyChanged(nameof(PlaneCount));
+        OnPropertyChanged(nameof(PlaneLettersText));
+        if (_programSource.Program is not null)
+            Rebuild();
+    }
+
+    private NexPlaneGeometry[] ResolvePlaneGeometries(MachineType type)
+    {
+        var settings = PlotterNexConfig.Load(_settings.Load(), type);
+        var geoms = new NexPlaneGeometry[type.Planes.Count];
+        for (var p = 0; p < geoms.Length; p++)
+            geoms[p] = p < settings.Planes.Count ? settings.Planes[p] : settings.Planes[^1];
+        return geoms;
+    }
 
     /// <summary>Row events land on the serial thread at stream speed; posting one
     /// dispatcher action per event starves the UI during a fast check run. The
@@ -302,10 +327,10 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
                     var indices = _machineType.PlaneAxisIndices(p);
                     if (seg.To.Length <= indices[^1])
                         continue;
-                    _ackedEnds[p] = new Vector3(
-                        (float)seg.To[indices[0]],
-                        (float)seg.To[indices[1]],
-                        indices.Length >= 3 ? (float)seg.To[indices[2]] : 0f);
+                    var geometry = _planeGeometries.Length == _machineType.Planes.Count
+                        ? _planeGeometries[p]
+                        : PlotterNexConfig.Defaults(_machineType).Planes[p];
+                    _ackedEnds[p] = PlaneWorldMapper.ToWorld(geometry, seg.To, indices);
                 }
             }
             _ackedEndRowBaseline = i;
@@ -330,10 +355,10 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
             var indices = _machineType.PlaneAxisIndices(p);
             if (positions.Length <= indices[^1])
                 return; // Controller reports fewer axes than the machine needs.
-            var live = new Vector3(
-                (float)positions[indices[0]],
-                (float)positions[indices[1]],
-                indices.Length >= 3 ? (float)positions[indices[2]] : 0f);
+            var geometry = _planeGeometries.Length == _machineType.Planes.Count
+                ? _planeGeometries[p]
+                : PlotterNexConfig.Defaults(_machineType).Planes[p];
+            var live = PlaneWorldMapper.ToWorld(geometry, positions, indices);
             var acked = p < _ackedEnds.Length ? _ackedEnds[p] : null;
             Vector3? resolved = _isCheckMode ? (acked ?? live) : live;
             if (resolved is null)
@@ -414,7 +439,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
             for (var p = 0; p < _machineType.Planes.Count; p++)
                 ToolpathSceneBuilder.PopulatePlane(
                     _sceneFactory.PlaneLayer(p), geometry.SourceSegments, _machineType.PlaneAxisIndices(p),
-                    PlotterNexConfig.Defaults(_machineType).Planes[p]);
+                    _planeGeometries.Length == _machineType.Planes.Count ? _planeGeometries[p] : PlotterNexConfig.Defaults(_machineType).Planes[p]);
         }
 
         _planeOutputLines = geometry.PlaneOutputLines;

@@ -289,8 +289,8 @@ public class PlotterNexViewModelTests : IDisposable
         var tool = scene.Tools[^1];
         var endpoint = tool.Positions[^1];
         Assert.Equal(2, endpoint.Points.Length);
-        Assert.Equal(new Vector3(10, 20, 0), endpoint.Points[0]);
-        Assert.Equal(new Vector3(30, 40, 0), endpoint.Points[1]);
+        Assert.Equal(new Vector3(-50, 10, 20), endpoint.Points[0]);
+        Assert.Equal(new Vector3(50, 30, 40), endpoint.Points[1]);
 
         // The loft follows the wire every controller tick — never empty.
         var loft = scene.Lofts[^1];
@@ -607,9 +607,45 @@ public class PlotterNexViewModelTests : IDisposable
         var tool = scene.Tools[^1];
         var endpoint = tool.Positions[^1];
         Assert.Equal(2, endpoint.Points.Length);
-        // Last acked (row 4, G1 Y20 A48): plane0 [X,Y] = (30,20), plane1 [Z,A] = (30,48).
-        Assert.Equal(new Vector3(30, 20, 0), endpoint.Points[0]);
-        Assert.Equal(new Vector3(30, 48, 0), endpoint.Points[1]);
+        // Last acked (row 4, G1 Y20 A48): plane0 world (-50,30,20), plane1 world (50,30,48).
+        Assert.Equal(new Vector3(-50, 30, 20), endpoint.Points[0]);
+        Assert.Equal(new Vector3(50, 30, 48), endpoint.Points[1]);
+    }
+
+    [Fact]
+    public void Settings_edit_reloads_geometry_and_rebuilds_with_new_wire_length()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        // The VM and the editor share the SAME SettingsService instance (app DI is a
+        // singleton), so the save below fires Changed on the instance the VM
+        // subscribed to. (A second service on the same directory would NOT fire it:
+        // Changed is an instance event and Load() caches per instance.)
+        var settings = new SettingsService(_settingsDir);
+        var profile = settings.Load();
+        profile.MachineTypeId = MachineTypes.Foam;
+        settings.Save(profile);
+        using var vm = new PlotterNexViewModel(source, _grbl, settings,
+            new LocalizationService(new MemoryStream("{ \"strings\": {} }"u8.ToArray())),
+            new KinematicSceneFactory(scene));
+        source.Load("G21\nG1 X10 Y5 Z10 A12 F240\n");
+        Assert.True(vm.HasGeometry);
+
+        // Edit the plotter-nex section (WireLength 100 -> 200) through the same
+        // profile-save flow the AppSettings editor uses; SettingsService raises
+        // Changed, the VM must resolve the new geometry and rebuild.
+        var nex = SenderNG.Modules.Plotter.Nex.Settings.PlotterNexConfig.Load(profile,
+            CNC.Core.Services.MachineTypeCatalog.Resolve(MachineTypes.Foam));
+        nex.WireLength = 200;
+        SenderNG.Modules.Plotter.Nex.Settings.PlotterNexConfig.RecenterOnWire(nex);
+        SenderNG.Modules.Plotter.Nex.Settings.PlotterNexConfig.Save(profile, nex);
+        settings.Save(profile); // raises Changed on the VM's own service -> VM rebuilds
+
+        _grbl.Source.Emit(new MachineState { Positions = new double[] { 10, 20, 30, 40 } });
+        var tool = scene.Tools[^1];
+        var endpoint = tool.Positions[^1];
+        Assert.Equal(new Vector3(-100, 10, 20), endpoint.Points[0]);
+        Assert.Equal(new Vector3(100, 30, 40), endpoint.Points[1]);
     }
 
     /// <summary>Read-only program facade over a parsed G-code string, with an
