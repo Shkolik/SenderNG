@@ -225,6 +225,23 @@ public class PlotterModuleTests
         Assert.Equal(-1, vm.RowForLine(999));
     }
 
+    [Fact]
+    public void Frontier_follows_the_parser_block_counter_not_the_file_line()
+    {
+        // Header ;/% rows never reach the parser's block counter, so the first
+        // real block carries line 1 while its FileLine is already 4 — the row
+        // map must key by the block counter, or the head segments resolve into
+        // forever-Idle header rows (the device foam run's uncoloured start).
+        var (vm, source) = MakeVm(MachineTypes.Foam);
+        source.Load("; header\n; header2\n%\nG21\nG1 X1 Y2 Z8 A4 F100\nG1 X2 Y3 Z9 A5");
+
+        // G21 is block 1 -> row 3; the two motions are blocks 2,3 -> rows 4,5.
+        Assert.Equal(3, vm.RowForLine(1));
+        Assert.Equal(4, vm.RowForLine(2));
+        Assert.Equal(5, vm.RowForLine(3));
+        Assert.Equal(-1, vm.RowForLine(999));
+    }
+
     // ---- Degenerate input: no program / no motion / axis mismatch ----
 
     [Fact]

@@ -471,16 +471,23 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         return new Geometry(segments, planeOutputLines, lineToRow, Status: null);
     }
 
-    /// <summary>Entry index by physical line number — blank/comment lines never
-    /// carry run state, so only truly parseable lines map.</summary>
+    /// <summary>Entry index by the parser's block counter — which is what token
+    /// (and therefore segment) LineNumbers actually are. Blank/comment/percent/
+    /// realtime rows never reach the parser's counter, so a file whose header
+    /// holds them (foam programs do) starts its first real block at line 1 while
+    /// FileLine is already much higher — keying by FileLine swallows the first
+    /// blocks into forever-Idle header rows. The k-th sendable row is the k-th
+    /// block the parser counted, so the sendable ordinal is the exact key space.
+    /// </summary>
     private static Dictionary<uint, int> BuildLineToRow(GCodeProgram program)
     {
         var lineToRow = new Dictionary<uint, int>();
+        uint block = 0;
         for (var i = 0; i < program.Entries.Count; i++)
         {
-            var fileLine = program.Entries[i].FileLine;
-            if (fileLine > 0 && !lineToRow.ContainsKey((uint)fileLine))
-                lineToRow[(uint)fileLine] = i;
+            if (!program.Entries[i].IsSendable)
+                continue;
+            lineToRow[++block] = i;
         }
         return lineToRow;
     }

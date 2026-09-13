@@ -336,6 +336,41 @@ public class PlotterNexViewModelTests : IDisposable
     }
 
     [Fact]
+    public void Head_comments_do_not_leave_the_first_plane_segments_pending()
+    {
+        // Real-world foam program: `%` demarcation, ;-comments and blanks in
+        // the header are NOT sendable rows, so the parser's block counter
+        // (gcValues.N — the token/segment LineNumber) starts at 1 for the FIRST
+        // real block while its FileLine is already ~16. The line→row map must
+        // follow the block counter, not the physical file line, or the very
+        // first plane segments resolve into forever-Idle header rows.
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene, MachineTypes.Foam);
+
+        source.Load(
+            "; foam header comment\n" +
+            "; another header line\n" +
+            "%\n" +
+            "G21\n" +
+            "G0 X10 Y5 Z10 A12 F240\n" +
+            "G1 X20 Y8 Z20 A24\n" +
+            "G1 X30 Y5 Z30 A36\n" +
+            "G1 Y20 A48\n");
+
+        // Sendable rows are 3..7 (G21..last G1); ack them like the controller does.
+        source.AckRows(3, 8);
+        vm.ApplyRunStateWindow();
+
+        // All four motion segments per plane start green — the head comment
+        // rows (0,1,2) must NOT swallow the first plane segments.
+        Assert.Equal(
+            [(0, RunState.Executed), (1, RunState.Executed), (2, RunState.Executed), (3, RunState.Executed)],
+            scene.Layers[^2].RunStateCalls);
+        Assert.Equal(scene.Layers[^2].RunStateCalls, scene.Layers[^1].RunStateCalls);
+    }
+
+    [Fact]
     public void Mill_controller_state_never_calls_the_loft()
     {
         var source = new StubProgramSource();

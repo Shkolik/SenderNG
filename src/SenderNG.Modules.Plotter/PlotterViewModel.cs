@@ -370,15 +370,19 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         var bounds = ComputeBounds(segments);
         var planes = SlicePlanes(segments, type, available);
 
-        // Line → row: rows are index-aligned with the program entries and each
-        // entry carries its real file line.
+        // Line → row: rows are index-aligned with the program entries, but the
+        // KEY is the parser's block counter — what token/segment LineNumbers
+        // actually carry. % and ;-header rows never reach the parser's counter,
+        // so the k-th sendable row is the k-th block; keying by FileLine would
+        // swallow a leading block into an Idle header row (foam programs do).
         var lineToRow = new Dictionary<uint, int>();
         var entries = program.Entries;
+        uint block = 0;
         for (var i = 0; i < entries.Count; i++)
         {
-            var fileLine = entries[i].FileLine;
-            if (fileLine > 0 && !lineToRow.ContainsKey((uint)fileLine))
-                lineToRow[(uint)fileLine] = i;
+            if (!entries[i].IsSendable)
+                continue;
+            lineToRow[++block] = i;
         }
 
         return new Geometry(planes, segments, bounds, lineToRow, status);
