@@ -90,6 +90,65 @@ public class NexCarriagePlaneLayerTests
     }
 
     [Fact]
+    public void BuildStatic_does_not_throw_when_staging_grows_during_the_snapshot()
+    {
+        // Regression: the snapshot used List.AddRange(staging), whose ICollection
+        // fast path sizes the destination from a cached FastList.Count, then
+        // FastList.CopyTo copies with a freshly re-read Count. A writer growing
+        // the list between those two reads overflows the destination
+        // ("Destination array was not long enough"). Mirrors the crash observed
+        // loading a real mill file (kraft-st-adapter.nc).
+        var staging = new Geometry(Topology.Line, isDynamic: true);
+        using var stop = new CancellationTokenSource();
+        var failures = 0;
+        long snapshots = 0;
+
+        var writer = new Thread(() =>
+        {
+            var i = 0;
+            while (!stop.IsCancellationRequested)
+            {
+                for (var b = 0; b < 4096; b++)
+                {
+                    staging.Vertices.Add(new Vector4(i, i, i, 1f));
+                    staging.VertexColors.Add(new Vector4(0.5f, 0.5f, 0.5f, 1f));
+                    i++;
+                }
+                Thread.Yield();
+            }
+        }) { IsBackground = true };
+        writer.Start();
+
+        try
+        {
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(4);
+            while (DateTime.UtcNow < deadline)
+            {
+                try
+                {
+                    var geo = NexCarriagePlaneLayer.BuildStatic(staging);
+                    // A torn snapshot must still satisfy the renderer's invariant:
+                    // colors are indexed per vertex.
+                    Assert.True(geo.VertexColors.Count >= geo.Vertices.Count);
+                }
+                catch (ArgumentException)
+                {
+                    failures++;
+                }
+                snapshots++;
+            }
+        }
+        finally
+        {
+            stop.Cancel();
+            writer.Join();
+        }
+
+        Assert.True(snapshots > 0, "the stress loop should have run snapshots");
+        Assert.Equal(0, failures);
+    }
+
+    [Fact]
     public void BuildStatic_pads_a_torn_short_color_tail()
     {
         var staging = new Geometry(Topology.Line, isDynamic: true);

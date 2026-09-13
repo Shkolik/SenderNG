@@ -270,8 +270,9 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
     /// tint so the renderer's per-vertex color index never runs off the list.</summary>
     private static Vector4[] Snapshot(IEnumerable<Vector4> staging, int minLength = 0)
     {
-        var list = new List<Vector4>();
-        list.AddRange(staging);
+        var list = staging is ICollection<Vector4> c ? new List<Vector4>(c.Count) : new List<Vector4>();
+        foreach (var v in staging)
+            list.Add(v);
         if (list.Count < minLength)
         {
             var pad = CutColor.ToVector4();
