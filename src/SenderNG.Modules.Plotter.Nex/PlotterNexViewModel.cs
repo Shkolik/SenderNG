@@ -87,10 +87,12 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     private bool _vulkanUnavailable;
     private string? _lastControllerPose;
     private int _lastAppliedTouched = -1; // last TouchedRow whose rows were fully applied
+    private int _recoloredUpTo = -1; // last row whose late ack was re-applied to the planes
     private bool _isCheckMode;
     private Vector3?[] _ackedEnds = [];
     private IReadOnlyList<ToolpathSegment> _sourceSegments = [];
     private int _ackedEndRowBaseline = -1;
+    private volatile bool _rowsChangedPending;
     private Dictionary<int, ToolpathSegment> _lastSegmentByRow = new();
 
     public PlotterNexViewModel(
@@ -248,16 +250,31 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         Rebuild();
     });
 
-    private void OnRowsChanged() => PostUi(() =>
+    /// <summary>Row events land on the serial thread at stream speed; posting one
+    /// dispatcher action per event starves the UI during a fast check run. The
+    /// events only flip a flag here — <see cref="PulseAckedEnds"/> (the 30Hz view
+    /// tick) folds them into the acked-end cache, progress and bump once per
+    /// tick regardless of how many rows resolved meanwhile.</summary>
+    private void OnRowsChanged() => _rowsChangedPending = true;
+
+    /// <summary>Coalesced per-tick fold of pending row events. Runs on the UI
+    /// thread (called by the view's tick), clears the serial-thread flag, then
+    /// advances the acked-end cache, progress text and frontier bump.</summary>
+    public void PulseAckedEnds()
     {
+        if (!_rowsChangedPending)
+            return;
+        _rowsChangedPending = false;
         AdvanceAckedEnd();
         OnPropertyChanged(nameof(ProgressText));
         Bump();
-    });
+    }
 
-    /// <summary>Advance the per-plane acked-end cache ONLY through the rows
-    /// touched since last time (each row's segment visited once, so O(new rows)
-    /// across an ack burst — never O(all segments) per ack). Rewind resets.</summary>
+    /// <summary>Advance the per-plane acked-end cache over rows that became Ok.
+    /// The checkpoint only moves past a terminal row (Ok/Idle/Error); a row still
+    /// in flight (Sent) parks it so the trailing ack is picked up on the next
+    /// pass — otherwise a Sent-then-Ok transition behind the frontier would never
+    /// set the acked tool endpoint (the same late-ack trap as the colors).</summary>
     private void AdvanceAckedEnd()
     {
         var touched = _programSource.TouchedRow;
@@ -271,21 +288,27 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
             _ackedEnds = new Vector3?[_machineType.Planes.Count];
         for (var i = _ackedEndRowBaseline + 1; i <= touched; i++)
         {
-            var seg = LastSegmentForRow(i);
-            if (seg is null || _programSource.GetRowState(i) != ProgramRowState.Ok)
-                continue;
-            for (var p = 0; p < _machineType.Planes.Count; p++)
+            var state = _programSource.GetRowState(i);
+            if (state == ProgramRowState.Sent)
+                break;
+            if (state == ProgramRowState.Ok)
             {
-                var indices = _machineType.PlaneAxisIndices(p);
-                if (seg.To.Length < indices[^1])
+                var seg = LastSegmentForRow(i);
+                if (seg is null)
                     continue;
-                _ackedEnds[p] = new Vector3(
-                    (float)seg.To[indices[0]],
-                    (float)seg.To[indices[1]],
-                    indices.Length >= 3 ? (float)seg.To[indices[2]] : 0f);
+                for (var p = 0; p < _machineType.Planes.Count; p++)
+                {
+                    var indices = _machineType.PlaneAxisIndices(p);
+                    if (seg.To.Length <= indices[^1])
+                        continue;
+                    _ackedEnds[p] = new Vector3(
+                        (float)seg.To[indices[0]],
+                        (float)seg.To[indices[1]],
+                        indices.Length >= 3 ? (float)seg.To[indices[2]] : 0f);
+                }
             }
+            _ackedEndRowBaseline = i;
         }
-        _ackedEndRowBaseline = touched;
     }
 
     private ToolpathSegment? LastSegmentForRow(int row) =>
@@ -399,6 +422,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         _ackedEnds = new Vector3?[_machineType.Planes.Count];
         _ackedEndRowBaseline = -1;
         _lastAppliedTouched = -1;
+        _recoloredUpTo = -1;
         StatusText = geometry.Status;
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(HasGeometry));
@@ -423,6 +447,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         _ackedEnds = new Vector3?[_machineType.Planes.Count];
         _ackedEndRowBaseline = -1;
         _lastAppliedTouched = -1;
+        _recoloredUpTo = -1;
         StatusText = _localization.Resolve("module.plotterNex.noProgram", "No program loaded.");
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(HasGeometry));
@@ -512,6 +537,11 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     /// on the UI thread.</summary>
     public void ApplyRunStateWindow()
     {
+        if (RunStateUploadsDisabled)
+        {
+            LogRunStateDisabled();
+            return;
+        }
         var factory = _sceneFactory;
         if (factory is null || _planeOutputLines.Length == 0)
             return;
@@ -521,18 +551,17 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
             FullApplyRunStates();
             return;
         }
+        // Flood-bounded frontier: never walk more than the cap per pass — the
+        // remainder is picked up by the next pass. A fast check run spools the
+        // frontier far ahead of the ack trail, so a huge window must NOT fall
+        // back to the O(n) full rescan (that was the per-tick choke).
+        var end = Math.Min(touched, _lastAppliedTouched + RunStateWindowCap);
         var endpointStart = Math.Max(0, _lastAppliedTouched + 1);
         for (var p = 0; p < _planeOutputLines.Length; p++)
         {
             var lines = _planeOutputLines[p];
-            var end = touched;
             var low = LowerBoundRow(lines, endpointStart);
             var high = LowerBoundRow(lines, end + 1);
-            if (high - low > RunStateWindowCap)
-            {
-                FullApplyRunStates();
-                return;
-            }
             if (high <= low)
                 continue;
             var layer = factory.PlaneLayer(p);
@@ -543,11 +572,79 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
                 layer.SetSegmentRunState(i, MapRowState(_programSource.GetRowState(row)));
             }
         }
-        _lastAppliedTouched = touched;
+        _lastAppliedTouched = end;
+        RecolorAckedRows(end);
+    }
+
+    /// <summary>Re-apply plane colors for rows that resolved after an earlier
+    /// frontier pass: an ack arriving behind <see cref="_lastAppliedTouched"/>
+    /// never enters <see cref="ApplyRunStateWindow"/>'s window again, so OK/Error
+    /// transitions would otherwise leave segments permanently InFlight-colored.
+    /// The scan parks behind the first in-flight (Sent) row — resolved rows are
+    /// contiguous, so trailing acks resolve in order and each pass bites off at
+    /// most the newly-resolved run. Idle/comment rows consume the checkpoint so
+    /// header text cannot park it. SetSegmentRunState no-ops on an unchanged
+    /// state, so a revisited row costs nothing.</summary>
+    private void RecolorAckedRows(int touched)
+    {
+        var factory = _sceneFactory;
+        if (factory is null)
+            return;
+        var from = Math.Max(0, _recoloredUpTo + 1);
+        for (var r = from; r <= touched; r++)
+        {
+            var state = _programSource.GetRowState(r);
+            if (state == ProgramRowState.Sent)
+                break;
+            if (state is ProgramRowState.Ok or ProgramRowState.Error)
+            {
+                for (var p = 0; p < _planeOutputLines.Length; p++)
+                {
+                    var lines = _planeOutputLines[p];
+                    var low = LowerBoundRow(lines, r);
+                    var high = LowerBoundRow(lines, r + 1);
+                    if (high <= low)
+                        continue;
+                    var layer = factory.PlaneLayer(p);
+                    var runState = MapRowState(state);
+                    for (var i = low; i < high; i++)
+                        layer.SetSegmentRunState(i, runState);
+                }
+            }
+            _recoloredUpTo = r;
+        }
+    }
+
+    /// <summary>Diagnostic (crash forensics): where the frontier apply is vs
+    /// the last applied row, so a crash log can show whether run-state color
+    /// writes were in flight at death.</summary>
+    internal string DumpRunState() =>
+        $"touched={_programSource.TouchedRow} lastApplied={_lastAppliedTouched}";
+
+    /// <summary>Temporary device-lost isolation: with NEX_NO_RUN_STATE=1 the
+    /// view model stops coloring the plane and touching the done overlay, so a
+    /// run can be A/B'd with zero run-state GPU churn (no MarkDirty, no done
+    /// node writes). TODO: remove once the device-lost root cause is fixed.</summary>
+    private static readonly bool RunStateUploadsDisabled =
+        Environment.GetEnvironmentVariable("NEX_NO_RUN_STATE") == "1";
+
+    private static bool _runStateDisabledLogged;
+
+    private static void LogRunStateDisabled()
+    {
+        if (_runStateDisabledLogged)
+            return;
+        _runStateDisabledLogged = true;
+        Rendering.PoolDiagnostics.LogLine("[runs] NEX_NO_RUN_STATE=1 active — run-state uploads disabled");
     }
 
     private void FullApplyRunStates()
     {
+        if (RunStateUploadsDisabled)
+        {
+            LogRunStateDisabled();
+            return;
+        }
         var factory = _sceneFactory;
         if (factory is null)
             return;
@@ -565,6 +662,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
             layer.RebuildExecuted();
         }
         _lastAppliedTouched = _programSource.TouchedRow;
+        _recoloredUpTo = _lastAppliedTouched;
     }
 
     /// <summary>First index in <paramref name="lines"/> whose mapped row is ≥

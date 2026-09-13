@@ -754,6 +754,12 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// <summary>Diagnostic (temporary): one executed-overlay summary per layer.</summary>
     public string[] LiveLayerDumps() => [.. _liveLayers.Select(l => l.DumpExecutedOverlay())];
 
+    /// <summary>Swap-pump every carriage plane (see <see cref="NexCarriagePlaneLayer.Pump"/>).
+    /// Called from the view's tick loop at a low cadence so run-state color
+    /// changes reach the GPU as fresh static geometries instead of in-place
+    /// host-visible writes.</summary>
+    public void PumpCarriagePlanes() => _liveLayers.ForEach(l => l.Pump());
+
     /// <summary>The headless Vulkan context the engine renders with.</summary>
     public IContext Context => _context;
 

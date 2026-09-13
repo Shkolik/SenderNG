@@ -55,6 +55,11 @@ public sealed class NexPlotTool : IPlotTool
 {
     private static readonly Color4 ToolColor = new(0.85f, 0.15f, 0.2f, 1f);
 
+    // The engine writes NodeInfo.Enabled into the node-info row (SceneState),
+    // but the line render path still submits disabled nodes; the cone would
+    // linger at the origin. Park it far below the table instead.
+    private static readonly Vector3 ParkedPosition = new(0f, -50_000f, 0f);
+
     private const float ConeHeight = 3f;
     private const float ConeRadius = 1.5f;
     private const int ConeSegments = 16;
@@ -109,8 +114,9 @@ public sealed class NexPlotTool : IPlotTool
         {
             _segmentNode.Enabled = false;
             _coneNodeB.Enabled = false;
-            _coneNodeA.Transform.Translation =
-                endpoints.Points.Length == 1 ? endpoints.Points[0] : Vector3.Zero;
+            SetConePosition(_coneNodeB, ParkedPosition);
+            SetConePosition(_coneNodeA,
+                endpoints.Points.Length == 1 ? endpoints.Points[0] : Vector3.Zero);
             return;
         }
 
@@ -128,8 +134,17 @@ public sealed class NexPlotTool : IPlotTool
         _segmentGeometry.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
         // Re-set the geometry reference so the draw stream refreshes its LineCount.
         _segmentNode.Geometry = _segmentGeometry;
-        _coneNodeA.Transform.Translation = p0;
-        _coneNodeB.Transform.Translation = p1;
+        SetConePosition(_coneNodeA, p0);
+        SetConePosition(_coneNodeB, p1);
+    }
+
+    /// <summary>Write the cone transform and notify the ECS change so the engine
+    /// refreshes the node's GPU row. Direct writes alone keep the drawn cone at
+    /// its first-upload transform forever.</summary>
+    private static void SetConePosition(LineNode node, Vector3 position)
+    {
+        node.Transform.Translation = position;
+        node.NotifyTransformChanged();
     }
 
     /// <inheritdoc/>

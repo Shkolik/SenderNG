@@ -308,13 +308,23 @@ public partial class PlotterNexView : UserControl
             return;
         }
 
-        // Cadence-tune the run-state color re-upload: the tick loop drives the
-        // 30Hz paint/readback, but each apply MarksDirty(VertexColor) on the
-        // plane (36k+ segments), forcing a full dynamic-buffer re-upload every
-        // tick -> sustained churn right after cycle start correlates with
-        // VK_ERROR_DEVICE_LOST. Apply at ~10Hz instead.
+        // Fold pending row events into the acked-end cache / progress bump at
+        // most once per tick — a fast check run must not post one dispatcher
+        // action per resolved row, and AdvanceAckedEnd's park-behind-Sent keeps
+        // the tool on the acked path even when acks trail the frontier.
+        _vm?.PulseAckedEnds();
+
+        // Cadence-tune the run-state color path: apply ~10Hz (as before), then
+        // swap-pump the planes into fresh static geometries. The plane layers
+        // never do in-place GPU writes anymore (dynamic mapped-buffer color
+        // uploads raced the live render loop -> VK_ERROR_DEVICE_LOST); every
+        // color change reaches the GPU as a staged static-buffer upload fired
+        // BEFORE this tick's frame is submitted.
         if (_readbackTicks % RunStateApplyIntervalTicks == 0)
+        {
             _vm?.ApplyRunStateWindow();
+            scene.PumpCarriagePlanes();
+        }
 
         var tl = TopLevel.GetTopLevel(this);
         var scale = tl?.RenderScaling ?? 1.0;
@@ -447,7 +457,7 @@ public partial class PlotterNexView : UserControl
             if (_probeCounter % 60 == 1)
             {
                 PoolDiagnostics.LogLine($"[T{_readbackTicks}.scene] culling={!scene.DiagnosticDisableCulling} {scene.DumpContent()} vm={_vm!.LastControllerPose}");
-                PoolDiagnostics.LogLine($"[T{_readbackTicks}.layers] {string.Join(" | ", scene.LiveLayerDumps())} vm={_vm!.LastControllerPose}");
+                PoolDiagnostics.LogLine($"[T{_readbackTicks}.layers] {string.Join(" | ", scene.LiveLayerDumps())} runs={_vm!.DumpRunState()} vm={_vm!.LastControllerPose}");
                 PoolDiagnostics.LogLine($"[T{_readbackTicks}.streams] {DumpLineStreams(scene.Context, scene.WorldData)}");
                 PoolDiagnostics.LogLine($"[T{_readbackTicks}.fetch] {DumpFetchInputs(scene.Context, scene.WorldData)}");
             }
@@ -496,6 +506,8 @@ public partial class PlotterNexView : UserControl
                 }
             }
             GpuImage.InvalidateVisual();
+            _diagRing[_diagHead = (_diagHead + 1) % _diagRing.Length] =
+                $"[T{_readbackTicks}] {string.Join(" | ", scene.LiveLayerDumps())} runs={_vm!.DumpRunState()}";
             _readbackTicks++;
             AccumulateFps();
             RenderText.Text = $"t {_readbackTicks} / {_fps:F0} fps [p{_lastProbe}]";
@@ -503,6 +515,13 @@ public partial class PlotterNexView : UserControl
         catch (Exception ex)
         {
             var poolSnap = PoolDiagnostics.Dump(scene.Context, "CRASH");
+            PoolDiagnostics.LogLine($"[CRASH] tick={_readbackTicks} {ex.GetType().Name}: {ex.Message}");
+            PoolDiagnostics.LogLine($"[CRASH] layers {string.Join(" | ", scene.LiveLayerDumps())} runs={_vm?.DumpRunState()}");
+            PoolDiagnostics.LogLine($"[CRASH] scene {scene.DumpContent()} vm={_vm?.LastControllerPose}");
+            var stack = ex.StackTrace ?? "";
+            foreach (var frame in stack.Split('\n').Take(4))
+                PoolDiagnostics.LogLine("[CRASH]  " + frame.TrimEnd());
+            PoolDiagnostics.LogLine("[CRASH] last 12 ticks: " + string.Join(" ", _diagRing.Where(x => x is not null).Append($"[T{_readbackTicks}] (crash tick, no ring entry — throw before capture)")));
             DisableTick();
             RenderText.Text = $"tick failed: {ex.Message} | {poolSnap}";
             System.Diagnostics.Trace.WriteLine("NEX tick failed: " + poolSnap + "\n" + ex);
@@ -512,6 +531,9 @@ public partial class PlotterNexView : UserControl
     /// <summary>Reports a skip/failure reason in RenderText without spamming it
     /// every 33 ms when nothing changes.</summary>
     private string? _lastDiag;
+
+    private int _diagHead;
+    private readonly string[] _diagRing = new string[12];
 
     private void SetDiag(string text)
     {

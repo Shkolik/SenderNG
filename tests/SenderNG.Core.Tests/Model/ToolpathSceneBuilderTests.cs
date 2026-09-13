@@ -82,12 +82,20 @@ public sealed class RecorderPlaneLayer : ICarriagePlaneLayer
     public List<(Vector3 From, Vector3 To, MotionType Type)> Added { get; } = [];
     public List<(int SegmentIndex, RunState State)> RunStateCalls { get; } = [];
     public List<int> RebuildCalls { get; } = [];
+    private readonly Dictionary<int, RunState> _applied = new();
 
     public void AddSegment(LineSegment seg, MotionType type) =>
         Added.Add((seg.From, seg.To, type));
 
-    public void SetSegmentRunState(int segmentIndex, RunState state) =>
+    // Mirrors NexCarriagePlaneLayer: re-applying an unchanged state records
+    // nothing, so the recorder stays faithful to the real layer's no-op.
+    public void SetSegmentRunState(int segmentIndex, RunState state)
+    {
+        if (_applied.TryGetValue(segmentIndex, out var last) && last == state)
+            return;
+        _applied[segmentIndex] = state;
         RunStateCalls.Add((segmentIndex, state));
+    }
 
     public void RebuildExecuted() => RebuildCalls.Add(1);
 }

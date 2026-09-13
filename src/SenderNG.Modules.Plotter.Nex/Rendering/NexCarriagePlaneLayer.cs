@@ -45,10 +45,17 @@ using SenderNG.Modules.Plotter.Nex.Scene;
 namespace SenderNG.Modules.Plotter.Nex.Rendering;
 
 /// <summary>
-/// One carriage-plane layer rendered as a single dynamic line list.
-/// <see cref="AddSegment"/> appends vertex/color pairs; run-state changes
-/// overwrite the two colors of the segment in place (O(1), no rebuild) — the
-/// Task 8 perf lever for live frontier coloring of large toolpaths.
+/// One carriage-plane layer rendered as a swap-pumped static line list.
+/// <see cref="AddSegment"/> and <see cref="SetSegmentRunState"/> mutate CPU
+/// staging lists only (O(1) per segment, no GPU work) — run-state coloring
+/// stays the Task 8 perf lever. The GPU gets a fresh STATIC geometry through
+/// <see cref="NexPlotScene.PumpCarriagePlanes"/> (a low-Hz pump, see
+/// <see cref="PlotterNexView"/>): staging is copied into a brand-new static
+/// geometry, registered via the engine's staged buffer upload, and swapped in
+/// as the node's geometry. This deliberately NEVER writes host-visible mapped
+/// buffers that in-flight frames read — in-place dynamic-color uploads raced
+/// the live render loop and produced VK_ERROR_DEVICE_LOST (helix engine
+/// 1.3.0-alpha.41, driver 32.0.15.9608).
 /// Colors are flat motion/state tints (no alpha — the Nex line shader's
 /// alpha handling is unverified, so all colors are opaque).
 /// </summary>
@@ -66,6 +73,7 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
 
     internal static bool IsExecuted(RunState state) => state == RunState.Executed;
 
+    private readonly Engine _engine;
     private readonly Geometry _geometry;
     private readonly LineNode _node;
     private readonly List<MotionType> _motionTypes = [];
@@ -73,26 +81,27 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
     private readonly LineNode _doneNode;
     private readonly List<bool> _executed = [];
     private readonly List<RunState> _appliedStates = [];
+    private readonly RebuildGate _rebuildGate = new();
+    private Geometry? _renderedGeometry;
+    private Geometry? _renderedDoneGeometry;
+    private int _planeColorWrites;
 
-    /// <summary>Create the layer under <paramref name="root"/> and attach its line node.</summary>
+    /// <summary>Create the layer under <paramref name="root"/> and attach its line nodes.
+    /// The planes are empty until the first <see cref="Pump"/>.</summary>
     public NexCarriagePlaneLayer(Node root, Engine engine)
     {
+        _engine = engine;
+        // Staging containers only — never registered with the engine, never
+        // attached to a node, so nothing here produces GPU buffers. All GPU
+        // content arrives via Pump() as fresh static geometries.
         _geometry = new Geometry(Topology.Line, isDynamic: true);
-        // Register with the engine so Geometry.Valid becomes true; otherwise the
-        // node never reaches the line draw stream and renders nothing.
-        engine.Add(_geometry);
         _node = root.World.CreateLineNode("carriage-plane");
-        _node.Geometry = _geometry;
         _node.LineThickness = BaseLineThickness;
         _node.LineColor = Color4.White;
         root.AddChild(_node);
 
         _doneGeometry = new Geometry(Topology.Line, isDynamic: true);
-        // Register with the engine so Geometry.Valid becomes true; otherwise the
-        // node never reaches the line draw stream and renders nothing.
-        engine.Add(_doneGeometry);
         _doneNode = root.World.CreateLineNode("plane-done");
-        _doneNode.Geometry = _doneGeometry;
         _doneNode.LineThickness = ExecutedLineThickness;
         _doneNode.LineColor = ExecutedColor;
         root.AddChild(_doneNode);
@@ -113,9 +122,7 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         _motionTypes.Add(type);
         _executed.Add(false);
         _appliedStates.Add(RunState.Pending);
-        _geometry.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
-        // Re-set the geometry reference so the draw stream refreshes its LineCount.
-        _node.Geometry = _geometry;
+        _rebuildGate.MarkDirty();
     }
 
     /// <inheritdoc/>
@@ -126,11 +133,11 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         if (_appliedStates[segmentIndex] == state)
             return;
         _appliedStates[segmentIndex] = state;
+        _planeColorWrites++;
         var color = state == RunState.Pending ? BaseColor(_motionTypes[segmentIndex]) : StateColor(state);
         var v = color.ToVector4();
         _geometry.VertexColors[segmentIndex * 2] = v;
         _geometry.VertexColors[segmentIndex * 2 + 1] = v;
-        _geometry.MarkDirty(GeometryBufferType.VertexColor);
 
         // Overlay bookkeeping: append the done segment exactly once per
         // Pending/InFlight → Executed transition; the flag flip keeps window
@@ -143,10 +150,12 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
             AppendDoneSegment(segmentIndex);
         else if (!nowExecuted && wasExecuted)
             RebuildFromExecuted();
+        // GPU content never changes here — mark the swap-pump pending instead.
+        _rebuildGate.MarkDirty();
     }
 
     /// <summary>Append one done segment (two vertices + two colors) to the
-    /// green thickness overlay node.</summary>
+    /// green thickness overlay staging list.</summary>
     private void AppendDoneSegment(int segmentIndex)
     {
         var v = ExecutedColor.ToVector4();
@@ -154,15 +163,6 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         _doneGeometry.Vertices.Add(_geometry.Vertices[segmentIndex * 2 + 1]);
         _doneGeometry.VertexColors.Add(v);
         _doneGeometry.VertexColors.Add(v);
-        MarkDoneDirty();
-    }
-
-    /// <summary>Flush the done geometry to the draw stream: mark both buffers
-    /// dirty and re-set the geometry reference so LineCount refreshes.</summary>
-    private void MarkDoneDirty()
-    {
-        _doneGeometry.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
-        _doneNode.Geometry = _doneGeometry;
     }
 
     private static Color4 BaseColor(MotionType type) =>
@@ -190,7 +190,95 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
             if (_executed[i])
                 AppendDoneSegment(i);
         }
-        MarkDoneDirty();
+        _rebuildGate.MarkDirty();
+    }
+
+    /// <summary>Swap-pump: reconcile the CPU staging lists to the GPU as fresh
+    /// STATIC geometries. Rebuilds are coalesced by <see cref="RebuildGate"/>
+    /// (burned at the mutation APIs): a clean layer does nothing, and bursts
+    /// collapse to at most one rebuild per minimum interval, so a large toolpath
+    /// is not re-uploaded on every run-state tick. Registered via the engine's
+    /// staged buffer upload (device-local destination — never a mapped write
+    /// into a buffer a frame is reading), then the node's geometry is swapped
+    /// and the previous geometry deferred for frame-boundary removal/reindex.</summary>
+    public void Pump()
+    {
+        if (!_rebuildGate.RebuildDue(DateTime.UtcNow))
+            return;
+
+        var plane = BuildStatic(_geometry);
+        var done = BuildStatic(_doneGeometry);
+
+        var oldPlane = _renderedGeometry;
+        var oldDone = _renderedDoneGeometry;
+
+        if (plane.Vertices.Count > 0)
+        {
+            _engine.Add(plane);
+            _node.Geometry = plane;
+            _renderedGeometry = plane;
+        }
+        else
+        {
+            _node.Geometry = null;
+            _renderedGeometry = null;
+        }
+
+        if (done.Vertices.Count > 0)
+        {
+            _engine.Add(done);
+            _doneNode.Geometry = done;
+            _renderedDoneGeometry = done;
+        }
+        else
+        {
+            _doneNode.Geometry = null;
+            _renderedDoneGeometry = null;
+        }
+
+        oldPlane?.Dispose();
+        oldDone?.Dispose();
+    }
+
+    /// <summary>Copy one staging list into a fresh static line geometry.
+    /// Static lines draw through the engine's shared static index buffer
+    /// (FirstIndex = IndexOffset), so identity indices are required and the
+    /// draw is skipped entirely when the index count is zero.
+    /// Sources are snapshotted into plain arrays BEFORE the engine ctor: its
+    /// AddRange fast path memcpy's FastList sources via FastList.CopyTo, and a
+    /// writer growing a source between Count and CopyTo overruns the freshly
+    /// sized destination ("Destination array was not long enough"). Fixed arrays
+    /// cannot grow mid-copy; the element-read snapshot is race-benign (worst
+    /// case a torn tail, padded below to keep colors ≥ vertices).</summary>
+    internal static Geometry BuildStatic(Geometry staging)
+    {
+        var vertices = Snapshot(staging.Vertices);
+        var colors = Snapshot(staging.VertexColors, vertices.Length);
+        var n = vertices.Length;
+        if (n == 0)
+            return new Geometry(Topology.Line, isDynamic: false);
+        var indices = new uint[n];
+        for (var i = 0; i < n; i++)
+            indices[i] = (uint)i;
+        return new Geometry(vertices, indices, colors, Topology.Line, isDynamic: false);
+    }
+
+    /// <summary>Passive read of one staging list into a plain array. Iteration
+    /// re-reads the list's size and backing array per step (growth-only), so
+    /// concurrent appends can only produce a tear, never a copy error. A torn
+    /// tail shorter than <paramref name="minLength"/> is padded with the cut
+    /// tint so the renderer's per-vertex color index never runs off the list.</summary>
+    private static Vector4[] Snapshot(IEnumerable<Vector4> staging, int minLength = 0)
+    {
+        var list = new List<Vector4>();
+        list.AddRange(staging);
+        if (list.Count < minLength)
+        {
+            var pad = CutColor.ToVector4();
+            while (list.Count < minLength)
+                list.Add(pad);
+        }
+        return list.ToArray();
     }
 
     /// <summary>Diagnostic (temporary): executed-overlay vertex count (2 per
@@ -199,5 +287,5 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
 
     /// <summary>Diagnostic (temporary): executed overlay accounting.</summary>
     public string DumpExecutedOverlay() =>
-        $"done verts={_doneGeometry.Vertices.Count} executedSegs={_executed.Count(x => x)}";
+        $"done verts={_doneGeometry.Vertices.Count} executedSegs={_executed.Count(x => x)} planeWrites={_planeColorWrites}";
 }

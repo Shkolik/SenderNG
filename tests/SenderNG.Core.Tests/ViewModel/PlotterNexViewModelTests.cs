@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Numerics;
+using System.Threading;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Localization;
@@ -175,6 +176,7 @@ public class PlotterNexViewModelTests : IDisposable
 
         source.AckRows(1, 3);
         vm.ApplyRunStateWindow();
+        vm.PulseAckedEnds();
 
         Assert.Equal(
             [(0, RunState.Executed), (1, RunState.Executed)],
@@ -203,6 +205,58 @@ public class PlotterNexViewModelTests : IDisposable
         vm.ApplyRunStateWindow();
         Assert.Equal(
             [(0, RunState.Executed), (1, RunState.Executed), (2, RunState.Executed)],
+            layer.RunStateCalls);
+    }
+
+    [Fact]
+    public void Late_ack_behind_the_frontier_recolors_an_inflight_segment()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene);
+        source.Load(MillProgram());
+        var layer = scene.Layers[^1];
+
+        source.AckRows(1, 2, ProgramRowState.Sent); // row 1 Sent — touched = 1
+        vm.ApplyRunStateWindow();
+        Assert.Equal([(0, RunState.InFlight)], layer.RunStateCalls);
+
+        // The ack lands for an already-touched row: TouchedRow does not move,
+        // so the frontier window is empty and only the recolor pass can fix it.
+        source.AckRows(1, 2, ProgramRowState.Ok);
+        vm.ApplyRunStateWindow();
+
+        Assert.Equal(
+            [(0, RunState.InFlight), (0, RunState.Executed)],
+            layer.RunStateCalls);
+    }
+
+    [Fact]
+    public void Late_acks_resolve_in_flight_rows_until_all_are_colored()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene);
+        source.Load(MillProgram());
+        var layer = scene.Layers[^1];
+
+        source.AckRows(1, 3, ProgramRowState.Sent); // rows 1,2 Sent — touched = 2
+        vm.ApplyRunStateWindow();
+        Assert.Equal(
+            [(0, RunState.InFlight), (1, RunState.InFlight)],
+            layer.RunStateCalls);
+
+        // First row resolves behind the frontier; the second stays in flight,
+        // so the checkpoint parks a hair before it.
+        source.AckRows(1, 2, ProgramRowState.Ok);
+        vm.ApplyRunStateWindow();
+        // Second row resolves on the next ack; the scan then reaches the end.
+        source.AckRows(2, 3, ProgramRowState.Ok);
+        vm.ApplyRunStateWindow();
+
+        Assert.Equal(
+            [(0, RunState.InFlight), (1, RunState.InFlight),
+             (0, RunState.Executed), (1, RunState.Executed)],
             layer.RunStateCalls);
     }
 
@@ -329,6 +383,7 @@ public class PlotterNexViewModelTests : IDisposable
         source.Load(MillProgram());
         source.AckRows(1, 3); // rows 1,2 Ok → last acked end = segment 1's To
         vm.ApplyRunStateWindow();
+        vm.PulseAckedEnds(); // the view tick folds the acks into the acked-end cache
 
         _grbl.Source.Emit(new MachineState
         {
@@ -373,6 +428,29 @@ public class PlotterNexViewModelTests : IDisposable
     }
 
     [Fact]
+    public void Sent_then_Ok_rows_keep_the_check_tool_on_the_acked_path()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene);
+        source.Load(MillProgram());
+
+        // The controller streams lines ahead: each row passes through Sent while
+        // the frontier (TouchedRow) moves on, and the trailing Ok ack lands after
+        // the row is already behind the app's last pass over it.
+        source.AckRows(1, 3, ProgramRowState.Sent);
+        source.AckRows(1, 3, ProgramRowState.Ok);
+        vm.PulseAckedEnds(); // the view tick folds the Sent-then-Ok trail into the cache
+
+        _grbl.Source.Emit(new MachineState { Status = "Check", Positions = new double[] { 7, 8, 9 } });
+
+        var tool = scene.Tools[^1];
+        // The last acked end (row 2, G1 X20 Y5 → (20,5,0)) must reach the tool in
+        // spite of the Sent-then-Ok transition having happened behind the frontier.
+        Assert.Equal(new Vector3(20, 5, 0), Assert.Single(tool.Positions[^1].Points));
+    }
+
+    [Fact]
     public void Rewind_clears_the_acked_end_cache()
     {
         var source = new StubProgramSource();
@@ -381,10 +459,12 @@ public class PlotterNexViewModelTests : IDisposable
         source.Load(MillProgram());
         source.AckRows(1, 3);
         vm.ApplyRunStateWindow();
+        vm.PulseAckedEnds(); // acked-end cache primed
 
         // Simulate the app's Rewind: TouchedRow → 0 and all rows idle.
         source.Rewind();
         vm.ApplyRunStateWindow();
+        vm.PulseAckedEnds(); // rewind folds into the cache → cleared
 
         _grbl.Source.Emit(new MachineState { Status = "Check", Positions = new double[] { 7, 8, 9 } });
         // Acked end cleared → fall back to live.
@@ -413,6 +493,65 @@ public class PlotterNexViewModelTests : IDisposable
     }
 
     [Fact]
+    public void Rows_changed_events_coalesce_until_the_tick_pulse()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene);
+        source.Load(MillProgram());
+        var before = vm.FrontierVersion;
+
+        // A flood of row events lands on the serial thread — none of it may
+        // touch the UI; each PulseAckedEnds (the 30Hz tick) folds the batch
+        // exactly once.
+        source.AckRows(1, 2);
+        source.AckRows(2, 3);
+        source.AckRows(3, 4);
+        Assert.Equal(before, vm.FrontierVersion);
+
+        vm.PulseAckedEnds();
+        Assert.Equal(before + 1, vm.FrontierVersion);
+
+        source.AckRows(4, 5);
+        Assert.Equal(before + 1, vm.FrontierVersion);
+        vm.PulseAckedEnds();
+        Assert.Equal(before + 2, vm.FrontierVersion);
+
+        // Nothing pending → a pulse is a no-op.
+        vm.PulseAckedEnds();
+        Assert.Equal(before + 2, vm.FrontierVersion);
+    }
+
+    [Fact]
+    public void Frontier_flood_applies_in_bounded_slices_without_a_full_rescan()
+    {
+        var gcode = "G21\nG1 X1 F600\n"
+            + string.Join("\n", Enumerable.Range(2, 4999).Select(i => $"G1 X{i}"));
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene);
+        source.Load(gcode);
+        // > AsyncBuildThreshold builds on a worker, then lands via ApplyBuild.
+        Assert.True(SpinWait.SpinUntil(() => vm.HasGeometry, TimeSpan.FromSeconds(10)),
+            $"async program build never completed (status={vm.StatusText})");
+        var layer = scene.Layers[^1];
+
+        // The frontier spools far ahead of the ack trail: one pass may walk at
+        // most the cap (fit within the cap to the physical-line-offset search),
+        // and must not fall back to the O(n) full rescan (which would rebuild +
+        // re-upload the whole toolpath per tick).
+        source.AckRows(1, 5001);
+        vm.ApplyRunStateWindow();
+        Assert.Empty(layer.RebuildCalls);
+        Assert.InRange(layer.RunStateCalls.Count, 4000, PlotterNexViewModel.RunStateWindowCap);
+
+        // The remainder is picked up by the next pass, converging without a rescan.
+        vm.ApplyRunStateWindow();
+        Assert.Empty(layer.RebuildCalls);
+        Assert.Equal(5000, layer.RunStateCalls.Count);
+    }
+
+    [Fact]
     public void Foam_check_mode_tracks_last_acked_end_on_both_planes()
     {
         var source = new StubProgramSource();
@@ -426,6 +565,7 @@ public class PlotterNexViewModelTests : IDisposable
             "G1 Y20 A48\n");
         source.AckRows(1, 5);
         vm.ApplyRunStateWindow();
+        vm.PulseAckedEnds(); // the view tick folds the acks into the acked-end cache
 
         _grbl.Source.Emit(new MachineState { Status = "Check", Positions = new double[] { 99, 99, 99, 99 } });
 
