@@ -104,9 +104,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <Border BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="4,2" Background="#e8e8e8" HorizontalAlignment="Stretch">
                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <!-- Toolbox buttons square 48x48 icon-only with ToolTip, contour icons -->
-                        <Button Command="{Binding ConnectCommand}" ToolTip.Tip="{loc:Loc app.toolbar.connect}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                        <Button Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" ToolTip.Tip="{loc:Loc app.toolbar.connect}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
                             <!-- Plug/connector outline (stroke only) -->
                             <Path Data="M7 2 L7 6 M13 2 L13 6 M5 6 L15 6 L15 10 C15 12.8 12.8 15 10 15 C7.2 15 5 12.8 5 10 Z M10 15 L10 18"
+                                  Stroke="Black" StrokeThickness="1.5"
+                                  Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Button>
+                        <Button Command="{Binding DisconnectCommand}" IsVisible="{Binding ShowDisconnect}" ToolTip.Tip="{loc:Loc app.toolbar.disconnect}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                            <!-- Unplug: plug pulled out of the socket, tip in the gap (stroke only) -->
+                            <Path Data="M7 1 L7 5 M13 1 L13 5 M5 5 L15 5 L15 9 C15 11.8 12.8 14 10 14 C7.2 14 5 11.8 5 9 Z M10 14 L10 16 M6 18 L14 18 L14 21 C14 22.1 13.1 23 12 23 L8 23 C6.9 23 6 22.1 6 21 Z M8 18.5 L8 21 M12 18.5 L12 21"
                                   Stroke="Black" StrokeThickness="1.5"
                                   Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Button>

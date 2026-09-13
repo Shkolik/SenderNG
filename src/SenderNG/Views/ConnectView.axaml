@@ -48,6 +48,24 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <!-- MinHeight pins the dialog to the height of the (tallest) Serial tab
                  so switching to the shorter Network/Demo tabs doesn't make the
                  dialog jump; it can still grow if content needs more room. -->
+            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ProfileSelectorVisible}">
+                <TextBlock Text="{loc:Loc connect.profile}" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+                          FontSize="12" Height="24" HorizontalAlignment="Stretch" CornerRadius="0"
+                          BorderBrush="#999" BorderThickness="1">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ProfileItem">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                <Border Background="#e4e4e4" BorderBrush="#bbb" BorderThickness="1" CornerRadius="2"
+                                        Padding="4,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding MachineTypeId}" FontSize="10" Foreground="#555" />
+                                </Border>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
             <TabControl SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
                         CornerRadius="0" Background="White"
                         BorderBrush="#999" BorderThickness="1" MinHeight="200">
