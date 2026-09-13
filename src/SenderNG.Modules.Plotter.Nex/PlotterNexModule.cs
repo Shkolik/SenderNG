@@ -91,8 +91,12 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IModuleS
             ["module.plotterNex.placeholder"] = "3D plotter (PoC)",
         };
 
-    public void RegisterServices(IServiceCollection services) =>
-        services.AddSingleton<PlotterNexSettingsViewModel>();
+    public void RegisterServices(IServiceCollection services)
+    {
+        // Settings views are transient here: the profile is captured at VM
+        // construction, so each AppSettings rebuild (profile switch) must
+        // resolve a fresh instance reflecting the newly active profile.
+    }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         new PlotterNexViewModel(
@@ -108,7 +112,7 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IModuleS
     public object? CreateSettingsView() =>
         _services is null
             ? null
-            : new PlotterNexSettingsView { DataContext = _services.GetRequiredService<PlotterNexSettingsViewModel>() };
+            : new PlotterNexSettingsView { DataContext = new PlotterNexSettingsViewModel(_services.GetRequiredService<SettingsService>()) };
 
     public object CreateView(object viewModel) =>
         new PlotterNexView { DataContext = viewModel };

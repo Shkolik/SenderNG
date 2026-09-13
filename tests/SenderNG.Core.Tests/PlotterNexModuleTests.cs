@@ -11,6 +11,7 @@ using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Modules;
 using SenderNG.Modules.Plotter.Nex;
+using SenderNG.Modules.Plotter.Nex.Settings;
 
 namespace SenderNG.Core.Tests;
 
@@ -109,6 +110,45 @@ public class PlotterNexModuleTests
             module.AttachServices(sp);
 
             Assert.NotNull(module.CreateSettingsView());
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Settings_view_binds_a_fresh_model_for_each_create_when_profile_switches()
+    {
+        var module = new PlotterNexModule();
+        var dir = Path.Combine(Path.GetTempPath(), "plotter-nex-settings-tests-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var settingsService = new SettingsService(dir);
+            var mill = settingsService.Load();
+            mill.MachineTypeId = MachineTypes.Mill;
+            settingsService.Save(mill);
+
+            var sc = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+            module.RegisterServices(sc);
+            sc.AddSingleton(settingsService);
+            sc.AddSingleton(settingsService.Load());
+            using var sp = sc.BuildServiceProvider();
+            module.AttachServices(sp);
+
+            var firstVm = (PlotterNexSettingsViewModel)((PlotterNexSettingsView)module.CreateSettingsView()!).DataContext!;
+            Assert.False(firstVm.ShowWireLength); // Mill: single plane
+            Assert.Single(firstVm.PlaneRows);
+
+            // Switching the active profile (App Settings profile switch / connect flow)
+            // must be reflected by a new CreateSettingsView call.
+            var foam = settingsService.CreateProfile("Foam", MachineTypes.Foam);
+            settingsService.Activate(foam.Id);
+
+            var secondVm = (PlotterNexSettingsViewModel)((PlotterNexSettingsView)module.CreateSettingsView()!).DataContext!;
+            Assert.True(secondVm.ShowWireLength); // Foam: wire length + two planes
+            Assert.Equal(2, secondVm.PlaneRows.Count);
+            Assert.NotSame(firstVm, secondVm);
         }
         finally
         {

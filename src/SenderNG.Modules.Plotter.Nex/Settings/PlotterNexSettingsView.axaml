@@ -43,37 +43,44 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <StackPanel Spacing="8">
         <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowWireLength}">
             <TextBlock Text="Wire length (tower distance)" FontSize="10" VerticalAlignment="Center" />
-            <NumericUpDown Value="{Binding WireLength}" CornerRadius="0" Height="28" MinWidth="90" />
+            <TextBox Text="{Binding WireLength}" Width="110" Height="24" MinHeight="24"
+                     CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                     FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
         </StackPanel>
         <ItemsControl ItemsSource="{Binding PlaneRows}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:PlotterNexPlaneRow">
                     <Expander IsExpanded="True" Header="{Binding Title}" Margin="0,2">
                         <StackPanel Spacing="6">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="World axes" FontSize="10" VerticalAlignment="Center" />
-                                <ItemsControl ItemsSource="{Binding Slots}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal" Spacing="6" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:WorldAxisRow">
-                                            <ComboBox ItemsSource="{Binding Choices}"
-                                                      SelectedIndex="{Binding Axis}"
-                                                      CornerRadius="0" Height="28" MinWidth="56" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
+                            <TextBlock Text="World axes" FontSize="10" />
+                            <ItemsControl ItemsSource="{Binding Slots}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="6" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:WorldAxisRow">
+                                        <ComboBox ItemsSource="{Binding Choices}"
+                                                  SelectedIndex="{Binding Axis}"
+                                                  CornerRadius="0" Height="24" MinWidth="56" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="Origin" FontSize="10" />
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <TextBlock Text="X" FontSize="10" VerticalAlignment="Center" />
-                                <NumericUpDown Value="{Binding OriginX}" CornerRadius="0" Height="28" MinWidth="64" />
+                                <TextBox Text="{Binding OriginX}" Width="64" Height="24" MinHeight="24"
+                                         CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                         FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
                                 <TextBlock Text="Y" FontSize="10" VerticalAlignment="Center" />
-                                <NumericUpDown Value="{Binding OriginY}" CornerRadius="0" Height="28" MinWidth="64" />
+                                <TextBox Text="{Binding OriginY}" Width="64" Height="24" MinHeight="24"
+                                         CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                         FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
                                 <TextBlock Text="Z" FontSize="10" VerticalAlignment="Center" />
-                                <NumericUpDown Value="{Binding OriginZ}" CornerRadius="0" Height="28" MinWidth="64" />
+                                <TextBox Text="{Binding OriginZ}" Width="64" Height="24" MinHeight="24"
+                                         CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                         FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
                             </StackPanel>
                         </StackPanel>
                     </Expander>
