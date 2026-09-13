@@ -813,6 +813,22 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         }
     }
 
+    /// <summary>Auto-chrome grid bounds. Single-plane (mill) plots start at machine
+    /// (0,0) so the grid runs from the origin 20% past the model's positive extent.
+    /// Multi-plane (foam) plots are centered on the unmapped wire axis, so the grid
+    /// pins to the model's XY envelope like a work table.</summary>
+    internal static SBounds AutoGridBounds(in Vector3 center, in Vector3 span, int planeCount, float z)
+    {
+        if (planeCount > 1)
+        {
+            var hx = Math.Max(span.X, 1f) * 0.5f;
+            var hy = Math.Max(span.Y, 1f) * 0.5f;
+            return new SBounds(center.X - hx, center.Y - hy, z, center.X + hx, center.Y + hy, z);
+        }
+
+        return new SBounds(0, 0, z, Math.Max(span.X, 1f) * 1.2, Math.Max(span.Y, 1f) * 1.2, z);
+    }
+
     private void BuildAutoChrome()
     {
         var (center, radius, span) = ContentMetrics();
