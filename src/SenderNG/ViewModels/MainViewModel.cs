@@ -177,8 +177,8 @@ public class MainViewModel : ViewModelBase, IDisposable
             if (!string.IsNullOrWhiteSpace(f))
                 RecentFiles.Add(f);
 
-        ConnectCommand = new DelegateCommand(_ => _ = ShowConnectDialogAsync());
-        DisconnectCommand = new DelegateCommand(_ => Disconnect());
+        ConnectCommand = new DelegateCommand(_ => _ = ShowConnectDialogAsync(), _ => !IsConnected && !IsDemo);
+        DisconnectCommand = new DelegateCommand(_ => Disconnect(), _ => IsConnected || IsDemo);
         SelectModuleCommand = new DelegateCommand(p =>
         {
             if (p is IModule m && SelectedModule == m)
@@ -531,12 +531,24 @@ public class MainViewModel : ViewModelBase, IDisposable
         private set
         {
             if (SetField(ref _isDemo, value))
+            {
                 OnPropertyChanged(nameof(Title));
+                OnPropertyChanged(nameof(CanConnect));
+                OnPropertyChanged(nameof(ShowDisconnect));
+                (ConnectCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+                (DisconnectCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+            }
         }
     }
 
     /// <summary>Whether the active controller connection is live (drives the state indicator).</summary>
     public bool IsConnected => _isConnected;
+
+    /// <summary>Connect is available only when no controller is live: the toolbar plug disabled while running/demo.</summary>
+    public bool CanConnect => !IsConnected && !IsDemo;
+
+    /// <summary>Disconnect shows exactly when there is a live controller (or demo) to tear down.</summary>
+    public bool ShowDisconnect => IsConnected || IsDemo;
 
     /// <summary>Status-bar block progress: executed/total sendable blocks of the
     /// loaded program (comments are not blocks — they stay in the grid but never
@@ -1152,6 +1164,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
+            if (IsDemo) SwitchToSerial();
             Grbl.Disconnect();
             Status = LocText.Resolve("app.msg.disconnected", "Disconnected");
         }
@@ -1484,7 +1497,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
 
         var profile = _settingsService.Load();
-        var vm = new CNC.Core.ViewModels.ConnectViewModel(profile, _settingsService.Global, _comPorts, UiThread.Post);
+        var vm = new CNC.Core.ViewModels.ConnectViewModel(profile, _settingsService.Global, _comPorts, UiThread.Post,
+            profiles: _settingsService.AllProfiles());
         // No fixed size: the dialog grows/shrinks with its tab content.
         var result = await _dialogs.ShowDialogAsync("Connect", vm);
         if (result != true)
@@ -1498,6 +1512,8 @@ public class MainViewModel : ViewModelBase, IDisposable
                     ? CNC.Core.ViewModels.ConnectMode.Serial
                     : CNC.Core.ViewModels.ConnectMode.Demo,
                 vm.ResultPort, vm.ResultBaudRate, null);
+        if (choice.ProfileId is { Length: > 0 } pid && pid != profile.Id)
+            _settingsService.Activate(pid);
         switch (choice.Mode)
         {
             case CNC.Core.ViewModels.ConnectMode.Network:
@@ -1592,6 +1608,10 @@ public class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(StateBrush));
         OnPropertyChanged(nameof(StateForeground));
         OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(CanConnect));
+        OnPropertyChanged(nameof(ShowDisconnect));
+        (ConnectCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        (DisconnectCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (CheckCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         RaiseProgramCommands(); // Start is gated on IsConnected
         if (!connected)

@@ -304,6 +304,68 @@ public class MainViewModelTests
 
         Assert.StartsWith("Connection failed", vm.Status);
     }
+
+    [Fact]
+    public void Gating_commands_disabled_when_not_connected()
+    {
+        var settings = MakeSettings();
+        var vm = new MainViewModel(new RealGrblService(), settings, MakeProvider(settings));
+
+        Assert.True(vm.CanConnect);
+        Assert.False(vm.ShowDisconnect);
+        Assert.True(vm.ConnectCommand.CanExecute(null));
+        Assert.False(vm.DisconnectCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Demo_connect_gates_and_disconnect_restores()
+    {
+        var settings = MakeSettings();
+        var provider = MakeProvider(settings);
+        var dialogs = new StubDialogService();
+        var vm = new MainViewModel(provider.GetRequiredService<DemoGrblService>(), settings, provider, dialogs: dialogs);
+
+        var task = vm.ShowConnectDialogAsync();
+        var connectVm = Assert.IsType<CNC.Core.ViewModels.ConnectViewModel>(dialogs.LastVm);
+        connectVm.SelectedIndex = (int)CNC.Core.ViewModels.ConnectMode.Demo;
+        connectVm.ConnectCommand.Execute(null);
+        await task;
+
+        Assert.True(vm.IsConnected);
+        Assert.False(vm.CanConnect);
+        Assert.True(vm.ShowDisconnect);
+        Assert.False(vm.ConnectCommand.CanExecute(null));
+        Assert.True(vm.DisconnectCommand.CanExecute(null));
+
+        vm.DisconnectCommand.Execute(null);
+        await Task.Yield();
+
+        Assert.False(vm.IsDemo);
+        Assert.False(vm.IsConnected);
+        Assert.True(vm.CanConnect);
+        Assert.False(vm.ShowDisconnect);
+    }
+
+    [Fact]
+    public async Task Connect_dialog_with_alternate_profile_activates_it()
+    {
+        var settings = MakeSettings();
+        var foamId = settings.CreateProfile("Foam", MachineTypes.Foam).Id;
+        var provider = MakeProvider(settings);
+        var dialogs = new StubDialogService();
+        var vm = new MainViewModel(provider.GetRequiredService<DemoGrblService>(), settings, provider, dialogs: dialogs);
+
+        var task = vm.ShowConnectDialogAsync();
+        var connectVm = Assert.IsType<CNC.Core.ViewModels.ConnectViewModel>(dialogs.LastVm);
+        connectVm.SelectedProfile = connectVm.Profiles.First(p => p.Id == foamId);
+        connectVm.SelectedIndex = (int)CNC.Core.ViewModels.ConnectMode.Demo;
+        connectVm.ConnectCommand.Execute(null);
+        await task;
+
+        var freshSettings = new SettingsService(settings.SettingsDir);
+        Assert.Equal(foamId, freshSettings.Global.ActiveProfileId);
+        Assert.True(vm.IsConnected);
+    }
 }
 
 public class MainViewModelLiveVisibilityTests
