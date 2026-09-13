@@ -84,4 +84,21 @@ public class PlotterNexSettingsViewModelTests : IDisposable
             MachineTypeCatalog.Resolve(MachineTypes.Foam));
         Assert.Equal(2, loaded.Planes[0].WorldAxes[0]);
     }
+
+    [Fact]
+    public void Wire_length_after_axis_edit_centers_towers_on_one_world_axis()
+    {
+        var vm = MakeVm(MachineTypes.Foam);
+
+        // Divergent remaps: plane0 leaves Y unmapped, plane1 leaves Z unmapped.
+        vm.PlaneRows[0].Slots[0].Axis = 0; // plane0 -> [0,2]
+        vm.PlaneRows[1].Slots[1].Axis = 0; // plane1 -> [1,0]
+
+        vm.WireLength = 200;
+
+        Assert.Equal(-100, vm.PlaneRows[0].OriginX);
+        Assert.Equal(100, vm.PlaneRows[1].OriginX);
+        Assert.Equal(0.0, vm.PlaneRows[0].OriginY);
+        Assert.Equal(0.0, vm.PlaneRows[1].OriginY);
+    }
 }

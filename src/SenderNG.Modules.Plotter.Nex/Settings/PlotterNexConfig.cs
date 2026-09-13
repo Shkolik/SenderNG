@@ -100,16 +100,18 @@ public static class PlotterNexConfig
         return settings;
     }
 
-    /// <summary>Recomputes each plane's origin along the wire axis (the world axis the
-    /// plane does not map) so the towers stay symmetric about the world origin.</summary>
+    /// <summary>Recomputes each plane's origin along the wire axis (a single world axis
+    /// none of the planes maps) so the towers stay symmetric about the world origin. The
+    /// wire axis falls back to world X when every axis is mapped somewhere.</summary>
     public static PlotterNexSettings RecenterOnWire(PlotterNexSettings s)
     {
         var n = s.Planes.Count;
+        var wireAxis = new[] { 0, 1, 2 }
+            .FirstOrDefault(a => s.Planes.All(p => p.WorldAxes is null || !p.WorldAxes.Contains(a)));
         for (var p = 0; p < n; p++)
         {
             var plane = s.Planes[p];
-            var origin = plane.Origin.Length == 3 ? plane.Origin : new double[] { 0, 0, 0 };
-            var wireAxis = new[] { 0, 1, 2 }.Except(plane.WorldAxes).FirstOrDefault(0);
+            var origin = plane.Origin is { Length: 3 } ? plane.Origin : new double[] { 0, 0, 0 };
             origin[wireAxis] = s.WireLength * (p - (n - 1) / 2.0);
             plane.Origin = origin;
         }
@@ -119,12 +121,17 @@ public static class PlotterNexConfig
     private static PlotterNexSettings Normalize(PlotterNexSettings s, MachineType type)
     {
         var defaults = Defaults(type);
-        if (s.Planes.Count != type.Planes.Count)
+        if (s is null || s.Planes is null || s.Planes.Count != type.Planes.Count)
             return defaults;
         for (var p = 0; p < s.Planes.Count; p++)
         {
-            var roles = type.Planes[p].Roles.Count;
             var g = s.Planes[p];
+            if (g is null)
+            {
+                s.Planes[p] = defaults.Planes[p];
+                continue;
+            }
+            var roles = type.Planes[p].Roles.Count;
             var bad = g.WorldAxes is null || g.WorldAxes.Length != roles
                 || g.WorldAxes.Distinct().Count() != roles
                 || g.WorldAxes.Any(w => w < 0 || w > 2);

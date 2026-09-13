@@ -99,4 +99,45 @@ public class PlotterNexConfigTests
         Assert.Equal(-100.0, s.Planes[0].Origin[0]);
         Assert.Equal(100.0, s.Planes[1].Origin[0]);
     }
+
+    [Fact]
+    public void Null_planes_array_yields_defaults_not_an_exception()
+    {
+        var profile = Profile(MachineTypes.Foam);
+        profile.ModuleSettings[PlotterNexConfig.SectionKey] =
+            System.Text.Json.JsonSerializer.Serialize(new PlotterNexSettings { Planes = null! });
+
+        var s = PlotterNexConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Foam));
+        Assert.Equal(2, s.Planes.Count);
+    }
+
+    [Fact]
+    public void Null_plane_element_yields_defaults_not_an_exception()
+    {
+        var profile = Profile(MachineTypes.Mill);
+        profile.ModuleSettings[PlotterNexConfig.SectionKey] =
+            System.Text.Json.JsonSerializer.Serialize(new PlotterNexSettings { Planes = [null!] });
+
+        var s = PlotterNexConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Mill));
+        Assert.Equal(new[] { 0, 1, 2 }, s.Planes[0].WorldAxes);
+    }
+
+    [Fact]
+    public void Recenter_pins_one_shared_wire_axis_when_planes_leave_different_axes_unmapped()
+    {
+        var s = new PlotterNexSettings
+        {
+            WireLength = 200,
+            Planes =
+            [
+                new NexPlaneGeometry { WorldAxes = [2, 0], Origin = [0, 0, 0] }, // leaves Y unmapped
+                new NexPlaneGeometry { WorldAxes = [1, 2], Origin = [0, 0, 0] }, // leaves X unmapped
+            ],
+        };
+
+        PlotterNexConfig.RecenterOnWire(s);
+
+        Assert.Equal(-100.0, s.Planes[0].Origin[0]);
+        Assert.Equal(100.0, s.Planes[1].Origin[0]);
+    }
 }
