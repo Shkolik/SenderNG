@@ -45,6 +45,7 @@ using HelixToolkit.Nex.Interop;
 using HelixToolkit.Nex.Interop.DirectX;
 using HelixToolkit.Nex.Maths;
 using HelixToolkit.Nex.Rendering;
+using HelixToolkit.Nex.Rendering.RenderNodes;
 using HelixToolkit.Nex.Scene;
 using SenderNG.Modules.Plotter.Nex.Scene;
 using Format = HelixToolkit.Nex.Graphics.Format;
@@ -140,6 +141,12 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         _engine = EngineBuilder.Create(_context)
             .WithDefaultNodes(renderToSwapchain: false)
             .WithLine()
+            .WithSMAA()
+            .ConfigureNode<SMAANode>(n =>
+            {
+                n.Quality = SMAAQuality.High;
+                n.EdgeDetectionMode = SMAAEdgeDetection.Color;
+            })
             .RenderToCustomTarget(Format.RGBA_UN8)
             .Build();
         _worldData = _engine.CreateWorldDataProvider();
