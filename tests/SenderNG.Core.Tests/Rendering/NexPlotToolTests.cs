@@ -31,4 +31,34 @@ public class NexPlotToolTests
         Assert.Empty(g.Vertices);
         Assert.Empty(g.VertexColors);
     }
+
+    [Fact]
+    public void BuildConeMesh_revolves_a_closed_cone_apex_at_origin()
+    {
+        var g = NexPlotTool.BuildConeMesh();
+
+        Assert.Equal(Topology.Triangle, g.Topology);
+        // 3 profile segments (apex join, skirt, top cap), each a 2-wide ring per
+        // theta step (engine AddRevolvedGeometry). 16 sectors default.
+        Assert.Equal(6 * 16, g.Vertices.Count);
+        Assert.Equal(6 * 16 * 3, g.Indices.Count);
+        Assert.True(g.Indices.All(i => i < g.Vertices.Count));
+
+        // Apex at the origin, base ring radius 1.5 at z=3.
+        Assert.Equal(new Vector3(-1.5f, -1.5f, 0f), g.BoundingBoxLocal.Minimum);
+        Assert.Equal(new Vector3(1.5f, 1.5f, 3f), g.BoundingBoxLocal.Maximum);
+        Assert.Contains(g.Vertices, v => new Vector3(v.X, v.Y, v.Z).Length() < 1e-4f);         // apex
+        Assert.Contains(g.Vertices, v => v.Z == 3f && v.X == 0f && v.Y == 0f);                 // cap centre
+        Assert.Contains(g.Vertices, v => MathF.Abs(v.X * v.X + v.Y * v.Y - 2.25f) < 1e-4f);    // base ring
+    }
+
+    [Fact]
+    public void BuildConeMesh_accepts_custom_dimensions()
+    {
+        var g = NexPlotTool.BuildConeMesh(thetaDiv: 8, radius: 2f, height: 5f);
+
+        Assert.Equal(6 * 8, g.Vertices.Count);
+        Assert.Equal(new Vector3(-2f, -2f, 0f), g.BoundingBoxLocal.Minimum);
+        Assert.Equal(new Vector3(2f, 2f, 5f), g.BoundingBoxLocal.Maximum);
+    }
 }

@@ -251,4 +251,67 @@ public sealed class NexPlotTool : IPlotTool
             return center + new Vector3(MathF.Cos(ang) * radius, MathF.Sin(ang) * radius, 0f);
         }
     }
+
+    /// <summary>Closed cone mesh with the apex at the origin opening along +Z
+    /// (a mill spindle points up from its contact point). The cap disk at
+    /// z=height closes the base and the degenerate apex joint registers the
+    /// apex, so each theta step emits a 6-vertex ring across the three profile
+    /// segments (apex joint, skirt, cap). Static CPU geometry, written once —
+    /// identical silhouette to the previous wireframe cone.</summary>
+    internal static Geometry BuildConeMesh(int thetaDiv = ConeSegments, float radius = ConeRadius, float height = ConeHeight)
+    {
+        var g = new Geometry(Topology.Triangle);
+        var total = 6 * thetaDiv;
+        g.Vertices.Capacity = total;
+        g.VertexProps.Capacity = total;
+        g.Indices.Capacity = 3 * total;
+
+        // Same unit circle as the engine's AddRevolvedGeometry (x = -cos, y = +sin,
+        // computed in double then cast) so the +/-radius ring vertices — and with
+        // them the axis-aligned bounds — land exactly.
+        var angle = (float)Math.PI * 2f / thetaDiv;
+        var center = new Vector3(0f, 0f, height);
+        var capNormal = Vector3.UnitZ;
+        for (var i = 0; i < thetaDiv; i++)
+        {
+            var u = (float)i / (thetaDiv - 1);
+            var w = new Vector3(-(float)Math.Cos(i * angle), (float)Math.Sin(i * angle), 0f);
+            var ring = new Vector3(w.X * radius, w.Y * radius, height);
+            var skirtNormal = Vector3.Normalize(new Vector3(w.X * height, w.Y * height, -radius));
+
+            // Three profile segments, two vertices each: apex joint (degenerate
+            // apex→apex), skirt (apex→ring), cap (ring→centre).
+            AddVertex(Vector3.Zero, Vector3.Zero, new Vector2(u, 0f));
+            AddVertex(Vector3.Zero, Vector3.Zero, new Vector2(u, 1f));
+            AddVertex(Vector3.Zero, skirtNormal, new Vector2(u, 1f));
+            AddVertex(ring, skirtNormal, new Vector2(u, 0f));
+            AddVertex(ring, capNormal, new Vector2(u, 0f));
+            AddVertex(center, capNormal, new Vector2(u, 1f));
+
+            // Two triangles per segment, wired across to the next theta step.
+            var i0 = i * 6;
+            for (var j = 0; j < 3; j++)
+            {
+                var a = i0 + j * 2;
+                var c = (a + 6) % total;
+                var d = c + 1;
+                g.Indices.Add((uint)(a + 1));
+                g.Indices.Add((uint)a);
+                g.Indices.Add((uint)c);
+                g.Indices.Add((uint)(a + 1));
+                g.Indices.Add((uint)c);
+                g.Indices.Add((uint)d);
+            }
+        }
+
+        g.UpdateBounds();
+        g.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexProp | GeometryBufferType.Index);
+        return g;
+
+        void AddVertex(Vector3 position, Vector3 normal, Vector2 uv)
+        {
+            g.Vertices.Add(new Vector4(position, 1f));
+            g.VertexProps.Add(new VertexProperties(normal, uv));
+        }
+    }
 }
