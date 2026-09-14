@@ -486,7 +486,10 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         foreach (var tool in _liveTools)
             tool.Dispose();
         foreach (var loft in _liveLofts)
+        {
+            loft.DisposeMesh();
             loft.Node.Dispose();
+        }
         foreach (var layer in _liveLayers)
             layer.Node.Dispose();
         _gridNode.Dispose();
@@ -508,7 +511,10 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         foreach (var tool in _liveTools)
             tool.Dispose();
         foreach (var loft in _liveLofts)
+        {
+            loft.DisposeMesh();
             loft.Node.Dispose();
+        }
         foreach (var layer in _liveLayers)
             layer.Node.Dispose();
         _liveTools.Clear();

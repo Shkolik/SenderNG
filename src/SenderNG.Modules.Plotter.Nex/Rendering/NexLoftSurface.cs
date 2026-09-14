@@ -38,8 +38,10 @@ using System.Numerics;
 using HelixToolkit.Nex.Engine;
 using HelixToolkit.Nex.Geometries;
 using HelixToolkit.Nex.Graphics;
+using HelixToolkit.Nex.Material;
 using HelixToolkit.Nex.Maths;
 using HelixToolkit.Nex.Scene;
+using HelixToolkit.Nex.Shaders.Frag;
 using SenderNG.Modules.Plotter.Nex.Scene;
 
 namespace SenderNG.Modules.Plotter.Nex.Rendering;
@@ -61,16 +63,21 @@ public sealed class NexLoftSurface : ILoftSurface
     private static readonly Color4 WireColor = new(0.42f, 0.42f, 0.54f, 1f);
 
     private readonly Engine _engine;
+    private readonly Node _root;
     private readonly Geometry _staging;
     private readonly LineNode _node;
     private readonly RebuildGate _rebuildGate = new();
     private Geometry? _renderedGeometry;
+    private MeshNode? _sheetNode;
+    private Geometry? _sheetGeometry;
+    private PBRMaterialProperties? _sheetMaterial;
 
     /// <summary>Create the loft surface under <paramref name="root"/>. The node
     /// stays geometry-less until the first <see cref="Pump"/>.</summary>
     public NexLoftSurface(Node root, Engine engine)
     {
         _engine = engine;
+        _root = root;
         // Staging container only — never registered with the engine, never
         // attached to a node, so nothing here produces GPU buffers. All GPU
         // content arrives via Pump() as a fresh static geometry.
@@ -140,6 +147,61 @@ public sealed class NexLoftSurface : ILoftSurface
         }
 
         old?.Dispose();
+    }
+
+    /// <summary>Swept sheet colour — the legacy loft blue-grey at 35% opacity
+    /// (matching Skia's semi-transparent coupling-wire tint).</summary>
+    private static readonly Color4 SheetColor = new(0.42f, 0.42f, 0.54f, 1f);
+
+    /// <summary>Build (and upload, once) the static translucent sheet. Called once
+    /// per program build — never per status poll, so no device-lost hazard. Old
+    /// geometry is disposed after the swap.</summary>
+    public void SetLoftSheet(IReadOnlyList<Vector3> sideA, IReadOnlyList<Vector3> sideB)
+    {
+        var sheet = BuildSheet(sideA, sideB);
+        var old = _sheetGeometry;
+        if (sheet.Vertices.Count == 0)
+        {
+            if (_sheetNode is not null)
+            {
+                _sheetNode.Geometry = null;
+                _sheetNode.Dispose();
+                _sheetNode = null;
+            }
+            _sheetGeometry = null;
+        }
+        else
+        {
+            _sheetNode ??= CreateSheetNode();
+            _engine.Add(sheet);
+            _sheetNode.Geometry = sheet;
+            _sheetGeometry = sheet;
+        }
+        old?.Dispose();
+    }
+
+    private MeshNode CreateSheetNode()
+    {
+        _sheetMaterial ??= _engine.ResourceManager.PBRPropertyManager.Create(PBRShadingMode.Unlit);
+        _sheetMaterial.Albedo = SheetColor;
+        _sheetMaterial.Emissive = Color4.Black;
+        _sheetMaterial.Opacity = 0.35f;
+        var node = _root.World.CreateMeshNode("loft-sheet");
+        node.MaterialProperties = _sheetMaterial;
+        node.IsTransparent = true;
+        _root.AddChild(node);
+        return node;
+    }
+
+    /// <summary>Release the sheet mesh node + material. Called on scene dispose and
+    /// ResetBuild (the engine defers GPU geometry removal itself).</summary>
+    internal void DisposeMesh()
+    {
+        _sheetNode?.Dispose();
+        _sheetNode = null;
+        _sheetMaterial?.Dispose();
+        _sheetMaterial = null;
+        _sheetGeometry = null;
     }
 
     /// <summary>Build the static swept sheet as a triangle strip of quads joining

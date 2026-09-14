@@ -131,6 +131,7 @@ public class PlotSceneAbstractionTests
     private sealed class StubLoftSurface : ILoftSurface
     {
         public void SetWirePlane(Vector3[] polygon) { }
+        public void SetLoftSheet(IReadOnlyList<Vector3> sideA, IReadOnlyList<Vector3> sideB) { }
     }
 
     private sealed class StubPlotTool : IPlotTool

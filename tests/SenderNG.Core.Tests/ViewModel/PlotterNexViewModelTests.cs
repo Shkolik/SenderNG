@@ -782,7 +782,9 @@ public class PlotterNexViewModelTests : IDisposable
     private sealed class RecorderLoft : ILoftSurface
     {
         public List<Vector3[]> Calls { get; } = [];
+        public List<(IReadOnlyList<Vector3> SideA, IReadOnlyList<Vector3> SideB)> SheetCalls { get; } = [];
         public void SetWirePlane(Vector3[] polygon) => Calls.Add(polygon);
+        public void SetLoftSheet(IReadOnlyList<Vector3> sideA, IReadOnlyList<Vector3> sideB) => SheetCalls.Add((sideA, sideB));
     }
 
     private sealed class RecorderTool : IPlotTool

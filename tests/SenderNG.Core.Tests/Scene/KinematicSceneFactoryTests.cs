@@ -156,6 +156,7 @@ public sealed class FakeLoftSurface : ILoftSurface
     public List<Vector3[]> WirePlanes { get; } = [];
 
     public void SetWirePlane(Vector3[] polygon) => WirePlanes.Add(polygon);
+    public void SetLoftSheet(IReadOnlyList<Vector3> sideA, IReadOnlyList<Vector3> sideB) { }
 }
 
 /// <summary>Test double for IPlotTool that tracks position updates and shape.</summary>

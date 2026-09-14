@@ -44,4 +44,10 @@ public interface ILoftSurface
 {
     /// <summary>Set the wire-plane polygon vertices.</summary>
     void SetWirePlane(Vector3[] polygon);
+
+    /// <summary>Set the static swept sheet between the two carriage-plane paths
+    /// (equal-length side point arrays). Replaces any previous sheet; a sheet with
+    /// fewer than two points removes the visual. Called once per program build — the
+    /// sheet is static, not animated per poll.</summary>
+    void SetLoftSheet(IReadOnlyList<Vector3> sideA, IReadOnlyList<Vector3> sideB);
 }
