@@ -440,6 +440,10 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
                 ToolpathSceneBuilder.PopulatePlane(
                     _sceneFactory.PlaneLayer(p), geometry.SourceSegments, _machineType.PlaneAxisIndices(p),
                     _planeGeometries.Length == _machineType.Planes.Count ? _planeGeometries[p] : PlotterNexConfig.Defaults(_machineType).Planes[p]);
+
+            var loft = _sceneFactory.Loft;
+            if (loft is not null && _machineType.Planes.Count >= 2)
+                PopulateLoftSheet(loft, geometry.SourceSegments);
         }
 
         _planeOutputLines = geometry.PlaneOutputLines;
@@ -458,6 +462,31 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(PlaneLettersText));
         OnPropertyChanged(nameof(ProgressText));
         Bump();
+    }
+
+    /// <summary>Feed the loft's static swept sheet: one sample per source segment,
+    /// mapping each 4-axis From through both plane world mappers — equal-length
+    /// arrays by construction (one sample per program step). Runs once per program
+    /// build.</summary>
+    private void PopulateLoftSheet(ILoftSurface loft, IReadOnlyList<ToolpathSegment> segments)
+    {
+        var count = segments.Count > 2 ? segments.Count : 2;
+        var sideA = new List<Vector3>(count);
+        var sideB = new List<Vector3>(count);
+        var g0 = _planeGeometries.Length == _machineType.Planes.Count
+            ? _planeGeometries[0]
+            : PlotterNexConfig.Defaults(_machineType).Planes[0];
+        var g1 = _planeGeometries.Length == _machineType.Planes.Count
+            ? _planeGeometries[1]
+            : PlotterNexConfig.Defaults(_machineType).Planes[1];
+        var idx0 = _machineType.PlaneAxisIndices(0);
+        var idx1 = _machineType.PlaneAxisIndices(1);
+        foreach (var seg in segments)
+        {
+            sideA.Add(PlaneWorldMapper.ToWorld(g0, seg.From, idx0));
+            sideB.Add(PlaneWorldMapper.ToWorld(g1, seg.From, idx1));
+        }
+        loft.SetLoftSheet(sideA, sideB);
     }
 
     private void ApplyEmpty()

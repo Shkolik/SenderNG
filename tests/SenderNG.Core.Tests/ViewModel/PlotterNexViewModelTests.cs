@@ -43,7 +43,9 @@ using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Localization;
 using SenderNG.Modules.Plotter.Nex;
+using SenderNG.Modules.Plotter.Nex.Model;
 using SenderNG.Modules.Plotter.Nex.Scene;
+using SenderNG.Modules.Plotter.Nex.Settings;
 
 namespace SenderNG.Core.Tests;
 
@@ -298,6 +300,49 @@ public class PlotterNexViewModelTests : IDisposable
         Assert.Equal(2, polygon.Length);
         Assert.Equal(endpoint.Points[0], polygon[0]);
         Assert.Equal(endpoint.Points[1], polygon[1]);
+    }
+
+    [Fact]
+    public void Applying_a_foam_program_feeds_an_equal_length_loft_sheet()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene, MachineTypes.Foam);
+
+        // 3 motion rows; every motion moves both towers (X/Y plane 0, Z/A plane 1).
+        source.Load(
+            "G21\n" +
+            "G0 X10 Y5 Z10 A12 F240\n" +
+            "G1 X20 Y8 Z20 A24\n" +
+            "G1 X30 Y5 Z30 A36\n");
+
+        var loft = scene.Lofts[^1];
+        var call = Assert.Single(loft.SheetCalls);
+        Assert.Equal(call.SideA.Count, call.SideB.Count);
+        Assert.Equal(3, call.SideA.Count);
+
+        // First sample = the pre-program tie-off (segment 0 From is the emulator's
+        // initial state before the first motion) — plane-0 and plane-1 world
+        // mapping in lockstep.
+        var machine = MachineTypeCatalog.Resolve(MachineTypes.Foam);
+        var config = PlotterNexConfig.Defaults(machine);
+        var origin = new double[] { 0, 0, 0, 0 };
+        Assert.Equal(
+            PlaneWorldMapper.ToWorld(config.Planes[0], origin, machine.PlaneAxisIndices(0)),
+            call.SideA[0]);
+        Assert.Equal(
+            PlaneWorldMapper.ToWorld(config.Planes[1], origin, machine.PlaneAxisIndices(1)),
+            call.SideB[0]);
+
+        // Second sample = the mapped From of the first motion exactly — the
+        // first motion's coordinates, plane-0 and plane-1 in lockstep.
+        var first = new double[] { 10, 5, 10, 12 };
+        Assert.Equal(
+            PlaneWorldMapper.ToWorld(config.Planes[0], first, machine.PlaneAxisIndices(0)),
+            call.SideA[1]);
+        Assert.Equal(
+            PlaneWorldMapper.ToWorld(config.Planes[1], first, machine.PlaneAxisIndices(1)),
+            call.SideB[1]);
     }
 
     [Fact]
