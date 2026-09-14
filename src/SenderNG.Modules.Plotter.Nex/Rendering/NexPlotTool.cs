@@ -39,7 +39,9 @@ using HelixToolkit.Nex.Engine;
 using HelixToolkit.Nex.Geometries;
 using HelixToolkit.Nex.Graphics;
 using HelixToolkit.Nex.Maths;
+using HelixToolkit.Nex.Material;
 using HelixToolkit.Nex.Scene;
+using HelixToolkit.Nex.Shaders.Frag;
 using SenderNG.Modules.Plotter.Nex.Scene;
 
 namespace SenderNG.Modules.Plotter.Nex.Rendering;
@@ -67,8 +69,10 @@ public sealed class NexPlotTool : IPlotTool
     private readonly Engine _engine;
     private readonly Geometry _stagingSegmentGeometry;
     private readonly LineNode _segmentNode;
-    private readonly LineNode _coneNodeA;
-    private readonly LineNode _coneNodeB;
+    private readonly Geometry _coneGeometry;
+    private readonly PBRMaterialProperties _coneMaterial;
+    private readonly MeshNode _coneNodeA;
+    private readonly MeshNode _coneNodeB;
     private readonly RebuildGate _rebuildGate = new();
     private Geometry? _renderedSegmentGeometry;
     private ToolShape _shape;
@@ -88,17 +92,26 @@ public sealed class NexPlotTool : IPlotTool
         _segmentNode.LineColor = Color4.White;
         root.AddChild(_segmentNode);
 
-        var coneGeometry = BuildConeGeometry();
-        engine.Add(coneGeometry);
-        _coneNodeA = root.World.CreateLineNode("tool-cone");
-        _coneNodeA.Geometry = coneGeometry;
-        _coneNodeA.LineThickness = 1.1f;
-        _coneNodeA.LineColor = Color4.White;
+        // Filled cone — two nodes sharing ONE static geometry and ONE Unlit material.
+        // IsTransparent routes both through the WBOIT pass (CullMode.None), so the
+        // cone renders double-sided (no invisible-from-below culling) even at full
+        // opacity. Static geometry is uploaded once here; the cones then only ever
+        // move via node transforms (NodeInfo path).
+        _coneGeometry = BuildConeMesh();
+        _engine.Add(_coneGeometry);
+        _coneMaterial = _engine.ResourceManager.PBRPropertyManager.Create(PBRShadingMode.Unlit);
+        _coneMaterial.Albedo = ToolColor;
+        _coneMaterial.Emissive = Color4.Black;
+        _coneMaterial.Opacity = 1f;
+        _coneNodeA = root.World.CreateMeshNode("tool-cone");
+        _coneNodeA.Geometry = _coneGeometry;
+        _coneNodeA.MaterialProperties = _coneMaterial;
+        _coneNodeA.IsTransparent = true;
         root.AddChild(_coneNodeA);
-        _coneNodeB = root.World.CreateLineNode("tool-cone-2");
-        _coneNodeB.Geometry = coneGeometry;
-        _coneNodeB.LineThickness = 1.1f;
-        _coneNodeB.LineColor = Color4.White;
+        _coneNodeB = root.World.CreateMeshNode("tool-cone-2");
+        _coneNodeB.Geometry = _coneGeometry;
+        _coneNodeB.MaterialProperties = _coneMaterial;
+        _coneNodeB.IsTransparent = true;
         root.AddChild(_coneNodeB);
     }
 
@@ -185,7 +198,7 @@ public sealed class NexPlotTool : IPlotTool
     /// <summary>Write the cone transform and notify the ECS change so the engine
     /// refreshes the node's GPU row. Direct writes alone keep the drawn cone at
     /// its first-upload transform forever.</summary>
-    private static void SetConePosition(LineNode node, Vector3 position)
+    private static void SetConePosition(Node node, Vector3 position)
     {
         node.Transform.Translation = position;
         node.NotifyTransformChanged();
@@ -197,59 +210,17 @@ public sealed class NexPlotTool : IPlotTool
         _segmentNode.Dispose();
         _coneNodeA.Dispose();
         _coneNodeB.Dispose();
+        _coneGeometry.Dispose();
+        _coneMaterial.Dispose();
     }
 
-    /// <summary>DIAGNOSTIC (temporary): CPU-side line/vertex/bounds state of the
+    /// <summary>DIAGNOSTIC (temporary): CPU-side mesh/bounds/transform state of the
     /// three tool nodes.</summary>
     internal string DumpContent()
     {
-        var a = _coneNodeA.Geometry;
-        var b = _coneNodeB.Geometry;
         return $"wire(en={_segmentNode.Enabled}, lc={_segmentNode.LineCount}, vc={_stagingSegmentGeometry.Vertices.Count}) "
-            + $"coneA(en={_coneNodeA.Enabled}, lc={_coneNodeA.LineCount}, vc={(a is null ? -1 : a.Vertices.Count)}, r={(a is null ? -1f : a.BoundingSphereLocal.Radius):F2}, t={_coneNodeA.Transform.Translation}) "
-            + $"coneB(en={_coneNodeB.Enabled}, lc={_coneNodeB.LineCount}, vc={(b is null ? -1 : b.Vertices.Count)}, t={_coneNodeB.Transform.Translation})";
-    }
-
-    /// <summary>Wireframe cone with apex at the origin opening along +Z
-    /// (a mill spindle points up from its contact point). Mirrors the spike's
-    /// FillSpotCone line recipe: base ring + spokes + center axis.</summary>
-    private static Geometry BuildConeGeometry()
-    {
-        var g = new Geometry(Topology.Line, isDynamic: true);
-        var baseCenter = new Vector3(0f, 0f, ConeHeight);
-        var color = ToolColor.ToVector4();
-
-        void AddLine(Vector3 a, Vector3 b)
-        {
-            g.Vertices.Add(new Vector4(a, 1f));
-            g.Vertices.Add(new Vector4(b, 1f));
-            g.VertexColors.Add(color);
-            g.VertexColors.Add(color);
-        }
-
-        // Center axis: apex → base center.
-        AddLine(Vector3.Zero, baseCenter);
-
-        // Base ring + radial spokes.
-        var spokeStep = Math.Max(1, ConeSegments / 8);
-        for (var i = 0; i < ConeSegments; i++)
-        {
-            var next = (i + 1) % ConeSegments;
-            var a = Ring(baseCenter, ConeRadius, i);
-            var b = Ring(baseCenter, ConeRadius, next);
-            AddLine(a, b);
-            if (i % spokeStep == 0)
-                AddLine(Vector3.Zero, a);
-        }
-
-        g.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
-        return g;
-
-        static Vector3 Ring(Vector3 center, float radius, int i)
-        {
-            var ang = i / (float)ConeSegments * MathF.PI * 2f;
-            return center + new Vector3(MathF.Cos(ang) * radius, MathF.Sin(ang) * radius, 0f);
-        }
+            + $"coneA(en={_coneNodeA.Enabled}, vc={_coneGeometry.Vertices.Count}, r={_coneGeometry.BoundingSphereLocal.Radius:F2}, t={_coneNodeA.Transform.Translation}) "
+            + $"coneB(en={_coneNodeB.Enabled}, vc={_coneGeometry.Vertices.Count}, t={_coneNodeB.Transform.Translation})";
     }
 
     /// <summary>Closed cone mesh with the apex at the origin opening along +Z
