@@ -141,4 +141,71 @@ public sealed class NexLoftSurface : ILoftSurface
 
         old?.Dispose();
     }
+
+    /// <summary>Build the static swept sheet as a triangle strip of quads joining
+    /// <paramref name="sideA"/> to <paramref name="sideB"/> (equal-length arrays).
+    /// One quad per consecutive pair; quads with no width or zero span are skipped
+    /// and a pair count below 2 yields an empty geometry. Normals are computed per
+    /// quad (0,0,1 fallback) — flat-unlit so they only matter for consistency.</summary>
+    internal static Geometry BuildSheet(IReadOnlyList<Vector3> sideA, IReadOnlyList<Vector3> sideB)
+    {
+        ArgumentNullException.ThrowIfNull(sideA);
+        ArgumentNullException.ThrowIfNull(sideB);
+        if (sideA.Count != sideB.Count)
+            throw new ArgumentException("Loft sheet side point counts must match.", nameof(sideA));
+
+        var g = new Geometry();
+        if (sideA.Count < 2)
+            return g;
+
+        for (var i = 0; i + 1 < sideA.Count; i++)
+        {
+            var a0 = sideA[i];
+            var a1 = sideA[i + 1];
+            var b0 = sideB[i];
+            var b1 = sideB[i + 1];
+            // No width (both sides stationary) or zero span — nothing to draw.
+            if (AlmostSame(a0, a1) && AlmostSame(b0, b1))
+                continue;
+            if (AlmostSame(a0, b0) && AlmostSame(a1, b1))
+                continue;
+
+            var index = g.Vertices.Count;
+            g.Vertices.Add(new Vector4(a0, 1f));
+            g.Vertices.Add(new Vector4(b0, 1f));
+            g.Vertices.Add(new Vector4(b1, 1f));
+            g.Vertices.Add(new Vector4(a1, 1f));
+
+            var normal = SafeNormal(b0 - a0, b1 - a0);
+            g.VertexProps.Add(new VertexProperties(normal));
+            g.VertexProps.Add(new VertexProperties(normal));
+            g.VertexProps.Add(new VertexProperties(normal));
+            g.VertexProps.Add(new VertexProperties(normal));
+
+            g.Indices.Add((uint)index);
+            g.Indices.Add((uint)index + 1);
+            g.Indices.Add((uint)index + 2);
+            g.Indices.Add((uint)index);
+            g.Indices.Add((uint)index + 2);
+            g.Indices.Add((uint)index + 3);
+        }
+
+        g.UpdateBounds();
+        return g;
+    }
+
+    private static bool AlmostSame(Vector3 x, Vector3 y) =>
+        Vector3.DistanceSquared(x, y) < 1e-12f;
+
+    private static Vector3 SafeNormal(Vector3 u, Vector3 v)
+    {
+        var n = Vector3.Cross(u, v);
+        if (n.LengthSquared() < 1e-12f)
+        {
+            n = Vector3.Cross(v, u);
+            if (n.LengthSquared() < 1e-12f)
+                n = new Vector3(0, 0, 1);
+        }
+        return Vector3.Normalize(n);
+    }
 }

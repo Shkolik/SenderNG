@@ -53,4 +53,50 @@ public class NexLoftSurfaceTests
         Assert.Empty(g.Vertices);
         Assert.Empty(g.VertexColors);
     }
+
+    [Fact]
+    public void BuildSheet_connects_three_points_per_side_into_two_quads()
+    {
+        var a = new[] { new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(2, 0, 0) };
+        var b = new[] { new Vector3(0, 0, 1), new Vector3(1, 0, 1), new Vector3(2, 0, 1) };
+
+        var g = NexLoftSurface.BuildSheet(a, b);
+
+        Assert.Equal(Topology.Triangle, g.Topology);
+        Assert.Equal(4 * 2, g.Vertices.Count);   // 2 quads
+        Assert.Equal(6 * 2, g.Indices.Count);    // 2 quads x 2 triangles
+        Assert.True(g.Indices.All(i => i < g.Vertices.Count));
+        // First triangle (a0, b0, b1) faces +Y for this layout.
+        Assert.Equal(new Vector3(0, 1, 0), g.VertexProps[0].Normal);
+    }
+
+    [Fact]
+    public void BuildSheet_rejects_mismatched_side_counts()
+    {
+        Assert.Throws<ArgumentException>(() => NexLoftSurface.BuildSheet(
+            [new Vector3(0, 0, 0), new Vector3(1, 0, 0)],
+            [new Vector3(0, 0, 1)]));
+    }
+
+    [Fact]
+    public void BuildSheet_culls_degenerate_quads()
+    {
+        var a = new[] { new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(1, 0, 0) };
+        var b = new[] { new Vector3(0, 0, 1), new Vector3(1, 0, 1), new Vector3(1, 0, 1) };
+
+        var g = NexLoftSurface.BuildSheet(a, b);
+
+        // First quad (real span) kept; second quad has zero span on both sides.
+        Assert.Equal(4, g.Vertices.Count);
+        Assert.Equal(6, g.Indices.Count);
+    }
+
+    [Fact]
+    public void BuildSheet_with_less_than_two_points_returns_empty()
+    {
+        var g = NexLoftSurface.BuildSheet(
+            [new Vector3(0, 0, 0)], [new Vector3(0, 0, 1)]);
+        Assert.Empty(g.Vertices);
+        Assert.Empty(g.Indices);
+    }
 }
