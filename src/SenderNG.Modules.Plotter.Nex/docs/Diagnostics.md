@@ -20,7 +20,7 @@ The view includes a ring-median spike detector that catches the "giant red fan" 
 
 ### How it works
 
-1. Every 5th probe tick, `ProbeFrame()` runs
+1. Every 5th probe tick, the tick loop probes the downloaded CPU frame (`ProbeFrame()` runs on the readback's byte buffer)
 2. `CountConeRed()` counts pixels matching the tool cone's red color
 3. `CountNonBackground()` counts non-background pixels
 4. If red pixels exceed a threshold relative to non-background pixels, a fan is detected

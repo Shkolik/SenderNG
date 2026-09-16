@@ -70,8 +70,8 @@ View code-behind. The largest file. Hosts the Vulkan render pipeline.
 | `EnsureScene()` | 194-218 | Builds `NexPlotScene` on thread pool, attaches via `KinematicSceneFactory` |
 | `SetupRenderTarget()` | 241-253 | Creates `RenderContext` + readback target |
 | `OnTick()` | 313-389 | 33ms DispatcherTimer render loop (see [Architecture](Architecture.md#the-tick-loop-33ms--30hz)) |
-| `RenderOffscreen()` | 396-413 | Vulkan render to shared texture |
-| `CopyFrame()` | 415-449 | D3D11 readback → WriteableBitmap |
+| `RenderOffscreen()` | 396-413 | Vulkan render to readback render-target |
+| `CopyFrame()` | 415-449 | Vulkan staging download → WriteableBitmap |
 | `UpdateViewport()` | 452-487 | Camera update + viewport resize |
 | Navigation handlers | 490-530 | Pan (LMB), orbit (RMB), zoom (wheel), snap buttons |
 | `ProbeFrame()` | 532-558 | Fan artifact detection + BMP snapshot |
@@ -278,15 +278,17 @@ GPU loft: wire-plane line loop + swept sheet mesh.
 | `SetWirePlane()` | 112-150 | Re-upload wire vertices |
 | `SetLoftSheet()` | 152-200 | Build swept sheet from side A/B paths |
 
-### `NexGpuReadback.cs` (300 lines)
+### `NexGpuReadback.cs` (149 lines)
 
-D3D11 readback bridge. Vulkan renders to shared NT-handle texture, D3D11 copies to staging buffer.
+Pure-Vulkan CPU readback. The engine renders into the readback's Vulkan render-target texture (`EngineTarget`), and `IContext.Download` copies it to a tightly-packed RGBA8 CPU buffer the caller rows into a WriteableBitmap. Cross-platform: no D3D11, no shared textures, no keyed mutex.
 
 | Member | Line | Purpose |
 |---|---|---|
-| Constructor | 66-100 | Create D3D11 device + shared texture handle |
-| `CopyFrame()` | 102-180 | Copy shared texture → staging buffer → byte array |
-| `ToWriteableBitmap()` | 182-220 | Convert byte array to Avalonia WriteableBitmap |
+| `EngineTarget` | 66 | The Vulkan render-target texture the engine renders into |
+| Constructor | 68-72 | Create the render-target texture + scratch buffer |
+| `CopyFrame()` | 93-129 | `IContext.Download` → row copy (opaque-force) into the bitmap |
+| `Resize()` | 133-138 | Recreate the render target for a new pixel size |
+| `Dispose()` | 140-148 | Release target + scratch buffer |
 
 ### `PoolDiagnostics.cs` (333 lines)
 

@@ -74,7 +74,7 @@ The scene factory is **not** injected via DI. It is late-attached by the view:
 4. `AttachScene()` throws if called twice (no re-attach)
 5. `ReleaseScene()` drops the reference; no scene rebuild
 
-This design exists because the GPU scene depends on the Vulkan engine, which requires a window handle — only available after the view is constructed.
+This design exists because the GPU scene depends on the Vulkan engine, which requires a window handle — only available after the view is constructed. The module runs on both Windows and Linux (Vulkan 1.3 required); the readback is a pure-Vulkan CPU download (`IContext.Download`), so no Windows-only interop is involved.
 
 ### Settings view lifecycle
 
@@ -164,8 +164,8 @@ When the controller is in grbl "Check" mode, the tool position shows the last ac
 | 3 | `PumpCarriagePlanes()` | Re-upload plane GPU geometry (every 3rd tick) |
 | 4 | `PumpToolWireAndLofts()` | Re-upload tool position + loft surface |
 | 5 | `UpdateViewport()` | Update Vulkan camera/viewport |
-| 6 | `RenderOffscreen()` | Vulkan renders to shared texture |
-| 7 | `CopyFrame()` | D3D11 readback → WriteableBitmap |
+| 6 | `RenderOffscreen()` | Vulkan renders to the readback's render-target texture |
+| 7 | `CopyFrame()` | Vulkan staging download → WriteableBitmap |
 
 Steps 2-3 run every 3rd tick to reduce GPU churn. Steps 4-7 run every tick for smooth tool animation.
 
@@ -175,8 +175,8 @@ The host does NOT reference the plugin's types at runtime:
 
 1. **Build-time staging** (`SenderNG.csproj`):
    - Plugin DLL staged to `Modules\SenderNG.Modules.Plotter.Nex.dll`
-   - NuGet closure (HelixToolkit.Nex, Vortice, etc.) staged to `Modules\plotter-nex\`
-   - Native binaries (vma.dll, spirv-reflect.dll, glslang.dll) staged to `Modules\plotter-nex\`
+   - NuGet closure (HelixToolkit.Nex, etc.) staged to `Modules\plotter-nex\`
+   - Native binaries (vma, spirv-reflect, glslang) staged to `Modules\plotter-nex\` for the current build OS (win-x64 `.dll` on Windows, linux-x64 `.so` on Linux)
    - Custom MSBuild target `StageNexPluginClosure` copies these after build
 
 2. **Runtime discovery** (`ModuleCatalog.ScanDirectory`):

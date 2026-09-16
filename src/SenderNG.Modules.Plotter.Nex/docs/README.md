@@ -28,7 +28,7 @@ It is a sibling to the existing 2D Skia plotter (`SenderNG.Modules.Plotter`), cl
 | Scene abstraction | `Scene/IPlotScene.cs` + siblings — headless interfaces for testing |
 | Camera math | `Scene/CameraGestures.cs` — pure math, no GPU dependency |
 | Settings persistence | `Settings/PlotterNexConfig.cs` — JSON in MachineProfile.ModuleSettings |
-| D3D11 readback | `Rendering/NexGpuReadback.cs` — Vulkan→D3D11→WriteableBitmap bridge |
+| Vulkan readback | `Rendering/NexGpuReadback.cs` — Vulkan staging download (`IContext.Download`) → WriteableBitmap |
 | GPU diagnostics | `Rendering/PoolDiagnostics.cs` — reflection-based Vulkan pool inspection |
 | Plane geometry | `Model/PlaneWorldMapper.cs` — plane-local to world coordinate mapping |
 | Toolpath building | `Model/ToolpathSceneBuilder.cs` — segments to scene population |
@@ -66,7 +66,7 @@ SenderNG.Modules.Plotter.Nex/
         NexCarriagePlaneLayer.cs     ← GPU plane layer
         NexPlotTool.cs               ← GPU tool cone + wire
         NexLoftSurface.cs            ← GPU loft surface
-        NexGpuReadback.cs            ← D3D11 readback bridge
+        NexGpuReadback.cs            ← Vulkan CPU readback (IContext.Download)
         PoolDiagnostics.cs           ← Vulkan pool diagnostics
         RebuildGate.cs               ← coalescing rebuild gate
     Locale/

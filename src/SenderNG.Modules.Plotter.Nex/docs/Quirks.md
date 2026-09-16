@@ -24,19 +24,19 @@ See also: [Architecture](Architecture.md) for data flow | [Diagnostics](Diagnost
 
 ### HelixViewport composition presenter deadlock
 
-**Problem:** The Avalonia WinUI composition server never completes the shared-texture update, causing permanent black views.
+**Problem:** The Avalonia WinUI composition server never completes its composition update, causing permanent black views.
 
-**Solution:** The entire pipeline deliberately uses a D3D11 readback bridge (`NexGpuReadback`) instead of the Avalonia composition presenter. The Vulkan scene renders to a shared NT-handle texture, D3D11 copies it to a staging buffer, and the tick loop reads it row-by-row into a `WriteableBitmap`.
+**Solution:** The pipeline deliberately bypasses the composition presenter entirely: the Vulkan scene renders into a plain Vulkan render-target texture (created by `NexGpuReadback`), and the tick loop downloads it to the CPU via `IContext.Download` (a Vulkan-internal staging copy, `vkCmdCopyImageToBuffer`), then copies it row-by-row into a `WriteableBitmap`.
 
-**Files:** `PlotterNexView.axaml.cs:52-53,68-76`
+**Files:** `PlotterNexView.axaml.cs:68-76`, `Rendering/NexGpuReadback.cs:93-129`
 
-### Keyed-mutex bypass
+### Readback synchronization
 
-**Problem:** The two-party keyed-mutex handshake (engine acquire 0/release 1, reader acquire 1/release 0) is unnecessary because `WaitForIdle()` serializes everything. Using the two-party handshake caused `DXGI_ERROR_INVALID_CALL`.
+**Problem:** The CPU-side `IContext.Download` must read GPU-complete output; launching the staging copy while the just-submitted draws are still in flight reads a stale (black) frame.
 
-**Solution:** Skip the keyed-mutex entirely. The `WaitForIdle()` call before readback provides sufficient synchronization.
+**Solution:** The tick loop calls `Engine.WaitForIdle()` (`Context.WaitAll`) after every `Submit` before `CopyFrame()`, so the render is GPU-complete before the download runs. `IContext.Download` then performs its own immediate-queue submit + wait for the copy. No keyed mutex, shared NT handle, or inter-API fence exists anymore — the readback is pure Vulkan.
 
-**Files:** `NexGpuReadback.cs:56-64`
+**Files:** `NexGpuReadback.cs:50-53`, `PlotterNexView.axaml.cs:498`
 
 ### HelixToolkit.Nex version pinning
 
