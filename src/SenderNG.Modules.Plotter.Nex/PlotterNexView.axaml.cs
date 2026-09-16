@@ -66,8 +66,9 @@ namespace SenderNG.Modules.Plotter.Nex;
 /// XAML swaps in the text fallback.
 /// <para>
 /// Rendering: a DispatcherTimer tick drives
-/// UpdateViewport → RenderOffscreen into a D3D11 shared texture, then a
-/// keyed-mutex readback into a WriteableBitmap shown by <c>GpuImage</c>. This
+/// UpdateViewport → RenderOffscreen into the readback's Vulkan render-target
+/// texture, then a cross-platform IContext.Download into a WriteableBitmap
+/// shown by <c>GpuImage</c>. This
 /// deliberately does NOT use <c>HelixViewport</c>: its composition presenter
 /// path deadlocks (the Avalonia WinUI composition server never completes the
 /// shared-texture update; present backpressure then hangs the render loop
@@ -439,10 +440,9 @@ public partial class PlotterNexView : UserControl
             if (cullNode is not null)
                 cullNode.Enabled = !scene.DiagnosticDisableCulling;
 
-            // The WaitAlls below stay every tick (the D3D11 readback has no
-            // inter-API fence and must read GPU-complete output); only the
-            // full-resolution pool scans / disk log writes throttle to a coarse
-            // cadence.
+            // The WaitAlls below stay every tick (the CPU download must read
+            // GPU-complete output); only the full-resolution pool scans / disk
+            // log writes throttle to a coarse cadence.
             if (_probeCounter % 30 == 1)
                 Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.pre-waitall"));
             scene.Context.WaitAll(true);
@@ -487,16 +487,14 @@ public partial class PlotterNexView : UserControl
             // Rendering still goes into EngineTarget — RenderOffscreen bound it as
             // FinalOutputTexture — present only controls swapchain presentation.
             var presentHandle = default(HelixToolkit.Nex.Handle<HelixToolkit.Nex.Graphics.Texture>);
-            scene.Engine.Submit(cmd, presentHandle, pipeline.EngineSyncInfo);
+            scene.Engine.Submit(cmd, presentHandle);
             if (_probeCounter % 30 == 1)
                 Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-submit"));
 
-            // The D3D11 readback has no inter-API fence (NexGpuReadback sync is
-            // intentionally NONE), so the Vulkan render must be GPU-complete
-            // before CopyResource reads the shared texture. Without this wait the
-            // copy races the just-submitted draws and always sees the stale
-            // (black) frame — this is exactly why the view stayed black even
-            // after the geometry fix restored the draw submissions.
+            // The CPU download (IContext.Download) does its own copy after the
+            // render, so the Vulkan render must be GPU-complete before Download
+            // runs. Without this wait the staging copy races the just-submitted
+            // draws and always sees the stale (black) frame.
             scene.Context.WaitAll(true);
             if (_probeCounter % 30 == 1)
                 Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-waitall-before-readback"));
@@ -504,18 +502,14 @@ public partial class PlotterNexView : UserControl
             using var fb = _bitmap.Lock();
             if (!pipeline.CopyFrame(fb.Address, fb.RowBytes))
                 return;
-            // DIAGNOSTIC: probe the engine-produced frame every 30th tick and
-            // export to pool_diag.log so we can tell whether the Vulkan render
-            // actually reaches the readback. Same cadence as the reverse test:
-            // D3D11 clears the shared texture red and reads it back — red means
-            // the D3D11 readback path works and the missing link is the Vulkan
-            // import/write; black means readback itself fails.
+            // DIAGNOSTIC: probe the downloaded frame every 30th tick and export
+            // to pool_diag.log so we can tell whether the Vulkan render actually
+            // reaches the CPU readback.
             _probeCounter++;
             if (_probeCounter % 30 == 1)
             {
                 var probe = ProbeFrame(fb.Address, fb.RowBytes, (int)w, (int)h);
                 _lastProbe = probe;
-                PoolDiagnostics.LogLine(pipeline.DiagTestD3D11Write());
                 PoolDiagnostics.LogLine($"[T{_readbackTicks}.probe] max={probe} nonbg={CountNonBackground(fb.Address, fb.RowBytes, (int)w, (int)h)} counter={_probeCounter}");
                 if (_probeCounter % 60 == 1)
                 {
