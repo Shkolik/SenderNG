@@ -42,7 +42,6 @@ using HelixToolkit.Nex.Geometries;
 using HelixToolkit.Nex.Graphics;
 using HelixToolkit.Nex.Graphics.Vulkan;
 using HelixToolkit.Nex.Interop;
-using HelixToolkit.Nex.Interop.DirectX;
 using HelixToolkit.Nex.Maths;
 using HelixToolkit.Nex.Rendering;
 using HelixToolkit.Nex.Rendering.RenderNodes;
@@ -115,28 +114,19 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
 
     /// <summary>Create the scene and the whole render pipeline.</summary>
     /// <remarks>
-    /// The Vulkan context on Windows must be created with Win32 external memory on the same adapter as
-    /// the D3D11 device that the viewport's shared-texture bridge uses. This mirrors the official
-    /// Avalonia interop sample exactly.
+    /// Plain headless Vulkan on every OS: the readback is a Vulkan-internal
+    /// staging copy (IContext.Download), so no external memory, no D3D11
+    /// device, and no device-LUID matching are needed. Requires a Vulkan 1.3
+    /// device; a missing driver surfaces as VulkanUnavailable in the UI.
     /// </remarks>
     public NexPlotScene()
     {
-        if (OperatingSystem.IsWindows())
+        _context = VulkanBuilder.CreateHeadless(new VulkanContextConfig
         {
-            using var d3d11 = new D3D11DeviceManager();
-            _context = VulkanBuilder.CreateHeadless(new VulkanContextConfig
-            {
-                EnableExternalMemoryWin32 = true,
-                RequiredDeviceLuid = d3d11.AdapterLuid,
-                // False: relying on validation layers being installed would
-                // degrade machines without them to the VulkanUnavailable notice.
-                EnableValidation = false
-            });
-        }
-        else
-        {
-            throw new PlatformNotSupportedException("SenderNG plotter Nex scene supports Windows only.");
-        }
+            // False: relying on validation layers being installed would
+            // degrade machines without them to the VulkanUnavailable notice.
+            EnableValidation = false
+        });
 
         _engine = EngineBuilder.Create(_context)
             .WithDefaultNodes(renderToSwapchain: false)
