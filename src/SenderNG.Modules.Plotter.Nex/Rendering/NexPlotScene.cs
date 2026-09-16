@@ -211,10 +211,14 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// <inheritdoc/>
     public ILoftSurface AddLoftSurface()
     {
+        if (DiagnosticDisableLoft)
+            return null!;
         if (_buildComplete)
             ResetBuild();
         _buildComplete = false;
         var loft = new NexLoftSurface(_root, _engine);
+        loft.DiagnosticDisableLoop = DiagnosticDisableLoftLoop;
+        loft.DiagnosticDisableSheet = DiagnosticDisableLoftSheet;
         _liveLofts.Add(loft);
         return loft;
     }
@@ -491,7 +495,10 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             loft.Node.Dispose();
         }
         foreach (var layer in _liveLayers)
+        {
+            layer.ReleaseGeometries();
             layer.Node.Dispose();
+        }
         _gridNode.Dispose();
         _axesNode.Dispose();
         _originNode.Dispose();
@@ -516,7 +523,10 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             loft.Node.Dispose();
         }
         foreach (var layer in _liveLayers)
+        {
+            layer.ReleaseGeometries();
             layer.Node.Dispose();
+        }
         _liveTools.Clear();
         _liveLofts.Clear();
         _liveLayers.Clear();
@@ -730,6 +740,18 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// frustum-cull node each frame so geometry visibility no longer depends on
     /// MeshInfo bounds.</summary>
     public bool DiagnosticDisableCulling { get; set; } = true;
+
+    /// <summary>DIAGNOSTIC (temporary): when true, <see cref="AddLoftSurface"/>
+    /// returns null so no loft line loop / swept sheet is created. Used to
+    /// isolate the tool wire + cone rendering from the loft surface while
+    /// chasing the red-fan artifact; re-enable to compare.</summary>
+    public bool DiagnosticDisableLoft { get; set; }
+
+    /// <summary>DIAGNOSTIC (temporary): pass the loop-/sheet-disables into each
+    /// created <see cref="NexLoftSurface"/> (SetWirePlane vs SetLoftSheet gates).
+    /// App A/B to attribute the red-fan artifact to the loop or the sheet.</summary>
+    public bool DiagnosticDisableLoftLoop { get; set; }
+    public bool DiagnosticDisableLoftSheet { get; set; }
 
     /// <summary>DIAGNOSTIC (temporary): CPU-side state of every line node owned
     /// by this scene — enabled flag, stream validity, line count, vertex count

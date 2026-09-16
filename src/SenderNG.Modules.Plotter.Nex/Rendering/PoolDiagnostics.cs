@@ -24,15 +24,20 @@ internal static class PoolDiagnostics
     private static Type? _vulkanContextType;
     private static Type? _commandsType;
     private static FieldInfo? _immediateField;
+    private static FieldInfo? _uploadImmediateField;
     private static FieldInfo? _freeStackField;
     private static FieldInfo? _inFlightField;
     private static FieldInfo? _buffersField;
     private static FieldInfo? _maxBuffersField;
+    private static PropertyInfo? _hasDedicatedTransferQueue;
+    private static PropertyInfo? _uploadImmediateProp;
+    private static PropertyInfo? _deviceQueuesProp;
     private static MethodInfo? _freeStackCount;
     private static MethodInfo? _inFlightCount;
     private static MethodInfo? _bufferAvailable;
     private static MethodInfo? _bufferEncoding;
     private static bool _initialized;
+    private static bool _topologyLogged;
     private static StreamWriter? _log;
 
     private static StreamWriter Log
@@ -71,6 +76,14 @@ internal static class PoolDiagnostics
 
         _immediateField = _vulkanContextType.GetField("_immediate",
             BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        _uploadImmediateField = _vulkanContextType.GetField("_uploadImmediate",
+            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        _uploadImmediateProp = _vulkanContextType.GetProperty("UploadImmediate",
+            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        _hasDedicatedTransferQueue = _vulkanContextType.GetProperty("HasDedicatedTransferQueue",
+            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        _deviceQueuesProp = _vulkanContextType.GetProperty("DeviceQueues",
+            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
 
         _freeStackField = _commandsType.GetField("_freeStack",
             BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
@@ -101,11 +114,77 @@ internal static class PoolDiagnostics
         }
     }
 
+    /// <summary>
+    /// One-shot dump of the queue topology that decides whether uploads are ordered
+    /// with renders: HasDedicatedTransferQueue (if true, async uploads use a separate
+    /// queue with no ordering vs the graphics queue), and whether the context created a
+    /// distinct _uploadImmediate instance or falls back to _immediate.
+    /// </summary>
+    public static void LogQueueTopologyOnce(object? context)
+    {
+        if (_topologyLogged) return;
+        _topologyLogged = true;
+        LogLine("[queue] " + QueueTopology(context));
+    }
+
+    /// <summary>Reflection string describing the context's queue topology (no I/O).</summary>
+    public static string QueueTopology(object? context)
+    {
+        try
+        {
+            Initialize();
+            if (context is null || _vulkanContextType is null)
+            {
+                return "context not available";
+            }
+
+            var sb = new System.Text.StringBuilder();
+
+            var hasDedicated = _hasDedicatedTransferQueue?.GetValue(context);
+            sb.Append($"hasDedicatedTransferQueue={hasDedicated}");
+
+            if (_deviceQueuesProp is not null)
+            {
+                var dq = _deviceQueuesProp.GetValue(context);
+                if (dq is not null)
+                {
+                    var g = dq.GetType()
+                        .GetField("GraphicsQueueFamilyIndex",
+                            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)?.GetValue(dq);
+                    var t = dq.GetType()
+                        .GetField("TransferQueueFamilyIndex",
+                            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)?.GetValue(dq);
+                    var invalidToken = dq.GetType()
+                        .GetField("INVALID",
+                            BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)?.GetValue(null)
+                        ?? HxInvalid;
+                    sb.Append($" graphicsFamily={g} transferFamily={t} invalid={invalidToken}");
+                }
+            }
+
+            var upload = _uploadImmediateField?.GetValue(context);
+            var uploadAlloc = upload is not null
+                ? $"{upload.GetType().Name}"
+                : "(null -> falls back to _immediate)";
+            sb.Append($" uploadImmediate={uploadAlloc}");
+
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            return $"probe error: {ex.Message}";
+        }
+    }
+
+    private static readonly uint HxInvalid = 0xFFFFFFFF;
+
     public static string Dump(object? context, string label)
     {
         try
         {
             Initialize();
+            LogQueueTopologyOnce(context);
+
             if (_immediateField is null || _commandsType is null)
             {
                 var msg = $"[{label}] not initialized";
@@ -113,12 +192,35 @@ internal static class PoolDiagnostics
                 return msg;
             }
 
-            var immediate = _immediateField.GetValue(context);
+            var renderDump = PoolState(context, _immediateField, label);
+            var uploadDump = PoolState(context, _uploadImmediateField, $"{label}.upload");
+            var line = $"{renderDump} | {uploadDump} | pending={StagingRegions(context)}{TransferQueueInfo(context)}";
+            Log.WriteLine(line);
+            return line;
+        }
+        catch (Exception ex)
+        {
+            var msg = $"[{label}] diag error: {ex.Message}";
+            try { Log.WriteLine(msg); } catch { }
+            return msg;
+        }
+    }
+
+    /// <summary>Pool state (free/in-flight/buffer availability) of one of the context's
+    /// VulkanImmediateCommands instances, addressed by reflection field.</summary>
+    private static string PoolState(object? context, FieldInfo? instanceField, string label)
+    {
+        try
+        {
+            if (instanceField is null)
+            {
+                return $"[{label}] n/a";
+            }
+
+            var immediate = instanceField.GetValue(context);
             if (immediate is null)
             {
-                var msg = $"[{label}] immediate is null";
-                Log.WriteLine(msg);
-                return msg;
+                return $"[{label}] (null -> shared instance)";
             }
 
             var freeStack = _freeStackField?.GetValue(immediate);
@@ -136,7 +238,6 @@ internal static class PoolDiagnostics
             {
                 var avail = 0;
                 var enc = 0;
-                var submitted = 0;
                 var total = buffers.Length;
                 for (var i = 0; i < total; i++)
                 {
@@ -147,19 +248,86 @@ internal static class PoolDiagnostics
                     if (isAvail) avail++;
                     if (isEnc) enc++;
                 }
-                submitted = (int)inFlightCount! - (avail + enc > 0 ? 0 : 0); // just report
                 sb.Append($" bufs={total} avail={avail} enc={enc}");
             }
 
-            var line = sb.ToString();
-            Log.WriteLine(line);
-            return line;
+            return sb.ToString();
         }
         catch (Exception ex)
         {
-            var msg = $"[{label}] diag error: {ex.Message}";
-            try { Log.WriteLine(msg); } catch { }
-            return msg;
+            return $"[{label}] pool error: {ex.Message}";
+        }
+    }
+
+    /// <summary>Whether the async transfer-queue path is ever engaged: reads the transfer
+    /// queue's pending-request collection count (BlockingCollection) + the staging device's
+    /// outstanding regions (uploads staged but not yet recycled).</summary>
+    private static string TransferQueueInfo(object? context)
+    {
+        try
+        {
+            if (context is null || _vulkanContextType is null)
+            {
+                return " | tq=n/a";
+            }
+            var tqField = _vulkanContextType.GetField("_transferQueue",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            if (tqField is null)
+            {
+                return " | tq=max?";
+            }
+            var tq = tqField.GetValue(context);
+            if (tq is null)
+            {
+                return " | tq=null";
+            }
+            var queueField = tq.GetType().GetField("_uploadQueue",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            var pending = queueField?.FieldType.GetProperty("Count")?.GetGetMethod()
+                ?.Invoke(queueField.GetValue(tq), null);
+            return $" | tqPending={pending}";
+        }
+        catch
+        {
+            return " | tq=err";
+        }
+    }
+
+    /// <summary>Number of outstanding staging regions on the context's staging device
+    /// (uploads staged but not yet recycled), read via reflection.</summary>
+    private static int StagingRegions(object? context)
+    {
+        try
+        {
+            if (context is null || _vulkanContextType is null)
+            {
+                return -1;
+            }
+            var stagingField = _vulkanContextType.GetField("_stagingDevice",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            if (stagingField is null)
+            {
+                return -2;
+            }
+            var staging = stagingField.GetValue(context);
+            if (staging is null)
+            {
+                return -3;
+            }
+            var regionsField = staging.GetType().GetField("_regions",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            if (regionsField is null)
+            {
+                return -4;
+            }
+            var regions = regionsField.GetValue(staging);
+            var count = regions?.GetType().GetProperty("Count")?.GetGetMethod()?.Invoke(regions, null)
+                ?? (object?)regions?.GetType().GetMethod("get_Count")?.Invoke(regions, null);
+            return count is int i ? i : -5;
+        }
+        catch
+        {
+            return -6;
         }
     }
 }

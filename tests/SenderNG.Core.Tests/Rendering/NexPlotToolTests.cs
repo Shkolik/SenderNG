@@ -21,15 +21,29 @@ public class NexPlotToolTests
     }
 
     [Fact]
-    public void FillWire_clears_existing_content_when_not_a_two_point_wire()
+    public void FillWire_parks_the_wire_when_not_a_two_point_wire()
     {
         var g = new Geometry(Topology.Line, isDynamic: true);
         NexPlotTool.FillWire(g, new Vector3(1, 2, 3), new Vector3(4, 5, 6));
         Assert.Equal(2, g.Vertices.Count);
 
         NexPlotTool.FillWire(g, new Vector3(7, 8, 9), null);
-        Assert.Empty(g.Vertices);
-        Assert.Empty(g.VertexColors);
+        // Parked wire keeps a constant two vertices (buffer never resizes or
+        // moves address) with the endpoints parked far below the table.
+        Assert.Equal(2, g.Vertices.Count);
+        Assert.Equal(2, g.VertexColors.Count);
+        Assert.Equal(new Vector4(0, -50_000, 0, 1), g.Vertices[0]);
+        Assert.Equal(new Vector4(0, -50_000, 0, 1), g.Vertices[1]);
+    }
+
+    [Fact]
+    public void FillWire_parks_when_both_endpoints_missing()
+    {
+        var g = new Geometry(Topology.Line, isDynamic: true);
+        NexPlotTool.FillWire(g, null, null);
+
+        Assert.Equal(2, g.Vertices.Count);
+        Assert.Equal(new Vector4(0, -50_000, 0, 1), g.Vertices[0]);
     }
 
     [Fact]

@@ -67,29 +67,42 @@ public sealed class NexPlotTool : IPlotTool
     private const int ConeSegments = 16;
 
     private readonly Engine _engine;
-    private readonly Geometry _stagingSegmentGeometry;
+    private readonly Geometry _wireGeometry;
     private readonly LineNode _segmentNode;
     private readonly Geometry _coneGeometry;
     private readonly PBRMaterialProperties _coneMaterial;
     private readonly MeshNode _coneNodeA;
     private readonly MeshNode _coneNodeB;
     private readonly RebuildGate _rebuildGate = new();
-    private Geometry? _renderedSegmentGeometry;
+    private Vector3? _lastWireA;
+    private Vector3? _lastWireB;
     private ToolShape _shape;
 
     /// <summary>Create the tool under <paramref name="root"/>. The connector
-    /// wire starts geometry-less until the first <see cref="Pump"/>.</summary>
+    /// wire is ONE long-lived static line geometry created and registered here
+    /// (stable pool slot / MeshInfo row / GpuAddress for the tool's lifetime);
+    /// each <see cref="Pump"/> only re-uploads the two endpoints into the same
+    /// device buffer instead of cycling fresh geometries.</summary>
     public NexPlotTool(Node root, Engine engine, ToolShape shape)
     {
         _shape = shape;
         _engine = engine;
-        // Staging container only — never registered with the engine, never
-        // attached to a node, so nothing here produces GPU buffers. All GPU
-        // wire content arrives via Pump() as a fresh static geometry.
-        _stagingSegmentGeometry = new Geometry(Topology.Line, isDynamic: true);
+        // Sample-style wire: a single static geometry, initially parked far
+        // below the table. The engine registers it once; Geometry.UpdateBuffers
+        // reuses the existing ElementBuffer (see Geometry._vertexBuffer ??=), so
+        // every later endpoint update is a fenced staged copy into a fixed
+        // address — no geometry add/remove/dispose, no staging-offset reuse.
+        _wireGeometry = new Geometry(
+            new[] { new Vector4(ParkedPosition, 1f), new Vector4(ParkedPosition + new Vector3(1f, 0f, 0f), 1f) },
+            new[] { 0u, 1u },
+            new[] { ToolColor.ToVector4(), ToolColor.ToVector4() },
+            Topology.Line,
+            isDynamic: false);
+        _engine.Add(_wireGeometry);
         _segmentNode = root.World.CreateLineNode("tool-wire");
         _segmentNode.LineThickness = 1.4f;
         _segmentNode.LineColor = Color4.White;
+        _segmentNode.Geometry = _wireGeometry;
         root.AddChild(_segmentNode);
 
         // Filled cone — two nodes sharing ONE static geometry and ONE Unlit material.
@@ -134,10 +147,18 @@ public sealed class NexPlotTool : IPlotTool
             SetConePosition(_coneNodeB, ParkedPosition);
             SetConePosition(_coneNodeA,
                 endpoints.Points.Length == 1 ? endpoints.Points[0] : Vector3.Zero);
-            // Stage an empty wire; the pump clears the rendered segment.
-            FillWire(_stagingSegmentGeometry, null, null);
-            // GPU content never changes here — mark the swap-pump pending instead.
-            _rebuildGate.MarkDirty();
+            // Only re-stage the wire when the value changed. Idle polls
+            // call UpdatePosition with the same endpoints tens of times a second;
+            // re-staging (new static geometry + dispose) on every poll kept the
+            // wire on a ~150ms rebuild cadence for a static scene, and a freshly
+            // staged static geometry read before its device upload completed
+            // produced a garbage wire billboard vertex -> the giant red fan.
+            if (_lastWireA is not null || _lastWireB is not null)
+            {
+                _lastWireA = null;
+                _lastWireB = null;
+                _rebuildGate.MarkDirty();
+            }
             return;
         }
 
@@ -145,54 +166,61 @@ public sealed class NexPlotTool : IPlotTool
         _coneNodeB.Enabled = true;
         var p0 = endpoints.Points[0];
         var p1 = endpoints.Points[1];
-        FillWire(_stagingSegmentGeometry, p0, p1);
+        if (_lastWireA == p0 && _lastWireB == p1)
+            return;
+        _lastWireA = p0;
+        _lastWireB = p1;
         // GPU content never changes here — mark the swap-pump pending instead.
         _rebuildGate.MarkDirty();
         SetConePosition(_coneNodeA, p0);
         SetConePosition(_coneNodeB, p1);
     }
 
-    /// <summary>Fill <paramref name="target"/> with the connector wire: two
-    /// vertices + two tool-tint colors at the two endpoints, cleared when a
-    /// <c>null</c> endpoint is given (single-point/parked machines).</summary>
+    /// <summary>Write the connector wire into <paramref name="target"/>: two
+    /// vertices + two tool-tint colors at the two endpoints, parked far below
+    /// the table when a <c>null</c> endpoint is given (single-point/parked
+    /// machines). The parked degenerate line keeps the wire buffer a constant
+    /// two vertices so the registered geometry never resizes or moves address.</summary>
     internal static void FillWire(Geometry target, Vector3? p0, Vector3? p1)
     {
         target.Vertices.Clear();
         target.VertexColors.Clear();
-        if (p0 is null || p1 is null)
-            return;
         var color = ToolColor.ToVector4();
-        target.Vertices.Add(new Vector4(p0.Value, 1f));
-        target.Vertices.Add(new Vector4(p1.Value, 1f));
+        if (p0 is null || p1 is null)
+        {
+            target.Vertices.Add(new Vector4(ParkedPosition, 1f));
+            target.Vertices.Add(new Vector4(ParkedPosition, 1f));
+        }
+        else
+        {
+            target.Vertices.Add(new Vector4(p0.Value, 1f));
+            target.Vertices.Add(new Vector4(p1.Value, 1f));
+        }
         target.VertexColors.Add(color);
         target.VertexColors.Add(color);
+        target.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
     }
 
     /// <summary>Swap-pump the connector wire (see <see cref="NexLoftSurface.Pump"/>):
-    /// stage its GPU content as a fresh STATIC geometry under the engine's
-    /// staged upload, swap it in as the node's geometry, and defer the previous
-    /// geometry's removal. The cones are untouched — their transforms ride the
-    /// NodeInfo path (proven safe in the mill scene at the same cadence).</summary>
+    /// the wire geometry is registered ONCE (see ctor); a rebuild only
+    /// re-uploads the two staged endpoints into the same fixed device buffer.
+    /// No geometry is created/disposed and no MeshInfo row or staging offset
+    /// moves, so the line shader can never read a recycled address — the giant
+    /// red fan's only viable source in this path. The cones are untouched —
+    /// their transforms ride the NodeInfo path (proven safe in the mill scene
+    /// at the same cadence).</summary>
     internal void Pump()
     {
         if (!_rebuildGate.RebuildDue(DateTime.UtcNow))
             return;
 
-        var wire = NexCarriagePlaneLayer.BuildStatic(_stagingSegmentGeometry);
-        var old = _renderedSegmentGeometry;
-        if (wire.Vertices.Count > 0)
-        {
-            _engine.Add(wire);
-            _segmentNode.Geometry = wire;
-            _renderedSegmentGeometry = wire;
-        }
-        else
-        {
-            _segmentNode.Geometry = null;
-            _renderedSegmentGeometry = null;
-        }
-
-        old?.Dispose();
+        FillWire(_wireGeometry, _lastWireA, _lastWireB);
+        // Fenced staged upload into the registered static buffer: UpdateBuffers
+        // reuses the existing ElementBuffer (Geometry._vertexBuffer ??=) and
+        // pushes through Context.Upload, which lands on the same graphics queue
+        // ahead of this tick's frame submit (FIFO) — no swap, no dispose.
+        _wireGeometry.UpdateBuffers(_engine.Context).CheckResult();
+        _segmentNode.Enabled = _wireGeometry.Vertices.Count == 2 && _lastWireA is not null;
     }
 
     /// <summary>Write the cone transform and notify the ECS change so the engine
@@ -212,13 +240,14 @@ public sealed class NexPlotTool : IPlotTool
         _coneNodeB.Dispose();
         _coneGeometry.Dispose();
         _coneMaterial.Dispose();
+        _wireGeometry.Dispose();
     }
 
     /// <summary>DIAGNOSTIC (temporary): CPU-side mesh/bounds/transform state of the
     /// three tool nodes.</summary>
     internal string DumpContent()
     {
-        return $"wire(en={_segmentNode.Enabled}, lc={_segmentNode.LineCount}, vc={_stagingSegmentGeometry.Vertices.Count}) "
+        return $"wire(en={_segmentNode.Enabled}, lc={_segmentNode.LineCount}, vc={_wireGeometry.Vertices.Count}) "
             + $"coneA(en={_coneNodeA.Enabled}, vc={_coneGeometry.Vertices.Count}, r={_coneGeometry.BoundingSphereLocal.Radius:F2}, t={_coneNodeA.Transform.Translation}) "
             + $"coneB(en={_coneNodeB.Enabled}, vc={_coneGeometry.Vertices.Count}, t={_coneNodeB.Transform.Translation})";
     }

@@ -99,6 +99,8 @@ public partial class PlotterNexView : UserControl
     private double _fps;
     private int _probeCounter;
     private int _lastProbe;
+    private readonly int[] _recentRed = new int[8];
+    private int _recentRedHead;
 
     private bool _panActive;
     private bool _orbitActive;
@@ -198,6 +200,20 @@ public partial class PlotterNexView : UserControl
         Task.Run(() =>
         {
             var scene = new NexPlotScene();
+            // A/B verdict (2026-09-14/15): the real root cause was NOT the loft,
+            // the loop, or the sheet — it was the done overlay's mid-run static
+            // Engine.Add (registered lazily at the first executed segment),
+            // which repacked the shared static index buffer and re-assigned
+            // IndexOffset while the tool-mesh (WBOIT) records held stale baked
+            // FirstIndex values — the giant red fan. NexCarriagePlaneLayer now
+            // pre-registers the done overlay at the build-wave pump (parked
+            // degenerate), so there are ZERO static Adds during a run and all
+            // three of these stay OFF = full production behavior (loft, loop
+            // and sheet all live). Diagnostics may be removed once confirmed
+            // on-device that the fan stays gone with the loop re-enabled.
+            scene.DiagnosticDisableLoft = false;
+            scene.DiagnosticDisableLoftLoop = false;
+            scene.DiagnosticDisableLoftSheet = false;
             Dispatcher.UIThread.Post(() =>
             {
                 if (_vm is null || generation != _sceneGeneration)
@@ -509,6 +525,40 @@ public partial class PlotterNexView : UserControl
                 if (_probeCounter % 60 == 1)
                 {
                     PoolDiagnostics.LogLine(DumpFrameGrid(fb.Address, fb.RowBytes, (int)w, (int)h));
+                }
+            }
+            // DIAGNOSTIC: capture full frames to inspect the red-fan artifact
+            // off-machine. First probe = clean reference; a fan projects
+            // red-pixel counts far above any legitimate geometry (idle ~2k,
+            // legit run cones+wire <= ~13k, the fan was 100k-200k). Count every
+            // 5th probe (fast enough to catch a fan that lasts a few frames)
+            // and save only when a fan-like count shows up, so a long run
+            // cannot flood the disk with the legit in-frame cones.
+            if (_probeCounter % 5 == 1)
+            {
+                var red = CountConeRed(fb.Address, fb.RowBytes, (int)w, (int)h);
+                // Ring-median spike detector: the legitimate in-scene red (cones +
+                // wire) drifts up to ~13k while moving, and brief artifacts spike
+                // far above it. Save a very-bad frame outright, or any frame that
+                // jumps ~2.5x above the recent median past a 16k floor.
+                _recentRed[_recentRedHead++ % _recentRed.Length] = red;
+                var history = _recentRed.AsSpan().ToArray();
+                Array.Sort(history);
+                var median = history[history.Length / 2];
+                var saved = _probeCounter == 1 || red >= 30000 || (red >= 16000 && red >= median * 2.5);
+                if (saved)
+                {
+                    var dir = System.IO.Path.Combine(
+                        System.IO.Path.GetDirectoryName(System.IO.Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                            "SenderNG", "pool_diag.log"))!,
+                        "fans");
+                    var path = System.IO.Path.Combine(
+                        dir,
+                        $"T{_readbackTicks}.p{_probeCounter}.r{red}.w{(int)w}x{(int)h}.bmp");
+                    SaveFrameBmp(fb.Address, fb.RowBytes, (int)w, (int)h, path);
+                    PoolDiagnostics.LogLine($"[T{_readbackTicks}.fansave] coneRed={red} median={median} saved={path}");
+                    PoolDiagnostics.LogLine($"[T{_readbackTicks}.fanscene] {scene.DumpContent()} cam={scene.DumpCamera()} vm={_vm!.LastControllerPose}");
                 }
             }
             GpuImage.InvalidateVisual();
@@ -843,6 +893,75 @@ public partial class PlotterNexView : UserControl
         }
         sb.Append(']');
         return sb.ToString();
+    }
+
+    /// <summary>DIAGNOSTIC (temporary): full-resolution cone-red pixel count.
+    /// Same classifier as the WboitConeRepro harness (r&gt;150 &amp;&amp; r&gt;g*1.5
+    /// &amp;&amp; r&gt;b*1.5), so captured fan frames compare directly against the
+    /// harness's clean render (cone-only ≈ a few hundred; the fan &gt; 100k).</summary>
+    private static unsafe int CountConeRed(IntPtr addr, int pitch, int w, int h)
+    {
+        var px = (byte*)addr;
+        var count = 0;
+        for (var y = 0; y < h; y++)
+        {
+            var row = px + (long)y * pitch;
+            for (var x = 0; x < w; x++)
+            {
+                var p = row + (long)x * 4;
+                var r = p[0];
+                var g = p[1];
+                var b = p[2];
+                if (r > 150 && r > g * 1.5 && r > b * 1.5)
+                    count++;
+            }
+        }
+        return count;
+    }
+
+    /// <summary>DIAGNOSTIC (temporary): dump the full readback frame to a
+    /// top-down 24bpp BMP (no image-library dependency) so a fan frame can be
+    /// inspected off-machine and compared to harness-rendered clean frames.</summary>
+    private static unsafe void SaveFrameBmp(IntPtr addr, int pitch, int w, int h, string path)
+    {
+        try
+        {
+            var stride = (w * 3 + 3) & ~3;
+            var size = (uint)(stride * h);
+            var bmp = new byte[54 + size];
+            bmp[0] = (byte)'B';
+            bmp[1] = (byte)'M';
+            BitConverter.GetBytes((uint)(54 + size)).CopyTo(bmp, 2);
+            BitConverter.GetBytes((uint)54).CopyTo(bmp, 10);
+            BitConverter.GetBytes((uint)40).CopyTo(bmp, 14);
+            BitConverter.GetBytes((uint)w).CopyTo(bmp, 18);
+            BitConverter.GetBytes((int)-h).CopyTo(bmp, 22); // negative height = top-down
+            BitConverter.GetBytes((ushort)1).CopyTo(bmp, 26);
+            BitConverter.GetBytes((ushort)24).CopyTo(bmp, 28);
+            BitConverter.GetBytes(size).CopyTo(bmp, 34);
+            var px = (byte*)addr;
+            var dst = 54;
+            for (var y = 0; y < h; y++)
+            {
+                var src = px + (long)y * pitch;
+                var d = dst;
+                for (var x = 0; x < w; x++)
+                {
+                    var p = src + (long)x * 4;
+                    bmp[d + 0] = p[2];
+                    bmp[d + 1] = p[1];
+                    bmp[d + 2] = p[0];
+                    d += 3;
+                }
+                dst += stride;
+            }
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
+            System.IO.File.WriteAllBytes(path, bmp);
+        }
+        catch (Exception ex)
+        {
+            PoolDiagnostics.LogLine($"[fansave] {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private float PxScale() => (float)(TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0);

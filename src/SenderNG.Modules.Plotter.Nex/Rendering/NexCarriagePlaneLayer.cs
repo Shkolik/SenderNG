@@ -48,16 +48,30 @@ namespace SenderNG.Modules.Plotter.Nex.Rendering;
 /// One carriage-plane layer rendered as a swap-pumped static line list.
 /// <see cref="AddSegment"/> and <see cref="SetSegmentRunState"/> mutate CPU
 /// staging lists only (O(1) per segment, no GPU work) — run-state coloring
-/// stays the Task 8 perf lever. The GPU gets a fresh STATIC geometry through
-/// <see cref="NexPlotScene.PumpCarriagePlanes"/> (a low-Hz pump, see
-/// <see cref="PlotterNexView"/>): staging is copied into a brand-new static
-/// geometry, registered via the engine's staged buffer upload, and swapped in
-/// as the node's geometry. This deliberately NEVER writes host-visible mapped
-/// buffers that in-flight frames read — in-place dynamic-color uploads raced
-/// the live render loop and produced VK_ERROR_DEVICE_LOST (helix engine
-/// 1.3.0-alpha.41, driver 32.0.15.9608).
-/// Colors are flat motion/state tints (no alpha — the Nex line shader's
-/// alpha handling is unverified, so all colors are opaque).
+/// stays the Task 8 perf lever. The GPU gets a long-lived STATIC geometry
+/// through <see cref="NexPlotScene.PumpCarriagePlanes"/> (a low-Hz pump, see
+/// <see cref="PlotterNexView"/>): each pump re-uploads the staging into the SAME
+/// registered device buffer via the engine's staged FIFO upload.
+///
+/// Why in place instead of fresh-swapping: the engine packs every static draw's
+/// <c>FirstIndex</c> from <c>IndexOffset</c> into a shared static index buffer,
+/// and REPACKS (reassigning <c>IndexOffset</c> for all static geometries)
+/// whenever ANY static geometry is Added. A layer that swapped in a fresh static
+/// geometry on every run-state grant shifted the offsets baked into the other
+/// static draws (tool cones, loft sheet), which kept reading stale
+/// <c>FirstIndex</c> and drew garbage indices from the shared buffer — the giant
+    /// red fan. So the plane and the executed overlay register ONE static geometry
+    /// each at the build-wave pump (sized to the full segment budget) and never
+    /// Add/dispose again: the static pool is packed exactly once, before the run
+    /// starts. (The overlay used to register lazily at the FIRST executed segment
+    /// — a mid-run Add that repacked the pool and mangled the sheet + one spike
+    /// at the first move; it now registers at the same pump as the plane.)
+///
+/// This deliberately NEVER writes host-visible mapped buffers that in-flight
+/// frames read — in-place dynamic-color uploads raced the live render loop and
+/// produced VK_ERROR_DEVICE_LOST (helix engine 1.3.0-alpha.41, driver
+/// 32.0.15.9608). Colors are flat motion/state tints (no alpha — the Nex line
+/// shader's alpha handling is unverified, so all colors are opaque).
 /// </summary>
 public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
 {
@@ -73,6 +87,13 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
 
     internal static bool IsExecuted(RunState state) => state == RunState.Executed;
 
+    /// <summary>Parked position for parked-degenerate padding lines — far below
+    /// the table (mirrors <c>NexPlotTool.ParkedPosition</c>) so a padded, zero-length
+    /// line is invisible and never affects the content framing (the crust is only
+    /// ever written into the executed overlay and the loft loop, neither of which
+    /// is a content node).</summary>
+    internal static readonly Vector3 ParkedPosition = new(0f, -50_000f, 0f);
+
     private readonly Engine _engine;
     private readonly Geometry _geometry;
     private readonly LineNode _node;
@@ -82,8 +103,10 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
     private readonly List<bool> _executed = [];
     private readonly List<RunState> _appliedStates = [];
     private readonly RebuildGate _rebuildGate = new();
-    private Geometry? _renderedGeometry;
-    private Geometry? _renderedDoneGeometry;
+    private Geometry? _staticPlane;
+    private Geometry? _staticDone;
+    private int _planeCapacity;
+    private int _doneCapacity;
     private int _planeColorWrites;
 
     /// <summary>Create the layer under <paramref name="root"/> and attach its line nodes.
@@ -109,6 +132,9 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
 
     /// <summary>The underlying line node (for scene framing and removal).</summary>
     internal LineNode Node => _node;
+
+    /// <summary>The executed-overlay line node (for scene framing and removal).</summary>
+    internal LineNode DoneNode => _doneNode;
 
     /// <inheritdoc/>
     public void AddSegment(LineSegment seg, MotionType type)
@@ -193,51 +219,112 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         _rebuildGate.MarkDirty();
     }
 
-    /// <summary>Swap-pump: reconcile the CPU staging lists to the GPU as fresh
-    /// STATIC geometries. Rebuilds are coalesced by <see cref="RebuildGate"/>
-    /// (burned at the mutation APIs): a clean layer does nothing, and bursts
-    /// collapse to at most one rebuild per minimum interval, so a large toolpath
-    /// is not re-uploaded on every run-state tick. Registered via the engine's
-    /// staged buffer upload (device-local destination — never a mapped write
-    /// into a buffer a frame is reading), then the node's geometry is swapped
-    /// and the previous geometry deferred for frame-boundary removal/reindex.</summary>
+    /// <summary>In-place static pump: reconcile the CPU staging lists to the GPU
+    /// as ONE long-lived STATIC geometry per list. Rebuilds are coalesced by
+    /// <see cref="RebuildGate"/> (burned at the mutation APIs): a clean layer does
+    /// nothing, and bursts collapse to at most one rebuild per minimum interval,
+    /// so a large toolpath is not re-uploaded on every run-state tick. The plane
+    /// and the executed overlay register their geometry ONCE (at first content,
+    /// sized to the full segment budget); every later rebuild only re-uploads the
+    /// staging into the same device buffer via the engine's staged FIFO upload.
+    /// No geometry is Added during a run, so the shared static index buffer never
+    /// repacks and other static draws keep their baked <c>IndexOffset</c>.</summary>
     public void Pump()
     {
         if (!_rebuildGate.RebuildDue(DateTime.UtcNow))
             return;
 
-        var plane = BuildStatic(_geometry);
-        var done = BuildStatic(_doneGeometry);
+        PumpPlane();
+        PumpDone();
+    }
 
-        var oldPlane = _renderedGeometry;
-        var oldDone = _renderedDoneGeometry;
+    private void PumpPlane()
+    {
+        var staged = _geometry;
+        var n = staged.Vertices.Count;
+        if (n > _planeCapacity)
+        {
+            // First content, or the staging outgrew the registered geometry
+            // (the app stages every segment before the first pump, so this runs
+            // at most once per layer — at build, never per run-state tick).
+            var fresh = BuildStatic(staged);
+            _staticPlane?.Dispose();
+            _staticPlane = fresh;
+            _planeCapacity = n;
+            _engine.Add(_staticPlane);
+            // Count changed — re-set the reference so the draw stream refreshes
+            // its LineCount (the chrome's record for the same reason).
+            _node.Geometry = _staticPlane;
+        }
+        else if (_staticPlane is not null)
+        {
+            if (n == 0)
+            {
+                // Content emptied after registration (not an app path): hide the
+                // plane but keep the registration for the next refill.
+                _node.Geometry = null;
+            }
+            else
+            {
+                // Stable count — rewrite the same vertices/colors into the same
+                // device buffer. No index offset or draw record moves.
+                RefillLines(_staticPlane, staged, _planeCapacity, CutColor.ToVector4());
+                _staticPlane.UpdateBuffers(_engine.Context).CheckResult();
+            }
+        }
+    }
 
-        if (plane.Vertices.Count > 0)
+    private void PumpDone()
+    {
+        var staged = _doneGeometry;
+        var n = staged.Vertices.Count;
+        if (_staticDone is null)
         {
-            _engine.Add(plane);
-            _node.Geometry = plane;
-            _renderedGeometry = plane;
+            // First pump (the build wave): register the FULL-potential overlay
+            // NOW, never lazily at the first executed segment. The done set can
+            // only ever be a subset of the plane's segments, so the plane's
+            // registered budget is its capacity; the empty tail stays
+            // parked-degenerate. A static Add during the run would repack the
+            // shared static index buffer and shift the offsets baked into the
+            // cone/sheet draws → a one-frame spike + mangled loft at the first
+            // move after Start.
+            if (_staticPlane is null || _planeCapacity == 0)
+            {
+                // No plane budget yet (empty layer); keep the overlay hidden.
+                _doneNode.Geometry = null;
+                return;
+            }
+            _doneCapacity = _planeCapacity;
+            _staticDone = NewFixedStatic(_doneCapacity, ExecutedColor.ToVector4());
+            _engine.Add(_staticDone);
+            _doneNode.Geometry = _staticDone;
         }
-        else
+        else if (n > _doneCapacity)
         {
-            _node.Geometry = null;
-            _renderedGeometry = null;
+            // Paranoid growth (the overlay exceeded its budget — impossible in
+            // the app); re-register once at the new capacity.
+            _doneCapacity = n;
+            var fresh = NewFixedStatic(_doneCapacity, ExecutedColor.ToVector4());
+            _staticDone.Dispose();
+            _staticDone = fresh;
+            _engine.Add(_staticDone);
+            _doneNode.Geometry = _staticDone;
         }
 
-        if (done.Vertices.Count > 0)
-        {
-            _engine.Add(done);
-            _doneNode.Geometry = done;
-            _renderedDoneGeometry = done;
-        }
-        else
-        {
-            _doneNode.Geometry = null;
-            _renderedDoneGeometry = null;
-        }
+        // Rewrite the active prefix in place, parked tail fills the rest.
+        // LineCount stays constant, so no reference re-set.
+        RefillLines(_staticDone, staged, _doneCapacity, ExecutedColor.ToVector4());
+        _staticDone.UpdateBuffers(_engine.Context).CheckResult();
+    }
 
-        oldPlane?.Dispose();
-        oldDone?.Dispose();
+    /// <summary>Release the static geometries owned by this layer. Nodes are
+    /// disposed by the scene.</summary>
+    internal void ReleaseGeometries()
+    {
+        _staticPlane?.Dispose();
+        _staticPlane = null;
+        _staticDone?.Dispose();
+        _staticDone = null;
     }
 
     /// <summary>Copy one staging list into a fresh static line geometry.
@@ -261,6 +348,59 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         for (var i = 0; i < n; i++)
             indices[i] = (uint)i;
         return new Geometry(vertices, indices, colors, Topology.Line, isDynamic: false);
+    }
+
+    /// <summary>Create an EMPTY static line geometry with a FIXED
+    /// <paramref name="capacity"/> vertices (identity indices, parked-degenerate
+    /// vertices, one tint per vertex) registered once and re-uploaded in place by
+    /// <see cref="RefillLines"/> afterwards. The fixed-size buffer keeps the
+    /// draw record (FirstIndex, LineCount) constant for the geometry's lifetime —
+    /// the parking never produces pixels (zero-length lines).</summary>
+    internal static Geometry NewFixedStatic(int capacity, Vector4 parkColor)
+    {
+        var g = new Geometry(Topology.Line, isDynamic: false);
+        if (capacity <= 0)
+            return g;
+        g.Vertices.Capacity = capacity;
+        g.VertexColors.Capacity = capacity;
+        g.Indices.Capacity = capacity;
+        var park = new Vector4(ParkedPosition, 1f);
+        for (var i = 0; i < capacity; i++)
+        {
+            g.Vertices.Add(park);
+            g.VertexColors.Add(parkColor);
+            g.Indices.Add((uint)i);
+        }
+        return g;
+    }
+
+    /// <summary>Overwrite the fixed-size static <paramref name="target"/>
+    /// (which must have exactly <paramref name="capacity"/> vertices registered)
+    /// with the first <paramref name="capacity"/> vertices of
+    /// <paramref name="source"/>, padding any tail with parked-degenerate lines
+    /// so the vertex count NEVER moves. Marks the buffers dirty for the
+    /// caller's staged in-place upload (<c>Geometry.UpdateBuffers</c>). Used by
+    /// the layer and the loft loop so a run never Adds a fresh static geometry
+    /// and the shared static index buffer never repacks.</summary>
+    internal static void RefillLines(Geometry target, Geometry source, int capacity, Vector4 parkColor)
+    {
+        var n = Math.Min(source.Vertices.Count, capacity);
+        var colors = source.VertexColors;
+        var parkVertex = new Vector4(ParkedPosition, 1f);
+        for (var i = 0; i < capacity; i++)
+        {
+            if (i < n)
+            {
+                target.Vertices[i] = source.Vertices[i];
+                target.VertexColors[i] = i < colors.Count ? colors[i] : parkColor;
+            }
+            else
+            {
+                target.Vertices[i] = parkVertex;
+                target.VertexColors[i] = parkColor;
+            }
+        }
+        target.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
     }
 
     /// <summary>Passive read of one staging list into a plain array. Iteration
