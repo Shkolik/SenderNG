@@ -78,3 +78,12 @@ SenderNG.Modules.Plotter.Nex/
 - **HelixToolkit.Nex** 1.3.0-alpha.41 (from GitHub Packages feed — see [Quirks](Quirks.md#helixtoolkitnex-version-pinning))
 - **SenderNG.Core** only — no host app references (true plugin isolation)
 - **Vulkan 1.3** required at runtime (graceful degradation to text fallback when unavailable)
+
+## Platform Verification Status
+
+The module is cross-platform by design (pure-Vulkan readback, no Windows-only interop), but runtime verification is not yet equal on both platforms:
+
+| Platform | Status |
+|---|---|
+| Windows (win-x64) | Verified — scene renders, camera, run-state colors, fps counter (925/925 asset tests incl. 27 GPU readback tests) |
+| Linux (linux-x64) | **Not tested** — code is platform-neutral (Vulkan `IContext.Download`, natives staged by build OS), but no Linux box with a Vulkan 1.3 driver has been exercised yet |
