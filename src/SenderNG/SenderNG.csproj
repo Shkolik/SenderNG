@@ -114,14 +114,16 @@
        reference means the plugin's bin is only populated when the build RAN,
        so evaluation-time globs would see an empty bin on a clean build and
        copy nothing.
-       Excluded: the module DLL (staged explicitly above), the host-owned
-       SenderNG.Core / CNC.Core, and Avalonia (the app root already has the
-       pinned 12.1.1 — same identity, so LoadFrom unification serves the
-       module's reference; a second copy would invite duplicate-load noise).
-       Native files stage from the plugin's win-x64 folder (the app's are
-       win-x64-only); a future multi-rid app would need all rids. LoadFrom'd
-       managed DLLs probe their own directory for unmanaged libraries, so the
-       flattened natives resolve from Modules\plotter-nex itself. -->
+        Excluded: the module DLL (staged explicitly above), the host-owned
+        SenderNG.Core / CNC.Core, and Avalonia (the app root already has the
+        pinned 12.1.1 — same identity, so LoadFrom unification serves the
+        module's reference; a second copy would invite duplicate-load noise).
+        Native files stage from the plugin's runtimes folder for the CURRENT
+        build OS (win-x64 .dll on Windows, linux-x64 .so on Linux) — the Vulkan
+        readback is platform-neutral so both ship the same managed closure.
+        LoadFrom'd managed DLLs probe their own directory for unmanaged
+        libraries, so the flattened natives resolve from Modules\plotter-nex
+        itself. -->
   <Target Name="StageNexPluginClosure" AfterTargets="Build">
     <ItemGroup>
       <_NexClosure Include="..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\*.dll"
@@ -129,7 +131,10 @@
                             ..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\SenderNG.Core.dll;
                             ..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\CNC.Core.dll;
                             ..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\Avalonia*.dll" />
-      <_NexNative Include="..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\runtimes\win-x64\native\*.dll" />
+      <_NexNative Include="..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\runtimes\win-x64\native\*.dll"
+                  Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+      <_NexNative Include="..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\runtimes\linux-x64\native\*.so"
+                  Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     </ItemGroup>
     <Copy SourceFiles="@(_NexClosure);@(_NexNative)"
           DestinationFolder="$(OutputPath)Modules\plotter-nex"
