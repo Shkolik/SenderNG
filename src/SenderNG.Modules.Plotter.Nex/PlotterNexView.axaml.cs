@@ -200,19 +200,14 @@ public partial class PlotterNexView : UserControl
         Task.Run(() =>
         {
             var scene = new NexPlotScene();
-            // A/B verdict (2026-09-14/15): the real root cause was NOT the loft,
-            // the loop, or the sheet — it was the done overlay's mid-run static
-            // Engine.Add (registered lazily at the first executed segment),
-            // which repacked the shared static index buffer and re-assigned
-            // IndexOffset while the tool-mesh (WBOIT) records held stale baked
-            // FirstIndex values — the giant red fan. NexCarriagePlaneLayer now
-            // pre-registers the done overlay at the build-wave pump (parked
-            // degenerate), so there are ZERO static Adds during a run and all
-            // three of these stay OFF = full production behavior (loft, loop
-            // and sheet all live). Diagnostics may be removed once confirmed
-            // on-device that the fan stays gone with the loop re-enabled.
+            // A/B verdict (2026-09-16, on-device): the swept loft leading-edge
+            // loop makes NO visible difference, so it is REMOVED permanently.
+            // Production = loft sheet, wire, cones, and the progressing green
+            // ACK outline only. NexCarriagePlaneLayer pre-registers the done
+            // overlay at the build-wave pump (parked degenerate), so there are
+            // ZERO static Adds during a run. Loop stays OFF forever.
             scene.DiagnosticDisableLoft = false;
-            scene.DiagnosticDisableLoftLoop = false;
+            scene.DiagnosticDisableLoftLoop = true;   // removed 2026-09-16 (fork #7 verdict)
             scene.DiagnosticDisableLoftSheet = false;
             Dispatcher.UIThread.Post(() =>
             {
