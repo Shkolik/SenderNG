@@ -14,23 +14,17 @@
     <!-- Pinned to the host app's resolved version (floating 12.* caused a
          framework mismatch TypeLoadException crash in the Skia plotter). -->
     <PackageReference Include="Avalonia" Version="12.0.0" />
-    <!-- Nex: versions from the spike findings doc (Task 0). The Avalonia
-         package brings the full Nex package set transitively â€” no explicit
-         HelixToolkit.Nex reference needed. Vulkan 1.3 required. -->
-    <!-- 1.2.0 (the last NuGet.org release, Jul 2025) is broken on all current
-         .NET runtimes: WorldDataProvider.Update() -> RangeLightData.Update()
-         throws TypeLoadException (the EntityCollection Enumerator embeds a
-         byref-like ValueEnumerator as a struct field) -> the HelixViewport tick
-         swallows it -> permanently black view. Fixed in upstream master.
-         NOTE: 1.3.0-alpha.41 (Jul 13 2026) comes from the github/helix-toolkit
-         GitHub Packages feed (user-level NuGet.Config), not NuGet.org. -->
-    <PackageReference Include="HelixToolkit.Nex.Avalonia" Version="1.3.0-alpha.41" />
-    <!-- D3D11 readback pipeline (NexGpuReadback) compiles directly against
-         Vortice. Pinned to the exact versions the Nex closure already ships
-         (verified in the staged Modules\plotter-nex), so the loaded runtime
-         assembles stay type-identical with the engine's own interop layer. -->
-    <PackageReference Include="Vortice.Direct3D11" Version="3.6.2" />
-    <PackageReference Include="Vortice.DXGI" Version="3.6.2" />
+    <!-- Nex: 1.3.0-alpha.41 from the github/helix-toolkit GitHub Packages feed
+         (user-level NuGet.Config), not NuGet.org. The Avalonia metapackage is
+         deliberately NOT referenced: this module uses ZERO types from
+         HelixToolkit.Nex.Avalonia (it only shares Avalonia itself via the
+         pinned 12.0.0 ref above) and that package drags in the Windows-only
+         HelixToolkit.Nex.Interop.DirectX. The readback is pure Vulkan
+         (IContext.Download), so only the three assemblies the module compiles
+         against are referenced. -->
+    <PackageReference Include="HelixToolkit.Nex.Engine" Version="1.3.0-alpha.41" />
+    <PackageReference Include="HelixToolkit.Nex.Graphics.Vulkan" Version="1.3.0-alpha.41" />
+    <PackageReference Include="HelixToolkit.Nex.Interop" Version="1.3.0-alpha.41" />
     <!-- The Nex package set pulls Microsoft.Extensions.* 10.x transitively
          (HelixToolkit.Nex -> Microsoft.Extensions.Logging). The host app + Core
          are kept on the same 10.x line so the plugin's IServiceCollection
