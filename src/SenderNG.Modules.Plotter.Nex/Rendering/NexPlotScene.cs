@@ -626,6 +626,56 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         Seg(tip, back - Vector3.UnitY);
     }
 
+    private const float AxisConeHeightFraction = 0.32f;
+    private const float AxisConeRadiusFraction = 0.38f;
+
+    internal static float AxisConeHeight(float shaftLength) => shaftLength * AxisConeHeightFraction;
+
+    internal static float AxisConeRadius(float coneHeight) => coneHeight * AxisConeRadiusFraction;
+
+    /// <summary>Shortest-arc rotation carrying the cone's local +Z (its opening
+    /// direction) onto <paramref name="target"/>. The ±Z poles are handled
+    /// explicitly because the cross product degenerates there.</summary>
+    internal static Quaternion RotationFromUnitZTo(Vector3 target)
+    {
+        target = Vector3.Normalize(target);
+        var dot = Vector3.Dot(Vector3.UnitZ, target);
+        if (dot > 1f - 1e-6f)
+            return Quaternion.Identity;
+        if (dot < -1f + 1e-6f)
+            return Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI);
+        var axis = Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, target));
+        return Quaternion.CreateFromAxisAngle(axis, MathF.Acos(dot));
+    }
+
+    /// <summary>Apex position, orientation and shared-mesh scale for the cone
+    /// tip of an axis arrow. The rotation maps local +Z to -direction so the
+    /// apex lands on the shaft tip and the cone opens back toward the anchor.</summary>
+    internal static (Vector3 Tip, Quaternion Rotation, Vector3 Scale) AxisConeTransform(
+        string label, Vector3 anchor, float shaftLength)
+    {
+        var dir = AxisDirection(label);
+        var tip = anchor + dir * shaftLength;
+        var height = AxisConeHeight(shaftLength);
+        var radius = AxisConeRadius(height);
+        var scale = new Vector3(
+            radius / ConeMesh.DefaultRadius,
+            radius / ConeMesh.DefaultRadius,
+            height / ConeMesh.DefaultHeight);
+        return (tip, RotationFromUnitZTo(-dir), scale);
+    }
+
+    internal static void FillAxisShaft(
+        Geometry g, Vector3 anchor, Vector3 dir, float shaftLength, float coneHeight, Color4 color)
+    {
+        var c = color.ToVector4();
+        var shaftEnd = anchor + dir * MathF.Max(shaftLength - coneHeight, 0f);
+        g.Vertices.Add(new Vector4(anchor, 1f));
+        g.Vertices.Add(new Vector4(shaftEnd, 1f));
+        g.VertexColors.Add(c);
+        g.VertexColors.Add(c);
+    }
+
     private static void FillEnvelope(Geometry g, LineNode node, SBounds box, Color4 color)
     {
         g.Vertices.Clear();
