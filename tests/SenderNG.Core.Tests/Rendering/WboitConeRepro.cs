@@ -345,7 +345,7 @@ public static class WboitConeRepro
             scene.Context.WaitAll(true);
             scene.Engine.BeginFrame();
             var cmd = scene.Engine.RenderOffscreen(rc, scene.WorldData, rb.EngineTarget, null);
-            scene.Engine.Submit(cmd, default, rb.EngineSyncInfo);
+            scene.Engine.Submit(cmd, default);
             scene.Context.WaitAll(true);
 
             var ptr = Marshal.AllocHGlobal(lw * lh * 4);
@@ -371,12 +371,6 @@ public static class WboitConeRepro
                 Marshal.FreeHGlobal(ptr);
             }
 
-            // App-only step: every 30th tick the view clears the SHARED texture
-            // to pure red from the D3D11 side (DiagTestD3D11Write) with no
-            // inter-API fence, then validates the readback. The harness never
-            // did this before â€” it is the last unmirrored app behavior.
-            if (i % 30 == 1)
-                rb.DiagTestD3D11Write();
         }
         scene.Dispose();
         File.AppendAllText(Path.Combine(outDir, "probe.txt"), $"SUMMARY fans={fanCount} maxRed={maxRed}{Environment.NewLine}");
@@ -458,11 +452,11 @@ public static class WboitConeRepro
             rc.Update(new HelixToolkit.Nex.Maths.Size(W, H), cam);
             rc.RenderParams.BackgroundColor = new Color4(5f, 5f, 5f, 1f);
             // NOTE: no WaitAll before submit â€” the engine can still be mid-frame
-            // from the previous tick when the D3D11 readback runs (in the app this
+            // from the previous tick when the CPU download runs (in the app this
             // would happen if WaitAll(true) does not cover the whole frame graph).
             scene.Engine.BeginFrame();
             var cmd = scene.Engine.RenderOffscreen(rc, scene.WorldData, rb.EngineTarget, null);
-            scene.Engine.Submit(cmd, default, rb.EngineSyncInfo);
+            scene.Engine.Submit(cmd, default);
             scene.Context.WaitAll(true);
 
             var ptr = Marshal.AllocHGlobal(W * H * 4);
@@ -658,7 +652,7 @@ public static class WboitConeRepro
             scene.Context.WaitAll(true);
             scene.Engine.BeginFrame();
             var cmd = scene.Engine.RenderOffscreen(rc, scene.WorldData, rb.EngineTarget, null);
-            scene.Engine.Submit(cmd, default, rb.EngineSyncInfo);
+            scene.Engine.Submit(cmd, default);
             scene.Context.WaitAll(true);
 
             var ptr = Marshal.AllocHGlobal(lw * lh * 4);
@@ -805,7 +799,7 @@ public static class WboitConeRepro
             scene.Context.WaitAll(true);
             scene.Engine.BeginFrame();
             var cmd = scene.Engine.RenderOffscreen(rc, scene.WorldData, rb.EngineTarget, null);
-            scene.Engine.Submit(cmd, default, rb.EngineSyncInfo);
+            scene.Engine.Submit(cmd, default);
             scene.Context.WaitAll(true);
 
             var ptr = Marshal.AllocHGlobal(lw * lh * 4);
@@ -924,7 +918,7 @@ public static class WboitConeRepro
             scene.Context.WaitAll(true);
             scene.Engine.BeginFrame();
             var cmd = scene.Engine.RenderOffscreen(rc, scene.WorldData, rb.EngineTarget, null);
-            scene.Engine.Submit(cmd, default, rb.EngineSyncInfo);
+            scene.Engine.Submit(cmd, default);
             scene.Context.WaitAll(true);
 
             var ptr = Marshal.AllocHGlobal(lw * lh * 4);
@@ -1004,7 +998,7 @@ public static class WboitConeRepro
         scene.Context.WaitAll(true);
         scene.Engine.BeginFrame();
         var cmd = scene.Engine.RenderOffscreen(rc, scene.WorldData, rb.EngineTarget, null);
-        scene.Engine.Submit(cmd, default, rb.EngineSyncInfo);
+        scene.Engine.Submit(cmd, default);
         scene.Context.WaitAll(true);
 
         var ptr = Marshal.AllocHGlobal(lw * lh * 4);
@@ -1670,7 +1664,7 @@ public static class WboitConeRepro
 
             scene.Engine.BeginFrame();
             var cmd = scene.Engine.RenderOffscreen(rc, scene.WorldData, rb.EngineTarget, null);
-            scene.Engine.Submit(cmd, default, rb.EngineSyncInfo);
+            scene.Engine.Submit(cmd, default);
 
             scene.Context.WaitAll(true);
 
