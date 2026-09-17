@@ -347,12 +347,14 @@ public partial class PlotterNexView : UserControl
         var tl = TopLevel.GetTopLevel(this);
         var scale = tl?.RenderScaling ?? 1.0;
         // GpuImage.Bounds is 0 until the bitmap gives the Image an intrinsic
-        // size (a Source-less Image arranges to 0 in a Panel), so size the
-        // target from the top-level client rect instead.
+        // size (a Source-less Image arranges to 0 in a Panel), so fall back to
+        // the top-level client rect only before first layout. Once the Image is
+        // arranged, size the target to that rect (the presented area) so the
+        // framebuffer maps 1:1 to on-screen pixels and cursor px == framebuffer px.
         var bounds = GpuImage.Bounds;
         var client = tl?.ClientSize ?? default(Avalonia.Size);
-        var wDip = Math.Max(bounds.Width, client.Width);
-        var hDip = Math.Max(bounds.Height, client.Height);
+        var wDip = bounds.Width > 0 ? bounds.Width : client.Width;
+        var hDip = bounds.Height > 0 ? bounds.Height : client.Height;
         if (wDip < 8 || hDip < 8)
         {
             SetDiag($"skip: img {bounds.Width:0.#}x{bounds.Height:0.#} client {client.Width:0.#}x{client.Height:0.#} scl {scale:0.##}");
