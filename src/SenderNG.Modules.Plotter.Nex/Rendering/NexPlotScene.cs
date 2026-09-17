@@ -657,21 +657,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
 
     internal static float AxisConeRadius(float coneHeight) => coneHeight * AxisConeRadiusFraction;
 
-    /// <summary>Shortest-arc rotation carrying the cone's local +Z (its opening
-    /// direction) onto <paramref name="target"/>. The ±Z poles are handled
-    /// explicitly because the cross product degenerates there.</summary>
-    internal static Quaternion RotationFromUnitZTo(Vector3 target)
-    {
-        target = Vector3.Normalize(target);
-        var dot = Vector3.Dot(Vector3.UnitZ, target);
-        if (dot > 1f - 1e-6f)
-            return Quaternion.Identity;
-        if (dot < -1f + 1e-6f)
-            return Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI);
-        var axis = Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, target));
-        return Quaternion.CreateFromAxisAngle(axis, MathF.Acos(dot));
-    }
-
     /// <summary>Apex position, orientation and shared-mesh scale for the cone
     /// tip of an axis arrow. The rotation maps local +Z to -direction so the
     /// apex lands on the shaft tip and the cone opens back toward the anchor.</summary>
@@ -686,7 +671,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             radius / ConeMesh.DefaultRadius,
             radius / ConeMesh.DefaultRadius,
             height / ConeMesh.DefaultHeight);
-        return (tip, RotationFromUnitZTo(-dir), scale);
+        return (tip, ConeOrientation.FromUnitZTo(-dir), scale);
     }
 
     internal static void FillAxisShaft(
