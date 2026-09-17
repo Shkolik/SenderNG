@@ -80,9 +80,6 @@ public static class JogConfigStore
     public static int DistanceStepCount => DistanceSize;
     public static int SpeedStepCount => SpeedSize;
 
-    /// <summary>Number of distance/speed steps per selector.</summary>
-    public static int StepCount => SpeedSize;   // transitional; distances grow to DistanceStepCount in the VM task
-
     public static JogConfig Load(MachineProfile profile)
     {
         var config = new JogConfig();
