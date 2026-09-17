@@ -124,6 +124,15 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private Vector3? _orbitOrigin;
     private float _orbitSphereRadius = 1f;
 
+    /// <summary>Last frame's render truth for cursor-ray placement (the matrices
+    /// and viewport the GPU actually drew with). <c>_hasOrbitCameraParams</c> goes
+    /// true after the first <see cref="UpdateViewport"/>.</summary>
+    private CameraParams _orbitCameraParams = CameraParams.Identity;
+    private bool _hasOrbitCameraParams;
+    private int _orbitViewportWpx;
+    private int _orbitViewportHpx;
+    private float _orbitDpiScale;
+
     // Same convention as NexPlotTool.ParkedPosition: Enabled does not hide
     // nodes while the frustum-cull node is off, so the hidden sphere parks here.
     private static readonly Vector3 OrbitPivotParked = new(0f, -50_000f, 0f);
@@ -502,12 +511,27 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             ShowOrbitPivot(_orbitOrigin.Value, _orbitSphereRadius);
             return;
         }
-        CameraGestures.GetCameraBasis(cam, out _, out var right, out var up);
-        var wpp = 2f * dist * MathF.Tan(cam.Fov * 0.5f) / MathF.Max(_viewportHpx, 1f);
-        var sxW = (screenPointPx.X - _viewportWpx * 0.5f) * wpp;
-        var syW = (screenPointPx.Y - _viewportHpx * 0.5f) * wpp;
-        _orbitOrigin = cam.Target + right * sxW - up * syW;
-        ShowOrbitPivot(_orbitOrigin.Value, _orbitSphereRadius);
+        Vector3 origin;
+        if (_hasOrbitCameraParams)
+        {
+            origin = CameraGestures.CursorRayPlanePivot(
+                _orbitCameraParams.InvViewProjection,
+                screenPointPx,
+                _orbitViewportWpx,
+                _orbitViewportHpx,
+                _orbitDpiScale,
+                cam.Target,
+                Vector3.Normalize(cam.Target - cam.Position));
+        }
+        else
+        {
+            // Pre-first-frame fallback: no render snapshot yet, so the pivot is
+            // the taut safely-degenerate target. The panel has no visible frame
+            // before the first tick anyway.
+            origin = cam.Target;
+        }
+        _orbitOrigin = origin;
+        ShowOrbitPivot(origin, _orbitSphereRadius);
     }
 
     /// <inheritdoc/>
@@ -916,6 +940,11 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     public ICameraParamsProvider UpdateViewport(RenderContext renderContext, float deltaTime)
     {
         EnsureChromeUpToDate();
+        _orbitCameraParams = renderContext.CameraParams;
+        _orbitViewportWpx = renderContext.WindowSize.Width;
+        _orbitViewportHpx = renderContext.WindowSize.Height;
+        _orbitDpiScale = renderContext.DpiScale;
+        _hasOrbitCameraParams = true;
         return _client.Update(renderContext, deltaTime);
     }
 
