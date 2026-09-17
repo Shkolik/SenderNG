@@ -74,6 +74,27 @@ See also: [Architecture](Architecture.md) for data flow | [Diagnostics](Diagnost
 
 ## Design Decisions
 
+### Framebuffer tracks the presented panel (cursor px == framebuffer px)
+
+**Problem:** the orbit pivot and the pan/zoom math must map the physical cursor
+pixel to the exact framebuffer pixel under it. That is only 1:1 if the readback
+target is sized to the **presented** panel.
+
+**Gotcha:** sizing the target from `Math.Max(GpuImage.Bounds, client)` "fixes"
+the pre-layout `Bounds == 0` case but then **always** prefers the larger window
+client rect — which includes chrome outside the plot panel. The framebuffer
+(1920x1009) was shown scaled down ~0.68 into the 1313x738 panel, so the cursor px
+did not match the framebuffer px and the orbit pivot appeared ~25% of the screen
+up-left of the pointer (identical in both the hand-rolled and the engine-matrix
+pivot math, because they share the same input mapping).
+
+**Solution:** size from `GpuImage.Bounds` when valid (`> 0`), falling back to the
+client rect only before first layout. The engine viewport (`SetViewportSize`),
+the cursor (`ToPx(..., RenderScaling)`), the pivot math, and the display are then
+all physical-px and 1:1 — no DIP/px conversion is needed in the canvas.
+
+**Files:** `PlotterNexView.axaml.cs:352-362` (sizing in `OnTick`)
+
 ### Headless scene abstraction
 
 The entire `Scene/` folder contains engine-free interfaces + pure math. The `Rendering/` folder provides the Vulkan implementation. This enables:

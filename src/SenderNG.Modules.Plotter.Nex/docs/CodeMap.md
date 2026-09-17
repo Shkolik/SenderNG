@@ -61,23 +61,34 @@ Main view XAML. Two content states:
 - Normal: `HelixViewport3D` with the Vulkan scene
 - Fallback: `TextBlock` when `VulkanUnavailable == true`
 
-### `PlotterNexView.axaml.cs` (1072 lines)
+### `PlotterNexView.axaml.cs` (1068 lines)
 
 View code-behind. The largest file. Hosts the Vulkan render pipeline.
 
 | Member | Line | Purpose |
 |---|---|---|
-| `EnsureScene()` | 194-218 | Builds `NexPlotScene` on thread pool, attaches via `KinematicSceneFactory` |
-| `SetupRenderTarget()` | 241-253 | Creates `RenderContext` + readback target |
-| `OnTick()` | 313-389 | 33ms DispatcherTimer render loop (see [Architecture](Architecture.md#the-tick-loop-33ms--30hz)) |
-| `RenderOffscreen()` | 396-413 | Vulkan render to readback render-target |
-| `CopyFrame()` | 415-449 | Vulkan staging download → WriteableBitmap |
-| `UpdateViewport()` | 452-487 | Camera update + viewport resize |
-| Navigation handlers | 490-530 | Pan (LMB), orbit (RMB), zoom (wheel), snap buttons |
-| `ProbeFrame()` | 532-558 | Fan artifact detection + BMP snapshot |
-| `DumpLineMaterials()` | 786-823 | Diagnostic: line material properties |
-| `DumpLineStreams()` | 825-889 | Diagnostic: line vertex stream data |
-| `DumpFetchInputs()` | 891-948 | Diagnostic: input fetch state |
+| `EnsureScene()` | 195-240 | Builds `NexPlotScene` on thread pool, attaches via `KinematicSceneFactory` |
+| `SetupRenderTarget()` | 242-262 | Creates `RenderContext` + readback target |
+| `FreeRenderResources()` | 264-276 | Disposes render context/readback on detach |
+| `EnableTick()` / `DisableTick()` | 278-312 | Start/stop the 30Hz render loop |
+| `OnTick()` | 314-578 | 33ms DispatcherTimer render loop (see [Architecture](Architecture.md#the-tick-loop-33ms--30hz)); sizes the readback target to the *presented* `GpuImage` bounds (1:1 cursor px), then renders + reads back + probes |
+| `SetDiag()` | 585-593 | Skip reason in RenderText without spam |
+| `UpdateZoomLabel()` | 595-607 | Zoom % readout |
+| `AccumulateFps()` | 609-625 | FPS counter |
+| `DumpLineMaterials()` | 627-657 | Diagnostic: line material properties |
+| `DumpLineStreams()` | 659-721 | Diagnostic: line vertex stream data |
+| `DumpFetchInputs()` | 723-813 | Diagnostic: input fetch state |
+| `ProbeFrame()` | 815-845 | Fan artifact detection + BMP snapshot |
+| `CountNonBackground()` | 847-866 | Probe helper: non-background pixel count |
+| `DumpFrameGrid()` | 868-891 | Probe helper: 8x8 downsampled color grid |
+| `CountConeRed()` | 893-914 | Probe helper: cone-red pixel count |
+| `SaveFrameBmp()` | 916-956 | Probe helper: write 24bpp BMP |
+| `PxScale()` / `ToPx()` | 958-960 | DIP → physical px (RenderScaling) for all navigation |
+| `OnPlotInputPointerPressed()` | 962-981 | Pan (LMB) / orbit (RMB) start; `BeginOrbit(px)` with cursor px |
+| `OnPlotInputPointerMoved()` | 983-999 | Live pan / orbit drag deltas |
+| `OnPlotInputPointerReleased()` / `CaptureLost` | 1001-1015 | Gesture end; `EndOrbit()` |
+| `OnPlotInputPointerWheelChanged()` | 1017-1024 | Zoom anchored to cursor |
+| `CenterZoom()` / `Snap()` / snap buttons | 1030-1067 | Zoom-to-center, view presets |
 
 ## Settings/
 
@@ -202,7 +213,7 @@ Loft surface abstraction.
 
 Headless scene assembly. Creates carriage planes + loft + cone tool per machine type.
 
-### `CameraGestures.cs` (227 lines)
+### `CameraGestures.cs` (282 lines)
 
 Pure camera math. No GPU dependency — fully unit-testable.
 
@@ -214,6 +225,7 @@ Pure camera math. No GPU dependency — fully unit-testable.
 | `SphericalState()` | 158-175 | Extract spherical coords from camera matrix |
 | `ApplySpherical()` | 177-199 | Apply spherical state to camera |
 | `RotateAroundPoint()` | 201-227 | Orbit rotation around a pivot |
+| `CursorRayPlanePivot()` | 236-273 | Cursor ray → target-depth plane pivot from the engine's `InvViewProjection` (mirrors `HitTest.cs:120-134`: near z=1 / far z=0.95, dpi-normalized) |
 
 ### `SceneTypes.cs` (66 lines)
 
@@ -232,19 +244,27 @@ Enums and records.
 
 ## Rendering/
 
-### `NexPlotScene.cs` (947 lines)
+### `NexPlotScene.cs` (1074 lines)
 
 Vulkan `IPlotScene` implementation. The largest rendering file.
 
 | Member | Line | Purpose |
 |---|---|---|
-| Constructor | 68-165 | Creates engine, cameras, chrome (grid/axes/origin/envelopes) |
-| `ResetBuild()` | 170-200 | Teardown for new program build |
-| `UpdateViewport()` | 205-235 | Camera/viewport update |
-| Chrome rebuild | 240-280 | Auto-rebuilds when content vertex count changes |
-| `DumpCamera()` | 700-730 | Diagnostic: camera state |
-| `DumpContent()` | 732-800 | Diagnostic: scene content summary |
-| `LiveLayerDumps()` | 802-947 | Diagnostic: per-layer vertex/material dumps |
+| Constructor | 147-245 | Creates engine, cameras, chrome (grid/axes/origin/envelopes) |
+| `AddCarriagePlane()` / `AddLoftSurface()` / `CreateTool()` | 247-284 | Content factory (planes, loft, tool) |
+| `SetGrid()` / `AddAxisArrows()` / `SetOrigin()` | 286-381 | Chrome setup |
+| `SetWorkEnvelope()` / `SetJobEnvelope()` | 383-389 | Envelopes |
+| `SetViewPreset()` | 391-444 | Fit / XY / XZ / YZ / 3D presets |
+| `Pan()` / `ZoomAround()` / `SetViewportSize()` | 446-474 | Navigation wiring; viewport size in px |
+| `PanByScreenDelta()` / `RotateByScreenDelta()` | 476-495 | Drag deltas (pan LMB, orbit RMB) |
+| `BeginOrbit()` | 498-535 | RMB pivot placement: cursor-ray through the render-context snapshot (`_orbitCameraParams`/`_orbitViewportWpx`/`_orbitDpiScale`, fields at 125-134) |
+| `EndOrbit()` / `Reframe()` | 538-545 | Gesture end / re-fit |
+| `Dispose()` | 568 | Fenced teardown |
+| `DumpCamera()` | 817-879 | Diagnostic: camera state |
+| `DumpContent()` | 881-910 | Diagnostic: scene content summary |
+| `LiveLayerDumps()` | 912-916 | Per-layer dumps |
+| `PumpCarriagePlanes()` / `PumpToolWireAndLofts()` | 918-938 | Swap-pump GPU re-uploads |
+| `UpdateViewport()` | 940-1074 | Camera update for tick; snapshots `renderContext.CameraParams`/`WindowSize`/`DpiScale` for `BeginOrbit` |
 
 ### `NexCarriagePlaneLayer.cs` (432 lines)
 

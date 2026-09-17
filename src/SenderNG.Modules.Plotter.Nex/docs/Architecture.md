@@ -169,6 +169,10 @@ When the controller is in grbl "Check" mode, the tool position shows the last ac
 
 Steps 2-3 run every 3rd tick to reduce GPU churn. Steps 4-7 run every tick for smooth tool animation.
 
+### Coordinate mapping (cursor ↔ framebuffer)
+
+Navigation uses **physical pixels** end to end: the view converts the pointer with `ToPx(e.GetPosition(PlotInput), PxScale())` (RenderScaling), and the engine viewport is sized in the same physical-px space. For that mapping to stay 1:1 with what is on screen, the readback target must match the **presented** panel, not the window client rect: the tick takes `wDip/hDip` from `GpuImage.Bounds` when valid and falls back to the client rect only before first layout. (A stale client-sized framebuffer was the cause of the off-cursor orbit pivot — see [Quirks](Quirks.md#framebuffer-tracks-the-presented-panel).) Because of this, `BeginOrbit` needs no DIP/px conversion: it unprojects the physical cursor px straight through the render-context snapshot's `InvViewProjection` and intersects the target-depth plane (`CameraGestures.CursorRayPlanePivot`).
+
 ## Plugin Discovery
 
 The host does NOT reference the plugin's types at runtime:
