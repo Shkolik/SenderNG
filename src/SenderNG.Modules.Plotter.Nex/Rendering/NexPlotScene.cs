@@ -42,10 +42,12 @@ using HelixToolkit.Nex.Geometries;
 using HelixToolkit.Nex.Graphics;
 using HelixToolkit.Nex.Graphics.Vulkan;
 using HelixToolkit.Nex.Interop;
+using HelixToolkit.Nex.Material;
 using HelixToolkit.Nex.Maths;
 using HelixToolkit.Nex.Rendering;
 using HelixToolkit.Nex.Rendering.RenderNodes;
 using HelixToolkit.Nex.Scene;
+using HelixToolkit.Nex.Shaders.Frag;
 using SenderNG.Modules.Plotter.Nex.Scene;
 using Format = HelixToolkit.Nex.Graphics.Format;
 using SBounds = SenderNG.Modules.Plotter.Nex.Scene.BoundingBox;
@@ -96,6 +98,10 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private readonly LineNode _workNode;
     private readonly Geometry _jobGeometry;
     private readonly LineNode _jobNode;
+
+    private readonly Geometry _axisConeGeometry;
+    private readonly MeshNode[] _axisConeNodes;
+    private readonly PBRMaterialProperties[] _axisConeMaterials;
 
     private readonly List<NexCarriagePlaneLayer> _liveLayers = [];
     private readonly List<NexLoftSurface> _liveLofts = [];
@@ -170,6 +176,25 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         _originNode = AddChromeNode("origin", 1.6f, out _originGeometry);
         _workNode = AddChromeNode("work-envelope", 1.2f, out _workGeometry);
         _jobNode = AddChromeNode("job-envelope", 1.2f, out _jobGeometry);
+
+        _axisConeGeometry = ConeMesh.Build();
+        _engine.Add(_axisConeGeometry);
+        _axisConeNodes = new MeshNode[3];
+        _axisConeMaterials = new PBRMaterialProperties[3];
+        for (var i = 0; i < _axisConeNodes.Length; i++)
+        {
+            var material = _engine.ResourceManager.PBRPropertyManager.Create(PBRShadingMode.Unlit);
+            material.Emissive = Color4.Black;
+            material.Opacity = 1f;
+            _axisConeMaterials[i] = material;
+            var node = _root.World.CreateMeshNode($"axis-cone-{i}");
+            node.Geometry = _axisConeGeometry;
+            node.MaterialProperties = material;
+            node.IsTransparent = true;
+            node.Enabled = false;
+            _root.AddChild(node);
+            _axisConeNodes[i] = node;
+        }
 
         SetViewPreset(ViewPreset.Isometric3D);
     }
@@ -273,11 +298,25 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         g.Vertices.Clear();
         g.VertexColors.Clear();
         var len = AxisArrowLength();
-        foreach (var arrow in arrows)
+        var coneHeight = AxisConeHeight(len);
+        for (var i = 0; i < arrows.Count; i++)
         {
-            var color = AxisColor(arrow.Label);
-            FillArrow(g, arrow.Pos, AxisDirection(arrow.Label), len, color);
+            var (pos, label) = arrows[i];
+            var color = AxisColor(label);
+            FillAxisShaft(g, pos, AxisDirection(label), len, coneHeight, color);
+            if (i >= _axisConeNodes.Length)
+                continue;
+            var (tip, rotation, scale) = AxisConeTransform(label, pos, len);
+            var node = _axisConeNodes[i];
+            node.Transform.Translation = tip;
+            node.Transform.Rotation = rotation;
+            node.Transform.Scale = scale;
+            node.NotifyTransformChanged();
+            node.Enabled = true;
+            _axisConeMaterials[i].Albedo = color;
         }
+        for (var i = arrows.Count; i < _axisConeNodes.Length; i++)
+            _axisConeNodes[i].Enabled = false;
         g.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
         // Re-set the geometry reference so the draw stream refreshes its LineCount.
         _axesNode.Geometry = g;
@@ -491,6 +530,12 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         }
         _gridNode.Dispose();
         _axesNode.Dispose();
+        for (var i = 0; i < _axisConeNodes.Length; i++)
+        {
+            _axisConeNodes[i].Dispose();
+            _axisConeMaterials[i].Dispose();
+        }
+        _axisConeGeometry.Dispose();
         _originNode.Dispose();
         _workNode.Dispose();
         _jobNode.Dispose();
@@ -604,27 +649,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         'Z' => new Color4(0.2f, 0.35f, 0.9f, 1f),
         _ => GridMinorColor
     };
-
-    private static void FillArrow(Geometry g, Vector3 anchor, Vector3 dir, float length, Color4 color)
-    {
-        var c = color.ToVector4();
-        var tip = anchor + dir * length;
-
-        void Seg(Vector3 a, Vector3 b)
-        {
-            g.Vertices.Add(new Vector4(a, 1f));
-            g.Vertices.Add(new Vector4(b, 1f));
-            g.VertexColors.Add(c);
-            g.VertexColors.Add(c);
-        }
-
-        Seg(anchor, tip);
-        var back = tip - Vector3.Normalize(dir) * 2.2f;
-        Seg(tip, back + Vector3.UnitX);
-        Seg(tip, back - Vector3.UnitX);
-        Seg(tip, back + Vector3.UnitY);
-        Seg(tip, back - Vector3.UnitY);
-    }
 
     private const float AxisConeHeightFraction = 0.32f;
     private const float AxisConeRadiusFraction = 0.38f;
