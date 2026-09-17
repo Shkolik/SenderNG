@@ -39,7 +39,12 @@ namespace CNC.Core.Services;
 /// <summary>Observable per-mode jog configuration: bindable directly from settings UIs.</summary>
 public class JogConfig : CNC.Core.ViewModelBase
 {
-    private double[] _distances = [0.1, 1.0, 10.0];
+    /// <summary>ioSender's JogStep.Continuous sentinel: the distance-selector slot that
+    /// means "jog until JogCancel". The distance actually sent is the board's per-axis
+    /// $130+ max travel (gated on the connect handshake); never a configured step.</summary>
+    public const double ContinuousDistance = -1d;
+
+    private double[] _distances = [0.1, 1.0, 10.0, JogConfig.ContinuousDistance];
     private double[] _speeds = [500.0, 1000.0, 2000.0];
     private int _distanceIndex = 1;
     private int _speedIndex = 1;
@@ -70,10 +75,13 @@ public class JogConfig : CNC.Core.ViewModelBase
 public static class JogConfigStore
 {
     private const string SectionKey = "Jog";
-    private const int Size = 3;
+    private const int DistanceSize = 4;   // was Size = 3
+    private const int SpeedSize = 3;
+    public static int DistanceStepCount => DistanceSize;
+    public static int SpeedStepCount => SpeedSize;
 
     /// <summary>Number of distance/speed steps per selector.</summary>
-    public static int StepCount => Size;
+    public static int StepCount => SpeedSize;   // transitional; distances grow to DistanceStepCount in the VM task
 
     public static JogConfig Load(MachineProfile profile)
     {
@@ -117,18 +125,19 @@ public static class JogConfigStore
 
     private static JogConfig Normalize(JogConfig config)
     {
-        config.Distances = Clamp(config.Distances);
-        config.Speeds = Clamp(config.Speeds);
-        config.DistanceIndex = Math.Clamp(config.DistanceIndex, 0, Size - 1);
-        config.SpeedIndex = Math.Clamp(config.SpeedIndex, 0, Size - 1);
+        config.Distances = Clamp(config.Distances, DistanceSize);
+        config.Speeds = Clamp(config.Speeds, SpeedSize);
+        config.Distances[DistanceSize - 1] = JogConfig.ContinuousDistance; // slot 4 is ALWAYS the sentinel
+        config.DistanceIndex = Math.Clamp(config.DistanceIndex, 0, DistanceSize - 1);
+        config.SpeedIndex = Math.Clamp(config.SpeedIndex, 0, SpeedSize - 1);
         return config;
     }
 
-    private static double[] Clamp(double[]? values)
+    private static double[] Clamp(double[]? values, int size)
     {
         values ??= [];
-        var result = new List<double>(values.Take(Size));
-        while (result.Count < Size)
+        var result = new List<double>(values.Take(size));
+        while (result.Count < size)
             result.Add(result.Count > 0 ? result[^1] : 0.0);
         return [.. result];
     }

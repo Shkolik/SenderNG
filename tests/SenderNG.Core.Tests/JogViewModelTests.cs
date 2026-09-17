@@ -73,7 +73,7 @@ public Task SendAsync(string line)
     {
         var vm = new JogViewModel(new RecordingGrbl([]), MakeSettings());
 
-        Assert.Equal([0.1, 1.0, 10.0], vm.Config.Distances);
+        Assert.Equal([0.1, 1.0, 10.0, -1], vm.Config.Distances);
         Assert.Equal([500.0, 1000.0, 2000.0], vm.Config.Speeds);
         Assert.Equal(1, vm.SelectedDistanceIndex);
         Assert.Equal(1, vm.SelectedSpeedIndex);

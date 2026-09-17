@@ -46,7 +46,7 @@ public class JogConfigTests
     {
         var config = JogConfigStore.Load(new MachineProfile());
 
-        Assert.Equal([0.1, 1.0, 10.0], config.Distances);
+        Assert.Equal([0.1, 1.0, 10.0, -1], config.Distances);
         Assert.Equal([500.0, 1000.0, 2000.0], config.Speeds);
         Assert.Equal(1, config.DistanceIndex);
         Assert.Equal(1, config.SpeedIndex);
@@ -75,10 +75,10 @@ public class JogConfigTests
             SpeedIndex = 1,
         });
 
-        Assert.Equal([0.01, 0.5, 5], JogConfigStore.Load(mill).Distances);
+        Assert.Equal([0.01, 0.5, 5, -1], JogConfigStore.Load(mill).Distances);
         Assert.Equal(2, JogConfigStore.Load(mill).DistanceIndex);
 
-        Assert.Equal([1, 2, 4], JogConfigStore.Load(foam).Distances);
+        Assert.Equal([1, 2, 4, -1], JogConfigStore.Load(foam).Distances);
         Assert.Equal([6000, 7000, 8000], JogConfigStore.Load(foam).Speeds);
         Assert.Equal(1, JogConfigStore.Load(foam).SpeedIndex);
     }
@@ -104,7 +104,7 @@ public class JogConfigTests
 
         var config = JogConfigStore.Load(settings);
 
-        Assert.Equal([0.2, 2, 20], config.Distances);
+        Assert.Equal([0.2, 2, 20, -1], config.Distances);
         Assert.Equal([550, 1100, 2200], config.Speeds);
         Assert.Equal(2, config.DistanceIndex);
         Assert.Equal(2, config.SpeedIndex);
@@ -123,10 +123,10 @@ public class JogConfigTests
 
         var config = JogConfigStore.Load(settings);
 
-        Assert.Equal(3, config.Distances.Length);
-        Assert.Equal([0.5, 1, 1], config.Distances); // padded with last value
+        Assert.Equal(4, config.Distances.Length);
+        Assert.Equal([0.5, 1, 1, -1], config.Distances); // padded with last value, sentinel forced
         Assert.Equal([500.0, 1000.0, 2000.0], config.Speeds); // defaults
-        Assert.Equal(2, config.DistanceIndex);
+        Assert.Equal(3, config.DistanceIndex); // 99 clamps to max 4-slot index
         Assert.Equal(0, config.SpeedIndex); // -7 clamps to 0
     }
 }
