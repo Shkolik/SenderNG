@@ -51,6 +51,9 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     // Per-axis work offset: machine = work + offset. G92 shifts this so the
     // work coordinate takes the requested value while the machine stays put.
     private double[] _workOffset = [];
+    // Continuous jog simulation: direction per axis (0 = not jogging), feed in mm/min.
+    private double[]? _jogDirection;
+    private double _jogFeed;
     private readonly string? _settingsFilePath;
     private Dictionary<int, string> _settings;
 
@@ -123,6 +126,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         _settingsFilePath = settingsFilePath ??
             Path.Combine(SettingsService.DefaultDir(), "grbl-settings-demo.txt");
         _settings = LoadSettings(_settingsFilePath);
+        RefreshMaxTravel(demoAxes);
         PublishWorkParameters();
     }
 
@@ -190,6 +194,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         lock (_lock)
         {
             _capabilities = ControllerCapabilities.Full with { NumAxes = clamped };
+            RefreshMaxTravel(clamped);
             _workOffset = new double[clamped];
             _subject.OnNext(new MachineState(clamped)
             {
@@ -242,6 +247,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                     break;
                 case GrblRealtime.Reset:
                     // Soft reset returns to Idle and loses position (until re-homed).
+                    _jogDirection = null;
                     state.Status = "Idle";
                     state.IsHomed = false;
                     for (var i = 0; i < state.Positions.Length; i++)
@@ -250,6 +256,11 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                         for (var i = 0; i < state.MachinePositions.Length; i++)
                             state.MachinePositions[i] = 0;
                     _workOffset = new double[state.Positions.Length];
+                    break;
+                case GrblRealtime.JogCancel:
+                    _jogDirection = null;
+                    if (state.Status == "Jog")
+                        state.Status = "Idle";
                     break;
                 default:
                     return;
@@ -356,7 +367,25 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         [120] = "10.000", // x acceleration
         [121] = "10.000", // y acceleration
         [122] = "10.000", // z acceleration
+        [130] = "200.000",// x max travel, mm
+        [131] = "200.000",// y max travel, mm
+        [132] = "100.000",// z max travel, mm
+        [133] = "50.000", // a max travel, mm
+        [134] = "50.000", // b max travel, mm
     };
+
+    private void RefreshMaxTravel(int axisCount)
+    {
+        var travel = new double[axisCount];
+        for (var i = 0; i < travel.Length; i++)
+        {
+            if (_settings.TryGetValue((int)CNC.Core.GrblSetting.MaxTravelBase + i, out var raw)
+                && double.TryParse(raw, System.Globalization.CultureInfo.InvariantCulture, out var v)
+                && v > 0)
+                travel[i] = v;
+        }
+        _capabilities = _capabilities with { MaxTravel = travel };
+    }
 
     public Task ConnectAsync(string port)
     {
@@ -415,16 +444,19 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             if (trimmed.Length == 0 || "GMTNFSXYZABCUVWDHO#%$;()?~".IndexOf(trimmed[0]) < 0)
                 return false;
 
+            var state = _subject.Value;
+
             // $N=value setting assignment: update the demo settings store.
             var assign = trimmed.Length > 2 && trimmed[0] == '$' && !trimmed.StartsWith("$$") && !trimmed.StartsWith("$J");
             if (assign && TryParseSetting(trimmed, out var number, out var value))
             {
                 _settings[number] = value;
+                if (number >= (int)CNC.Core.GrblSetting.MaxTravelBase
+                    && number < (int)CNC.Core.GrblSetting.MaxTravelBase + state.Positions.Length)
+                    RefreshMaxTravel(state.Positions.Length);
                 PersistSettings();
                 return true;
             }
-
-            var state = _subject.Value;
 
             // G10 may follow other modal words on the same line (ioSender's DRO
             // zero is "G90 G10 L20 P0 ..."), so detect the word anywhere.
@@ -495,6 +527,16 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 }
                 _subject.OnNext(state);
                 return true;
+            }
+
+            // A $J= axis word at or beyond the axis's own max travel is a continuous jog (the
+            // sender sends exactly MaxTravel[axis]; click steps are far below). Axes without a
+            // seeded travel setting fall back to a magnitude threshold.
+            if (trimmed.StartsWith("$J=", StringComparison.OrdinalIgnoreCase) && IsContinuousJogLine(trimmed))
+            {
+                StartContinuousJogSimulation(trimmed, state);   // records direction/feed, sets Status="Jog"
+                _subject.OnNext(state);
+                return true;                                    // skip ApplyMotion: no teleport
             }
 
             ApplyMotion(trimmed, state);
@@ -571,6 +613,56 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             else
                 row.Values[idx] = value;
         }
+    }
+
+    // A $J= axis word at or beyond the axis's own max travel is a continuous jog (the
+    // sender sends exactly MaxTravel[axis]; click steps are far below). Axes without a
+    // seeded travel setting fall back to a magnitude threshold.
+    private const double ContinuousJogMinDistance = 1000.0;
+
+    private bool IsContinuousJogLine(string line)
+    {
+        foreach (var part in TokenizeWords(line[3..]))
+        {
+            if (part.Length < 2 || !"XYZABCUVW".Contains(char.ToUpperInvariant(part[0])))
+                continue;
+            if (!double.TryParse(part[1..], System.Globalization.CultureInfo.InvariantCulture, out var v))
+                continue;
+            var index = char.ToUpperInvariant(part[0]) switch
+            {
+                'X' => 0, 'Y' => 1, 'Z' => 2, 'A' => 3, 'B' => 4, _ => -1   // same set ApplyMotion moves
+            };
+            var travel = index >= 0 && index < _capabilities.MaxTravel.Length
+                ? _capabilities.MaxTravel[index]
+                : 0;
+            if (Math.Abs(v) >= (travel > 0 ? travel : ContinuousJogMinDistance))
+                return true;
+        }
+        return false;
+    }
+
+    private void StartContinuousJogSimulation(string line, MachineState state)
+    {
+        _jogDirection = new double[state.Positions.Length];
+        foreach (var part in TokenizeWords(line[3..]))
+        {
+            if (part.Length < 2) continue;
+            var letter = char.ToUpperInvariant(part[0]);
+            if (letter == 'F' && double.TryParse(part[1..], System.Globalization.CultureInfo.InvariantCulture, out var feed))
+            {
+                _jogFeed = feed;
+                state.Feed = feed;
+            }
+            else
+            {
+                var index = letter switch { 'X' => 0, 'Y' => 1, 'Z' => 2, 'A' => 3, 'B' => 4, _ => -1 };
+                if (index >= 0 && index < _jogDirection.Length
+                    && double.TryParse(part[1..], System.Globalization.CultureInfo.InvariantCulture, out var v)
+                    && v != 0)
+                    _jogDirection[index] = Math.Sign(v);
+            }
+        }
+        state.Status = "Jog";
     }
 
     private void ApplyMotion(string line, MachineState state)
@@ -730,8 +822,21 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     {
         lock (_lock)
         {
-            if (IsConnected)
-                _subject.OnNext(_subject.Value);
+            if (!IsConnected)
+                return;
+            var state = _subject.Value;
+            if (_jogDirection is not null)
+            {
+                var step = _jogFeed * _pollIntervalMs / 60000.0;   // mm per tick
+                var machinePos = EnsureMachinePositions(state);
+                for (var i = 0; i < state.Positions.Length && i < _jogDirection.Length; i++)
+                {
+                    if (_jogDirection[i] == 0) continue;
+                    state.Positions[i] += _jogDirection[i] * step;
+                    machinePos[i] = state.Positions[i] + _workOffset[i];
+                }
+            }
+            _subject.OnNext(state);
         }
     }
 
