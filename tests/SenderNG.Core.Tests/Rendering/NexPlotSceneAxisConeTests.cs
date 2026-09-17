@@ -89,7 +89,7 @@ public class NexPlotSceneAxisConeTests
     }
 
     [Fact]
-    public void RotationFromUnitZTo_is_identity_for_plus_z_and_flip_for_minus_z()
+    public void ConeOrientation_is_identity_for_plus_z_and_flip_for_minus_z()
     {
         var identity = ConeOrientation.FromUnitZTo(Vector3.UnitZ);
         Assert.True(Vector3.Distance(Vector3.Transform(Vector3.UnitZ, identity), Vector3.UnitZ) < 1e-4f);

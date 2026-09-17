@@ -238,7 +238,7 @@ public sealed class NexPlotTool : IPlotTool
         var delta = to - from;
         if (delta.LengthSquared() <= 1e-12f)
             return Quaternion.Identity;
-        return ConeOrientation.FromUnitZTo(Vector3.Normalize(delta));
+        return ConeOrientation.FromUnitZTo(delta);
     }
 
     /// <inheritdoc/>
