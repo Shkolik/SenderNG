@@ -139,6 +139,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <ToggleButton Classes="step" Content="{Binding Config.Distances[0]}" IsChecked="{Binding IsDistance0}" />
                 <ToggleButton Classes="step" Content="{Binding Config.Distances[1]}" IsChecked="{Binding IsDistance1}" />
                 <ToggleButton Classes="step" Content="{Binding Config.Distances[2]}" IsChecked="{Binding IsDistance2}" />
+                <ToggleButton Classes="step" Content="{loc:Loc module.jog.continuous}" IsChecked="{Binding IsDistance3}"
+                              IsEnabled="{Binding ContinuousAvailable}" />
             </StackPanel>
 
             <!-- Speed selector -->

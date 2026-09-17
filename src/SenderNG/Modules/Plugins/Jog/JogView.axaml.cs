@@ -32,14 +32,60 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 
 namespace SenderNG.Modules.Plugins;
 
 public partial class JogView : UserControl
 {
-    public JogView()
+    public JogView() => InitializeComponent();
+
+    private JogViewModel? Vm => DataContext as JogViewModel;
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        InitializeComponent();
+        base.OnAttachedToVisualTree(e);
+        // Tunnel: our press handler runs BEFORE the Button's, so marking the press
+        // handled suppresses the Click command in continuous mode.
+        AddHandler(InputElement.PointerPressedEvent, OnJogPointerPressed, RoutingStrategies.Tunnel);
+        AddHandler(InputElement.PointerReleasedEvent, OnJogPointerReleased);
+        AddHandler(InputElement.PointerCaptureLostEvent, OnJogPointerCaptureLost);
     }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        RemoveHandler(InputElement.PointerPressedEvent, OnJogPointerPressed);
+        RemoveHandler(InputElement.PointerReleasedEvent, OnJogPointerReleased);
+        RemoveHandler(InputElement.PointerCaptureLostEvent, OnJogPointerCaptureLost);
+    }
+
+    // Jog-motion buttons carry a string CommandParameter (tags); the Stop button has
+    // none, so the filter naturally excludes it. e.Source may be a descendant of the
+    // button (its TextBlock), so walk up the visual tree to the owning Button.
+    private void OnJogPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var button = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Button>().FirstOrDefault();
+        if (button?.CommandParameter is not string tag || Vm is not { IsContinuousStep: true })
+            return;                       // step mode, Stop button, or non-jog control: untouched
+        Vm!.StartContinuousJog(tag);
+        e.Pointer.Capture(this);          // release/capture-lost always reach us
+        e.Handled = true;                 // suppresses the Button's Click command
+    }
+
+    private void OnJogPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (Vm is not { ContinuousActive: true })
+            return;
+        Vm.StopContinuousJog();
+        e.Pointer.Capture(null);
+        e.Handled = true;
+    }
+
+    private void OnJogPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+        => Vm?.StopContinuousJog();
 }
