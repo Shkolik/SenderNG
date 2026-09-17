@@ -108,7 +108,7 @@ public sealed class NexPlotTool : IPlotTool
         // move via node transforms (NodeInfo path).
         _coneGeometry = BuildConeMesh();
         _engine.Add(_coneGeometry);
-        _coneMaterial = _engine.ResourceManager.PBRPropertyManager.Create(PBRShadingMode.Unlit);
+        _coneMaterial = _engine.ResourceManager.PBRPropertyManager.Create(PBRShadingMode.CAD);
         _coneMaterial.Albedo = ToolColor;
         _coneMaterial.Emissive = Color4.Black;
         _coneMaterial.Opacity = 1f;

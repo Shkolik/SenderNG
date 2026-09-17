@@ -235,7 +235,7 @@ public sealed class NexLoftSurface : ILoftSurface
 
     private MeshNode CreateSheetNode()
     {
-        _sheetMaterial ??= _engine.ResourceManager.PBRPropertyManager.Create(PBRShadingMode.Unlit);
+        _sheetMaterial ??= _engine.ResourceManager.PBRPropertyManager.Create(PBRShadingMode.CAD);
         _sheetMaterial.Albedo = SheetColor;
         _sheetMaterial.Emissive = Color4.Black;
         _sheetMaterial.Opacity = 0.35f;

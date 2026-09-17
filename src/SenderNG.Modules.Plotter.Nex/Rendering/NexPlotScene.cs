@@ -202,7 +202,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         _axisConeMaterials = new PBRMaterialProperties[3];
         for (var i = 0; i < _axisConeNodes.Length; i++)
         {
-            var material = _engine.ResourceManager.PBRPropertyManager.Create(PBRShadingMode.Unlit);
+            var material = _engine.ResourceManager.PBRPropertyManager.Create(PBRShadingMode.CAD);
             material.Emissive = Color4.Black;
             material.Opacity = 1f;
             _axisConeMaterials[i] = material;
@@ -217,7 +217,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
 
         _orbitSphereGeometry = SphereMesh.Build();
         _engine.Add(_orbitSphereGeometry);
-        _orbitSphereMaterial = _engine.ResourceManager.PBRPropertyManager.Create(PBRShadingMode.Unlit);
+        _orbitSphereMaterial = _engine.ResourceManager.PBRPropertyManager.Create(PBRShadingMode.CAD);
         _orbitSphereMaterial.Emissive = Color4.Black;
         _orbitSphereMaterial.Albedo = OrbitPivotColor;
         _orbitSphereMaterial.Opacity = 0.35f;
