@@ -172,7 +172,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
 
         _client = new SceneClient(_worldData, () => _activeCamera);
         _gridNode = AddChromeNode("grid", 0.6f, out _gridGeometry);
-        _axesNode = AddChromeNode("axis-arrows", 1.6f, out _axesGeometry);
+        _axesNode = AddChromeNode("axis-arrows", 3.6f, out _axesGeometry);
         _originNode = AddChromeNode("origin", 1.6f, out _originGeometry);
         _workNode = AddChromeNode("work-envelope", 1.2f, out _workGeometry);
         _jobNode = AddChromeNode("job-envelope", 1.2f, out _jobGeometry);
