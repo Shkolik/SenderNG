@@ -74,6 +74,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private static readonly Color4 OriginColor = new(0.53f, 0.53f, 0.53f, 1f);
     private static readonly Color4 WorkEnvelopeColor = new(0.7f, 0.7f, 0.7f, 1f);
     private static readonly Color4 JobEnvelopeColor = new(0f, 0.7f, 0.9f, 1f);
+    private static readonly Color4 OrbitPivotColor = new(1f, 0.66f, 0.1f, 1f);
 
     private readonly IContext _context;
     private readonly Engine _engine;
@@ -103,6 +104,10 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private readonly MeshNode[] _axisConeNodes;
     private readonly PBRMaterialProperties[] _axisConeMaterials;
 
+    private readonly Geometry _orbitSphereGeometry;
+    private readonly PBRMaterialProperties _orbitSphereMaterial;
+    private readonly MeshNode _orbitSphereNode;
+
     private readonly List<NexCarriagePlaneLayer> _liveLayers = [];
     private readonly List<NexLoftSurface> _liveLofts = [];
     private readonly List<NexPlotTool> _liveTools = [];
@@ -117,6 +122,11 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private float _fitOrthoWidth = 1f;
     private float _fitDist = 1f;
     private Vector3? _orbitOrigin;
+    private float _orbitSphereRadius = 1f;
+
+    // Same convention as NexPlotTool.ParkedPosition: Enabled does not hide
+    // nodes while the frustum-cull node is off, so the hidden sphere parks here.
+    private static readonly Vector3 OrbitPivotParked = new(0f, -50_000f, 0f);
 
     /// <summary>Create the scene and the whole render pipeline.</summary>
     /// <remarks>
@@ -195,6 +205,19 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             _root.AddChild(node);
             _axisConeNodes[i] = node;
         }
+
+        _orbitSphereGeometry = SphereMesh.Build();
+        _engine.Add(_orbitSphereGeometry);
+        _orbitSphereMaterial = _engine.ResourceManager.PBRPropertyManager.Create(PBRShadingMode.Unlit);
+        _orbitSphereMaterial.Emissive = Color4.Black;
+        _orbitSphereMaterial.Albedo = OrbitPivotColor;
+        _orbitSphereMaterial.Opacity = 0.35f;
+        _orbitSphereNode = _root.World.CreateMeshNode("orbit-pivot");
+        _orbitSphereNode.Geometry = _orbitSphereGeometry;
+        _orbitSphereNode.MaterialProperties = _orbitSphereMaterial;
+        _orbitSphereNode.IsTransparent = true;
+        HideOrbitPivot();
+        _root.AddChild(_orbitSphereNode);
 
         SetViewPreset(ViewPreset.Isometric3D);
     }
@@ -360,6 +383,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     {
         _preset = preset;
         _orbitOrigin = null;
+        HideOrbitPivot();
         var (center, radius, span) = ContentMetrics();
         // One zoom basis for every orthographic projection: the model's
         // bounding-box diagonal. Per-plane spans made a long thin board
@@ -367,6 +391,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         // a common world-units-per-pixel keeps all projections at the same
         // apparent scale, and is the tracked base for the wheel zoom.
         _orthoZoom = MathF.Max(span.Length() * 1.1f, 1f);
+        _orbitSphereRadius = MathF.Max(0.5f, radius * 0.05f);
         switch (preset)
         {
             case ViewPreset.XY:
@@ -466,6 +491,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         if (ReferenceEquals(_activeCamera, _perspectiveCamera) == false)
         {
             _orbitOrigin = null;
+            HideOrbitPivot();
             return;
         }
         var cam = _perspectiveCamera;
@@ -473,6 +499,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         if (dist < 0.01f)
         {
             _orbitOrigin = cam.Target;
+            ShowOrbitPivot(_orbitOrigin.Value, _orbitSphereRadius);
             return;
         }
         CameraGestures.GetCameraBasis(cam, out _, out var right, out var up);
@@ -480,10 +507,15 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         var sxW = (screenPointPx.X - _viewportWpx * 0.5f) * wpp;
         var syW = (screenPointPx.Y - _viewportHpx * 0.5f) * wpp;
         _orbitOrigin = cam.Target + right * sxW - up * syW;
+        ShowOrbitPivot(_orbitOrigin.Value, _orbitSphereRadius);
     }
 
     /// <inheritdoc/>
-    public void EndOrbit() => _orbitOrigin = null;
+    public void EndOrbit()
+    {
+        _orbitOrigin = null;
+        HideOrbitPivot();
+    }
 
     /// <inheritdoc/>
     public void Reframe() => SetViewPreset(_preset);
@@ -536,6 +568,9 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             _axisConeMaterials[i].Dispose();
         }
         _axisConeGeometry.Dispose();
+        _orbitSphereNode.Dispose();
+        _orbitSphereMaterial.Dispose();
+        _orbitSphereGeometry.Dispose();
         _originNode.Dispose();
         _workNode.Dispose();
         _jobNode.Dispose();
@@ -683,6 +718,20 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         g.Vertices.Add(new Vector4(shaftEnd, 1f));
         g.VertexColors.Add(c);
         g.VertexColors.Add(c);
+    }
+
+    private void ShowOrbitPivot(Vector3 pivot, float radius)
+    {
+        _orbitSphereNode.Transform.Translation = pivot;
+        _orbitSphereNode.Transform.Rotation = Quaternion.Identity;
+        _orbitSphereNode.Transform.Scale = new Vector3(radius);
+        _orbitSphereNode.NotifyTransformChanged();
+    }
+
+    private void HideOrbitPivot()
+    {
+        _orbitSphereNode.Transform.Translation = OrbitPivotParked;
+        _orbitSphereNode.NotifyTransformChanged();
     }
 
     private static void FillEnvelope(Geometry g, LineNode node, SBounds box, Color4 color)
