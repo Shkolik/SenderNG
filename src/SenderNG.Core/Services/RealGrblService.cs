@@ -311,6 +311,31 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         // DRO, gcode parser and expressions read it) and into the live machine
         // state so the DRO/signals grow to the board's real axes.
         ApplyCapabilities();
+
+        // Max travel ($130+): the continuous-jog distance source (ioSender's
+        // MaxTravel). Best-effort like the rest of the handshake — a board that
+        // doesn't answer $$ leaves MaxTravel empty and continuous jog stays gated
+        // off until reconnect.
+        try
+        {
+            var travel = new double[Math.Max(1, Capabilities.NumAxes)];
+            foreach (var line in await GetSettingLinesAsync(TimeSpan.FromSeconds(1.5)))
+            {
+                if (GrblSettingsParser.ParseValueLine(line) is not { } parsed)
+                    continue;
+                var axis = parsed.Id - (int)CNC.Core.GrblSetting.MaxTravelBase;   // 130 → 0
+                if (axis >= 0 && axis < travel.Length
+                    && double.TryParse(parsed.Value, System.Globalization.CultureInfo.InvariantCulture, out var v)
+                    && v > 0)
+                    travel[axis] = v;
+            }
+            if (travel.Any(t => t > 0))
+                Capabilities = Capabilities with { MaxTravel = travel };
+        }
+        catch
+        {
+            // Non-fatal: continuous jog stays gated off.
+        }
     }
 
     /// <summary>
@@ -789,9 +814,15 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     /// driven off the shared reader, so status reports arriving mid-dump don't corrupt it.
     /// </summary>
     public async Task<IReadOnlyList<string>> GetSettingLinesAsync()
+        => await GetSettingLinesAsync(TimeSpan.FromSeconds(5));
+
+    /// <summary>Bounded <see cref="GetSettingLinesAsync"/> for the connect-time
+    /// <c>$$</c> fetch: a board that doesn't answer leaves <c>MaxTravel</c> empty
+    /// instead of stalling the handshake a full CommandTimeout window.</summary>
+    private async Task<IReadOnlyList<string>> GetSettingLinesAsync(TimeSpan timeout)
     {
         var lines = new List<string>();
-        await ExchangeAsync("$$", lines, l => l is "ok" or "error");
+        await ExchangeAsync("$$", lines, l => l is "ok" or "error", timeout);
         return lines;
     }
 
