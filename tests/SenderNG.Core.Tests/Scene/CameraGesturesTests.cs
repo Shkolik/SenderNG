@@ -381,4 +381,107 @@ public class CameraGesturesTests
         var rel = world - cam.Target;
         return new Vector2(500f + Vector3.Dot(rel, r) / wpp, 250f - Vector3.Dot(rel, u) / wpp);
     }
+
+    [Fact]
+    public void CursorRayPlanePivot_off_center_cursor_round_trips_to_exact_pixel()
+    {
+        // Purpose: the module's old hand-rolled world-per-pixel math diverged from
+        // the real projection. The new pivot must project BACK to the exact cursor
+        // pixel through the same matrix path the GPU renders with.
+        var (inv, svp, w, h) = PerspectiveMatrices(
+            new Vector3(0f, 0f, 100f), Vector3.Zero, Vector3.UnitY, 0.8f, 0.1f, 1000f, 1000f, 500f);
+        var cursor = new Vector2(750f, 150f);
+        var pivot = CameraGestures.CursorRayPlanePivot(
+            inv, cursor, w, h, 1f, Vector3.Zero, -Vector3.UnitZ);
+
+        var screen = ProjectToScreen(svp, pivot, w, h);
+        Assert.Equal(cursor.X, screen.X, 2);
+        Assert.Equal(cursor.Y, screen.Y, 2);
+        // Pivot lies on the target-depth plane through the origin (z = 0).
+        Assert.Equal(0f, pivot.Z, 3);
+    }
+
+    [Fact]
+    public void CursorRayPlanePivot_tall_viewport_round_trips_to_exact_pixel()
+    {
+        // Non-square viewport (500x1000): the horizontal/vertical pixel scales now differ.
+        var (inv, svp, w, h) = PerspectiveMatrices(
+            new Vector3(0f, 0f, 100f), Vector3.Zero, Vector3.UnitY, 0.8f, 0.1f, 1000f, 500f, 1000f);
+        var cursor = new Vector2(125f, 375f);
+        var pivot = CameraGestures.CursorRayPlanePivot(
+            inv, cursor, w, h, 1f, Vector3.Zero, -Vector3.UnitZ);
+
+        var screen = ProjectToScreen(svp, pivot, w, h);
+        Assert.Equal(cursor.X, screen.X, 2);
+        Assert.Equal(cursor.Y, screen.Y, 2);
+    }
+
+    [Fact]
+    public void CursorRayPlanePivot_dpi_scale_is_invariant_for_physical_pixels()
+    {
+        // Cursor and viewport are both physical px; normalizing both by DpiScale
+        // must not move the pivot.
+        var (inv, _, w, h) = PerspectiveMatrices(
+            new Vector3(0f, 0f, 100f), Vector3.Zero, Vector3.UnitY, 0.8f, 0.1f, 1000f, 1000f, 500f);
+        var cursor = new Vector2(750f, 150f);
+        var atDpi1 = CameraGestures.CursorRayPlanePivot(inv, cursor, w, h, 1f, Vector3.Zero, -Vector3.UnitZ);
+        var atDpi2 = CameraGestures.CursorRayPlanePivot(inv, cursor, w, h, 2f, Vector3.Zero, -Vector3.UnitZ);
+        Assert.Equal(atDpi1, atDpi2);
+    }
+
+    [Fact]
+    public void CursorRayPlanePivot_centered_cursor_hits_plane_point()
+    {
+        var (inv, _, w, h) = PerspectiveMatrices(
+            new Vector3(0f, 0f, 100f), Vector3.Zero, Vector3.UnitY, 0.8f, 0.1f, 1000f, 1000f, 500f);
+        var pivot = CameraGestures.CursorRayPlanePivot(
+            inv, new Vector2(500f, 250f), w, h, 1f, Vector3.Zero, -Vector3.UnitZ);
+        Assert.Equal(0f, pivot.X, 3);
+        Assert.Equal(0f, pivot.Y, 3);
+        Assert.Equal(0f, pivot.Z, 3);
+    }
+
+    [Fact]
+    public void CursorRayPlanePivot_parallel_ray_falls_back_to_plane_point()
+    {
+        // Center cursor ray runs exactly along -Z. A plane x = 5 is parallel to it.
+        var (inv, _, w, h) = PerspectiveMatrices(
+            new Vector3(0f, 0f, 100f), Vector3.Zero, Vector3.UnitY, 0.8f, 0.1f, 1000f, 1000f, 500f);
+        var planePoint = new Vector3(5f, 0f, 42f);
+        var pivot = CameraGestures.CursorRayPlanePivot(
+            inv, new Vector2(500f, 250f), w, h, 1f, planePoint, Vector3.UnitX);
+        Assert.Equal(planePoint.X, pivot.X, 4);
+        Assert.Equal(planePoint.Y, pivot.Y, 4);
+        Assert.Equal(planePoint.Z, pivot.Z, 4);
+    }
+
+    [Fact]
+    public void CursorRayPlanePivot_degenerate_viewport_returns_plane_point()
+    {
+        var (inv, _, w, h) = PerspectiveMatrices(
+            new Vector3(0f, 0f, 100f), Vector3.Zero, Vector3.UnitY, 0.8f, 0.1f, 1000f, 1000f, 500f);
+        var planePoint = new Vector3(1f, 2f, 3f);
+        Assert.Equal(planePoint, CameraGestures.CursorRayPlanePivot(inv, new Vector2(500f, 250f), 0f, h, 1f, planePoint, -Vector3.UnitZ));
+        Assert.Equal(planePoint, CameraGestures.CursorRayPlanePivot(inv, new Vector2(500f, 250f), w, 0f, 1f, planePoint, -Vector3.UnitZ));
+    }
+
+    private static (Matrix4x4 Inv, Matrix4x4 ScreenViewProj, float W, float H) PerspectiveMatrices(
+        Vector3 position, Vector3 target, Vector3 up, float fov, float near, float far, float w, float h)
+    {
+        // Row-vector pipeline (matches CameraParams.ViewProjection = view * projection,
+        // the engine's Inverse = invProjection * invView). The reverse-Z variant only
+        // changes the depth distribution of z, not the (x, y) ray direction.
+        var view = Matrix4x4.CreateLookAt(position, target, up);
+        var projection = Matrix4x4.CreatePerspectiveFieldOfView(fov, w / h, near, far);
+        var screenViewProjection = view * projection;
+        Matrix4x4.Invert(screenViewProjection, out var inv);
+        return (inv, screenViewProjection, w, h);
+    }
+
+    private static Vector2 ProjectToScreen(Matrix4x4 screenViewProjection, Vector3 world, float w, float h)
+    {
+        var clip = Vector4.Transform(new Vector4(world, 1f), screenViewProjection);
+        var ndc = new Vector3(clip.X / clip.W, clip.Y / clip.W, clip.Z / clip.W);
+        return new Vector2((ndc.X + 1f) * w / 2f, (1f - ndc.Y) * h / 2f);
+    }
 }
