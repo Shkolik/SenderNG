@@ -151,4 +151,12 @@ public sealed record ControllerCapabilities
     /// only shows LEDs for these (plus the always-on axis/H/S/R/P set).
     /// </summary>
     public CNC.Core.Signals OptionalSignals { get; init; } = CNC.Core.Signals.Off;
+
+    /// <summary>Per-axis max travel ($130+ …) in millimeters, parsed from the connect-time
+    /// $$ dump. Index i ↔ axis i (X=0…). Empty or a 0/negative entry means "unknown for
+    /// that axis" — continuous jog is gated off until every jogged axis has a value.
+    /// Classic grbl 1.1h (4-axis builds) and mega5x 1.2i report travel for all their axes;
+    /// grblHAL may report $133+ for rotary/extra axes. NOT part of ControllerKey: travel
+    /// is a tuning value, not an identity.</summary>
+    public double[] MaxTravel { get; init; } = [];
 }
