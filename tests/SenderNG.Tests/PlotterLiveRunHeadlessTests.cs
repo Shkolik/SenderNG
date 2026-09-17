@@ -576,10 +576,10 @@ var mid = frames[frames.Count / 2].Bitmap;
         {
             var t = m.GetType();
             return new[] {
-            (double)t.GetProperty("MinX")!.GetValue(m), (double)t.GetProperty("SpanX")!.GetValue(m),
-            (double)t.GetProperty("MinY")!.GetValue(m), (double)t.GetProperty("SpanY")!.GetValue(m),
-            (double)t.GetProperty("Sx")!.GetValue(m), (double)t.GetProperty("Sy")!.GetValue(m),
-            (double)t.GetProperty("Ox")!.GetValue(m), (double)t.GetProperty("Oy")!.GetValue(m) };
+            (double)t.GetProperty("MinX")!.GetValue(m)!, (double)t.GetProperty("SpanX")!.GetValue(m)!,
+            (double)t.GetProperty("MinY")!.GetValue(m)!, (double)t.GetProperty("SpanY")!.GetValue(m)!,
+            (double)t.GetProperty("Sx")!.GetValue(m)!, (double)t.GetProperty("Sy")!.GetValue(m)!,
+            (double)t.GetProperty("Ox")!.GetValue(m)!, (double)t.GetProperty("Oy")!.GetValue(m)! };
         }
         var mp0 = MapProps(maps[0]!);
         var mp1 = MapProps(maps[1]!);

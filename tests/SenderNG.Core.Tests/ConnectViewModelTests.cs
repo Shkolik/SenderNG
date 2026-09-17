@@ -407,7 +407,7 @@ public class ConnectViewModelTests
         var vm = new ConnectViewModel(SettingsWith(), Global(), new StubComPorts(["COM3"]));
         try
         {
-            Assert.Equal(1, vm.Profiles.Count);
+            Assert.Single(vm.Profiles);
             Assert.False(vm.ProfileSelectorVisible);
         }
         finally

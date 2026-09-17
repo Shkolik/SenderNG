@@ -267,7 +267,7 @@ public class ProbeViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task Profiles_file_derives_from_the_profile_id()
+    public void Profiles_file_derives_from_the_profile_id()
     {
         // The legacy ProfilesFile override key is gone after the settings split:
         // the companion path derives from the active profile id.

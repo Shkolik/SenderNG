@@ -195,7 +195,7 @@ scratch, following the interfaces below.
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -211,7 +211,7 @@ contract, and they must never copy the SDK into their own package.
 
 The SDK references Core and brings the contracts with it; it ships no UI.
 A plugin that needs its own dialog or settings view references Avalonia
-itself, pinned to the host's resolved version (12.1.1) — a floating `12.*`
+itself, pinned to the host's resolved version (12.0.0) — a floating `12.*`
 once resolved to a mismatched build and crashed startup with
 `TypeLoadException`.
 

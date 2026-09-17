@@ -4,7 +4,7 @@
 
 ## 1. Goal
 
-SenderNG is a reimplementation of ioSender decoupled from the Windows environment: cross-platform (Windows + Linux), .NET 10 + Avalonia 12, with no WPF / `PresentationCore` / `System.Windows.Forms` / `System.Management` dependencies. The rewrite follows the philosophy already defined in this project:
+SenderNG is a reimplementation of ioSender decoupled from the Windows environment: cross-platform (Windows + Linux), .NET 9 + Avalonia 12, with no WPF / `PresentationCore` / `System.Windows.Forms` / `System.Management` dependencies. The rewrite follows the philosophy already defined in this project:
 
 - `docs/superpowers/specs/2026-08-22-senderng-design.md` — modular plugin architecture, MVVM + DI, portable settings, works without a controller (demo mode).
 - `docs/superpowers/specs/2026-08-22-layout-design.md` — the 4-panel layout (Left / Center tabs / Right / Flyout).
@@ -19,7 +19,7 @@ SenderNG is a reimplementation of ioSender decoupled from the Windows environmen
 ## 3. Priorities
 
 1. **Base widgets and processes** for foam and mill mode — current focus. Recreate the core UI widgets and the processes behind them so the app is genuinely usable in both modes.
-2. **3D view + advanced probing** — next.
+2. **Advanced probing** — next.
 3. **Steppers calibration** — after that.
 4. **Everything else** — lowest priority: lathe, dragknife, converters, and the rest of the deferred scope.
 
@@ -30,7 +30,7 @@ Implementation is based on the original ioSender **when possible**: if a process
 ## 5. Current architecture (SenderNG)
 
 ```
-src/SenderNG.Core          pure net10.0 engine + service layer (no UI)
+src/SenderNG.Core          pure net9.0 engine + service layer (no UI)
 src/SenderNG      shell: HostSetup DI wiring, MainWindow, fixed modules + plugins
 src/SenderNG.Modules.Dummy separate assembly proving the plugin-discovery path
 tests/SenderNG.Core.Tests  xUnit suite (dotnet test)
@@ -39,7 +39,7 @@ tests/SenderNG.Core.Tests  xUnit suite (dotnet test)
 - **Engine (ported from ioSender/foamcut, kept nearly whole):** `GCodeParser.cs` (~3610 L), `NGCExpr.cs` (~1520 L), `GCodeEmulator.cs` (~670 L), `GCode.cs`, `GCodeJob.cs`, `Machine.cs`. `Grbl.cs` is deliberately slim (~320 L vs upstream 3438 L): caps parsing (`ParseCaps`, `[OPT:...]`) ported; the rest are compile-only stubs — marked tech debt.
 - **Service layer (`IGrblService`):** `DemoGrblService` (in-memory grbl simulation — jog `$J=`, G90/G91/G92, M3/M4/M5, coolant + override realtime bytes, persistent `$$` store) vs `RealGrblService` (serial via `System.IO.Ports` or network via `TcpGrblTransport` — grblHAL Ethernet; Telnet/WebSocket still stubbed), swapped behind `GrblServiceProxy` so subscribers survive demo↔real↔network transitions. Realtime command bytes live in `GrblRealtime`. A `ConnectionChanged` event on `IGrblService` (forwarded by the proxy, raised on inner swaps) drives the UI's connected state.
 - **Module contract (`IModule`):** `Id` / `Name` / `Order` / `PanelHint {Left, Center, Right, Flyout, Menu, Bottom}` / `IsVisibleByDefault` / `CanHide` / `HotKeys` / `RegisterServices` / `CreateViewModel` / `CreateView`. `ModuleCatalog` scans assemblies; built-ins are registered explicitly in `HostSetup`. Settings surfaces live on a second seam, `IModuleSettingsProvider`: generic numeric/boolean fields or a custom settings view for the App Settings card, `AttachServices(IServiceProvider)` (called once after host build), and a `SettingsScope` declaration — `Profile` (default: section in the active machine profile) or `Global` (section in `global.json`; the Console module is the built-in example). The old `IModule.RegisterSettings` seam was removed (never invoked).
-- **Modules today:** fixed — DRO, Program, Console, GrblSettings, AppSettings, Offsets (flyout), Work Parameters; plugins — Jog, Cutting, Coolant, Macro, Probing, Mpos, Outline, Goto; plus Dummy (external assembly scan). Fixed modules are core and always visible (`CanHide = false`, no hide checkbox in App Settings); plugins are hideable. The Offsets module exposes its tool-table visibility toggle via an App Settings card; the Goto module exposes a persisted axis count (App-Settings dropdown) capped by the connected controller's axis count. Offsets and Work Parameters are capability-aware: they offer only the coordinate systems the firmware can actually write (classic grbl: G54–G59; grblHAL: also G59.1–G59.3, which classic firmware rejects with error 29) and the Offsets editor disables itself while the controller is in Alarm. The Offsets tool table is shown only when the user enabled it AND the controller is grblHAL with tool slots (classic grbl 1.1 / 1.2i forks have no `G10 L1`).
+- **Modules today:** fixed — DRO, Program, Console, GrblSettings, AppSettings, Offsets (flyout), Work Parameters; plugins — Jog, Cutting, Coolant, Macro, Probing, Mpos, Outline, Goto, Plotter (2D Skia), Plotter.Nex (3D Vulkan orbit view), Excellon, Hpgl (converters); plus Dummy (external assembly scan). Fixed modules are core and always visible (`CanHide = false`, no hide checkbox in App Settings); plugins are hideable. The Offsets module exposes its tool-table visibility toggle via an App Settings card; the Goto module exposes a persisted axis count (App-Settings dropdown) capped by the connected controller's axis count. Offsets and Work Parameters are capability-aware: they offer only the coordinate systems the firmware can actually write (classic grbl: G54–G59; grblHAL: also G59.1–G59.3, which classic firmware rejects with error 29) and the Offsets editor disables itself while the controller is in Alarm. The Offsets tool table is shown only when the user enabled it AND the controller is grblHAL with tool slots (classic grbl 1.1 / 1.2i forks have no `G10 L1`).
 - **State model:** `MachineState` (NumAxes, Status, Positions, Signals, OptionalSignals, Flood/Mist, Feed/Speed, FeedOvr/RapidOvr/SpindleOvr) is the portable replacement for ioSender's WPF-bound `GrblViewModel` (1434 L). `OptionalSignals` mirrors ioSender's `OptionalSignals` — the signal set discovered from `$I` (plus dynamic e-stop observation) that gates which optional LEDs the signals panel renders.
 - **Settings:** files sit next to the executable (fallback to `~/.config` / `%AppData%`): `global.json` (app-level: language, active profile pointer, recent files, profile registry, global-scoped module sections like Console) plus one file per machine profile under `profiles/` (`MachineProfile`: connection, machine-type preset, per-module sections — jog, macros, tools, probing …). The legacy Mill/Foam mode switch is gone: a machine is a named profile managed in App Settings (profile manager); legacy `settings.json` migrates on first run. See `docs/settings-migration.md`.
 - **Namespaces:** the original engine code keeps the upstream `CNC.Core` / `CNC.GCode` namespaces **unchanged** — namespace migration is not planned, so the original core stays intact and diffable against upstream. New code uses `SenderNG.Core` / `SenderNG`.
@@ -51,7 +51,7 @@ tests/SenderNG.Core.Tests  xUnit suite (dotnet test)
 | **Kept (ported)** | GCodeParser, NGCExpr, GCodeJob, GCodeEmulator, Machine, caps parsing, foam patches, Macro editor (foamcut), Probing, DRO/Jog/Coolant/Offsets concepts |
 | **Slimmed** | Grbl.cs (3438 → ~320 L, caps only + stubs), GrblViewModel (1434 L → `MachineState`) |
 | **Stripped** | WPF everywhere; custom streams (Serial/Telnet/Websocket/YModem/Eltima) → `System.IO.Ports`; `Properties.Settings`/`App.config` → portable settings; localization (9 locales → en/ru JSON catalog with per-plugin overrides — see `docs/localization.md`) |
-| **Deferred (lowest priority)** | 3D view (HelixToolkit), camera (AForge/V4L2), Lathe, DragKnife, Converters (Excellon/HPGL), SD card view, MPG, PID log, THC monitor, Trinamic view, steppers calibration wizard, Tool view |
+| **Deferred (lowest priority)** | camera (AForge/V4L2), Lathe, DragKnife, SD card view, MPG, PID log, THC monitor, Trinamic view, steppers calibration wizard, Tool view |
 | **Added** | Demo/offline mode, DI plugin system + assembly scan, 4-panel layout with per-module visibility, cutting realtime overrides panel (0x90–0x9E), live status parsing (WPos/FS:/Ov:), MDI history, program limits, state indicator, xUnit test suite (upstream had none) |
 
 > **Caveat:** the "stripped" rows reflect SenderNG's scope decisions and the foamcut snapshot. Any feature present in newer upstream `master` but absent in foamcut is likely just newer upstream work, not something SenderNG removed.
@@ -87,4 +87,4 @@ dotnet build SenderNG.sln
 dotnet test  SenderNG.sln   # or --filter <name> for a targeted run
 ```
 
-The build is **warning-free** (verified by full rebuild 2026-09-07: the xUnit1031 cluster and the last two CS8602 in `Converters.cs` are gone); keep it that way.
+The build is **warning-free** (verified by full rebuild 2026-09-17; earlier clean build 2026-09-07); keep it that way.

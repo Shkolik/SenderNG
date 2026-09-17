@@ -132,16 +132,16 @@ public static class PlotterNexConfig
                 continue;
             }
             var roles = type.Planes[p].Roles.Count;
-            var bad = g.WorldAxes is null || g.WorldAxes.Length != roles
-                || g.WorldAxes.Distinct().Count() != roles
-                || g.WorldAxes.Any(w => w < 0 || w > 2);
-            if (bad)
+            var worldAxes = g.WorldAxes;
+            if (worldAxes is null || worldAxes.Length != roles
+                || worldAxes.Distinct().Count() != roles
+                || worldAxes.Any(w => w < 0 || w > 2))
             {
                 s.Planes[p] = defaults.Planes[p];
             }
             else if (g.Origin is null || g.Origin.Length != 3)
             {
-                s.Planes[p] = new NexPlaneGeometry { WorldAxes = g.WorldAxes, Origin = [0, 0, 0] };
+                s.Planes[p] = new NexPlaneGeometry { WorldAxes = worldAxes, Origin = [0, 0, 0] };
             }
         }
         if (s.WireLength <= 0)

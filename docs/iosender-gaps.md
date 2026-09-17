@@ -270,7 +270,11 @@ Many already exist; the gaps are listed per widget.
       configuration" item — **designed, decided and landed**
       (`docs/machine-axis-schema.md`, 2026-09-07): the plotter's schema
       blocker is gone; it consumes `MachineType.Planes` (layer decomposition)
-      and `GrblInfo.AxisLetters` (labels).
+      and `GrblInfo.AxisLetters` (labels). **A true 3D orbit view LANDED
+      (2026-09-09+)** as the `SenderNG.Modules.Plotter.Nex` plugin — Vulkan
+      (HelixToolkit.Nex), hidden by default, experimental — so the 3D-view
+      gap is now "orbit exists, not yet the unified productized layer+tool
+      engine"; see `src/SenderNG.Modules.Plotter.Nex/docs/README.md`.
 - [ ] **Height-map 3D preview** — ioSender renders the probed grid as a mesh;
       SenderNG has the map data + XML save/load but no 3D visualization.
       Renderer candidates (researched with machine-config-research.md): the
@@ -367,7 +371,11 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
       a full rebuild on 2026-09-07 showed only two CS8602 in `Converters.cs`
       (the `EnumAndBoolConverter` guard didn't flow null-state into the indexer
       accesses — fixed by hoisting `values[0]` into the pattern local). The
-      build is warning-free; keep it that way (architecture §9).
+      build is warning-free; keep it that way (architecture §9). Verified again
+      by full rebuild 2026-09-17 after sweeping the CS8601 in
+      `PlotterNexConfig.cs`, the CS8605 cluster in `PlotterLiveRunHeadlessTests.cs`,
+      the CS1998 in `ProbeViewModelTests.cs` and the xUnit2013 in
+      `ConnectViewModelTests.cs`.
 
 ## Reference matrix (ioSender → SenderNG)
 
@@ -394,7 +402,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | WorkParametersControl | `Fixed/WorkParameters` flyout | done (read/select; editable write-back in `Fixed/Offsets`) |
 | FileActionControl | File → Open/Save/Close | P1: Save = picker pre-filled with current name (no implicit overwrite) |
 | StepperCalibrationWizard | — | **missing** (P3) |
-| GCodeViewer / RenderControl | `Modules/Plotter` plugin | done (2026-09-08) — flat quadrant views + iso loft, frontier coloring (P2) |
+| GCodeViewer / RenderControl | `Modules/Plotter` plugin | done (2026-09-08) — flat quadrant views + iso loft, frontier coloring (P2); sibling `Modules/Plotter.Nex` adds an experimental Vulkan 3D orbit view (2026-09-09+, hidden by default) |
 | ProbeVerify / ConfigControl / MacroDialog | — | **missing** (P2) |
 | SDCardView | — | deferred (P4) |
 | Camera | — | deferred (P4) |

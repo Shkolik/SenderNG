@@ -116,7 +116,14 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   external plugin (`src/SenderNG.Modules.Plotter`) — flat quadrant views
   (foam: both carriages on one canvas, diagonal quadrants), two-carriage iso
   loft, live frontier coloring + tool glyph, vector render path (30fps
-  throttle + interaction decimation — the M4 raster cache was reverted in M5). See  **Storage prerequisite landed:**
+  throttle + interaction decimation — the M4 raster cache was reverted in M5).
+  **3D orbit LANDED (2026-09-09+):** `src/SenderNG.Modules.Plotter.Nex` — a
+  second external plugin implementing the true 3D orbit view the V1 decision
+  deferred: Vulkan-backed (HelixToolkit.Nex), "Plot 3D" center tab (order 23,
+  behind Skia's order 22), hidden by default (`IsVisibleByDefault=false`),
+  experimental/PoC (see
+  `src/SenderNG.Modules.Plotter.Nex/docs/README.md`).
+  See  **Storage prerequisite landed:**
   profiles replace the Mill/Foam "mode" split (one file per machine +
   `global.json`, profile manager in App Settings) — see
   `docs/settings-migration.md`. **Schema landed and consumers migrated
