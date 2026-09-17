@@ -120,6 +120,7 @@
     "module.jog.feedHold": "Feed hold",
     "module.jog.syncGantries": "Synchronize both gantries",
     "module.jog.planeHidden": "Second carriage plane hidden — the controller reports fewer axes",
+    "module.jog.continuous": "Continuous",
     "module.dro.zeroAxis": "Zero axis",
     "module.dro.zeroAll": "Zero all axes",
     "module.work-parameters.offset": "Offset",

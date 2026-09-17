@@ -71,6 +71,7 @@ public class JogModule : IModule, IModuleSettingsProvider, ILocalizedModule
             ["module.jog.feedHold"] = "Feed hold",
             ["module.jog.syncGantries"] = "Synchronize both gantries",
             ["module.jog.planeHidden"] = "Second carriage plane hidden — the controller reports fewer axes",
+            ["module.jog.continuous"] = "Continuous",
         };
 
     public void RegisterServices(IServiceCollection services) =>
