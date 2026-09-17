@@ -169,8 +169,9 @@ public sealed class NexPlotTool : IPlotTool
         _lastWireB = p1;
         // GPU content never changes here — mark the swap-pump pending instead.
         _rebuildGate.MarkDirty();
-        SetConePosition(_coneNodeA, p0, OpeningRotation(p0, p1));
-        SetConePosition(_coneNodeB, p1, OpeningRotation(p1, p0));
+        var (rotationA, rotationB) = ConeOrientations(p0, p1);
+        SetConePosition(_coneNodeA, p0, rotationA);
+        SetConePosition(_coneNodeB, p1, rotationB);
     }
 
     /// <summary>Write the connector wire into <paramref name="target"/>: two
@@ -230,15 +231,17 @@ public sealed class NexPlotTool : IPlotTool
         node.NotifyTransformChanged();
     }
 
-    /// <summary>Rotation carrying the cone's local +Z (its opening) from
-    /// <paramref name="from"/> toward <paramref name="to"/>, so two cones on the
-    /// same wire face each other. Identity for a zero-length wire.</summary>
-    internal static Quaternion OpeningRotation(Vector3 from, Vector3 to)
+    /// <summary>Orientations for the two wire-end cones: each cone's local +Z
+    /// (its opening) lies along the wire with its apex at the endpoint and its
+    /// body opening <em>away</em> from the other end, so the two points meet the
+    /// wire from opposite sides. Identity for a zero-length wire.</summary>
+    internal static (Quaternion A, Quaternion B) ConeOrientations(Vector3 p0, Vector3 p1)
     {
-        var delta = to - from;
+        var delta = p1 - p0;
         if (delta.LengthSquared() <= 1e-12f)
-            return Quaternion.Identity;
-        return ConeOrientation.FromUnitZTo(delta);
+            return (Quaternion.Identity, Quaternion.Identity);
+        var d = Vector3.Normalize(delta);
+        return (ConeOrientation.FromUnitZTo(-d), ConeOrientation.FromUnitZTo(d));
     }
 
     /// <inheritdoc/>

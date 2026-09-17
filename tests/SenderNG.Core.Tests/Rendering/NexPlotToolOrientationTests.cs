@@ -45,35 +45,45 @@ public class NexPlotToolOrientationTests
     [InlineData(1f, 0f, 0f)]
     [InlineData(0f, 1f, 0f)]
     [InlineData(-1f, 0f, 0f)]
-    public void OpeningRotation_points_the_cone_from_one_end_toward_the_other(
+    [InlineData(10f, 5f, -3f)]
+    public void Cone_orientations_aim_each_cone_away_from_the_other_end(
         float x, float y, float z)
     {
-        var to = new Vector3(x, y, z);
-
-        var mapped = Vector3.Transform(Vector3.UnitZ, NexPlotTool.OpeningRotation(Vector3.Zero, to));
-
-        Assert.True(Vector3.Distance(mapped, Vector3.Normalize(to)) < 1e-4f, $"got {mapped}");
-    }
-
-    [Fact]
-    public void OpeningRotation_faces_a_tilted_wire()
-    {
         var p0 = Vector3.Zero;
-        var p1 = new Vector3(10f, 5f, -3f);
-        var expected = Vector3.Normalize(p1 - p0);
+        var p1 = new Vector3(x, y, z);
+        var d = Vector3.Normalize(p1 - p0);
 
-        var a = Vector3.Transform(Vector3.UnitZ, NexPlotTool.OpeningRotation(p0, p1));
-        var b = Vector3.Transform(Vector3.UnitZ, NexPlotTool.OpeningRotation(p1, p0));
+        var (a, b) = NexPlotTool.ConeOrientations(p0, p1);
 
-        Assert.True(Vector3.Distance(a, expected) < 1e-4f, $"A got {a}");
-        Assert.True(Vector3.Distance(b, -expected) < 1e-4f, $"B got {b}");
+        var mappedA = Vector3.Transform(Vector3.UnitZ, a);
+        var mappedB = Vector3.Transform(Vector3.UnitZ, b);
+        Assert.True(Vector3.Distance(mappedA, -d) < 1e-4f, $"A got {mappedA}");
+        Assert.True(Vector3.Distance(mappedB, d) < 1e-4f, $"B got {mappedB}");
     }
 
     [Fact]
-    public void OpeningRotation_is_identity_for_a_zero_length_wire()
+    public void Cone_orientations_follow_the_wire_direction_not_the_origin()
+    {
+        var p0 = new Vector3(-4f, 7f, 2f);
+        var p1 = new Vector3(2f, 7f, 2f);
+        var d = Vector3.Normalize(p1 - p0);
+
+        var (a, b) = NexPlotTool.ConeOrientations(p0, p1);
+
+        var mappedA = Vector3.Transform(Vector3.UnitZ, a);
+        var mappedB = Vector3.Transform(Vector3.UnitZ, b);
+        Assert.True(Vector3.Distance(mappedA, -d) < 1e-4f, $"A got {mappedA}");
+        Assert.True(Vector3.Distance(mappedB, d) < 1e-4f, $"B got {mappedB}");
+    }
+
+    [Fact]
+    public void Cone_orientations_are_identity_for_a_zero_length_wire()
     {
         var p = new Vector3(3f, 4f, 5f);
 
-        Assert.Equal(Quaternion.Identity, NexPlotTool.OpeningRotation(p, p));
+        var (a, b) = NexPlotTool.ConeOrientations(p, p);
+
+        Assert.Equal(Quaternion.Identity, a);
+        Assert.Equal(Quaternion.Identity, b);
     }
 }
