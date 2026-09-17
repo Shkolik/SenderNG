@@ -85,12 +85,16 @@ internal static class ConeMesh
                 var a = i0 + j * 2;
                 var c = (a + 6) % total;
                 var d = c + 1;
+                // Every triangle winds front-facing OUTWARD (across the cap's rim
+                // the +Z face, across the skirt the radial face), so the closed
+                // cone reads solid under back-face culling (opaque pass). The
+                // apex/skirt joint triangles stay degenerate either way.
                 g.Indices.Add((uint)(a + 1));
+                g.Indices.Add((uint)c);
                 g.Indices.Add((uint)a);
-                g.Indices.Add((uint)c);
                 g.Indices.Add((uint)(a + 1));
-                g.Indices.Add((uint)c);
                 g.Indices.Add((uint)d);
+                g.Indices.Add((uint)c);
             }
         }
 

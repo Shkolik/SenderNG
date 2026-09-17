@@ -100,8 +100,8 @@ public partial class PlotterNexView : UserControl
     private double _fps;
     private int _probeCounter;
     private int _lastProbe;
-    private readonly int[] _recentRed = new int[8];
-    private int _recentRedHead;
+    // private readonly int[] _recentRed = new int[8]; // fans BMP capture diag (disabled)
+    // private int _recentRedHead; // fans BMP capture diag (disabled)
 
     private bool _panActive;
     private bool _orbitActive;
@@ -518,6 +518,7 @@ public partial class PlotterNexView : UserControl
                     PoolDiagnostics.LogLine(DumpFrameGrid(fb.Address, fb.RowBytes, (int)w, (int)h));
                 }
             }
+            /*
             // DIAGNOSTIC: capture full frames to inspect the red-fan artifact
             // off-machine. First probe = clean reference; a fan projects
             // red-pixel counts far above any legitimate geometry (idle ~2k,
@@ -552,6 +553,7 @@ public partial class PlotterNexView : UserControl
                     PoolDiagnostics.LogLine($"[T{_readbackTicks}.fanscene] {scene.DumpContent()} cam={scene.DumpCamera()} vm={_vm!.LastControllerPose}");
                 }
             }
+            */
             GpuImage.InvalidateVisual();
             _diagRing[_diagHead = (_diagHead + 1) % _diagRing.Length] =
                 $"[T{_readbackTicks}] {string.Join(" | ", scene.LiveLayerDumps())} runs={_vm!.DumpRunState()}";

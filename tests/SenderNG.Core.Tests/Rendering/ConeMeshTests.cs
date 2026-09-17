@@ -57,6 +57,48 @@ public class ConeMeshTests
     }
 
     [Fact]
+    public void All_real_triangles_wind_outward()
+    {
+        var g = ConeMesh.Build();
+        var height = ConeMesh.DefaultHeight;
+
+        var capCount = 0;
+        var sideCount = 0;
+        for (var t = 0; t + 2 < g.Indices.Count; t += 3)
+        {
+            var p0 = g.Vertices[(int)g.Indices[t]];
+            var p1 = g.Vertices[(int)g.Indices[t + 1]];
+            var p2 = g.Vertices[(int)g.Indices[t + 2]];
+            var e1 = new Vector3(p1.X - p0.X, p1.Y - p0.Y, p1.Z - p0.Z);
+            var e2 = new Vector3(p2.X - p0.X, p2.Y - p0.Y, p2.Z - p0.Z);
+            var n = Vector3.Cross(e1, e2);
+            if (n.Length() < 1e-6f)
+                continue; // zero-area joint/sliver triangle, not structurally meaningful
+
+            var verts = new[] { p0, p1, p2 };
+            var apexVerts = verts.Count(p => p.Z <= 1e-3f);
+            var rimVerts = verts.Where(p => p.Z >= height - 1e-3f).ToList();
+            if (apexVerts == 1 && rimVerts.Count == 2)
+            {
+                // Skirt triangle: normal must point away from the axis at the rim.
+                var radial = new Vector3(rimVerts[0].X, rimVerts[0].Y, 0f);
+                var dot = Vector3.Dot(n, radial);
+                Assert.True(dot > 0f, $"skirt triangle {t / 3} winds inward (n·r = {dot})");
+                sideCount++;
+            }
+            else if (rimVerts.Count == 3)
+            {
+                // Cap fan triangle: normal must face +Z, out of the base.
+                Assert.True(n.Z > 0f, $"cap wedge {t / 3} winds inward (normal Z = {n.Z})");
+                capCount++;
+            }
+        }
+
+        Assert.Equal(ConeMesh.DefaultSegments, capCount);
+        Assert.Equal(ConeMesh.DefaultSegments, sideCount);
+    }
+
+    [Fact]
     public void Build_accepts_custom_dimensions()
     {
         var g = ConeMesh.Build(thetaDiv: 8, radius: 2f, height: 5f);

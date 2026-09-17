@@ -209,7 +209,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             var node = _root.World.CreateMeshNode($"axis-cone-{i}");
             node.Geometry = _axisConeGeometry;
             node.MaterialProperties = material;
-            node.IsTransparent = true;
+            node.IsTransparent = false;
             node.Enabled = false;
             _root.AddChild(node);
             _axisConeNodes[i] = node;

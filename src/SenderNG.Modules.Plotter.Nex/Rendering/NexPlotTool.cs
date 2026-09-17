@@ -101,10 +101,11 @@ public sealed class NexPlotTool : IPlotTool
         _segmentNode.Geometry = _wireGeometry;
         root.AddChild(_segmentNode);
 
-        // Filled cone — two nodes sharing ONE static geometry and ONE Unlit material.
-        // IsTransparent routes both through the WBOIT pass (CullMode.None), so the
-        // cone renders double-sided (no invisible-from-below culling) even at full
-        // opacity. Static geometry is uploaded once here; the cones then only ever
+        // Filled cone — two nodes sharing ONE static geometry and ONE CAD material.
+        // IsTransparent=false puts the cone in the opaque pass (CullMode.Back):
+        // the closed mesh winds outward everywhere (see ConeMesh.Build), so the
+        // cone reads solid from every angle with correct depth/occlusion.
+        // Static geometry is uploaded once here; the cones then only ever
         // move via node transforms (NodeInfo path).
         _coneGeometry = BuildConeMesh();
         _engine.Add(_coneGeometry);
@@ -115,12 +116,12 @@ public sealed class NexPlotTool : IPlotTool
         _coneNodeA = root.World.CreateMeshNode("tool-cone");
         _coneNodeA.Geometry = _coneGeometry;
         _coneNodeA.MaterialProperties = _coneMaterial;
-        _coneNodeA.IsTransparent = true;
+        _coneNodeA.IsTransparent = false;
         root.AddChild(_coneNodeA);
         _coneNodeB = root.World.CreateMeshNode("tool-cone-2");
         _coneNodeB.Geometry = _coneGeometry;
         _coneNodeB.MaterialProperties = _coneMaterial;
-        _coneNodeB.IsTransparent = true;
+        _coneNodeB.IsTransparent = false;
         root.AddChild(_coneNodeB);
     }
 
