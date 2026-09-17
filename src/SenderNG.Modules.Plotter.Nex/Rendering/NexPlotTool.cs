@@ -140,9 +140,10 @@ public sealed class NexPlotTool : IPlotTool
         {
             _segmentNode.Enabled = false;
             _coneNodeB.Enabled = false;
-            SetConePosition(_coneNodeB, ParkedPosition);
+            SetConePosition(_coneNodeB, ParkedPosition, Quaternion.Identity);
             SetConePosition(_coneNodeA,
-                endpoints.Points.Length == 1 ? endpoints.Points[0] : Vector3.Zero);
+                endpoints.Points.Length == 1 ? endpoints.Points[0] : Vector3.Zero,
+                Quaternion.Identity);
             // Only re-stage the wire when the value changed. Idle polls
             // call UpdatePosition with the same endpoints tens of times a second;
             // re-staging (new static geometry + dispose) on every poll kept the
@@ -168,8 +169,8 @@ public sealed class NexPlotTool : IPlotTool
         _lastWireB = p1;
         // GPU content never changes here — mark the swap-pump pending instead.
         _rebuildGate.MarkDirty();
-        SetConePosition(_coneNodeA, p0);
-        SetConePosition(_coneNodeB, p1);
+        SetConePosition(_coneNodeA, p0, OpeningRotation(p0, p1));
+        SetConePosition(_coneNodeB, p1, OpeningRotation(p1, p0));
     }
 
     /// <summary>Write the connector wire into <paramref name="target"/>: two
@@ -222,10 +223,22 @@ public sealed class NexPlotTool : IPlotTool
     /// <summary>Write the cone transform and notify the ECS change so the engine
     /// refreshes the node's GPU row. Direct writes alone keep the drawn cone at
     /// its first-upload transform forever.</summary>
-    private static void SetConePosition(Node node, Vector3 position)
+    private static void SetConePosition(Node node, Vector3 position, Quaternion rotation)
     {
         node.Transform.Translation = position;
+        node.Transform.Rotation = rotation;
         node.NotifyTransformChanged();
+    }
+
+    /// <summary>Rotation carrying the cone's local +Z (its opening) from
+    /// <paramref name="from"/> toward <paramref name="to"/>, so two cones on the
+    /// same wire face each other. Identity for a zero-length wire.</summary>
+    internal static Quaternion OpeningRotation(Vector3 from, Vector3 to)
+    {
+        var delta = to - from;
+        if (delta.LengthSquared() <= 1e-12f)
+            return Quaternion.Identity;
+        return ConeOrientation.FromUnitZTo(Vector3.Normalize(delta));
     }
 
     /// <inheritdoc/>
