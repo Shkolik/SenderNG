@@ -224,4 +224,59 @@ public static class CameraGestures
         if (camera.Up.LengthSquared() <= 1e-12f)
             camera.Up = Vector3.UnitY;
     }
+
+    /// <summary>World point where the cursor ray (unprojected through the engine's
+    /// NDC convention — cursor and viewport both normalized by <c>dpiScale</c>,
+    /// inverted Y, near <c>z = 1</c>, far <c>z = 0.95</c>, homogeneous transform by
+    /// <see cref="Matrix4x4"/>) crosses
+    /// the plane through <paramref name="planePoint"/> perpendicular to
+    /// <paramref name="planeNormal"/>. Falls back to <paramref name="planePoint"/>
+    /// for degenerate input: invalid viewport, near-zero ray, or a ray parallel to
+    /// the plane. Returns a finite point in all cases.</summary>
+    public static Vector3 CursorRayPlanePivot(
+        Matrix4x4 invViewProjection,
+        Vector2 cursorPx,
+        float viewportWpx,
+        float viewportHpx,
+        float dpiScale,
+        Vector3 planePoint,
+        Vector3 planeNormal)
+    {
+        var dpi = MathF.Max(dpiScale, 1e-6f);
+        var cursor = cursorPx / dpi;
+        var w = viewportWpx / dpi;
+        var h = viewportHpx / dpi;
+        if (w < 1f || h < 1f)
+            return planePoint;
+
+        var ndcX = (2f * cursor.X / w) - 1f;
+        var ndcY = -((2f * cursor.Y / h) - 1f);
+
+        var near = HomogeneousTransform(invViewProjection, new Vector4(ndcX, ndcY, 1f, 1f));
+        var far = HomogeneousTransform(invViewProjection, new Vector4(ndcX, ndcY, 0.95f, 1f));
+        if (near is null || far is null)
+            return planePoint;
+
+        var dir = far.Value - near.Value;
+        var lenSq = dir.LengthSquared();
+        if (lenSq < 1e-12f)
+            return planePoint;
+        dir /= MathF.Sqrt(lenSq);
+
+        var denom = Vector3.Dot(dir, planeNormal);
+        if (MathF.Abs(denom) < 1e-6f)
+            return planePoint;
+        var t = Vector3.Dot(planePoint - near.Value, planeNormal) / denom;
+        return near.Value + dir * t;
+    }
+
+    /// <summary>Row-vector homogeneous transform (<c>v * m</c>) with perspective
+    /// divide. <see langword="null"/> when the clip-space W is degenerate.</summary>
+    private static Vector3? HomogeneousTransform(Matrix4x4 m, Vector4 v)
+    {
+        var r = Vector4.Transform(v, m);
+        if (MathF.Abs(r.W) < 1e-9f)
+            return null;
+        return new Vector3(r.X / r.W, r.Y / r.W, r.Z / r.W);
+    }
 }
