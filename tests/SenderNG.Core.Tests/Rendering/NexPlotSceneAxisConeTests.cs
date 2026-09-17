@@ -126,4 +126,21 @@ public class NexPlotSceneAxisConeTests
         Assert.Equal(new Vector4(0f, 0f, 0f, 1f), g.Vertices[0]);
         Assert.Equal(new Vector4(0f, 0f, 0f, 1f), g.Vertices[1]);
     }
+
+    [Theory]
+    [InlineData("X", 1f, 0f, 0f)]
+    [InlineData("Z", 0f, 0f, 1f)]
+    public void The_cone_base_meets_the_shaft_end_staged_by_FillAxisShaft(
+        string label, float dx, float dy, float dz)
+    {
+        var anchor = new Vector3(2f, 3f, 4f);
+        const float len = 10f;
+        var direction = new Vector3(dx, dy, dz);
+
+        var (tip, _, _) = NexPlotScene.AxisConeTransform(label, anchor, len);
+        var coneBase = tip - direction * NexPlotScene.AxisConeHeight(len);
+        var shaftEnd = anchor + direction * (len - NexPlotScene.AxisConeHeight(len));
+
+        Assert.Equal(shaftEnd, coneBase);
+    }
 }
