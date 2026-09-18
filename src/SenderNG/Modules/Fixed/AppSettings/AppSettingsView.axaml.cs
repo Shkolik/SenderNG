@@ -36,6 +36,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using CNC.Core.ViewModels;
 
 namespace SenderNG.Modules.Fixed;
 
@@ -44,5 +47,52 @@ public partial class AppSettingsView : UserControl
     public AppSettingsView()
     {
         InitializeComponent();
+        AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
+    }
+
+    private HotkeysSettingsLeaf? Leaf => (DataContext as AppSettingsViewModel)?.SelectedHotkeysLeaf;
+
+    private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
+    {
+        var leaf = Leaf;
+        if (leaf is null || !leaf.IsRecording)
+            return;
+
+        if (e.Key == Key.Escape)
+        {
+            leaf.CancelRecord();
+            e.Handled = true;
+            return;
+        }
+
+        if (AvaloniaHotkeyInterop.IsModifierKey(e.Key))
+        {
+            leaf.ReportModifierOnly();
+            e.Handled = true;
+            return;
+        }
+
+        if (!AvaloniaHotkeyInterop.TryGesture(e.Key, e.KeyModifiers, out var gesture) || gesture is null)
+        {
+            leaf.ReportInvalid();
+            e.Handled = true;
+            return;
+        }
+
+        leaf.ApplyRecordedGesture(gesture);
+        e.Handled = true;
+    }
+
+    private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var leaf = Leaf;
+        if (leaf is null || !leaf.IsRecording)
+            return;
+
+        // Clicking the armed cell re-arms via its command; any other click cancels.
+        if (e.Source is Control { } control && control.Classes.Contains("hotkey-cell"))
+            return;
+        leaf.CancelRecord();
     }
 }

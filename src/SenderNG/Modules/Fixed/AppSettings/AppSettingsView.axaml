@@ -104,6 +104,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                           x:DataType="vm:ModuleSettingsLeaf">
                                 <TextBlock Text="{Binding Name}" FontSize="11" Foreground="#222" Margin="2,2" />
                             </DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:HotkeysSettingsLeaf}"
+                                          x:DataType="vm:HotkeysSettingsLeaf">
+                                <TextBlock Text="{Binding Name}" FontSize="11" Foreground="#222" Margin="2,2" />
+                            </DataTemplate>
                         </TreeView.DataTemplates>
                     </TreeView>
                 </ScrollViewer>
@@ -279,6 +283,78 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                                         <TextBox Text="{Binding Value}" Width="110" Height="24" MinHeight="24"
                                                                  CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                                                  FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </DataTemplate>
+
+                            <!-- Hotkeys editor -->
+                            <DataTemplate DataType="{x:Type vm:HotkeysSettingsLeaf}"
+                                          x:DataType="vm:HotkeysSettingsLeaf">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Orientation="Vertical" Spacing="10" Margin="0,2,10,4">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="#222" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Description}" FontSize="11" Foreground="#666"
+                                                   TextWrapping="Wrap" IsVisible="{Binding HasDescription}" />
+                                        <Rectangle Height="1" Fill="#ddd" IsVisible="{Binding HasDescription}" />
+
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBox Text="{Binding SearchText, Mode=TwoWay}" Width="220" Height="24"
+                                                     MinHeight="24" FontSize="11" CornerRadius="0" BorderBrush="#999"
+                                                     BorderThickness="1" VerticalContentAlignment="Center" Padding="4,0"
+                                                     PlaceholderText="{loc:Loc appSettings.hotkeys.searchPlaceholder}" />
+                                            <Button Content="{loc:Loc appSettings.hotkeys.restoreAll}"
+                                                    Command="{Binding RestoreAllCommand}"
+                                                    FontSize="11" Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
+                                        </StackPanel>
+
+                                        <ItemsControl ItemsSource="{Binding Groups}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:HotkeyGroup">
+                                                    <StackPanel IsVisible="{Binding IsVisible}" Margin="0,4,0,0">
+                                                        <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
+                                                                   Foreground="#333" />
+                                                        <Rectangle Height="1" Fill="#ddd" />
+                                                        <ItemsControl ItemsSource="{Binding Rows}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="vm:HotkeyEditorRow">
+                                                                    <Grid IsVisible="{Binding IsVisible}"
+                                                                          ColumnDefinitions="220,170,Auto,Auto,*" Margin="0,2,0,0">
+                                                                        <TextBlock Grid.Column="0" Text="{Binding DisplayName}"
+                                                                                   FontSize="11" VerticalAlignment="Center"
+                                                                                   TextTrimming="CharacterEllipsis" />
+                                                                        <Button Grid.Column="1" Classes="hotkey-cell" Tag="{Binding}"
+                                                                                Content="{Binding RecordText}"
+                                                                                Command="{Binding RecordCommand}"
+                                                                                FontSize="11" Height="24" MinHeight="24"
+                                                                                CornerRadius="0" Padding="6,0"
+                                                                                HorizontalAlignment="Stretch"
+                                                                                HorizontalContentAlignment="Left" />
+                                                                        <Button Grid.Column="2" Content="{loc:Loc appSettings.hotkeys.clear}"
+                                                                                Command="{Binding ClearCommand}"
+                                                                                IsEnabled="{Binding CanClear}"
+                                                                                FontSize="11" Height="24" MinHeight="24"
+                                                                                CornerRadius="0" Padding="8,0" Margin="6,0,0,0" />
+                                                                        <Button Grid.Column="3"
+                                                                                Content="{loc:Loc appSettings.hotkeys.restoreDefault}"
+                                                                                Command="{Binding RestoreCommand}"
+                                                                                IsEnabled="{Binding CanRestore}"
+                                                                                FontSize="11" Height="24" MinHeight="24"
+                                                                                CornerRadius="0" Padding="8,0" Margin="6,0,0,0" />
+                                                                        <TextBlock Grid.Column="4" Text="{Binding Message}"
+                                                                                   IsVisible="{Binding HasMessage}"
+                                                                                   FontSize="10" Foreground="#a33"
+                                                                                   VerticalAlignment="Center" Margin="8,0,0,0" />
+                                                                    </Grid>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
                                                     </StackPanel>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
