@@ -42,6 +42,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Core.Localization;
 using SenderNG.Localization;
 using SenderNG.ViewModels;
 using SenderNG.Core.Commands;
@@ -61,6 +62,19 @@ public sealed class AxisPosition : ViewModelBase
         get => _position;
         set => SetField(ref _position, value);
     }
+
+    /// <summary>Zero-button tooltip: "Zero axis" plus the bound gesture for the
+    /// matching <c>dro.zero.</c> action (none → no brackets).</summary>
+    public string Tip
+    {
+        get
+        {
+            var gesture = AppHotkeys.Current?.GestureFor($"dro.zero.{Letter.ToLowerInvariant()}");
+            return HotkeyTipSource.Compose(LocText.Resolve("module.dro.zeroAxis", "Zero axis"), gesture);
+        }
+    }
+
+    public void RefreshTip() => OnPropertyChanged(nameof(Tip));
 }
 
 public class DroViewModel : ViewModelBase
@@ -80,6 +94,12 @@ public class DroViewModel : ViewModelBase
 
         ZeroAxisCommand = new DelegateCommand(p => _ = ZeroAxisAsync(p as string));
         ZeroAllCommand = new DelegateCommand(_ => _ = ZeroAllAsync());
+
+        if (LocalizationService.Current is { } loc)
+            loc.Changed += OnLocaleChanged;
+        AppHotkeys.Changed += OnAppHotkeysChanged;
+        if (AppHotkeys.Current is { } hotkeys)
+            hotkeys.Changed += OnHotkeysChanged;
     }
 
     public ICommand ZeroAxisCommand { get; }
@@ -128,6 +148,23 @@ public class DroViewModel : ViewModelBase
         catch (Exception ex)
         {
             Status = LocText.Format("module.dro.zeroAllFailed", "Zero all failed: {0}", ex.Message);
+        }
+    }
+
+    private void RefreshTips()
+    {
+        foreach (var axis in Axes)
+            axis.RefreshTip();
+    }
+
+    private void OnLocaleChanged(object? sender, EventArgs e) => UiThread.Post(RefreshTips);
+    private void OnHotkeysChanged(object? sender, EventArgs e) => UiThread.Post(RefreshTips);
+    private void OnAppHotkeysChanged(object? sender, EventArgs e)
+    {
+        if (AppHotkeys.Current is { } hotkeys)
+        {
+            hotkeys.Changed += OnHotkeysChanged;
+            RefreshTips();
         }
     }
 

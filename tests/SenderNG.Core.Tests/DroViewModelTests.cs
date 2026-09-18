@@ -35,6 +35,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Reactive.Subjects;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Core.Modules;
+using SenderNG.Core.Services;
+using SenderNG.Localization;
 using SenderNG.Modules.Fixed;
 
 namespace SenderNG.Core.Tests;
@@ -150,6 +153,55 @@ public class DroViewModelTests
         await Task.Delay(50);
 
         Assert.Equal(1, grbl.RefreshCount);
+    }
+
+    [Fact]
+    public void Zero_cell_tip_shows_the_bound_gesture_and_tracks_remap()
+    {
+        var previousHotkeys = AppHotkeys.Current;
+        try
+        {
+            var settings = new SettingsService(
+                Path.Combine(Path.GetTempPath(), "senderng-dro-" + Guid.NewGuid().ToString("N")));
+            var hotkeys = new HotkeyService(settings);
+            hotkeys.RegisterAction(
+                new CommandHotkeyAction("dro.zero.x", "Zero X", null, () => { }), "Ctrl+Shift+X");
+            hotkeys.RegisterAction(
+                new CommandHotkeyAction("dro.zero.z", "Zero Z", null, () => { }), "Ctrl+Shift+Z");
+            AppHotkeys.Current = hotkeys;
+
+            var vm = new DroViewModel(new RecordingGrbl());
+
+            Assert.Equal("Zero axis [Ctrl+Shift+X]", vm.Axes[0].Tip);
+            Assert.Equal("Zero axis [Ctrl+Shift+Z]", vm.Axes[2].Tip);
+
+            hotkeys.ClearGesture("dro.zero.x");
+            Assert.Equal("Zero axis", vm.Axes[0].Tip);
+
+            hotkeys.SetGesture("dro.zero.x", "Ctrl+Shift+D9");
+            Assert.Equal("Zero axis [Ctrl+Shift+D9]", vm.Axes[0].Tip);
+        }
+        finally
+        {
+            AppHotkeys.Current = previousHotkeys;
+        }
+    }
+
+    [Fact]
+    public void Zero_cell_tip_has_no_brackets_for_axes_without_an_action()
+    {
+        var previousHotkeys = AppHotkeys.Current;
+        try
+        {
+            AppHotkeys.Current = new HotkeyService(new SettingsService(
+                Path.Combine(Path.GetTempPath(), "senderng-dro-" + Guid.NewGuid().ToString("N"))));
+            var vm = new DroViewModel(new RecordingGrbl());
+            Assert.Equal("Zero axis", vm.Axes[0].Tip);
+        }
+        finally
+        {
+            AppHotkeys.Current = previousHotkeys;
+        }
     }
 }
 

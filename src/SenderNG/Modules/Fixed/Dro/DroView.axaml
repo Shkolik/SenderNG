@@ -34,13 +34,14 @@ BSD 3-Clause License: see this file for the full license text.
                                 Width="34" Height="32" MinHeight="32" CornerRadius="0"
                                 Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0"
                                 FontSize="15" FontWeight="SemiBold" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                                ToolTip.Tip="{loc:Loc module.dro.zeroAxis}" />
+                                ToolTip.Tip="{Binding Tip}" />
                     </Grid>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
         <Button Content="{loc:Loc module.dro.zeroAll}" Command="{Binding ZeroAllCommand}"
+                ToolTip.Tip="{loc:HotkeyTip module.dro.zeroAll, dro.zero.all}"
                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                 Height="32" MinHeight="32" CornerRadius="0"
                 Background="#eee" BorderBrush="#999" BorderThickness="1"
