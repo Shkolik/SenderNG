@@ -59,6 +59,7 @@ public class OutlineViewModel : ViewModelBase
     private readonly ProgramViewModel _program;
     private int _feedRate;
     private string _status = string.Empty;
+    private MachineType _machineType;
 
     public OutlineViewModel(IGrblService grbl, SettingsService settings, ProgramViewModel program)
     {
@@ -67,6 +68,7 @@ public class OutlineViewModel : ViewModelBase
         _program = program ?? throw new ArgumentNullException(nameof(program));
 
         _feedRate = ReadFeedRate(_settings);
+        _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
         GoCommand = new DelegateCommand(_ => _ = GoAsync(), _ => HasProgramLimits);
 
         // Enable/disable the Go button as programs load and unload.
@@ -85,6 +87,7 @@ public class OutlineViewModel : ViewModelBase
 
     private void OnSettingsChanged()
     {
+        _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
         var value = ReadFeedRate(_settings);
         if (value != _feedRate)
         {
@@ -119,28 +122,29 @@ public class OutlineViewModel : ViewModelBase
         if (!HasProgramLimits)
             return;
 
-        var x = _program.LimitRows.FirstOrDefault(r => r.Letter == "X");
-        var y = _program.LimitRows.FirstOrDefault(r => r.Letter == "Y");
-        if (x is null || y is null)
+        var sweep = BuildSweepPlanes();
+        if (sweep.Count == 0)
         {
-            Status = LocText.Resolve("module.outline.noXyLimits", "Outline: program has no X/Y limits");
+            Status = LocText.Resolve("module.outline.noUsableLimits", "Outline: program has no limits for the loaded machine's planes");
             return;
         }
 
-        // Same perimeter as ioSender: MinX,MinY -> MinX,MaxY -> MaxX,MaxY ->
-        // MaxX,MinY -> MinX,MinY, all at the configured feed rate.
+        // Same perimeter shape as ioSender, traced on every sweepable plane at
+        // once: each line carries all planes' words for the axis moved that step
+        // (wired-gantry outline: both carriages trace their rectangles together).
         var gcode = new StringBuilder();
         gcode.AppendLine($"G90G21G1F{FeedRate}");
-        gcode.AppendLine($"X{Fmt(x.Min)}Y{Fmt(y.Min)}");
-        gcode.AppendLine($"Y{Fmt(y.Max)}");
-        gcode.AppendLine($"X{Fmt(x.Max)}");
-        gcode.AppendLine($"Y{Fmt(y.Min)}");
-        gcode.AppendLine($"X{Fmt(x.Min)}");
+        gcode.AppendLine(string.Concat(sweep.Select(s => $"{s.HLetter}{Fmt(s.H.Min)}{s.VLetter}{Fmt(s.V.Min)}")));
+        gcode.AppendLine(string.Concat(sweep.Select(s => $"{s.VLetter}{Fmt(s.V.Max)}")));
+        gcode.AppendLine(string.Concat(sweep.Select(s => $"{s.HLetter}{Fmt(s.H.Max)}")));
+        gcode.AppendLine(string.Concat(sweep.Select(s => $"{s.VLetter}{Fmt(s.V.Min)}")));
+        gcode.AppendLine(string.Concat(sweep.Select(s => $"{s.HLetter}{Fmt(s.H.Min)}")));
 
         try
         {
             await _grbl.SendAsync(gcode.ToString());
-            Status = LocText.Resolve("module.outline.sent", "Outline sent");
+            var planes = string.Join(" + ", sweep.Select(s => $"{s.HLetter}/{s.VLetter}"));
+            Status = LocText.Format("module.outline.sent", "Outline sent: {0}", planes);
         }
         catch (Exception ex)
         {
@@ -176,5 +180,47 @@ public class OutlineViewModel : ViewModelBase
         }
         section[OutlineModule.FeedRateKey] = (double)value;
         _settings.Save(app);
+    }
+
+    private sealed record SweepPlane(string HLetter, ProgramLimitRow H, string VLetter, ProgramLimitRow V);
+
+    /// <summary>Controller letter for a flattened axis index — the handshake letters
+    /// when reported, the preset's conventional order otherwise (jog LetterFor).</summary>
+    private static string LetterFor(int axisIndex)
+    {
+        var letters = CNC.Core.GrblInfo.AxisLetters;
+        return axisIndex < letters.Length
+            ? letters.Substring(axisIndex, 1)
+            : MachineType.ConventionalLetters.Substring(axisIndex, 1);
+    }
+
+    /// <summary>The machine's carriage planes whose in-plane axes both have program
+    /// limits (per-plane letters from the controller, in-plane = Horizontal+Vertical).</summary>
+    private List<SweepPlane> BuildSweepPlanes()
+    {
+        var rows = _program.LimitRows;
+        var result = new List<SweepPlane>();
+        for (var p = 0; p < _machineType.Planes.Count; p++)
+        {
+            var plane = _machineType.Planes[p];
+            var indices = _machineType.PlaneAxisIndices(p);
+            var hIndex = -1;
+            var vIndex = -1;
+            for (var i = 0; i < plane.Roles.Count; i++)
+            {
+                if (plane.Roles[i] == AxisRoleKind.Horizontal) hIndex = indices[i];
+                else if (plane.Roles[i] == AxisRoleKind.Vertical) vIndex = indices[i];
+            }
+            if (hIndex < 0 || vIndex < 0)
+                continue;
+            var hLetter = LetterFor(hIndex);
+            var vLetter = LetterFor(vIndex);
+            var hRow = rows.FirstOrDefault(r => r.Letter == hLetter);
+            var vRow = rows.FirstOrDefault(r => r.Letter == vLetter);
+            if (hRow is null || vRow is null)
+                continue;
+            result.Add(new SweepPlane(hLetter, hRow, vLetter, vRow));
+        }
+        return result;
     }
 }

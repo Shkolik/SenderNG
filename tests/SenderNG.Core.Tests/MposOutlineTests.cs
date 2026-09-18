@@ -273,7 +273,7 @@ public class OutlineViewModelTests : IDisposable
 
         vm.GoCommand.Execute(null);
 
-        Assert.Equal("Outline sent", vm.Status);
+        Assert.Equal("Outline sent: X/Y", vm.Status);
         var line = Assert.Single(spy.Sent);
         var expected = string.Join(Environment.NewLine,
         [
@@ -330,5 +330,166 @@ public class OutlineViewModelTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_dir, recursive: true); } catch { }
+    }
+}
+
+[Collection("LegacyStatics")]
+public class OutlinePlaneAwareTests : IDisposable
+{
+    private readonly List<string> _dirs = new();
+
+    public void Dispose()
+    {
+        foreach (var dir in _dirs)
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    private SettingsService MakeSettings(string machineTypeId)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-outline-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        _dirs.Add(dir);
+        var settings = new SettingsService(dir);
+        var profile = settings.Load();
+        profile.MachineTypeId = machineTypeId;
+        settings.Save(profile);
+        return settings;
+    }
+
+    private sealed class SpyGrbl : IGrblService
+    {
+        public List<string> Sent { get; } = new();
+        public bool IsConnected => true;
+        public IObservable<MachineState> State => System.Reactive.Linq.Observable.Never<MachineState>();
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public Task SendAsync(string line) { Sent.Add(line); return Task.CompletedTask; }
+        public void SendRealtime(byte code) { }
+    }
+
+    // X/Y and Z/A both present -> one combined in-sync move set.
+    [Fact]
+    public void Foam_machine_sweeps_both_planes_in_sync()
+    {
+        var spy = new SpyGrbl();
+        var program = new ProgramViewModel();
+        program.LoadGCode("G1 F100 X10 Y20 Z10 A20\r\nG1 X40 Y30 Z40 A30\r\n");
+        var vm = new OutlineViewModel(spy, MakeSettings(MachineTypes.Foam), program);
+
+        vm.GoCommand.Execute(null);
+
+        var expected = string.Join(Environment.NewLine,
+        [
+            "G90G21G1F500",
+            "X10Y20Z10A20",
+            "Y30A30",
+            "X40Z40",
+            "Y20A20",
+            "X10Z10",
+            "",
+        ]);
+        Assert.Equal(expected, Assert.Single(spy.Sent));
+        Assert.Equal("Outline sent: X/Y + Z/A", vm.Status);
+    }
+
+    // Foam machine but the part only touches X/Y -> sweep plane 1 only.
+    [Fact]
+    public void Foam_machine_with_xy_only_program_sweeps_the_first_plane()
+    {
+        var spy = new SpyGrbl();
+        var program = new ProgramViewModel();
+        program.LoadGCode("G1 F100 X10 Y20\r\nG1 X40 Y30\r\n");
+        var vm = new OutlineViewModel(spy, MakeSettings(MachineTypes.Foam), program);
+
+        vm.GoCommand.Execute(null);
+
+        var expected = string.Join(Environment.NewLine,
+        [
+            "G90G21G1F500",
+            "X10Y20",
+            "Y30",
+            "X40",
+            "Y20",
+            "X10",
+            "",
+        ]);
+        Assert.Equal(expected, Assert.Single(spy.Sent));
+        Assert.Equal("Outline sent: X/Y", vm.Status);
+    }
+
+    // Program limits match no plane (single-axis program on a foam machine).
+    [Fact]
+    public void No_sweepable_plane_shows_the_generic_message()
+    {
+        var spy = new SpyGrbl();
+        var program = new ProgramViewModel();
+        program.LoadGCode("G1 F100 X10\r\n");
+        var vm = new OutlineViewModel(spy, MakeSettings(MachineTypes.Foam), program);
+
+        vm.GoCommand.Execute(null);
+
+        Assert.Empty(spy.Sent);
+        Assert.Equal("Outline: program has no limits for the loaded machine's planes", vm.Status);
+    }
+
+    // Controller [AXS:] letters win: a foam board flashed XYUV sweeps U/V on plane 2.
+    // The program is written in the canonical word set (X Y Z A); the controller's
+    // remapped letters relabel plane 2 as U/V (roles are positional — the schema's
+    // "positions not letters" rule). A U/V-word program would NOT work here: with
+    // letters "XYUV", remapU2A/remapV2B (GCodeParser) map a 'U' word to the A axis
+    // (index 3) and 'V' to B (index 4), which never fill indices 2+3.
+    [Fact]
+    public void Controller_letter_remap_reaches_the_second_plane()
+    {
+        var saved = CNC.Core.GrblInfo.AxisLetters;
+        try
+        {
+            CNC.Core.GrblInfo.AxisLetters = "XYUV";
+            var spy = new SpyGrbl();
+            var program = new ProgramViewModel();
+            program.LoadGCode("G1 F100 X10 Y20 Z10 A20\r\nG1 X40 Y30 Z40 A30\r\n");
+            var vm = new OutlineViewModel(spy, MakeSettings(MachineTypes.Foam), program);
+
+            vm.GoCommand.Execute(null);
+
+            var expected = string.Join(Environment.NewLine,
+            [
+                "G90G21G1F500",
+                "X10Y20U10V20",
+                "Y30V30",
+                "X40U40",
+                "Y20V20",
+                "X10U10",
+                "",
+            ]);
+            Assert.Equal(expected, Assert.Single(spy.Sent));
+            Assert.Equal("Outline sent: X/Y + U/V", vm.Status);
+        }
+        finally
+        {
+            CNC.Core.GrblInfo.AxisLetters = saved;
+        }
+    }
+
+    // A profile switch (MachineTypeId Mill -> Foam) refreshes the sweep set.
+    [Fact]
+    public void Profile_switch_refreshes_the_machine_type()
+    {
+        var settings = MakeSettings(MachineTypes.Mill);
+        var spy = new SpyGrbl();
+        var program = new ProgramViewModel();
+        program.LoadGCode("G1 F100 X10 Y20 Z10 A20\r\nG1 X40 Y30 Z40 A30\r\n");
+        var vm = new OutlineViewModel(spy, settings, program);
+
+        vm.GoCommand.Execute(null);
+        Assert.Equal("Outline sent: X/Y", vm.Status); // Mill: one sweepable plane
+
+        var second = settings.CreateProfile("second", MachineTypes.Foam);
+        settings.Activate(second.Id); // fires Changed -> the VM re-resolves
+
+        vm.GoCommand.Execute(null);
+        Assert.Equal("Outline sent: X/Y + Z/A", vm.Status);
     }
 }
