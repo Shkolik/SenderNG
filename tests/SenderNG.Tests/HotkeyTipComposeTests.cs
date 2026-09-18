@@ -1,5 +1,5 @@
 /*
- 
+
 Copyright (c) 2026 Andrew Shkolik
 
 All rights reserved.
