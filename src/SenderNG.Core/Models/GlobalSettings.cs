@@ -62,4 +62,9 @@ public class GlobalSettings
 
     /// <summary>Global-scoped module sections (Console options today); the rest live per profile.</summary>
     public Dictionary<string, object> ModuleSettings { get; set; } = new();
+
+    /// <summary>User keymap: hotkey action id → canonical gesture string.
+    /// Absent = the action's default; <c>"(none)"</c>/empty = deliberately unbound.
+    /// App-level (a machine swap must not change the keyboard).</summary>
+    public Dictionary<string, string> Hotkeys { get; set; } = new();
 }
