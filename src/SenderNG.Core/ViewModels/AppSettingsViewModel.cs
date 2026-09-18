@@ -42,6 +42,7 @@ using CNC.Core.Services;
 using SenderNG.Core.Commands;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
+using SenderNG.Core.Services;
 
 namespace CNC.Core.ViewModels;
 
@@ -623,6 +624,306 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
 }
 
 /* ---------------------------------------------------------------------------
+ * Hotkeys leaf — global keymap editor
+ * ------------------------------------------------------------------------- */
+
+/// <summary>One action row in the hotkeys editor.</summary>
+public sealed class HotkeyEditorRow : ViewModelBase
+{
+    private readonly HotkeysSettingsLeaf _owner;
+    private string? _gesture;
+    private string? _message;
+    private bool _isRecording;
+    private bool _isVisible = true;
+
+    internal HotkeyEditorRow(HotkeysSettingsLeaf owner, IHotkeyAction action)
+    {
+        _owner = owner;
+        Action = action;
+        ClearCommand = new DelegateCommand(_ => _owner.Clear(this));
+        RestoreCommand = new DelegateCommand(_ => _owner.RestoreOne(this));
+        RecordCommand = new DelegateCommand(_ => _owner.BeginRecord(this));
+    }
+
+    public IHotkeyAction Action { get; }
+    public string ActionId => Action.ActionId;
+    public string DisplayName => _owner.LocalizeAction(Action);
+
+    public string? DefaultGesture { get; internal set; }
+
+    public string? Gesture
+    {
+        get => _gesture;
+        internal set
+        {
+            if (SetField(ref _gesture, value))
+                RaiseComputed();
+        }
+    }
+
+    public string GestureText => _gesture ?? _owner.Resolve("appSettings.hotkeys.unbound", "(none)");
+    public bool IsUnbound => _gesture is null;
+    public bool HasDefault => !string.IsNullOrEmpty(DefaultGesture);
+    public bool CanClear => _gesture is not null;
+    public bool CanRestore => HasDefault && !string.Equals(_gesture, DefaultGesture, StringComparison.Ordinal);
+
+    public bool IsRecording
+    {
+        get => _isRecording;
+        internal set
+        {
+            if (SetField(ref _isRecording, value))
+                OnPropertyChanged(nameof(RecordText));
+        }
+    }
+
+    public string RecordText => IsRecording
+        ? _owner.Resolve("appSettings.hotkeys.pressShortcut", "Press shortcut…")
+        : GestureText;
+
+    public string? Message
+    {
+        get => _message;
+        internal set
+        {
+            if (SetField(ref _message, value))
+                OnPropertyChanged(nameof(HasMessage));
+        }
+    }
+
+    public bool HasMessage => !string.IsNullOrWhiteSpace(_message);
+
+    public bool IsVisible
+    {
+        get => _isVisible;
+        internal set => SetField(ref _isVisible, value);
+    }
+
+    public DelegateCommand ClearCommand { get; }
+    public DelegateCommand RestoreCommand { get; }
+    public DelegateCommand RecordCommand { get; }
+
+    internal void Refresh()
+    {
+        OnPropertyChanged(nameof(DisplayName));
+        RaiseComputed();
+    }
+
+    private void RaiseComputed()
+    {
+        OnPropertyChanged(nameof(GestureText));
+        OnPropertyChanged(nameof(IsUnbound));
+        OnPropertyChanged(nameof(CanClear));
+        OnPropertyChanged(nameof(CanRestore));
+        OnPropertyChanged(nameof(RecordText));
+    }
+}
+
+/// <summary>A scope section (Global, or one contextual module) of hotkey rows.</summary>
+public sealed class HotkeyGroup : ViewModelBase
+{
+    private bool _isVisible = true;
+
+    public HotkeyGroup(string name) => Name = name;
+
+    public string Name { get; }
+    public ObservableCollection<HotkeyEditorRow> Rows { get; } = new();
+
+    public bool IsVisible
+    {
+        get => _isVisible;
+        internal set => SetField(ref _isVisible, value);
+    }
+}
+
+/// <summary>Global &gt; Hotkeys leaf: remap every registered action, grouped by scope.</summary>
+public sealed class HotkeysSettingsLeaf : AppSettingsLeaf
+{
+    private readonly HotkeyService _service;
+    private readonly Func<string, string, string> _resolve;
+    private readonly Dictionary<string, string> _moduleNames;
+    private HotkeyEditorRow? _recordingRow;
+    private string _searchText = string.Empty;
+
+    public HotkeysSettingsLeaf(
+        HotkeyService service,
+        Func<string, string, string> resolve,
+        IEnumerable<IModule> modules,
+        string name,
+        string description)
+        : base("hotkeys", name, description)
+    {
+        _service = service;
+        _resolve = resolve;
+        _moduleNames = modules.ToDictionary(
+            m => m.Id,
+            m => resolve($"module.{m.Id}.name", m.Name));
+        RestoreAllCommand = new DelegateCommand(_ => _service.ResetAll());
+        Build();
+        _service.Changed += (_, _) => RefreshAll();
+    }
+
+    public ObservableCollection<HotkeyGroup> Groups { get; } = new();
+
+    public DelegateCommand RestoreAllCommand { get; }
+
+    public bool IsRecording => _recordingRow is not null;
+
+    public string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (SetField(ref _searchText, value))
+                ApplyFilter();
+        }
+    }
+
+    internal string Resolve(string key, string fallback) => _resolve(key, fallback);
+
+    internal string LocalizeAction(IHotkeyAction action)
+        => string.IsNullOrWhiteSpace(action.LocaleKey)
+            ? action.DisplayName
+            : Resolve(action.LocaleKey!, action.DisplayName);
+
+    public void BeginRecord(HotkeyEditorRow row)
+    {
+        if (_recordingRow is not null && !ReferenceEquals(_recordingRow, row))
+            _recordingRow.IsRecording = false;
+        _recordingRow = row;
+        row.IsRecording = true;
+        row.Message = null;
+        OnPropertyChanged(nameof(IsRecording));
+    }
+
+    public void CancelRecord()
+    {
+        if (_recordingRow is null)
+            return;
+        _recordingRow.IsRecording = false;
+        _recordingRow = null;
+        OnPropertyChanged(nameof(IsRecording));
+    }
+
+    public void ReportModifierOnly()
+    {
+        if (_recordingRow is null)
+            return;
+        _recordingRow.Message = Resolve("appSettings.hotkeys.addKeyHint", "Add a key");
+    }
+
+    public void ReportInvalid()
+    {
+        if (_recordingRow is null)
+            return;
+        _recordingRow.Message = Resolve("appSettings.hotkeys.invalid", "Unsupported shortcut");
+    }
+
+    /// <summary>Commit a gesture captured by the host recorder. Conflicts inside the
+    /// same scope are warning-and-unbind-the-displaced (cross-scope is legal).</summary>
+    public void ApplyRecordedGesture(string gesture)
+    {
+        var row = _recordingRow;
+        if (row is null)
+            return;
+
+        row.IsRecording = false;
+        _recordingRow = null;
+        OnPropertyChanged(nameof(IsRecording));
+
+        var conflictId = _service.FindConflict(gesture, row.Action.Scope, row.Action.ModuleId, row.ActionId);
+        if (conflictId is not null)
+        {
+            var other = _service.Find(conflictId);
+            _service.ClearGesture(conflictId);
+            var otherName = other is null ? conflictId : LocalizeAction(other.Action);
+            row.Message = Resolve("appSettings.hotkeys.conflict", "Used by {0} — unbound there")
+                .Replace("{0}", otherName);
+        }
+        else
+        {
+            row.Message = null;
+        }
+
+        _service.SetGesture(row.ActionId, gesture);
+    }
+
+    public void Clear(HotkeyEditorRow row) => _service.ClearGesture(row.ActionId);
+
+    public void RestoreOne(HotkeyEditorRow row) => _service.ResetOne(row.ActionId);
+
+    /// <summary>Re-resolve localized names/labels after a locale switch.</summary>
+    public void RelocalizeAll()
+    {
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(Description));
+        foreach (var group in Groups)
+            foreach (var row in group.Rows)
+                row.Refresh();
+    }
+
+    private void Build()
+    {
+        Groups.Clear();
+
+        var global = new HotkeyGroup("Global");
+        Groups.Add(global);
+        var byModule = new Dictionary<string, HotkeyGroup>(StringComparer.Ordinal);
+
+        foreach (var binding in _service.Bindings)
+        {
+            HotkeyGroup group;
+            if (binding.Action.Scope == HotkeyScope.Module && binding.Action.ModuleId is { } moduleId)
+            {
+                if (!byModule.TryGetValue(moduleId, out var existing))
+                {
+                    existing = new HotkeyGroup(_moduleNames.GetValueOrDefault(moduleId, moduleId));
+                    byModule[moduleId] = existing;
+                    Groups.Add(existing);
+                }
+                group = existing;
+            }
+            else
+            {
+                group = global;
+            }
+
+            var row = new HotkeyEditorRow(this, binding.Action)
+            {
+                DefaultGesture = _service.DefaultGestureFor(binding.ActionId),
+                Gesture = _service.GestureFor(binding.ActionId),
+            };
+            group.Rows.Add(row);
+        }
+
+        ApplyFilter();
+    }
+
+    private void RefreshAll()
+    {
+        foreach (var group in Groups)
+            foreach (var row in group.Rows)
+            {
+                row.DefaultGesture = _service.DefaultGestureFor(row.ActionId);
+                row.Gesture = _service.GestureFor(row.ActionId);
+                row.Refresh();
+            }
+    }
+
+    private void ApplyFilter()
+    {
+        var query = _searchText.Trim();
+        foreach (var group in Groups)
+        {
+            foreach (var row in group.Rows)
+                row.IsVisible = query.Length == 0
+                    || row.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase);
+            group.IsVisible = group.Rows.Any(r => r.IsVisible);
+        }
+    }
+}
+
+/* ---------------------------------------------------------------------------
  * View model
  * ------------------------------------------------------------------------- */
 
@@ -636,6 +937,8 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
     private readonly Dictionary<string, IModule> _moduleById;
     private readonly List<AppSettingsLeaf> _globalLeaves = new();
     private ProfileSettingsLeaf? _profilesLeaf;
+    private readonly HotkeyService? _hotkeys;
+    private HotkeysSettingsLeaf? _hotkeysLeaf;
     private Func<bool>? _profileSwitchAllowed;
     private bool _preselectProfiles;
     private bool _updatingSections;
@@ -647,7 +950,8 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
         SettingsService settingsService,
         IEnumerable<IModule> modules,
         LocalizationService? localization = null,
-        Func<bool>? profileSwitchAllowed = null)
+        Func<bool>? profileSwitchAllowed = null,
+        HotkeyService? hotkeys = null)
     {
         ArgumentNullException.ThrowIfNull(settingsService);
         ArgumentNullException.ThrowIfNull(modules);
@@ -662,6 +966,7 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
 
         _moduleById = modules.ToDictionary(m => m.Id);
         _profileSwitchAllowed = profileSwitchAllowed;
+        _hotkeys = hotkeys;
         BuildModuleLeaves(modules);
         BuildTree();
 
@@ -758,6 +1063,13 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
             LeafName("language", "Language"),
             LeafDescription("language", "Interface language. Applied immediately."));
         _globalLeaves.Add(languageLeaf);
+        if (_hotkeys is not null)
+        {
+            _hotkeysLeaf = new HotkeysSettingsLeaf(_hotkeys, Resolve, _moduleById.Values,
+                LeafName("hotkeys", "Hotkeys"),
+                LeafDescription("hotkeys", "Global keyboard shortcuts and their scopes."));
+            _globalLeaves.Add(_hotkeysLeaf);
+        }
         foreach (var leaf in _globalLeaves)
             global.Children.Add(leaf);
 
@@ -828,6 +1140,8 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
                 OnPropertyChanged(nameof(SelectedProfileLeaf));
                 OnPropertyChanged(nameof(SelectedLanguageLeaf));
                 OnPropertyChanged(nameof(SelectedModuleLeaf));
+                OnPropertyChanged(nameof(IsHotkeysLeaf));
+                OnPropertyChanged(nameof(SelectedHotkeysLeaf));
             }
         }
     }
@@ -846,6 +1160,9 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
     public ProfileSettingsLeaf? SelectedProfileLeaf => SelectedSetting as ProfileSettingsLeaf;
     public LanguageSettingsLeaf? SelectedLanguageLeaf => SelectedSetting as LanguageSettingsLeaf;
     public ModuleSettingsLeaf? SelectedModuleLeaf => SelectedSetting as ModuleSettingsLeaf;
+    public HotkeysSettingsLeaf? SelectedHotkeysLeaf => SelectedSetting as HotkeysSettingsLeaf;
+
+    public bool IsHotkeysLeaf => SelectedSetting is HotkeysSettingsLeaf;
 
     /* ---------- Locale ---------- */
 
@@ -869,6 +1186,10 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
             LeafName("profiles", "Profiles"),
             LeafDescription("profiles", "Machines and their settings — one profile per machine."));
         _profilesLeaf?.RelocalizeButtons();
+        _hotkeysLeaf?.Relocalize(
+            LeafName("hotkeys", "Hotkeys"),
+            LeafDescription("hotkeys", "Global keyboard shortcuts and their scopes."));
+        _hotkeysLeaf?.RelocalizeAll();
     }
 
     /// <summary>

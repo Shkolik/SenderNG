@@ -57,7 +57,8 @@ public class AppSettingsModule : IModule
         services.AddTransient(sp => new AppSettingsViewModel(
             sp.GetRequiredService<SettingsService>(),
             sp.GetServices<IModule>(),
-            sp.GetRequiredService<SenderNG.Core.Localization.LocalizationService>()));
+            sp.GetRequiredService<SenderNG.Core.Localization.LocalizationService>(),
+            hotkeys: sp.GetService<SenderNG.Core.Services.HotkeyService>()));
 
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
