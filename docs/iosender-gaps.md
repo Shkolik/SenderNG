@@ -182,9 +182,8 @@ Many already exist; the gaps are listed per widget.
       `Plugins/Goto` flyout: G28/G30 "goto position" buttons, G28.1/G30.1
       record-reference-point buttons, numeric per-axis rows + Go (`G53 G0`),
       gated on homed state (tracked via completed `$H`; cleared on alarm/soft
-      reset). The visible axis count is a persisted preference (App Settings,
-      1–9) capped by the connected controller's reported axis count, so a
-      4-axis preference shows 3 rows on a 3-axis controller.
+      reset). The numeric rows always track the connected controller's reported
+      axis count (one row per axis, like the DRO / mPos read-outs).
 - [x] **Tool table → probing integration** (`ToolView`) — the Offsets flyout
       tool table is a full editor mirroring the offsets table: a **Tool**
       column with **editor-local names** (grblHAL has no name field —

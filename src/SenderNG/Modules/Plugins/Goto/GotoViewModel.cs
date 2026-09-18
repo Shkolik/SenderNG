@@ -70,32 +70,20 @@ public sealed class GotoAxisRow : ViewModelBase
 /// goto (G53 G0 X.. Y.. Z..). All actions are gated on the machine being homed —
 /// grbl itself refuses them while an alarm is active, and moving to a stored
 /// reference before homing is meaningless.
-/// The numeric goto shows as many axes as the user prefers (persisted setting,
-/// 1..9) capped by the connected controller's reported axis count, so a 4-axis
-/// preference shows 3 rows on a 3-axis controller and 4+ on a 5-axis one.
+/// The numeric goto shows as many axes as the connected controller reports
+/// (one row per axis, like the DRO and mPos read-outs).
 /// </summary>
 public sealed class GotoViewModel : ViewModelBase
 {
-    private static readonly int[] AllAxisChoices =
-        Enumerable.Range(1, CNC.Core.GrblInfo.AxisLetters.Length).ToArray();
-
     private readonly IGrblService _grbl;
-    private readonly SettingsService _settingsService;
-    private readonly MachineProfile _profile;
     private readonly IDisposable _stateSubscription;
     private bool _isHomed;
     private int _availableAxes = 3;
     private string _status = string.Empty;
-    private bool _saving;
 
-    public GotoViewModel(IGrblService grbl, SettingsService settingsService)
+    public GotoViewModel(IGrblService grbl)
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
-        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
-        _profile = _settingsService.Load();
-
-        Config = GotoConfigStore.Load(_profile);
-        Config.PropertyChanged += OnConfigPropertyChanged;
 
         GotoHomeCommand = new DelegateCommand(_ => _ = SendAsync("G28", LocText.Resolve("module.goto.goingHome", "Going to home position")));
         GotoG30Command = new DelegateCommand(_ => _ = SendAsync("G30", LocText.Resolve("module.goto.goingRef2", "Going to second reference point")));
@@ -104,11 +92,8 @@ public sealed class GotoViewModel : ViewModelBase
         GoCommand = new DelegateCommand(_ => _ = GoAsync());
 
         _stateSubscription = grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
-        _settingsService.Changed += OnSettingsChanged;
         RefreshAxes();
     }
-
-    public GotoConfig Config { get; private set; }
 
     public DelegateCommand GotoHomeCommand { get; }
     public DelegateCommand GotoG30Command { get; }
@@ -129,21 +114,6 @@ public sealed class GotoViewModel : ViewModelBase
 
     public ObservableCollection<GotoAxisRow> GotoAxes { get; } = new();
 
-    public IReadOnlyList<int> AxisChoices => AllAxisChoices;
-
-    /// <summary>The user's preferred axis count (persisted), clamped to 1..9.</summary>
-    public int SelectedAxisCount
-    {
-        get => Config.AxisCount;
-        set => Config.AxisCount = Math.Clamp(value, 1, CNC.Core.GrblInfo.AxisLetters.Length);
-    }
-
-    /// <summary>Controller-reported axis count, clamped to the known axis set.</summary>
-    public int AvailableAxisCount => _availableAxes;
-
-    /// <summary>Rows to show: the preference capped by what the controller reports.</summary>
-    public int AxisCount => Math.Min(SelectedAxisCount, AvailableAxisCount);
-
     public string Status
     {
         get => _status;
@@ -159,52 +129,15 @@ public sealed class GotoViewModel : ViewModelBase
         if (available != _availableAxes)
         {
             _availableAxes = available;
-            OnPropertyChanged(nameof(AvailableAxisCount));
-            OnPropertyChanged(nameof(AxisCount));
             RefreshAxes();
         }
     }
 
-    private void OnConfigPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (_saving || e.PropertyName != nameof(GotoConfig.AxisCount))
-            return;
-
-        Save();
-        OnPropertyChanged(nameof(AxisCount));
-        RefreshAxes();
-    }
-
-    private void OnSettingsChanged()
-    {
-        if (_saving)
-            return;
-        Config = GotoConfigStore.Load(_profile);
-        Config.PropertyChanged += OnConfigPropertyChanged;
-        OnPropertyChanged(nameof(Config));
-        OnPropertyChanged(nameof(SelectedAxisCount));
-        OnPropertyChanged(nameof(AxisCount));
-        RefreshAxes();
-    }
-
-    public void Save()
-    {
-        _saving = true;
-        try
-        {
-            GotoConfigStore.Save(_profile, Config);
-            _settingsService.Save(_profile);
-        }
-        finally
-        {
-            _saving = false;
-        }
-    }
-
-    /// <summary>Rebuilds the visible rows; existing row values are preserved by letter.</summary>
+    /// <summary>Rebuilds the visible rows to the controller's axis count; existing
+    /// row values are preserved by letter.</summary>
     private void RefreshAxes()
     {
-        var count = Math.Clamp(AxisCount, 1, CNC.Core.GrblInfo.AxisLetters.Length);
+        var count = Math.Clamp(_availableAxes, 1, CNC.Core.GrblInfo.AxisLetters.Length);
         var existing = GotoAxes.ToDictionary(row => row.Letter, row => row.Value);
         GotoAxes.Clear();
         for (var i = 0; i < count; i++)

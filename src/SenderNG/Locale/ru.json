@@ -60,8 +60,6 @@
     "module.outline.description": "Перемещает инструмент по контуру X/Y пределов загруженной программы.",
     "module.probing.name": "Измерение",
     "module.probing.description": "Циклы измерения длины инструмента, кромки, центра, поворота и карты высот.",
-    "module.goto.axisCount": "Число осей перехода",
-    "module.goto.axisCountHint": "Ограничивается числом осей подключённого контроллера.",
     "module.jog.distances": "Расстояния (мм)",
     "module.jog.speeds": "Скорости (мм/мин)",
     "module.jog.step1": "Шаг 1",

@@ -61,8 +61,6 @@
     "module.outline.description": "Moves the tool around the X/Y outline of the loaded program's limits.",
     "module.probing.name": "Probing",
     "module.probing.description": "Tool-length, edge, center, rotation and height-map probing cycles.",
-    "module.goto.axisCount": "Goto axis count",
-    "module.goto.axisCountHint": "Capped by the connected controller's axis count.",
     "module.jog.distances": "Distances (mm)",
     "module.jog.speeds": "Speeds (mm/min)",
     "module.jog.step1": "Step 1",

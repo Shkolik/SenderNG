@@ -40,14 +40,6 @@ namespace SenderNG.Core.Tests;
 
 public sealed class GotoViewModelTests
 {
-    internal static SettingsService MakeSettings()
-    {
-        var dir = Path.Combine(Path.GetTempPath(), "senderng-tests-" + Guid.NewGuid().ToString("N"));
-        var settings = new SettingsService(dir);
-        settings.Save(settings.Load());
-        return settings;
-    }
-
     private static async Task<DemoGrblService> DemoAsync(int demoAxes = 3)
     {
         var settings = new MachineProfile { DemoAxes = demoAxes };
@@ -71,7 +63,7 @@ public sealed class GotoViewModelTests
     {
         using var service = await DemoAsync();
         await service.SendAsync("G0 X7 Y3");
-        var vm = new GotoViewModel(service, MakeSettings());
+        var vm = new GotoViewModel(service);
 
         Assert.False(vm.IsHomed);
         vm.GotoHomeCommand.Execute(null);
@@ -87,7 +79,7 @@ public sealed class GotoViewModelTests
     {
         using var service = await DemoAsync();
         await service.SendAsync("G0 X7 Y3");
-        var vm = new GotoViewModel(service, MakeSettings());
+        var vm = new GotoViewModel(service);
 
         await service.SendAsync("$H");
         Assert.True(vm.IsHomed);
@@ -104,7 +96,7 @@ public sealed class GotoViewModelTests
     public async Task Set_reference_commands_run_when_homed()
     {
         using var service = await DemoAsync();
-        var vm = new GotoViewModel(service, MakeSettings());
+        var vm = new GotoViewModel(service);
         await service.SendAsync("$H");
 
         vm.SetHomeCommand.Execute(null);
@@ -120,7 +112,7 @@ public sealed class GotoViewModelTests
     public async Task Go_sends_absolute_machine_move()
     {
         using var service = await DemoAsync();
-        var vm = new GotoViewModel(service, MakeSettings());
+        var vm = new GotoViewModel(service);
         await service.SendAsync("$H");
 
         Row(vm, "X").Value = "5";
@@ -140,7 +132,7 @@ public sealed class GotoViewModelTests
     public async Task Go_rejects_invalid_or_missing_coordinates()
     {
         using var service = await DemoAsync();
-        var vm = new GotoViewModel(service, MakeSettings());
+        var vm = new GotoViewModel(service);
         await service.SendAsync("$H");
 
         Row(vm, "X").Value = "abc";
@@ -160,7 +152,7 @@ public sealed class GotoViewModelTests
     public async Task Soft_reset_clears_homed_state()
     {
         using var service = await DemoAsync();
-        var vm = new GotoViewModel(service, MakeSettings());
+        var vm = new GotoViewModel(service);
         await service.SendAsync("$H");
         Assert.True(vm.IsHomed);
 
@@ -171,61 +163,50 @@ public sealed class GotoViewModelTests
     }
 
     [Fact]
-    public async Task Defaults_to_three_axis_rows()
+    public async Task Defaults_to_controller_axis_rows()
     {
         using var service = await DemoAsync();
-        var vm = new GotoViewModel(service, MakeSettings());
+        var vm = new GotoViewModel(service);
 
         Assert.Equal(["X", "Y", "Z"], vm.GotoAxes.Select(r => r.Letter));
-        Assert.Equal(3, vm.AxisCount);
+        Assert.Equal(3, vm.GotoAxes.Count);
     }
 
     [Fact]
-    public async Task Preference_is_capped_by_controller_axis_count()
+    public async Task Shows_all_controller_axes_with_no_preference()
     {
-        using var service = await DemoAsync(demoAxes: 3);
-        var settings = MakeSettings();
-        var vm = new GotoViewModel(service, settings);
-        vm.SelectedAxisCount = 4;
+        using var service = await DemoAsync(demoAxes: 5);
+        var vm = new GotoViewModel(service);
 
-        // 3-axis controller caps the 4-axis preference to 3 rows.
-        Assert.Equal(3, vm.AxisCount);
+        // Like mPos/DRO: all controller-reported axes, no cap or preference needed.
+        Assert.Equal(["X", "Y", "Z", "A", "B"], vm.GotoAxes.Select(r => r.Letter));
+        Assert.Equal(5, vm.GotoAxes.Count);
+    }
+
+    [Fact]
+    public async Task Axis_rows_follow_controller_axis_count_changes()
+    {
+        using var service = await DemoAsync();
+        var vm = new GotoViewModel(service);
+        Assert.Equal(3, vm.GotoAxes.Count);
+
+        service.SetNumAxes(5);
+
+        Assert.Equal(["X", "Y", "Z", "A", "B"], vm.GotoAxes.Select(r => r.Letter));
+
+        service.SetNumAxes(3);
+
         Assert.Equal(["X", "Y", "Z"], vm.GotoAxes.Select(r => r.Letter));
-    }
-
-    [Fact]
-    public async Task Preference_shows_full_rows_when_controller_has_more_axes()
-    {
-        using var service = await DemoAsync(demoAxes: 5);
-        var vm = new GotoViewModel(service, MakeSettings());
-        vm.SelectedAxisCount = 4;
-
-        Assert.Equal(4, vm.AxisCount);
-        Assert.Equal(["X", "Y", "Z", "A"], vm.GotoAxes.Select(r => r.Letter));
-    }
-
-    [Fact]
-    public async Task Axis_count_preference_persists_and_reloads()
-    {
-        using var service = await DemoAsync(demoAxes: 5);
-        var settings = MakeSettings();
-        var first = new GotoViewModel(service, settings);
-        first.SelectedAxisCount = 4;
-
-        var second = new GotoViewModel(service, settings);
-
-        Assert.Equal(4, second.SelectedAxisCount);
-        Assert.Equal(["X", "Y", "Z", "A"], second.GotoAxes.Select(r => r.Letter));
     }
 
     [Fact]
     public async Task Row_values_survive_axis_count_change()
     {
         using var service = await DemoAsync(demoAxes: 5);
-        var vm = new GotoViewModel(service, MakeSettings());
+        var vm = new GotoViewModel(service);
         Row(vm, "X").Value = "12.5";
 
-        vm.SelectedAxisCount = 4;
+        service.SetNumAxes(4);
 
         Assert.Equal("12.5", Row(vm, "X").Value);
         Assert.Equal(4, vm.GotoAxes.Count);
@@ -235,8 +216,7 @@ public sealed class GotoViewModelTests
     public async Task Go_can_move_extra_axes_when_available()
     {
         using var service = await DemoAsync(demoAxes: 5);
-        var vm = new GotoViewModel(service, MakeSettings());
-        vm.SelectedAxisCount = 4;
+        var vm = new GotoViewModel(service);
         await service.SendAsync("$H");
 
         Row(vm, "A").Value = "3.25";
@@ -245,29 +225,5 @@ public sealed class GotoViewModelTests
 
         Assert.Equal(3.25, LatestState(service).MachinePositions![3]);
         Assert.Contains("Going to position", vm.Status);
-    }
-}
-
-public sealed class GotoConfigTests
-{
-    [Fact]
-    public void Load_with_no_section_returns_default()
-    {
-        var config = GotoConfigStore.Load(new MachineProfile());
-        Assert.Equal(3, config.AxisCount);
-    }
-
-    [Fact]
-    public void Save_then_load_roundtrips_and_clamps()
-    {
-        var settings = new MachineProfile();
-        GotoConfigStore.Save(settings, new GotoConfig { AxisCount = 4 });
-        Assert.Equal(4, GotoConfigStore.Load(settings).AxisCount);
-
-        GotoConfigStore.Save(settings, new GotoConfig { AxisCount = 99 });
-        Assert.Equal(9, GotoConfigStore.Load(settings).AxisCount);
-
-        GotoConfigStore.Save(settings, new GotoConfig { AxisCount = 0 });
-        Assert.Equal(1, GotoConfigStore.Load(settings).AxisCount);
     }
 }
