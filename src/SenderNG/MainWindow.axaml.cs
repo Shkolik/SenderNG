@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using SenderNG.Core.Services;
+using SenderNG.Localization;
 using SenderNG.ViewModels;
 
 namespace SenderNG;
@@ -64,7 +65,10 @@ public partial class MainWindow : Window
 
         _viewModel.FocusMdiRequested += OnFocusMdi;
         if (_viewModel.Hotkeys is { } hotkeys)
+        {
+            AppHotkeys.Current = hotkeys;
             _dispatcher = new KeymapDispatcher(this, new KeymapController(hotkeys), _viewModel.ModuleIdForView);
+        }
     }
 
     private void OnFocusMdi(object? sender, EventArgs e)
