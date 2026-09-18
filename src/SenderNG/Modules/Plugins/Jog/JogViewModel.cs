@@ -84,6 +84,7 @@ public class JogViewModel : ViewModelBase
         StopCommand = new DelegateCommand(_ => CancelJog());
 
         _grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
+        _grbl.ConnectionChanged += OnConnectionChanged;
         _settingsService.Changed += OnSettingsChanged;
     }
 
@@ -444,6 +445,16 @@ public class JogViewModel : ViewModelBase
         RaiseSpeedFlags();
         RefreshLinearAxes();
     }
+
+    // The poll stops on disconnect, so ApplyState stops raising ContinuousAvailable —
+    // refresh it (and clear any held jog) the moment the connection itself changes.
+    private void OnConnectionChanged(object? sender, EventArgs e)
+        => UiThread.Post(() =>
+        {
+            if (!_grbl.IsConnected)
+                CancelJog();   // disconnect mid-hold: no board to cancel, but clear the stale tag
+            OnPropertyChanged(nameof(ContinuousAvailable));
+        });
 
     private void ApplyState(MachineState state)
     {

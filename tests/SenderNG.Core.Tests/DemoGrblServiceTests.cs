@@ -206,12 +206,12 @@ public class DemoGrblServiceTests
         {
             using var svc = new DemoGrblService(SettingsFor(3), file, pollIntervalMs: 10);
 
-            // Snapshot the live state from inside a listener: the demo emits under
-            // its lock, so the captured pair is consistent and the reference write
-            // is atomic. Re-reading the mutated-in-place state object afterwards can
-            // observe a concurrent poll tick (position slips by 0.1/tick).
-            JogSnap? snap = null;
-            using (svc.State.Subscribe(s => snap = JogSnap.From(s)))
+            // Grab the FIRST Jog emission: the send flips Status to Jog before any
+            // poll tick can advance the axes (both mutate under the same lock), so
+            // this snapshot is exactly the machine at rest — deterministically
+            // proving the 200 mm travel was never applied in one jump.
+            JogSnap? atSend = null;
+            using (svc.State.Subscribe(s => { if (s.Status == "Jog") atSend ??= JogSnap.From(s); }))
             {
                 await svc.ConnectAsync("demo");
                 await svc.SendAsync("$J=G91 X-200 F600"); // X travel is 200 → continuous
@@ -219,12 +219,11 @@ public class DemoGrblServiceTests
 
             var st = await svc.State.FirstAsync();
             Assert.Equal("Jog", st.Status);
-            var latest = Volatile.Read(ref snap);
-            Assert.NotNull(latest);
-            // No teleport: the send itself moves nothing. Motion before/after is
-            // poll progress only (≈0.1 mm per 10 ms at 600 mm/min), never the
-            // 200 mm travel.
-            Assert.True(Math.Abs(latest!.WorkX) < 2, $"expected no teleport, got {latest.WorkX}");
+            var sent = Volatile.Read(ref atSend);
+            Assert.NotNull(sent);
+            // No teleport: the send itself moves nothing — the position is still 0.
+            Assert.Equal(0, sent!.WorkX);
+            Assert.Equal(0, sent.MachineX);
         }
         finally
         {

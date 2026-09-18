@@ -46,6 +46,8 @@ public partial class JogView : UserControl
 
     private JogViewModel? Vm => DataContext as JogViewModel;
 
+    private Avalonia.Input.IPointer? _heldPointer;   // only this pointer's release/capture-lost stops the hold
+
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
@@ -62,6 +64,11 @@ public partial class JogView : UserControl
         RemoveHandler(InputElement.PointerPressedEvent, OnJogPointerPressed);
         RemoveHandler(InputElement.PointerReleasedEvent, OnJogPointerReleased);
         RemoveHandler(InputElement.PointerCaptureLostEvent, OnJogPointerCaptureLost);
+        // Closing the panel mid-hold: the handlers are gone so no release/capture-lost
+        // will follow — cancel the held jog NOW (sends 0x85, clears the stale tag)
+        // instead of leaving the machine jogging to travel with the tag stuck.
+        _heldPointer = null;
+        Vm?.StopContinuousJog();
     }
 
     // Jog-motion buttons carry a string CommandParameter (tags); the Stop button has
@@ -73,19 +80,29 @@ public partial class JogView : UserControl
         if (button?.CommandParameter is not string tag || Vm is not { IsContinuousStep: true })
             return;                       // step mode, Stop button, or non-jog control: untouched
         Vm!.StartContinuousJog(tag);
+        if (Vm.ContinuousActive && _heldPointer is null)
+            _heldPointer = e.Pointer;     // the pointer that owns the hold
         e.Pointer.Capture(this);          // release/capture-lost always reach us
         e.Handled = true;                 // suppresses the Button's Click command
     }
 
     private void OnJogPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (Vm is not { ContinuousActive: true })
+        // Scope to the pointer that actually holds the jog: a second finger (or a
+        // stylus touch) lifting must NOT stop a hold owned by another pointer.
+        if (e.Pointer != _heldPointer || Vm is not { ContinuousActive: true })
             return;
+        _heldPointer = null;
         Vm.StopContinuousJog();
         e.Pointer.Capture(null);
         e.Handled = true;
     }
 
     private void OnJogPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
-        => Vm?.StopContinuousJog();
+    {
+        if (e.Pointer != _heldPointer)
+            return;
+        _heldPointer = null;
+        Vm?.StopContinuousJog();
+    }
 }
