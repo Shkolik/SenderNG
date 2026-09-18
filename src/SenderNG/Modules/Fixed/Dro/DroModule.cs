@@ -41,7 +41,7 @@ using SenderNG.Core.Modules;
 
 namespace SenderNG.Modules.Fixed;
 
-public class DroModule : IModule
+public class DroModule : IModule, IHotkeyActionProvider
 {
     public string Id => "dro";
     public string Name => "DRO";
@@ -50,11 +50,23 @@ public class DroModule : IModule
     public PanelHint Panel => PanelHint.Left;
     public bool IsVisibleByDefault => true;
     public bool CanHide => false;
-    public IReadOnlyList<HotKey> HotKeys { get; } = [];
+    public IReadOnlyList<HotKey> HotKeys { get; } =
+    [
+        new("Ctrl+Shift+X", "dro.zero.x"),
+        new("Ctrl+Shift+Y", "dro.zero.y"),
+        new("Ctrl+Shift+Z", "dro.zero.z"),
+        new("Ctrl+Shift+A", "dro.zero.a"),
+        new("Ctrl+Shift+B", "dro.zero.b"),
+        new("Ctrl+Shift+C", "dro.zero.c"),
+        new("Ctrl+Shift+D0", "dro.zero.all"),
+    ];
 
     public void RegisterServices(IServiceCollection services) =>
         services.AddSingleton<DroViewModel>();
 
+
+    public IReadOnlyList<IHotkeyAction> CreateHotkeyActions(IServiceProvider services)
+        => DroHotkeyProvider.Create(services);
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<DroViewModel>();
