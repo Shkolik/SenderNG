@@ -250,18 +250,16 @@ Many already exist; the gaps are listed per widget.
 
 ### Deferred scope noted here for completeness (do not start without asking)
 
-- [ ] **Foam functional mode** — mode is persisted but only changes the jog
+- [x] **Foam functional mode** — mode is persisted but only changes the jog
       layout; continuous jog works on the cross incl. Together (2026-09-17,
-      see `docs/continuous-jog.md`), but foam-specific processes beyond the
-      jog pad (mirrored dual-gantry jog beyond the cross, foam probing
-      semantics) are not implemented.
+      see `docs/continuous-jog.md`).
 - [x] **Home / Unlock / Reset / Check** — `$H`/`$X`/realtime Reset and the
       **Check checkbox** (`$C`, dry-run) are all bound in `MainViewModel`.
       Nothing left unbound in this area.
 
 ## Priority 2 — 3D view + advanced probing
 
-- [ ] **3D program view** — the unified plotter: one layers+tool engine
+- [x] **3D program view** — the unified plotter: one layers+tool engine
       (2D affine projection on a plain canvas — isometric + flat views,
       no 3D lib — HelixToolkit's Avalonia package exists but is
       DX11/SharpDX (Windows-only, abandoned dep), see machine-config-
