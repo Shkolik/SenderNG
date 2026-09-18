@@ -73,6 +73,10 @@ public class JogModule : IModule, IModuleSettingsProvider, ILocalizedModule, IHo
         new("PageDown", "jog.z.minus"),
         new("Home", "jog.a.plus"),
         new("End", "jog.a.minus"),
+        new("Alt+Left", "jog.together.left"),
+        new("Alt+Right", "jog.together.right"),
+        new("Alt+Up", "jog.together.up"),
+        new("Alt+Down", "jog.together.down"),
     ];
 
     public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =

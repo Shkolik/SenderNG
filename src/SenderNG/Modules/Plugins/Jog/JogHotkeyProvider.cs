@@ -82,19 +82,34 @@ internal static class JogHotkeyProvider
         actions.Add(Direction("jog.a.plus", "Jog A+", () => Jog().SecondUpTag));
         actions.Add(Direction("jog.a.minus", "Jog A-", () => Jog().SecondDownTag));
 
+        actions.Add(Direction("jog.together.left", "Jog both left", () => Jog().LeftTag, allGantries: true));
+        actions.Add(Direction("jog.together.right", "Jog both right", () => Jog().RightTag, allGantries: true));
+        actions.Add(Direction("jog.together.up", "Jog both up", () => Jog().UpTag, allGantries: true));
+        actions.Add(Direction("jog.together.down", "Jog both down", () => Jog().DownTag, allGantries: true));
+
         return actions;
 
-        IHotkeyAction Direction(string id, string label, Func<string> tag)
+        IHotkeyAction Direction(string id, string label, Func<string> tag, bool allGantries = false)
             => new CommandHotkeyAction(
                 id, label, $"module.jog.hotkey.{id}",
                 onKeyDown: () =>
                 {
                     var jog = Jog();
                     var current = tag();
-                    if (jog.IsContinuousStep)
-                        jog.StartContinuousJog(current);
+                    if (allGantries)
+                    {
+                        if (jog.IsContinuousStep)
+                            jog.StartContinuousJog(current, allGantries: true);
+                        else
+                            jog.JogTogether(current);
+                    }
                     else
-                        jog.JogCommand.Execute(current);
+                    {
+                        if (jog.IsContinuousStep)
+                            jog.StartContinuousJog(current);
+                        else
+                            jog.JogCommand.Execute(current);
+                    }
                 },
                 canExecute: () =>
                 {
@@ -102,6 +117,8 @@ internal static class JogHotkeyProvider
                     if (!grbl.IsConnected || !TagDrivable(tag()))
                         return false;
                     var jog = Jog();
+                    if (allGantries && !jog.Plane2Visible)
+                        return false;
                     return !jog.IsContinuousStep || jog.ContinuousAvailable;
                 },
                 onKeyUp: () => Jog().StopContinuousJog(),
