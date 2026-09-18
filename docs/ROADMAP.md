@@ -144,7 +144,10 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   and classic 1.1h 4-axis builds report it for all axes). **Implementation
   plan ready for handoff (2026-09-07):**
   `docs/continuous-jog-implementation.md` — file-by-file change list,
-  code shapes, tests, and acceptance checklist.
+  code shapes, tests, and acceptance checklist. **Implemented (2026-09-17):**
+  hold-to-jog continuous step (sentinel 4th distance slot, per-press
+  `$J=G91 <axis><travel> F<feed>`, 0x85 JogCancel on release) with travel
+  from the connect handshake's per-axis `$130+` settings.
 - **Converters (Excellon `.drl` / HPGL `.plt` → g-code) — LANDED.** No
   separate File menu entry: the native Open dialog advertises the converter
   types and dispatch happens in the open flow (extension match → parameters

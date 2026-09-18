@@ -27,8 +27,9 @@ controller. Demo mode masks these gaps in day-to-day use.- [x] **Status-report r
       window, or a controller that stopped reporting all keep the fast rate.
 
 SenderNG's jog is **click-to-jog** (each button press sends one `$J=G91 …`
-command). **Continuous jog** (hold-to-jog with velocity-based `$J=` and
-stop-on-release via 0x85 JogCancel) is the next item — see `docs/continuous-jog.md`.
+command); **continuous jog** (hold-to-jog with velocity-based `$J=` and
+stop-on-release via 0x85 JogCancel) is now implemented (2026-09-17) — see
+`docs/continuous-jog.md`.
 
 
 - [x] **Full grbl handshake** (`$I` + `[OPT:...]`, grblHAL build/version
