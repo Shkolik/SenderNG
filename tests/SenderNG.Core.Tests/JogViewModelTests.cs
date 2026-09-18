@@ -374,6 +374,41 @@ public Task SendAsync(string line)
 
         Assert.Empty(sent);
     }
+
+    [Fact]
+    public void Foam_together_hotkey_jogs_both_gantries_without_padlock()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings("Foam"));
+
+        vm.JogTogether("X-,Y+|Z-,A+");
+
+        Assert.Equal(["$J=G91 X-1 Y1 Z-1 A1 F1000"], sent);
+    }
+
+    [Fact]
+    public void Foam_together_continuous_merges_both_gantries_without_padlock()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] }), MakeSettings("Foam"));
+        vm.IsDistance3 = true;
+
+        vm.StartContinuousJog("X-,Y+|Z-,A+", allGantries: true);
+
+        Assert.Equal(["$J=G91 X-200 Y300 Z-100 A50 F1000"], sent);
+    }
+
+    [Fact]
+    public void All_gantries_flag_leaves_a_single_plane_tag_unchanged()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings());
+
+        vm.JogTogether("X+");
+
+        Assert.Equal(["$J=G91 X1 F1000"], sent);
+    }
 }
 
 public class JogLinearAxesTests

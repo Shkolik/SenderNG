@@ -76,7 +76,7 @@ public class JogViewModel : ViewModelBase
         RefreshGeometry();
         RefreshLinearAxes();
 
-        JogCommand = new DelegateCommand(p => _ = JogAsync(p as string));
+        JogCommand = new DelegateCommand(p => _ = JogAsync(p as string, Together));
         // Jog cancel (realtime 0x85) is the firmware's dedicated stop-jog command on
         // classic grbl 1.1, the mega5x 1.2i fork and grblHAL: it decelerates, flushes
         // remaining jog blocks and returns to IDLE. A feed hold ('!') would leave the
@@ -252,14 +252,15 @@ public class JogViewModel : ViewModelBase
     public bool ContinuousAvailable =>
         _grbl.IsConnected && _grbl.Capabilities.MaxTravel.Any(t => t > 0);
 
-    public void StartContinuousJog(string? tag)
+    public void StartContinuousJog(string? tag, bool allGantries = false)
     {
+        var mergeBoth = allGantries || Together;   // explicit hotkey flag or the engaged padlock
         if (!IsContinuousStep || string.IsNullOrWhiteSpace(tag) || _continuousTag is not null
-            || !_grbl.IsConnected || !ContinuousTravelKnown(tag))
+            || !_grbl.IsConnected || !ContinuousTravelKnown(tag, mergeBoth))
             return;                                   // step mode, empty tag, held, disconnected, or no travel yet
         try
         {
-            _grbl.SendAsync(BuildContinuousJogCommand(tag));
+            _grbl.SendAsync(BuildContinuousJogCommand(tag, mergeBoth));
             _continuousTag = tag;
         }
         catch (InvalidOperationException)
@@ -282,13 +283,13 @@ public class JogViewModel : ViewModelBase
         catch (InvalidOperationException) { }                  // disconnected: nothing to cancel
     }
 
-    private bool ContinuousTravelKnown(string tag)
+    private bool ContinuousTravelKnown(string tag, bool allGantries)
     {
         var travel = _grbl.Capabilities.MaxTravel;
         if (travel.Length == 0)
             return false;                              // handshake not completed / $$ not answered
         var parts = tag.Split('|');
-        var effective = IsMultiPlane && Together && parts.Length == 2 ? parts : [parts[0]];
+        var effective = allGantries && parts.Length == 2 ? parts : [parts[0]];
         foreach (var part in effective)
             foreach (var raw in part.Split(',', StringSplitOptions.RemoveEmptyEntries))
             {
@@ -363,14 +364,14 @@ public class JogViewModel : ViewModelBase
             OnPropertyChanged($"IsSpeed{i}");
     }
 
-    private string BuildJogWords(string tag, Func<string, double> distanceFor)
+    private string BuildJogWords(string tag, Func<string, double> distanceFor, bool allGantries)
     {
         var parts = tag.Split('|');
         IEnumerable<string> SelectWords(string part) => part
             .Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Select(w => w.Trim())
             .Select(t => ToWord(t, distanceFor(t)));
-        return IsMultiPlane && Together && parts.Length == 2
+        return allGantries && parts.Length == 2
             ? string.Join(" ", parts.SelectMany(SelectWords))   // mirrored gantries, one command
             : string.Join(" ", SelectWords(parts[0]));
     }
@@ -385,13 +386,17 @@ public class JogViewModel : ViewModelBase
         return token;
     }
 
-    private async Task JogAsync(string? tag)
+    private async Task JogAsync(string? tag, bool allGantries)
     {
         if (string.IsNullOrWhiteSpace(tag) || _continuousTag is not null   // no step jog while holding
             || !_grbl.IsConnected)                                          // wait till connected
             return;
-        await _grbl.SendAsync($"$J=G91 {BuildJogWords(tag, _ => SelectedDistance)} F{Fmt(SelectedSpeed)}");
+        await _grbl.SendAsync($"$J=G91 {BuildJogWords(tag, _ => SelectedDistance, allGantries)} F{Fmt(SelectedSpeed)}");
     }
+
+    /// <summary>Step jog of BOTH gantries (the "Together" merge) regardless of
+    /// the padlock state — the Alt+arrow hotkeys' entry point.</summary>
+    public void JogTogether(string? tag) => _ = JogAsync(tag, allGantries: true);
 
     /// <summary>Per-axis continuous distance: the board's $130+ max travel (ioSender's
     /// MaxTravel.Values[axis]). StartContinuousJog's gate guarantees a positive value for
@@ -403,8 +408,8 @@ public class JogViewModel : ViewModelBase
         return index >= 0 && index < travel.Length ? travel[index] : 0;
     }
 
-    private string BuildContinuousJogCommand(string tag) =>
-        $"$J=G91 {BuildJogWords(tag, ContinuousDistanceFor)} F{Fmt(SelectedSpeed)}";
+    private string BuildContinuousJogCommand(string tag, bool allGantries) =>
+        $"$J=G91 {BuildJogWords(tag, ContinuousDistanceFor, allGantries)} F{Fmt(SelectedSpeed)}";
 
     public void Save()
     {
