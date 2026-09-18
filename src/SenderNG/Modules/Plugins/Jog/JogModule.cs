@@ -39,7 +39,7 @@ using SenderNG.Core.Modules;
 
 namespace SenderNG.Modules.Plugins;
 
-public class JogModule : IModule, IModuleSettingsProvider, ILocalizedModule
+public class JogModule : IModule, IModuleSettingsProvider, ILocalizedModule, IHotkeyActionProvider
 {
     private SettingsService? _settingsService;
     private IServiceProvider? _services;
@@ -52,7 +52,28 @@ public class JogModule : IModule, IModuleSettingsProvider, ILocalizedModule
     public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;
     public bool CanHide => false;
-    public IReadOnlyList<HotKey> HotKeys { get; } = [];
+    public IReadOnlyList<HotKey> HotKeys { get; } =
+    [
+        new("Ctrl+NumPad0", "jog.step.0"),
+        new("Ctrl+NumPad1", "jog.step.1"),
+        new("Ctrl+NumPad2", "jog.step.2"),
+        new("Ctrl+NumPad3", "jog.step.3"),
+        new("Ctrl+NumPad4", "jog.feed.0"),
+        new("Ctrl+NumPad5", "jog.feed.1"),
+        new("Ctrl+NumPad6", "jog.feed.2"),
+        new("NumPad6", "jog.step.inc"),
+        new("NumPad4", "jog.step.dec"),
+        new("NumPad8", "jog.feed.inc"),
+        new("NumPad2", "jog.feed.dec"),
+        new("Left", "jog.left"),
+        new("Right", "jog.right"),
+        new("Up", "jog.up"),
+        new("Down", "jog.down"),
+        new("PageUp", "jog.z.plus"),
+        new("PageDown", "jog.z.minus"),
+        new("Home", "jog.a.plus"),
+        new("End", "jog.a.minus"),
+    ];
 
     public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
         new Dictionary<string, string>
@@ -101,4 +122,7 @@ public class JogModule : IModule, IModuleSettingsProvider, ILocalizedModule
 
     public object CreateView(object viewModel) =>
         new JogView { DataContext = viewModel };
+
+    public IReadOnlyList<IHotkeyAction> CreateHotkeyActions(IServiceProvider services)
+        => JogHotkeyProvider.Create(services);
 }
