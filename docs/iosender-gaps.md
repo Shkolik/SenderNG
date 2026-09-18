@@ -94,7 +94,7 @@ Many already exist; the gaps are listed per widget.
       display correctly), and an under-axed multi-plane machine hides its
       second plane with a status hint instead of showing a dead cross.
 - [x] MPos widget (`Modules/Plugins/Mpos`) — machine-position readouts.
-- [x] Outline widget (`Modules/Plugins/Outline`) — feed rate + Go perimeter.
+- [x] Outline widget (`Modules/Plugins/Outline`) — feed rate + Go perimeter; plane-aware: sweeps every sweepable carriage plane in sync (X/Y | Z/A for foam), letters from the controller.
 - [x] Coolant (`Modules/Plugins/Coolant`) — Flood/Mist toggles + overrides.
 - [x] Cutting (`Modules/Plugins/Cutting`) — Feed/Rapids/Speed overrides, spindle
       CW/CCW/Off + RPM input, plus the live feed/speed readout (FS: report field).

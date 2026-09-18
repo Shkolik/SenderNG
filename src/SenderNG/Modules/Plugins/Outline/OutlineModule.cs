@@ -52,11 +52,11 @@ public class OutlineModule : IModule, ILocalizedModule
     public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
         new Dictionary<string, string>
         {
-            ["module.outline.description"] = "Moves the tool around the X/Y outline of the loaded program's limits.",
+            ["module.outline.description"] = "Moves the tool around the outline of the loaded program's limits on each carriage plane.",
             ["module.outline.warning"] = "Ensure the tool tip is clear of any obstructions!",
             ["module.outline.feedRate"] = "Feed rate:",
-            ["module.outline.sent"] = "Outline sent",
-            ["module.outline.noXyLimits"] = "Outline: program has no X/Y limits",
+            ["module.outline.sent"] = "Outline sent: {0}",
+            ["module.outline.noUsableLimits"] = "Outline: program has no limits for the loaded machine's planes",
             ["module.outline.failed"] = "Outline failed: {0}",
         };
 
