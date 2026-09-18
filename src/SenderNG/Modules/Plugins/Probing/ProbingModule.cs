@@ -41,7 +41,7 @@ using SenderNG.Core.Modules.Probing;
 
 namespace SenderNG.Modules.Plugins;
 
-public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule
+public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule, IHotkeyActionProvider
 {
     public string Id => "probing";
     public string Name => "Probing";
@@ -49,7 +49,12 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule
     public int Order => 50;
     public PanelHint Panel => PanelHint.Flyout;
     public bool IsVisibleByDefault => true;
-    public IReadOnlyList<HotKey> HotKeys { get; } = [];
+    public IReadOnlyList<HotKey> HotKeys { get; } =
+    [
+        new("Alt+R", "probe.start"),
+        new("Alt+S", "probe.stop"),
+        new("Alt+C", "probe.connected"),
+    ];
 
     /// <summary>Module settings keys (the only things the module persists in settings.json).</summary>
     public const string ProfilesFileKey = "ProfilesFile";
@@ -222,6 +227,9 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule
                 return false;
         }
     }
+
+    public IReadOnlyList<IHotkeyAction> CreateHotkeyActions(IServiceProvider services)
+        => ProbingHotkeyProvider.Create(services);
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<ProbeViewModel>();
