@@ -191,9 +191,9 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
 - Foam CNC mode: functional foam-specific behavior (mode is persisted but only
   changes jog layout today — the layout itself is now schema-driven:
   machine-type preset planes + controller `[AXS:]` letters,
-`docs/machine-axis-schema.md`).
-   Continuous jog (hold-to-jog: velocity-based `$J=` + stop-on-release 0x85)
-   is implemented (2026-09-17) — design doc at `docs/continuous-jog.md`.
+  `docs/machine-axis-schema.md`).
+  Continuous jog (hold-to-jog: velocity-based `$J=` + stop-on-release 0x85)
+  is implemented (2026-09-17) — design doc at `docs/continuous-jog.md`.
 - Telnet / WebSocket transports: `TcpGrblTransport` covers plain TCP; telnet
   option negotiation and WebSocket are still not implemented. See
   `docs/p0-controller-plumbing-plan.md` D.3.
