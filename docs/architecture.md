@@ -73,7 +73,9 @@ tests/SenderNG.Core.Tests  xUnit suite (dotnet test)
 - **Cycle bar** is the **single run-control surface** (the Program view's own Run/Pause/Resume/Stop bar was removed — one session, one control set, drivable while watching the Console tab). It gates on the session state, keeping buttons visible and enabling/disabling: Start = run/resume, Hold = pause, Stop = hard reset while Held, Rewind = local rewind when no session is active. The session is internal orchestration only — it decides *when*; the controller is still driven exclusively by the same realtime bytes (`0x7E`/`0x21`/`0x18`) plus the G-code line stream awaiting each `ok`, each transition issuing its byte once instead of per button press. Home/Unlock/Reset are bound (`$H`/`$X`/realtime reset).
 - **Accessory-state parsing** — `StatusReportParser` reads the grblHAL `A:` field into `MachineState.Flood`/`Mist`/spindle; classic grbl leaves it untouched.
 - **Foam CNC mode** is persisted but only changes the jog layout today — no
-  functional foam behavior yet. The layout is no longer a `"Foam"` string
+  functional foam behavior yet (hold-to-jog continuous, 2026-09-17,
+  works across these layouts incl. foam Together — see
+  `docs/continuous-jog.md`). The layout is no longer a `"Foam"` string
   check: it derives from the machine-axis schema
   (`docs/machine-axis-schema.md`, 2026-09-07 — preset planes + controller
   `[AXS:]` letters; under-axed multi-plane machines hide the second plane).

@@ -29,7 +29,9 @@ controller. Demo mode masks these gaps in day-to-day use.- [x] **Status-report r
 SenderNG's jog is **click-to-jog** (each button press sends one `$J=G91 …`
 command); **continuous jog** (hold-to-jog with velocity-based `$J=` and
 stop-on-release via 0x85 JogCancel) is now implemented (2026-09-17) — see
-`docs/continuous-jog.md`.
+`docs/continuous-jog.md`. The hold is scoped to the owning pointer, so
+drag-off / capture-lost ends the jog, and a disconnect or the jog panel
+closing cancels an active hold.
 
 
 - [x] **Full grbl handshake** (`$I` + `[OPT:...]`, grblHAL build/version
@@ -249,8 +251,10 @@ Many already exist; the gaps are listed per widget.
 ### Deferred scope noted here for completeness (do not start without asking)
 
 - [ ] **Foam functional mode** — mode is persisted but only changes the jog
-      layout; foam-specific processes (mirrored dual-gantry jog beyond the
-      cross, foam probing semantics) are not implemented.
+      layout; continuous jog works on the cross incl. Together (2026-09-17,
+      see `docs/continuous-jog.md`), but foam-specific processes beyond the
+      jog pad (mirrored dual-gantry jog beyond the cross, foam probing
+      semantics) are not implemented.
 - [x] **Home / Unlock / Reset / Check** — `$H`/`$X`/realtime Reset and the
       **Check checkbox** (`$C`, dry-run) are all bound in `MainViewModel`.
       Nothing left unbound in this area.

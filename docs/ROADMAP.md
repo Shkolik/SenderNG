@@ -147,7 +147,9 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   code shapes, tests, and acceptance checklist. **Implemented (2026-09-17):**
   hold-to-jog continuous step (sentinel 4th distance slot, per-press
   `$J=G91 <axis><travel> F<feed>`, 0x85 JogCancel on release) with travel
-  from the connect handshake's per-axis `$130+` settings.
+  from the connect handshake's per-axis `$130+` settings. The hold is
+  scoped to the owning pointer (drag-off / capture-lost ends it) and a
+  disconnect or the jog panel closing cancels an active hold.
 - **Converters (Excellon `.drl` / HPGL `.plt` → g-code) — LANDED.** No
   separate File menu entry: the native Open dialog advertises the converter
   types and dispatch happens in the open flow (extension match → parameters
