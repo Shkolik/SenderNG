@@ -53,6 +53,7 @@ public static class HostSetup
         var builder = Host.CreateApplicationBuilder(args);
 
         builder.Services.AddSingleton<SettingsService>();
+        builder.Services.AddSingleton<SenderNG.Core.Services.HotkeyService>();
         // Shared active-profile graph: one instance for every consumer (VMs, services).
         builder.Services.AddSingleton(sp => sp.GetRequiredService<SettingsService>().Load());
         // Localization: locale data lives in the UI's OutputDir/Locale (copied on

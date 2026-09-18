@@ -33,13 +33,43 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using Avalonia.Controls;
+using Avalonia.VisualTree;
+using SenderNG.Core.Services;
+using SenderNG.ViewModels;
 
 namespace SenderNG;
 
 public partial class MainWindow : Window
 {
+    private MainViewModel? _viewModel;
+    private KeymapDispatcher? _dispatcher;
+
     public MainWindow()
     {
         InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        if (_viewModel is not null)
+            _viewModel.FocusMdiRequested -= OnFocusMdi;
+
+        _dispatcher?.Dispose();
+        _dispatcher = null;
+        _viewModel = DataContext as MainViewModel;
+
+        if (_viewModel is null)
+            return;
+
+        _viewModel.FocusMdiRequested += OnFocusMdi;
+        if (_viewModel.Hotkeys is { } hotkeys)
+            _dispatcher = new KeymapDispatcher(this, new KeymapController(hotkeys), _viewModel.ModuleIdForView);
+    }
+
+    private void OnFocusMdi(object? sender, EventArgs e)
+    {
+        MdiBox.Focus();
+        MdiBox.GetVisualDescendants().OfType<TextBox>().FirstOrDefault()?.SelectAll();
     }
 }

@@ -48,6 +48,7 @@ using SenderNG.Services;
 using SenderNG.ViewModels;
 using SenderNG.Core.Commands;
 using SenderNG.Core.Modules;
+using SenderNG.Core.Services;
 
 namespace SenderNG.ViewModels;
 
@@ -278,6 +279,60 @@ public class MainViewModel : ViewModelBase, IDisposable
         // limits/jog semantics differ), so MainViewModel clears it on switch.
         _settingsService.ProfileSwitched += OnProfileSwitched;
         OnPropertyChanged(nameof(StatusBarJogStep));
+        Hotkeys = _services.GetService<HotkeyService>();
+        RegisterHotkeys();
+    }
+
+    /// <summary>Registers built-in run/MDI actions, then every module-provided
+    /// <see cref="IHotkeyActionProvider"/>, linking each action's default gesture
+    /// from its module's <see cref="IModule.HotKeys"/> declaration by ActionId.</summary>
+    private void RegisterHotkeys()
+    {
+        var hotkeys = Hotkeys;
+        if (hotkeys is null)
+            return;
+
+        void Builtin(string id, string label, ICommand command, string gesture)
+            => hotkeys.RegisterAction(new CommandHotkeyAction(
+                id,
+                Resolve($"app.hotkeys.{id}", label),
+                $"app.hotkeys.{id}",
+                () => command.Execute(null),
+                () => command.CanExecute(null)), gesture);
+
+        Builtin("cycle.start", "Cycle start", CycleStartCommand, "Alt+R");
+        Builtin("cycle.hold", "Feed hold", FeedHoldCommand, "Space");
+        Builtin("cycle.stop", "Stop", StopCommand, "Alt+S");
+        Builtin("cycle.rewind", "Rewind", RewindCommand, "");
+        Builtin("home", "Home", HomeCommand, "Ctrl+H");
+        Builtin("unlock", "Unlock", UnlockCommand, "Ctrl+U");
+        Builtin("reset", "Reset", ResetCommand, "Ctrl+Shift+R");
+        Builtin("check", "Check mode", CheckCommand, "");
+
+        hotkeys.RegisterAction(new CommandHotkeyAction(
+            "mdi.focus",
+            Resolve("app.hotkeys.mdi.focus", "MDI focus"),
+            "app.hotkeys.mdi.focus",
+            () => FocusMdiRequested?.Invoke(this, EventArgs.Empty)), "Ctrl+M");
+
+        foreach (var module in Modules)
+        {
+            if (module is not IHotkeyActionProvider provider)
+                continue;
+            try
+            {
+                foreach (var action in provider.CreateHotkeyActions(_services))
+                {
+                    var defaultGesture = module.HotKeys
+                        .FirstOrDefault(h => h.ActionId == action.ActionId)?.Gesture ?? string.Empty;
+                    hotkeys.RegisterAction(action, defaultGesture);
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = LocText.Format("app.msg.hotkeyModuleFailed", "{0} hotkeys failed: {1}", module.Name, ex.Message);
+            }
+        }
     }
 
     private void OnProfileSwitched(string profileId)
@@ -852,6 +907,24 @@ public class MainViewModel : ViewModelBase, IDisposable
     public DelegateCommand SelectModuleCommand { get; }
 
     public ICommand SelectRecentCommand { get; }
+
+    /// <summary>The shared hotkey catalog (null when the host did not register one, e.g. minimal tests).</summary>
+    public HotkeyService? Hotkeys { get; }
+
+    /// <summary>Raised by the <c>mdi.focus</c> hotkey; MainWindow focuses the MDI box.</summary>
+    public event EventHandler? FocusMdiRequested;
+
+    /// <summary>Maps a realized module view (or a focused descendant) to its module id,
+    /// for hotkey scope resolution.</summary>
+    public string? ModuleIdForView(object? view)
+    {
+        if (view is null)
+            return null;
+        foreach (var kv in _moduleViews)
+            if (ReferenceEquals(kv.Value, view))
+                return kv.Key.Id;
+        return null;
+    }
 
     /// <summary>Opens the App Settings dialog, optionally on the Profiles leaf
     /// (Machine settings menu entry). Profile switching is gated while the

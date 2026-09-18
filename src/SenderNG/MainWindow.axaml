@@ -66,7 +66,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <Menu Background="#e8e8e8" CornerRadius="0">
                     <MenuItem Header="{loc:Loc app.menu.file}">
                         <MenuItem Header="{loc:Loc app.menu.file.open}" Command="{Binding OpenFileCommand}" />
-                        <MenuItem Header="{loc:Loc app.menu.file.save}" Command="{Binding SaveFileCommand}" InputGesture="Ctrl+S" />
+                        <MenuItem Header="{loc:Loc app.menu.file.save}" Command="{Binding SaveFileCommand}" />
                         <MenuItem Header="{loc:Loc app.menu.file.close}" Command="{Binding CloseFileCommand}" />
                         <MenuItem Header="{loc:Loc app.menu.file.transform}">
                             <MenuItem Header="{loc:Loc app.menu.file.transform.rotate}" Command="{Binding RotateProgramCommand}" />
