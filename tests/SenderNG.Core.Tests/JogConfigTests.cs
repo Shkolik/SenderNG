@@ -129,6 +129,53 @@ public class JogConfigTests
         Assert.Equal(3, config.DistanceIndex); // 99 clamps to max 4-slot index
         Assert.Equal(0, config.SpeedIndex); // -7 clamps to 0
     }
+
+    [Fact]
+    public void Legacy_three_slot_profile_migrates_with_sentinel_in_slot4()
+    {
+        // A pre-continuous-jog profile stores only 3 distance slots; loading pads
+        // slot 4 with the Continuous sentinel and keeps the legacy index valid
+        // within the new 0..3 range.
+        var section = new Dictionary<string, object>
+        {
+            ["Distances"] = new List<double> { 0.1, 1, 10 },
+            ["Speeds"] = new List<double> { 500, 1000, 2000 },
+            ["DistanceIndex"] = 2,
+            ["SpeedIndex"] = 1,
+        };
+
+        var json = JsonSerializer.Serialize(section);
+        using var doc = JsonDocument.Parse(json);
+        var element = doc.RootElement.Clone();
+
+        var settings = new MachineProfile();
+        settings.ModuleSettings["Jog"] = element;
+
+        var config = JogConfigStore.Load(settings);
+
+        Assert.Equal([0.1, 1, 10, -1], config.Distances);
+        Assert.Equal(2, config.DistanceIndex); // clamped into 0..3
+        Assert.Equal(1, config.SpeedIndex);
+    }
+
+    [Fact]
+    public void Save_then_load_preserves_continuous_sentinel()
+    {
+        var settings = JogViewModelTests.MakeSettings();
+        var first = new JogViewModel(new JogViewModelTests.RecordingGrbl([]), settings);
+        first.IsDistance3 = true; // select the Continuous slot
+        first.Save();
+
+        var second = new JogViewModel(new JogViewModelTests.RecordingGrbl([]), settings);
+
+        Assert.Equal(3, second.SelectedDistanceIndex);
+        Assert.Equal(-1.0, second.SelectedDistance);
+        Assert.True(second.IsContinuousStep);
+
+        var stored = JogConfigStore.Load(settings.Load());
+        Assert.Equal([0.1, 1.0, 10.0, -1], stored.Distances);
+        Assert.Equal(3, stored.DistanceIndex);
+    }
 }
 
 public class JogDiagonalsConfigTests

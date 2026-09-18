@@ -51,10 +51,12 @@ public class JogViewModelTests
         return settings;
     }
 
-    internal sealed class RecordingGrbl(List<string> sent, int numAxes = 4) : IGrblService
+    internal sealed class RecordingGrbl(List<string> sent, int numAxes = 4,
+        ControllerCapabilities? capabilities = null) : IGrblService
     {
         private readonly BehaviorSubject<MachineState> _subject = new(new MachineState(numAxes));
-        public bool IsConnected => true;
+        public bool IsConnected { get; set; } = true;
+        public ControllerCapabilities Capabilities => capabilities ?? ControllerCapabilities.Unknown;
         public IObservable<MachineState> State => _subject;
         public Task ConnectAsync(string port) => Task.CompletedTask;
         public void Disconnect() { }
@@ -205,6 +207,172 @@ public Task SendAsync(string line)
         vm.StopCommand.Execute(null);
 
         Assert.Equal(["RT:85"], sent);
+    }
+
+    [Fact]
+    public void Continuous_step_is_selected_via_fourth_toggle()
+    {
+        var vm = new JogViewModel(new RecordingGrbl([]), MakeSettings());
+
+        vm.IsDistance3 = true;
+
+        Assert.True(vm.IsContinuousStep);
+    }
+
+    [Fact]
+    public void Continuous_toggle_disabled_until_travel_known()
+    {
+        // Without a connect-time $$ fetch the board's per-axis travel is unknown:
+        // the Continuous slot stays unavailable until MaxTravel reports values.
+        var unknown = new JogViewModel(new RecordingGrbl([]), MakeSettings());
+        Assert.False(unknown.ContinuousAvailable);
+
+        var travel = new JogViewModel(new RecordingGrbl([],
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] }), MakeSettings());
+        Assert.True(travel.ContinuousAvailable);
+    }
+
+    [Fact]
+    public void Continuous_press_sends_one_travel_jog()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] }), MakeSettings());
+        vm.IsDistance3 = true;
+
+        vm.StartContinuousJog("X-");
+
+        Assert.Equal(["$J=G91 X-200 F1000"], sent);
+    }
+
+    [Fact]
+    public void Continuous_release_sends_only_jog_cancel()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] }), MakeSettings());
+        vm.IsDistance3 = true;
+        vm.StartContinuousJog("X-");
+        Assert.Equal(["$J=G91 X-200 F1000"], sent);
+
+        vm.StopContinuousJog();
+
+        Assert.Equal(["$J=G91 X-200 F1000", "RT:85"], sent);
+    }
+
+    [Fact]
+    public void Continuous_start_without_travel_sends_nothing()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings());
+        vm.IsDistance3 = true;
+
+        vm.StartContinuousJog("X-");
+        vm.StopContinuousJog();
+
+        Assert.Empty(sent);
+    }
+
+    [Fact]
+    public void Second_press_while_held_is_ignored()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] }), MakeSettings());
+        vm.IsDistance3 = true;
+
+        vm.StartContinuousJog("X-");
+        vm.StartContinuousJog("Y+");
+
+        Assert.Equal(["$J=G91 X-200 F1000"], sent);
+
+        vm.StopContinuousJog();
+
+        Assert.Equal(["$J=G91 X-200 F1000", "RT:85"], sent);
+    }
+
+    [Fact]
+    public void Continuous_start_in_step_mode_sends_nothing()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] }), MakeSettings());
+
+        vm.StartContinuousJog("X-");
+        vm.StopContinuousJog();
+
+        Assert.Empty(sent);
+    }
+
+    [Fact]
+    public void Step_jog_command_is_ignored_while_continuous_held()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] }), MakeSettings());
+        vm.IsDistance3 = true;
+        vm.StartContinuousJog("X-");
+        Assert.Equal(["$J=G91 X-200 F1000"], sent);
+
+        vm.JogCommand.Execute("X+");
+
+        Assert.Equal(["$J=G91 X-200 F1000"], sent);
+    }
+
+    [Fact]
+    public void Step_jog_waits_for_connection()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] })
+        { IsConnected = false }, MakeSettings());
+
+        vm.JogCommand.Execute("X+");
+
+        Assert.Empty(sent);
+    }
+
+    [Fact]
+    public void Foam_together_continuous_jogs_both_gantries()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] }), MakeSettings("Foam"));
+        vm.Together = true;
+        vm.IsDistance3 = true;
+
+        vm.StartContinuousJog("X-,Y+|Z-,A+");
+
+        Assert.Equal(["$J=G91 X-200 Y300 Z-100 A50 F1000"], sent);
+    }
+
+    [Fact]
+    public void Stop_button_clears_the_hold_and_sends_cancel()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] }), MakeSettings());
+        vm.IsDistance3 = true;
+        vm.StartContinuousJog("X-");
+        Assert.True(vm.ContinuousActive);
+
+        vm.StopCommand.Execute(null);
+
+        Assert.Contains("RT:85", sent);
+        Assert.False(vm.ContinuousActive);
+        vm.StopContinuousJog();
+        Assert.Equal(["$J=G91 X-200 F1000", "RT:85"], sent);
+    }
+
+    [Fact]
+    public void Stop_when_not_held_sends_nothing()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent), MakeSettings());
+
+        vm.StopContinuousJog();
+
+        Assert.Empty(sent);
     }
 }
 

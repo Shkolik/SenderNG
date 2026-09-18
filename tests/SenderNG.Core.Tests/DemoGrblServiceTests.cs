@@ -43,6 +43,34 @@ public class DemoGrblServiceTests
 {
     private static MachineProfile SettingsFor(int demoAxes) => new() { DemoAxes = demoAxes };
 
+    // Each test needs a FRESH settings store: the demo persists settings to disk,
+    // so the shared default file (and earlier runs) would change MaxTravel and
+    // make travel-threshold behavior non-deterministic.
+    private static string TempSettingsFile() =>
+        Path.Combine(Path.GetTempPath(), "sng-demo-jog-" + Guid.NewGuid().ToString("N") + ".txt");
+
+    // The demo reuses ONE mutable MachineState instance, mutated in place under
+    // its lock on every emission/poll tick — reading the object after the fact
+    // can observe a concurrent tick's update. Snapshot inside a State listener
+    // instead: the listener runs on the emitting thread's lock, so each JogSnap
+    // is a consistent pair, and writing the reference is atomic (readers use
+    // Volatile.Read).
+    private sealed class JogSnap
+    {
+        private JogSnap(double workX, double machineX)
+        {
+            WorkX = workX;
+            MachineX = machineX;
+        }
+
+        public double WorkX { get; }
+        public double MachineX { get; }
+
+        public static JogSnap From(MachineState s) => new(
+            s.Positions.Length > 0 ? s.Positions[0] : 0,
+            s.MachinePositions is { Length: > 0 } mp ? mp[0] : s.Positions.Length > 0 ? s.Positions[0] : 0);
+    }
+
     [Fact]
     public async Task Demo_connects_and_returns_state()
     {
@@ -168,6 +196,166 @@ public class DemoGrblServiceTests
         var st = await svc.State.FirstAsync();
         Assert.Equal(4, st.Positions[0]);
         Assert.Equal(4, st.Positions[1]);
+    }
+
+    [Fact]
+    public async Task Continuous_jog_sets_jog_status_and_does_not_teleport()
+    {
+        var file = TempSettingsFile();
+        try
+        {
+            using var svc = new DemoGrblService(SettingsFor(3), file, pollIntervalMs: 10);
+
+            // Snapshot the live state from inside a listener: the demo emits under
+            // its lock, so the captured pair is consistent and the reference write
+            // is atomic. Re-reading the mutated-in-place state object afterwards can
+            // observe a concurrent poll tick (position slips by 0.1/tick).
+            JogSnap? snap = null;
+            using (svc.State.Subscribe(s => snap = JogSnap.From(s)))
+            {
+                await svc.ConnectAsync("demo");
+                await svc.SendAsync("$J=G91 X-200 F600"); // X travel is 200 → continuous
+            }
+
+            var st = await svc.State.FirstAsync();
+            Assert.Equal("Jog", st.Status);
+            var latest = Volatile.Read(ref snap);
+            Assert.NotNull(latest);
+            // No teleport: the send itself moves nothing. Motion before/after is
+            // poll progress only (≈0.1 mm per 10 ms at 600 mm/min), never the
+            // 200 mm travel.
+            Assert.True(Math.Abs(latest!.WorkX) < 2, $"expected no teleport, got {latest.WorkX}");
+        }
+        finally
+        {
+            if (File.Exists(file)) File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public async Task Continuous_jog_advances_positions_across_polls()
+    {
+        var file = TempSettingsFile();
+        try
+        {
+            using var svc = new DemoGrblService(SettingsFor(3), file, pollIntervalMs: 10);
+            JogSnap? snap = null;
+            using var sub = svc.State.Subscribe(s => snap = JogSnap.From(s));
+
+            await svc.ConnectAsync("demo");
+            await svc.SendAsync("$J=G91 X200 F600"); // travel-length jog → continuous
+
+            // Wait for a few poll ticks of advance, then freeze the simulator and
+            // assert on the captured pair. A fixed wall-clock delay is not
+            // deterministic under full-suite load: a starved test thread can
+            // overshoot by hundreds of ms and rack up >2 mm of poll progress
+            // (each 10 ms tick = 0.1 mm at 600 mm/min). Waiting for a small
+            // advance bounds the captured distance inside the (0, 2) window
+            // regardless of scheduling load.
+            JogSnap? advanced = null;
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (DateTime.UtcNow < deadline)
+            {
+                var candidate = Volatile.Read(ref snap);
+                if (candidate is not null && candidate.WorkX >= 0.2) // ≥ 2 ticks
+                {
+                    advanced = candidate;
+                    break;
+                }
+                await Task.Delay(5);
+            }
+            svc.SendRealtime(GrblRealtime.JogCancel); // stop the simulator's motion
+
+            Assert.NotNull(advanced);
+            Assert.True(advanced!.WorkX > 0, $"expected a positive advance, got {advanced.WorkX}");
+            Assert.True(advanced.WorkX < 2, $"expected under 2 mm, got {advanced.WorkX}");
+            Assert.Equal(advanced.WorkX, advanced.MachineX); // work == machine: no offset
+        }
+        finally
+        {
+            if (File.Exists(file)) File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public async Task Jog_cancel_realtime_stops_continuous_jog()
+    {
+        var file = TempSettingsFile();
+        try
+        {
+            using var svc = new DemoGrblService(SettingsFor(3), file, pollIntervalMs: 10);
+            await svc.ConnectAsync("demo");
+            await svc.SendAsync("$J=G91 X200 F600");
+
+            // Wait (bounded) until the simulator has actually advanced: a fixed
+            // delay can race a starved poll timer under full-suite load and find
+            // the jog still at rest.
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while ((await svc.State.FirstAsync()).Positions[0] <= 0 && DateTime.UtcNow < deadline)
+                await Task.Delay(5);
+
+            var before = await svc.State.FirstAsync();
+            Assert.Equal("Jog", before.Status);
+            Assert.True(before.Positions[0] > 0); // the jog is actually advancing
+
+            svc.SendRealtime(GrblRealtime.JogCancel);
+
+            // JogCancel is synchronous and freezes the position the instant it
+            // returns; record THEN so no poll tick can sneak between recording
+            // and the stop.
+            var st = await svc.State.FirstAsync();
+            Assert.Equal("Idle", st.Status);
+            var recorded = st.Positions[0];
+
+            await Task.Delay(60);
+            var after = await svc.State.FirstAsync();
+            Assert.Equal(recorded, after.Positions[0]); // polling no longer advances
+        }
+        finally
+        {
+            if (File.Exists(file)) File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public async Task Click_jog_still_applies_immediately()
+    {
+        var file = TempSettingsFile();
+        try
+        {
+            using var svc = new DemoGrblService(SettingsFor(3), file, pollIntervalMs: 10);
+            await svc.ConnectAsync("demo");
+
+            await svc.SendAsync("$J=G91 X1 F1000"); // 1 mm is far below the 200 mm travel threshold
+
+            var st = await svc.State.FirstAsync();
+            Assert.Equal("Idle", st.Status);
+            Assert.Equal(1, st.Positions[0]);
+        }
+        finally
+        {
+            if (File.Exists(file)) File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public async Task Demo_reports_max_travel_from_settings()
+    {
+        var file = TempSettingsFile();
+        try
+        {
+            using var svc = new DemoGrblService(SettingsFor(3), file);
+
+            Assert.Equal([200, 200, 100], svc.Capabilities.MaxTravel);
+
+            await svc.ConnectAsync("demo");
+            await svc.SendAsync("$130=350");
+            Assert.Equal(350, svc.Capabilities.MaxTravel[0]);
+        }
+        finally
+        {
+            if (File.Exists(file)) File.Delete(file);
+        }
     }
 }
 
