@@ -41,9 +41,6 @@ using SenderNG.Modules.Plugins;
 
 namespace SenderNG.Core.Tests;
 
-// Mutates the process-global GrblInfo.AxisLetters/NumAxes; serialize with the
-// other LegacyStatics readers/writers of those statics.
-[Collection("LegacyStatics")]
 public class JogHotkeyProviderTests
 {
     private sealed class RecordingGrbl(int numAxes = 3) : IGrblService
@@ -60,7 +57,7 @@ public class JogHotkeyProviderTests
     }
 
     private static (IReadOnlyList<IHotkeyAction> Actions, JogViewModel Jog, RecordingGrbl Grbl)
-        Make(string mode = "Mill", int numAxes = 3)
+        Make(string mode = "Mill", int numAxes = 3, CNC.Core.GrblInfoState? info = null)
     {
         var settings = new SettingsService(
             Path.Combine(Path.GetTempPath(), "senderng-joghotkey-" + Guid.NewGuid().ToString("N")));
@@ -71,6 +68,8 @@ public class JogHotkeyProviderTests
         var services = new ServiceCollection();
         services.AddSingleton(settings);
         services.AddSingleton<IGrblService>(_ => grbl);
+        if (info is not null)
+            services.AddSingleton(info);
         services.AddSingleton<JogViewModel>();
         var provider = services.BuildServiceProvider();
         var jog = provider.GetRequiredService<JogViewModel>();
@@ -162,22 +161,11 @@ public class JogHotkeyProviderTests
     [Fact]
     public void Together_actions_can_execute_on_foam()
     {
-        var savedLetters = CNC.Core.GrblInfo.AxisLetters;
-        var savedAxes = CNC.Core.GrblInfo.NumAxes;
-        try
-        {
-            CNC.Core.GrblInfo.AxisLetters = "XYZA";
-            CNC.Core.GrblInfo.NumAxes = 4;
-            var (actions, _, grbl) = Make("Foam", 4);
-            grbl.ConnectAsync("demo");
-            Assert.True(actions.Single(a => a.ActionId == "jog.together.left").CanExecute());
-            Assert.True(actions.Single(a => a.ActionId == "jog.together.down").CanExecute());
-        }
-        finally
-        {
-            CNC.Core.GrblInfo.AxisLetters = savedLetters;
-            CNC.Core.GrblInfo.NumAxes = savedAxes;
-        }
+        var info = new CNC.Core.GrblInfoState { AxisLetters = "XYZA", NumAxes = 4 };
+        var (actions, _, grbl) = Make("Foam", 4, info);
+        grbl.ConnectAsync("demo");
+        Assert.True(actions.Single(a => a.ActionId == "jog.together.left").CanExecute());
+        Assert.True(actions.Single(a => a.ActionId == "jog.together.down").CanExecute());
     }
 
     [Fact]

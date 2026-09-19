@@ -39,10 +39,6 @@ using SenderNG.Modules.Plugins;
 
 namespace SenderNG.Core.Tests;
 
-// Jog letters come from the process-global GrblInfo.AxisLetters; these classes
-// mutate it, so they must not run alongside other readers/writers of that static
-// (the LegacyStatics collection serializes them with RealGrblServiceTests etc.).
-[Collection("LegacyStatics")]
 public class JogViewModelTests
 {
     internal static SettingsService MakeSettings(string mode = "Mill")
@@ -415,7 +411,6 @@ public Task SendAsync(string line)
     }
 }
 
-[Collection("LegacyStatics")]
 public class JogLinearAxesTests
 {
     [Fact]
@@ -450,7 +445,6 @@ public class JogLinearAxesTests
     }
 }
 
-[Collection("LegacyStatics")]
 public class JogProxyInitialStateTests
 {
     [Fact]
@@ -472,7 +466,6 @@ public class JogProxyInitialStateTests
 /// [AXS:] report, and an under-axed multi-plane machine hides its second
 /// plane (decision #3) instead of showing a dead cross.
 /// </summary>
-[Collection("LegacyStatics")]
 public class JogSchemaLayoutTests
 {
     [Fact]
@@ -520,23 +513,15 @@ public class JogSchemaLayoutTests
     [Fact]
     public void Controller_axis_letters_override_the_conventional_display()
     {
-        var saved = CNC.Core.GrblInfo.AxisLetters;
-        try
-        {
-            CNC.Core.GrblInfo.AxisLetters = "XYUV"; // foam board flashed XYUV
-            var vm = new JogViewModel(new JogViewModelTests.RecordingGrbl([], numAxes: 4), JogViewModelTests.MakeSettings("Foam"));
+        var info = new CNC.Core.GrblInfoState { AxisLetters = "XYUV" }; // foam board flashed XYUV
+        var vm = new JogViewModel(new JogViewModelTests.RecordingGrbl([], numAxes: 4), JogViewModelTests.MakeSettings("Foam"), info);
 
-            Assert.Equal("X", vm.P1H);
-            Assert.Equal("U", vm.P2H);
-            Assert.Equal("V", vm.P2V);
-            Assert.Equal("X+|U+", vm.RightTag);
-            Assert.Equal("Y+|V+", vm.UpTag);
-            Assert.Equal("U+", vm.SecondRightTag);
-        }
-        finally
-        {
-            CNC.Core.GrblInfo.AxisLetters = saved;
-        }
+        Assert.Equal("X", vm.P1H);
+        Assert.Equal("U", vm.P2H);
+        Assert.Equal("V", vm.P2V);
+        Assert.Equal("X+|U+", vm.RightTag);
+        Assert.Equal("Y+|V+", vm.UpTag);
+        Assert.Equal("U+", vm.SecondRightTag);
     }
 
     [Fact]
@@ -555,23 +540,16 @@ public class JogSchemaLayoutTests
     public void Letters_refresh_on_state_push_without_axis_count_change()
     {
         // A reconnect to a board with different letters but the same axis count
-        // must still re-letter the crosses (ApplyState compares letters too).
-        var saved = CNC.Core.GrblInfo.AxisLetters;
-        try
-        {
-            CNC.Core.GrblInfo.AxisLetters = "XYZA";
-            var grbl = new JogViewModelTests.RecordingGrbl([], numAxes: 4);
-            var vm = new JogViewModel(grbl, JogViewModelTests.MakeSettings("Foam"));
-            Assert.Equal("A", vm.P2V);
+        // must still re-letter the crosses (ApplyState compares letters too). The
+        // injected info instance is shared: mutating it simulates the new board.
+        var info = new CNC.Core.GrblInfoState { AxisLetters = "XYZA" };
+        var grbl = new JogViewModelTests.RecordingGrbl([], numAxes: 4);
+        var vm = new JogViewModel(grbl, JogViewModelTests.MakeSettings("Foam"), info);
+        Assert.Equal("A", vm.P2V);
 
-            CNC.Core.GrblInfo.AxisLetters = "XYZB";
-            grbl.Push(new MachineState(4)); // same count, different letters
+        info.AxisLetters = "XYZB";
+        grbl.Push(new MachineState(4)); // same count, different letters
 
-            Assert.Equal("B", vm.P2V);
-        }
-        finally
-        {
-            CNC.Core.GrblInfo.AxisLetters = saved;
-        }
+        Assert.Equal("B", vm.P2V);
     }
 }

@@ -16,10 +16,9 @@ using CNC.GCode;
 
 namespace SenderNG.Core.Tests;
 
-// Machine.WorkParametersProvider and GrblInfo.NumAxes are process-global
-// mutable statics: the frame test writes them (provider + NumAxes) and every
-// builder test reads GrblInfo.AxisLetters, so the class joins the non-parallel
-// collection shared with the other writer tests.
+// Machine.WorkParametersProvider is a process-global mutable static: the frame
+// test writes it, so the class joins the non-parallel collection shared with
+// the other provider-writer tests.
 [Collection("LegacyStatics")]
 public class ToolpathBuilderTests
 {
@@ -186,7 +185,6 @@ public class ToolpathBuilderTests
                 wp.CoordinateSystems.First(c => c.Code == "G54").Values[1] = 50;
                 return wp;
             };
-            CNC.Core.GrblInfo.NumAxes = 3;
 
             // Program frame preserved despite the active G54 offset: the final
             // point is the program's (15,15) — not offset-shifted (115,65) — and
@@ -228,7 +226,6 @@ public class ToolpathBuilderTests
         finally
         {
             Machine.WorkParametersProvider = null;
-            CNC.Core.GrblInfo.NumAxes = savedAxes;
         }
     }
 

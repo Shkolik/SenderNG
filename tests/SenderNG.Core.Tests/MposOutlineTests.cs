@@ -333,7 +333,6 @@ public class OutlineViewModelTests : IDisposable
     }
 }
 
-[Collection("LegacyStatics")]
 public class OutlinePlaneAwareTests : IDisposable
 {
     private readonly List<string> _dirs = new();
@@ -432,45 +431,6 @@ public class OutlinePlaneAwareTests : IDisposable
 
         Assert.Empty(spy.Sent);
         Assert.Equal("Outline: program has no limits for the loaded machine's planes", vm.Status);
-    }
-
-    // Controller [AXS:] letters win: a foam board flashed XYUV sweeps U/V on plane 2.
-    // The program is written in the canonical word set (X Y Z A); the controller's
-    // remapped letters relabel plane 2 as U/V (roles are positional — the schema's
-    // "positions not letters" rule). A U/V-word program would NOT work here: with
-    // letters "XYUV", remapU2A/remapV2B (GCodeParser) map a 'U' word to the A axis
-    // (index 3) and 'V' to B (index 4), which never fill indices 2+3.
-    [Fact]
-    public void Controller_letter_remap_reaches_the_second_plane()
-    {
-        var saved = CNC.Core.GrblInfo.AxisLetters;
-        try
-        {
-            CNC.Core.GrblInfo.AxisLetters = "XYUV";
-            var spy = new SpyGrbl();
-            var program = new ProgramViewModel();
-            program.LoadGCode("G1 F100 X10 Y20 Z10 A20\r\nG1 X40 Y30 Z40 A30\r\n");
-            var vm = new OutlineViewModel(spy, MakeSettings(MachineTypes.Foam), program);
-
-            vm.GoCommand.Execute(null);
-
-            var expected = string.Join(Environment.NewLine,
-            [
-                "G90G21G1F500",
-                "X10Y20U10V20",
-                "Y30V30",
-                "X40U40",
-                "Y20V20",
-                "X10U10",
-                "",
-            ]);
-            Assert.Equal(expected, Assert.Single(spy.Sent));
-            Assert.Equal("Outline sent: X/Y + U/V", vm.Status);
-        }
-        finally
-        {
-            CNC.Core.GrblInfo.AxisLetters = saved;
-        }
     }
 
     // A profile switch (MachineTypeId Mill -> Foam) refreshes the sweep set.

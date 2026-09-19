@@ -19,10 +19,6 @@ using SenderNG.Modules.Plotter;
 
 namespace SenderNG.Core.Tests;
 
-// The VM tests parse programs and run the emulator (ToolpathBuilder reads
-// GrblInfo/WorkParametersProvider statics), so this class joins the
-// non-parallel collection shared with the other static writers/readers.
-[Collection("LegacyStatics")]
 public class PlotterModuleTests
 {
     [Fact]
@@ -294,49 +290,31 @@ public class PlotterModuleTests
         // the session's controller reports only 3 axes must NOT lose its A data
         // (the old board-driven slot count dropped it, emptying the ZA plane and
         // degrading the iso to a mill-style vertical render).
-        var savedLetters = CNC.Core.GrblInfo.AxisLetters;
-        try
-        {
-            CNC.Core.GrblInfo.AxisLetters = "XYZ";
-            var (vm, source) = MakeVm(MachineTypes.Foam, axisLetters: "XYZ");
-            source.Load("G1 X10 Y2 Z3 A4 F100");
+        var (vm, source) = MakeVm(MachineTypes.Foam, axisLetters: "XYZ");
+        source.Load("G1 X10 Y2 Z3 A4 F100");
 
-            // Both carriages move (A moves on plane 1) and both render — the
-            // A axis data survives at index 3 (emulator-wide slots).
-            Assert.Equal(2, vm.Planes.Count);
-            Assert.True(vm.Planes[0].Count > 0);
-            Assert.True(vm.Planes[1].Count > 0);
-            Assert.True(vm.HasGeometry);
-            Assert.Null(vm.StatusText);
-            Assert.Equal(9, vm.Bounds.Length);
-            Assert.True(vm.Bounds[3][1] > 0, "the A axis must carry its range");
-        }
-        finally
-        {
-            CNC.Core.GrblInfo.AxisLetters = savedLetters;
-        }
+        // Both carriages move (A moves on plane 1) and both render — the
+        // A axis data survives at index 3 (emulator-wide slots).
+        Assert.Equal(2, vm.Planes.Count);
+        Assert.True(vm.Planes[0].Count > 0);
+        Assert.True(vm.Planes[1].Count > 0);
+        Assert.True(vm.HasGeometry);
+        Assert.Null(vm.StatusText);
+        Assert.Equal(9, vm.Bounds.Length);
+        Assert.True(vm.Bounds[3][1] > 0, "the A axis must carry its range");
     }
 
     [Fact]
     public void Mill_machine_with_two_axis_program_renders_the_xy_path()
     {
-        var savedLetters = CNC.Core.GrblInfo.AxisLetters;
-        try
-        {
-            CNC.Core.GrblInfo.AxisLetters = "XY";
-            var (vm, source) = MakeVm(MachineTypes.Mill, axisLetters: "XY");
-            source.Load("G1 X10 Y2 F100");
+        var (vm, source) = MakeVm(MachineTypes.Mill, axisLetters: "XY");
+        source.Load("G1 X10 Y2 F100");
 
-            // The mill's plane (X,Y,Z) has motion in X/Y regardless of the
-            // board's reported count — an XY-only file must still render.
-            Assert.True(vm.HasGeometry);
-            Assert.True(vm.Planes[0].Count > 0);
-            Assert.Null(vm.StatusText);
-        }
-        finally
-        {
-            CNC.Core.GrblInfo.AxisLetters = savedLetters;
-        }
+        // The mill's plane (X,Y,Z) has motion in X/Y regardless of the
+        // board's reported count — an XY-only file must still render.
+        Assert.True(vm.HasGeometry);
+        Assert.True(vm.Planes[0].Count > 0);
+        Assert.Null(vm.StatusText);
     }
 
     // ---- Async build (large programs) ----

@@ -310,9 +310,10 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 WorkParameters.CreateDefault(Capabilities.NumAxes, Capabilities.NumTools));
         }
 
-        // Push the discovered axis count into the legacy GrblInfo static (the
-        // DRO, gcode parser and expressions read it) and into the live machine
-        // state so the DRO/signals grow to the board's real axes.
+        // Push the discovered axis count into the injected GrblInfoState (the
+        // DRO, gcode parser and expressions read it via GrblInfo.Current) and
+        // into the live machine state so the DRO/signals grow to the board's
+        // real axes.
         ApplyCapabilities();
 
         // Max travel ($130+): the continuous-jog distance source (ioSender's

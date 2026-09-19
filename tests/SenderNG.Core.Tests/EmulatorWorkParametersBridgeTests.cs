@@ -14,26 +14,22 @@ using CNC.Core.Services;
 
 namespace SenderNG.Core.Tests;
 
-// Machine.WorkParametersProvider and GrblInfo.NumAxes are process-global
-// mutable statics: tests that write them (this class, ProgramViewModelTests,
-// RealGrblServiceTests, RealGrblHardwareTests) must never run concurrently
-// with tests that read them, so all opt into the same non-parallel collection.
+// Machine.WorkParametersProvider is a process-global mutable static that the
+// LegacyStatics classes write; all such tests opt into the same non-parallel
+// collection so readers and writers never race.
 [Collection("LegacyStatics")]
 public class EmulatorWorkParametersBridgeTests
 {
-    // Machine.WorkParametersProvider and GrblInfo.NumAxes are process-global
-    // statics that parallel test classes also touch (RealGrblServiceTests saves/
-    // restores NumAxes around $I processing), so every test manages them with
-    // try/finally instead of relying on ambient state. The emulator copies its
-    // seed at construction, so assertions on the returned instance are safe
-    // after the provider has been restored.
+    // Machine.WorkParametersProvider is a process-global static that parallel
+    // test classes also write, so every test manages it with try/finally
+    // instead of relying on ambient state. The emulator copies its seed at
+    // construction, so assertions on the returned instance are safe after the
+    // provider has been restored.
     private static GCodeEmulator Run(string gcode, WorkParameters? seed)
     {
-        var savedAxes = CNC.Core.GrblInfo.NumAxes;
         try
         {
             Machine.WorkParametersProvider = () => seed;
-            CNC.Core.GrblInfo.NumAxes = 3;
 
             var program = GCodeProgram.Parse(gcode);
             var emu = new GCodeEmulator(true);
@@ -45,7 +41,6 @@ public class EmulatorWorkParametersBridgeTests
         finally
         {
             Machine.WorkParametersProvider = null;
-            CNC.Core.GrblInfo.NumAxes = savedAxes;
         }
     }
 

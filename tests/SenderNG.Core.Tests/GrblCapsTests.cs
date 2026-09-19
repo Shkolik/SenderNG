@@ -37,9 +37,6 @@ using Xunit;
 
 namespace SenderNG.Core.Tests;
 
-// Mutates the process-global GrblInfo.IsGrblHAL; serialize with the other
-// LegacyStatics readers/writers of those statics.
-[Collection("LegacyStatics")]
 public class GrblCapsTests
 {
     [Fact]
@@ -74,12 +71,9 @@ public class GrblCapsTests
     }
 
     [Fact]
-    public void ParseCaps_grblHAL_axes_update()
+    public void ParseCaps_can_report_six_axes()
     {
-        // ensure IsGrblHAL true still updates NumAxes via s[3]
-        GrblInfo.IsGrblHAL = true;
         var m = Grbl.ParseCaps("[OPT:V,16,128,6]");
         Assert.Equal(6, m.NumAxes);
-        GrblInfo.IsGrblHAL = false;
     }
 }

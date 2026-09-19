@@ -660,32 +660,22 @@ public class DemoGrblServiceStatusCommandTests
     }
 }
 
-// Regression (process-global GrblInfo.AxisLetters): the demo's axis cap must be
-// the app-wide maximum, not the connected board's letter count. When a 2-axis
-// board's letters shrank the cap, _workOffset was sized smaller than the state,
-// so a G0 touching a higher axis threw IndexOutOfRange in ApplyMotion.
-[Collection("LegacyStatics")]
+// Regression: the demo's axis cap is the app-wide maximum
+// (GrblInfo.DefaultAxisLetters.Length), independent of any connected board.
+// When the board's letters shrank the cap, _workOffset was sized smaller than
+// the state, so a G0 touching a higher axis threw IndexOutOfRange in ApplyMotion.
 public class DemoGrblServiceAxisCapTests
 {
     [Fact]
-    public async Task Demo_axes_are_not_capped_by_the_connected_board_letters()
+    public async Task Demo_axes_are_not_capped_by_a_connected_board_letters()
     {
-        var saved = CNC.Core.GrblInfo.AxisLetters;
-        try
-        {
-            CNC.Core.GrblInfo.AxisLetters = "XY"; // a 2-axis board was last connected
-            using var svc = new DemoGrblService(new MachineProfile { DemoAxes = 5 });
-            await svc.ConnectAsync("demo");
+        using var svc = new DemoGrblService(new MachineProfile { DemoAxes = 5 });
+        await svc.ConnectAsync("demo");
 
-            await svc.SendAsync("G0 X1 Y2 Z3 A4 B5");
+        await svc.SendAsync("G0 X1 Y2 Z3 A4 B5");
 
-            Assert.Equal(5, svc.Capabilities.NumAxes);
-            var st = await svc.State.FirstAsync();
-            Assert.Equal([1.0, 2.0, 3.0, 4.0, 5.0], st.Positions);
-        }
-        finally
-        {
-            CNC.Core.GrblInfo.AxisLetters = saved;
-        }
+        Assert.Equal(5, svc.Capabilities.NumAxes);
+        var st = await svc.State.FirstAsync();
+        Assert.Equal([1.0, 2.0, 3.0, 4.0, 5.0], st.Positions);
     }
 }
