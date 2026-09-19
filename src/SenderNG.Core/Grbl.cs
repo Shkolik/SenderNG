@@ -125,12 +125,12 @@ namespace CNC.Core
         // DefaultAxisLetters is the no-remap fallback when a connect's handshake
         // reports no [AXS:] letters.
         public const string DefaultAxisLetters = "XYZABCUVW";
-        public static string AxisLetters { get => Current.AxisLetters; set => Current.AxisLetters = value; }
+        public static string AxisLetters => Current.AxisLetters;
         public static string SignalLetters { get; private set; } = "XYZABCUVWEPRDHSBTOMF";
         public static string PositionFormatString { get; private set; } = string.Empty;
         public static string Version { get; private set; } = string.Empty;
         public static int Build { get; internal set; } = 0;
-        public static bool IsGrblHAL { get => Current.IsGrblHAL; set => Current.IsGrblHAL = value; }
+        public static bool IsGrblHAL => Current.IsGrblHAL;
         public static string Firmware { get; internal set; } = "grblHAL";
         public static bool ExtendedProtocol { get; internal set; }
         public static string Identity { get; private set; } = string.Empty;
@@ -141,7 +141,7 @@ namespace CNC.Core
         public static bool ReportProbeResult { get; internal set; } = false;
         public static bool ForceSetOrigin { get; private set; } = false;
         public static bool ExpressionsSupported { get; private set; } = false;
-        public static int NumAxes { get => Current.NumAxes; set => Current.NumAxes = value; }
+        public static int NumAxes => Current.NumAxes;
         public static int NumTools { get; internal set; } = 0;
         public static int NumFans { get; private set; } = 0;
         public static bool HasATC { get; private set; }
