@@ -95,6 +95,11 @@ public static class HostSetup
         builder.Services.AddSingleton<IViewFactory>(viewFactory);
         builder.Services.AddSingleton<DemoGrblService>();
         builder.Services.AddSingleton<RealGrblService>();
+        // Per-connection controller identity/capability state: the one instance
+        // every consumer shares. RealGrblService writes it per connect; the static
+        // GrblInfo facade is bound to it below so the parser/expressions see the
+        // board. Tests never touch it (they construct isolated instances).
+        builder.Services.AddSingleton<CNC.Core.GrblInfoState>();
         // The proxy is THE IGrblService singleton: consumers subscribe once and
         // survive demo/real/network swaps via Inner reassignment. The app starts
         // on the real (serial) service, disconnected — demo mode is only entered
@@ -146,7 +151,8 @@ public static class HostSetup
                 dialogs: sp.GetRequiredService<IDialogService>(),
                 modules: sp.GetServices<IModule>(),
                 viewFactory: sp.GetRequiredService<Func<IModule, object>>(),
-                statusSink: sp.GetRequiredService<StatusSink>()));
+                statusSink: sp.GetRequiredService<StatusSink>(),
+                info: sp.GetRequiredService<CNC.Core.GrblInfoState>()));
 
         var host = builder.Build();
 
@@ -165,6 +171,11 @@ public static class HostSetup
         // Expose the localized instance for {Loc key} markup extensions (views
         // can't reach DI). Must be set before any module view is realized.
         SenderNG.Core.Localization.LocalizationService.Current = localization;
+
+        // Bind the static GrblInfo facade to the DI singleton so legacy readers
+        // (gcode parser, expressions) see the board the connect just described.
+        // Must happen before any VM/factory is constructed.
+        CNC.Core.GrblInfo.Current = host.Services.GetRequiredService<CNC.Core.GrblInfoState>();
 
         // Settings fields may be read before a module's UI is ever opened.
         foreach (var module in host.Services.GetServices<IModule>())

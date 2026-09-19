@@ -46,6 +46,7 @@ internal static class JogHotkeyProvider
     {
         JogViewModel Jog() => services.GetRequiredService<JogViewModel>();
         IGrblService Grbl() => services.GetRequiredService<IGrblService>();
+        var info = services.GetService<CNC.Core.GrblInfoState>() ?? CNC.Core.GrblInfo.Current;
         var actions = new List<IHotkeyAction>();
 
         for (var i = 0; i < 4; i++)
@@ -114,7 +115,7 @@ internal static class JogHotkeyProvider
                 canExecute: () =>
                 {
                     var grbl = Grbl();
-                    if (!grbl.IsConnected || !TagDrivable(tag()))
+                    if (!grbl.IsConnected || !TagDrivable(tag(), info))
                         return false;
                     var jog = Jog();
                     if (allGantries && !jog.Plane2Visible)
@@ -125,10 +126,10 @@ internal static class JogHotkeyProvider
                 repeatOnHold: true);
     }
 
-    private static bool TagDrivable(string tag)
+    private static bool TagDrivable(string tag, CNC.Core.GrblInfoState info)
     {
-        var letters = CNC.Core.GrblInfo.AxisLetters;
-        var count = Math.Min(CNC.Core.GrblInfo.NumAxes, letters.Length);
+        var letters = info.AxisLetters;
+        var count = Math.Min(info.NumAxes, letters.Length);
         foreach (var raw in tag.Split([',', '|'], StringSplitOptions.RemoveEmptyEntries))
         {
             var token = raw.Trim();

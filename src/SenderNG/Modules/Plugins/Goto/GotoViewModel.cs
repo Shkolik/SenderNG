@@ -76,14 +76,16 @@ public sealed class GotoAxisRow : ViewModelBase
 public sealed class GotoViewModel : ViewModelBase
 {
     private readonly IGrblService _grbl;
+    private readonly CNC.Core.GrblInfoState _info;
     private readonly IDisposable _stateSubscription;
     private bool _isHomed;
     private int _availableAxes = 3;
     private string _status = string.Empty;
 
-    public GotoViewModel(IGrblService grbl)
+    public GotoViewModel(IGrblService grbl, CNC.Core.GrblInfoState? info = null)
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
+        _info = info ?? CNC.Core.GrblInfo.Current;
 
         GotoHomeCommand = new DelegateCommand(_ => _ = SendAsync("G28", LocText.Resolve("module.goto.goingHome", "Going to home position")));
         GotoG30Command = new DelegateCommand(_ => _ = SendAsync("G30", LocText.Resolve("module.goto.goingRef2", "Going to second reference point")));
@@ -125,7 +127,7 @@ public sealed class GotoViewModel : ViewModelBase
         if (state is null)
             return;
         IsHomed = state.IsHomed;
-        var available = Math.Clamp(state.NumAxes, 1, CNC.Core.GrblInfo.AxisLetters.Length);
+        var available = Math.Clamp(state.NumAxes, 1, _info.AxisLetters.Length);
         if (available != _availableAxes)
         {
             _availableAxes = available;
@@ -137,12 +139,12 @@ public sealed class GotoViewModel : ViewModelBase
     /// row values are preserved by letter.</summary>
     private void RefreshAxes()
     {
-        var count = Math.Clamp(_availableAxes, 1, CNC.Core.GrblInfo.AxisLetters.Length);
+        var count = Math.Clamp(_availableAxes, 1, _info.AxisLetters.Length);
         var existing = GotoAxes.ToDictionary(row => row.Letter, row => row.Value);
         GotoAxes.Clear();
         for (var i = 0; i < count; i++)
         {
-            var letter = CNC.Core.GrblInfo.AxisLetters[i].ToString();
+            var letter = _info.AxisLetters[i].ToString();
             GotoAxes.Add(new GotoAxisRow(letter, existing.TryGetValue(letter, out var value) ? value : "0"));
         }
     }

@@ -57,22 +57,24 @@ public class JogViewModel : ViewModelBase
 
     private readonly IGrblService _grbl;
     private readonly SettingsService _settingsService;
+    private readonly CNC.Core.GrblInfoState _info;
     private MachineProfile _profile;
     private MachineType _machineType = MachineTypeCatalog.Resolve(MachineTypes.Mill);
     private int _numAxes = 2;
     private string _letters = string.Empty;
     private bool _suppressReload;
 
-    public JogViewModel(IGrblService grbl, SettingsService settingsService)
+    public JogViewModel(IGrblService grbl, SettingsService settingsService, CNC.Core.GrblInfoState? info = null)
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _info = info ?? CNC.Core.GrblInfo.Current;
         _profile = _settingsService.Load();
 
         Config = JogConfigStore.Load(_profile);
         Config.PropertyChanged += OnConfigPropertyChanged;
         _machineType = MachineTypeCatalog.Resolve(_profile.MachineTypeId);
-        _letters = CNC.Core.GrblInfo.AxisLetters;
+        _letters = _info.AxisLetters;
         RefreshGeometry();
         RefreshLinearAxes();
 
@@ -191,9 +193,9 @@ public class JogViewModel : ViewModelBase
     public string SecondDownTag => $"{P2V}-";
     public string SecondDownRightTag => $"{P2H}+,{P2V}-";
 
-    private static string LetterFor(int axisIndex)
+    private string LetterFor(int axisIndex)
     {
-        var letters = CNC.Core.GrblInfo.AxisLetters;
+        var letters = _info.AxisLetters;
         return axisIndex < letters.Length
             ? letters.Substring(axisIndex, 1)
             : MachineType.ConventionalLetters.Substring(axisIndex, 1);
@@ -294,7 +296,7 @@ public class JogViewModel : ViewModelBase
             foreach (var raw in part.Split(',', StringSplitOptions.RemoveEmptyEntries))
             {
                 var token = raw.Trim();
-                var index = token.Length > 0 ? CNC.Core.GrblInfo.AxisLetters.IndexOf(token[0]) : -1;
+                var index = token.Length > 0 ? _info.AxisLetters.IndexOf(token[0]) : -1;
                 if (index < 0 || index >= travel.Length || travel[index] <= 0)
                     return false;                      // axis letter unknown or $130+ unset/zero
             }
@@ -403,7 +405,7 @@ public class JogViewModel : ViewModelBase
     /// every axis in the tag before this runs; the 0 return is unreachable defense.</summary>
     private double ContinuousDistanceFor(string token)
     {
-        var index = CNC.Core.GrblInfo.AxisLetters.IndexOf(token.Length > 0 ? token[0] : '\0');
+        var index = _info.AxisLetters.IndexOf(token.Length > 0 ? token[0] : '\0');
         var travel = _grbl.Capabilities.MaxTravel;
         return index >= 0 && index < travel.Length ? travel[index] : 0;
     }
@@ -470,7 +472,7 @@ public class JogViewModel : ViewModelBase
         // Letters ride along with the count: the handshake pushes the [AXS:]
         // letters right before the first state report, and a reconnect to a
         // different board can change them without changing the axis count.
-        var letters = CNC.Core.GrblInfo.AxisLetters;
+        var letters = _info.AxisLetters;
         var n = Math.Clamp(state.NumAxes, 2, Letters.Length);
         if (n == _numAxes && letters == _letters)
             return;

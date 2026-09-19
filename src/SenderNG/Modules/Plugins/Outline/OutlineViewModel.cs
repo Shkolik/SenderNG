@@ -57,15 +57,17 @@ public class OutlineViewModel : ViewModelBase
     private readonly IGrblService _grbl;
     private readonly SettingsService _settings;
     private readonly ProgramViewModel _program;
+    private readonly CNC.Core.GrblInfoState _info;
     private int _feedRate;
     private string _status = string.Empty;
     private MachineType _machineType;
 
-    public OutlineViewModel(IGrblService grbl, SettingsService settings, ProgramViewModel program)
+    public OutlineViewModel(IGrblService grbl, SettingsService settings, ProgramViewModel program, CNC.Core.GrblInfoState? info = null)
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _program = program ?? throw new ArgumentNullException(nameof(program));
+        _info = info ?? CNC.Core.GrblInfo.Current;
 
         _feedRate = ReadFeedRate(_settings);
         _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
@@ -186,9 +188,9 @@ public class OutlineViewModel : ViewModelBase
 
     /// <summary>Controller letter for a flattened axis index — the handshake letters
     /// when reported, the preset's conventional order otherwise (jog LetterFor).</summary>
-    private static string LetterFor(int axisIndex)
+    private string LetterFor(int axisIndex)
     {
-        var letters = CNC.Core.GrblInfo.AxisLetters;
+        var letters = _info.AxisLetters;
         return axisIndex < letters.Length
             ? letters.Substring(axisIndex, 1)
             : MachineType.ConventionalLetters.Substring(axisIndex, 1);

@@ -99,6 +99,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     private readonly Dictionary<IModule, object> _moduleViews = new();
     private bool _isDemo;
     private IGrblService _grbl;
+    private readonly CNC.Core.GrblInfoState _info;
     private string _status = string.Empty;
     private bool _isConnected;
     private RealGrblService? _networkService;
@@ -131,12 +132,14 @@ public class MainViewModel : ViewModelBase, IDisposable
         Func<IModule, object>? viewFactory = null,
         IFileDialogService? fileDialogs = null,
         IDialogService? dialogs = null,
-        StatusSink? statusSink = null)
+        StatusSink? statusSink = null,
+        CNC.Core.GrblInfoState? info = null)
     {
         ArgumentNullException.ThrowIfNull(grbl);
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(services);
 
+        _info = info ?? CNC.Core.GrblInfo.Current;
         _grbl = grbl;
         _settingsService = settings;
         SettingsService = settings;
@@ -170,7 +173,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         // Seed dynamic signals from initial state (DemoAxes) so UI shows X0 Y0 without connecting
         // Use settings DemoAxes as fallback; live State subscription will correct it immediately if BehaviourSubject replays
         var seedAxes = _settingsService.Load().DemoAxes;
-        seedAxes = Math.Clamp(seedAxes, 1, CNC.Core.GrblInfo.AxisLetters.Length);
+        seedAxes = Math.Clamp(seedAxes, 1, _info.AxisLetters.Length);
         RebuildSignalStrip(seedAxes, _grbl.Capabilities.OptionalSignals);
 
         // Recent files persist across sessions via global.json.
@@ -1427,7 +1430,7 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void UpdateSignals(MachineState state)
     {
-        var letters = CNC.Core.GrblInfo.AxisLetters;
+        var letters = _info.AxisLetters;
         var num = state.NumAxes;
         num = Math.Clamp(num, 0, letters.Length);
         var optional = state.OptionalSignals;
@@ -1450,7 +1453,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         SignalIndicators.Clear();
         AxisSignalIndicators.Clear();
         ControlSignalIndicators.Clear();
-        var letters = CNC.Core.GrblInfo.AxisLetters;
+        var letters = _info.AxisLetters;
         for (var i = 0; i < numAxes; i++)
         {
             var letter = letters[i].ToString();
