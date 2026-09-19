@@ -43,10 +43,12 @@ public class ReleaseEngineTests
     public async Task Core_only_release_stages_bundle_and_checksums()
     {
         var (repo, output, cli) = Setup();
+        var platform = PlatformInfo.Current;
+        var folder = PlatformInfo.FolderName(platform);
         var appPublish = TempDir.New();
         Directory.CreateDirectory(Path.Combine(appPublish, "Modules"));
         Directory.CreateDirectory(Path.Combine(appPublish, "Locale"));
-        File.WriteAllText(Path.Combine(appPublish, "SenderNG.exe"), "exe");
+        File.WriteAllText(Path.Combine(appPublish, PlatformInfo.RunnerFileName(platform)), "exe");
         File.WriteAllText(Path.Combine(appPublish, "SenderNG.dll"), "dll");
         File.WriteAllText(Path.Combine(appPublish, "SenderNG.deps.json"), "{}");
         File.WriteAllText(Path.Combine(appPublish, "SenderNG.runtimeconfig.json"), "{}");
@@ -56,19 +58,19 @@ public class ReleaseEngineTests
         File.WriteAllText(Path.Combine(appPublish, "Modules", "SenderNG.Modules.Dummy.dll"), "mod");
         Directory.CreateDirectory(Path.Combine(appPublish, "Modules", "dummy", "Locale"));
         File.WriteAllText(Path.Combine(appPublish, "Modules", "dummy", "Locale", "en.json"), "{}");
-        File.WriteAllText(Path.Combine(appPublish, "coreclr.dll"), "n");
+        File.WriteAllText(Path.Combine(appPublish, NativeLib(platform)), "n");
         cli.AppPublishDir = appPublish;
 
         var engine = new ReleaseEngine(repo, cli, new SilentLog());
         var report = await engine.ReleaseAsync(new ReleaseOptions { OutputDir = output });
 
-        var bundle = Path.Combine(output, "win64", "SenderNG");
-        Assert.True(File.Exists(Path.Combine(bundle, "SenderNG.exe")));
+        var bundle = Path.Combine(output, folder, "SenderNG");
+        Assert.True(File.Exists(Path.Combine(bundle, PlatformInfo.RunnerFileName(platform))));
         Assert.False(File.Exists(Path.Combine(bundle, "SenderNG.pdb")));
         Assert.False(File.Exists(Path.Combine(bundle, "Modules", "SenderNG.Modules.Dummy.dll")));
         Assert.False(Directory.Exists(Path.Combine(bundle, "Modules", "dummy")));
-        Assert.True(File.Exists(Path.Combine(output, "win64", "SenderNG-0.1.0-win64.zip")));
-        Assert.True(File.Exists(Path.Combine(output, "win64", "SHA256SUMS.txt")));
+        Assert.True(File.Exists(Path.Combine(output, folder, $"SenderNG-0.1.0-{PlatformInfo.ZipSuffix(platform)}.zip")));
+        Assert.True(File.Exists(Path.Combine(output, folder, "SHA256SUMS.txt")));
         Assert.Single(report.Artifacts);
     }
 
@@ -83,11 +85,12 @@ public class ReleaseEngineTests
         var options = new ReleaseOptions { OutputDir = output, Selection = PluginSelection.All };
         var report = await engine.ReleaseAsync(options);
 
-        var pluginsRoot = Path.Combine(output, "win64", "plugins");
+        var platform = PlatformInfo.Current;
+        var pluginsRoot = Path.Combine(output, PlatformInfo.FolderName(platform), "plugins");
         Assert.True(File.Exists(Path.Combine(pluginsRoot, "dummy", "SenderNG.Modules.Dummy.dll")));
         Assert.True(File.Exists(Path.Combine(pluginsRoot, "dummy", "dummy", "Locale", "en.json")));
         Assert.True(File.Exists(Path.Combine(pluginsRoot, "dummy", "README.txt")));
-        Assert.True(File.Exists(Path.Combine(output, "win64", "SenderNG-plugin-dummy-0.1.0-win64.zip")));
+        Assert.True(File.Exists(Path.Combine(output, PlatformInfo.FolderName(platform), $"SenderNG-plugin-dummy-0.1.0-{PlatformInfo.ZipSuffix(platform)}.zip")));
         Assert.Contains("dummy", report.PluginIds);
     }
 
@@ -107,14 +110,14 @@ public class ReleaseEngineTests
     {
         var (repo, output, cli) = Setup();
         cli.AppPublishDir = CompleteAppPublish();
-        var stale = Path.Combine(output, "win64", "plugins", "stale");
+        var stale = Path.Combine(output, PlatformInfo.FolderName(PlatformInfo.Current), "plugins", "stale");
         Directory.CreateDirectory(stale);
         File.WriteAllText(Path.Combine(stale, "leftover.txt"), "x");
 
         var engine = new ReleaseEngine(repo, cli, new SilentLog());
         await engine.ReleaseAsync(new ReleaseOptions { OutputDir = output, Selection = PluginSelection.All });
 
-        Assert.False(Directory.Exists(Path.Combine(output, "win64", "plugins", "stale")));
+        Assert.False(Directory.Exists(stale));
     }
 
     private static (string repo, string output, FakeCli cli) Setup()
@@ -139,17 +142,21 @@ public class ReleaseEngineTests
 
     private static string CompleteAppPublish()
     {
+        var platform = PlatformInfo.Current;
         var publish = TempDir.New();
         Directory.CreateDirectory(Path.Combine(publish, "Modules"));
         Directory.CreateDirectory(Path.Combine(publish, "Modules", "dummy", "Locale"));
-        File.WriteAllText(Path.Combine(publish, "SenderNG.exe"), "exe");
+        File.WriteAllText(Path.Combine(publish, PlatformInfo.RunnerFileName(platform)), "exe");
         File.WriteAllText(Path.Combine(publish, "SenderNG.dll"), "dll");
         File.WriteAllText(Path.Combine(publish, "SenderNG.deps.json"), "{}");
         File.WriteAllText(Path.Combine(publish, "SenderNG.runtimeconfig.json"), "{}");
         File.WriteAllText(Path.Combine(publish, "SenderNG.Core.dll"), "core");
         File.WriteAllText(Path.Combine(publish, "Modules", "SenderNG.Modules.Common.dll"), "sdk");
         File.WriteAllText(Path.Combine(publish, "Modules", "dummy", "Locale", "en.json"), "{}");
-        File.WriteAllText(Path.Combine(publish, "coreclr.dll"), "n");
+        File.WriteAllText(Path.Combine(publish, NativeLib(platform)), "n");
         return publish;
     }
+
+    private static string NativeLib(ReleasePlatform platform)
+        => platform == ReleasePlatform.Win64 ? "coreclr.dll" : "libcoreclr.so";
 }

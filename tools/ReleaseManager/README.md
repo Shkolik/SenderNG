@@ -14,6 +14,21 @@ Authoritative design: `docs/superpowers/specs/2026-09-18-releasemanager-design.m
   user-level `NuGet.Config`)
 - Run from the **repo root** (`SenderNG.sln` must be in the current directory)
 
+### Linux runtime prerequisites (target machine)
+
+Self-contained publish bundles the .NET runtime but **not** the distro's X11
+libraries. Any Debian/Ubuntu machine that runs the Linux bundle — WSL2 for the
+smoke test, or the real target — needs Avalonia's X11 dependencies:
+
+```
+sudo apt update
+sudo apt install -y libx11-6 libice6 libsm6 libfontconfig1
+```
+
+Missing these shows up as an unhandled `System.DllNotFoundException` at startup,
+e.g. `Unable to load shared library 'libICE.so.6'`. WSL2 needs them too, even
+though WSLg supplies the display server.
+
 ## Pipeline
 
 1. **Tests** (`dotnet test SenderNG.sln`) unless `--skip-tests` — failure aborts, exit 2.
@@ -158,34 +173,49 @@ else it owns goes under `<plugin-id>/` (locale + closure). Host-owned assemblies
    ```
    The pinned `9.0.316` rolls forward within `latestPatch`, so any `9.0.3xx`
    SDK is fine. Verify with `dotnet --version`.
-4. **Bring in the working tree** (disposable copy; all real work stays on
+4. **Install the runtime X11 packages** (needed for the WSLg smoke test and by
+   the bundle on any Ubuntu target — see "Linux runtime prerequisites"):
+   ```
+   sudo apt install -y libx11-6 libice6 libsm6 libfontconfig1
+   ```
+5. **Bring in the working tree** (disposable copy; all real work stays on
    Windows):
    ```
    cp -r /mnt/c/Projects/Workshop/SenderNG ~/SenderNG
    cd ~/SenderNG
    find . -type d \( -name bin -o -name obj \) -exec rm -rf {} +
    ```
-5. **NuGet feeds** (HelixToolkit GitHub Packages needs the token):
+6. **NuGet feeds** (HelixToolkit GitHub Packages needs the token):
    ```
    mkdir -p ~/.nuget/NuGet
    cp "/mnt/c/Users/<you>/AppData/Roaming/NuGet/NuGet.Config" ~/.nuget/NuGet/
    chmod 600 ~/.nuget/NuGet/NuGet.Config
    ```
-6. **Restore + sanity build:**
+7. **Restore + sanity build:**
    ```
    dotnet restore
    dotnet build SenderNG.sln
    ```
-7. **Release:**
+8. **Release:**
    ```
    dotnet run --project tools/ReleaseManager -- --include-plugins
+   ```
+   On a headless WSL host the rendering tests (`WboitConeRepro.*`,
+   `PlotterLiveRunHeadlessTests.*`) fail without a GPU, which aborts the
+   release's test gate. If they fail, ship with `--skip-tests` and rely on the
+   WSLg smoke test below instead:
+   ```
+   dotnet run --project tools/ReleaseManager -- --include-plugins --skip-tests
    ```
    Output: `~/SenderNG/output/linux/`. Optional smoke test via WSLg (renders on
    the Windows desktop): `./output/linux/SenderNG/SenderNG` → Connect → Demo.
    If "Permission denied" (bundle passed through a Windows filesystem):
    `chmod +x ./output/linux/SenderNG/SenderNG` — only the runner needs `+x`, no
    `777`.
-8. **Copy to the thumb drive** (WSL2 auto-mounts Windows drives under
+   Serial connectivity is **not** testable under WSL2 (Windows COM ports are
+   invisible to it; USB passthrough with usbipd-win would tie up the port). Test
+   connection on the Windows bundle or a real machine instead.
+9. **Copy to the thumb drive** (WSL2 auto-mounts Windows drives under
    `/mnt/<letter>`):
    ```
    ls /mnt/
@@ -195,10 +225,10 @@ else it owns goes under `<plugin-id>/` (locale + closure). Host-owned assemblies
    Note: exFAT/NTFS drives don't store Unix permissions — after copying the
    bundle off the drive onto a real Linux machine, run `chmod +x SenderNG`
    before first launch.
-9. **Verify on the drive:**
-   ```
-   cd /mnt/e/SenderNG-linux && sha256sum -c SHA256SUMS.txt
-   ```
+10. **Verify on the drive:**
+    ```
+    cd /mnt/e/SenderNG-linux && sha256sum -c SHA256SUMS.txt
+    ```
 
 ## Deferred
 
