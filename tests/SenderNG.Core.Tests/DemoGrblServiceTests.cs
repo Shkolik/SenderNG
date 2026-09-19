@@ -288,8 +288,9 @@ public class DemoGrblServiceTests
 
             // Wait (bounded) until the simulator has actually advanced: a fixed
             // delay can race a starved poll timer under full-suite load and find
-            // the jog still at rest.
-            var deadline = DateTime.UtcNow.AddSeconds(5);
+            // the jog still at rest. Keep a generous budget — a stuck timer under
+            // load is not the behaviour under test.
+            var deadline = DateTime.UtcNow.AddSeconds(15);
             while ((await svc.State.FirstAsync()).Positions[0] <= 0 && DateTime.UtcNow < deadline)
                 await Task.Delay(5);
 
@@ -656,5 +657,35 @@ public class DemoGrblServiceStatusCommandTests
         var st = await svc.State.FirstAsync();
         Assert.Equal("Idle", st.Status);
         Assert.Equal(3, st.NumAxes);
+    }
+}
+
+// Regression (process-global GrblInfo.AxisLetters): the demo's axis cap must be
+// the app-wide maximum, not the connected board's letter count. When a 2-axis
+// board's letters shrank the cap, _workOffset was sized smaller than the state,
+// so a G0 touching a higher axis threw IndexOutOfRange in ApplyMotion.
+[Collection("LegacyStatics")]
+public class DemoGrblServiceAxisCapTests
+{
+    [Fact]
+    public async Task Demo_axes_are_not_capped_by_the_connected_board_letters()
+    {
+        var saved = CNC.Core.GrblInfo.AxisLetters;
+        try
+        {
+            CNC.Core.GrblInfo.AxisLetters = "XY"; // a 2-axis board was last connected
+            using var svc = new DemoGrblService(new MachineProfile { DemoAxes = 5 });
+            await svc.ConnectAsync("demo");
+
+            await svc.SendAsync("G0 X1 Y2 Z3 A4 B5");
+
+            Assert.Equal(5, svc.Capabilities.NumAxes);
+            var st = await svc.State.FirstAsync();
+            Assert.Equal([1.0, 2.0, 3.0, 4.0, 5.0], st.Positions);
+        }
+        finally
+        {
+            CNC.Core.GrblInfo.AxisLetters = saved;
+        }
     }
 }

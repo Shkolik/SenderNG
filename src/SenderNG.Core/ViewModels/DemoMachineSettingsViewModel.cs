@@ -64,7 +64,7 @@ public class DemoMachineSettingsViewModel : ViewModelBase, IClosableDialog
         _demo = demo;
         _savedCallback = savedCallback;
         _localization = localization ?? LocalizationService.Current;
-        _numAxes = Math.Clamp(profile.DemoAxes, MinAxes, GrblInfo.AxisLetters.Length);
+        _numAxes = Math.Clamp(profile.DemoAxes, MinAxes, GrblInfo.DefaultAxisLetters.Length);
         _machineType = profile.MachineTypeId == "Foam" ? MachineTypes.Foam : MachineTypes.Mill;
 
         OkCommand = new DelegateCommand(_ => Save());
@@ -116,7 +116,7 @@ public class DemoMachineSettingsViewModel : ViewModelBase, IClosableDialog
 
     private void Save()
     {
-        var clamped = Math.Clamp(NumAxes, MinAxes, GrblInfo.AxisLetters.Length);
+        var clamped = Math.Clamp(NumAxes, MinAxes, GrblInfo.DefaultAxisLetters.Length);
         if (clamped != NumAxes)
             NumAxes = clamped;
 

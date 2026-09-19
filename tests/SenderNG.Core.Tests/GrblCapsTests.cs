@@ -37,6 +37,9 @@ using Xunit;
 
 namespace SenderNG.Core.Tests;
 
+// Mutates the process-global GrblInfo.IsGrblHAL; serialize with the other
+// LegacyStatics readers/writers of those statics.
+[Collection("LegacyStatics")]
 public class GrblCapsTests
 {
     [Fact]

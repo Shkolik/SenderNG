@@ -41,6 +41,9 @@ using SenderNG.Modules.Plugins;
 
 namespace SenderNG.Core.Tests;
 
+// Mutates the process-global GrblInfo.AxisLetters/NumAxes; serialize with the
+// other LegacyStatics readers/writers of those statics.
+[Collection("LegacyStatics")]
 public class JogHotkeyProviderTests
 {
     private sealed class RecordingGrbl(int numAxes = 3) : IGrblService

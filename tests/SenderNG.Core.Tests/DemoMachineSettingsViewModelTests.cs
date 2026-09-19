@@ -138,3 +138,30 @@ public class DemoMachineSettingsViewModelTests
         Assert.False(vm.IsFoam);
     }
 }
+
+// Regression: the demo settings axis cap must not follow the last connected
+// board's letters (a 4-axis board would otherwise cap the demo at 4).
+[Collection("LegacyStatics")]
+public class DemoMachineSettingsAxisCapTests
+{
+    [Fact]
+    public void NumAxes_is_not_capped_by_the_connected_board_letters()
+    {
+        var saved = CNC.Core.GrblInfo.AxisLetters;
+        try
+        {
+            CNC.Core.GrblInfo.AxisLetters = "XYZA"; // a 4-axis board was last connected
+            var profile = new MachineProfile();
+            var demo = new DemoGrblService(profile);
+            var vm = new DemoMachineSettingsViewModel(profile, demo) { NumAxes = 5 };
+
+            vm.OkCommand.Execute(null);
+
+            Assert.Equal(5, profile.DemoAxes);
+        }
+        finally
+        {
+            CNC.Core.GrblInfo.AxisLetters = saved;
+        }
+    }
+}

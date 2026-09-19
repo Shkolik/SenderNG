@@ -90,13 +90,25 @@ public class MainViewModelRecentFilesTests
         return services.BuildServiceProvider();
     }
 
-    private static async Task WaitForAsync(Func<bool> condition, string what)
+    // The load itself is ~40ms, but it runs via Task.Run and the parallel suite can
+    // starve the thread pool, so the wait must be condition-based with a generous
+    // budget rather than a fixed "sleep and hope" deadline. This orders the loads;
+    // it is not asserting speed. A genuine hang still surfaces with the status text.
+    private static async Task WaitForAsync(Func<bool> condition, Func<string> detail, string what)
     {
-        var deadline = DateTime.UtcNow.AddSeconds(2);
-        while (!condition() && DateTime.UtcNow < deadline)
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (!condition() && sw.Elapsed < TimeSpan.FromSeconds(30))
             await Task.Delay(10);
-        Assert.True(condition(), $"timed out waiting for {what}");
+        Assert.True(condition(), $"timed out waiting for {what}; status: '{detail()}'");
     }
+
+    // The load sets "Loading {0}…" (which also contains the filename) before parsing
+    // and "Loaded {0} (N lines)" only at the very end. Matching on the filename alone would
+    // release the wait while the previous load is still running, so the loads overlap
+    // and the recent-files order becomes nondeterministic. The finished status is the
+    // only filename-bearing status without the ellipsis (locale-independent).
+    private static bool LoadFinished(MainViewModel vm, string file) =>
+        vm.Status.Contains(Path.GetFileName(file)) && !vm.Status.Contains("…");
 
     [Fact]
     public async Task Recent_files_persist_across_app_restart()
@@ -110,7 +122,7 @@ public class MainViewModelRecentFilesTests
             var settings = new SettingsService(dir);
             var vm1 = new MainViewModel(new DemoGrblService(settings.Load()), settings, MakeProvider(settings));
             vm1.SelectRecentCommand.Execute(file);
-            await WaitForAsync(() => vm1.Status.StartsWith("Loaded"), "load finished");
+            await WaitForAsync(() => LoadFinished(vm1, file), () => vm1.Status, "load finished");
             // A fresh app instance on the same settings dir must see the list.
             var settings2 = new SettingsService(dir);
             var vm2 = new MainViewModel(new DemoGrblService(settings2.Load()), settings2, MakeProvider(settings2));
@@ -139,7 +151,7 @@ public class MainViewModelRecentFilesTests
                 vm.SelectRecentCommand.Execute(f);
                 // Wait until this load fully finished (Status is set last) before
                 // starting the next, so the completion order is deterministic.
-                await WaitForAsync(() => vm.Status.Contains(Path.GetFileName(f)), $"load {i} landed");
+                await WaitForAsync(() => LoadFinished(vm, f), () => vm.Status, $"load {i} landed");
             }
 
             Assert.Equal(10, vm.RecentFiles.Count);

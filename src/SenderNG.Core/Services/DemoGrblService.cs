@@ -106,13 +106,18 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         LocalizationService? localization = null)
     {
         _localization = localization;
+        // The demo's axis cap is the app-wide maximum (the constant default letter
+        // set), NOT the connected board's letter count: after a real connect that
+        // reports e.g. four axes, a demo profile must still be configurable up to
+        // the full set. The initial state and the offset array use this same
+        // clamped count so positions and offsets can never disagree in length.
+        var demoAxes = Math.Clamp(settings.DemoAxes, 1, CNC.Core.GrblInfo.DefaultAxisLetters.Length);
         // Seed the full optional-signal set (demo reports Full capabilities) so
         // the signals panel shows every LED, as before gating was introduced.
-        _subject = new BehaviorSubject<MachineState>(new MachineState(settings.DemoAxes)
+        _subject = new BehaviorSubject<MachineState>(new MachineState(demoAxes)
         {
             OptionalSignals = ControllerCapabilities.Full.OptionalSignals,
         });
-        var demoAxes = Math.Clamp(settings.DemoAxes, 1, CNC.Core.GrblInfo.AxisLetters.Length);
         _capabilities = ControllerCapabilities.Full with { NumAxes = demoAxes };
         ResizeWorkParameters(demoAxes);
         // Demo fixture: seed a couple of tip radii (grblHAL reports the R word in
@@ -189,7 +194,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     // Fresh state resets positions — acceptable when reconfiguring the machine.
     public void SetNumAxes(int numAxes)
     {
-        var clamped = Math.Clamp(numAxes, 1, CNC.Core.GrblInfo.AxisLetters.Length);
+        var clamped = Math.Clamp(numAxes, 1, CNC.Core.GrblInfo.DefaultAxisLetters.Length);
 
         lock (_lock)
         {

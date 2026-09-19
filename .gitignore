@@ -2,6 +2,7 @@
 bin/
 obj/
 out/
+output/
 publish/
 *.user
 *.suo

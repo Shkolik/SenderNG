@@ -480,11 +480,15 @@ public class RealGrblServiceTests
         // A long operation with a live controller (homing a big slow machine):
         // status reports keep sliding the silence window, so a reply that takes
         // many windows to arrive is fine as long as the controller keeps talking.
+        // The report cadence (70 ms) must stay comfortably inside the window: the
+        // test thread can be descheduled for a long time under full-suite load, so
+        // a 100 ms window with 30 ms slack flakes when a delay overshoots. Use a
+        // 300 ms window (230 ms slack) while still crossing ~3 windows.
         var transport = new FakeGrblTransport { AutoReply = false };
         using var svc = new RealGrblService(transport)
         {
             PollIntervalMs = 50,
-            CommandTimeout = TimeSpan.FromMilliseconds(100),
+            CommandTimeout = TimeSpan.FromMilliseconds(300),
         };
         await svc.ConnectAsync("fake");
 
@@ -497,7 +501,7 @@ public class RealGrblServiceTests
         transport.Enqueue("<Idle|MPos:0,0,0>");
         transport.Enqueue("ok");
 
-        await sendTask.WaitAsync(TimeSpan.FromSeconds(3)); // must NOT timeout
+        await sendTask.WaitAsync(TimeSpan.FromSeconds(10)); // must NOT timeout
     }
 
     [Fact]
@@ -540,9 +544,12 @@ public class RealGrblServiceTests
         var program = GCodeProgram.Parse("G0 X1\nG0 X2\nG0 X3");
         var session = new GCodeProgramStreamer(svc).Start(program, new Progress<ProgramLineUpdate>(updates.Add));
 
-        await WaitUntil(() => transport.Sent.Contains("G0 X1"));
+        // These waits are safety nets, not assertions on speed: under full-suite
+        // load the streaming continuations can be starved well past a few seconds,
+        // so keep a generous budget (a genuine hang still fails).
+        await WaitUntil(() => transport.Sent.Contains("G0 X1"), 15000);
         transport.Enqueue("ok");
-        await WaitUntil(() => transport.Sent.Contains("G0 X2"));
+        await WaitUntil(() => transport.Sent.Contains("G0 X2"), 15000);
 
         // Feed hold mid-line: stay held for 7x the CommandTimeout window.
         for (var i = 0; i < 7; i++)
@@ -554,14 +561,14 @@ public class RealGrblServiceTests
         // Resume (cycle start): line 2 finishes, the rest streams, run completes.
         transport.Enqueue("<Run|MPos:10,10,0>");
         transport.Enqueue("ok");
-        await WaitUntil(() => transport.Sent.Contains("G0 X3"));
+        await WaitUntil(() => transport.Sent.Contains("G0 X3"), 15000);
         transport.Enqueue("ok");
 
-        var result = await session.Completion.WaitAsync(TimeSpan.FromSeconds(3));
+        var result = await session.Completion.WaitAsync(TimeSpan.FromSeconds(15));
         Assert.True(result.IsSuccess, result.Error);
         // Progress callbacks are posted asynchronously and can land just after
         // Completion resolves — wait for all three instead of asserting instantly.
-        await WaitUntil(() => updates.Count(u => u.Status == ProgramLineStatus.Ok) == 3);
+        await WaitUntil(() => updates.Count(u => u.Status == ProgramLineStatus.Ok) == 3, 15000);
     }
 
     [Fact]
@@ -778,14 +785,16 @@ public class RealGrblServiceTests
             var transport = new FakeGrblTransport { AutoReply = false };
             using var svc = new RealGrblService(transport);
 
+            // Handshake waits are safety nets: full-suite CPU load can starve the
+            // reader/continuations well past a few seconds.
             var connectTask = svc.ConnectAsync("fake");
-            await WaitUntil(() => transport.Sent.Contains("$I"), 3000);
+            await WaitUntil(() => transport.Sent.Contains("$I"), 15000);
             transport.Enqueue("GrblHAL 1.1h ['$' for help]");
             transport.Enqueue("[VER:1.1f.20260827:grblHAL]");
             transport.Enqueue("[OPT:V,15,128]");
             transport.Enqueue("[AXS:4:XYZA]");
             transport.Enqueue("ok");
-            await connectTask.WaitAsync(TimeSpan.FromSeconds(5));
+            await connectTask.WaitAsync(TimeSpan.FromSeconds(20));
 
             Assert.Equal(4, svc.Capabilities.NumAxes);
             Assert.Equal("XYZA", svc.Capabilities.AxisLetters);
@@ -796,12 +805,12 @@ public class RealGrblServiceTests
             using var svc2 = new RealGrblService(transport2);
 
             var connect2 = svc2.ConnectAsync("fake");
-            await WaitUntil(() => transport2.Sent.Contains("$I"), 3000);
+            await WaitUntil(() => transport2.Sent.Contains("$I"), 15000);
             transport2.Enqueue("Grbl 1.1h ['$' for help]");
             transport2.Enqueue("[VER:1.1h.20190825:]");
             transport2.Enqueue("[OPT:V,15,128]");
             transport2.Enqueue("ok");
-            await connect2.WaitAsync(TimeSpan.FromSeconds(5));
+            await connect2.WaitAsync(TimeSpan.FromSeconds(20));
 
             Assert.Equal(3, svc2.Capabilities.NumAxes);
             Assert.Equal(string.Empty, svc2.Capabilities.AxisLetters);

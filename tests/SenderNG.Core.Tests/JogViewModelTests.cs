@@ -39,6 +39,10 @@ using SenderNG.Modules.Plugins;
 
 namespace SenderNG.Core.Tests;
 
+// Jog letters come from the process-global GrblInfo.AxisLetters; these classes
+// mutate it, so they must not run alongside other readers/writers of that static
+// (the LegacyStatics collection serializes them with RealGrblServiceTests etc.).
+[Collection("LegacyStatics")]
 public class JogViewModelTests
 {
     internal static SettingsService MakeSettings(string mode = "Mill")
@@ -411,6 +415,7 @@ public Task SendAsync(string line)
     }
 }
 
+[Collection("LegacyStatics")]
 public class JogLinearAxesTests
 {
     [Fact]
@@ -445,6 +450,7 @@ public class JogLinearAxesTests
     }
 }
 
+[Collection("LegacyStatics")]
 public class JogProxyInitialStateTests
 {
     [Fact]
@@ -466,6 +472,7 @@ public class JogProxyInitialStateTests
 /// [AXS:] report, and an under-axed multi-plane machine hides its second
 /// plane (decision #3) instead of showing a dead cross.
 /// </summary>
+[Collection("LegacyStatics")]
 public class JogSchemaLayoutTests
 {
     [Fact]
