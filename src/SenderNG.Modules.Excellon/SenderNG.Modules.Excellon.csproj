@@ -4,6 +4,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Version>0.1.0</Version>
     <!-- Plugin module: discovered at runtime by the host's Modules/ scan. The app
          must NOT reference this project â€” only the module's own Locale/*.json and
          the built DLL are staged into the app output by SenderNG.csproj.
