@@ -47,11 +47,14 @@ public class PlotterNexModuleTests
     {
         var module = new PlotterNexModule();
 
-        Assert.Equal("Plot 3D", module.LocalizationKeys["module.plotterNex.name"]);
+        // Keys follow the module.<id>. scheme (Id = "plotter-nex") so the tab /
+        // App Settings / About lookups (module.plotter-nex.name) resolve through
+        // the catalog instead of always falling back to the English literals.
+        Assert.Equal("Plot 3D", module.LocalizationKeys[$"module.{module.Id}.name"]);
         Assert.Equal("Plot 3D", module.Name);
-        Assert.Equal("G-code 3D path plotter: HelixToolkit.Nex orbit view (PoC).", module.Description);
-        Assert.False(string.IsNullOrWhiteSpace(module.LocalizationKeys["module.plotterNex.description"]));
-        Assert.False(string.IsNullOrWhiteSpace(module.LocalizationKeys["module.plotterNex.placeholder"]));
+        Assert.Equal("G-code 3D path plotter: program toolpath with live run overlay.", module.Description);
+        Assert.False(string.IsNullOrWhiteSpace(module.LocalizationKeys[$"module.{module.Id}.description"]));
+        Assert.False(string.IsNullOrWhiteSpace(module.LocalizationKeys[$"module.{module.Id}.placeholder"]));
     }
 
     [Fact]

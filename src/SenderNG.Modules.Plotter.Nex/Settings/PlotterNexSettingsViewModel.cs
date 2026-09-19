@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Collections.ObjectModel;
 using CNC.Core.Services;
+using SenderNG.Core.Localization;
 
 namespace SenderNG.Modules.Plotter.Nex.Settings;
 
@@ -45,13 +46,15 @@ namespace SenderNG.Modules.Plotter.Nex.Settings;
 public sealed class PlotterNexSettingsViewModel : CNC.Core.ViewModelBase
 {
     private readonly SettingsService _settingsService;
+    private readonly LocalizationService? _loc;
     private readonly MachineProfile _profile;
     private PlotterNexSettings _settings;
     private bool _saving;
 
-    public PlotterNexSettingsViewModel(SettingsService settingsService)
+    public PlotterNexSettingsViewModel(SettingsService settingsService, LocalizationService? localization = null)
     {
         _settingsService = settingsService;
+        _loc = localization;
         _profile = _settingsService.Load();
         var type = MachineTypeCatalog.Resolve(_profile.MachineTypeId);
         _settings = PlotterNexConfig.Load(_profile, type);
@@ -77,6 +80,10 @@ public sealed class PlotterNexSettingsViewModel : CNC.Core.ViewModelBase
             OnPropertyChanged();
         }
     }
+
+    /// <summary>Localized "Wire length (tower distance)" label (plugin views
+    /// cannot use the app-only {Loc} markup, so labels resolve code-side).</summary>
+    public string WireLengthLabel => Resolve("module.plotter-nex.settings.wireLength", "Wire length (tower distance)");
 
     public ObservableCollection<PlotterNexPlaneRow> PlaneRows { get; }
 
@@ -110,6 +117,20 @@ public sealed class PlotterNexSettingsViewModel : CNC.Core.ViewModelBase
             PlaneRows[p].Apply(_settings.Planes[p]);
     }
 
+    internal string Resolve(string key, string fallback) => _loc?.Resolve(key, fallback) ?? fallback;
+
+    internal string ResolveFormat(string key, string fallback, params object?[] args)
+    {
+        try
+        {
+            return string.Format(Resolve(key, fallback), args);
+        }
+        catch (FormatException)
+        {
+            return fallback;
+        }
+    }
+
     /// <summary>Number of machine slots (roles) a schema plane maps.</summary>
     internal int PlaneRowRoleCount(int plane)
     {
@@ -138,7 +159,11 @@ public sealed class PlotterNexPlaneRow : CNC.Core.ViewModelBase
 
     public int PlaneIndex { get; }
 
-    public string Title => $"Plane {PlaneIndex + 1}";
+    public string Title => _owner.ResolveFormat("module.plotter-nex.settings.plane", "Plane {0}", PlaneIndex + 1);
+
+    public string WorldAxesLabel => _owner.Resolve("module.plotter-nex.settings.worldAxes", "World axes");
+
+    public string OriginLabel => _owner.Resolve("module.plotter-nex.settings.origin", "Origin");
 
     public ObservableCollection<WorldAxisRow> Slots { get; }
 

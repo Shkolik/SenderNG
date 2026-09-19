@@ -393,7 +393,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
 
         // Large program: build off the UI thread, swap under the generation
         // guard so a program opened while the build runs does not get stomped.
-        StatusText = _localization.Resolve("module.plotterNex.building", "Plotting…");
+        StatusText = _localization.Resolve("module.plotter-nex.building", "Plotting…");
         OnPropertyChanged(nameof(StatusText));
         Bump();
 
@@ -417,7 +417,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
                     if (generation != _generation)
                         return;
                     StatusText = _localization.Resolve(
-                        "module.plotterNex.buildFailed", "Program could not be plotted.");
+                        "module.plotter-nex.buildFailed", "Program could not be plotted.");
                     OnPropertyChanged(nameof(StatusText));
                     Bump();
                 });
@@ -504,7 +504,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         _ackedEndRowBaseline = -1;
         _lastAppliedTouched = -1;
         _recoloredUpTo = -1;
-        StatusText = _localization.Resolve("module.plotterNex.noProgram", "No program loaded.");
+        StatusText = _localization.Resolve("module.plotter-nex.noProgram", "No program loaded.");
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(HasGeometry));
         Bump();
@@ -516,7 +516,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         if (segments.Count == 0)
         {
             return new Geometry([], [], new Dictionary<uint, int>(),
-                _localization.Resolve("module.plotterNex.noMotion", "Program contains no motion."));
+                _localization.Resolve("module.plotter-nex.noMotion", "Program contains no motion."));
         }
 
         var lineToRow = BuildLineToRow(program);

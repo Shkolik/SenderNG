@@ -66,7 +66,7 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IModuleS
 
     public string Id => "plotter-nex";
     public string Name => "Plot 3D";
-    public string Description => "G-code 3D path plotter: HelixToolkit.Nex orbit view (PoC).";
+    public string Description => "G-code 3D path plotter: program toolpath with live run overlay.";
     // Right after the Skia plotter (22) — the two plot tabs read as one group,
     // and the 3D one sits behind it in the tab order.
     public int Order => 23;
@@ -86,9 +86,13 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IModuleS
     public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
         new Dictionary<string, string>
         {
-            ["module.plotterNex.name"] = "Plot 3D",
-            ["module.plotterNex.description"] = "G-code 3D path plotter: HelixToolkit.Nex orbit view (PoC).",
-            ["module.plotterNex.placeholder"] = "3D plotter (PoC)",
+            ["module.plotter-nex.name"] = "Plot 3D",
+            ["module.plotter-nex.description"] = "G-code 3D path plotter: program toolpath with live run overlay.",
+            ["module.plotter-nex.placeholder"] = "3D plotter (PoC)",
+            ["module.plotter-nex.settings.wireLength"] = "Wire length (tower distance)",
+            ["module.plotter-nex.settings.worldAxes"] = "World axes",
+            ["module.plotter-nex.settings.origin"] = "Origin",
+            ["module.plotter-nex.settings.plane"] = "Plane {0}",
         };
 
     public void RegisterServices(IServiceCollection services)
@@ -112,7 +116,7 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IModuleS
     public object? CreateSettingsView() =>
         _services is null
             ? null
-            : new PlotterNexSettingsView { DataContext = new PlotterNexSettingsViewModel(_services.GetRequiredService<SettingsService>()) };
+            : new PlotterNexSettingsView { DataContext = new PlotterNexSettingsViewModel(_services.GetRequiredService<SettingsService>(), _services.GetService<LocalizationService>()) };
 
     public object CreateView(object viewModel) =>
         new PlotterNexView { DataContext = viewModel };

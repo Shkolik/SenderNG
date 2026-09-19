@@ -1,13 +1,17 @@
 {
   "strings": {
-    "module.plotterNex.name": "График 3D",
-    "module.plotterNex.description": "Постройщик траектории G-кода в 3D: орбитальный вид HelixToolkit.Nex (PoC).",
-    "module.plotterNex.placeholder": "График 3D (PoC)",
-    "module.plotterNex.noProgram": "Программа не загружена.",
-    "module.plotterNex.noMotion": "Программа не содержит движений.",
-    "module.plotterNex.building": "Построение…",
-    "module.plotterNex.buildFailed": "Не удалось построить программу.",
-    "module.plotterNex.vulkanUnavailable": "3D-построение недоступно",
-    "module.plotterNex.vulkanUnavailableHint": "Не удалось создать устройство Vulkan 1.3 — 2D-построение продолжает работать."
+    "module.plotter-nex.name": "График 3D",
+    "module.plotter-nex.description": "Постройщик траектории G-кода в 3D: путь программы с живым ходом обработки.",
+    "module.plotter-nex.placeholder": "График 3D (PoC)",
+    "module.plotter-nex.noProgram": "Программа не загружена.",
+    "module.plotter-nex.noMotion": "Программа не содержит движений.",
+    "module.plotter-nex.building": "Построение…",
+    "module.plotter-nex.buildFailed": "Не удалось построить программу.",
+    "module.plotter-nex.vulkanUnavailable": "3D-построение недоступно",
+    "module.plotter-nex.vulkanUnavailableHint": "Не удалось создать устройство Vulkan 1.3 — 2D-построение продолжает работать.",
+    "module.plotter-nex.settings.wireLength": "Длина проволоки (расстояние между стойками)",
+    "module.plotter-nex.settings.worldAxes": "Оси мира",
+    "module.plotter-nex.settings.origin": "Начало координат",
+    "module.plotter-nex.settings.plane": "Плоскость {0}"
   }
 }

@@ -119,9 +119,9 @@ public partial class PlotterNexView : UserControl
         AttachedToVisualTree += (_, _) => OnAttachedToVisualTree();
         DetachedFromVisualTree += OnDetachedFromVisualTree;
         FallbackTitle.Text = LocalizationService.Current?.Resolve(
-            "module.plotterNex.vulkanUnavailable", "3D plotting unavailable") ?? "3D plotting unavailable";
+            "module.plotter-nex.vulkanUnavailable", "3D plotting unavailable") ?? "3D plotting unavailable";
         FallbackHint.Text = LocalizationService.Current?.Resolve(
-            "module.plotterNex.vulkanUnavailableHint",
+            "module.plotter-nex.vulkanUnavailableHint",
             "No Vulkan 1.3 device could be created — 2D plotting stays available.")
             ?? "No Vulkan 1.3 device could be created — 2D plotting stays available.";
     }

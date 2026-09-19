@@ -1,4 +1,6 @@
+using System.Text;
 using CNC.Core.Services;
+using SenderNG.Core.Localization;
 using SenderNG.Modules.Plotter.Nex.Settings;
 
 namespace SenderNG.Core.Tests;
@@ -48,6 +50,50 @@ public class PlotterNexSettingsViewModelTests : IDisposable
         Assert.False(vm.ShowWireLength);
         var row = Assert.Single(vm.PlaneRows);
         Assert.Equal(3, row.Slots.Count);
+    }
+
+    [Fact]
+    public void Labels_fall_back_to_english_without_a_localization_service()
+    {
+        var vm = MakeVm(MachineTypes.Foam);
+
+        Assert.Equal("Wire length (tower distance)", vm.WireLengthLabel);
+        Assert.Equal("World axes", vm.PlaneRows[0].WorldAxesLabel);
+        Assert.Equal("Origin", vm.PlaneRows[0].OriginLabel);
+        Assert.Equal("Plane 1", vm.PlaneRows[0].Title);
+    }
+
+    [Fact]
+    public void Labels_resolve_through_the_module_locale_catalog()
+    {
+        var settingsService = new SettingsService(_dir);
+        var profile = settingsService.Load();
+        profile.MachineTypeId = MachineTypes.Foam;
+        settingsService.Save(profile);
+
+        const string en = """
+            {"strings":{
+              "module.plotter-nex.settings.wireLength":"Wire length (tower distance)",
+              "module.plotter-nex.settings.worldAxes":"World axes",
+              "module.plotter-nex.settings.origin":"Origin",
+              "module.plotter-nex.settings.plane":"Plane {0}"}}
+            """;
+        const string ru = """
+            {"strings":{
+              "module.plotter-nex.settings.wireLength":"Длина проволоки (расстояние между стойками)",
+              "module.plotter-nex.settings.worldAxes":"Оси мира",
+              "module.plotter-nex.settings.origin":"Начало координат",
+              "module.plotter-nex.settings.plane":"Плоскость {0}"}}
+            """;
+        using var enStream = new MemoryStream(Encoding.UTF8.GetBytes(en));
+        using var ruStream = new MemoryStream(Encoding.UTF8.GetBytes(ru));
+        var loc = new LocalizationService(enStream, "ru", ruStream);
+        var vm = new PlotterNexSettingsViewModel(settingsService, loc);
+
+        Assert.Equal("Длина проволоки (расстояние между стойками)", vm.WireLengthLabel);
+        Assert.Equal("Оси мира", vm.PlaneRows[0].WorldAxesLabel);
+        Assert.Equal("Начало координат", vm.PlaneRows[0].OriginLabel);
+        Assert.Equal("Плоскость 1", vm.PlaneRows[0].Title);
     }
 
     [Fact]

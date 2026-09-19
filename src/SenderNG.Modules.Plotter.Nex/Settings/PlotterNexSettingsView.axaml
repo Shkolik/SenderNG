@@ -42,7 +42,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:DataType="vm:PlotterNexSettingsViewModel">
     <StackPanel Spacing="8">
         <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowWireLength}">
-            <TextBlock Text="Wire length (tower distance)" FontSize="10" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding WireLengthLabel}" FontSize="10" VerticalAlignment="Center" />
             <TextBox Text="{Binding WireLength}" Width="110" Height="24" MinHeight="24"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                      FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
@@ -52,7 +52,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <DataTemplate x:DataType="vm:PlotterNexPlaneRow">
                     <Expander IsExpanded="True" Header="{Binding Title}" Margin="0,2">
                         <StackPanel Spacing="6">
-                            <TextBlock Text="World axes" FontSize="10" />
+                            <TextBlock Text="{Binding WorldAxesLabel}" FontSize="10" />
                             <ItemsControl ItemsSource="{Binding Slots}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -67,7 +67,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <TextBlock Text="Origin" FontSize="10" />
+                            <TextBlock Text="{Binding OriginLabel}" FontSize="10" />
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <TextBlock Text="X" FontSize="10" VerticalAlignment="Center" />
                                 <TextBox Text="{Binding OriginX}" Width="64" Height="24" MinHeight="24"
