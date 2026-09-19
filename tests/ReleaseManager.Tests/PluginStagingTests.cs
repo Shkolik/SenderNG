@@ -43,11 +43,11 @@ public class PluginStagingTests
     public void OwnAssemblyFile_returns_unique_plugin_dll()
     {
         var publish = TempDir.New();
-        File.WriteAllText(Path.Combine(publish, "SenderNG.Modules.Dummy.dll"), "mod");
+        File.WriteAllText(Path.Combine(publish, "SenderNG.Modules.Excellon.dll"), "mod");
         File.WriteAllText(Path.Combine(publish, "SenderNG.Core.dll"), "core");
         File.WriteAllText(Path.Combine(publish, "Avalonia.Base.dll"), "avalonia");
 
-        Assert.Equal("SenderNG.Modules.Dummy.dll", PluginStaging.OwnAssemblyFile(publish));
+        Assert.Equal("SenderNG.Modules.Excellon.dll", PluginStaging.OwnAssemblyFile(publish));
     }
 
     [Fact]
@@ -74,21 +74,21 @@ public class PluginStagingTests
         var publish = TempDir.New();
         var project = TempDir.New();
         var dest = TempDir.New();
-        File.WriteAllText(Path.Combine(publish, "SenderNG.Modules.Dummy.dll"), "mod");
+        File.WriteAllText(Path.Combine(publish, "SenderNG.Modules.Excellon.dll"), "mod");
         File.WriteAllText(Path.Combine(publish, "SenderNG.Core.dll"), "core");
         File.WriteAllText(Path.Combine(publish, "SenderNG.Modules.Common.dll"), "sdk");
         File.WriteAllText(Path.Combine(publish, "Avalonia.dll"), "avalonia");
-        Directory.CreateDirectory(Path.Combine(project, "Locale", "dummy"));
-        File.WriteAllText(Path.Combine(project, "Locale", "dummy", "en.json"), "{}");
-        File.WriteAllText(Path.Combine(project, "Locale", "dummy", "ru.json"), "{}");
+        Directory.CreateDirectory(Path.Combine(project, "Locale", "excellon"));
+        File.WriteAllText(Path.Combine(project, "Locale", "excellon", "en.json"), "{}");
+        File.WriteAllText(Path.Combine(project, "Locale", "excellon", "ru.json"), "{}");
 
-        PluginStaging.Stage(publish, project, "dummy", dest, new SilentLog());
+        PluginStaging.Stage(publish, project, "excellon", dest, new SilentLog());
 
-        Assert.True(File.Exists(Path.Combine(dest, "SenderNG.Modules.Dummy.dll")));
+        Assert.True(File.Exists(Path.Combine(dest, "SenderNG.Modules.Excellon.dll")));
         Assert.False(File.Exists(Path.Combine(dest, "SenderNG.Core.dll")));
         Assert.False(File.Exists(Path.Combine(dest, "SenderNG.Modules.Common.dll")));
-        Assert.False(File.Exists(Path.Combine(dest, "dummy", "SenderNG.Core.dll")));
-        var locale = Path.Combine(dest, "dummy", "Locale");
+        Assert.False(File.Exists(Path.Combine(dest, "excellon", "SenderNG.Core.dll")));
+        var locale = Path.Combine(dest, "excellon", "Locale");
         Assert.True(File.Exists(Path.Combine(locale, "en.json")));
         Assert.True(File.Exists(Path.Combine(locale, "ru.json")));
     }

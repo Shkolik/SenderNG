@@ -25,7 +25,8 @@ Plugin types today:
   HPGL `.plt`). The only plugin surface the app actively dispatches
   (`IGCodeFileHandler`).
 - **UI plugins** — modules with a flyout/panel UI, settings leaf, hotkeys
-  (Jog, Probing, … in-app; Dummy is the external-plugin proof of concept).
+  (Jog, Probing, … in-app; the plotter modules are the separate-assembly
+  examples).
 
 ## 2. SDK status and the stability rule
 
@@ -156,8 +157,7 @@ OutputDir/
 ├── SenderNG.Core.dll                    ← app-owned, ships with the app
 └── Modules/                             ← plugin drop-in directory
     ├── SenderNG.Modules.Common.dll      ← the SDK assembly, ships with the app
-    ├── SenderNG.Modules.Dummy.dll       ← built-in plugins staged on build
-    ├── SenderNG.Modules.Excellon.dll
+    ├── SenderNG.Modules.Excellon.dll    ← built-in plugins staged on build
     ├── excellon/Locale/en.json          ← plugin-owned locale catalogs
     ├── excellon/Locale/ru.json
     ├── SenderNG.Modules.Hpgl.dll
@@ -329,7 +329,7 @@ for them is the same as for any plugin: the DLL and `Locale/`.
 
 ## 6. Writing a UI plugin
 
-Every plugin implements `IModule` directly — Dummy is the minimal reference,
+Every plugin implements `IModule` directly — Excellon is the minimal reference,
 Probing a full one; converters are the `PanelHint.None` variant (see §5). The
 same rules apply: namespaced locale keys,
 own settings leaf via `IModuleSettingsProvider`, services registered in

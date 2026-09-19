@@ -28,8 +28,8 @@ MODULES = {
     "mpos": ("MPos", "Позиция станка"),
     "outline": ("Outline", "Контур"),
     "probing": ("Probing", "Измерение"),
-    # NOTE: the Dummy plugin is intentionally absent — 3rd-party plugins serve their
-    # own module.<id>.* strings from OutputDir/Modules/<id>/Locale, not the global file.
+    # NOTE: plugin modules are intentionally absent — they serve their own
+    # module.<id>.* strings from OutputDir/Modules/<id>/Locale, not the global file.
 }
 
 DESC_EN = {

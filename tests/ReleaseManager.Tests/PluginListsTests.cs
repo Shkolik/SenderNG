@@ -42,10 +42,10 @@ public class PluginListsTests
     private static readonly List<string> NoAdHoc = [];
 
     [Fact]
-    public void FirstParty_is_the_five_in_solution_plugins()
+    public void FirstParty_is_the_four_in_solution_plugins()
     {
         var ids = FirstPartyPlugins.All.Select(p => p.Id).OrderBy(x => x).ToArray();
-        Assert.Equal(["dummy", "excellon", "hpgl", "plotter", "plotter-nex"], ids);
+        Assert.Equal(["excellon", "hpgl", "plotter", "plotter-nex"], ids);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class PluginListsTests
     public void Resolve_all_collides_with_first_party()
     {
         var repo = TempRepo.New();
-        var ex = Assert.Throws<CliException>(() => PluginLists.Resolve(repo, optionsWithManifest(repo, "dummy", "ext/Dummy/Dummy.csproj"), new SilentLog()));
+        var ex = Assert.Throws<CliException>(() => PluginLists.Resolve(repo, optionsWithManifest(repo, "excellon", "ext/Excellon/Excellon.csproj"), new SilentLog()));
         Assert.Contains("collision", ex.Message);
     }
 

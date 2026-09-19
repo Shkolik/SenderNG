@@ -237,12 +237,12 @@ A plugin ships its own `Locale/en.json` + `Locale/<lang>.json` under its module 
 Example plugin catalog:
 
 ```jsonc
-// src/SenderNG.Modules.Dummy/Locale/ru.json
+// src/SenderNG.Modules.Excellon/Locale/ru.json
 {
   "strings": {
-    "module.dummy.name": "Заглушка",
-    "module.dummy.description": "Пример стороннего плагина …",
-    "module.dummy.tagline": "Плагин «Заглушка» работает!"
+    "module.excellon.name": "Excellon",
+    "module.excellon.description": "Файлы сверловки Excellon (.drl/.xln) → g-code.",
+    "module.excellon.fileType": "Файлы Excellon"
   }
 }
 ```

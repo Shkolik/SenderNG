@@ -112,7 +112,6 @@ public class ModuleCatalogTests
         // compile-time references, so match by full name, not type equality.
         Assert.Contains(sc, d => d.ServiceType.FullName == "SenderNG.Modules.Excellon.ExcellonModule");
         Assert.Contains(sc, d => d.ServiceType.FullName == "SenderNG.Modules.Hpgl.HpglModule");
-        Assert.Contains(sc, d => d.ServiceType.FullName == "SenderNG.Modules.Dummy.DummyModule");
         // The Nex module's types live in the HelixToolkit.Nex / Vortice closure
         // shipped in Modules\plotter-nex\ — discovery proves the folder resolver
         // served the dependencies during GetTypes.
@@ -122,7 +121,6 @@ public class ModuleCatalogTests
         var modules = sp.GetServices<IModule>().ToList();
         Assert.Contains(modules, m => m.Id == "excellon");
         Assert.Contains(modules, m => m.Id == "hpgl");
-        Assert.Contains(modules, m => m.Id == "dummy");
         Assert.Contains(modules, m => m.Id == "plotter-nex");
     }
 
@@ -135,22 +133,20 @@ public class ModuleCatalogTests
     }
 
     [Fact]
-    public void Scan_discovers_dummy_module_from_external_assembly()
+    public void Scan_discovers_excellon_module_from_external_assembly()
     {
-        // SenderNG.Modules.Dummy is a separate project (external plugin assembly);
+        // SenderNG.Modules.Excellon is a separate project (external plugin assembly);
         // the host passes it to Scan exactly like this.
         var sc = new ServiceCollection();
-        ModuleCatalog.Scan(sc, typeof(SenderNG.Modules.Dummy.DummyModule).Assembly);
+        ModuleCatalog.Scan(sc, typeof(SenderNG.Modules.Excellon.ExcellonModule).Assembly);
 
         using var sp = sc.BuildServiceProvider();
         var modules = sp.GetServices<IModule>().ToList();
 
-        var dummy = Assert.Single(modules, m => m.Id == "dummy");
-        Assert.IsType<SenderNG.Modules.Dummy.DummyModule>(dummy);
-        Assert.Equal("Dummy", dummy.Name);
-        Assert.Equal(100, dummy.Order);
-        Assert.Equal(PanelHint.Flyout, dummy.Panel);
-        Assert.True(dummy.IsVisibleByDefault);
+        var module = Assert.Single(modules, m => m.Id == "excellon");
+        Assert.IsType<SenderNG.Modules.Excellon.ExcellonModule>(module);
+        Assert.Equal("Excellon", module.Name);
+        Assert.Equal(60, module.Order);
     }
 
     [Fact]

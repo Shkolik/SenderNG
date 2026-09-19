@@ -59,9 +59,9 @@ public class CliTests
     [Fact]
     public void Parse_plugins_subset_implies_subset_selection()
     {
-        var options = Cli.Parse(["--plugins", "dummy,excellon"]).Options!;
+        var options = Cli.Parse(["--plugins", "hpgl,plotter"]).Options!;
         Assert.Equal(PluginSelection.Subset, options.Selection);
-        Assert.Equal(["dummy", "excellon"], options.PluginIds);
+        Assert.Equal(["hpgl", "plotter"], options.PluginIds);
     }
 
     [Fact]
@@ -114,16 +114,16 @@ public class CliTests
         var input = new StringReader(
             "0.2.0\n" +
             "y\n" +
-            "dummy\n" +
+            "hpgl\n" +
             "\n" +
             "n\n");
         var output = new StringWriter();
 
-        var options = Cli.InteractiveText(input, output, "0.1.0", ReleasePlatform.Win64, ["dummy", "excellon"]);
+        var options = Cli.InteractiveText(input, output, "0.1.0", ReleasePlatform.Win64, ["hpgl", "plotter"]);
 
         Assert.Equal("0.2.0", options.VersionOverride);
         Assert.Equal(PluginSelection.Subset, options.Selection);
-        Assert.Equal(["dummy"], options.PluginIds);
+        Assert.Equal(["hpgl"], options.PluginIds);
         Assert.True(options.NoZip);
     }
 }

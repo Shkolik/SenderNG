@@ -55,9 +55,9 @@ public class ReleaseEngineTests
         File.WriteAllText(Path.Combine(appPublish, "SenderNG.Core.dll"), "core");
         File.WriteAllText(Path.Combine(appPublish, "SenderNG.pdb"), "pdb");
         File.WriteAllText(Path.Combine(appPublish, "Modules", "SenderNG.Modules.Common.dll"), "sdk");
-        File.WriteAllText(Path.Combine(appPublish, "Modules", "SenderNG.Modules.Dummy.dll"), "mod");
-        Directory.CreateDirectory(Path.Combine(appPublish, "Modules", "dummy", "Locale"));
-        File.WriteAllText(Path.Combine(appPublish, "Modules", "dummy", "Locale", "en.json"), "{}");
+        File.WriteAllText(Path.Combine(appPublish, "Modules", "SenderNG.Modules.Excellon.dll"), "mod");
+        Directory.CreateDirectory(Path.Combine(appPublish, "Modules", "excellon", "Locale"));
+        File.WriteAllText(Path.Combine(appPublish, "Modules", "excellon", "Locale", "en.json"), "{}");
         File.WriteAllText(Path.Combine(appPublish, NativeLib(platform)), "n");
         cli.AppPublishDir = appPublish;
 
@@ -67,8 +67,8 @@ public class ReleaseEngineTests
         var bundle = Path.Combine(output, folder, "SenderNG");
         Assert.True(File.Exists(Path.Combine(bundle, PlatformInfo.RunnerFileName(platform))));
         Assert.False(File.Exists(Path.Combine(bundle, "SenderNG.pdb")));
-        Assert.False(File.Exists(Path.Combine(bundle, "Modules", "SenderNG.Modules.Dummy.dll")));
-        Assert.False(Directory.Exists(Path.Combine(bundle, "Modules", "dummy")));
+        Assert.False(File.Exists(Path.Combine(bundle, "Modules", "SenderNG.Modules.Excellon.dll")));
+        Assert.False(Directory.Exists(Path.Combine(bundle, "Modules", "excellon")));
         Assert.True(File.Exists(Path.Combine(output, folder, $"SenderNG-0.1.0-{PlatformInfo.ZipSuffix(platform)}.zip")));
         Assert.True(File.Exists(Path.Combine(output, folder, "SHA256SUMS.txt")));
         Assert.Single(report.Artifacts);
@@ -87,11 +87,11 @@ public class ReleaseEngineTests
 
         var platform = PlatformInfo.Current;
         var pluginsRoot = Path.Combine(output, PlatformInfo.FolderName(platform), "plugins");
-        Assert.True(File.Exists(Path.Combine(pluginsRoot, "dummy", "SenderNG.Modules.Dummy.dll")));
-        Assert.True(File.Exists(Path.Combine(pluginsRoot, "dummy", "dummy", "Locale", "en.json")));
-        Assert.True(File.Exists(Path.Combine(pluginsRoot, "dummy", "README.txt")));
-        Assert.True(File.Exists(Path.Combine(output, PlatformInfo.FolderName(platform), $"SenderNG-plugin-dummy-0.1.0-{PlatformInfo.ZipSuffix(platform)}.zip")));
-        Assert.Contains("dummy", report.PluginIds);
+        Assert.True(File.Exists(Path.Combine(pluginsRoot, "excellon", "SenderNG.Modules.Excellon.dll")));
+        Assert.True(File.Exists(Path.Combine(pluginsRoot, "excellon", "excellon", "Locale", "en.json")));
+        Assert.True(File.Exists(Path.Combine(pluginsRoot, "excellon", "README.txt")));
+        Assert.True(File.Exists(Path.Combine(output, PlatformInfo.FolderName(platform), $"SenderNG-plugin-excellon-0.1.0-{PlatformInfo.ZipSuffix(platform)}.zip")));
+        Assert.Contains("excellon", report.PluginIds);
     }
 
     [Fact]
@@ -124,9 +124,9 @@ public class ReleaseEngineTests
     {
         var repo = TempRepo.New();
         var output = TempDir.New();
-        var cli = new FakeCli { PluginVersions = { ["SenderNG.Modules.Dummy"] = "0.1.0" } };
+        var cli = new FakeCli { PluginVersions = { ["SenderNG.Modules.Excellon"] = "0.1.0" } };
 
-        foreach (var id in new[] { "Dummy", "Excellon", "Hpgl", "Plotter", "Plotter.Nex" })
+        foreach (var id in new[] { "Excellon", "Hpgl", "Plotter", "Plotter.Nex" })
         {
             var projectDir = Path.Combine(repo, "src", $"SenderNG.Modules.{id}");
             Directory.CreateDirectory(projectDir);
@@ -134,8 +134,7 @@ public class ReleaseEngineTests
             Directory.CreateDirectory(Path.Combine(projectDir, "Locale", FirstPartyPlugins.First(id).Id));
         }
 
-        Directory.CreateDirectory(Path.Combine(repo, "src", "SenderNG.Modules.Dummy", "Locale", "dummy"));
-        File.WriteAllText(Path.Combine(repo, "src", "SenderNG.Modules.Dummy", "Locale", "dummy", "en.json"), "{}");
+        File.WriteAllText(Path.Combine(repo, "src", "SenderNG.Modules.Excellon", "Locale", "excellon", "en.json"), "{}");
 
         return (repo, output, cli);
     }
@@ -145,14 +144,14 @@ public class ReleaseEngineTests
         var platform = PlatformInfo.Current;
         var publish = TempDir.New();
         Directory.CreateDirectory(Path.Combine(publish, "Modules"));
-        Directory.CreateDirectory(Path.Combine(publish, "Modules", "dummy", "Locale"));
+        Directory.CreateDirectory(Path.Combine(publish, "Modules", "excellon", "Locale"));
         File.WriteAllText(Path.Combine(publish, PlatformInfo.RunnerFileName(platform)), "exe");
         File.WriteAllText(Path.Combine(publish, "SenderNG.dll"), "dll");
         File.WriteAllText(Path.Combine(publish, "SenderNG.deps.json"), "{}");
         File.WriteAllText(Path.Combine(publish, "SenderNG.runtimeconfig.json"), "{}");
         File.WriteAllText(Path.Combine(publish, "SenderNG.Core.dll"), "core");
         File.WriteAllText(Path.Combine(publish, "Modules", "SenderNG.Modules.Common.dll"), "sdk");
-        File.WriteAllText(Path.Combine(publish, "Modules", "dummy", "Locale", "en.json"), "{}");
+        File.WriteAllText(Path.Combine(publish, "Modules", "excellon", "Locale", "en.json"), "{}");
         File.WriteAllText(Path.Combine(publish, NativeLib(platform)), "n");
         return publish;
     }

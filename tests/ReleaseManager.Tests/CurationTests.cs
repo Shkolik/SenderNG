@@ -74,7 +74,7 @@ public class CurationTests
     [InlineData("SenderNG.Modules.Common.dll", true)]
     [InlineData("Avalonia.dll", true)]
     [InlineData("Avalonia.Win32.dll", true)]
-    [InlineData("SenderNG.Modules.Dummy.dll", false)]
+    [InlineData("SenderNG.Modules.Excellon.dll", false)]
     [InlineData("SkiaSharp.dll", false)]
     public void IsHostOwned_matches_app_owned_assemblies(string fileName, bool expected)
     {
@@ -88,13 +88,13 @@ public class CurationTests
         var bundle = TempDir.New();
         Directory.CreateDirectory(Path.Combine(publish, "runtimes", "win-x64", "native"));
         Directory.CreateDirectory(Path.Combine(publish, "Locale"));
-        Directory.CreateDirectory(Path.Combine(publish, "Modules", "dummy", "Locale"));
+        Directory.CreateDirectory(Path.Combine(publish, "Modules", "excellon", "Locale"));
         File.WriteAllText(Path.Combine(publish, "SenderNG.exe"), "exe");
         File.WriteAllText(Path.Combine(publish, "SenderNG.pdb"), "pdb");
         File.WriteAllText(Path.Combine(publish, "global.json"), "{}");
         File.WriteAllText(Path.Combine(publish, "Locale", "en.json"), "{}");
         File.WriteAllText(Path.Combine(publish, "runtimes", "win-x64", "native", "lib.so"), "n");
-        File.WriteAllText(Path.Combine(publish, "Modules", "dummy", "Locale", "en.json"), "{}");
+        File.WriteAllText(Path.Combine(publish, "Modules", "excellon", "Locale", "en.json"), "{}");
 
         Curation.CopyBundle(publish, bundle, new SilentLog());
 
@@ -103,7 +103,7 @@ public class CurationTests
         Assert.False(File.Exists(Path.Combine(bundle, "global.json")));
         Assert.True(File.Exists(Path.Combine(bundle, "Locale", "en.json")));
         Assert.True(File.Exists(Path.Combine(bundle, "runtimes", "win-x64", "native", "lib.so")));
-        Assert.True(File.Exists(Path.Combine(bundle, "Modules", "dummy", "Locale", "en.json")));
+        Assert.True(File.Exists(Path.Combine(bundle, "Modules", "excellon", "Locale", "en.json")));
     }
 
     [Fact]
@@ -111,17 +111,17 @@ public class CurationTests
     {
         var modules = TempDir.New();
         File.WriteAllText(Path.Combine(modules, "SenderNG.Modules.Common.dll"), "sdk");
-        File.WriteAllText(Path.Combine(modules, "SenderNG.Modules.Dummy.dll"), "mod");
-        Directory.CreateDirectory(Path.Combine(modules, "dummy", "Locale"));
-        File.WriteAllText(Path.Combine(modules, "dummy", "Locale", "en.json"), "{}");
+        File.WriteAllText(Path.Combine(modules, "SenderNG.Modules.Excellon.dll"), "mod");
+        Directory.CreateDirectory(Path.Combine(modules, "excellon", "Locale"));
+        File.WriteAllText(Path.Combine(modules, "excellon", "Locale", "en.json"), "{}");
         Directory.CreateDirectory(Path.Combine(modules, "plotter-nex"));
         File.WriteAllText(Path.Combine(modules, "plotter-nex", "HelixToolkit.dll"), "lib");
 
         Curation.StripModulesToSdk(modules);
 
         Assert.True(File.Exists(Path.Combine(modules, "SenderNG.Modules.Common.dll")));
-        Assert.False(File.Exists(Path.Combine(modules, "SenderNG.Modules.Dummy.dll")));
-        Assert.False(Directory.Exists(Path.Combine(modules, "dummy")));
+        Assert.False(File.Exists(Path.Combine(modules, "SenderNG.Modules.Excellon.dll")));
+        Assert.False(Directory.Exists(Path.Combine(modules, "excellon")));
         Assert.False(Directory.Exists(Path.Combine(modules, "plotter-nex")));
     }
 }

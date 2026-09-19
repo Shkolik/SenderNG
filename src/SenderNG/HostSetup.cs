@@ -131,7 +131,7 @@ public static class HostSetup
         RegisterModule(builder.Services, new Modules.Plugins.MposModule());
         RegisterModule(builder.Services, new Modules.Plugins.OutlineModule());
 
-        // Plugin modules (Dummy, converters, …): every *.dll in OutputDir/Modules
+        // Plugin modules (converters, …): every *.dll in OutputDir/Modules
         // is scanned at startup — drop a DLL in and it loads, remove it and the
         // app has no idea it ever existed. SenderNG.csproj stages the built-in
         // plugin assemblies there; real third-party plugins are dropped in.

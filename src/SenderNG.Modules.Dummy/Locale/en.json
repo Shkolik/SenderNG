@@ -1,7 +1,0 @@
-{
-  "strings": {
-    "module.dummy.name": "Dummy",
-    "module.dummy.description": "Example third-party plugin used to prove assembly-scanned module discovery.",
-    "module.dummy.tagline": "Dummy plugin works!"
-  }
-}

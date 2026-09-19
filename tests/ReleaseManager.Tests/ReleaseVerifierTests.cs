@@ -67,7 +67,7 @@ public class ReleaseVerifierTests
     public void Verify_rejects_plugin_dll_left_in_modules()
     {
         var bundle = CompleteBundle(ReleasePlatform.Win64);
-        File.WriteAllText(Path.Combine(bundle, "Modules", "SenderNG.Modules.Dummy.dll"), "mod");
+        File.WriteAllText(Path.Combine(bundle, "Modules", "SenderNG.Modules.Excellon.dll"), "mod");
         Assert.Throws<StagingException>(() => ReleaseVerifier.Verify(bundle, ReleasePlatform.Win64));
     }
 

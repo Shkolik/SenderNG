@@ -113,7 +113,6 @@ output/
 
 | id | project |
 | --- | --- |
-| `dummy` | `src/SenderNG.Modules.Dummy` |
 | `excellon` | `src/SenderNG.Modules.Excellon` |
 | `hpgl` | `src/SenderNG.Modules.Hpgl` |
 | `plotter` | `src/SenderNG.Modules.Plotter` |

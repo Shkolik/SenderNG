@@ -38,7 +38,6 @@
          (SenderNG.Modules.Common) ships the same way: present in Modules/ for
          plugin assembly resolution, never referenced by app code. -->
     <ProjectReference Include="..\SenderNG.Modules.Common\SenderNG.Modules.Common.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\SenderNG.Modules.Dummy\SenderNG.Modules.Dummy.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Excellon\SenderNG.Modules.Excellon.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Hpgl\SenderNG.Modules.Hpgl.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Plotter\SenderNG.Modules.Plotter.csproj" ReferenceOutputAssembly="false" />
@@ -57,14 +56,6 @@
          OutputDir/Modules/<id>/Locale (registered by the host). Linked here from
          the plugin projects so they land in the app output; real third-party
          plugins are dropped into Modules/ by hand. -->
-    <None Include="..\SenderNG.Modules.Dummy\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Dummy.dll">
-      <Link>Modules\SenderNG.Modules.Dummy.dll</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="..\SenderNG.Modules.Dummy\Locale\**\*.json">
-      <Link>Modules\dummy\Locale\%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
     <None Include="..\SenderNG.Modules.Common\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Common.dll">
       <Link>Modules\SenderNG.Modules.Common.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

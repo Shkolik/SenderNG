@@ -28,7 +28,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SenderNG.Core\SenderNG.Core.csproj" />
     <ProjectReference Include="..\..\src\SenderNG\SenderNG.csproj" />
-    <ProjectReference Include="..\..\src\SenderNG.Modules.Dummy\SenderNG.Modules.Dummy.csproj" />
     <!-- Compile-time refs to the built-in converter plugins so ConverterTests
          can unit-test the module classes directly (the ScanDirectory test still
          discovers the real DLLs from Modules/ via LoadFrom). -->
@@ -54,10 +53,6 @@
     </None>
     <None Include="..\..\src\SenderNG.Modules.Hpgl\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Hpgl.dll">
       <Link>Modules\SenderNG.Modules.Hpgl.dll</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="..\..\src\SenderNG.Modules.Dummy\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Dummy.dll">
-      <Link>Modules\SenderNG.Modules.Dummy.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="..\..\src\SenderNG.Modules.Plotter\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.dll">

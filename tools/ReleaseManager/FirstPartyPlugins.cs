@@ -41,7 +41,6 @@ public static class FirstPartyPlugins
 {
     public static IReadOnlyList<PluginEntry> All { get; } =
     [
-        new("dummy", "src/SenderNG.Modules.Dummy/SenderNG.Modules.Dummy.csproj", null),
         new("excellon", "src/SenderNG.Modules.Excellon/SenderNG.Modules.Excellon.csproj", null),
         new("hpgl", "src/SenderNG.Modules.Hpgl/SenderNG.Modules.Hpgl.csproj", null),
         new("plotter", "src/SenderNG.Modules.Plotter/SenderNG.Modules.Plotter.csproj", null),

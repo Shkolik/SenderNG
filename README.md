@@ -44,7 +44,72 @@ dotnet build
 dotnet run --project src/SenderNG
 ```
 
+## Running from release assets
+
+Release zips are produced per platform by `tools/ReleaseManager` (see
+`tools/ReleaseManager/README.md` for the build runbooks). A release folder
+(`output/win64/` on Windows, `output/linux/` on Linux) looks like this:
+
+```
+SenderNG-<ver>-<suffix>.zip                  ← core bundle: the whole app
+SenderNG-plugin-excellon-<ver>-<suffix>.zip
+SenderNG-plugin-hpgl-<ver>-<suffix>.zip
+SenderNG-plugin-plotter-<ver>-<suffix>.zip
+SenderNG-plugin-plotter-nex-<ver>-<suffix>.zip
+SHA256SUMS.txt                              ← <sha256> <relative path> per file
+```
+
+`<suffix>` is `win64` on Windows and `linux-x64` on Linux.
+
+**Core bundle zip** — the complete self-contained app: `SenderNG.exe` /
+`SenderNG` runner, all .NET + platform natives, locale catalogs, and a
+`Modules/` folder holding only the SDK assembly
+`SenderNG.Modules.Common.dll`. Extract it anywhere and run; no .NET install
+needed.
+
+**Plugin zips** — one per optional module (`excellon`, `hpgl`,
+`plotter`, `plotter-nex`). Each contains the module's own assembly
+(`SenderNG.Modules.<X>.dll`) plus an `<id>/` support folder (its locale
+catalog; `plotter-nex` also carries its HelixToolkit.Nex/Vulkan closure). The
+app discovers modules by scanning `Modules/*.dll` at startup, so installing a
+module is a straight copy of the zip's contents into the extracted bundle's
+`Modules/` folder: the DLL lands flat next to the SDK, `<id>/` becomes
+`Modules/<id>/`. Skip the ones you don't want — the core bundle runs fine
+without them.
+
+Verify the downloads before installing: on Windows compare `Get-FileHash`
+against `SHA256SUMS.txt`; on Linux run `cd <platform dir> && sha256sum -c
+SHA256SUMS.txt`.
+
+### Windows
+
+1. Requires Windows 10/11 x64. Nothing else — the bundle is self-contained.
+2. Unzip `SenderNG-<ver>-win64.zip` (Explorer: right-click → Extract All).
+   You get a `SenderNG` folder containing `SenderNG.exe`.
+3. Optional modules: unzip each plugin zip and copy its contents — the
+   `SenderNG.Modules.<X>.dll` plus the `<id>/` folder (skip `README.txt`) —
+   into `SenderNG\Modules\`.
+4. Run `SenderNG\SenderNG.exe` → Connect → pick the machine's serial/TCP port.
+
+### Linux
+
+1. Requires Avalonia's X11 system libraries. On Debian/Ubuntu:
+   ```
+   sudo apt install -y libx11-6 libice6 libsm6 libfontconfig1
+   ```
+2. Unzip `SenderNG-<ver>-linux-x64.zip` and restore the runner's execute bit
+   (zips don't always carry it):
+   ```
+   unzip SenderNG-<ver>-linux-x64.zip
+   chmod +x SenderNG/SenderNG
+   ```
+3. Optional modules: same copy step as Windows — plugin contents into
+   `SenderNG/Modules/`.
+4. Run `./SenderNG/SenderNG` → Connect → open the machine's port
+   (`/dev/ttyUSB*` / `/dev/ttyACM*` for serial, or TCP).
+
 ## Acknowledgements
 
 - Terje Io / Io Engineering for ioSender and grblHAL
 - AvaloniaUI community
+- HelixToolkit / HelixToolkit.Nex contributors for the 3D Vulkan plotter
