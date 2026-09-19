@@ -138,8 +138,11 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     /// bracket report (<c>[G54:..]</c>, <c>[TLO:..]</c>, tool/probe) arrives.</summary>
     public IObservable<WorkParameters> WorkParametersChanges => _workParameters;
 
-    public RealGrblService(IGrblTransport? transport = null)
+    private readonly GrblInfoState _info;
+
+    public RealGrblService(IGrblTransport? transport = null, GrblInfoState? info = null)
     {
+        _info = info ?? new GrblInfoState();
         _transport = transport ?? new SerialGrblTransport();
         _subject = new BehaviorSubject<MachineState>(new MachineState());
         _workParameters = new BehaviorSubject<WorkParameters>(WorkParameters.CreateDefault(3));
@@ -471,8 +474,8 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     }
 
     /// <summary>
-    /// Reflect the connect-time <c>$I</c> capabilities into the legacy
-    /// <see cref="GrblInfo"/> static (axis count, grblHAL flag) and into the live
+    /// Reflect the connect-time <c>$I</c> capabilities into the injected
+    /// <see cref="GrblInfoState"/> (axis count, grblHAL flag) and into the live
     /// <see cref="MachineState"/> so the DRO and signals show the board's real
     /// axes. Runs best-effort after the handshake; classic grbl that omits $I
     /// keeps the defaults.
@@ -484,23 +487,21 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
         try
         {
-            // Legacy static is authoritative for parsing/expressions; only update
-            // when the handshake actually identified the board.
-            GrblInfo.IsGrblHAL = Capabilities.IsGrblHAL;
+            _info.IsGrblHAL = Capabilities.IsGrblHAL;
 
             // Axis letters follow the same connect lifecycle as the count: a
             // board reporting [AXS:n:letters] remaps them (foam boards flashed
             // XYUV), one that doesn't resets to the conventional default — per
             // connect, so switching boards never leaks the previous letter set.
-            // Set BEFORE NumAxes: the NumAxes setter rebuilds
-            // PositionFormatString/AxisFlags from the letters via
-            // AxisIndexToLetter. The length check is belt-and-braces (the parser
-            // already drops mismatched letter lists).
-            GrblInfo.AxisLetters =
+            // Set BEFORE NumAxes (the previous static setter rebuilt derived
+            // fields from the letters via AxisIndexToLetter). The length check
+            // is belt-and-braces (the parser already drops mismatched letter
+            // lists).
+            _info.AxisLetters =
                 Capabilities.AxisLetters.Length == Capabilities.NumAxes
                     ? Capabilities.AxisLetters
                     : GrblInfo.DefaultAxisLetters;
-            GrblInfo.NumAxes = Capabilities.NumAxes;
+            _info.NumAxes = Capabilities.NumAxes;
 
             // Grow the live state so users immediately see the extra axes and
             // WPos/MPos arrays are sized to hold all reported positions, and seed

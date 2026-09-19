@@ -136,9 +136,8 @@ public sealed class FakeGrblTransport : IGrblTransport, IPortPresenceCheck
     public void Dispose() => Close();
 }
 
-// Writes GrblInfo.NumAxes (see Connect_applies_I_axis_count…), which other
-// classes read — serialized via the shared LegacyStatics collection.
-[Collection("LegacyStatics")]
+// Writes the injected GrblInfoState on connect (see
+// Connect_applies_I_axis_count_to_state_and_info), never the ambient static.
 public class RealGrblServiceTests
 {
     [Fact]
@@ -729,99 +728,80 @@ public class RealGrblServiceTests
     }
 
     [Fact]
-    public async Task Connect_applies_I_axis_count_to_state_and_grblinfo()
+    public async Task Connect_applies_I_axis_count_to_state_and_info()
     {
         // A grblHAL $I handshake reporting 5 axes must grow the live DRO state
-        // (MachineState.NumAxes -> DRO/signals rows) and the legacy GrblInfo
-        // static that the parser/expressions read. Restore the global static so
-        // the test can't leak into others.
-        var savedAxes = CNC.Core.GrblInfo.NumAxes;
-        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
-        try
-        {
-            var transport = new FakeGrblTransport { AutoReply = false };
-            using var svc = new RealGrblService(transport);
-            MachineState? latest = null;
-            svc.State.Subscribe(s => latest = s);
+        // (MachineState.NumAxes -> DRO/signals rows) and the injected
+        // GrblInfoState that the parser/expressions read via the static facade.
+        var info = new CNC.Core.GrblInfoState();
+        var transport = new FakeGrblTransport { AutoReply = false };
+        using var svc = new RealGrblService(transport, info);
+        MachineState? latest = null;
+        svc.State.Subscribe(s => latest = s);
 
-            var connectTask = svc.ConnectAsync("fake");
-            await WaitUntil(() => transport.Sent.Contains("$I"), 3000);
-            transport.Enqueue("GrblHAL 1.2i ['$' for help]");
-            transport.Enqueue("[VER:1.2i.20260521:]");
-            transport.Enqueue("[OPT:V,15,128]");
-            transport.Enqueue("[AXS:5:XYZAB]");
-            transport.Enqueue("ok");
-            await connectTask.WaitAsync(TimeSpan.FromSeconds(5));
+        var connectTask = svc.ConnectAsync("fake");
+        await WaitUntil(() => transport.Sent.Contains("$I"), 3000);
+        transport.Enqueue("GrblHAL 1.2i ['$' for help]");
+        transport.Enqueue("[VER:1.2i.20260521:]");
+        transport.Enqueue("[OPT:V,15,128]");
+        transport.Enqueue("[AXS:5:XYZAB]");
+        transport.Enqueue("ok");
+        await connectTask.WaitAsync(TimeSpan.FromSeconds(5));
 
-            Assert.True(svc.Capabilities.IsKnown);
-            Assert.Equal(5, svc.Capabilities.NumAxes);
+        Assert.True(svc.Capabilities.IsKnown);
+        Assert.Equal(5, svc.Capabilities.NumAxes);
 
-            // Legacy global used by gcode parser / expressions must follow.
-            Assert.Equal(5, CNC.Core.GrblInfo.NumAxes);
-            Assert.True(CNC.Core.GrblInfo.IsGrblHAL);
+        // The instance used by gcode parser / expressions must follow.
+        Assert.Equal(5, info.NumAxes);
+        Assert.True(info.IsGrblHAL);
 
-            // Live state drives the DRO axis rows.
-            Assert.True(await WaitUntilAsync(() => latest?.NumAxes == 5, 3000));
-        }
-        finally
-        {
-            CNC.Core.GrblInfo.NumAxes = savedAxes;
-            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
-        }
+        // Live state drives the DRO axis rows.
+        Assert.True(await WaitUntilAsync(() => latest?.NumAxes == 5, 3000));
     }
 
     [Fact]
     public async Task Connect_applies_I_axis_letters_and_resets_them_without_AXS()
     {
-        // A board reporting [AXS:4:XYZA] remaps the legacy letter set (XYUV-style
+        // A board reporting [AXS:4:XYZA] remaps the letter set (XYUV-style
         // foam boards are the target case); a follow-up connect to a board with
         // no [AXS:] line must reset to the conventional default — per connect,
-        // so switching boards never leaks the previous board's letter set.
-        var savedLetters = CNC.Core.GrblInfo.AxisLetters;
-        var savedAxes = CNC.Core.GrblInfo.NumAxes;
-        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
-        try
-        {
-            var transport = new FakeGrblTransport { AutoReply = false };
-            using var svc = new RealGrblService(transport);
+        // so switching boards never leaks the previous board's letter set. Each
+        // service writes its own GrblInfoState instance; nothing ambient.
+        var info1 = new CNC.Core.GrblInfoState();
+        var transport = new FakeGrblTransport { AutoReply = false };
+        using var svc = new RealGrblService(transport, info1);
 
-            // Handshake waits are safety nets: full-suite CPU load can starve the
-            // reader/continuations well past a few seconds.
-            var connectTask = svc.ConnectAsync("fake");
-            await WaitUntil(() => transport.Sent.Contains("$I"), 15000);
-            transport.Enqueue("GrblHAL 1.1h ['$' for help]");
-            transport.Enqueue("[VER:1.1f.20260827:grblHAL]");
-            transport.Enqueue("[OPT:V,15,128]");
-            transport.Enqueue("[AXS:4:XYZA]");
-            transport.Enqueue("ok");
-            await connectTask.WaitAsync(TimeSpan.FromSeconds(20));
+        // Handshake waits are safety nets: full-suite CPU load can starve the
+        // reader/continuations well past a few seconds.
+        var connectTask = svc.ConnectAsync("fake");
+        await WaitUntil(() => transport.Sent.Contains("$I"), 15000);
+        transport.Enqueue("GrblHAL 1.1h ['$' for help]");
+        transport.Enqueue("[VER:1.1f.20260827:grblHAL]");
+        transport.Enqueue("[OPT:V,15,128]");
+        transport.Enqueue("[AXS:4:XYZA]");
+        transport.Enqueue("ok");
+        await connectTask.WaitAsync(TimeSpan.FromSeconds(20));
 
-            Assert.Equal(4, svc.Capabilities.NumAxes);
-            Assert.Equal("XYZA", svc.Capabilities.AxisLetters);
-            Assert.Equal("XYZA", CNC.Core.GrblInfo.AxisLetters);
+        Assert.Equal(4, svc.Capabilities.NumAxes);
+        Assert.Equal("XYZA", svc.Capabilities.AxisLetters);
+        Assert.Equal("XYZA", info1.AxisLetters);
 
-            // Second connect: classic grbl without [AXS:] -> conventional default.
-            var transport2 = new FakeGrblTransport { AutoReply = false };
-            using var svc2 = new RealGrblService(transport2);
+        // Second connect: classic grbl without [AXS:] -> conventional default.
+        var info2 = new CNC.Core.GrblInfoState();
+        var transport2 = new FakeGrblTransport { AutoReply = false };
+        using var svc2 = new RealGrblService(transport2, info2);
 
-            var connect2 = svc2.ConnectAsync("fake");
-            await WaitUntil(() => transport2.Sent.Contains("$I"), 15000);
-            transport2.Enqueue("Grbl 1.1h ['$' for help]");
-            transport2.Enqueue("[VER:1.1h.20190825:]");
-            transport2.Enqueue("[OPT:V,15,128]");
-            transport2.Enqueue("ok");
-            await connect2.WaitAsync(TimeSpan.FromSeconds(20));
+        var connect2 = svc2.ConnectAsync("fake");
+        await WaitUntil(() => transport2.Sent.Contains("$I"), 15000);
+        transport2.Enqueue("Grbl 1.1h ['$' for help]");
+        transport2.Enqueue("[VER:1.1h.20190825:]");
+        transport2.Enqueue("[OPT:V,15,128]");
+        transport2.Enqueue("ok");
+        await connect2.WaitAsync(TimeSpan.FromSeconds(20));
 
-            Assert.Equal(3, svc2.Capabilities.NumAxes);
-            Assert.Equal(string.Empty, svc2.Capabilities.AxisLetters);
-            Assert.Equal(CNC.Core.GrblInfo.DefaultAxisLetters, CNC.Core.GrblInfo.AxisLetters);
-        }
-        finally
-        {
-            CNC.Core.GrblInfo.AxisLetters = savedLetters;
-            CNC.Core.GrblInfo.NumAxes = savedAxes;
-            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
-        }
+        Assert.Equal(3, svc2.Capabilities.NumAxes);
+        Assert.Equal(string.Empty, svc2.Capabilities.AxisLetters);
+        Assert.Equal(CNC.Core.GrblInfo.DefaultAxisLetters, info2.AxisLetters);
     }
 
     [Fact]

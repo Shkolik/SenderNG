@@ -62,9 +62,6 @@ namespace SenderNG.Core.Tests;
 ///
 /// Signals/limits remain untested on hardware as noted in p0-controller-plumbing-plan.
 /// </summary>
-// Writes GrblInfo.NumAxes around handshakes, which other classes read —
-// serialized via the shared LegacyStatics collection.
-[Collection("LegacyStatics")]
 public class RealGrblHardwareTests
 {
     private const int HandshakeTimeoutMs = 8000;
@@ -137,17 +134,12 @@ public class RealGrblHardwareTests
             return; // test "passes" as skipped-by-warning when no board present
         }
 
-        // Capture the pre-handshake GrblInfo so the exercised board is restored to
-        // these original unit-test defaults after the run (never leaks into the suite).
-        var preAxes = CNC.Core.GrblInfo.NumAxes;
-        var preHAL = CNC.Core.GrblInfo.IsGrblHAL;
-
         foreach (var port in candidates)
         {
             var attempt = TryIdentifyBoardBounded(port);
-            if (attempt.Service is { } svc && attempt.Received is { } received)
+            if (attempt.Service is { } svc && attempt.Received is { } received && attempt.Info is { } info)
             {
-                await ExerciseBoard(port, svc, received, preAxes, preHAL);
+                await ExerciseBoard(port, svc, received, info);
                 return; // exercised the first real board found
             }
             Console.WriteLine($"INFO   '{port}' did not answer $I as grbl/grblHAL — trying next port");
@@ -165,7 +157,7 @@ public class RealGrblHardwareTests
     /// reaped when the testhost exits.</summary>
     private static readonly TimeSpan PortAttemptBudget = TimeSpan.FromSeconds(25);
 
-    private sealed record DiscoveryResult(RealGrblService? Service, ConcurrentQueue<string>? Received);
+    private sealed record DiscoveryResult(RealGrblService? Service, ConcurrentQueue<string>? Received, CNC.Core.GrblInfoState? Info);
 
     /// <summary>
     /// Run <see cref="TryIdentifyBoard"/> under a deadline — a ghost/wedged port
@@ -178,7 +170,7 @@ public class RealGrblHardwareTests
         if (!attempt.Wait(PortAttemptBudget))
         {
             Console.WriteLine($"INFO   '{port}' did not answer within {PortAttemptBudget.TotalSeconds:0}s — abandoned");
-            return new DiscoveryResult(null, null);
+            return new DiscoveryResult(null, null, null);
         }
         return attempt.Result;
     }
@@ -190,12 +182,9 @@ public class RealGrblHardwareTests
     /// </summary>
     private static DiscoveryResult TryIdentifyBoard(string port)
     {
-        // Hardware mutates the GrblInfo global (axis count, grblHAL flag); capture so a
-        // real run can't leak those values into later unit tests in the same process.
-        var savedAxes = CNC.Core.GrblInfo.NumAxes;
-        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        var info = new CNC.Core.GrblInfoState();
         var received = new ConcurrentQueue<string>();
-        var candidate = new RealGrblService();
+        var candidate = new RealGrblService(info: info);
         try
         {
             // Subscribe to the raw-line stream up front so the connect-time $I
@@ -208,7 +197,7 @@ public class RealGrblHardwareTests
             {
                 // Keep the connected board for the caller; the poll loop continues.
                 Console.WriteLine($"OK  identified grbl/grblHAL controller on '{port}'");
-                return new DiscoveryResult(candidate, received);
+                return new DiscoveryResult(candidate, received, info);
             }
         }
         catch (Exception ex)
@@ -217,15 +206,11 @@ public class RealGrblHardwareTests
         }
 
         candidate.Dispose();
-        // This attempt didn't hand off a board to the caller, so undo the
-        // GrblInfo mutation it may have made before anyone asserted on it.
-        CNC.Core.GrblInfo.NumAxes = savedAxes;
-        CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
-        return new DiscoveryResult(null, null);
+        return new DiscoveryResult(null, null, null);
     }
 
     private static async Task ExerciseBoard(
-        string port, RealGrblService svc, ConcurrentQueue<string> received, int preAxes, bool preHAL)
+        string port, RealGrblService svc, ConcurrentQueue<string> received, CNC.Core.GrblInfoState info)
     {
         MachineState? latest = null;
         svc.State.Subscribe(s => latest = s);
@@ -242,7 +227,7 @@ public class RealGrblHardwareTests
                     : "WARN no status report arrived within timeout (poll loop inactive?)");
 
             // 1b) The connect-time $I handshake must identify the controller and push
-            // the discovered axis count into both the legacy GrblInfo static and the
+            // the discovered axis count into both the injected GrblInfoState and the
             // live MachineState (the DRO/signals rows).
             Console.WriteLine(
                 $"OK  $I handshake capabilities: known={svc.Capabilities.IsKnown}, " +
@@ -250,7 +235,7 @@ public class RealGrblHardwareTests
                 $"version='{svc.Capabilities.Version}', axes={svc.Capabilities.NumAxes}");
             Assert.True(svc.Capabilities.IsKnown, "$I handshake should identify the controller");
             Assert.True(svc.Capabilities.NumAxes >= 3, "board should report at least 3 axes");
-            Assert.Equal(svc.Capabilities.NumAxes, CNC.Core.GrblInfo.NumAxes);
+            Assert.Equal(svc.Capabilities.NumAxes, info.NumAxes);
             Assert.Equal(svc.Capabilities.NumAxes, latest!.NumAxes);
             Assert.Equal(svc.Capabilities.NumAxes, latest.Positions.Length);
 
@@ -273,9 +258,6 @@ public class RealGrblHardwareTests
         finally
         {
             svc.Disconnect();
-            // Restore the global static so a hardware run can't leak into later tests.
-            CNC.Core.GrblInfo.NumAxes = preAxes;
-            CNC.Core.GrblInfo.IsGrblHAL = preHAL;
         }
     }
 
@@ -301,8 +283,7 @@ public class RealGrblHardwareTests
             return;
         }
 
-        var savedAxes = CNC.Core.GrblInfo.NumAxes;
-        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        
         using var svc = new RealGrblService();
         try
         {
@@ -368,8 +349,7 @@ public class RealGrblHardwareTests
         {
             svc.Disconnect();
             // Restore the global static so a hardware run can't leak into later tests.
-            CNC.Core.GrblInfo.NumAxes = savedAxes;
-            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+            
         }
     }
 
@@ -396,8 +376,7 @@ public class RealGrblHardwareTests
             return;
         }
 
-        var savedAxes = CNC.Core.GrblInfo.NumAxes;
-        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        
         try
         {
             // 1) Open with the DTR pulse: must not throw and must leave the port open.
@@ -442,8 +421,7 @@ public class RealGrblHardwareTests
         }
         finally
         {
-            CNC.Core.GrblInfo.NumAxes = savedAxes;
-            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+            
         }
     }
 
@@ -472,8 +450,7 @@ public class RealGrblHardwareTests
             return;
         }
 
-        var savedAxes = CNC.Core.GrblInfo.NumAxes;
-        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        
         var received = new ConcurrentQueue<string>();
         MachineState? latest = null;
         using var svc = new RealGrblService();
@@ -590,8 +567,7 @@ public class RealGrblHardwareTests
         {
             svc.Disconnect();
             // Restore the global static so a hardware run can't leak into later tests.
-            CNC.Core.GrblInfo.NumAxes = savedAxes;
-            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+            
         }
     }
 
@@ -612,8 +588,7 @@ public class RealGrblHardwareTests
             return;
         }
 
-        var savedAxes = CNC.Core.GrblInfo.NumAxes;
-        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        
         using var service = new RealGrblService();
         try
         {
@@ -675,8 +650,7 @@ public class RealGrblHardwareTests
         finally
         {
             service.Disconnect();
-            CNC.Core.GrblInfo.NumAxes = savedAxes;
-            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+            
         }
     }
 
@@ -700,8 +674,7 @@ public class RealGrblHardwareTests
             return;
         }
 
-        var savedAxes = CNC.Core.GrblInfo.NumAxes;
-        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        
         var received = new ConcurrentQueue<string>();
         MachineState? latest = null;
         using var service = new RealGrblService();
@@ -768,8 +741,7 @@ public class RealGrblHardwareTests
         finally
         {
             service.Disconnect();
-            CNC.Core.GrblInfo.NumAxes = savedAxes;
-            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+            
         }
     }
 
@@ -798,8 +770,7 @@ public class RealGrblHardwareTests
             return;
         }
 
-        var savedAxes = CNC.Core.GrblInfo.NumAxes;
-        var savedHAL = CNC.Core.GrblInfo.IsGrblHAL;
+        
         var received = new ConcurrentQueue<string>();
         MachineState? latest = null;
         using var service = new RealGrblService();
@@ -981,8 +952,7 @@ public class RealGrblHardwareTests
         finally
         {
             service.Disconnect();
-            CNC.Core.GrblInfo.NumAxes = savedAxes;
-            CNC.Core.GrblInfo.IsGrblHAL = savedHAL;
+            
         }
     }
 
@@ -1003,9 +973,6 @@ public class RealGrblHardwareTests
             Console.WriteLine("WARNING: hardware streaming smoke skipped — no serial ports enumerated");
             return;
         }
-
-        var preAxes = CNC.Core.GrblInfo.NumAxes;
-        var preHAL = CNC.Core.GrblInfo.IsGrblHAL;
 
         foreach (var port in candidates)
         {
@@ -1038,8 +1005,6 @@ public class RealGrblHardwareTests
             finally
             {
                 svc.Disconnect();
-                CNC.Core.GrblInfo.NumAxes = preAxes;
-                CNC.Core.GrblInfo.IsGrblHAL = preHAL;
             }
             return;
         }
