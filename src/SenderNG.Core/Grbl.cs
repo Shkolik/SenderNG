@@ -117,18 +117,20 @@ namespace CNC.Core
 
     public static class GrblInfo
     {
-        private static int _numAxes=3;
+        // Read-only convenience facade over the ambient GrblInfoState instance.
+        // RealGrblService writes the DI singleton per connect (wired in HostSetup);
+        // the parser/expression code below keeps reading these members. Tests
+        // construct isolated GrblInfoState instances and never mutate the ambient.
+        public static GrblInfoState Current { get; set; } = new();
         // DefaultAxisLetters is the no-remap fallback when a connect's handshake
-        // reports no [AXS:] letters; public set (like NumAxes/IsGrblHAL) because
-        // RealGrblService pushes the board's letters per connect and tests
-        // save/restore the static.
+        // reports no [AXS:] letters.
         public const string DefaultAxisLetters = "XYZABCUVW";
-        public static string AxisLetters { get; set; } = DefaultAxisLetters;
+        public static string AxisLetters { get => Current.AxisLetters; set => Current.AxisLetters = value; }
         public static string SignalLetters { get; private set; } = "XYZABCUVWEPRDHSBTOMF";
         public static string PositionFormatString { get; private set; } = string.Empty;
         public static string Version { get; private set; } = string.Empty;
         public static int Build { get; internal set; } = 0;
-        public static bool IsGrblHAL { get; set; } = false;
+        public static bool IsGrblHAL { get => Current.IsGrblHAL; set => Current.IsGrblHAL = value; }
         public static string Firmware { get; internal set; } = "grblHAL";
         public static bool ExtendedProtocol { get; internal set; }
         public static string Identity { get; private set; } = string.Empty;
@@ -139,18 +141,7 @@ namespace CNC.Core
         public static bool ReportProbeResult { get; internal set; } = false;
         public static bool ForceSetOrigin { get; private set; } = false;
         public static bool ExpressionsSupported { get; private set; } = false;
-        public static int NumAxes
-        {
-            get=>_numAxes;
-            set{
-                _numAxes=value;
-                int flags=0; PositionFormatString="";
-                for(int i=0;i<_numAxes;i++){ flags=(flags<<1)|0x01; PositionFormatString+=AxisIndexToLetter(i)+": {"+i+"}  "; }
-                PositionFormatString=PositionFormatString.TrimEnd(' ');
-                AxisFlags=(AxisFlags)flags;
-            }
-        }
-        public static AxisFlags AxisFlags { get; private set; } = AxisFlags.XYZ;
+        public static int NumAxes { get => Current.NumAxes; set => Current.NumAxes = value; }
         public static int NumTools { get; internal set; } = 0;
         public static int NumFans { get; private set; } = 0;
         public static bool HasATC { get; private set; }
@@ -161,56 +152,8 @@ namespace CNC.Core
         public static bool LatheUVWModeEnabled { get=>false; set{} }
         public static bool HomingEnabled { get; internal set; } = false;
         public static AxisFlags HomingDirection { get; internal set; } = AxisFlags.None;
-        public static string AxisIndexToLetter(int i)=>AxisLetters.Substring(i,1);
-        public static int AxisLetterToIndex(string l)=>AxisLetters.IndexOf(l);
-
-        static GrblInfo(){ NumAxes=3; }
-
-        // Caps parsing kept from foamcut line ~1241
-        internal static void Process(string data)
-        {
-            if(data.StartsWith("["))
-            {
-                string[] valuepair = data.Substring(1).TrimEnd(']').Split(':');
-                switch(valuepair[0])
-                {
-                    case "OPT":
-                        Options = valuepair[1];
-                        string[] s = Options.Split(',');
-                        if(s[0].Contains('+')) {} // OptionalSignals etc stripped
-                        ForceSetOrigin = s[0].Contains('Z');
-                        if(s.Length > 1)
-                            PlanBufferSize = int.Parse(s[1], CultureInfo.InvariantCulture);
-                        if(s.Length > 2)
-                            SerialBufferSize = int.Parse(s[2], CultureInfo.InvariantCulture);
-                        if(s.Length > 3 && IsGrblHAL && NumAxes != int.Parse(s[3], CultureInfo.InvariantCulture))
-                        {
-                            NumAxes = int.Parse(s[3], CultureInfo.InvariantCulture);
-                        }
-                        if(s.Length > 4)
-                            NumTools = int.Parse(s[4], CultureInfo.InvariantCulture);
-                        break;
-                }
-            }
-        }
-
-        // For testability - also updates NumAxes even when not GrblHAL
-        internal static void TestProcess(string data){
-            Process(data);
-            // For portable tests, also handle numeric-first OPT without IsGrblHAL check
-            if(data.StartsWith("[OPT:")){
-                var inner = data.Substring(5).TrimEnd(']');
-                var parts = inner.Split(',');
-                var nums = new List<int>();
-                int off=0;
-                if(parts.Length>0 && parts[0].Any(c=>char.IsLetter(c))) off=1;
-                for(int i=off;i<parts.Length;i++) if(int.TryParse(parts[i], out int v)) nums.Add(v);
-                if(nums.Count>2) NumAxes = nums[2];
-                if(nums.Count>0) PlanBufferSize = nums[0];
-                if(nums.Count>1) SerialBufferSize = nums[1];
-                if(nums.Count>3) NumTools = nums[3];
-            }
-        }
+        public static string AxisIndexToLetter(int i)=>Current.AxisIndexToLetter(i);
+        public static int AxisLetterToIndex(string l)=>Current.AxisLetterToIndex(l);
     }
 
     public class CapsResult
