@@ -36,7 +36,8 @@ closing cancels an active hold.
 
 - [x] **Full grbl handshake** (`$I` + `[OPT:...]`, grblHAL build/version
       detection) and an exposed `ControllerCapabilities` on `IGrblService`; on
-      connect the axis count is pushed into the legacy `GrblInfo` static and the
+      connect the axis count is pushed into the injectable `GrblInfoState` (read
+      via the `GrblInfo.Current` facade) and the
       live `MachineState` so the DRO shows the board's real axes
       (ROADMAP top item). `ControllerInfoParser` reads `[VER:]` / `[AXS:]` /
       `[OPT:]` (real 1.2i output verified: axes from `[AXS:]`, tools from `[OPT:]`).
@@ -366,8 +367,11 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 
 - [ ] **`Grbl.cs` stubs** — ~320 lines vs upstream 3438; caps parsing ported,
       rest compile-only stubs. Clean up as features touch them.
-- [ ] **`GrblInfo` static state** — global mutable static; partly mitigated by
-      pure `ParseCaps`.- [x] **Build warnings** — the nullability cluster (CS8602/CS8600/CS8601/CS8603/
+- [x] **`GrblInfo` static state** — resolved 2026-09-19: became a read-only
+      facade over an injectable `GrblInfoState` (`GrblInfo.Current` bound to the
+      DI singleton in HostSetup); no ambient write path remains, and test
+      `[Collection("LegacyStatics")]` serialization is scoped to the separate
+      `Machine.WorkParametersProvider` static only.- [x] **Build warnings** — the nullability cluster (CS8602/CS8600/CS8601/CS8603/
       CS8604/CS8618/CS8620/CS8622/CS8625) was swept to zero, and the follow-up
       "~18 warnings remain (mostly xUnit1031, a few CS86xx)" claim proved stale:
       a full rebuild on 2026-09-07 showed only two CS8602 in `Converters.cs`

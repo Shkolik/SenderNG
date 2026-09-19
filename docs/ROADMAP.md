@@ -222,7 +222,8 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
 > WPF `ViewModelBase` leftovers are compile-only stubs kept so the ported engine
 > files that reference them still compile. The real service uses the portable
 > `ControllerCapabilities` + `WorkParameters` + `MachineState` model instead.
-> `GrblInfo` static state is global mutable (partly mitigated by pure `ParseCaps`).
+> `GrblInfo` is a read-only facade over an injectable `GrblInfoState` instance
+> (resolved 2026-09-19 — no ambient write path remains).
 > Clean up as features touch them.
 >
 > Status bar / MDI / Cutting widget updates: the status bar is ioSender's exact

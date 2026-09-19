@@ -51,9 +51,10 @@ A controller's **COM number is not stable** across boots, firmware flashes, or U
 
 All hardware tests live in `tests/SenderNG.Core.Tests/RealGrblHardwareTests.cs`. They are **not
 unit tests**: they open the real serial transport, run the `?` status poll, exchange `$$`/`$I`,
-and drive actual machine-control commands against the board. They mutate the legacy static
-`CNC.Core.GrblInfo` (axes, HDL flag) during a run and **restore it in `finally`** so a hardware run
-never leaks state into later unit tests in the same process.
+and drive actual machine-control commands against the board. Each test constructs its own
+`GrblInfoState` and hands it to `RealGrblService`, so a connect's capability writes land on the
+isolated instance and never touch process-global state (2026-09-19: the old save-in-setup /
+restore-in-`finally` of the `CNC.Core.GrblInfo` static was removed — the instance replaced it).
 
 They are opt-in via the `SENDERNG_HW_PORT` gate:
 
