@@ -13,10 +13,6 @@ using SenderNG.Modules.Fixed;
 
 namespace SenderNG.Core.Tests;
 
-// GCodeProgram.Parse writes the GrblParserState statics (the parser's modal
-// state), so this class joins the non-parallel collection shared with the
-// other static writers/readers.
-[Collection("LegacyStatics")]
 public class LoadedProgramSourceTests
 {
     [Fact]

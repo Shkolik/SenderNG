@@ -41,9 +41,9 @@ using Xunit;
 
 namespace SenderNG.Core.Tests;
 
-// Serialized with the other classes touching the process-global legacy
-// statics (Machine.WorkParametersProvider, GrblInfo.NumAxes) — see
-// EmulatorWorkParametersBridgeTests' collection comment.
+// Serialized with the other classes touching the process-global
+// Machine.WorkParametersProvider static (the program-limits emulator reads it) —
+// see EmulatorWorkParametersBridgeTests' collection comment.
 [Collection("LegacyStatics")]
 public class ProgramViewModelTests
 {
