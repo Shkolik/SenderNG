@@ -316,15 +316,10 @@ public sealed class ModuleSettingsLeaf : AppSettingsLeaf
 
     public bool CanHide { get; }
 
-    /// <summary>Fixed modules (DRO, Program, Console, Jog) render a plain-name header (no checkbox).</summary>
-    public bool ShowNameOnly => !CanHide;
-
     /// <summary>Module-provided settings UI; when set it replaces the generic field lists.</summary>
     public object? SettingsView { get; }
 
     public bool ShowGenericFields => SettingsView is null;
-
-    public bool ShowAlwaysVisibleCaption => ShowNameOnly && SettingsView is null;
 
     public ObservableCollection<NumericSettingEntry> Fields { get; } = new();
     public ObservableCollection<BoolSettingEntry> BoolFields { get; } = new();

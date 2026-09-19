@@ -44,6 +44,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CNC.Core.Services;
 using CNC.Core.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
 using SenderNG.Modules.Fixed;
@@ -250,6 +251,51 @@ public class AppSettingsViewHeadlessTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task Enabled_checkbox_hidden_on_non_hideable_leaf_shown_on_hideable_leaf()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var vm = new AppSettingsViewModel(settings, new SenderNG.Core.Modules.IModule[]
+            {
+                new StubModule("jog", 20, canHide: true),
+                new StubFieldModule("work-parameters", 50),
+            }, Loc);
+
+            var view = new AppSettingsView { DataContext = vm };
+            var window = new Window { Width = 920, Height = 560, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            // Hideable leaf: the Enabled toggle is visible and enables/disables.
+            vm.SelectedNode = vm.ModuleLeaves.Single(e => e.Id == "jog");
+            for (var i = 0; i < 4; i++)
+                await Pump();
+            var enabled = window.GetVisualDescendants().OfType<CheckBox>()
+                .Single(c => Equals(c.Content, "Enabled"));
+            Assert.True(enabled.IsVisible);
+            Assert.True(enabled.IsEnabled);
+
+            // Non-hideable leaf with settings: no Enabled toggle is shown.
+            vm.SelectedNode = vm.ModuleLeaves.Single(e => e.Id == "work-parameters");
+            for (var i = 0; i < 4; i++)
+                await Pump();
+            var fixedCheck = window.GetVisualDescendants().OfType<CheckBox>()
+                .Single(c => Equals(c.Content, "Enabled"));
+            Assert.False(fixedCheck.IsVisible);
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
     /// <summary>Run queued dispatcher jobs (loc:Loc re-emissions land there) and yield
     /// so the headless SynchronizationContext runs a pending layout/render.</summary>
     private static async Task Pump()
@@ -257,5 +303,38 @@ public class AppSettingsViewHeadlessTests
         Dispatcher.UIThread.RunJobs();
         AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
         await Task.Yield();
+    }
+
+    private class StubModule : IModule
+    {
+        public StubModule(string id, int order, bool canHide)
+        {
+            Id = id;
+            Order = order;
+            CanHide = canHide;
+        }
+        public string Id { get; }
+        public string Name => Id;
+        public string Description => $"Description of {Id}.";
+        public int Order { get; }
+        public PanelHint Panel => PanelHint.Center;
+        public bool IsVisibleByDefault => true;
+        public bool CanHide { get; }
+        public IReadOnlyList<HotKey> HotKeys => [];
+        public void RegisterServices(IServiceCollection services) { }
+        public object CreateViewModel(IServiceProvider sp) => new object();
+        public object CreateView(object vm) => new object();
+    }
+
+    private sealed class StubFieldModule : StubModule, IModuleSettingsProvider
+    {
+        public StubFieldModule(string id, int order) : base(id, order, canHide: false) { }
+        public SettingsScope Scope => SettingsScope.Profile;
+        public IEnumerable<ModuleSettingField> GetSettingFields()
+        {
+            yield return new ModuleSettingField("Visible tools", () => 1, _ => { });
+        }
+        public IEnumerable<ModuleSettingBool> GetBoolSettingFields() => [];
+        public object? CreateSettingsView() => null;
     }
 }

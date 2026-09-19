@@ -81,7 +81,6 @@
     "module.probing.center": "Center finder",
     "module.probing.heightmap": "Height map",
     "appSettings.enabled": "Enabled",
-    "appSettings.alwaysVisible": "Always visible",
     "appSettings.close": "Close",
     "appSettings.selectHint": "Select a setting to edit",
     "appSettings.mode.mill": "Mill",

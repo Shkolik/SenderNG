@@ -251,9 +251,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                         <Rectangle Height="1" Fill="#ddd" IsVisible="{Binding HasDescription}" />
 
                                         <CheckBox Content="{loc:Loc appSettings.enabled}" IsChecked="{Binding IsVisible, Mode=TwoWay}"
-                                                  IsEnabled="{Binding CanHide}" FontSize="12" />
-                                        <TextBlock Text="{loc:Loc appSettings.alwaysVisible}" FontSize="10" Foreground="#888"
-                                                   IsVisible="{Binding ShowAlwaysVisibleCaption}" />
+                                                  IsVisible="{Binding CanHide}" FontSize="12" />
 
                                         <ContentControl Content="{Binding SettingsView}"
                                                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"

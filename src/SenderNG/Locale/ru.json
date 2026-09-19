@@ -80,7 +80,6 @@
     "module.probing.center": "Поиск центра",
     "module.probing.heightmap": "Карта высот",
     "appSettings.enabled": "Включено",
-    "appSettings.alwaysVisible": "Всегда виден",
     "appSettings.close": "Закрыть",
     "appSettings.selectHint": "Выберите настройку для редактирования",
     "appSettings.mode.mill": "Фрезеровка",
