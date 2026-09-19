@@ -196,7 +196,7 @@ public class AppSettingsViewModelTests
     }
 
     [Fact]
-    public void Fixed_modules_without_settings_are_still_listed()
+    public void Non_hideable_module_without_settings_gets_no_leaf()
     {
         var (_, settings) = MakeSettings();
         var modules = new IModule[]
@@ -207,12 +207,49 @@ public class AppSettingsViewModelTests
 
         var vm = new AppSettingsViewModel(settings, modules, Loc);
 
-        // Every module gets a leaf so its description/docs are reachable.
-        Assert.Equal(new[] { "dro", "jog" }, vm.ModuleLeaves.Select(e => e.Id).ToArray());
-        var dro = Leaf(vm, "dro");
-        Assert.True(dro.IsVisible);          // fixed modules stay pinned visible
-        Assert.False(dro.CanHide);           // no Enabled checkbox
-        Assert.True(dro.ShowAlwaysVisibleCaption);
+        // Fixed modules expose nothing but their always-on visibility flag, so they
+        // are not listed; the hideable module keeps its visibility-toggle leaf.
+        Assert.Equal(new[] { "jog" }, vm.ModuleLeaves.Select(e => e.Id).ToArray());
+        // The tree's Modules group holds the same leaves in the same order.
+        var modulesGroup = (AppSettingsGroupItem)vm.Groups[1];
+        Assert.Equal(new[] { "jog" },
+            modulesGroup.Children.OfType<ModuleSettingsLeaf>().Select(e => e.Id).ToArray());
+    }
+
+    [Fact]
+    public void Settings_dialog_modules_get_no_leaf_when_not_hideable_and_without_surface()
+    {
+        // AppSettings/GrblSettings become CanHide=false and expose no settings
+        // surface, so they must not appear in the Modules tree.
+        var (_, settings) = MakeSettings();
+        var modules = new IModule[]
+        {
+            new StubModule("app-settings", "App Settings", 41, canHide: false),
+            new StubModule("grbl-settings", "GRBL Settings", 40, canHide: false),
+            new StubModule("jog", "Jog", 20),
+        };
+
+        var vm = new AppSettingsViewModel(settings, modules, Loc);
+
+        Assert.Equal(new[] { "jog" }, vm.ModuleLeaves.Select(e => e.Id).ToArray());
+        var modulesGroup = (AppSettingsGroupItem)vm.Groups[1];
+        Assert.Equal(new[] { "jog" },
+            modulesGroup.Children.OfType<ModuleSettingsLeaf>().Select(e => e.Id).ToArray());
+    }
+
+    [Fact]
+    public void Hideable_module_without_settings_still_gets_a_leaf()
+    {
+        // Plugins that expose nothing configurable still get a row: the leaf hosts
+        // the hide/show toggle.
+        var (_, settings) = MakeSettings();
+        var vm = new AppSettingsViewModel(settings,
+            new IModule[] { new StubModule("coolant", "Coolant", 50) }, Loc);
+
+        var leaf = Assert.Single(vm.ModuleLeaves);
+        Assert.Equal("coolant", leaf.Id);
+        Assert.True(leaf.CanHide);
+        Assert.True(leaf.IsVisible);
     }
 
     [Fact]

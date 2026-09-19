@@ -1027,8 +1027,14 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
                 }
             }
 
-            // Every module gets a leaf (ordered): fixed modules with no settings/view
-            // still show their name + description so users can learn what they do.
+            // Only hideable modules or modules that expose a settings surface get a
+            // leaf: fixed modules (CanHide=false) that expose nothing are not listed.
+            if (!module.CanHide
+                && settingsView is null
+                && fields?.Any() != true
+                && boolFields?.Any() != true)
+                continue;
+
             ModuleLeaves.Add(new ModuleSettingsLeaf(
                 module.Id,
                 ModuleName(module),
