@@ -188,9 +188,9 @@ public class JogHotkeyProviderTests
         foreach (var action in actions)
             service.RegisterAction(action, defaultsByActionId.GetValueOrDefault(action.ActionId, ""));
 
-        Assert.Equal("Alt+Left", service.DefaultGestureFor("jog.together.left"));
-        Assert.Equal("Alt+Right", service.DefaultGestureFor("jog.together.right"));
-        Assert.Equal("Alt+Up", service.DefaultGestureFor("jog.together.up"));
-        Assert.Equal("Alt+Down", service.DefaultGestureFor("jog.together.down"));
+        Assert.Equal("Ctrl+Left", service.DefaultGestureFor("jog.together.left"));
+        Assert.Equal("Ctrl+Right", service.DefaultGestureFor("jog.together.right"));
+        Assert.Equal("Ctrl+Up", service.DefaultGestureFor("jog.together.up"));
+        Assert.Equal("Ctrl+Down", service.DefaultGestureFor("jog.together.down"));
     }
 }
