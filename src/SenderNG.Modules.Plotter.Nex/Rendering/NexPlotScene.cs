@@ -247,6 +247,13 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         _root.AddChild(_orbitSphereNode);
 
         SetViewPreset(ViewPreset.Isometric3D);
+
+        // Cold-start AA default equals current behavior (SMAA only): the
+        // WithSMAA()+WithFXAA() registration leaves both render nodes enabled
+        // (Node.Enabled defaults true), so collapse to the settings default
+        // here (mode 1=SMAA, quality 2=High) — SetAntiAlias flips the
+        // inactive sibling off.
+        SetAntiAlias(1, 2);
     }
 
     /// <summary>Live Nex engine behind this scene (host wires it into the view).</summary>
