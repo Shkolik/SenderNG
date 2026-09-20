@@ -47,6 +47,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using CNC.Core.Services;
 using HelixToolkit.Nex.Engine;
 using HelixToolkit.Nex.Graphics;
 using HelixToolkit.Nex.Material;
@@ -54,6 +55,7 @@ using HelixToolkit.Nex.Rendering;
 using SenderNG.Core.Localization;
 using SenderNG.Modules.Plotter.Nex.Rendering;
 using SenderNG.Modules.Plotter.Nex.Scene;
+using SenderNG.Modules.Plotter.Nex.Settings;
 
 namespace SenderNG.Modules.Plotter.Nex;
 
@@ -86,6 +88,16 @@ public partial class PlotterNexView : UserControl
     private int _sceneGeneration;
     private bool _attached;
     private bool _tickSubscribed;
+
+    // Top-left view-toggle bar: a view-local PlotterNexSettingsViewModel (the
+    // SAME class the App Settings leaf binds) plus a view-local SettingsService
+    // so flips persist per-profile through the same PlotterNexConfig +
+    // SettingsService.Save path WITHOUT fanning out to the app's shared
+    // SettingsService.Changed. The shared event would otherwise trigger the
+    // plot view model's OnSettingsChanged -> Rebuild() (node recreation),
+    // violating the runtime-only view-toggle guarantee.
+    private SettingsService? _overlaySettings;
+    private PlotterNexSettingsViewModel? _overlayToggles;
 
     private RenderContext? _renderContext;
     private NexGpuReadback? _readback;
@@ -133,6 +145,7 @@ public partial class PlotterNexView : UserControl
         _vm = DataContext as PlotterNexViewModel;
         if (_vm is null)
             return;
+        InitOverlayToggles();
         if (_attached)
             _vm.PropertyChanged += OnVmPropertyChanged;
         EnsureScene();
@@ -155,6 +168,94 @@ public partial class PlotterNexView : UserControl
         }
     }
 
+    /// <summary>Bind the top-left view-toggle bar to a
+    /// <see cref="PlotterNexSettingsViewModel"/> — the SAME view model class the
+    /// App Settings leaf binds, so both surfaces stay two views onto one model.
+    /// The editor uses a view-local <see cref="SettingsService"/> rather than the
+    /// app's DI singleton: flips persist per-profile through the same
+    /// <c>PlotterNexConfig.Save + SettingsService.Save</c> path, but deliberately
+    /// do NOT fan out to the shared <c>SettingsService.Changed</c> — that event
+    /// drives <c>PlotterNexViewModel.OnSettingsChanged → Rebuild()</c>, which would
+    /// recreate content nodes and violate the runtime-only toggle guarantee.</summary>
+    private void InitOverlayToggles()
+    {
+        if (_overlayToggles is not null)
+            return;
+        try
+        {
+            _overlaySettings = new SettingsService();
+            _overlayToggles = new PlotterNexSettingsViewModel(_overlaySettings, LocalizationService.Current);
+            _overlayToggles.PropertyChanged += OnOverlayToggleChanged;
+            OverlayViewToggles.DataContext = _overlayToggles;
+            PushOverlayView();
+        }
+        catch
+        {
+            // A settings read failure must never take down the 3D viewport; the
+            // toggles stay inert (unbound) and the scene renders its defaults.
+            _overlayToggles = null;
+            _overlaySettings = null;
+        }
+    }
+
+    /// <summary>Push the four overlay view toggles to the live scene as a
+    /// runtime chrome change (NexPlotScene.SetView) — node-level Enabled/park
+    /// flips only, no scene rebuild, no node recreation, no module reload.</summary>
+    private void PushOverlayView()
+    {
+        var scene = _scene;
+        var vm = _overlayToggles;
+        if (scene is null || vm is null)
+            return;
+        scene.SetView(new PlotterNexSettings
+        {
+            ShowOrigin = vm.ShowOrigin,
+            ShowEnvelope = vm.ShowEnvelope,
+            ShowRunState = vm.ShowRunState,
+            ShowGrid = vm.ShowGrid,
+        });
+    }
+
+    /// <summary>Re-read the persisted profile's plotter-nex section and fold any
+    /// drift into the overlay editor (each setter persists + raises, and
+    /// <see cref="PushOverlayView"/> updates the scene). Keeps the toggle bar —
+    /// and the scene chrome — consistent with flips made in the App Settings
+    /// leaf after this view last attached.</summary>
+    private void RefreshOverlayFromProfile()
+    {
+        var vm = _overlayToggles;
+        if (vm is null)
+            return;
+        try
+        {
+            // A fresh service instance re-reads the profile from disk (the held
+            // one caches its graph at construction).
+            var profile = new SettingsService().Load();
+            var settings = PlotterNexConfig.Load(profile, MachineTypeCatalog.Resolve(profile.MachineTypeId));
+            if (vm.ShowOrigin != settings.ShowOrigin) vm.ShowOrigin = settings.ShowOrigin;
+            if (vm.ShowEnvelope != settings.ShowEnvelope) vm.ShowEnvelope = settings.ShowEnvelope;
+            if (vm.ShowRunState != settings.ShowRunState) vm.ShowRunState = settings.ShowRunState;
+            if (vm.ShowGrid != settings.ShowGrid) vm.ShowGrid = settings.ShowGrid;
+            PushOverlayView();
+        }
+        catch
+        {
+            // Keep the currently held toggle values on any profile read failure.
+        }
+    }
+
+    private void OnOverlayToggleChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not nameof(PlotterNexSettingsViewModel.ShowOrigin)
+            && e.PropertyName is not nameof(PlotterNexSettingsViewModel.ShowEnvelope)
+            && e.PropertyName is not nameof(PlotterNexSettingsViewModel.ShowRunState)
+            && e.PropertyName is not nameof(PlotterNexSettingsViewModel.ShowGrid))
+        {
+            return;
+        }
+        PushOverlayView();
+    }
+
     private void OnAttachedToVisualTree()
     {
         _attached = true;
@@ -172,6 +273,10 @@ public partial class PlotterNexView : UserControl
             SetupRenderTarget();
             EnableTick();
         }
+        // Re-sync the toggle bar against the persisted profile: a flip made in
+        // the App Settings leaf (or a profile switch) after the view last
+        // attached is reflected here, and pushed to the live scene.
+        RefreshOverlayFromProfile();
     }
 
     /// <summary>Keep the GPU scene alive across tab switches. Only the
@@ -233,6 +338,9 @@ public partial class PlotterNexView : UserControl
                 }
                 SetupRenderTarget();
                 EnableTick();
+                // A fresh scene renders all chrome visible; start it from the
+                // persisted view toggles (runtime-only, no rebuild).
+                PushOverlayView();
             });
         });
     }

@@ -122,7 +122,29 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             <Setter Property="Foreground" Value="#222" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                         </Style>
+                        <Style Selector="ToggleButton.navBtn:checked">
+                            <Setter Property="Foreground" Value="#222" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Style>
                     </Panel.Styles>
+                    <!-- Top-left view-toggle chrome: the same 4
+                         PlotterNexSettings toggles the App Settings leaf binds,
+                         so both surfaces stay two views onto one model. The
+                         DataContext is a PlotterNexSettingsViewModel wired in
+                         the code-behind; each flip persists per-profile and is
+                         pushed to the live scene as a runtime chrome change. -->
+                    <StackPanel Orientation="Vertical" Spacing="6"
+                                HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"
+                                x:Name="OverlayViewToggles">
+                        <ToggleButton Classes="navBtn" Content="◎" ToolTip.Tip="{Binding ShowOriginLabel}"
+                                      IsChecked="{Binding ShowOrigin}" />
+                        <ToggleButton Classes="navBtn" Content="▢" ToolTip.Tip="{Binding ShowEnvelopeLabel}"
+                                      IsChecked="{Binding ShowEnvelope}" />
+                        <ToggleButton Classes="navBtn" Content="▶" ToolTip.Tip="{Binding ShowRunStateLabel}"
+                                      IsChecked="{Binding ShowRunState}" />
+                        <ToggleButton Classes="navBtn" Content="▦" ToolTip.Tip="{Binding ShowGridLabel}"
+                                      IsChecked="{Binding ShowGrid}" />
+                    </StackPanel>
                     <StackPanel Orientation="Vertical" Spacing="6"
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12">
                         <TextBlock x:Name="ZoomPctText" Text="100%" FontSize="12" Foreground="#777"
