@@ -93,7 +93,8 @@ public partial class PlotterNexView : UserControl
     // surfaces are two views onto ONE shared settings VM on the app's DI
     // SettingsService, so a flip anywhere persists per-profile through the
     // shared service and reaches the other surface live — no second service,
-    // no second VM clone, no attach-time disk re-read.
+    // no second VM clone, no attach-time disk re-read. The AA mode/quality is
+    // leaf-only (kept off the overlay bar) but rides the same live push.
     private PlotterNexSettingsViewModel? _overlayToggles;
 
     private RenderContext? _renderContext;
@@ -166,10 +167,10 @@ public partial class PlotterNexView : UserControl
 
     /// <summary>The ONE <see cref="PlotterNexSettingsViewModel"/> the overlay bar
     /// binds — the same instance the App Settings leaf binds (wired by the module).
-    /// Switching it re-binds the bar, re-subscribes the live push, and re-applies
-    /// the view chrome to the current scene (runtime-only, no rebuild). A flip on
-    /// either surface reaches the other through the shared VM's PropertyChanged —
-    /// no re-attach, no disk re-read.</summary>
+    /// Switch it re-binds the bar, re-subscribes the live push, and re-applies
+    /// the view chrome + AA settings to the current scene (runtime-only, no
+    /// rebuild). A flip on either surface reaches the other through the shared
+    /// VM's PropertyChanged — no re-attach, no disk re-read.</summary>
     public PlotterNexSettingsViewModel? OverlaySettings
     {
         get => _overlayToggles;
@@ -181,14 +182,15 @@ public partial class PlotterNexView : UserControl
             OverlayViewToggles.DataContext = value;
             if (_overlayToggles is not null)
                 _overlayToggles.PropertyChanged += OnOverlayToggleChanged;
-            PushOverlayView();
+            PushOverlayState();
         }
     }
 
-    /// <summary>Push the four overlay view toggles to the live scene as a
-    /// runtime chrome change (NexPlotScene.SetView) — node-level Enabled/park
-    /// flips only, no scene rebuild, no node recreation, no module reload.</summary>
-    private void PushOverlayView()
+    /// <summary>Push the overlay view toggles and the AA mode/quality to the live
+    /// scene as runtime changes (NexPlotScene.SetView + SetAntiAlias) — node-level
+    /// Enabled/park flips and AA push-constant edits only, no scene rebuild, no node
+    /// recreation, no module reload.</summary>
+    private void PushOverlayState()
     {
         var scene = _scene;
         var vm = _overlayToggles;
@@ -201,6 +203,7 @@ public partial class PlotterNexView : UserControl
             ShowRunState = vm.ShowRunState,
             ShowGrid = vm.ShowGrid,
         });
+        scene.SetAntiAlias(vm.AaMode, vm.AaQuality);
     }
 
     private void OnOverlayToggleChanged(object? sender, PropertyChangedEventArgs e)
@@ -208,11 +211,13 @@ public partial class PlotterNexView : UserControl
         if (e.PropertyName is not nameof(PlotterNexSettingsViewModel.ShowOrigin)
             && e.PropertyName is not nameof(PlotterNexSettingsViewModel.ShowEnvelope)
             && e.PropertyName is not nameof(PlotterNexSettingsViewModel.ShowRunState)
-            && e.PropertyName is not nameof(PlotterNexSettingsViewModel.ShowGrid))
+            && e.PropertyName is not nameof(PlotterNexSettingsViewModel.ShowGrid)
+            && e.PropertyName is not nameof(PlotterNexSettingsViewModel.AaMode)
+            && e.PropertyName is not nameof(PlotterNexSettingsViewModel.AaQuality))
         {
             return;
         }
-        PushOverlayView();
+        PushOverlayState();
     }
 
     private void OnAttachedToVisualTree()
@@ -293,9 +298,10 @@ public partial class PlotterNexView : UserControl
                 }
                 SetupRenderTarget();
                 EnableTick();
-                // A fresh scene renders all chrome visible; start it from the
-                // persisted view toggles (runtime-only, no rebuild).
-                PushOverlayView();
+                // A fresh scene renders all chrome visible + AA at the ctor
+                // default; start it from the persisted view toggles and AA
+                // settings (runtime-only, no rebuild).
+                PushOverlayState();
             });
         });
     }

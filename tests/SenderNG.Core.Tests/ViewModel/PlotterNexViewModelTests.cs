@@ -733,6 +733,47 @@ public class PlotterNexViewModelTests : IDisposable
         Assert.True(scene.Layers.Count > layersBefore);
     }
 
+    [Fact]
+    public void Aa_edit_stays_runtime_only_no_node_rebuild()
+    {
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        var settings = new SettingsService(_settingsDir);
+        var profile = settings.Load();
+        profile.MachineTypeId = MachineTypes.Mill;
+        settings.Save(profile);
+        using var vm = new PlotterNexViewModel(source, _grbl, settings,
+            new LocalizationService(new MemoryStream("{ \"strings\": {} }"u8.ToArray())),
+            new KinematicSceneFactory(scene));
+        source.Load(MillProgram());
+        Assert.True(vm.HasGeometry);
+        var layersBefore = scene.Layers.Count;
+        var frontierAfterLoad = vm.FrontierVersion;
+
+        // Flip ONLY the AA mode/quality through the same Save flow the settings
+        // leaf uses. AA switching is a runtime push-constant flip driven by the
+        // view's shared-VM subscription (scene.SetAntiAlias) — the VM must NOT
+        // treat it as a structural change and rebuild content nodes.
+        var profile2 = settings.Load();
+        var nex = PlotterNexConfig.Load(profile2, MachineTypeCatalog.Resolve(MachineTypes.Mill));
+        nex.AaMode = 2;     // FXAA
+        nex.AaQuality = 3;  // Ultra
+        PlotterNexConfig.Save(profile2, nex);
+        settings.Save(profile2);
+
+        Assert.Equal(layersBefore, scene.Layers.Count);
+        Assert.Equal(frontierAfterLoad, vm.FrontierVersion);
+
+        // A structural change (wire length) still forces the full rebuild.
+        var profile3 = settings.Load();
+        var nex2 = PlotterNexConfig.Load(profile3, MachineTypeCatalog.Resolve(MachineTypes.Mill));
+        nex2.WireLength *= 2;
+        PlotterNexConfig.Save(profile3, nex2);
+        settings.Save(profile3);
+
+        Assert.True(scene.Layers.Count > layersBefore);
+    }
+
     /// <summary>Read-only program facade over a parsed G-code string, with an
     /// AckRows live-run tick — mirrors the Skia headless stub.</summary>
     private sealed class StubProgramSource : ILoadedProgramSource

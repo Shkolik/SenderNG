@@ -266,12 +266,13 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         var settings = PlotterNexConfig.Load(profile, machineType);
 
         // The overlay toggle bar and the App Settings leaf now save through this
-        // SAME SettingsService, so every Show* flip arrives here too. Only a
-        // view-toggle change must stay runtime-only (the view's shared-VM
-        // subscription pushes it to the LIVE scene — no node recreation, no
-        // program rebuild); any structural change (machine type, planes, wire
-        // length, AA) keeps the full legacy path.
-        if (OnlyViewTogglesChanged(_lastSettings, settings, _machineType, machineType))
+        // SAME SettingsService, so every Show* flip and every AA mode/quality
+        // change arrives here too. Only those runtime-flippable settings must
+        // stay runtime-only (the view's shared-VM subscription pushes them to the
+        // LIVE scene — SetView for the view toggles, SetAntiAlias for AA; no node
+        // recreation, no program rebuild); any structural change (machine type,
+        // planes, wire length) keeps the full legacy path.
+        if (OnlyRuntimeStateChanged(_lastSettings, settings, _machineType, machineType))
         {
             _lastSettings = settings;
             return;
@@ -288,17 +289,19 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
 
     /// <summary>True when <paramref name="a"/> and <paramref name="b"/> differ in
     /// AT MOST the four view toggles (ShowOrigin/ShowEnvelope/ShowRunState/ShowGrid)
-    /// — the runtime-only case (identical machine type, planes, wire length and AA).
-    /// A no-op save (Changed raised with nothing actually changed) is also caught
-    /// here, so unrelated profile saves no longer force a node rebuild.</summary>
-    private static bool OnlyViewTogglesChanged(
+    /// and/or the AA mode/quality (AaMode/AaQuality) — the runtime-only case
+    /// (identical machine type, planes and wire length). The view pushes these live
+    /// onto the scene (SetView / SetAntiAlias — node-level Enabled/park flips and
+    /// AA push constants only), so a structural rebuild is never required for them.
+    /// AA is deliberately part of this set: an AA flip must NOT fall through to
+    /// Rebuild(). A no-op save (Changed raised with nothing actually changed) is
+    /// also caught here, so unrelated profile saves no longer force a node rebuild.</summary>
+    private static bool OnlyRuntimeStateChanged(
         PlotterNexSettings a, PlotterNexSettings b, MachineType machineA, MachineType machineB)
     {
         if (machineA.Id != machineB.Id)
             return false;
         if (Math.Abs(a.WireLength - b.WireLength) > 1e-9)
-            return false;
-        if (a.AaMode != b.AaMode || a.AaQuality != b.AaQuality)
             return false;
         if (a.Planes.Count != b.Planes.Count)
             return false;
