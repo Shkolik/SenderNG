@@ -556,6 +556,16 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 return true;                                    // skip ApplyMotion: no teleport
             }
 
+            // Motion lines briefly report Run (as a real poller would during
+            // travel) before landing back on Idle. The stepper-calibration wizard
+            // gates its completion wait on that non-Idle observation, so the demo
+            // must synthesize it or the gate would never see the move leave Idle.
+            if (MovesAxis(trimmed))
+            {
+                state.Status = "Run";
+                _subject.OnNext(state);
+            }
+
             ApplyMotion(trimmed, state);
             state.Status = "Idle";
 
@@ -572,6 +582,19 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             _subject.OnNext(state);
             return true;
         }
+    }
+
+    // True when a line commands axis travel (an axis word outside a pure
+    // coordinate-set like G92): jog lines and plain G0/G1 moves included.
+    private static bool MovesAxis(string line)
+    {
+        if (line.StartsWith("$J", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (TokenizeWords(line).Any(w => w.Equals("G92", StringComparison.OrdinalIgnoreCase)))
+            return false;   // G92 sets the work offset — no travel
+        return TokenizeWords(line).Any(w =>
+            w.Length > 1 && "XYZABCUVW".Contains(char.ToUpperInvariant(w[0])) &&
+            double.TryParse(w[1..], System.Globalization.CultureInfo.InvariantCulture, out _));
     }
 
     // Hand-parses motion lines: supports $J= jog commands, modal G90/G91

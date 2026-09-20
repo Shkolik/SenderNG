@@ -319,7 +319,8 @@ public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClo
             // Arm the idle gate BEFORE the move: subscribing after the send would
             // replay the pre-move "Idle" status (GrblServiceProxy/DemoGrblService
             // expose a BehaviorSubject) and could let the wizard advance while the
-            // axis is still travelling. The gate drops that replay on purpose.
+            // axis is still travelling. The gate drops that replay and waits for a
+            // non-Idle observation before accepting Idle.
             var idleTask = WaitForIdleAsync();
             await _grbl.SendAsync(
                 $"G21G91G0{SelectedAxisLetter}{(direction * distance).ToString(CultureInfo.InvariantCulture)}");
@@ -383,16 +384,19 @@ public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClo
         return state;
     }
 
-    // Completes when the controller reports Idle again, or (false) on an Alarm or
-    // a 120s timeout. Callers must invoke this BEFORE issuing the move: the first
-    // emission this subscription receives is the BehaviorSubject replay of the last
-    // state — which, if subscribed after the send, is the pre-move "Idle" that makes
-    // the wait succeed while the axis is still moving. Dropping the replay instead
-    // puts the wait on genuine post-command polls only.
+    // Completes when the controller reports Idle again after the move, or (false) on
+// an Alarm or a 120s timeout. Callers must invoke this BEFORE issuing the move:
+// the first emission this subscription receives is the BehaviorSubject replay of
+// the last state — which, if subscribed after the send, is the pre-move "Idle"
+// that makes the wait succeed while the axis is still moving. The replay is
+// dropped, and Idle is accepted only after a non-Idle state was actually observed:
+// a poll that answers Idle before the move physically starts (it can beat the G0
+// line to the wire) must not count as completion either.
     private async Task<bool> WaitForIdleAsync()
     {
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var replay = true;
+        var busy = false;
         using var sub = _grbl.State.Subscribe(s =>
         {
             if (replay)
@@ -401,10 +405,15 @@ public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClo
                 return;
             }
             var status = s?.Status ?? string.Empty;
-            if (status.Contains("idle", StringComparison.OrdinalIgnoreCase))
-                tcs.TrySetResult(true);
-            else if (status.Contains("alarm", StringComparison.OrdinalIgnoreCase))
+            if (status.Contains("alarm", StringComparison.OrdinalIgnoreCase))
                 tcs.TrySetResult(false);
+            else if (status.Contains("idle", StringComparison.OrdinalIgnoreCase))
+            {
+                if (busy)
+                    tcs.TrySetResult(true);
+            }
+            else
+                busy = true;
         });
         using var cts = new CancellationTokenSource(MoveTimeout);
         try

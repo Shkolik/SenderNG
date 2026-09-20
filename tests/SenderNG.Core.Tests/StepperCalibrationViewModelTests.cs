@@ -89,7 +89,8 @@ public class StepperCalibrationViewModelTests
 
         // The real controller advances its position as the move executes, and the
         // wizard's return leg bases its space check on where the forward leg left
-        // the axis — so the fake has to move too.
+        // the axis — so the fake has to move too. It re-emits Run then Idle, the
+        // way a poller sees the axis travel then finish.
         private void SimulateMotion(string line)
         {
             var g0 = line.IndexOf("G0", StringComparison.Ordinal);
@@ -104,7 +105,12 @@ public class StepperCalibrationViewModelTests
             if (Current.MachinePositions is { } machine && index < machine.Length)
                 machine[index] += delta;
             if (!DeferMotionEmit)
+            {
+                Current.Status = "Run";
                 _state.OnNext(Current);
+                Current.Status = "Idle";
+                _state.OnNext(Current);
+            }
         }
     }
 
