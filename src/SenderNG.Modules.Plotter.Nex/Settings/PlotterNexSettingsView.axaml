@@ -47,6 +47,29 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                      FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
         </StackPanel>
+        <StackPanel Spacing="4">
+            <TextBlock Text="{Binding ViewLabel}" FontSize="12" FontWeight="SemiBold"
+                       Foreground="#333" Margin="0,6,0,0" />
+            <ToggleSwitch Content="{Binding ShowOriginLabel}" IsChecked="{Binding ShowOrigin}" />
+            <ToggleSwitch Content="{Binding ShowEnvelopeLabel}" IsChecked="{Binding ShowEnvelope}" />
+            <ToggleSwitch Content="{Binding ShowRunStateLabel}" IsChecked="{Binding ShowRunState}" />
+            <ToggleSwitch Content="{Binding ShowGridLabel}" IsChecked="{Binding ShowGrid}" />
+        </StackPanel>
+        <StackPanel Spacing="4">
+            <TextBlock Text="{Binding AntiAliasingLabel}" FontSize="12" FontWeight="SemiBold"
+                       Foreground="#333" Margin="0,6,0,0" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="{Binding AaModeLabel}" FontSize="10" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding AaModeChoices}" SelectedIndex="{Binding AaMode}"
+                          Width="110" Height="28" MinHeight="28" CornerRadius="0" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="{Binding AaQualityLabel}" FontSize="10" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding AaQualityChoices}" SelectedIndex="{Binding AaQuality}"
+                          Width="110" Height="28" MinHeight="28" CornerRadius="0" />
+            </StackPanel>
+        </StackPanel>
+        <Rectangle Height="1" Fill="#ddd" />
         <ItemsControl ItemsSource="{Binding PlaneRows}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:PlotterNexPlaneRow">

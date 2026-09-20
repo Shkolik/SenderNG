@@ -93,6 +93,14 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IModuleS
             ["module.plotter-nex.settings.worldAxes"] = "World axes",
             ["module.plotter-nex.settings.origin"] = "Origin",
             ["module.plotter-nex.settings.plane"] = "Plane {0}",
+            ["module.plotter-nex.settings.view"] = "View",
+            ["module.plotter-nex.settings.showOrigin"] = "Show origin",
+            ["module.plotter-nex.settings.showEnvelope"] = "Show envelope",
+            ["module.plotter-nex.settings.showRunState"] = "Show run state",
+            ["module.plotter-nex.settings.showGrid"] = "Show grid",
+            ["module.plotter-nex.settings.antiAliasing"] = "Rendering / Anti-aliasing",
+            ["module.plotter-nex.settings.aaMode"] = "Mode",
+            ["module.plotter-nex.settings.aaQuality"] = "Quality",
         };
 
     public void RegisterServices(IServiceCollection services)

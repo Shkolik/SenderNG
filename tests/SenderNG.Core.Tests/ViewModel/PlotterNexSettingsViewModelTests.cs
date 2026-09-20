@@ -147,4 +147,44 @@ public class PlotterNexSettingsViewModelTests : IDisposable
         Assert.Equal(0.0, vm.PlaneRows[0].OriginY);
         Assert.Equal(0.0, vm.PlaneRows[1].OriginY);
     }
+
+    [Fact]
+    public void View_and_AA_toggles_read_defaults_and_round_trip_through_save()
+    {
+        var vm = MakeVm(MachineTypes.Foam);
+
+        // Defaults equal current behavior: SMAA + High, everything visible.
+        Assert.True(vm.ShowOrigin);
+        Assert.True(vm.ShowEnvelope);
+        Assert.True(vm.ShowRunState);
+        Assert.True(vm.ShowGrid);
+        Assert.Equal(1, vm.AaMode);
+        Assert.Equal(2, vm.AaQuality);
+
+        vm.ShowOrigin = false;
+        vm.ShowEnvelope = false;
+        vm.ShowRunState = false;
+        vm.ShowGrid = false;
+        vm.AaMode = 2;    // FXAA
+        vm.AaQuality = 3; // Ultra
+
+        // VM getters reflect the flip immediately.
+        Assert.False(vm.ShowOrigin);
+        Assert.False(vm.ShowEnvelope);
+        Assert.False(vm.ShowRunState);
+        Assert.False(vm.ShowGrid);
+        Assert.Equal(2, vm.AaMode);
+        Assert.Equal(3, vm.AaQuality);
+
+        // Persisted through the profile's plotter-nex section (VM setter -> Save -> reload).
+        var settingsService = new SettingsService(_dir);
+        var loaded = PlotterNexConfig.Load(settingsService.Load(),
+            MachineTypeCatalog.Resolve(MachineTypes.Foam));
+        Assert.False(loaded.ShowOrigin);
+        Assert.False(loaded.ShowEnvelope);
+        Assert.False(loaded.ShowRunState);
+        Assert.False(loaded.ShowGrid);
+        Assert.Equal(2, loaded.AaMode);
+        Assert.Equal(3, loaded.AaQuality);
+    }
 }

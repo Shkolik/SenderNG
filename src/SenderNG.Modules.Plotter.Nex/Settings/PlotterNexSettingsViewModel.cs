@@ -42,7 +42,8 @@ using SenderNG.Core.Localization;
 namespace SenderNG.Modules.Plotter.Nex.Settings;
 
 /// <summary>AppSettings editor for the <c>plotter-nex</c> section: wire length
-/// (2+ planes), per-slot world-axis selection, and per-plane origin offsets.</summary>
+/// (2+ planes), per-slot world-axis selection, per-plane origin offsets, scene
+/// view toggles, and anti-aliasing mode/quality.</summary>
 public sealed class PlotterNexSettingsViewModel : CNC.Core.ViewModelBase
 {
     private readonly SettingsService _settingsService;
@@ -84,6 +85,108 @@ public sealed class PlotterNexSettingsViewModel : CNC.Core.ViewModelBase
     /// <summary>Localized "Wire length (tower distance)" label (plugin views
     /// cannot use the app-only {Loc} markup, so labels resolve code-side).</summary>
     public string WireLengthLabel => Resolve("module.plotter-nex.settings.wireLength", "Wire length (tower distance)");
+
+    public bool ShowOrigin
+    {
+        get => _settings.ShowOrigin;
+        set
+        {
+            if (_settings.ShowOrigin == value) return;
+            _settings.ShowOrigin = value;
+            Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowEnvelope
+    {
+        get => _settings.ShowEnvelope;
+        set
+        {
+            if (_settings.ShowEnvelope == value) return;
+            _settings.ShowEnvelope = value;
+            Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowRunState
+    {
+        get => _settings.ShowRunState;
+        set
+        {
+            if (_settings.ShowRunState == value) return;
+            _settings.ShowRunState = value;
+            Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowGrid
+    {
+        get => _settings.ShowGrid;
+        set
+        {
+            if (_settings.ShowGrid == value) return;
+            _settings.ShowGrid = value;
+            Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public int AaMode
+    {
+        get => _settings.AaMode;
+        set
+        {
+            if (_settings.AaMode == value) return;
+            _settings.AaMode = value;
+            Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public int AaQuality
+    {
+        get => _settings.AaQuality;
+        set
+        {
+            if (_settings.AaQuality == value) return;
+            _settings.AaQuality = value;
+            Save();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Localized "View" section heading.</summary>
+    public string ViewLabel => Resolve("module.plotter-nex.settings.view", "View");
+
+    /// <summary>Localized "Show origin" toggle label.</summary>
+    public string ShowOriginLabel => Resolve("module.plotter-nex.settings.showOrigin", "Show origin");
+
+    /// <summary>Localized "Show envelope" toggle label.</summary>
+    public string ShowEnvelopeLabel => Resolve("module.plotter-nex.settings.showEnvelope", "Show envelope");
+
+    /// <summary>Localized "Show run state" toggle label.</summary>
+    public string ShowRunStateLabel => Resolve("module.plotter-nex.settings.showRunState", "Show run state");
+
+    /// <summary>Localized "Show grid" toggle label.</summary>
+    public string ShowGridLabel => Resolve("module.plotter-nex.settings.showGrid", "Show grid");
+
+    /// <summary>Localized "Rendering / Anti-aliasing" section heading.</summary>
+    public string AntiAliasingLabel => Resolve("module.plotter-nex.settings.antiAliasing", "Rendering / Anti-aliasing");
+
+    /// <summary>Localized "Mode" label for the AA method combo.</summary>
+    public string AaModeLabel => Resolve("module.plotter-nex.settings.aaMode", "Mode");
+
+    /// <summary>Localized "Quality" label for the AA quality combo.</summary>
+    public string AaQualityLabel => Resolve("module.plotter-nex.settings.aaQuality", "Quality");
+
+    /// <summary>AA method combo items (0=Off, 1=SMAA, 2=FXAA).</summary>
+    public string[] AaModeChoices => ["Off", "SMAA", "FXAA"];
+
+    /// <summary>AA quality combo items (0=Low, 1=Medium, 2=High, 3=Ultra).</summary>
+    public string[] AaQualityChoices => ["Low", "Medium", "High", "Ultra"];
 
     public ObservableCollection<PlotterNexPlaneRow> PlaneRows { get; }
 
