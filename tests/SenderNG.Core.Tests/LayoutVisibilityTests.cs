@@ -44,18 +44,20 @@ public class LayoutVisibilityTests
 {
     private sealed class StubModule : IModule
     {
-        public StubModule(string id, PanelHint panel, int order, bool visibleByDefault = true)
+        public StubModule(string id, PanelHint panel, int order, bool visibleByDefault = true, bool canHide = true)
         {
             Id = id;
             Panel = panel;
             Order = order;
             IsVisibleByDefault = visibleByDefault;
+            CanHide = canHide;
         }
         public string Id { get; }
         public string Name => Id;
         public int Order { get; }
         public PanelHint Panel { get; }
         public bool IsVisibleByDefault { get; }
+        public bool CanHide { get; }
         public IReadOnlyList<HotKey> HotKeys => [];
         public void RegisterServices(IServiceCollection services) { }
         public object CreateViewModel(IServiceProvider sp) => new object();
@@ -171,5 +173,17 @@ public class LayoutVisibilityTests
         var vm = CreateVMWithVisibility(appSettings, mods);
         Assert.True(vm.IsModuleVisible(mods[0]));
         Assert.Contains(vm.LeftModules, x => x.Module.Id == "hidden-by-default");
+    }
+
+    [Fact]
+    public void IsModuleVisible_clamps_non_hideable_to_default_ignoring_stale_flag()
+    {
+        var appSettings = new MachineProfile();
+        appSettings.Modules["stale-hidden"] = false; // written before CanHide=false
+        var mods = new IModule[] { new StubModule("stale-hidden", PanelHint.Left, 99, canHide: false) };
+        var vm = CreateVMWithVisibility(appSettings, mods);
+
+        Assert.True(vm.IsModuleVisible(mods[0]));
+        Assert.Contains(vm.LeftModules, x => x.Module.Id == "stale-hidden");
     }
 }

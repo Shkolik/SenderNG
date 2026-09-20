@@ -704,7 +704,9 @@ public class MainViewModel : ViewModelBase, IDisposable
     public ObservableCollection<IModule> Modules { get; } = new();
 
     public bool IsModuleVisible(IModule m) =>
-        _settingsService.Load().Modules.TryGetValue(m.Id, out var v) ? v : m.IsVisibleByDefault;
+        m.CanHide
+            ? _settingsService.Load().Modules.TryGetValue(m.Id, out var v) ? v : m.IsVisibleByDefault
+            : m.IsVisibleByDefault;
 
     public IEnumerable<NamedModule> LeftModules =>
         Modules.Where(IsModuleVisible).Where(m => m.Panel == PanelHint.Left).OrderBy(m => m.Order)
