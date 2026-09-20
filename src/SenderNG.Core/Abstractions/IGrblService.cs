@@ -132,6 +132,14 @@ public interface IGrblService
     /// demo is already live and the proxy forwards to the inner service.
     /// </summary>
     Task RefreshWorkParametersAsync() => Task.CompletedTask;
+
+    /// <summary>
+    /// One-shot read of the controller's live modal state (<c>$G</c>): units
+    /// (G20/G21) and distance mode (G90/G91). Default <c>null</c> so lightweight
+    /// test doubles keep compiling, exactly like <see cref="SendProgramLineAsync"/>.
+    /// </summary>
+    Task<SenderNG.Core.Models.ModalState?> ReadModalStateAsync() =>
+        Task.FromResult<SenderNG.Core.Models.ModalState?>(null);
 }
 
 /// <summary>grblHAL realtime command bytes. Coolant toggle bytes are identical
