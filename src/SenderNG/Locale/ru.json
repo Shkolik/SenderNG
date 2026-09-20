@@ -79,7 +79,7 @@
     "module.probing.rotation": "Поворот",
     "module.probing.center": "Поиск центра",
     "module.probing.heightmap": "Карта высот",
-    "module.stepper-calibration.title": "Калибровка шаговых двигателей",
+    "module.stepper-calibration.name": "Калибровка шаговых двигателей",
     "module.stepper-calibration.distance": "Расстояние (мм)",
     "module.stepper-calibration.axis": "Ось",
     "module.stepper-calibration.direction": "Направление",

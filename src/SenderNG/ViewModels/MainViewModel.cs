@@ -1202,9 +1202,10 @@ public class MainViewModel : ViewModelBase, IDisposable
             Status = LocText.Format("app.msg.moduleNoDialog", "{0}: no dialog service available", module.Name);
             return;
         }
+        object? viewModel = null;
         try
         {
-            var viewModel = module.CreateViewModel(_services);
+            viewModel = module.CreateViewModel(_services);
             ApplySettingsDialogGuards(viewModel);
             await _dialogs.ShowDialogAsync(module.Name, viewModel, module.DialogPreferredSize);
         }
@@ -1214,6 +1215,13 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
         finally
         {
+            // The wizard may have left modal G-code on the controller; allow the
+            // module to undo dialog-only side effects now that it is closing.
+            if (viewModel is IAsyncDialogClosing closing)
+            {
+                try { await closing.OnDialogClosedAsync(); }
+                catch { /* window is gone — nothing meaningful to report */ }
+            }
             // Modal loops can swallow change-driven layout updates; re-raise
             // everything once the dialog closes so visibility applies immediately.
             OnSettingsChanged();

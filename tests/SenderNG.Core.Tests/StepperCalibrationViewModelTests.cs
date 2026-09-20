@@ -54,13 +54,26 @@ public class StepperCalibrationViewModelTests
         public ControllerCapabilities Capabilities { get; init; } = new() { NumAxes = 3 };
         public bool IsConnected => true;
 
-        // BehaviorSubject, not Subject: the wizard subscribes in WaitForIdleAsync
-        // *after* SendAsync, so it needs the latest state replayed — exactly what
-        // DemoGrblService/GrblServiceProxy expose in production.
+        // BehaviorSubject, not Subject: exactly what DemoGrblService/
+        // GrblServiceProxy expose in production, and the object the wizard's
+        // idle gate sees. The gate subscribes *before* the send and drops the
+        // subscribe-time replay, so the fake must emit the post-move state
+        // during SendAsync the way a real controller's poller eventually does.
         private readonly BehaviorSubject<MachineState> _state;
         public IObservable<MachineState> State => _state;
 
         public RecordingGrbl() => _state = new BehaviorSubject<MachineState>(Current);
+
+        // When set, SimulateMotion mutates the position without emitting: hosts
+        // the C1 regression test, which streams status updates on its own to
+        // mimic a poller that reports Run only while the axis actually moves.
+        public bool DeferMotionEmit { get; set; }
+
+        public void EmitStatus(string status)
+        {
+            Current.Status = status;
+            _state.OnNext(Current);
+        }
 
         public Task ConnectAsync(string port) => Task.CompletedTask;
         public void Disconnect() { }
@@ -90,7 +103,8 @@ public class StepperCalibrationViewModelTests
                 Current.Positions[index] += delta;
             if (Current.MachinePositions is { } machine && index < machine.Length)
                 machine[index] += delta;
-            _state.OnNext(Current);
+            if (!DeferMotionEmit)
+                _state.OnNext(Current);
         }
     }
 
@@ -267,5 +281,40 @@ public class StepperCalibrationViewModelTests
 
         release.SetResult();
         await move;
+    }
+
+    [Fact]
+    public async Task Waits_for_a_real_idle_after_the_move_not_the_premove_replay()
+    {
+        var (vm, grbl, _) = Create();
+        grbl.DeferMotionEmit = true;   // no post-move emission during SendAsync
+        await vm.InitializeAsync();
+
+        var move = vm.NextAsync();
+        // The command was sent, but with the poller still reporting the pre-move
+        // "Idle" the wizard must NOT advance — the subscribe-time replay no longer
+        // fakes a completed move (C1 regression).
+        Assert.Contains(grbl.Lines, l => l.StartsWith("G21G91G0X"));
+        Assert.Equal(StepperCalibrationStep.Setup, vm.Step);
+        Assert.True(vm.IsMoving);
+
+        // The poller sees the axis move, then finish.
+        grbl.EmitStatus("Run");
+        grbl.EmitStatus("Idle");
+        await move;
+        Assert.Equal(StepperCalibrationStep.MeasureForward, vm.Step);
+    }
+
+    [Fact]
+    public async Task Dialog_close_restores_modal_state_when_interrupted()
+    {
+        var (vm, grbl, _) = Create();
+        grbl.Modal = new ModalState(false, false);   // G20 + G91
+        await vm.InitializeAsync();
+        vm.MeasuredDistance = 100;
+        await vm.NextAsync();                        // mid-wizard: modal G91 left active
+        await vm.OnDialogClosedAsync();
+        Assert.Equal(new[] { "G20", "G91" }, grbl.Lines.TakeLast(2));
+        Assert.Equal(StepperCalibrationStep.Setup, vm.Step);
     }
 }

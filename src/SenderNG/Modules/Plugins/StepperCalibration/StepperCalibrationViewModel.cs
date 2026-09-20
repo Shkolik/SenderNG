@@ -40,6 +40,7 @@ using CNC.Core.Services;
 using SenderNG.Core.Commands;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Models;
+using SenderNG.Core.Modules;
 using SenderNG.Core.Settings;
 using SenderNG.ViewModels;
 using ViewModelBase = SenderNG.ViewModels.ViewModelBase;
@@ -55,7 +56,7 @@ public enum StepperCalibrationStep { Setup, MeasureForward, MeasureBacklash, Don
 /// StepperCalibrationWizard, with a measured backlash step replacing its hardcoded
 /// 0.5 mm overshoot.
 /// </summary>
-public sealed class StepperCalibrationViewModel : ViewModelBase
+public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClosing
 {
     private const int StepsBase = 100;
     private const int BacklashBase = 160;
@@ -315,9 +316,14 @@ public sealed class StepperCalibrationViewModel : ViewModelBase
         IsMoving = true;
         try
         {
+            // Arm the idle gate BEFORE the move: subscribing after the send would
+            // replay the pre-move "Idle" status (GrblServiceProxy/DemoGrblService
+            // expose a BehaviorSubject) and could let the wizard advance while the
+            // axis is still travelling. The gate drops that replay on purpose.
+            var idleTask = WaitForIdleAsync();
             await _grbl.SendAsync(
                 $"G21G91G0{SelectedAxisLetter}{(direction * distance).ToString(CultureInfo.InvariantCulture)}");
-            var idle = await WaitForIdleAsync();
+            var idle = await idleTask;
             if (_aborted)
                 return (false, null);
             if (!idle)
@@ -377,11 +383,23 @@ public sealed class StepperCalibrationViewModel : ViewModelBase
         return state;
     }
 
+    // Completes when the controller reports Idle again, or (false) on an Alarm or
+    // a 120s timeout. Callers must invoke this BEFORE issuing the move: the first
+    // emission this subscription receives is the BehaviorSubject replay of the last
+    // state — which, if subscribed after the send, is the pre-move "Idle" that makes
+    // the wait succeed while the axis is still moving. Dropping the replay instead
+    // puts the wait on genuine post-command polls only.
     private async Task<bool> WaitForIdleAsync()
     {
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var replay = true;
         using var sub = _grbl.State.Subscribe(s =>
         {
+            if (replay)
+            {
+                replay = false;   // drop the subscribe-time replay of the last state
+                return;
+            }
             var status = s?.Status ?? string.Empty;
             if (status.Contains("idle", StringComparison.OrdinalIgnoreCase))
                 tcs.TrySetResult(true);
@@ -412,6 +430,10 @@ public sealed class StepperCalibrationViewModel : ViewModelBase
         Step = StepperCalibrationStep.Setup;
         Status = Resolve("module.stepper-calibration.aborted", "Calibration cancelled; nothing was saved.");
     }
+
+    // Closing the dialog mid-wizard (window X, Esc) leaves G91/G20 modal state on
+    // the controller unless we abort and restore the open-time snapshot here.
+    public async Task OnDialogClosedAsync() => await StopAsync();
 
     public async Task SaveAsync()
     {

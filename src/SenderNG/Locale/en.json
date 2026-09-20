@@ -80,7 +80,7 @@
     "module.probing.rotation": "Rotation",
     "module.probing.center": "Center finder",
     "module.probing.heightmap": "Height map",
-    "module.stepper-calibration.title": "Stepper calibration",
+    "module.stepper-calibration.name": "Stepper calibration",
     "module.stepper-calibration.distance": "Distance (mm)",
     "module.stepper-calibration.axis": "Axis",
     "module.stepper-calibration.direction": "Direction",

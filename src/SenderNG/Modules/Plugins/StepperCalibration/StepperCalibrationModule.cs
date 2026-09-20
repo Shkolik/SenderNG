@@ -60,7 +60,7 @@ public class StepperCalibrationModule : IModule, IModuleSettingsProvider, ILocal
     public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
         new Dictionary<string, string>
         {
-            ["module.stepper-calibration.title"] = "Stepper calibration",
+            ["module.stepper-calibration.name"] = "Stepper calibration",
             ["module.stepper-calibration.distance"] = "Distance (mm)",
             ["module.stepper-calibration.axis"] = "Axis",
             ["module.stepper-calibration.direction"] = "Direction",
