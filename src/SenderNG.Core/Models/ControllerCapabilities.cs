@@ -61,19 +61,18 @@ public sealed record ControllerCapabilities
         Probing = true,
         PlanBufferSize = 16,
         SerialBufferSize = 128,
-        // Demo emulates a fully-equipped grblHAL board: 4 tool-table slots so the
-        // Offsets tool table is shown and savable in demo mode.
+        // Demo emulates a partially-equipped grblHAL board: 4 tool-table slots
+        // so the Offsets tool table is shown and savable in demo mode.
         NumTools = 4,
-        // Demo emulates a fully-equipped grblHAL board: settings database via
-        // $ES/$EG/$SED and every optional signal is reported.
+        // Demo emulates a grblHAL board: settings database via $ES/$EG/$SED.
         HasSettingEnums = true,
         HasSettingDescriptions = true,
-        // Demo emulates a fully-equipped grblHAL board: every optional signal is
-        // reported, so the signals panel shows the complete set (real boards only
-        // show what their $I reports).
-        OptionalSignals = CNC.Core.Signals.SafetyDoor | CNC.Core.Signals.EStop |
-            CNC.Core.Signals.MotorWarning | CNC.Core.Signals.MotorFault |
-            CNC.Core.Signals.BlockDelete | CNC.Core.Signals.OptionalStop,
+        // Demo reports only the optional signals it can actually simulate —
+        // safety door and e-stop. The motor warning/fault, block-delete and
+        // optional-stop LEDs are never driven by demo state, so showing them
+        // only adds dead lamps to the signal panel (real boards still show
+        // whatever their $I reports).
+        OptionalSignals = CNC.Core.Signals.SafetyDoor | CNC.Core.Signals.EStop,
     };
 
     public bool IsKnown { get; init; }

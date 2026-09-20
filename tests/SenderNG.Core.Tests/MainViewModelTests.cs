@@ -1109,6 +1109,26 @@ public class MainViewModelStatusButtonsTests
         Assert.Contains(vm.ControlSignalIndicators, s => s.Flag == CNC.Core.Signals.SafetyDoor);
     }
 
+    [Fact]
+    public void Signal_strip_in_demo_shows_axes_and_HSRPDE_only()
+    {
+        // Demo reports only the signals it can simulate (door + e-stop), so the
+        // strip is axis LEDs + always-on H/S/R/P + D/E — motor warning/fault,
+        // block delete and optional stop never appear as dead lamps.
+        var settings = MakeSettings();
+        var loaded = settings.Load();
+        loaded.DemoAxes = 4;
+        settings.Save(loaded);
+        var vm = new MainViewModel(new DemoGrblService(loaded), settings, MakeProvider(settings));
+
+        Assert.Equal(["X", "Y", "Z", "A", "H", "S", "R", "P", "D", "E"],
+            vm.SignalIndicators.Select(s => s.Letter));
+        Assert.Equal(["X", "Y", "Z", "A"], vm.AxisSignalIndicators.Select(s => s.Letter));
+        Assert.Equal(["H", "S", "R", "P", "D", "E"], vm.ControlSignalIndicators.Select(s => s.Letter));
+        Assert.DoesNotContain(vm.SignalIndicators, s => s.Flag == CNC.Core.Signals.MotorFault);
+        Assert.DoesNotContain(vm.SignalIndicators, s => s.Flag == CNC.Core.Signals.BlockDelete);
+    }
+
     private sealed class BehaviorGrbl(BehaviorSubject<MachineState> state) : IGrblService
     {
         public bool IsConnected => true;

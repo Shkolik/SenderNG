@@ -383,4 +383,17 @@ public class ControllerAxisLetterTests
         // "no remap" to every consumer.
         Assert.Equal(string.Empty, ControllerCapabilities.Full.AxisLetters);
     }
+
+    [Fact]
+    public void Demo_full_capabilities_report_only_simulatable_optional_signals()
+    {
+        // Demo can only simulate the safety door and e-stop; motor warning /
+        // fault, block-delete and optional-stop LEDs would never light, so the
+        // capability set excludes them.
+        Assert.Equal(CNC.Core.Signals.SafetyDoor | CNC.Core.Signals.EStop,
+            ControllerCapabilities.Full.OptionalSignals);
+        Assert.Equal(CNC.Core.Signals.Off, ControllerCapabilities.Full.OptionalSignals &
+            (CNC.Core.Signals.MotorWarning | CNC.Core.Signals.MotorFault |
+             CNC.Core.Signals.BlockDelete | CNC.Core.Signals.OptionalStop));
+    }
 }

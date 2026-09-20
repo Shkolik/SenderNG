@@ -113,8 +113,8 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         // the full set. The initial state and the offset array use this same
         // clamped count so positions and offsets can never disagree in length.
         var demoAxes = Math.Clamp(settings.DemoAxes, 1, CNC.Core.GrblInfo.DefaultAxisLetters.Length);
-        // Seed the full optional-signal set (demo reports Full capabilities) so
-        // the signals panel shows every LED, as before gating was introduced.
+        // Seed the demo's optional-signal set (from reported capabilities) so
+        // the signals panel shows the LEDs demo can actually drive.
         _subject = new BehaviorSubject<MachineState>(new MachineState(demoAxes)
         {
             OptionalSignals = ControllerCapabilities.Full.OptionalSignals,
