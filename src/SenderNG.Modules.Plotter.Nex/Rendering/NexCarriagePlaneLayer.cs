@@ -103,6 +103,10 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
     private readonly List<bool> _executed = [];
     private readonly List<RunState> _appliedStates = [];
     private readonly RebuildGate _rebuildGate = new();
+    // Scene run-state visibility gate (SetRunStateVisible). When false every
+    // segment stages its base Rapid/Cut color regardless of the applied state;
+    // the executed overlay node is hidden by the scene.
+    private bool _runStateVisible = true;
     private Geometry? _staticPlane;
     private Geometry? _staticDone;
     private int _planeCapacity;
@@ -160,7 +164,9 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
             return;
         _appliedStates[segmentIndex] = state;
         _planeColorWrites++;
-        var color = state == RunState.Pending ? BaseColor(_motionTypes[segmentIndex]) : StateColor(state);
+        var color = !_runStateVisible || state == RunState.Pending
+            ? BaseColor(_motionTypes[segmentIndex])
+            : StateColor(state);
         var v = color.ToVector4();
         _geometry.VertexColors[segmentIndex * 2] = v;
         _geometry.VertexColors[segmentIndex * 2 + 1] = v;
@@ -177,6 +183,29 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         else if (!nowExecuted && wasExecuted)
             RebuildFromExecuted();
         // GPU content never changes here — mark the swap-pump pending instead.
+        _rebuildGate.MarkDirty();
+    }
+
+    /// <summary>Gate the whole plane's run-state tinting (scene ShowRunState
+    /// toggle). Hidden: every segment restages its base Rapid/Cut color, so the
+    /// swap-pump ships a plain toolpath; the executed overlay node visibility is
+    /// handled by the scene. Reapplied from the stored state set, so re-visiting
+    /// a run window after toggling still matches what the pump last shipped.</summary>
+    internal void SetRunStateVisible(bool visible)
+    {
+        if (_runStateVisible == visible)
+            return;
+        _runStateVisible = visible;
+        for (var s = 0; s < _appliedStates.Count; s++)
+        {
+            var state = _appliedStates[s];
+            var color = !visible || state == RunState.Pending
+                ? BaseColor(_motionTypes[s])
+                : StateColor(state);
+            var v = color.ToVector4();
+            _geometry.VertexColors[s * 2] = v;
+            _geometry.VertexColors[s * 2 + 1] = v;
+        }
         _rebuildGate.MarkDirty();
     }
 

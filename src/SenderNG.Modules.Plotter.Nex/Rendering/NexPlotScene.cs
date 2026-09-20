@@ -49,6 +49,7 @@ using HelixToolkit.Nex.Rendering.RenderNodes;
 using HelixToolkit.Nex.Scene;
 using HelixToolkit.Nex.Shaders.Frag;
 using SenderNG.Modules.Plotter.Nex.Scene;
+using SenderNG.Modules.Plotter.Nex.Settings;
 using Format = HelixToolkit.Nex.Graphics.Format;
 using SBounds = SenderNG.Modules.Plotter.Nex.Scene.BoundingBox;
 
@@ -72,7 +73,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private static readonly Color4 GridMinorColor = new(0.82f, 0.82f, 0.82f, 1f);
     private static readonly Color4 GridMajorColor = new(0.62f, 0.62f, 0.62f, 1f);
     private static readonly Color4 OriginColor = new(0.53f, 0.53f, 0.53f, 1f);
-    private static readonly Color4 WorkEnvelopeColor = new(0.7f, 0.7f, 0.7f, 1f);
     private static readonly Color4 JobEnvelopeColor = new(0f, 0.7f, 0.9f, 1f);
     private static readonly Color4 OrbitPivotColor = new(1f, 0.66f, 0.1f, 1f);
 
@@ -95,8 +95,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private readonly LineNode _axesNode;
     private readonly Geometry _originGeometry;
     private readonly LineNode _originNode;
-    private readonly Geometry _workGeometry;
-    private readonly LineNode _workNode;
     private readonly Geometry _jobGeometry;
     private readonly LineNode _jobNode;
 
@@ -137,6 +135,20 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     // nodes while the frustum-cull node is off, so the hidden sphere parks here.
     private static readonly Vector3 OrbitPivotParked = new(0f, -50_000f, 0f);
 
+    /// <summary>Same parked-transform convention applied to the chrome toggles:
+    /// the line path submits disabled nodes while the scene runs with the
+    /// frustum-cull node off (DiagnosticDisableCulling), so hiding a chrome
+    /// node moves it far below the table instead of relying on Enabled.</summary>
+    private static readonly Vector3 ChromeParkedPosition = new(0f, -50_000f, 0f);
+
+    // Anti-aliasing: both nodes are registered in the engine graph (SMAA runs
+    // first, then FXAA); exactly one is Enabled, switched at runtime by
+    // SetAntiAlias. Quality is set only on the active node.
+    private SMAANode? _smaaNode;
+    private FXAANode? _fxaaNode;
+
+    private bool _runStateVisible = true;
+
     /// <summary>Create the scene and the whole render pipeline.</summary>
     /// <remarks>
     /// Plain headless Vulkan on every OS: the readback is a Vulkan-internal
@@ -157,10 +169,17 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             .WithDefaultNodes(renderToSwapchain: false)
             .WithLine()
             .WithSMAA()
+            .WithFXAA()
             .ConfigureNode<SMAANode>(n =>
             {
+                _smaaNode = n;
                 n.Quality = SMAAQuality.High;
                 n.EdgeDetectionMode = SMAAEdgeDetection.Color;
+            })
+            .ConfigureNode<FXAANode>(n =>
+            {
+                _fxaaNode = n;
+                n.Quality = FxaaQuality.High;
             })
             .RenderToCustomTarget(Format.RGBA_UN8)
             .Build();
@@ -193,7 +212,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         _gridNode = AddChromeNode("grid", 0.6f, out _gridGeometry);
         _axesNode = AddChromeNode("axis-arrows", 3.6f, out _axesGeometry);
         _originNode = AddChromeNode("origin", 1.6f, out _originGeometry);
-        _workNode = AddChromeNode("work-envelope", 1.2f, out _workGeometry);
         _jobNode = AddChromeNode("job-envelope", 1.2f, out _jobGeometry);
 
         _axisConeGeometry = ConeMesh.Build();
@@ -252,6 +270,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         var layer = new NexCarriagePlaneLayer(_root, _engine);
         _liveLayers.Add(layer);
         _contentNodes.Add(layer.Node);
+        ApplyRunStateToLayer(layer);
         return layer;
     }
 
@@ -380,12 +399,92 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     }
 
     /// <inheritdoc/>
+    /// <remarks>The work envelope was merged into the job envelope (one combined
+    /// chrome box driven by the single envelope toggle), so this retained member
+    /// of <see cref="IPlotScene"/> forwards to <see cref="SetJobEnvelope"/>. No
+    /// production caller drives it; consider removing it with the interface
+    /// member when the next signature change touches IPlotScene.</remarks>
     public void SetWorkEnvelope(SBounds box)
-        => FillEnvelope(_workGeometry, _workNode, box, WorkEnvelopeColor);
+        => SetJobEnvelope(box);
 
     /// <inheritdoc/>
     public void SetJobEnvelope(SBounds box)
         => FillEnvelope(_jobGeometry, _jobNode, box, JobEnvelopeColor);
+
+    /// <summary>Apply the view chrome toggles (origin, envelope, run state,
+    /// grid) at runtime — no scene or engine rebuild. Straight node-level
+    /// changes, safe to call from any thread the caller already owns.</summary>
+    /// <param name="v">The persisted plotter settings DTO carrying the four
+    /// show-toggles (Tasks 1-2 merged as <see cref="PlotterNexSettings"/>).</param>
+    public void SetView(PlotterNexSettings v)
+    {
+        SetOriginVisible(v.ShowOrigin);
+        SetEnvelopeVisible(v.ShowEnvelope);
+        SetGridVisible(v.ShowGrid);
+        SetRunStateVisible(v.ShowRunState);
+    }
+
+    /// <summary>Switch the anti-aliasing mode/quality at runtime — no rebuild.
+    /// <paramref name="mode"/> is the settings ordinal (0=Off, 1=SMAA, 2=FXAA)
+    /// and <paramref name="quality"/> the shared ladder ordinal 0..3
+    /// (Low/Medium/High/Ultra). Exactly one AA node is enabled and the quality
+    /// preset is written only on the active node, so those are the only engine
+    /// changes each frame — push-constant edits, no pipeline rebuild.</summary>
+    public void SetAntiAlias(int mode, int quality)
+    {
+        _smaaNode!.Enabled = mode is 1;
+        _fxaaNode!.Enabled = mode is 2;
+        var clamped = Math.Clamp(quality, 0, 3);
+        if (mode is 1) _smaaNode!.Quality = (SMAAQuality)clamped;
+        if (mode is 2) _fxaaNode!.Quality = (FxaaQuality)clamped;
+    }
+
+    private void SetOriginVisible(bool visible)
+    {
+        _originNode.Enabled = visible;
+        ParkOrShow(_originNode, visible);
+    }
+
+    private void SetEnvelopeVisible(bool visible)
+    {
+        _jobNode.Enabled = visible;
+        ParkOrShow(_jobNode, visible);
+    }
+
+    private void SetGridVisible(bool visible)
+    {
+        _gridNode.Enabled = visible;
+        ParkOrShow(_gridNode, visible);
+    }
+
+    private void SetRunStateVisible(bool visible)
+    {
+        _runStateVisible = visible;
+        foreach (var layer in _liveLayers)
+        {
+            ApplyRunStateToLayer(layer);
+        }
+    }
+
+    /// <summary>Hide/show a chrome node. Enabled also flips (it will gate the
+    /// day the frustum-cull node returns) but the working runtime mechanism is
+    /// the parked transform — the engine's line path submits disabled nodes
+    /// while the scene runs with DiagnosticDisableCulling.</summary>
+    private static void ParkOrShow(LineNode node, bool visible)
+    {
+        node.Transform.Translation = visible ? Vector3.Zero : ChromeParkedPosition;
+        node.NotifyTransformChanged();
+    }
+
+    /// <summary>Propagate the run-state visibility to a layer: gate the segment
+    /// tint staging inside the layer and park/disable the executed overlay.</summary>
+    private void ApplyRunStateToLayer(NexCarriagePlaneLayer layer)
+    {
+        var visible = _runStateVisible;
+        layer.SetRunStateVisible(visible);
+        layer.DoneNode.Enabled = visible;
+        ParkOrShow(layer.DoneNode, visible);
+    }
 
     /// <inheritdoc/>
     public void SetViewPreset(ViewPreset preset)
@@ -596,7 +695,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         _orbitSphereMaterial.Dispose();
         _orbitSphereGeometry.Dispose();
         _originNode.Dispose();
-        _workNode.Dispose();
         _jobNode.Dispose();
         _root.Dispose();
         _worldData.Dispose();
@@ -893,7 +991,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         NodeInfo(_gridNode);
         NodeInfo(_axesNode);
         NodeInfo(_originNode);
-        NodeInfo(_workNode);
         NodeInfo(_jobNode);
         sb.Append("] content[ ");
         foreach (var n in _contentNodes)
@@ -948,8 +1045,8 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         return _client.Update(renderContext, deltaTime);
     }
 
-    /// <summary>Rebuild the static chrome (grid, axis arrows, origin, work/job
-    /// envelopes) whenever the total content vertex count changes, so the
+    /// <summary>Rebuild the static chrome (grid, axis arrows, origin, job envelope)
+    /// whenever the total content vertex count changes, so the
     /// chrome is always sized to the loaded model even though no caller ever
     /// invokes the Set* chrome methods. The check is O(planes) per frame; the
     /// rebuild is O(verticies) and only happens when content actually moved.</summary>
@@ -1027,7 +1124,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             (Vector3.Zero, "Z"),
         ]);
         SetOrigin(Vector3.Zero);
-        SetWorkEnvelope(box);
         SetJobEnvelope(box);
     }
 
@@ -1044,7 +1140,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             (Vector3.Zero, "Z"),
         ]);
         SetOrigin(Vector3.Zero);
-        ClearNode(_workGeometry, _workNode);
         ClearNode(_jobGeometry, _jobNode);
     }
 
