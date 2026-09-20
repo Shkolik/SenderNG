@@ -91,6 +91,7 @@ public static class HostSetup
         viewFactory.Register<CNC.Core.ViewModels.RotateProgramViewModel, Views.RotateProgramView>();
         viewFactory.Register<CNC.Core.ViewModels.ArcsToLinesProgramViewModel, Views.ArcsToLinesProgramView>();
         viewFactory.Register<Modules.Fixed.GrblSettingsViewModel, Modules.Fixed.GrblSettingsView>();
+        viewFactory.Register<Modules.Plugins.StepperCalibrationViewModel, Modules.Plugins.StepperCalibrationView>();
         builder.Services.AddSingleton<IViewFactory>(viewFactory);
         builder.Services.AddSingleton<DemoGrblService>();
         builder.Services.AddSingleton<RealGrblService>();
@@ -129,6 +130,7 @@ public static class HostSetup
         RegisterModule(builder.Services, new Modules.Plugins.ProbingModule());
         RegisterModule(builder.Services, new Modules.Plugins.MposModule());
         RegisterModule(builder.Services, new Modules.Plugins.OutlineModule());
+        RegisterModule(builder.Services, new Modules.Plugins.StepperCalibrationModule());
 
         // Plugin modules (converters, …): every *.dll in OutputDir/Modules
         // is scanned at startup — drop a DLL in and it loads, remove it and the
