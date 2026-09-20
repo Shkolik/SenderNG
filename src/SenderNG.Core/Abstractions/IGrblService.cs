@@ -145,6 +145,20 @@ public static class GrblRealtime
     public const byte FeedHold = 0x21;   // '!'
     public const byte Reset = 0x18;
 
+    // grblHAL-only controlled stop (Ctrl-Y): decelerates, halts the current
+    // operation, discards queued motion and lands in Hold — no reset, no alarm,
+    // no lost context. Classic grbl 1.1 has no 0x19 handler (a parser error), so
+    // never send it to classic boards. ioSender's JobControl / calibration wizard
+    // branch identically (GrblConstants.CMD_STOP vs CMD_RESET).
+    public const byte Stop = 0x19;
+
+    /// <summary>Cycle-control stop byte: grblHAL controlled stop, classic reset.</summary>
+    public static byte StopByte(bool isGrblHAL) => isGrblHAL ? Stop : Reset;
+
+    /// <summary>Program-run abort byte: grblHAL controlled stop (0x19), classic feed
+    /// hold (0x21) — the user's cycle-bar Stop then resets, ioSender's two-step.</summary>
+    public static byte ProgramStopByte(bool isGrblHAL) => isGrblHAL ? Stop : FeedHold;
+
     // Jog cancel is defined identically in classic grbl 1.1 (config.h CMD_JOG_CANCEL,
     // includes the mega5x 1.2i fork) and grblHAL (grbl.h CMD_JOG_CANCEL): it stops the
     // jog with deceleration, flushes remaining jog blocks and returns to IDLE — unlike
