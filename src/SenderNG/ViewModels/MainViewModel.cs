@@ -202,8 +202,9 @@ public class MainViewModel : ViewModelBase, IDisposable
         // bar). The machine runs at most one streaming session at a time, so the
         // buttons are gated on the session state, not a parallel machine-level
         // state machine: Start = run (idle program) / resume (paused session),
-        // Hold = pause the session, Stop = hard reset while Held, Rewind = local
-        // rewind. Without a loaded program they fall back to raw realtime bytes
+        // Hold = pause the session, Stop = controlled stop while a run is active
+        // (Run or Hold) — grblHAL 0x19, classic reset 0x18 — ending the session so
+        // it never resumes. Rewind = local rewind. Without a loaded program they fall back to raw realtime bytes
         // (classic 0x7E/0x21/0x18, grblHAL compatible) for MDI runs; the remaining
         // machine-state checks only cover that no-program fallback. Buttons stay
         // visible — enablement (CanExecute) is what changes.
@@ -212,7 +213,8 @@ public class MainViewModel : ViewModelBase, IDisposable
                 || (!HasProgram && (IsMachineState("Run") || IsMachineState("Hold")))));
         FeedHoldCommand = new DelegateCommand(_ => FeedHold(),
             _ => (SessionActive && !SessionPaused) || (_program?.IsRunning != true && IsMachineState("Run")));
-        StopCommand = new DelegateCommand(_ => StopMachine(), _ => IsMachineState("Hold"));
+        StopCommand = new DelegateCommand(_ => StopMachine(),
+            _ => IsMachineState("Hold") || IsMachineState("Run") || SessionActive);
         RewindCommand = new DelegateCommand(_ => Rewind(), _ => HasProgram && !SessionActive);
         // Status bar buttons (ioSender semantics): Home -> $H, Unlock -> $X, Reset -> realtime 0x18.
         HomeCommand = new DelegateCommand(_ => SendLine("$H", "Home"));
@@ -1200,9 +1202,10 @@ public class MainViewModel : ViewModelBase, IDisposable
             Status = LocText.Format("app.msg.moduleNoDialog", "{0}: no dialog service available", module.Name);
             return;
         }
+        object? viewModel = null;
         try
         {
-            var viewModel = module.CreateViewModel(_services);
+            viewModel = module.CreateViewModel(_services);
             ApplySettingsDialogGuards(viewModel);
             await _dialogs.ShowDialogAsync(module.Name, viewModel, module.DialogPreferredSize);
         }
@@ -1212,6 +1215,13 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
         finally
         {
+            // The wizard may have left modal G-code on the controller; allow the
+            // module to undo dialog-only side effects now that it is closing.
+            if (viewModel is IAsyncDialogClosing closing)
+            {
+                try { await closing.OnDialogClosedAsync(); }
+                catch { /* window is gone — nothing meaningful to report */ }
+            }
             // Modal loops can swallow change-driven layout updates; re-raise
             // everything once the dialog closes so visibility applies immediately.
             OnSettingsChanged();
@@ -1299,11 +1309,13 @@ public class MainViewModel : ViewModelBase, IDisposable
             SendRealtime(GrblRealtime.FeedHold, "Feed Hold");
     }
 
-    /// <summary>Cycle-bar Stop (enabled while Held): hard reset; ends the streaming session so it never resumes.</summary>
+    /// <summary>Cycle-bar Stop: controlled stop byte (grblHAL 0x19 / classic 0x18),
+    /// ending the streaming session so it never resumes.</summary>
     private void StopMachine()
     {
         _program?.OnHardReset();
-        SendRealtime(GrblRealtime.Reset, "Stop");
+        var hal = Grbl.Capabilities.IsGrblHAL;
+        SendRealtime(GrblRealtime.StopByte(hal), "Stop");
     }
 
     /// <summary>Rewind the loaded program to the start (local reset, no byte sent - mirrors ioSender RewindFile).</summary>

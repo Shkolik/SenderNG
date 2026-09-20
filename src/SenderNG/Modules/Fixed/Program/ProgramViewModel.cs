@@ -388,9 +388,9 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource
     }
 
     /// <summary>
-    /// Aborts the run: stops sending immediately and feed-holds if the machine
-    /// is running so motion halts. The machine is left in Hold — use the cycle
-    /// bar's Stop (Reset) while Held to fully reset the controller.
+    /// Aborts the run: stops sending immediately and halts motion with a controlled
+    /// stop. grblHAL gets the 0x19 controlled stop (lands in Hold, no alarm); classic
+    /// grbl has no 0x19, so it feed-holds and the user's cycle-bar Stop resets.
     /// </summary>
     public async Task StopAsync()
     {
@@ -400,7 +400,8 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource
         session.Stop();
         if (IsMachineState("Run"))
         {
-            try { _grbl?.SendRealtime(GrblRealtime.FeedHold); } catch (InvalidOperationException) { }
+            var code = GrblRealtime.ProgramStopByte(_grbl?.Capabilities.IsGrblHAL == true);
+            try { _grbl?.SendRealtime(code); } catch (InvalidOperationException) { }
         }
         await session.Completion; // Finalize runs in RunAsync's continuation
     }

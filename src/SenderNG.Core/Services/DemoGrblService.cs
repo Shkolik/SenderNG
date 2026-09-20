@@ -47,6 +47,7 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     private readonly int _pollIntervalMs;
     private Timer? _pollTimer;
     private int _distanceMode = 90; // modal G90/G91
+    private int _unitsMode = 21; // modal G20/G21
     private double _lastSpeed;
     // Per-axis work offset: machine = work + offset. G92 shifts this so the
     // work coordinate takes the requested value while the machine stays put.
@@ -100,6 +101,11 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
     /// <summary>Demo work parameters are already live after every write; nothing to re-read.</summary>
     public Task RefreshWorkParametersAsync() => Task.CompletedTask;
+
+    /// <summary>Live modal state: units (G20/G21) and distance mode (G90/G91) as tracked by the demo.</summary>
+    public Task<SenderNG.Core.Models.ModalState?> ReadModalStateAsync() =>
+        Task.FromResult<SenderNG.Core.Models.ModalState?>(
+            new SenderNG.Core.Models.ModalState(_unitsMode == 21, _distanceMode == 90));
 
     private readonly LocalizationService? _localization;
 
@@ -262,6 +268,11 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                         for (var i = 0; i < state.MachinePositions.Length; i++)
                             state.MachinePositions[i] = 0;
                     _workOffset = new double[state.Positions.Length];
+                    break;
+                case GrblRealtime.Stop:
+                    // grblHAL controlled stop: halt, return to Idle, keep position.
+                    _jogDirection = null;
+                    state.Status = "Idle";
                     break;
                 case GrblRealtime.JogCancel:
                     _jogDirection = null;
@@ -545,6 +556,16 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 return true;                                    // skip ApplyMotion: no teleport
             }
 
+            // Motion lines briefly report Run (as a real poller would during
+            // travel) before landing back on Idle. The stepper-calibration wizard
+            // gates its completion wait on that non-Idle observation, so the demo
+            // must synthesize it or the gate would never see the move leave Idle.
+            if (MovesAxis(trimmed))
+            {
+                state.Status = "Run";
+                _subject.OnNext(state);
+            }
+
             ApplyMotion(trimmed, state);
             state.Status = "Idle";
 
@@ -561,6 +582,19 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             _subject.OnNext(state);
             return true;
         }
+    }
+
+    // True when a line commands axis travel (an axis word outside a pure
+    // coordinate-set like G92): jog lines and plain G0/G1 moves included.
+    private static bool MovesAxis(string line)
+    {
+        if (line.StartsWith("$J", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (TokenizeWords(line).Any(w => w.Equals("G92", StringComparison.OrdinalIgnoreCase)))
+            return false;   // G92 sets the work offset — no travel
+        return TokenizeWords(line).Any(w =>
+            w.Length > 1 && "XYZABCUVW".Contains(char.ToUpperInvariant(w[0])) &&
+            double.TryParse(w[1..], System.Globalization.CultureInfo.InvariantCulture, out _));
     }
 
     // Hand-parses motion lines: supports $J= jog commands, modal G90/G91
@@ -731,6 +765,12 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                     case "91":
                         _distanceMode = 91;
                         incremental = true;
+                        break;
+                    case "20":
+                        _unitsMode = 20;
+                        break;
+                    case "21":
+                        _unitsMode = 21;
                         break;
                     case "92":
                         isG92 = true;

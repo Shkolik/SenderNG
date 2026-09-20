@@ -50,7 +50,7 @@ tests/SenderNG.Core.Tests  xUnit suite (dotnet test)
 | **Kept (ported)** | GCodeParser, NGCExpr, GCodeJob, GCodeEmulator, Machine, caps parsing, foam patches, Macro editor (foamcut), Probing, DRO/Jog/Coolant/Offsets concepts |
 | **Slimmed** | Grbl.cs (3438 → ~320 L, caps only + stubs), GrblViewModel (1434 L → `MachineState`) |
 | **Stripped** | WPF everywhere; custom streams (Serial/Telnet/Websocket/YModem/Eltima) → `System.IO.Ports`; `Properties.Settings`/`App.config` → portable settings; localization (9 locales → en/ru JSON catalog with per-plugin overrides — see `docs/localization.md`) |
-| **Deferred (lowest priority)** | camera (AForge/V4L2), Lathe, DragKnife, SD card view, MPG, PID log, THC monitor, Trinamic view, steppers calibration wizard, Tool view |
+| **Deferred (lowest priority)** | camera (AForge/V4L2), Lathe, DragKnife, SD card view, MPG, PID log, THC monitor, Trinamic view, ~~steppers calibration wizard~~ (**LANDED 2026-09-19**, Settings-menu wizard with measured backlash — see `docs/superpowers/plans/2026-09-19-stepper-calibration.md`), Tool view |
 | **Added** | Demo/offline mode, DI plugin system + assembly scan, 4-panel layout with per-module visibility, cutting realtime overrides panel (0x90–0x9E), live status parsing (WPos/FS:/Ov:), MDI history, program limits, state indicator, xUnit test suite (upstream had none) |
 
 > **Caveat:** the "stripped" rows reflect SenderNG's scope decisions and the foamcut snapshot. Any feature present in newer upstream `master` but absent in foamcut is likely just newer upstream work, not something SenderNG removed.

@@ -315,8 +315,13 @@ Many already exist; the gaps are listed per widget.
 
 ## Priority 3 — Steppers calibration
 
-- [ ] **Stepper calibration wizard** (`StepperCalibrationWizard`) — port the
-      full measurement/calibration flow.
+- [x] **Stepper calibration wizard** (`StepperCalibrationWizard`) — **LANDED
+      (2026-09-19):** Settings-menu module with a measured backlash step (no
+      hardcoded 0.5 mm overshoot), pre-move space check, `$G` modal
+      capture/restore, and a firmware-branched Stop (`0x19` grblHAL / `0x18`
+      classic) shared with the cycle bar — see
+      `docs/superpowers/plans/2026-09-19-stepper-calibration.md` and
+      `docs/superpowers/specs/2026-09-19-stepper-calibration-design.md`.
 
 ## Priority 4 — Everything else
 

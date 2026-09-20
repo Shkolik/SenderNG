@@ -433,6 +433,9 @@ public class MainViewModelCycleControlTests
 {
     private sealed class RecordingRealtimeGrbl : IGrblService
     {
+        public RecordingRealtimeGrbl(bool isGrblHal = false) =>
+            Capabilities = new ControllerCapabilities { IsKnown = true, IsGrblHAL = isGrblHal };
+        public ControllerCapabilities Capabilities { get; }
         public List<byte> Realtime { get; } = [];
         public bool IsConnected => false;
         public IObservable<MachineState> State => System.Reactive.Linq.Observable.Empty<MachineState>();
@@ -469,6 +472,18 @@ public class MainViewModelCycleControlTests
         vm.StopCommand.Execute(null);
 
         Assert.Equal([GrblRealtime.CycleStart, GrblRealtime.FeedHold, GrblRealtime.Reset], grbl.Realtime);
+    }
+
+    [Fact]
+    public void Stop_sends_controlled_stop_on_grblhal()
+    {
+        var settings = MakeSettings();
+        var grbl = new RecordingRealtimeGrbl(isGrblHal: true);
+        var vm = new MainViewModel(grbl, settings, MakeProvider(settings));
+
+        vm.StopCommand.Execute(null);
+
+        Assert.Equal([GrblRealtime.Stop], grbl.Realtime);
     }
 
     [Fact]
@@ -721,7 +736,7 @@ public class MainViewModelCycleEnablementTests
     }
 
     [Fact]
-    public async Task Stop_enabled_only_in_hold_and_Hold_only_in_run()
+    public async Task Stop_enabled_while_moving_and_Hold_only_in_run()
     {
         var settings = MakeSettings();
         var svc = new DemoGrblService(settings.Load());
@@ -738,7 +753,7 @@ public class MainViewModelCycleEnablementTests
 
         svc.SendRealtime(GrblRealtime.CycleStart); // -> Run
         Assert.True(vm.FeedHoldCommand.CanExecute(null));
-        Assert.False(vm.StopCommand.CanExecute(null));
+        Assert.True(vm.StopCommand.CanExecute(null));
 
         svc.SendRealtime(GrblRealtime.Reset); // -> Idle
         Assert.False(vm.FeedHoldCommand.CanExecute(null));
@@ -1186,16 +1201,16 @@ public class MainViewModelStatusButtonsTests
         Assert.False(vm.RewindCommand.CanExecute(null));     // session running
         Assert.False(vm.CycleStartCommand.CanExecute(null)); // already running
         Assert.True(vm.FeedHoldCommand.CanExecute(null));    // running -> Hold available
-        Assert.False(vm.StopCommand.CanExecute(null));       // not Held
+        Assert.True(vm.StopCommand.CanExecute(null));        // running session -> controlled Stop
 
         subject.OnNext(new MachineState { Status = "Hold" }); // feed-held => session paused
         Assert.True(vm.CycleStartCommand.CanExecute(null)); // resume
-        Assert.True(vm.StopCommand.CanExecute(null));       // Reset while Held (ends the session)
+        Assert.True(vm.StopCommand.CanExecute(null));       // Stop while Held (ends the session)
         Assert.False(vm.FeedHoldCommand.CanExecute(null));  // already paused
 
         subject.OnNext(new MachineState { Status = "Run" }); // resumed, moving
         Assert.False(vm.CycleStartCommand.CanExecute(null));
         Assert.True(vm.FeedHoldCommand.CanExecute(null));
-        Assert.False(vm.StopCommand.CanExecute(null));
+        Assert.True(vm.StopCommand.CanExecute(null));       // run active -> controlled Stop
     }
 }

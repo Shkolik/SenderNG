@@ -52,9 +52,9 @@ public class HostModuleRegistrationTests
         var ids = modules.Select(m => m.Id).OrderBy(i => i).ToList();
         Assert.True(modules.Count == modules.DistinctBy(m => m.Id).Count(),
             $"duplicates ({modules.Count}): {string.Join(",", ids)}");
-        // 15 built-in + 4 staged plugins (Excellon + HPGL + Plotter +
+        // 16 built-in + 4 staged plugins (Excellon + HPGL + Plotter +
         // Plotter.Nex) discovered via the Modules/ directory scan — the real
         // drop-in path.
-        Assert.Equal(19, modules.Count);
+        Assert.Equal(20, modules.Count);
     }
 }

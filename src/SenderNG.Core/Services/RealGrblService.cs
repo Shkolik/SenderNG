@@ -301,7 +301,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             // The $G modal dump ([GC:G0 G54 ...]) is the authoritative source for
             // the ACTIVE coordinate system — never assume G54 (ioSender parses the
             // same dump). The DRO zero (G10 L20 P0) and the offsets editor follow it.
-            parameters.ActiveCoordinateSystem = await ReadActiveCoordinateSystemAsync(port) ?? "G54";
+            parameters.ActiveCoordinateSystem = await ReadActiveCoordinateSystemAsync() ?? "G54";
             _workParameters.OnNext(parameters);
         }
         catch
@@ -964,12 +964,12 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     }
 
     /// <summary>
-    /// <c>$G</c> modal-state dump: returns the active coordinate system
-    /// (G54..G59.3) from <c>[GC:G0 G54 ...]</c>, or null when the board doesn't
-    /// answer (non-fatal — callers fall back to G54). Both classic grbl and
-    /// grblHAL reply with the GC line + "ok".
+    /// <c>$G</c> modal-state dump, parsed once for both consumers: the active
+    /// coordinate system (<c>[GC:G0 G54 ...]</c>) and the live modal units/distance
+    /// mode. Returns <c>null</c> members when the board doesn't answer (non-fatal).
     /// </summary>
-    private async Task<string?> ReadActiveCoordinateSystemAsync(string port)
+    private async Task<(SenderNG.Core.Models.ModalState? Modal, string? ActiveCoordinateSystem)>
+        ReadModalDumpAsync()
     {
         var lines = new List<string>();
         try
@@ -978,19 +978,45 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         }
         catch
         {
-            return null;
+            return (null, null);
         }
+
+        string? wcs = null;
+        bool? metric = null;
+        bool? absolute = null;
         foreach (var line in lines)
         {
             var gc = line.IndexOf("[GC:", StringComparison.Ordinal);
             if (gc < 0)
                 continue;
             foreach (var word in line[gc..].Split(' ', StringSplitOptions.RemoveEmptyEntries))
-                if (IsCoordinateSystemCode(word))
-                    return word.ToUpperInvariant();
+            {
+                if (wcs is null && IsCoordinateSystemCode(word))
+                    wcs = word.ToUpperInvariant();
+                else if (word.Equals("G20", StringComparison.OrdinalIgnoreCase))
+                    metric = false;
+                else if (word.Equals("G21", StringComparison.OrdinalIgnoreCase))
+                    metric = true;
+                else if (word.Equals("G90", StringComparison.OrdinalIgnoreCase))
+                    absolute = true;
+                else if (word.Equals("G91", StringComparison.OrdinalIgnoreCase))
+                    absolute = false;
+            }
         }
-        return null;
+
+        var modal = metric is null && absolute is null
+            ? null
+            : new SenderNG.Core.Models.ModalState(metric ?? true, absolute ?? true);
+        return (modal, wcs);
     }
+
+    /// <summary>The active coordinate system (G54..G59.3), or null when unanswered.</summary>
+    private async Task<string?> ReadActiveCoordinateSystemAsync()
+        => (await ReadModalDumpAsync()).ActiveCoordinateSystem;
+
+    /// <summary>Live modal units / distance mode (G20/G21, G90/G91) for the wizard.</summary>
+    public async Task<SenderNG.Core.Models.ModalState?> ReadModalStateAsync()
+        => (await ReadModalDumpAsync()).Modal;
 
     private static bool IsCoordinateSystemCode(string word)
     {

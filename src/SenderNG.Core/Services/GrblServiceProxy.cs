@@ -122,6 +122,9 @@ public class GrblServiceProxy : IGrblService, IGrblSettingsProvider
 
     public Task RefreshWorkParametersAsync() => _inner.RefreshWorkParametersAsync();
 
+    public Task<SenderNG.Core.Models.ModalState?> ReadModalStateAsync() =>
+        _inner.ReadModalStateAsync();
+
     public Task SendAsync(string line) => _inner.SendAsync(line);
 
     public Task<string> SendProgramLineAsync(string line, CancellationToken cancellationToken = default) =>
