@@ -62,6 +62,24 @@ public sealed class PlotterNexSettingsViewModel : CNC.Core.ViewModelBase
         PlaneRows = new ObservableCollection<PlotterNexPlaneRow>(
             _settings.Planes.Select((_, p) => new PlotterNexPlaneRow(this, p)));
         SyncRows();
+
+        // Re-resolve the code-side labels on every locale switch (Language picker
+        // changes are applied immediately, without restarting the app).
+        if (localization is not null)
+            localization.Changed += (_, _) => RelocalizeLabels();
+    }
+
+    private void RelocalizeLabels()
+    {
+        OnPropertyChanged(nameof(WireLengthLabel));
+        OnPropertyChanged(nameof(ViewLabel));
+        OnPropertyChanged(nameof(ShowOriginLabel));
+        OnPropertyChanged(nameof(ShowEnvelopeLabel));
+        OnPropertyChanged(nameof(ShowRunStateLabel));
+        OnPropertyChanged(nameof(ShowGridLabel));
+        OnPropertyChanged(nameof(AntiAliasingLabel));
+        OnPropertyChanged(nameof(AaModeLabel));
+        OnPropertyChanged(nameof(AaQualityLabel));
     }
 
     /// <summary>True when the machine has more than one plane (wire length applies).</summary>

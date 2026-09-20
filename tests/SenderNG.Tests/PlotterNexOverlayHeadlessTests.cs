@@ -42,24 +42,30 @@ public class PlotterNexOverlayHeadlessTests
             for (var i = 0; i < 4; i++)
                 await Pump();
 
-            var overlay = window.GetVisualDescendants()
+            // The overlay toggles carry Path (icon) content, not text, so they
+            // are addressed in document order: Grid, Origin, Envelope, Run State
+            // (see PlotterNexView.axaml overlay bar).
+            var toggles = window.GetVisualDescendants()
                 .OfType<ToggleButton>()
                 .Where(t => t.Classes.Contains("navBtn"))
-                .ToDictionary(t => t.Content as string ?? string.Empty);
-            Assert.Equal(4, overlay.Count);
-            Assert.True(overlay["\u25CE"].IsChecked == true); // ◎ = ShowOrigin
-            Assert.True(overlay["\u25A6"].IsChecked == true); // ▦ = ShowGrid
+                .ToList();
+            Assert.Equal(4, toggles.Count);
+            var grid = toggles[0];
+            var origin = toggles[1];
+            var envelope = toggles[2];
+            Assert.True(grid.IsChecked == true);
+            Assert.True(origin.IsChecked == true);
 
             // Leaf flip → overlay reflects immediately on the SAME VM.
             sharedVm.ShowOrigin = false;
             sharedVm.ShowGrid = false;
             for (var i = 0; i < 2; i++)
                 await Pump();
-            Assert.False(overlay["\u25CE"].IsChecked == true);
-            Assert.False(overlay["\u25A6"].IsChecked == true);
+            Assert.False(origin.IsChecked == true);
+            Assert.False(grid.IsChecked == true);
 
             // Overlay flip → the leaf-bound surface reflects on the SAME VM.
-            overlay["\u25A2"].IsChecked = false; // ▢ = ShowEnvelope
+            envelope.IsChecked = false;
             for (var i = 0; i < 2; i++)
                 await Pump();
             Assert.False(sharedVm.ShowEnvelope);
@@ -68,7 +74,7 @@ public class PlotterNexOverlayHeadlessTests
             sharedVm.ShowEnvelope = true;
             for (var i = 0; i < 2; i++)
                 await Pump();
-            Assert.True(overlay["\u25A2"].IsChecked == true);
+            Assert.True(envelope.IsChecked == true);
         }
         finally
         {

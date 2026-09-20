@@ -97,6 +97,75 @@ public class PlotterNexSettingsViewModelTests : IDisposable
     }
 
     [Fact]
+    public void Labels_raise_property_changed_and_reresolve_when_locale_switches_live()
+    {
+        var settingsService = new SettingsService(_dir);
+        var profile = settingsService.Load();
+        profile.MachineTypeId = MachineTypes.Foam;
+        settingsService.Save(profile);
+
+        // SetLocale() is a no-op for stream-built services, so the live-switch
+        // behavior must be exercised against a directory-backed service.
+        var locDir = Path.Combine(_dir, "loc");
+        Directory.CreateDirectory(locDir);
+        File.WriteAllText(Path.Combine(locDir, "en.json"), """
+            {"strings":{
+              "module.plotter-nex.settings.wireLength":"Wire length (tower distance)",
+              "module.plotter-nex.settings.view":"View",
+              "module.plotter-nex.settings.showOrigin":"Show origin",
+              "module.plotter-nex.settings.showEnvelope":"Show envelope",
+              "module.plotter-nex.settings.showRunState":"Show run state",
+              "module.plotter-nex.settings.showGrid":"Show grid",
+              "module.plotter-nex.settings.antiAliasing":"Rendering / Anti-aliasing",
+              "module.plotter-nex.settings.aaMode":"Mode",
+              "module.plotter-nex.settings.aaQuality":"Quality"}}
+            """);
+        File.WriteAllText(Path.Combine(locDir, "ru.json"), """
+            {"strings":{
+              "module.plotter-nex.settings.wireLength":"Длина проволоки (расстояние между стойками)",
+              "module.plotter-nex.settings.view":"Вид",
+              "module.plotter-nex.settings.showOrigin":"Показать начало координат",
+              "module.plotter-nex.settings.showEnvelope":"Показать конверт",
+              "module.plotter-nex.settings.showRunState":"Показать состояние выполнения",
+              "module.plotter-nex.settings.showGrid":"Показать сетку",
+              "module.plotter-nex.settings.antiAliasing":"Рендеринг / Сглаживание",
+              "module.plotter-nex.settings.aaMode":"Режим",
+              "module.plotter-nex.settings.aaQuality":"Качество"}}
+            """);
+        var loc = LocalizationService.LoadFromDirectory(locDir, "en");
+        var vm = new PlotterNexSettingsViewModel(settingsService, loc);
+
+        var raised = new List<string?>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        loc.SetLocale("ru");
+
+        foreach (var name in new[]
+        {
+            nameof(PlotterNexSettingsViewModel.WireLengthLabel),
+            nameof(PlotterNexSettingsViewModel.ViewLabel),
+            nameof(PlotterNexSettingsViewModel.ShowOriginLabel),
+            nameof(PlotterNexSettingsViewModel.ShowEnvelopeLabel),
+            nameof(PlotterNexSettingsViewModel.ShowRunStateLabel),
+            nameof(PlotterNexSettingsViewModel.ShowGridLabel),
+            nameof(PlotterNexSettingsViewModel.AntiAliasingLabel),
+            nameof(PlotterNexSettingsViewModel.AaModeLabel),
+            nameof(PlotterNexSettingsViewModel.AaQualityLabel),
+        })
+            Assert.Contains(name, raised);
+
+        Assert.Equal("Длина проволоки (расстояние между стойками)", vm.WireLengthLabel);
+        Assert.Equal("Вид", vm.ViewLabel);
+        Assert.Equal("Показать начало координат", vm.ShowOriginLabel);
+        Assert.Equal("Показать конверт", vm.ShowEnvelopeLabel);
+        Assert.Equal("Показать состояние выполнения", vm.ShowRunStateLabel);
+        Assert.Equal("Показать сетку", vm.ShowGridLabel);
+        Assert.Equal("Рендеринг / Сглаживание", vm.AntiAliasingLabel);
+        Assert.Equal("Режим", vm.AaModeLabel);
+        Assert.Equal("Качество", vm.AaQualityLabel);
+    }
+
+    [Fact]
     public void Wire_length_edit_recenters_both_foam_origins_and_persists()
     {
         var vm = MakeVm(MachineTypes.Foam);
