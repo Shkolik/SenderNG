@@ -78,10 +78,11 @@ public class DemoGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     public IObservable<string> ReceivedLines => _receivedLines;
 
     // Demo reports a full capability set so both coolant modes stay visible;
-    // the axis count follows the live demo state (DemoMachineSettings can resize
-    // it), so capability-driven UI (e.g. the offsets editor's column count)
-    // stays in sync with the simulated machine. Cached in a field so repeated
-    // reads return the same instance (like the real service's stored property).
+    // the axis count follows the live demo state (SetNumAxes resizes it, driven
+    // by the Connect dialog's Demo tab), so capability-driven UI (e.g. the
+    // offsets editor's column count) stays in sync with the simulated machine.
+    // Cached in a field so repeated reads return the same instance (like the
+    // real service's stored property).
     public ControllerCapabilities Capabilities => _capabilities;
     private ControllerCapabilities _capabilities = ControllerCapabilities.Full;
 

@@ -270,6 +270,7 @@ public class ConnectViewModelTests
         var vm = new ConnectViewModel(settings, global, new StubComPorts([]));
         Assert.Equal(ConnectMode.Demo, vm.SelectedTab);
         Assert.True(vm.ConnectCommand.CanExecute(null));
+        Assert.Equal(3, vm.DemoAxes);
 
         bool? result = null;
         vm.CloseRequested += (_, r) => result = r;
@@ -277,7 +278,105 @@ public class ConnectViewModelTests
 
         Assert.True(result);
         Assert.Equal(ConnectMode.Demo, vm.Result!.Mode);
+        Assert.Equal(3, vm.Result.DemoAxes);
         Assert.Equal("Start demo", vm.ConnectButtonLabel);
+    }
+
+    [Fact]
+    public void Demo_axis_options_are_3_4_5()
+    {
+        var vm = new ConnectViewModel(SettingsWith(), Global(), new StubComPorts([]));
+        try
+        {
+            Assert.Equal([3, 4, 5], vm.DemoAxisOptions);
+        }
+        finally
+        {
+            vm.Dispose();
+        }
+    }
+
+    [Fact]
+    public void Demo_axes_preselect_from_profile()
+    {
+        var settings = SettingsWith();
+        settings.DemoAxes = 4;
+        var vm = new ConnectViewModel(settings, Global(), new StubComPorts([]));
+        try
+        {
+            Assert.Equal(4, vm.DemoAxes);
+        }
+        finally
+        {
+            vm.Dispose();
+        }
+    }
+
+    [Fact]
+    public void Demo_axes_preselect_clamps_out_of_range()
+    {
+        foreach (var (profileAxes, expected) in new[] { (1, 3), (6, 5), (7, 5) })
+        {
+            var settings = SettingsWith();
+            settings.DemoAxes = profileAxes;
+            var vm = new ConnectViewModel(settings, Global(), new StubComPorts([]));
+            Assert.Equal(expected, vm.DemoAxes);
+            vm.Dispose();
+        }
+    }
+
+    [Fact]
+    public void Demo_axes_result_carries_selection()
+    {
+        var global = new GlobalSettings { NetworkAvailable = false };
+        var vm = new ConnectViewModel(SettingsWith(), global, new StubComPorts([]));
+        vm.DemoAxes = 5;
+
+        bool? result = null;
+        vm.CloseRequested += (_, r) => result = r;
+        vm.ConnectCommand.Execute(null);
+
+        Assert.True(result);
+        Assert.Equal(ConnectMode.Demo, vm.Result!.Mode);
+        Assert.Equal(5, vm.Result.DemoAxes);
+    }
+
+    [Fact]
+    public void Switching_profile_represelects_demo_axes()
+    {
+        var active = SettingsWith();
+        var foam = new MachineProfile { Id = "foam", Name = "Foam", MachineTypeId = MachineTypes.Foam, DemoAxes = 4 };
+        var vm = new ConnectViewModel(active, Global(), new StubComPorts([]), profiles: [active, foam]);
+        try
+        {
+            Assert.Equal(3, vm.DemoAxes);
+
+            vm.SelectedProfile = vm.Profiles.First(p => p.Id == "foam");
+
+            Assert.Equal(4, vm.DemoAxes);
+        }
+        finally
+        {
+            vm.Dispose();
+        }
+    }
+
+    [Fact]
+    public void Demo_connect_does_not_write_settings()
+    {
+        var settings = SettingsWith();
+        var global = new GlobalSettings { NetworkAvailable = false };
+        var vm = new ConnectViewModel(settings, global, new StubComPorts([]));
+        vm.DemoAxes = 5;
+
+        bool? result = null;
+        vm.CloseRequested += (_, r) => result = r;
+        vm.ConnectCommand.Execute(null);
+
+        Assert.True(result);
+        // Persistence is the caller's job (MainViewModel, on demo activation) —
+        // the dialog must not write to the profile on click alone.
+        Assert.Equal(3, settings.DemoAxes);
     }
 
     [Fact]

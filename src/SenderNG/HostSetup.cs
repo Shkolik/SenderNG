@@ -87,7 +87,6 @@ public static class HostSetup
         // can show a dialog without the app knowing its view types.
         var viewFactory = new AvaloniaViewFactory();
         viewFactory.Register<CNC.Core.ViewModels.ConnectViewModel, Views.ConnectView>();
-        viewFactory.Register<CNC.Core.ViewModels.DemoMachineSettingsViewModel, Views.DemoMachineSettingsView>();
         viewFactory.Register<CNC.Core.ViewModels.AppSettingsViewModel, Modules.Fixed.AppSettingsView>();
         viewFactory.Register<CNC.Core.ViewModels.RotateProgramViewModel, Views.RotateProgramView>();
         viewFactory.Register<CNC.Core.ViewModels.ArcsToLinesProgramViewModel, Views.ArcsToLinesProgramView>();

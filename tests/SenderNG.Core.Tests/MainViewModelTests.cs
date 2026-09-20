@@ -164,11 +164,14 @@ public class MainViewModelTests
         var task = vm.ShowConnectDialogAsync();
         var connectVm = Assert.IsType<CNC.Core.ViewModels.ConnectViewModel>(dialogs.LastVm);
         connectVm.SelectedIndex = (int)CNC.Core.ViewModels.ConnectMode.Demo;
+        connectVm.DemoAxes = 5;
         connectVm.ConnectCommand.Execute(null);
         await task;
 
         Assert.True(vm.IsDemo);
         Assert.True(vm.IsConnected);
+        Assert.Equal(5, vm.Grbl.Capabilities.NumAxes);
+        Assert.Equal(5, settings.Load().DemoAxes);
         Assert.Contains("Demo mode", vm.Status);
     }
 

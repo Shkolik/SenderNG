@@ -55,7 +55,7 @@ public enum ConnectMode
 
 /// <summary>What the user picked in the connect dialog (valid after Connect closes true).</summary>
 public sealed record ConnectResult(ConnectMode Mode, string? Port, int BaudRate, string? Endpoint,
-    ConnectResetMode SerialResetMode = ConnectResetMode.None, string? ProfileId = null);
+    ConnectResetMode SerialResetMode = ConnectResetMode.None, string? ProfileId = null, int DemoAxes = 3);
 
 /// <summary>A named "On connect" reset option for the Serial tab (ioSender dropdown).</summary>
 public sealed record ResetModeOption(ConnectResetMode Mode, string Name);
@@ -85,6 +85,7 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
     private int _baudRate = 115200;
     private ConnectResetMode _resetMode = ConnectResetMode.None;
     private string _networkEndpoint = string.Empty;
+    private int _demoAxes = 3;
     private int _selectedIndex;
 
     public event EventHandler<bool>? CloseRequested;
@@ -252,6 +253,16 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
     public string DemoDisclaimer => Resolve("connect.demoDisclaimer",
         "Demo mode simulates a controller locally so you can evaluate the app without hardware. Machine movement is not real.");
 
+    /// <summary>Axis counts the demo controller can simulate (the Connect dialog offers only these).</summary>
+    public IReadOnlyList<int> DemoAxisOptions { get; } = [3, 4, 5];
+
+    /// <summary>Axes chosen for the next demo session (persisted by the caller on connect).</summary>
+    public int DemoAxes
+    {
+        get => _demoAxes;
+        set => SetField(ref _demoAxes, value);
+    }
+
     public string ConnectButtonLabel => SelectedTab == ConnectMode.Demo
         ? Resolve("connect.startDemo", "Start demo")
         : Resolve("connect.connect", "Connect");
@@ -302,7 +313,7 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
                 Result = new ConnectResult(ConnectMode.Network, null, 0, NetworkEndpoint?.Trim(), ProfileId: _profile.Id);
                 break;
             default:
-                Result = new ConnectResult(ConnectMode.Demo, null, 0, null, ProfileId: _profile.Id);
+                Result = new ConnectResult(ConnectMode.Demo, null, 0, null, ProfileId: _profile.Id, DemoAxes: DemoAxes);
                 break;
         }
 
@@ -323,10 +334,12 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
             : "192.168.1.100:23";
         _resetMode = ResetModeOptions.FirstOrDefault(
             r => r.Mode == profile.Connection.SerialResetMode, ResetModeOptions[0]).Mode;
+        _demoAxes = Math.Clamp(profile.DemoAxes, DemoAxisOptions[0], DemoAxisOptions[^1]);
         OnPropertyChanged(nameof(BaudRate));
         OnPropertyChanged(nameof(NetworkEndpoint));
         OnPropertyChanged(nameof(SelectedResetMode));
         OnPropertyChanged(nameof(SelectedResetModeOption));
+        OnPropertyChanged(nameof(DemoAxes));
         _selectedPort = string.Empty;
         RefreshPorts();
     }

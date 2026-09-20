@@ -22,7 +22,7 @@ LocalizationService  (SenderNG.Core)
         ├── {loc:Loc key} markup extension   → static XAML text (re-renders live)
         ├── LocText.Resolve / Format         → ViewModel-generated strings
         ├── ModuleNames.Localized(module)    → module display names (plugin-first)
-        └── injected LocalizationService     → Core ViewModels (Connect, DemoMachineSettings)
+        └── injected LocalizationService     → Core ViewModels (Connect, AppSettings)
 ```
 
 ---
@@ -56,7 +56,7 @@ there at runtime. A locale JSON has three top-level sections:
 ### Key conventions
 
 - Keys are **dotted and namespaced**: `app.*` (shell), `common.*` (shared buttons),
-  `connect.*`, `demoSettings.*`, `about.*`, `module.<id>.*` (per-module), `app.msg.*`
+  `connect.*`, `about.*`, `module.<id>.*` (per-module), `app.msg.*`
   (code-generated status lines).
 - Values may contain format placeholders (`{0}`, `{count}`) — see **And avoid this** below.
 - **`en.json` owns every key.** A locale override only *overrides*; it must not invent keys.

@@ -225,7 +225,6 @@ public class MainViewModel : ViewModelBase, IDisposable
         MdiHistoryNextCommand = new DelegateCommand(_ => MdiHistoryNext());
         // The Machine settings menu entry opens App Settings on the Profiles leaf.
         MachineSettingsCommand = new DelegateCommand(_ => _ = ShowAppSettingsAsync(profiles: true));
-        DemoMachineSettingsCommand = new DelegateCommand(_ => _ = ShowDemoMachineSettingsAsync());
         OpenMenuModuleCommand = new DelegateCommand(p => _ = OpenMenuModuleAsync(p as IModule));
         AboutCommand = new DelegateCommand(_ => _ = ShowAboutAsync());
         _mdiHistoryIndex = MdiHistory.Count;
@@ -742,7 +741,6 @@ public class MainViewModel : ViewModelBase, IDisposable
     public IReadOnlyList<MenuEntry> SettingsMenu =>
         [
             new MenuEntry(Resolve("app.settings.machine", "Machine"), MachineSettingsCommand, null),
-            new MenuEntry(Resolve("app.settings.demoMachine", "Demo machine"), DemoMachineSettingsCommand, null),
             ..MenuModules.Select(m => new MenuEntry(LocalizedModuleName(m), OpenMenuModuleCommand, m)),
         ];
 
@@ -902,8 +900,6 @@ public class MainViewModel : ViewModelBase, IDisposable
     public ICommand MdiHistoryNextCommand { get; }
 
     public ICommand MachineSettingsCommand { get; }
-
-    public ICommand DemoMachineSettingsCommand { get; }
 
     public DelegateCommand OpenMenuModuleCommand { get; }
 
@@ -1192,22 +1188,6 @@ public class MainViewModel : ViewModelBase, IDisposable
         Status = isConverted
             ? LocText.Format("app.msg.converted", "Converted {0}: {1} lines", Path.GetFileName(path), program.ProgramRows.Count)
             : LocText.Format("app.msg.loaded", "Loaded {0} ({1} lines)", Path.GetFileName(path), program.ProgramRows.Count);
-    }
-
-    private async Task ShowDemoMachineSettingsAsync()
-    {
-        if (_dialogs is null)
-        {
-            Status = LocText.Resolve("app.msg.demoSettingsNoDialog", "Demo machine settings: no dialog service available");
-            return;
-        }
-
-        var vm = new CNC.Core.ViewModels.DemoMachineSettingsViewModel(
-            _settingsService.Load(),
-            _services.GetRequiredService<DemoGrblService>());
-        var result = await _dialogs.ShowDialogAsync("Demo machine", vm);
-        if (result == true)
-            Status = LocText.Resolve("app.msg.demoSettingsUpdated", "Demo machine settings updated");
     }
 
     // Menu-claiming modules (PanelHint.Menu) open as modal dialogs.
@@ -1598,6 +1578,12 @@ public class MainViewModel : ViewModelBase, IDisposable
                 await ConnectNetworkAsync(choice.Endpoint);
                 break;
             case CNC.Core.ViewModels.ConnectMode.Demo:
+                var active = _settingsService.Load();
+                if (active.DemoAxes != choice.DemoAxes)
+                {
+                    active.DemoAxes = choice.DemoAxes;
+                    _settingsService.Save(active);
+                }
                 await ActivateDemoAsync();
                 break;
             default:

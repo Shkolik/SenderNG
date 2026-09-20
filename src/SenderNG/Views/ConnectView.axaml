@@ -151,6 +151,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <StackPanel Spacing="6" Margin="4,8,4,4">
                         <TextBlock Text="{Binding DemoDisclaimer}" FontSize="12.5"
                                    Foreground="#666" TextWrapping="Wrap" LineHeight="18" />
+                        <TextBlock Text="{loc:Loc connect.demoAxes}" FontWeight="SemiBold" FontSize="12"
+                                   Margin="0,2,0,0" />
+                        <ComboBox ItemsSource="{Binding DemoAxisOptions}"
+                                  SelectedItem="{Binding DemoAxes, Mode=TwoWay}"
+                                  FontSize="12" Height="24" CornerRadius="0" MinWidth="72"
+                                  HorizontalAlignment="Left"
+                                  BorderBrush="#999" BorderThickness="1" />
                     </StackPanel>
                 </TabItem>
             </TabControl>
