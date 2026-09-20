@@ -89,62 +89,86 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                        PointerReleased="OnPlotInputPointerReleased"
                        PointerCaptureLost="OnPlotInputPointerCaptureLost"
                        PointerWheelChanged="OnPlotInputPointerWheelChanged">
-                    <Panel.Styles>
-                        <!-- Text-only nav buttons: no chrome. Idle gray; darker +
-                             semi-bold on hover and press. The ToggleButton overlay
-                             bar shares the SAME look (combined selector) and its
-                             own chrome-free template, so its glyphs match the
-                             zoom buttons exactly. -->
-                        <Style Selector="Button.navBtn, ToggleButton.navBtn">
-                            <Setter Property="Width" Value="32" />
-                            <Setter Property="Height" Value="32" />
-                            <Setter Property="Padding" Value="0" />
-                            <Setter Property="FontSize" Value="24" />
-                            <Setter Property="Foreground" Value="#777" />
-                            <Setter Property="FontWeight" Value="Normal" />
-                            <Setter Property="HorizontalContentAlignment" Value="Center" />
-                            <Setter Property="VerticalContentAlignment" Value="Center" />
-                            <Setter Property="Background" Value="Transparent" />
-                            <Setter Property="BorderThickness" Value="0" />
-                        </Style>
-                        <Style Selector="Button.navBtn">
-                            <Setter Property="Template">
-                                <ControlTemplate TargetType="Button">
-                                    <ContentPresenter x:Name="PART_ContentPresenter"
-                                                      Background="Transparent"
-                                                      Content="{TemplateBinding Content}"
-                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
-                                                      HorizontalContentAlignment="Center"
-                                                      VerticalContentAlignment="Center" />
-                                </ControlTemplate>
-                            </Setter>
-                        </Style>
-                        <Style Selector="ToggleButton.navBtn">
-                            <Setter Property="Template">
-                                <ControlTemplate TargetType="ToggleButton">
-                                    <ContentPresenter x:Name="PART_ContentPresenter"
-                                                      Background="Transparent"
-                                                      Content="{TemplateBinding Content}"
-                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
-                                                      HorizontalContentAlignment="Center"
-                                                      VerticalContentAlignment="Center" />
-                                </ControlTemplate>
-                            </Setter>
-                        </Style>
-                        <Style Selector="Button.navBtn:pointerover, ToggleButton.navBtn:pointerover">
-                            <Setter Property="Foreground" Value="#444" />
-                            <Setter Property="FontWeight" Value="SemiBold" />
-                        </Style>
-                        <Style Selector="Button.navBtn:pressed, ToggleButton.navBtn:pressed">
-                            <Setter Property="Foreground" Value="#222" />
-                            <Setter Property="FontWeight" Value="SemiBold" />
-                        </Style>
-                        <Style Selector="ToggleButton.navBtn:checked">
-                            <Setter Property="Foreground" Value="#222" />
-                            <Setter Property="FontWeight" Value="SemiBold" />
-                        </Style>
-                    </Panel.Styles>
-                    <!-- Top-left view-toggle chrome: the same 4
+					<Panel.Styles>
+						<!-- Base Styles for Idle State -->
+						<Style Selector="Button.navBtn, ToggleButton.navBtn">
+							<Setter Property="Width" Value="32" />
+							<Setter Property="Height" Value="32" />
+							<Setter Property="Padding" Value="0" />
+							<Setter Property="FontSize" Value="24" />
+							<Setter Property="Foreground" Value="#777" />
+							<Setter Property="FontWeight" Value="Normal" />
+							<Setter Property="Background" Value="Transparent" />
+							<Setter Property="BorderThickness" Value="0" />
+						</Style>
+
+						<!-- Custom Button Templates -->
+						<Style Selector="Button.navBtn">
+							<Setter Property="Template">
+								<ControlTemplate TargetType="Button">
+									<ContentPresenter x:Name="PART_ContentPresenter"
+													  Background="Transparent"
+													  Content="{TemplateBinding Content}"
+													  ContentTemplate="{TemplateBinding ContentTemplate}"
+													  HorizontalContentAlignment="Center"
+													  VerticalContentAlignment="Center" />
+								</ControlTemplate>
+							</Setter>
+						</Style>
+						<Style Selector="ToggleButton.navBtn">
+							<Setter Property="Template">
+								<ControlTemplate TargetType="ToggleButton">
+									<ContentPresenter x:Name="PART_ContentPresenter"
+													  Background="Transparent"
+													  Content="{TemplateBinding Content}"
+													  ContentTemplate="{TemplateBinding ContentTemplate}"
+													  HorizontalContentAlignment="Center"
+													  VerticalContentAlignment="Center" />
+								</ControlTemplate>
+							</Setter>
+						</Style>
+
+						<!-- State: Pointerover (Root level targets text, Template targets paths) -->
+						<Style Selector="Button.navBtn:pointerover, ToggleButton.navBtn:pointerover">
+							<Setter Property="Foreground" Value="#444" />
+							<Setter Property="FontWeight" Value="SemiBold" />
+						</Style>
+						<Style Selector="Button.navBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter, 
+                     ToggleButton.navBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+							<Setter Property="Foreground" Value="#444" />
+						</Style>
+
+						<!-- State: Pressed (Root level targets text, Template targets paths) -->
+						<Style Selector="Button.navBtn:pressed, ToggleButton.navBtn:pressed">
+							<Setter Property="Foreground" Value="#222" />
+							<Setter Property="FontWeight" Value="SemiBold" />
+						</Style>
+						<Style Selector="Button.navBtn:pressed /template/ ContentPresenter#PART_ContentPresenter, 
+                     ToggleButton.navBtn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+							<Setter Property="Foreground" Value="#222" />
+						</Style>
+
+						<!-- State: Checked (Root level handles structure) -->
+						<Style Selector="ToggleButton.navBtn:checked">
+							<Setter Property="FontWeight" Value="SemiBold" />
+							<Setter Property="Foreground" Value="#222" />
+						</Style>
+
+						<!-- State: Checked (Template level handles vector paths color) -->
+						<Style Selector="ToggleButton.navBtn:checked /template/ ContentPresenter#PART_ContentPresenter">
+							<Setter Property="Foreground" Value="#222" />
+							<Setter Property="Background" Value="Transparent" />
+						</Style>
+
+						<!-- State: Checked + Pointerover combined (Prevents hover from rolling back to #444 when checked) -->
+						<Style Selector="ToggleButton.navBtn:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+							<Setter Property="Foreground" Value="#222" />
+							<Setter Property="Background" Value="#ddd" />
+						</Style>
+
+					</Panel.Styles>
+
+					<!-- Top-left view-toggle chrome: the same 4
                          PlotterNexSettings toggles the App Settings leaf binds,
                          so both surfaces stay two views onto ONE shared model.
                          The DataContext is the module's single shared
@@ -152,17 +176,44 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                          OverlaySettings property); each flip persists through
                          the app's DI SettingsService and is pushed to the live
                          scene as a runtime chrome change. -->
-                    <StackPanel Orientation="Vertical" Spacing="6"
+                    <StackPanel Orientation="Horizontal" Spacing="6"
                                 HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"
                                 x:Name="OverlayViewToggles">
-                        <ToggleButton Classes="navBtn" Content="◎" ToolTip.Tip="{Binding ShowOriginLabel}"
-                                      IsChecked="{Binding ShowOrigin}" />
-                        <ToggleButton Classes="navBtn" Content="▢" ToolTip.Tip="{Binding ShowEnvelopeLabel}"
-                                      IsChecked="{Binding ShowEnvelope}" />
-                        <ToggleButton Classes="navBtn" Content="▶" ToolTip.Tip="{Binding ShowRunStateLabel}"
-                                      IsChecked="{Binding ShowRunState}" />
-                        <ToggleButton Classes="navBtn" Content="▦" ToolTip.Tip="{Binding ShowGridLabel}"
-                                      IsChecked="{Binding ShowGrid}" />
+						<!-- Grid (3D Isometric Floor Grid) -->
+						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowGridLabel}" IsChecked="{Binding ShowGrid}">
+							<Path Width="16" Height="16" Stretch="Uniform"
+								  HorizontalAlignment="Center" VerticalAlignment="Center"
+								  Stroke="{Binding $parent[ToggleButton].Foreground}"
+								  StrokeThickness="1.5"
+								  Data="M 1,1 L 15,1 L 15,15 L 1,15 Z M 1,5.66 L 15,5.66 M 1,10.33 L 15,10.33 M 5.66,1 L 5.66,15 M 10.33,1 L 10.33,15" />
+						</ToggleButton>
+						
+						<!-- Origin (3D Isometric Axes) -->
+						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowOriginLabel}" IsChecked="{Binding ShowOrigin}">
+							<Path Width="16" Height="16" Stretch="Uniform"
+								  HorizontalAlignment="Center" VerticalAlignment="Center"
+								  Stroke="{Binding $parent[ToggleButton].Foreground}"
+								  StrokeThickness="1.5"
+								  Data="M 8,8 L 8,1 M 8,1 L 6.5,3 M 8,1 L 9.5,3 M 8,8 L 2,11.5 M 2,11.5 L 4,11 M 2,11.5 L 2.5,9.5 M 8,8 L 14,11.5 M 14,11.5 L 13.5,9.5 M 14,11.5 L 12,11" />
+						</ToggleButton>
+
+						<!-- Envelope (3D Isometric Bounding Box) -->
+						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowEnvelopeLabel}" IsChecked="{Binding ShowEnvelope}">
+							<Path Width="16" Height="16" Stretch="Uniform"
+								  HorizontalAlignment="Center" VerticalAlignment="Center"
+								  Stroke="{Binding $parent[ToggleButton].Foreground}"
+								  StrokeThickness="1.5"
+								  Data="M 8,1 L 15,4.5 L 15,11.5 L 8,15 L 1,11.5 L 1,4.5 Z M 1,4.5 L 8,8 L 15,4.5 M 8,8 L 8,15" />
+						</ToggleButton>
+
+						<!-- Run State (Play Icon) -->
+						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowRunStateLabel}" IsChecked="{Binding ShowRunState}">
+							<Path Width="16" Height="16" Stretch="Uniform"
+								  HorizontalAlignment="Center" VerticalAlignment="Center"
+								  Stroke="{Binding $parent[ToggleButton].Foreground}"
+								  StrokeThickness="1.5"
+								  Data="M 4,2 L 13,8 L 4,14 Z" />
+						</ToggleButton>
                     </StackPanel>
                     <StackPanel Orientation="Vertical" Spacing="6"
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12">
