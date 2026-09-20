@@ -49,6 +49,9 @@ public class AppSettingsModule : IModule
     public int Order => 41;
     public PanelHint Panel => PanelHint.Menu;
     public bool IsVisibleByDefault => true;
+
+    // A settings dialog, not a module card: never exposed as a leaf, never hideable.
+    public bool CanHide => false;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public void RegisterServices(IServiceCollection services) =>

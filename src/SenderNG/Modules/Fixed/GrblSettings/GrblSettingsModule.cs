@@ -51,6 +51,10 @@ public class GrblSettingsModule : IModule
     // First module claiming the menu: opened as a modal dialog from Settings.
     public PanelHint Panel => PanelHint.Menu;
     public bool IsVisibleByDefault => true;
+
+    // A settings dialog, not a module card: never exposed as a leaf, never hideable.
+    public bool CanHide => false;
+
     // Sized + resizable window, matching App Settings (dialog service sets CanResize).
     public (double Width, double Height)? DialogPreferredSize => (660.0, 520.0);
     public IReadOnlyList<HotKey> HotKeys { get; } = [];

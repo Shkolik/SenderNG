@@ -75,8 +75,10 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   `IsEnabledByDefault` but nothing consumes it yet. Today there is exactly one
   per-machine flag (`MachineProfile.Modules[id]`, default `IsVisibleByDefault`)
   driving UI presence only: MainViewModel filters panels/flyouts by it, App
-  Settings renders one checkbox per module (disabled when `CanHide=false` —
-  fixed modules and converters get name-only rows), and `IGCodeFileHandler`
+  Settings lists only hideable modules or modules that expose a settings
+  surface; fixed modules and settings dialogs with nothing to configure (DRO,
+  Console, Work Parameters, App Settings, GRBL Settings) get no leaf, and
+  non-hideable leaves show no Enabled checkbox, and `IGCodeFileHandler`
   dispatch is **unconditional** (no flag gates it); every module's `HotKeys`
   list is empty (this keyboard-shortcuts item below is the consumer that will
   force the semantics). Scope when tackled: what "disabled" gates exactly

@@ -119,7 +119,7 @@ deciding whether to keep that plugin is the user's.
 
 | Interface | Purpose |
 | --- | --- |
-| `IModuleSettingsProvider` | Editable settings leaf in App Settings; `Scope` = `Profile` (per-machine, default) or `Global` (app-wide). Numeric/checkbox fields or a full custom view. `AttachServices` receives the host DI once built. |
+| `IModuleSettingsProvider` | Editable settings leaf in App Settings; `Scope` = `Profile` (per-machine, default) or `Global` (app-wide). Numeric/checkbox fields or a full custom view. `AttachServices` receives the host DI once built. A module gets a Modules-tree leaf iff `CanHide` is true or the provider yields a view or at least one field. |
 | `ILocalizedModule` | Own locale catalog (`Modules/<id>/Locale/*.json`), keys namespaced `module.<id>.*`, English fallback in `LocalizationKeys`. |
 | `IGCodeFileHandler` | Converter plugin: claims file extensions, converts text → g-code through the Open flow. The only interface the app dispatches on. |
 | `IPluginInfo` | Identity metadata — optional (see 3.2). |

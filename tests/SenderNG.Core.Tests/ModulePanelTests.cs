@@ -76,6 +76,9 @@ public class ModulePanelTests
         Assert.Equal(PanelHint.Menu, new GrblSettingsModule().Panel);
         Assert.Equal(40, new GrblSettingsModule().Order);
 
+        Assert.False(new SenderNG.Modules.Fixed.AppSettingsModule().CanHide);
+        Assert.False(new GrblSettingsModule().CanHide);
+
         // Wide widget (foam/multiaxis) — claims the flyout drawer.
         Assert.Equal(PanelHint.Flyout, new JogModule().Panel);
         Assert.Equal(15, new JogModule().Order);
