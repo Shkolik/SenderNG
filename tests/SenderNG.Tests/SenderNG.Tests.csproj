@@ -21,6 +21,7 @@
          can render it headlessly (the plugin DLL is also staged into
          Modules/ for discovery tests). -->
     <ProjectReference Include="..\..\src\SenderNG.Modules.Plotter\SenderNG.Modules.Plotter.csproj" />
+    <ProjectReference Include="..\..\src\SenderNG.Modules.Plotter.Nex\SenderNG.Modules.Plotter.Nex.csproj" />
   </ItemGroup>
 
   <ItemGroup>

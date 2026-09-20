@@ -63,6 +63,9 @@ namespace SenderNG.Modules.Plotter.Nex;
 public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IModuleSettingsProvider
 {
     private IServiceProvider? _services;
+    private PlotterNexSettingsViewModel? _sharedSettingsVm;
+    private bool _profileSwitchedSubscribed;
+    private PlotterNexView? _plotView;
 
     public string Id => "plotter-nex";
     public string Name => "Plot 3D";
@@ -105,9 +108,9 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IModuleS
 
     public void RegisterServices(IServiceCollection services)
     {
-        // Settings views are transient here: the profile is captured at VM
-        // construction, so each AppSettings rebuild (profile switch) must
-        // resolve a fresh instance reflecting the newly active profile.
+        // Nothing to register: the module resolves the app's DI SettingsService
+        // and LocalizationService directly. The settings VM is ONE shared model
+        // (see SharedSettingsVm); it is rebuilt fresh on profile switch.
     }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
@@ -121,11 +124,56 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IModuleS
     public void AttachServices(IServiceProvider services) =>
         _services = services;
 
+    /// <summary>The SINGLE <see cref="PlotterNexSettingsViewModel"/> both editor
+    /// surfaces bind: the App Settings leaf (<see cref="CreateSettingsView"/>) and
+    /// the 3D view's overlay toggle bar (<see cref="CreateView"/>). One shared VM on
+    /// the app's DI <see cref="SettingsService"/> — no second service and no second
+    /// clone — so a flip on either surface persists through the shared service and
+    /// both stay live on the SAME model. A profile switch rebuilds it fresh
+    /// (<see cref="OnProfileSwitched"/>), preserving the NotSame-across-profiles
+    /// behavior the module tests pin.</summary>
+    private PlotterNexSettingsViewModel? SharedSettingsVm()
+    {
+        if (_sharedSettingsVm is not null)
+            return _sharedSettingsVm;
+        try
+        {
+            var settings = _services!.GetRequiredService<SettingsService>();
+            if (!_profileSwitchedSubscribed)
+            {
+                settings.ProfileSwitched += OnProfileSwitched;
+                _profileSwitchedSubscribed = true;
+            }
+            _sharedSettingsVm = new PlotterNexSettingsViewModel(settings, _services!.GetService<LocalizationService>());
+            return _sharedSettingsVm;
+        }
+        catch
+        {
+            // A settings read failure must never take down the App Settings
+            // dialog or the 3D viewport: both surfaces simply stay unbound
+            // (the old view-local editor's catch behavior).
+            return null;
+        }
+    }
+
+    private void OnProfileSwitched(string _)
+    {
+        _sharedSettingsVm = null;
+        if (_plotView is not null && _services is not null)
+            _plotView.OverlaySettings = SharedSettingsVm();
+    }
+
     public object? CreateSettingsView() =>
         _services is null
             ? null
-            : new PlotterNexSettingsView { DataContext = new PlotterNexSettingsViewModel(_services.GetRequiredService<SettingsService>(), _services.GetService<LocalizationService>()) };
+            : new PlotterNexSettingsView { DataContext = SharedSettingsVm() };
 
-    public object CreateView(object viewModel) =>
-        new PlotterNexView { DataContext = viewModel };
+    public object CreateView(object viewModel)
+    {
+        var view = new PlotterNexView { DataContext = viewModel };
+        _plotView = view;
+        if (_services is not null)
+            view.OverlaySettings = SharedSettingsVm();
+        return view;
+    }
 }

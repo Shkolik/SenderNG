@@ -91,8 +91,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                        PointerWheelChanged="OnPlotInputPointerWheelChanged">
                     <Panel.Styles>
                         <!-- Text-only nav buttons: no chrome. Idle gray; darker +
-                             semi-bold on hover and press. -->
-                        <Style Selector="Button.navBtn">
+                             semi-bold on hover and press. The ToggleButton overlay
+                             bar shares the SAME look (combined selector) and its
+                             own chrome-free template, so its glyphs match the
+                             zoom buttons exactly. -->
+                        <Style Selector="Button.navBtn, ToggleButton.navBtn">
                             <Setter Property="Width" Value="32" />
                             <Setter Property="Height" Value="32" />
                             <Setter Property="Padding" Value="0" />
@@ -103,6 +106,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             <Setter Property="VerticalContentAlignment" Value="Center" />
                             <Setter Property="Background" Value="Transparent" />
                             <Setter Property="BorderThickness" Value="0" />
+                        </Style>
+                        <Style Selector="Button.navBtn">
                             <Setter Property="Template">
                                 <ControlTemplate TargetType="Button">
                                     <ContentPresenter x:Name="PART_ContentPresenter"
@@ -114,11 +119,23 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                 </ControlTemplate>
                             </Setter>
                         </Style>
-                        <Style Selector="Button.navBtn:pointerover">
+                        <Style Selector="ToggleButton.navBtn">
+                            <Setter Property="Template">
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <ContentPresenter x:Name="PART_ContentPresenter"
+                                                      Background="Transparent"
+                                                      Content="{TemplateBinding Content}"
+                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                      HorizontalContentAlignment="Center"
+                                                      VerticalContentAlignment="Center" />
+                                </ControlTemplate>
+                            </Setter>
+                        </Style>
+                        <Style Selector="Button.navBtn:pointerover, ToggleButton.navBtn:pointerover">
                             <Setter Property="Foreground" Value="#444" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                         </Style>
-                        <Style Selector="Button.navBtn:pressed">
+                        <Style Selector="Button.navBtn:pressed, ToggleButton.navBtn:pressed">
                             <Setter Property="Foreground" Value="#222" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                         </Style>
@@ -129,10 +146,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     </Panel.Styles>
                     <!-- Top-left view-toggle chrome: the same 4
                          PlotterNexSettings toggles the App Settings leaf binds,
-                         so both surfaces stay two views onto one model. The
-                         DataContext is a PlotterNexSettingsViewModel wired in
-                         the code-behind; each flip persists per-profile and is
-                         pushed to the live scene as a runtime chrome change. -->
+                         so both surfaces stay two views onto ONE shared model.
+                         The DataContext is the module's single shared
+                         PlotterNexSettingsViewModel (wired via the view's
+                         OverlaySettings property); each flip persists through
+                         the app's DI SettingsService and is pushed to the live
+                         scene as a runtime chrome change. -->
                     <StackPanel Orientation="Vertical" Spacing="6"
                                 HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"
                                 x:Name="OverlayViewToggles">

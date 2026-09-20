@@ -158,4 +158,52 @@ public class PlotterNexModuleTests
             if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
         }
     }
+
+    [Fact]
+    public void Settings_leaf_and_overlay_share_the_single_settings_vm()
+    {
+        var module = new PlotterNexModule();
+        var dir = Path.Combine(Path.GetTempPath(), "plotter-nex-settings-tests-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var settingsService = new SettingsService(dir);
+            var mill = settingsService.Load();
+            mill.MachineTypeId = MachineTypes.Mill;
+            settingsService.Save(mill);
+
+            var sc = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+            module.RegisterServices(sc);
+            sc.AddSingleton(settingsService);
+            sc.AddSingleton(settingsService.Load());
+            using var sp = sc.BuildServiceProvider();
+            module.AttachServices(sp);
+
+            var firstVm = (PlotterNexSettingsViewModel)((PlotterNexSettingsView)module.CreateSettingsView()!).DataContext!;
+            // A second App Settings session on the SAME profile reuses the ONE
+            // settings VM the overlay toggle bar binds (both surfaces, one model)
+            // — no second service, no second clone.
+            var secondVm = (PlotterNexSettingsViewModel)((PlotterNexSettingsView)module.CreateSettingsView()!).DataContext!;
+            Assert.Same(firstVm, secondVm);
+
+            // Round trip on the shared instance: a flip made through the leaf
+            // surface is immediately visible through the overlay-bound surface
+            // (SAME VM) — no re-attach, no disk re-read.
+            var changed = new System.Collections.Generic.List<string?>();
+            firstVm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+            firstVm.ShowGrid = false;
+            Assert.False(secondVm.ShowGrid);
+            Assert.Contains(nameof(PlotterNexSettingsViewModel.ShowGrid), changed);
+
+            firstVm.ShowGrid = true;
+            Assert.True(secondVm.ShowGrid);
+
+            // And the flip persisted per-profile through the shared service.
+            var reloaded = PlotterNexConfig.Load(settingsService.Load(), MachineTypeCatalog.Resolve(MachineTypes.Mill));
+            Assert.Equal(firstVm.ShowGrid, reloaded.ShowGrid);
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
 }

@@ -82,6 +82,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     private ISceneFactory? _sceneFactory;
     private IPlotScene? _scene;
     private MachineType _machineType;
+    private PlotterNexSettings _lastSettings;
     private NexPlaneGeometry[] _planeGeometries = [];
     private uint[][] _planeOutputLines = [];
     private Dictionary<uint, int> _lineToRow = new();
@@ -109,6 +110,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         _settings = settings;
         _localization = localization;
         _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
+        _lastSettings = PlotterNexConfig.Load(_settings.Load(), _machineType);
 
         _planeGeometries = ResolvePlaneGeometries(_machineType);
         _settings.Changed += OnSettingsChanged;
@@ -259,12 +261,63 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged()
     {
-        _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
-        _planeGeometries = ResolvePlaneGeometries(_machineType);
+        var profile = _settings.Load();
+        var machineType = MachineTypeCatalog.Resolve(profile.MachineTypeId);
+        var settings = PlotterNexConfig.Load(profile, machineType);
+
+        // The overlay toggle bar and the App Settings leaf now save through this
+        // SAME SettingsService, so every Show* flip arrives here too. Only a
+        // view-toggle change must stay runtime-only (the view's shared-VM
+        // subscription pushes it to the LIVE scene — no node recreation, no
+        // program rebuild); any structural change (machine type, planes, wire
+        // length, AA) keeps the full legacy path.
+        if (OnlyViewTogglesChanged(_lastSettings, settings, _machineType, machineType))
+        {
+            _lastSettings = settings;
+            return;
+        }
+
+        _machineType = machineType;
+        _planeGeometries = ResolvePlaneGeometries(machineType);
         OnPropertyChanged(nameof(PlaneCount));
         OnPropertyChanged(nameof(PlaneLettersText));
         if (_programSource.Program is not null)
             Rebuild();
+        _lastSettings = settings;
+    }
+
+    /// <summary>True when <paramref name="a"/> and <paramref name="b"/> differ in
+    /// AT MOST the four view toggles (ShowOrigin/ShowEnvelope/ShowRunState/ShowGrid)
+    /// — the runtime-only case (identical machine type, planes, wire length and AA).
+    /// A no-op save (Changed raised with nothing actually changed) is also caught
+    /// here, so unrelated profile saves no longer force a node rebuild.</summary>
+    private static bool OnlyViewTogglesChanged(
+        PlotterNexSettings a, PlotterNexSettings b, MachineType machineA, MachineType machineB)
+    {
+        if (machineA.Id != machineB.Id)
+            return false;
+        if (Math.Abs(a.WireLength - b.WireLength) > 1e-9)
+            return false;
+        if (a.AaMode != b.AaMode || a.AaQuality != b.AaQuality)
+            return false;
+        if (a.Planes.Count != b.Planes.Count)
+            return false;
+        for (var p = 0; p < a.Planes.Count; p++)
+        {
+            var ga = a.Planes[p];
+            var gb = b.Planes[p];
+            if (ga.WorldAxes.Length != gb.WorldAxes.Length)
+                return false;
+            for (var s = 0; s < ga.WorldAxes.Length; s++)
+                if (ga.WorldAxes[s] != gb.WorldAxes[s])
+                    return false;
+            if (ga.Origin.Length != gb.Origin.Length)
+                return false;
+            for (var o = 0; o < ga.Origin.Length; o++)
+                if (Math.Abs(ga.Origin[o] - gb.Origin[o]) > 1e-9)
+                    return false;
+        }
+        return true;
     }
 
     private NexPlaneGeometry[] ResolvePlaneGeometries(MachineType type)
