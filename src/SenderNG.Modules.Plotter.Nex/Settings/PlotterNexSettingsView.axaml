@@ -42,32 +42,36 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:DataType="vm:PlotterNexSettingsViewModel">
     <StackPanel Spacing="8">
         <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowWireLength}">
-            <TextBlock Text="{Binding WireLengthLabel}" FontSize="10" VerticalAlignment="Center" />
-            <TextBox Text="{Binding WireLength}" Width="110" Height="24" MinHeight="24"
+            <TextBlock Text="{Binding WireLengthLabel}" FontSize="11" VerticalAlignment="Center" />
+            <TextBox Text="{Binding WireLength}" Width="110" Height="28" MinHeight="24"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                      FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
         </StackPanel>
         <StackPanel Spacing="4">
             <TextBlock Text="{Binding ViewLabel}" FontSize="12" FontWeight="SemiBold"
                        Foreground="#333" Margin="0,6,0,0" />
-            <ToggleSwitch Content="{Binding ShowOriginLabel}" IsChecked="{Binding ShowOrigin}" />
-            <ToggleSwitch Content="{Binding ShowEnvelopeLabel}" IsChecked="{Binding ShowEnvelope}" />
-            <ToggleSwitch Content="{Binding ShowRunStateLabel}" IsChecked="{Binding ShowRunState}" />
-            <ToggleSwitch Content="{Binding ShowGridLabel}" IsChecked="{Binding ShowGrid}" />
+			<Grid ColumnDefinitions="Auto,24,Auto" RowDefinitions="Auto,Auto">			    
+				<CheckBox Grid.Column="0" Grid.Row="0" Content="{Binding ShowOriginLabel}" IsChecked="{Binding ShowOrigin, Mode=TwoWay}" FontSize="11" />
+			    <CheckBox Grid.Column="0" Grid.Row="1" Content="{Binding ShowEnvelopeLabel}" IsChecked="{Binding ShowEnvelope, Mode=TwoWay}" FontSize="11" />
+			    <CheckBox Grid.Column="2" Grid.Row="0" Content="{Binding ShowRunStateLabel}" IsChecked="{Binding ShowRunState, Mode=TwoWay}" FontSize="11" />
+			    <CheckBox Grid.Column="2" Grid.Row="1" Content="{Binding ShowGridLabel}" IsChecked="{Binding ShowGrid, Mode=TwoWay}" FontSize="11" />
+			</Grid>
         </StackPanel>
         <StackPanel Spacing="4">
             <TextBlock Text="{Binding AntiAliasingLabel}" FontSize="12" FontWeight="SemiBold"
                        Foreground="#333" Margin="0,6,0,0" />
-            <StackPanel Orientation="Horizontal" Spacing="6">
-                <TextBlock Text="{Binding AaModeLabel}" FontSize="10" VerticalAlignment="Center" />
-                <ComboBox ItemsSource="{Binding AaModeChoices}" SelectedIndex="{Binding AaMode}"
-                          Width="110" Height="28" MinHeight="28" CornerRadius="0" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="6">
-                <TextBlock Text="{Binding AaQualityLabel}" FontSize="10" VerticalAlignment="Center" />
-                <ComboBox ItemsSource="{Binding AaQualityChoices}" SelectedIndex="{Binding AaQuality}"
-                          Width="110" Height="28" MinHeight="28" CornerRadius="0" />
-            </StackPanel>
+			<Grid ColumnDefinitions="Auto,24,Auto, *" Margin="0,6">
+                <StackPanel Orientation="Horizontal" Spacing="6" Grid.Column="0">
+                    <TextBlock Text="{Binding AaModeLabel}" FontSize="10" VerticalAlignment="Center" />
+                    <ComboBox ItemsSource="{Binding AaModeChoices}" SelectedIndex="{Binding AaMode}"
+                              Width="110" Height="28" MinHeight="28" CornerRadius="0" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6" Grid.Column="2">
+                    <TextBlock Text="{Binding AaQualityLabel}" FontSize="10" VerticalAlignment="Center" />
+                    <ComboBox ItemsSource="{Binding AaQualityChoices}" SelectedIndex="{Binding AaQuality}"
+                              Width="110" Height="28" MinHeight="28" CornerRadius="0" />
+                </StackPanel>
+				</Grid>
         </StackPanel>
         <Rectangle Height="1" Fill="#ddd" />
         <ItemsControl ItemsSource="{Binding PlaneRows}">
