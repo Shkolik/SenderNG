@@ -41,43 +41,79 @@ using SenderNG.ViewModels;
 
 namespace SenderNG.Modules.Fixed;
 
-/// <summary>A compress comment-mode choice, with a localized display name.</summary>
-public sealed record CommentModeOption(GCodeCommentMode Mode, string Name);
+/// <summary>A compress comment-mode choice, with a locale-aware display name.
+/// INPC so a locale switch can rename the item in place without touching the
+/// selection (a rebuilt list would re-push SelectedIndex through the ComboBox).</summary>
+public sealed class CommentModeOption : ViewModelBase
+{
+    public CommentModeOption(GCodeCommentMode mode, string localeKey, string localeFallback)
+    {
+        Mode = mode;
+        LocaleKey = localeKey;
+        LocaleFallback = localeFallback;
+    }
+
+    public GCodeCommentMode Mode { get; }
+
+    internal string LocaleKey { get; }
+    internal string LocaleFallback { get; }
+
+    private string _name = string.Empty;
+    public string Name
+    {
+        get => _name;
+        set => SetField(ref _name, value);
+    }
+}
 
 /// <summary>
 /// Program settings leaf: how the Compress transform treats comment tokens.
 /// Profile-scoped (ProgramConfigStore section), persisted on selection and
-/// re-synced when the profile changes while the dialog is open.
+/// re-synced when the profile changes while the dialog is open. Option names
+/// re-resolve when the active locale changes, so the dropdown stays live.
 /// </summary>
 public class ProgramSettingsViewModel : ViewModelBase
 {
     private readonly SettingsService _settings;
     private readonly MachineProfile _profile;
+    private readonly SenderNG.Core.Localization.LocalizationService? _loc;
     private int _selectedIndex;
 
     public ProgramSettingsViewModel(SettingsService settings, SenderNG.Core.Localization.LocalizationService? loc = null)
     {
         _settings = settings;
         _profile = settings.Load();
-        var resolve = (string key, string fallback) => loc?.Resolve(key, fallback) ?? fallback;
+        _loc = loc;
 
         // Two meaningful modes: ';' remark lines never tokenize, so they are
         // dropped by ANY token-level transform regardless — the choice is only
         // whether (...) CAM comments survive.
         Options =
         [
-            new CommentModeOption(GCodeCommentMode.Keep, resolve("module.program.compressComments.keep", "Keep comments")),
-            new CommentModeOption(GCodeCommentMode.StripAll, resolve("module.program.compressComments.stripAll", "Strip all comments")),
+            new CommentModeOption(GCodeCommentMode.Keep,
+                "module.program.compressComments.keep", "Keep comments"),
+            new CommentModeOption(GCodeCommentMode.StripAll,
+                "module.program.compressComments.stripAll", "Strip all comments"),
         ];
+        Relocalize();
 
         var saved = ProgramConfigStore.Load(_profile).CompressCommentMode;
         var index = IndexOf(saved);
         _selectedIndex = index >= 0 ? index : 0;
 
         _settings.Changed += OnSettingsChanged;
+        if (loc is not null)
+            loc.Changed += (_, _) => Relocalize();
     }
 
     public IReadOnlyList<CommentModeOption> Options { get; }
+
+    /// <summary>Re-resolve the option display names in the active locale (in place).</summary>
+    public void Relocalize()
+    {
+        foreach (var option in Options)
+            option.Name = _loc?.Resolve(option.LocaleKey, option.LocaleFallback) ?? option.LocaleFallback;
+    }
 
     public int SelectedIndex
     {
