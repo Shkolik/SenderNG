@@ -39,6 +39,26 @@ public sealed class PlotterNexSettings
     /// the plane origins along the wire axis (symmetric centering).</summary>
     public double WireLength { get; set; } = 100;
 
+    /// <summary>Show the origin pivot + chrome.</summary>
+    public bool ShowOrigin { get; set; } = true;
+
+    /// <summary>Show the combined work/job envelope wireframe.</summary>
+    public bool ShowEnvelope { get; set; } = true;
+
+    /// <summary>Show run-state coloring + executed/run-state overlay.</summary>
+    public bool ShowRunState { get; set; } = true;
+
+    /// <summary>Show the grid plane.</summary>
+    public bool ShowGrid { get; set; } = true;
+
+    /// <summary>AA method (int ordinal): 0=Off, 1=SMAA, 2=FXAA. Default SMAA =
+    /// current behavior.</summary>
+    public int AaMode { get; set; } = 1;
+
+    /// <summary>AA quality (int ordinal, shared ladder): 0=Low, 1=Medium,
+    /// 2=High, 3=Ultra. Default High = current behavior.</summary>
+    public int AaQuality { get; set; } = 2;
+
     /// <summary>Ordered per-machine plane; <c>WorldAxes[s]</c> = world axis index
     /// (0=X, 1=Y, 2=Z) for the plane's slot <c>s</c> (distinct); <c>Origin</c> =
     /// world position of the plane's origin. Length must equal the schema plane's
