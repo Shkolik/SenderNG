@@ -37,7 +37,7 @@ BSD 3-Clause License: see this file for the full license text.
 
             <!-- Offset table header: offset-code column + one axis column each -->
             <Grid ColumnDefinitions="Auto,*">
-                <TextBlock Text="{loc:Loc module.offsets-table.offset}" Width="48" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Text="{loc:Loc module.offsets-table.offset}" x:Name="OffsetHeader" FontWeight="SemiBold" VerticalAlignment="Center" />
                 <ItemsControl Grid.Column="1" ItemsSource="{Binding AxisNames}" HorizontalAlignment="Stretch">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -57,7 +57,7 @@ BSD 3-Clause License: see this file for the full license text.
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:EditableOffsetRow">
                         <Grid ColumnDefinitions="Auto,*">
-                            <TextBlock Text="{Binding Code}" Width="48" VerticalAlignment="Center" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Code}" Width="{Binding ElementName=OffsetHeader, Path=Bounds.Width}" VerticalAlignment="Center" FontWeight="SemiBold" />
                             <ItemsControl Grid.Column="1" ItemsSource="{Binding Cells}" HorizontalAlignment="Stretch">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
