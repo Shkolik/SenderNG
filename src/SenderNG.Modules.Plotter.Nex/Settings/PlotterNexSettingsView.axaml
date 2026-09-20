@@ -50,15 +50,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <ItemsControl ItemsSource="{Binding PlaneRows}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:PlotterNexPlaneRow">
-                    <StackPanel Margin="0,2" Spacing="4">
+                    <StackPanel Margin="0,6" Spacing="4">
                         <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold"
                                    Foreground="#333" />
                         <Rectangle Height="1" Fill="#ddd" />
                         <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,24,Auto">
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding WorldAxesLabel}"
-                                       FontSize="10" VerticalAlignment="Center" />
+                                       FontSize="11" Margin="0,4,0,6" VerticalAlignment="Center" />
                             <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding OriginLabel}"
-                                       FontSize="10" VerticalAlignment="Center" />
+                                       FontSize="11" Margin="0,4,0,6" VerticalAlignment="Center" />
                             <ItemsControl Grid.Row="1" Grid.Column="0" ItemsSource="{Binding Slots}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -69,21 +69,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                     <DataTemplate x:DataType="vm:WorldAxisRow">
                                         <ComboBox ItemsSource="{Binding Choices}"
                                                   SelectedIndex="{Binding Axis}"
-                                                  Width="56" Height="24" MinHeight="24" CornerRadius="0" />
+                                                  Width="64" MinWidth="56" Height="28" MinHeight="28" CornerRadius="0" />
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                             <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Spacing="6">
                                 <TextBlock Text="X" FontSize="10" VerticalAlignment="Center" />
-                                <TextBox Text="{Binding OriginX}" Width="56" Height="24" MinHeight="24"
+                                <TextBox Text="{Binding OriginX}" Width="56" Height="28" MinHeight="28"
                                          CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                          FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
                                 <TextBlock Text="Y" FontSize="10" VerticalAlignment="Center" />
-                                <TextBox Text="{Binding OriginY}" Width="56" Height="24" MinHeight="24"
+                                <TextBox Text="{Binding OriginY}" Width="56" Height="28" MinHeight="28"
                                          CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                          FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
                                 <TextBlock Text="Z" FontSize="10" VerticalAlignment="Center" />
-                                <TextBox Text="{Binding OriginZ}" Width="56" Height="24" MinHeight="24"
+                                <TextBox Text="{Binding OriginZ}" Width="56" Height="28" MinHeight="28"
                                          CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                           FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
                             </StackPanel>
