@@ -77,6 +77,15 @@ public class AboutDialogModelTests
     }
 
     [Fact]
+    public void ModuleInfoItem_HasDependencies_tracks_declared_dependencies()
+    {
+        Assert.True(new ModuleInfoItem("A", "1.0", "Author", "MIT",
+            [new PluginDependency("Dep", "1.0", "MIT")]).HasDependencies);
+        Assert.False(new ModuleInfoItem("B", "1.0", "Author", "MIT").HasDependencies);
+        Assert.False(new ModuleInfoItem("C", "1.0", "Author", "MIT", []).HasDependencies);
+    }
+
+    [Fact]
     public void Bundled_plotter_modules_declare_dependencies()
     {
         var plotter = new SenderNG.Modules.Plotter.PlotterModule();
