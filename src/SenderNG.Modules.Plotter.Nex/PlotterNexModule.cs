@@ -171,7 +171,8 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IModuleS
 
     public object CreateView(object viewModel)
     {
-        var view = new PlotterNexView { DataContext = viewModel };
+        var view = new PlotterNexView(
+            _services?.GetService<IFileDialogService>()) { DataContext = viewModel };
         _plotView = view;
         if (_services is not null)
             view.OverlaySettings = SharedSettingsVm();

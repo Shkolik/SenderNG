@@ -45,6 +45,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using CNC.Core.Abstractions;
 using HelixToolkit.Nex.Engine;
 using HelixToolkit.Nex.Graphics;
 using HelixToolkit.Nex.Material;
@@ -121,8 +122,15 @@ public partial class PlotterNexView : UserControl
     private Vector2 _lastPanPx;
     private Vector2 _lastOrbitPx;
 
-    public PlotterNexView()
+    private readonly IFileDialogService? _fileDialogs;
+
+    public PlotterNexView() : this(null)
     {
+    }
+
+    public PlotterNexView(IFileDialogService? fileDialogs)
+    {
+        _fileDialogs = fileDialogs;
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
         // Tab switches detach the view from the visual tree; the host caches
@@ -655,40 +663,32 @@ public partial class PlotterNexView : UserControl
 
     private void OnReframe(object? sender, RoutedEventArgs e) => _scene?.Reframe();
 
-    /// <summary>Dumps the currently displayed 3D view (the latest readback frame
-    /// at its native size, so every capture is pixel-aligned) to a timestamped
-    /// PNG under LocalApplicationData\SenderNG\screenshots. Works for the SMAA
-    /// debug views too (they swap the frame contents, not the size).</summary>
-    private void OnSaveScreenshot(object? sender, RoutedEventArgs e)
+    /// <summary>Asks the user where to save the currently displayed 3D view (the
+    /// latest readback frame at its native size, so every capture is
+    /// pixel-aligned) and writes a PNG there. Works for the SMAA debug views too
+    /// (they swap the frame contents, not the size). A cancelled dialog is
+    /// silent; a write failure surfaces a modal error dialog.</summary>
+    private async void OnSaveScreenshot(object? sender, RoutedEventArgs e)
     {
+        if (_fileDialogs is null)
+            return;
         var rgba = _shotRgba;
         if (rgba is null || _shotW <= 0 || _shotH <= 0)
-        {
-            StatusTextBlock.Text = "no frame to save yet";
             return;
-        }
         try
         {
-            var dir = System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "SenderNG", "screenshots");
-            System.IO.Directory.CreateDirectory(dir);
-            var aa = _overlayToggles;
-            
-            var path = System.IO.Path.Combine(
-                dir,
-                $"SenderNG_{DateTime.Now:yyyyMMdd_HHmmss_fff}_{_shotW}x{_shotH}.png");
-            using (var img = SixLabors.ImageSharp.Image.LoadPixelData<SixLabors.ImageSharp.PixelFormats.Rgba32>(
-                       rgba, _shotW, _shotH))
-            {
-                SixLabors.ImageSharp.ImageExtensions.SaveAsPng(img, path);
-            }
-            StatusTextBlock.Text = $"saved {path}";
+            var suggested =
+                $"SenderNG_{DateTime.Now:yyyyMMdd_HHmmss_fff}_{_shotW}x{_shotH}.png";
+            var path = await _fileDialogs.SaveFileAsync("Save screenshot (PNG)", suggested, "PNG image|*.png");
+            if (path is null)
+                return;
+            using var img = SixLabors.ImageSharp.Image.LoadPixelData<SixLabors.ImageSharp.PixelFormats.Rgba32>(
+                rgba, _shotW, _shotH);
+            SixLabors.ImageSharp.ImageExtensions.SaveAsPng(img, path);
         }
         catch (Exception ex)
         {
-            StatusTextBlock.Text = $"save failed: {ex.Message}";
-            PoolDiagnostics.LogLine($"[screenshot] {ex.GetType().Name}: {ex.Message}");
+            await _fileDialogs.ShowErrorAsync("Save screenshot", $"Save failed: {ex.Message}");
         }
     }
 
