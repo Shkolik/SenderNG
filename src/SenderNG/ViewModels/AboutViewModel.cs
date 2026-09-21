@@ -48,4 +48,7 @@ public sealed record ModuleInfoItem(
 {
     /// <summary>Whether the plugin declared dependencies (drives expander visibility).</summary>
     public bool HasDependencies { get; } = Dependencies is { Count: > 0 };
+
+    /// <summary>Card line 2: "Author · License".</summary>
+    public string AuthorLicense { get; } = $"{Author} · {License}";
 }

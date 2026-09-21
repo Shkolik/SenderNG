@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:SenderNG.ViewModels"
         xmlns:loc="clr-namespace:SenderNG.Localization"
+        xmlns:core="clr-namespace:SenderNG.Core.Modules;assembly=SenderNG.Core"
         mc:Ignorable="d" d:DesignWidth="540" d:DesignHeight="600"
         x:Class="SenderNG.Views.AboutView"
         x:DataType="vm:AboutViewModel"
@@ -85,10 +86,22 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ModuleInfoItem">
                             <StackPanel Spacing="1" Margin="0,4">
-                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding Version}" FontSize="11" Foreground="#666" />
-                                <TextBlock Text="{Binding Author}" FontSize="11" Foreground="#666" />
-                                <TextBlock Text="{Binding License}" FontSize="11" Foreground="#666" />
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Version}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding AuthorLicense}" FontSize="11" Foreground="#666" TextWrapping="Wrap" />
+                                <Expander Header="{loc:Loc about.tab.modules.dependencies}"
+                                          IsVisible="{Binding HasDependencies}" HorizontalAlignment="Left">
+                                    <ListBox ItemsSource="{Binding Dependencies}" BorderThickness="0"
+                                             Background="Transparent">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="core:PluginDependency">
+                                                <TextBlock Text="{Binding OneLine}" FontSize="11" Foreground="#666" />
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Expander>
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>

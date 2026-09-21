@@ -37,9 +37,11 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Microsoft.Extensions.DependencyInjection;
+using SenderNG.Core.Localization;
+using SenderNG.Core.Modules;
 using SenderNG.ViewModels;
 using SenderNG.Views;
-using SenderNG.Core.Localization;
 using Xunit;
 
 namespace SenderNG.Tests;
@@ -80,5 +82,52 @@ public class AboutDialogHeadlessTests
         Dispatcher.UIThread.RunJobs();
         AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
         await Task.Yield();
+    }
+
+    [AvaloniaFact]
+    public async Task Modules_tab_renders_two_lines_and_dependency_peek()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = HeadlessTestCatalog.Locale;
+            var vm = new AboutViewModel(new IModule[] { new TestPlugin() });
+            var window = new AboutView { DataContext = vm };
+            window.Show();
+            for (var i = 0; i < 4; i++) await Pump();
+
+            var tabControl = window.GetVisualDescendants().OfType<TabControl>().First();
+            var modulesTab = (TabItem)tabControl.Items![2]!;
+            modulesTab.IsSelected = true;
+            for (var i = 0; i < 4; i++) await Pump();
+
+            var card = tabControl.GetVisualDescendants().OfType<StackPanel>().FirstOrDefault();
+            Assert.NotNull(card);
+            var expander = tabControl.GetVisualDescendants().OfType<Expander>().FirstOrDefault();
+            Assert.NotNull(expander);
+            Assert.False(expander!.IsExpanded);
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    private sealed class TestPlugin : IModule, IPluginInfo, IPluginDependencies
+    {
+        public string Id => "test";
+        public string Name => "Test Plugin";
+        public string Description => string.Empty;
+        public int Order => 1;
+        public IReadOnlyList<HotKey> HotKeys { get; } = [];
+        public void RegisterServices(IServiceCollection services) { }
+        public object CreateViewModel(IServiceProvider _) => new object();
+        public object CreateView(object _) => new object();
+        public string Version => "1.0.0";
+        public string Author => "Author";
+        public string License => "MIT";
+        public IReadOnlyList<PluginDependency> Dependencies { get; } =
+            [new PluginDependency("Avalonia", "12.0.0", "MIT")];
     }
 }

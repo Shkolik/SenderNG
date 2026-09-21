@@ -67,4 +67,12 @@ public class AboutDialogModelTests
         var lib = new ThirdPartyLibrary("Foo", "1.0");
         Assert.Equal("Foo v.1.0", lib.OneLine);
     }
+
+    [Fact]
+    public void ModuleInfoItem_AuthorLicense_combines_author_and_license()
+    {
+        var item = new ModuleInfoItem("HPGL", "1.0.0", "Andrew Shkolik", "BSD-3-Clause",
+            [new PluginDependency("Avalonia", "12.0.0", "MIT")]);
+        Assert.Equal("Andrew Shkolik · BSD-3-Clause", item.AuthorLicense);
+    }
 }
