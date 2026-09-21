@@ -104,6 +104,7 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IModuleS
             ["module.plotter-nex.settings.antiAliasing"] = "Rendering / Anti-aliasing",
             ["module.plotter-nex.settings.aaMode"] = "Mode",
             ["module.plotter-nex.settings.aaQuality"] = "Quality",
+            ["module.plotter-nex.settings.supersample"] = "2x supersample (AA at 2x render)",
         };
 
     public void RegisterServices(IServiceCollection services)

@@ -75,7 +75,6 @@ public class PlotSceneAbstractionTests
         scene.ZoomAround(new Vector2(0.5f), 1.2);
         scene.AddAxisArrows([(new Vector3(1, 0, 0), "X"), (new Vector3(0, 1, 0), "Y")]);
         scene.SetGrid(new BoundingBox(0, 0, 0, 10, 10, 0), 1, 5);
-        scene.SetOrigin(Vector3.Zero);
         scene.SetWorkEnvelope(new BoundingBox(0, 0, 0, 100, 100, 50));
         scene.SetJobEnvelope(new BoundingBox(0, 0, 0, 50, 50, 25));
         var carriage = scene.AddCarriagePlane();

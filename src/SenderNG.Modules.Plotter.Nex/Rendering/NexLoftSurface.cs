@@ -100,7 +100,7 @@ public sealed class NexLoftSurface : ILoftSurface
         // content arrives via Pump() as a fresh static geometry.
         _staging = new Geometry(Topology.Line, isDynamic: true);
         _node = root.World.CreateLineNode("loft-surface");
-        _node.LineThickness = 0.9f;
+        _node.LineThickness = 2.0f;
         _node.LineColor = Color4.White;
         root.AddChild(_node);
     }

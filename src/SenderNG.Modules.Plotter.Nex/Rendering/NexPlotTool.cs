@@ -96,7 +96,7 @@ public sealed class NexPlotTool : IPlotTool
             isDynamic: false);
         _engine.Add(_wireGeometry);
         _segmentNode = root.World.CreateLineNode("tool-wire");
-        _segmentNode.LineThickness = 1.4f;
+        _segmentNode.LineThickness = 2.0f;
         _segmentNode.LineColor = Color4.White;
         _segmentNode.Geometry = _wireGeometry;
         root.AddChild(_segmentNode);

@@ -59,6 +59,11 @@ public sealed class PlotterNexSettings
     /// 2=High, 3=Ultra. Default High = current behavior.</summary>
     public int AaQuality { get; set; } = 2;
 
+    /// <summary>Render the readback target at 2x panel size and let the control
+    /// downsample on display, giving hairline lines a 2px SMAA footprint. Default
+    /// ON; disable on weaker machines (4x the raster + readback cost).</summary>
+    public bool Supersample { get; set; } = true;
+
     /// <summary>Ordered per-machine plane; <c>WorldAxes[s]</c> = world axis index
     /// (0=X, 1=Y, 2=Z) for the plane's slot <c>s</c> (distinct); <c>Origin</c> =
     /// world position of the plane's origin. Length must equal the schema plane's

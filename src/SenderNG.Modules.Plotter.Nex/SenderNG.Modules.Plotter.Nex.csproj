@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -15,6 +15,9 @@
     <!-- Pinned to the host app's resolved version (floating 12.* caused a
          framework mismatch TypeLoadException crash in the Skia plotter). -->
     <PackageReference Include="Avalonia" Version="12.0.0" />
+    <!-- PNG screenshot export for the 3D view's save-frame button. Pinned to the
+         version already in the Nex closure so nearest-wins keeps a single copy. -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     <!-- Nex: 1.3.0-alpha.41 from the github/helix-toolkit GitHub Packages feed
          (user-level NuGet.Config), not NuGet.org. The Avalonia metapackage is
          deliberately NOT referenced: this module uses ZERO types from
@@ -29,7 +32,7 @@
     <!-- The Nex package set pulls Microsoft.Extensions.* 10.x transitively
          (HelixToolkit.Nex -> Microsoft.Extensions.Logging). The host app + Core
          are kept on the same 10.x line so the plugin's IServiceCollection
-         contracts unify with the host container â€” see SenderNG / SenderNG.Core.
+         contracts unify with the host container — see SenderNG / SenderNG.Core.
          (Note: a DI 8.x pin does NOT work here: nearest-wins keeps DI.Abstractions
          on 10.x via Microsoft.Extensions.Logging.Abstractions, so the module
          still binds 10.0.0.0 and the host must match it.) -->

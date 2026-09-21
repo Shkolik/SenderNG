@@ -80,6 +80,7 @@ public sealed class PlotterNexSettingsViewModel : CNC.Core.ViewModelBase
         OnPropertyChanged(nameof(AntiAliasingLabel));
         OnPropertyChanged(nameof(AaModeLabel));
         OnPropertyChanged(nameof(AaQualityLabel));
+        OnPropertyChanged(nameof(SupersampleLabel));
     }
 
     /// <summary>True when the machine has more than one plane (wire length applies).</summary>
@@ -176,6 +177,20 @@ public sealed class PlotterNexSettingsViewModel : CNC.Core.ViewModelBase
         }
     }
 
+    /// <summary>Render the view at 2x panel resolution (hairline AA). Runtime —
+    /// the next tick re-sizes the render target. Default ON.</summary>
+    public bool Supersample
+    {
+        get => _settings.Supersample;
+        set
+        {
+            if (_settings.Supersample == value) return;
+            _settings.Supersample = value;
+            Save();
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>Localized "View" section heading.</summary>
     public string ViewLabel => Resolve("module.plotter-nex.settings.view", "View");
 
@@ -199,6 +214,9 @@ public sealed class PlotterNexSettingsViewModel : CNC.Core.ViewModelBase
 
     /// <summary>Localized "Quality" label for the AA quality combo.</summary>
     public string AaQualityLabel => Resolve("module.plotter-nex.settings.aaQuality", "Quality");
+
+    /// <summary>Localized "2x supersample" label for the render-quality toggle.</summary>
+    public string SupersampleLabel => Resolve("module.plotter-nex.settings.supersample", "2x supersample (AA at 2x render)");
 
     /// <summary>AA method combo items (0=Off, 1=SMAA, 2=FXAA).</summary>
     public string[] AaModeChoices => ["Off", "SMAA", "FXAA"];

@@ -103,6 +103,18 @@ public partial class PlotterNexView : UserControl
     private DispatcherTimer? _tick;
     private uint _wPx;
     private uint _hPx;
+    // Render-target size (panel × supersample factor). Decoupled from the
+    // navigation _wPx/_hPx above: cursor/navigation math stays in on-screen
+    // (panel) px while the engine renders at supersample resolution.
+    private uint _rtW;
+    private uint _rtH;
+
+    // Latest downloaded frame, kept so the "save screenshot" button can export
+    // the currently displayed view at its native readback size (always identical
+    // between captures). RGBA, _shotLen = _shotW * _shotH * 4.
+    private byte[]? _shotRgba;
+    private int _shotW;
+    private int _shotH;
 
     private int _readbackTicks;
     private int _windowFrames;
@@ -213,7 +225,8 @@ public partial class PlotterNexView : UserControl
             && e.PropertyName is not nameof(PlotterNexSettingsViewModel.ShowRunState)
             && e.PropertyName is not nameof(PlotterNexSettingsViewModel.ShowGrid)
             && e.PropertyName is not nameof(PlotterNexSettingsViewModel.AaMode)
-            && e.PropertyName is not nameof(PlotterNexSettingsViewModel.AaQuality))
+            && e.PropertyName is not nameof(PlotterNexSettingsViewModel.AaQuality)
+            && e.PropertyName is not nameof(PlotterNexSettingsViewModel.Supersample))
         {
             return;
         }
@@ -429,24 +442,30 @@ public partial class PlotterNexView : UserControl
             SetDiag($"skip: img {bounds.Width:0.#}x{bounds.Height:0.#} client {client.Width:0.#}x{client.Height:0.#} scl {scale:0.##}");
             return;
         }
-        var w = (uint)Math.Max(1, Math.Round(wDip * scale));
-        var h = (uint)Math.Max(1, Math.Round(hDip * scale));
-        scene.SetViewportSize((int)w, (int)h);
+        var pw = (uint)Math.Max(1, Math.Round(wDip * scale));
+        var ph = (uint)Math.Max(1, Math.Round(hDip * scale));
+        var r = RenderSizing.Resolve(pw, ph, _overlayToggles?.Supersample ?? true);
+        // Navigation viewport stays in on-screen (panel) px: cursor px and the
+        // pivot/pan/zoom NDC all divide by these, so they must equal what the
+        // user points at, not the supersampled render target.
+        scene.SetViewportSize((int)r.PanelW, (int)r.PanelH);
         UpdateZoomLabel(scene);
         if (_readback is null)
         {
             try
             {
-                _readback = new NexGpuReadback(scene.Context, w, h);
-                _wPx = w;
-                _hPx = h;
+                _readback = new NexGpuReadback(scene.Context, r.RtW, r.RtH);
+                _wPx = r.PanelW;
+                _hPx = r.PanelH;
+                _rtW = r.RtW;
+                _rtH = r.RtH;
                 _bitmap = new WriteableBitmap(
-                    new PixelSize((int)w, (int)h),
+                    new PixelSize((int)r.RtW, (int)r.RtH),
                     new Vector(96, 96),
                     PixelFormats.Rgba8888,
                     AlphaFormat.Opaque);
                 GpuImage.Source = _bitmap;
-                CtxText.Text = $"ctx {w}x{h}";
+                CtxText.Text = $"ctx {r.RtW}x{r.RtH}";
             }
             catch (Exception ex)
             {
@@ -456,20 +475,22 @@ public partial class PlotterNexView : UserControl
                 return;
             }
         }
-        else if (w != _wPx || h != _hPx)
+        else if (r.RtW != _rtW || r.RtH != _rtH)
         {
             try
             {
-                _readback.Resize(w, h);
-                _wPx = w;
-                _hPx = h;
+                _readback.Resize(r.RtW, r.RtH);
+                _wPx = r.PanelW;
+                _hPx = r.PanelH;
+                _rtW = r.RtW;
+                _rtH = r.RtH;
                 _bitmap = new WriteableBitmap(
-                    new PixelSize((int)w, (int)h),
+                    new PixelSize((int)r.RtW, (int)r.RtH),
                     new Vector(96, 96),
                     PixelFormats.Rgba8888,
                     AlphaFormat.Opaque);
                 GpuImage.Source = _bitmap;
-                CtxText.Text = $"ctx {w}x{h}";
+                CtxText.Text = $"ctx {r.RtW}x{r.RtH}";
             }
             catch (Exception ex)
             {
@@ -491,7 +512,7 @@ public partial class PlotterNexView : UserControl
         try
         {
             var cam = scene.UpdateViewport(rc, FixedDeltaTime);
-            rc.Update(new HelixToolkit.Nex.Maths.Size((int)w, (int)h), cam);
+            rc.Update(new HelixToolkit.Nex.Maths.Size((int)r.RtW, (int)r.RtH), cam);
             if (_probeCounter % 60 == 1)
             {
                 PoolDiagnostics.LogLine(
@@ -573,18 +594,29 @@ public partial class PlotterNexView : UserControl
             using var fb = _bitmap.Lock();
             if (!pipeline.CopyFrame(fb.Address, fb.RowBytes))
                 return;
+            // Keep a copy of the displayed frame so the screenshot button can
+            // export the current view (native readback size, stable across
+            // captures) without re-rendering.
+            var shotLen = checked((int)r.RtW * (int)r.RtH * 4);
+            if (_shotRgba == null || _shotRgba.Length != shotLen)
+            {
+                _shotRgba = new byte[shotLen];
+                _shotW = (int)r.RtW;
+                _shotH = (int)r.RtH;
+            }
+            System.Runtime.InteropServices.Marshal.Copy(fb.Address, _shotRgba, 0, shotLen);
             // DIAGNOSTIC: probe the downloaded frame every 30th tick and export
             // to pool_diag.log so we can tell whether the Vulkan render actually
             // reaches the CPU readback.
             _probeCounter++;
             if (_probeCounter % 30 == 1)
             {
-                var probe = ProbeFrame(fb.Address, fb.RowBytes, (int)w, (int)h);
+                var probe = ProbeFrame(fb.Address, fb.RowBytes, (int)r.RtW, (int)r.RtH);
                 _lastProbe = probe;
-                PoolDiagnostics.LogLine($"[T{_readbackTicks}.probe] max={probe} nonbg={CountNonBackground(fb.Address, fb.RowBytes, (int)w, (int)h)} counter={_probeCounter}");
+                PoolDiagnostics.LogLine($"[T{_readbackTicks}.probe] max={probe} nonbg={CountNonBackground(fb.Address, fb.RowBytes, (int)r.RtW, (int)r.RtH)} counter={_probeCounter}");
                 if (_probeCounter % 60 == 1)
                 {
-                    PoolDiagnostics.LogLine(DumpFrameGrid(fb.Address, fb.RowBytes, (int)w, (int)h));
+                    PoolDiagnostics.LogLine(DumpFrameGrid(fb.Address, fb.RowBytes, (int)r.RtW, (int)r.RtH));
                 }
             }
             /*
@@ -1107,6 +1139,43 @@ public partial class PlotterNexView : UserControl
     }
 
     private void OnReframe(object? sender, RoutedEventArgs e) => _scene?.Reframe();
+
+    /// <summary>Dumps the currently displayed 3D view (the latest readback frame
+    /// at its native size, so every capture is pixel-aligned) to a timestamped
+    /// PNG under LocalApplicationData\SenderNG\screenshots. Works for the SMAA
+    /// debug views too (they swap the frame contents, not the size).</summary>
+    private void OnSaveScreenshot(object? sender, RoutedEventArgs e)
+    {
+        var rgba = _shotRgba;
+        if (rgba is null || _shotW <= 0 || _shotH <= 0)
+        {
+            StatusTextBlock.Text = "no frame to save yet";
+            return;
+        }
+        try
+        {
+            var dir = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "SenderNG", "screenshots");
+            System.IO.Directory.CreateDirectory(dir);
+            var aa = _overlayToggles;
+            
+            var path = System.IO.Path.Combine(
+                dir,
+                $"SenderNG_{DateTime.Now:yyyyMMdd_HHmmss_fff}_{_shotW}x{_shotH}.png");
+            using (var img = SixLabors.ImageSharp.Image.LoadPixelData<SixLabors.ImageSharp.PixelFormats.Rgba32>(
+                       rgba, _shotW, _shotH))
+            {
+                SixLabors.ImageSharp.ImageExtensions.SaveAsPng(img, path);
+            }
+            StatusTextBlock.Text = $"saved {path}";
+        }
+        catch (Exception ex)
+        {
+            StatusTextBlock.Text = $"save failed: {ex.Message}";
+            PoolDiagnostics.LogLine($"[screenshot] {ex.GetType().Name}: {ex.Message}");
+        }
+    }
 
     private void Snap(ViewPreset preset)
     {

@@ -82,8 +82,8 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
     private static readonly Color4 InFlightColor = new(0.878f, 0.588f, 0.125f, 1f);
     private static readonly Color4 ErrorColor = new(0.75f, 0.19f, 0.19f, 1f);
 
-    internal const float BaseLineThickness = 1.6f;
-    internal const float ExecutedLineThickness = 2.4f;
+    internal const float BaseLineThickness = 3.2f;
+    internal const float ExecutedLineThickness = 3.2f;
 
     internal static bool IsExecuted(RunState state) => state == RunState.Executed;
 
@@ -365,7 +365,9 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
     /// writer growing a source between Count and CopyTo overruns the freshly
     /// sized destination ("Destination array was not long enough"). Fixed arrays
     /// cannot grow mid-copy; the element-read snapshot is race-benign (worst
-    /// case a torn tail, padded below to keep colors ≥ vertices).</summary>
+    /// case a torn tail, adjusted below so colors exactly match vertices — the
+    /// engine ctor Debug.Fails otherwise, and the renderer only ever reads as
+    /// many colors as there are vertices anyway).</summary>
     internal static Geometry BuildStatic(Geometry staging)
     {
         var vertices = Snapshot(staging.Vertices);
@@ -373,6 +375,8 @@ public sealed class NexCarriagePlaneLayer : ICarriagePlaneLayer
         var n = vertices.Length;
         if (n == 0)
             return new Geometry(Topology.Line, isDynamic: false);
+        if (colors.Length > n)
+            colors = colors.AsSpan(0, n).ToArray();
         var indices = new uint[n];
         for (var i = 0; i < n; i++)
             indices[i] = (uint)i;

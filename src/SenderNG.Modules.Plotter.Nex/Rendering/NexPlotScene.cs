@@ -72,7 +72,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     // Opaque chrome colors (no alpha — premultiply handling is unverified).
     private static readonly Color4 GridMinorColor = new(0.82f, 0.82f, 0.82f, 1f);
     private static readonly Color4 GridMajorColor = new(0.62f, 0.62f, 0.62f, 1f);
-    private static readonly Color4 OriginColor = new(0.53f, 0.53f, 0.53f, 1f);
     private static readonly Color4 JobEnvelopeColor = new(0f, 0.7f, 0.9f, 1f);
     private static readonly Color4 OrbitPivotColor = new(1f, 0.66f, 0.1f, 1f);
 
@@ -93,8 +92,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private readonly LineNode _gridNode;
     private readonly Geometry _axesGeometry;
     private readonly LineNode _axesNode;
-    private readonly Geometry _originGeometry;
-    private readonly LineNode _originNode;
     private readonly Geometry _jobGeometry;
     private readonly LineNode _jobNode;
 
@@ -209,10 +206,9 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         _activeCamera = _perspectiveCamera;
 
         _client = new SceneClient(_worldData, () => _activeCamera);
-        _gridNode = AddChromeNode("grid", 0.6f, out _gridGeometry);
+        _gridNode = AddChromeNode("grid", 1.6f, out _gridGeometry);
         _axesNode = AddChromeNode("axis-arrows", 3.6f, out _axesGeometry);
-        _originNode = AddChromeNode("origin", 1.6f, out _originGeometry);
-        _jobNode = AddChromeNode("job-envelope", 1.2f, out _jobGeometry);
+        _jobNode = AddChromeNode("job-envelope", 1.6f, out _jobGeometry);
 
         _axisConeGeometry = ConeMesh.Build();
         _engine.Add(_axisConeGeometry);
@@ -381,31 +377,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     }
 
     /// <inheritdoc/>
-    public void SetOrigin(Vector3 origin)
-    {
-        var g = _originGeometry;
-        g.Vertices.Clear();
-        g.VertexColors.Clear();
-        var tick = OriginTickLength();
-        var c = OriginColor.ToVector4();
-
-        void Seg(Vector3 a, Vector3 b)
-        {
-            g.Vertices.Add(new Vector4(a, 1f));
-            g.Vertices.Add(new Vector4(b, 1f));
-            g.VertexColors.Add(c);
-            g.VertexColors.Add(c);
-        }
-
-        Seg(origin - Vector3.UnitX * tick, origin + Vector3.UnitX * tick);
-        Seg(origin - Vector3.UnitY * tick, origin + Vector3.UnitY * tick);
-        Seg(origin - Vector3.UnitZ * tick, origin + Vector3.UnitZ * tick);
-        g.MarkDirty(GeometryBufferType.Vertex | GeometryBufferType.VertexColor);
-        // Re-set the geometry reference so the draw stream refreshes its LineCount.
-        _originNode.Geometry = g;
-    }
-
-    /// <inheritdoc/>
     /// <remarks>The work envelope was merged into the job envelope (one combined
     /// chrome box driven by the single envelope toggle), so this retained member
     /// of <see cref="IPlotScene"/> forwards to <see cref="SetJobEnvelope"/>. No
@@ -425,7 +396,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// show-toggles (Tasks 1-2 merged as <see cref="PlotterNexSettings"/>).</param>
     public void SetView(PlotterNexSettings v)
     {
-        SetOriginVisible(v.ShowOrigin);
+        SetAxesVisible(v.ShowOrigin);
         SetEnvelopeVisible(v.ShowEnvelope);
         SetGridVisible(v.ShowGrid);
         SetRunStateVisible(v.ShowRunState);
@@ -446,10 +417,15 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         if (mode is 2) _fxaaNode!.Quality = (FxaaQuality)clamped;
     }
 
-    private void SetOriginVisible(bool visible)
+    private void SetAxesVisible(bool visible)
     {
-        _originNode.Enabled = visible;
-        ParkOrShow(_originNode, visible);
+        _axesNode.Enabled = visible;
+        ParkOrShow(_axesNode, visible);
+        //foreach (var cone in _axisConeNodes)
+        //{
+        //    cone.Enabled = visible;
+        //    ParkOrShow(cone, visible);
+        //}
     }
 
     private void SetEnvelopeVisible(bool visible)
@@ -477,7 +453,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// day the frustum-cull node returns) but the working runtime mechanism is
     /// the parked transform — the engine's line path submits disabled nodes
     /// while the scene runs with DiagnosticDisableCulling.</summary>
-    private static void ParkOrShow(LineNode node, bool visible)
+    private static void ParkOrShow(Node node, bool visible)
     {
         node.Transform.Translation = visible ? Vector3.Zero : ChromeParkedPosition;
         node.NotifyTransformChanged();
@@ -701,7 +677,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         _orbitSphereNode.Dispose();
         _orbitSphereMaterial.Dispose();
         _orbitSphereGeometry.Dispose();
-        _originNode.Dispose();
         _jobNode.Dispose();
         _root.Dispose();
         _worldData.Dispose();
@@ -781,12 +756,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     {
         var (_, radius, _) = ContentMetrics();
         return Math.Clamp(radius * 0.12f, 4f, 60f);
-    }
-
-    private float OriginTickLength()
-    {
-        var (_, radius, _) = ContentMetrics();
-        return Math.Clamp(radius * 0.05f, 1f, 10f);
     }
 
     private static bool IsOnStep(float value, double step)
@@ -997,7 +966,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         sb.Append("chrome[ ");
         NodeInfo(_gridNode);
         NodeInfo(_axesNode);
-        NodeInfo(_originNode);
         NodeInfo(_jobNode);
         sb.Append("] content[ ");
         foreach (var n in _contentNodes)
@@ -1045,8 +1013,11 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     {
         EnsureChromeUpToDate();
         _orbitCameraParams = renderContext.CameraParams;
-        _orbitViewportWpx = renderContext.WindowSize.Width;
-        _orbitViewportHpx = renderContext.WindowSize.Height;
+        // The orbit pivot unprojects the ON-SCREEN cursor px (0..panel), so the
+        // viewport must be the panel size the module feeds SetViewportSize, NOT
+        // the supersampled render context size (renderContext.WindowSize = RT px).
+        _orbitViewportWpx = (int)_viewportWpx;
+        _orbitViewportHpx = (int)_viewportHpx;
         _orbitDpiScale = renderContext.DpiScale;
         _hasOrbitCameraParams = true;
         return _client.Update(renderContext, deltaTime);
@@ -1130,7 +1101,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             (Vector3.Zero, "Y"),
             (Vector3.Zero, "Z"),
         ]);
-        SetOrigin(Vector3.Zero);
         SetJobEnvelope(box);
     }
 
@@ -1146,7 +1116,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             (Vector3.Zero, "Y"),
             (Vector3.Zero, "Z"),
         ]);
-        SetOrigin(Vector3.Zero);
         ClearNode(_jobGeometry, _jobNode);
     }
 

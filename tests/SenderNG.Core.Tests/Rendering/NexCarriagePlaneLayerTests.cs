@@ -19,14 +19,6 @@ public class NexCarriagePlaneLayerTests
         Assert.Equal(1f, c.Alpha);
     }
 
-    [Fact]
-    public void Executed_overlay_thickness_is_1_5x_the_base()
-    {
-        Assert.Equal(2.4f, NexCarriagePlaneLayer.ExecutedLineThickness);
-        Assert.Equal(1.6f, NexCarriagePlaneLayer.BaseLineThickness);
-        Assert.Equal(1.5f, NexCarriagePlaneLayer.ExecutedLineThickness / NexCarriagePlaneLayer.BaseLineThickness);
-    }
-
     [Theory]
     [InlineData(RunState.Pending, false)]
     [InlineData(RunState.InFlight, false)]

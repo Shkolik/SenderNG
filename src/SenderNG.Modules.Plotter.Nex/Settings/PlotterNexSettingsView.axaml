@@ -71,7 +71,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <ComboBox ItemsSource="{Binding AaQualityChoices}" SelectedIndex="{Binding AaQuality}"
                               Width="110" Height="28" MinHeight="28" CornerRadius="0" />
                 </StackPanel>
-				</Grid>
+</Grid>
+			<CheckBox Content="{Binding SupersampleLabel}" IsChecked="{Binding Supersample, Mode=TwoWay}" FontSize="11" Margin="0,-2,0,4" />
         </StackPanel>
         <Rectangle Height="1" Fill="#ddd" />
         <ItemsControl ItemsSource="{Binding PlaneRows}">
