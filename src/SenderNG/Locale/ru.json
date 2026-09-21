@@ -542,6 +542,7 @@
     "about.tab.about": "О программе",
     "about.tab.libraries": "Библиотеки",
     "about.tab.modules": "Модули",
+    "about.tab.modules.dependencies": "Зависимости",
     "about.name": "SenderNG",
     "about.version": "Версия: {0}",
     "about.copyright": "Copyright (c) 2024-2026 Shkolik · 2019-2023 Io Engineering",

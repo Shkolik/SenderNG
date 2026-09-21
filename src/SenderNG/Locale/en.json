@@ -453,6 +453,7 @@
     "about.tab.about": "About",
     "about.tab.libraries": "Libraries",
     "about.tab.modules": "Modules",
+    "about.tab.modules.dependencies": "Dependencies",
     "about.name": "SenderNG",
     "about.version": "Version: {0}",
     "about.copyright": "Copyright (c) 2024-2026 Shkolik · 2019-2023 Io Engineering",
