@@ -1,5 +1,6 @@
 /*
- * NexPlotSceneAxisConeTests.cs - pure axis-cone placement math and shaft staging
+ * NexPlotSceneAxisConeTests.cs - axis-cone placement math, shaft staging, and
+ * the one-toggled axis-assembly visibility roundtrip.
  */
 
 /*
@@ -39,6 +40,7 @@ using HelixToolkit.Nex.Geometries;
 using HelixToolkit.Nex.Graphics;
 using HelixToolkit.Nex.Maths;
 using SenderNG.Modules.Plotter.Nex.Rendering;
+using SenderNG.Modules.Plotter.Nex.Settings;
 
 namespace SenderNG.Core.Tests;
 
@@ -142,5 +144,22 @@ public class NexPlotSceneAxisConeTests
         var shaftEnd = anchor + direction * (len - NexPlotScene.AxisConeHeight(len));
 
         Assert.Equal(shaftEnd, coneBase);
+    }
+
+    [Fact]
+    public void Axes_toggle_hides_and_reshows_the_axis_assembly()
+    {
+        using var scene = new NexPlotScene();
+        scene.AddAxisArrows([
+            (Vector3.Zero, "X"),
+            (Vector3.Zero, "Y"),
+            (Vector3.Zero, "Z"),
+        ]);
+
+        scene.SetView(new PlotterNexSettings { ShowOrigin = false });
+        Assert.Contains("axis-arrows(en=False", scene.DumpContent());
+
+        scene.SetView(new PlotterNexSettings { ShowOrigin = true });
+        Assert.Contains("axis-arrows(en=True", scene.DumpContent());
     }
 }

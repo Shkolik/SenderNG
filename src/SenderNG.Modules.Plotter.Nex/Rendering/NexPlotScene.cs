@@ -95,6 +95,8 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private readonly Geometry _jobGeometry;
     private readonly LineNode _jobNode;
 
+    private readonly Node _axisNode;
+
     private readonly Geometry _axisConeGeometry;
     private readonly MeshNode[] _axisConeNodes;
     private readonly PBRMaterialProperties[] _axisConeMaterials;
@@ -184,6 +186,8 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         _worldData.Initialize();
 
         _root = _worldData.World.CreateNode("PlotScene");
+        _axisNode = _root.World.CreateNode("axis-assembly");
+        _root.AddChild(_axisNode);
 
         _orthoCamera = new OrthographicCamera
         {
@@ -206,9 +210,9 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         _activeCamera = _perspectiveCamera;
 
         _client = new SceneClient(_worldData, () => _activeCamera);
-        _gridNode = AddChromeNode("grid", 1.6f, out _gridGeometry);
-        _axesNode = AddChromeNode("axis-arrows", 3.6f, out _axesGeometry);
-        _jobNode = AddChromeNode("job-envelope", 1.6f, out _jobGeometry);
+        _gridNode = AddChromeNode("grid", 1.6f, _root, out _gridGeometry);
+        _axesNode = AddChromeNode("axis-arrows", 3.6f, _axisNode, out _axesGeometry);
+        _jobNode = AddChromeNode("job-envelope", 1.6f, _root, out _jobGeometry);
 
         _axisConeGeometry = ConeMesh.Build();
         _engine.Add(_axisConeGeometry);
@@ -225,7 +229,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
             node.MaterialProperties = material;
             node.IsTransparent = false;
             node.Enabled = false;
-            _root.AddChild(node);
+            _axisNode.AddChild(node);
             _axisConeNodes[i] = node;
         }
 
@@ -419,13 +423,8 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
 
     private void SetAxesVisible(bool visible)
     {
-        _axesNode.Enabled = visible;
-        ParkOrShow(_axesNode, visible);
-        //foreach (var cone in _axisConeNodes)
-        //{
-        //    cone.Enabled = visible;
-        //    ParkOrShow(cone, visible);
-        //}
+        _axisNode.Enabled = visible;
+        ParkOrShow(_axisNode, visible);
     }
 
     private void SetEnvelopeVisible(bool visible)
@@ -678,6 +677,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         _orbitSphereMaterial.Dispose();
         _orbitSphereGeometry.Dispose();
         _jobNode.Dispose();
+        _axisNode.Dispose();
         _root.Dispose();
         _worldData.Dispose();
         _engine.Teardown();
@@ -708,7 +708,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         _buildComplete = false;
     }
 
-    private LineNode AddChromeNode(string name, float thickness, out Geometry geometry)
+    private LineNode AddChromeNode(string name, float thickness, Node parent, out Geometry geometry)
     {
         geometry = new Geometry(Topology.Line, isDynamic: true);
         // Register the geometry with the engine so Geometry.Valid becomes true;
@@ -719,7 +719,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         node.Geometry = geometry;
         node.LineThickness = thickness;
         node.LineColor = Color4.White;
-        _root.AddChild(node);
+        parent.AddChild(node);
         return node;
     }
 
