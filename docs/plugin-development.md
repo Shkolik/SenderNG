@@ -115,6 +115,22 @@ not validate licenses, does not rate-limit dialogs, does not sandbox. A
 plugin that nags the user with an always-ask dialog is the author's choice;
 deciding whether to keep that plugin is the user's.
 
+A module can also declare the third-party libraries it depends on, shown on
+the About → Modules tab as an expandable "Dependencies" section under the
+plugin card — useful for users assessing license terms. This is a second
+optional interface (same opt-in, never-validated rule as `IPluginInfo`):
+
+```csharp
+public interface IPluginDependencies
+{
+    IReadOnlyList<PluginDependency> Dependencies { get; }   // "Avalonia 12.0.0 (MIT)"
+}
+```
+
+`PluginDependency` is a record `(Name, Version, License)`; the host renders
+each as `Name v.Version · License`. A module implements it alongside
+`IModule`; the host surfaces the list only when the plugin opts in.
+
 ### 3.3 Capability interfaces (optional)
 
 | Interface | Purpose |
@@ -123,6 +139,7 @@ deciding whether to keep that plugin is the user's.
 | `ILocalizedModule` | Own locale catalog (`Modules/<id>/Locale/*.json`), keys namespaced `module.<id>.*`, English fallback in `LocalizationKeys`. |
 | `IGCodeFileHandler` | Converter plugin: claims file extensions, converts text → g-code through the Open flow. The only interface the app dispatches on. |
 | `IPluginInfo` | Identity metadata — optional (see 3.2). |
+| `IPluginDependencies` | Declared third-party dependency list (About → Modules tab) — optional. |
 
 ### 3.4 Error surfacing — owned by Core
 
@@ -382,6 +399,7 @@ Test the module class directly — no host needed.
 | Dialog hosting | `IViewFactory`, `IDialogService` | SenderNG.Core | implemented |
 | Discovery | `ModuleCatalog.ScanDirectory` | SenderNG.Core | implemented |
 | Plugin metadata | `IPluginInfo` { Version, Author, License } — optional, About screen | SenderNG.Core + host | implemented |
+| Plugin dependencies | `IPluginDependencies` { Dependencies } — optional, About screen | SenderNG.Core + host | implemented |
 | Error surfacing | `IErrorReporter` — `Error(text)` → dialog, `Status(text)` → statusbar; bound per module | SenderNG.Core + host | implemented |
 | `Id` collision policy | first wins among scan peers (scan order, loser rejected silently); built-ins register before the scan, ungated | `ModuleCatalog` | implemented |
 
