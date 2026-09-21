@@ -39,7 +39,7 @@ namespace ReleaseManager.Tests;
 
 public sealed class FakeCli : ICli
 {
-    public string AppPublishDir { get; set; }
+    public string? AppPublishDir { get; set; }
     public string AppVersion { get; set; } = "0.1.0";
     public Dictionary<string, string> PluginVersions { get; } = [];
     public int TestCalls { get; private set; }
