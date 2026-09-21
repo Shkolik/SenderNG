@@ -60,7 +60,7 @@ namespace SenderNG.Modules.Plotter.Nex;
 /// services. No app-assembly type is referenced, so the plugin stays swappable.
 /// </para>
 /// </summary>
-public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IModuleSettingsProvider
+public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IPluginDependencies, IModuleSettingsProvider
 {
     private IServiceProvider? _services;
     private PlotterNexSettingsViewModel? _sharedSettingsVm;
@@ -85,6 +85,15 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IModuleS
     public string Version => "0.1.0";
     public string Author => "Andrew Shkolik";
     public string License => "BSD-3-Clause";
+
+    public IReadOnlyList<PluginDependency> Dependencies { get; } =
+    [
+        new("Avalonia", "12.0.0", "MIT"),
+        new("SixLabors.ImageSharp", "3.1.12", "Six Labors Split License"),
+        new("HelixToolkit.Nex.Engine", "1.3.0-alpha.41", "MIT"),
+        new("HelixToolkit.Nex.Graphics.Vulkan", "1.3.0-alpha.41", "MIT"),
+        new("HelixToolkit.Nex.Interop", "1.3.0-alpha.41", "MIT"),
+    ];
 
     public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
         new Dictionary<string, string>

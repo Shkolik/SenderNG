@@ -47,11 +47,14 @@ namespace SenderNG.Modules.Hpgl;
 /// parameters + ShowDialog leaf in App Settings, and the cut/laser selector
 /// in the parameters dialog (ShowCutMode).
 /// </summary>
-public class HpglModule : ConverterModuleBase, IPluginInfo
+public class HpglModule : ConverterModuleBase, IPluginInfo, IPluginDependencies
 {
     public string Version => "1.0.0";
     public string Author => "Andrew Shkolik";
     public string License => "BSD-3-Clause";
+
+    public IReadOnlyList<PluginDependency> Dependencies { get; } =
+        [new("Avalonia", "12.0.0", "MIT")];
 
     public override string Id => "hpgl";
     public override string Name => "HPGL";

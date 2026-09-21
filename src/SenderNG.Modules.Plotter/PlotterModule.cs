@@ -57,7 +57,7 @@ namespace SenderNG.Modules.Plotter;
 /// so the plugin stays swappable by any third-party visualizer.
 /// </para>
 /// </summary>
-public class PlotterModule : IModule, ILocalizedModule, IPluginInfo
+public class PlotterModule : IModule, ILocalizedModule, IPluginInfo, IPluginDependencies
 {
     public string Id => "plotter";
     public string Name => "Plot";
@@ -76,6 +76,9 @@ public class PlotterModule : IModule, ILocalizedModule, IPluginInfo
     public string Version => "0.1.0";
     public string Author => "Andrew Shkolik";
     public string License => "BSD-3-Clause";
+
+    public IReadOnlyList<PluginDependency> Dependencies { get; } =
+        [new("Avalonia", "12.0.0", "MIT")];
 
     public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
         new Dictionary<string, string>

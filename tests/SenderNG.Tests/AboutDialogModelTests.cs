@@ -75,4 +75,15 @@ public class AboutDialogModelTests
             [new PluginDependency("Avalonia", "12.0.0", "MIT")]);
         Assert.Equal("Andrew Shkolik · BSD-3-Clause", item.AuthorLicense);
     }
+
+    [Fact]
+    public void Bundled_plotter_modules_declare_dependencies()
+    {
+        var plotter = new SenderNG.Modules.Plotter.PlotterModule();
+        var nex = new SenderNG.Modules.Plotter.Nex.PlotterNexModule();
+
+        Assert.Equal("Avalonia", plotter.Dependencies[0].Name);
+        Assert.Contains(nex.Dependencies, d => d.Name == "SixLabors.ImageSharp");
+        Assert.Contains(nex.Dependencies, d => d.Name == "HelixToolkit.Nex.Engine");
+    }
 }
