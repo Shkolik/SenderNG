@@ -34,10 +34,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace SenderNG.ViewModels;
 
-public sealed record ThirdPartyLibrary(string Name, string Version, string License)
+public sealed record ThirdPartyLibrary(string Name, string Version, string? License = null)
 {
-    /// <summary>Second list row: "v.{version}  license: {license}".</summary>
-    public string VersionLicense => $"v.{Version}  license: {License}";
+    /// <summary>Single list row: "Name v.Version · License" (license omitted when absent).</summary>
+    public string OneLine { get; } =
+        string.IsNullOrEmpty(License)
+            ? $"{Name} v.{Version}"
+            : $"{Name} v.{Version} · {License}";
 }
 
 /// <summary>Static list of the third-party libraries shown in the About dialog's Libraries tab.</summary>

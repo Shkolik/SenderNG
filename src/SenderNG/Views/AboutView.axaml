@@ -72,10 +72,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <ListBox ItemsSource="{Binding Libraries}" Margin="4,8,4,4">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ThirdPartyLibrary">
-                            <StackPanel Spacing="1" Margin="0,4">
-                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding VersionLicense}" FontSize="11" Foreground="#666" TextWrapping="Wrap" />
-                            </StackPanel>
+                            <TextBlock Text="{Binding OneLine}" FontSize="12" Foreground="#444" Margin="0,3" />
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>

@@ -33,6 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using SenderNG.Core.Modules;
+using SenderNG.ViewModels;
 using Xunit;
 
 namespace SenderNG.Tests;
@@ -51,5 +52,19 @@ public class AboutDialogModelTests
     {
         var dep = new PluginDependency("Foo", "1.0", "");
         Assert.Equal("Foo v.1.0", dep.OneLine);
+    }
+
+    [Fact]
+    public void ThirdPartyLibrary_OneLine_formats_name_version_license()
+    {
+        var lib = new ThirdPartyLibrary("Avalonia", "12.1.1", "MIT");
+        Assert.Equal("Avalonia v.12.1.1 · MIT", lib.OneLine);
+    }
+
+    [Fact]
+    public void ThirdPartyLibrary_OneLine_omits_null_license()
+    {
+        var lib = new ThirdPartyLibrary("Foo", "1.0");
+        Assert.Equal("Foo v.1.0", lib.OneLine);
     }
 }

@@ -12,13 +12,14 @@ public class AboutViewModel : ViewModelBase
         // Names resolve through the locale (module.<id>.name, plugin-first),
         // falling back to the module's literal Name.
         Modules = (modules ?? Enumerable.Empty<IModule>())
-            .Select(m => (Module: m, Info: m as IPluginInfo))
+            .Select(m => (Module: m, Info: m as IPluginInfo, Deps: m as IPluginDependencies))
             .Where(t => t.Info is not null)
             .Select(t => new ModuleInfoItem(
                 LocText.Resolve($"module.{t.Module.Id}.name", t.Module.Name),
                 t.Info!.Version,
                 t.Info.Author,
-                t.Info.License))
+                t.Info.License,
+                t.Deps?.Dependencies))
             .OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
@@ -40,5 +41,11 @@ public class AboutViewModel : ViewModelBase
         typeof(AboutViewModel).Assembly.GetName().Version?.ToString() ?? "0.0.0";
 }
 
-/// <summary>One loaded plugin row on the About → Modules tab (IPluginInfo metadata).</summary>
-public sealed record ModuleInfoItem(string Name, string Version, string Author, string License);
+/// <summary>One loaded plugin row on the About → Modules tab (IPluginInfo metadata + optional IPluginDependencies).</summary>
+public sealed record ModuleInfoItem(
+    string Name, string Version, string Author, string License,
+    IReadOnlyList<PluginDependency>? Dependencies = null)
+{
+    /// <summary>Whether the plugin declared dependencies (drives expander visibility).</summary>
+    public bool HasDependencies { get; } = Dependencies is { Count: > 0 };
+}
