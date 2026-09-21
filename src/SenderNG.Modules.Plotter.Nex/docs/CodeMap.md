@@ -55,40 +55,34 @@ Static UI thread marshaling utility.
 | `Initialize()` | 51-54 | Captures Avalonia `Dispatcher.UIThread` |
 | `Post()` | 56-67 | Posts to UI thread; runs inline when no dispatcher or already on UI thread |
 
-### `PlotterNexView.axaml` (165 lines)
+### `PlotterNexView.axaml` (255 lines)
 
 Main view XAML. Two content states:
 - Normal: `HelixViewport3D` with the Vulkan scene
 - Fallback: `TextBlock` when `VulkanUnavailable == true`
 
-### `PlotterNexView.axaml.cs` (1068 lines)
+### `PlotterNexView.axaml.cs` (729 lines)
 
 View code-behind. The largest file. Hosts the Vulkan render pipeline.
 
 | Member | Line | Purpose |
 |---|---|---|
-| `EnsureScene()` | 195-240 | Builds `NexPlotScene` on thread pool, attaches via `KinematicSceneFactory` |
-| `SetupRenderTarget()` | 242-262 | Creates `RenderContext` + readback target |
-| `FreeRenderResources()` | 264-276 | Disposes render context/readback on detach |
-| `EnableTick()` / `DisableTick()` | 278-312 | Start/stop the 30Hz render loop |
-| `OnTick()` | 314-578 | 33ms DispatcherTimer render loop (see [Architecture](Architecture.md#the-tick-loop-33ms--30hz)); sizes the readback target to the *presented* `GpuImage` bounds (1:1 cursor px), then renders + reads back + probes |
-| `SetDiag()` | 585-593 | Skip reason in RenderText without spam |
-| `UpdateZoomLabel()` | 595-607 | Zoom % readout |
-| `AccumulateFps()` | 609-625 | FPS counter |
-| `DumpLineMaterials()` | 627-657 | Diagnostic: line material properties |
-| `DumpLineStreams()` | 659-721 | Diagnostic: line vertex stream data |
-| `DumpFetchInputs()` | 723-813 | Diagnostic: input fetch state |
-| `ProbeFrame()` | 815-845 | Fan artifact detection + BMP snapshot |
-| `CountNonBackground()` | 847-866 | Probe helper: non-background pixel count |
-| `DumpFrameGrid()` | 868-891 | Probe helper: 8x8 downsampled color grid |
-| `CountConeRed()` | 893-914 | Probe helper: cone-red pixel count |
-| `SaveFrameBmp()` | 916-956 | Probe helper: write 24bpp BMP |
-| `PxScale()` / `ToPx()` | 958-960 | DIP → physical px (RenderScaling) for all navigation |
-| `OnPlotInputPointerPressed()` | 962-981 | Pan (LMB) / orbit (RMB) start; `BeginOrbit(px)` with cursor px |
-| `OnPlotInputPointerMoved()` | 983-999 | Live pan / orbit drag deltas |
-| `OnPlotInputPointerReleased()` / `CaptureLost` | 1001-1015 | Gesture end; `EndOrbit()` |
-| `OnPlotInputPointerWheelChanged()` | 1017-1024 | Zoom anchored to cursor |
-| `CenterZoom()` / `Snap()` / snap buttons | 1030-1067 | Zoom-to-center, view presets |
+| `EnsureScene()` | 264-313 | Builds `NexPlotScene` on thread pool, attaches via `KinematicSceneFactory` |
+| `SetupRenderTarget()` | 315-332 | Creates `RenderContext` + readback target |
+| `FreeRenderResources()` | 334-343 | Disposes render context/readback on detach |
+| `EnableTick()` / `DisableTick()` | 345-378 | Start/stop the 30Hz render loop |
+| `OnTick()` | 380-561 | 33ms DispatcherTimer render loop (see [Architecture](Architecture.md#the-tick-loop-33ms--30hz)); sizes the readback target to the *presented* `GpuImage` bounds (1:1 cursor px), renders + reads back, keeps the last frame for screenshots; on tick crash logs to `pool_diag.log` via `PoolDiagnostics` and disables the tick |
+| `UpdateZoomLabel()` | 568-580 | Zoom % readout |
+| `PxScale()` / `ToPx()` | 582-584 | DIP → physical px (RenderScaling) for all navigation |
+| `OnPlotInputPointerPressed()` | 586-605 | Pan (LMB) / orbit (RMB) start; `BeginOrbit(px)` with cursor px |
+| `OnPlotInputPointerMoved()` | 607-623 | Live pan / orbit drag deltas |
+| `OnPlotInputPointerReleased()` / `CaptureLost` | 625-639 | Gesture end; `EndOrbit()` |
+| `OnPlotInputPointerWheelChanged()` | 641-648 | Zoom anchored to cursor |
+| `OnZoomIn()` / `OnZoomOut()` | 650-652 | Center zoom buttons |
+| `CenterZoom()` | 654-660 | Zoom-to-center |
+| `OnReframe()` | 662 | Re-fit view |
+| `OnSaveScreenshot()` | 668-699 | Save PNG of the displayed readback frame to `%LOCALAPPDATA%\SenderNG\screenshots` |
+| `Snap()` / `UpdateSnapButtons()` / snap buttons | 701-728 | Zoom-to-center, view presets |
 
 ## Settings/
 

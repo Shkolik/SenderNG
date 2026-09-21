@@ -14,28 +14,6 @@ When set, `ApplyRunStateWindow()` and `RecolorAckedRows()` are skipped entirely.
 
 **File:** `PlotterNexViewModel.cs:691-702`
 
-## Fan Artifact Detection
-
-The view includes a ring-median spike detector that catches the "giant red fan" artifact caused by static index buffer repacking (see [Quirks](Quirks.md#static-index-buffer-repack-avoidance)).
-
-### How it works
-
-1. Every 5th probe tick, the tick loop probes the downloaded CPU frame (`ProbeFrame()` runs on the readback's byte buffer)
-2. `CountConeRed()` counts pixels matching the tool cone's red color
-3. `CountNonBackground()` counts non-background pixels
-4. If red pixels exceed a threshold relative to non-background pixels, a fan is detected
-5. `SaveFrameBmp()` saves a BMP snapshot
-
-### Snapshot location
-
-```
-%LOCALAPPDATA%\SenderNG\pool_diag\fans\
-```
-
-Files are named with a timestamp. Check this directory when investigating rendering artifacts.
-
-**File:** `PlotterNexView.axaml.cs:532-558`
-
 ## Pool Diagnostics
 
 `PoolDiagnostics` uses **reflection** to read Vulkan command buffer pool internals without depending on any public API. This is intentional — the public API doesn't expose the information needed for diagnostics.
@@ -69,7 +47,7 @@ Exceptions in `OnTick()` are caught, logged, and the tick is disabled to prevent
 
 After logging, the tick timer is stopped. The view shows stale content. The user must reload the module tab to retry.
 
-**File:** `PlotterNexView.axaml.cs:566-579`
+**File:** `PlotterNexView.axaml.cs:380-561`
 
 ## Diagnostic Methods
 
@@ -92,18 +70,6 @@ Prints scene content summary: total vertex count, layer count, tool position, lo
 Per-layer diagnostic dump: vertex counts, material properties, bounding boxes for each carriage plane layer.
 
 **File:** `Rendering/NexPlotScene.cs:802-947`
-
-### View-level diagnostics
-
-On `PlotterNexView`:
-
-| Method | Purpose |
-|---|---|
-| `DumpLineMaterials()` | Print material properties for all line geometries |
-| `DumpLineStreams()` | Print vertex stream data (positions, colors, motion types) |
-| `DumpFetchInputs()` | Print input fetch state for the current render pass |
-
-These are invoked from the diagnostic button in the view or programmatically during debugging.
 
 ## Headless Testing
 
@@ -141,10 +107,8 @@ dotnet test tests/SenderNG.Core.Tests/
 
 When investigating rendering problems:
 
-1. **Check fan snapshots** in `%LOCALAPPDATA%\SenderNG\pool_diag\fans\`
-2. **Set `NEX_NO_RUN_STATE=1`** to isolate whether the issue is run-state related
-3. **Call `PoolDiagnostics.DumpAll()`** to inspect GPU pool state
-4. **Use `DumpContent()`** to verify vertex counts are as expected
-5. **Use `DumpLineStreams()`** to verify vertex data is correct
-6. **Check tick crash logs** for the ring buffer of recent tick durations
-7. **Verify HelixToolkit.Nex version** is 1.3.0-alpha.41 (not 1.2.0)
+1. **Set `NEX_NO_RUN_STATE=1`** to isolate whether the issue is run-state related
+2. **Call `PoolDiagnostics.DumpAll()`** to inspect GPU pool state
+3. **Use `DumpContent()`** to verify vertex counts are as expected
+4. **Check tick crash logs** for the ring buffer of recent tick durations
+5. **Verify HelixToolkit.Nex version** is 1.3.0-alpha.41 (not 1.2.0)

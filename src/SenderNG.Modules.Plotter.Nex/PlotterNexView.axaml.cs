@@ -36,9 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Text;
 using Avalonia;
 using Avalonia.Input;
 using Vector2 = System.Numerics.Vector2;
@@ -117,13 +115,6 @@ public partial class PlotterNexView : UserControl
     private int _shotH;
 
     private int _readbackTicks;
-    private int _windowFrames;
-    private long _windowStart;
-    private double _fps;
-    private int _probeCounter;
-    private int _lastProbe;
-    // private readonly int[] _recentRed = new int[8]; // fans BMP capture diag (disabled)
-    // private int _recentRedHead; // fans BMP capture diag (disabled)
 
     private bool _panActive;
     private bool _orbitActive;
@@ -331,15 +322,12 @@ public partial class PlotterNexView : UserControl
             _renderContext = scene.Engine.CreateRenderContext();
             _renderContext.Initialize();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             _readback = null;
             _renderContext = null;
-            CtxText.Text = $"ctx fail: {ex.GetType().Name}";
             return;
         }
-        CtxText.Text = "ctx ok";
-        _windowStart = Stopwatch.GetTimestamp();
     }
 
     /// <summary>Dispose the per-attach render context and shared texture.</summary>
@@ -352,9 +340,6 @@ public partial class PlotterNexView : UserControl
         _bitmap = null;
         GpuImage.Source = null;
         _readbackTicks = 0;
-        _windowFrames = 0;
-        _fps = 0;
-        _lastDiag = null;
     }
 
     private void EnableTick()
@@ -378,7 +363,6 @@ public partial class PlotterNexView : UserControl
             _tickSubscribed = true;
         }
         _tick.Start();
-        CtxText.Text = "ctx ok (tick on)";
     }
 
     private void DisableTick()
@@ -398,7 +382,6 @@ public partial class PlotterNexView : UserControl
         var scene = _scene;
         if (scene is null || _vm?.VulkanUnavailable == true)
         {
-            SetDiag($"skip: scene={scene is null} vulkan={_vm?.VulkanUnavailable}");
             return;
         }
 
@@ -439,7 +422,6 @@ public partial class PlotterNexView : UserControl
         var hDip = bounds.Height > 0 ? bounds.Height : client.Height;
         if (wDip < 8 || hDip < 8)
         {
-            SetDiag($"skip: img {bounds.Width:0.#}x{bounds.Height:0.#} client {client.Width:0.#}x{client.Height:0.#} scl {scale:0.##}");
             return;
         }
         var pw = (uint)Math.Max(1, Math.Round(wDip * scale));
@@ -465,13 +447,10 @@ public partial class PlotterNexView : UserControl
                     PixelFormats.Rgba8888,
                     AlphaFormat.Opaque);
                 GpuImage.Source = _bitmap;
-                CtxText.Text = $"ctx {r.RtW}x{r.RtH}";
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 _readback = null;
-                CtxText.Text = $"rb fail: {ex.Message}";
-                RenderText.Text = "t - / - fps";
                 return;
             }
         }
@@ -490,13 +469,10 @@ public partial class PlotterNexView : UserControl
                     PixelFormats.Rgba8888,
                     AlphaFormat.Opaque);
                 GpuImage.Source = _bitmap;
-                CtxText.Text = $"ctx {r.RtW}x{r.RtH}";
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 _readback = null;
-                CtxText.Text = $"resize fail: {ex.Message}";
-                RenderText.Text = "t - / - fps";
                 return;
             }
         }
@@ -505,7 +481,6 @@ public partial class PlotterNexView : UserControl
         var pipeline = _readback;
         if (rc is null || pipeline is null || _bitmap is null)
         {
-            SetDiag($"skip: rc={rc is null} rb={pipeline is null} bmp={_bitmap is null}");
             return;
         }
 
@@ -513,12 +488,7 @@ public partial class PlotterNexView : UserControl
         {
             var cam = scene.UpdateViewport(rc, FixedDeltaTime);
             rc.Update(new HelixToolkit.Nex.Maths.Size((int)r.RtW, (int)r.RtH), cam);
-            if (_probeCounter % 60 == 1)
-            {
-                PoolDiagnostics.LogLine(
-                    $"[T{_readbackTicks}.cam] {scene.DumpCamera()} vp={rc.CameraParams.ViewProjection}"
-                );
-            }
+
             // Near-white stage: the pipeline applies ACES filmic tone mapping, which
             // compresses highlights (a 0.95 clear reads ~200/255). Feed a
             // brighter clear so the mapped output lands ~250/255 (near-white)
@@ -533,43 +503,12 @@ public partial class PlotterNexView : UserControl
                 cullNode.Enabled = !scene.DiagnosticDisableCulling;
 
             // The WaitAlls below stay every tick (the CPU download must read
-            // GPU-complete output); only the full-resolution pool scans / disk
-            // log writes throttle to a coarse cadence.
-            if (_probeCounter % 30 == 1)
-                Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.pre-waitall"));
+            // GPU-complete output).
             scene.Context.WaitAll(true);
-            if (_probeCounter % 30 == 1)
-                Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-waitall"));
 
             scene.Engine.BeginFrame();
-            if (_probeCounter % 30 == 1)
-                Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-beginframe"));
 
             var cmd = scene.Engine.RenderOffscreen(rc, scene.WorldData, pipeline.EngineTarget, null);
-            var lineDraws = 0;
-            foreach (var s in scene.WorldData.LineDrawStreams.AllStreams)
-                lineDraws += (int)s.Count;
-            if (_probeCounter % 30 == 1)
-            {
-                Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-renderoffscreen"));
-                PoolDiagnostics.LogLine($"[T{_readbackTicks}.draws] drawCalls={cmd.DrawCallCount} dispatchCalls={cmd.DispatchCallCount} lineStreamDraws={lineDraws} targetValid={pipeline.EngineTarget.Valid} statsDc={rc.Statistics.DrawCalls}");
-            }
-            if (_probeCounter % 60 == 1)
-            {
-                // DIAGNOSTIC: render-time line material pipeline state. If
-                // LineMaterialManager.GetPipeline(0) is Null the line draw binds a
-                // null pipeline and produces zero fragments (matches nonbg=0) even
-                // though the stream data is perfect. Count=0 means
-                // CreatePipelinesFromRegistry never ran or failed.
-                PoolDiagnostics.LogLine($"[T{_readbackTicks}.linemat] {DumpLineMaterials(scene.Engine, scene.WorldData)}");
-            }
-            if (_probeCounter % 60 == 1)
-            {
-                PoolDiagnostics.LogLine($"[T{_readbackTicks}.scene] culling={!scene.DiagnosticDisableCulling} {scene.DumpContent()} vm={_vm!.LastControllerPose}");
-                PoolDiagnostics.LogLine($"[T{_readbackTicks}.layers] {string.Join(" | ", scene.LiveLayerDumps())} runs={_vm!.DumpRunState()} vm={_vm!.LastControllerPose}");
-                PoolDiagnostics.LogLine($"[T{_readbackTicks}.streams] {DumpLineStreams(scene.Context, scene.WorldData)}");
-                PoolDiagnostics.LogLine($"[T{_readbackTicks}.fetch] {DumpFetchInputs(scene.Context, scene.WorldData)}");
-            }
 
             // present MUST be Null: VulkanContext.Submit refuses any texture that
             // is not a swapchain image ("Cannot present texture" → returns
@@ -580,16 +519,12 @@ public partial class PlotterNexView : UserControl
             // FinalOutputTexture — present only controls swapchain presentation.
             var presentHandle = default(HelixToolkit.Nex.Handle<HelixToolkit.Nex.Graphics.Texture>);
             scene.Engine.Submit(cmd, presentHandle);
-            if (_probeCounter % 30 == 1)
-                Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-submit"));
 
             // The CPU download (IContext.Download) does its own copy after the
             // render, so the Vulkan render must be GPU-complete before Download
             // runs. Without this wait the staging copy races the just-submitted
             // draws and always sees the stale (black) frame.
             scene.Context.WaitAll(true);
-            if (_probeCounter % 30 == 1)
-                Trace.WriteLine(PoolDiagnostics.Dump(scene.Context, $"T{_readbackTicks}.post-waitall-before-readback"));
 
             using var fb = _bitmap.Lock();
             if (!pipeline.CopyFrame(fb.Address, fb.RowBytes))
@@ -605,62 +540,10 @@ public partial class PlotterNexView : UserControl
                 _shotH = (int)r.RtH;
             }
             System.Runtime.InteropServices.Marshal.Copy(fb.Address, _shotRgba, 0, shotLen);
-            // DIAGNOSTIC: probe the downloaded frame every 30th tick and export
-            // to pool_diag.log so we can tell whether the Vulkan render actually
-            // reaches the CPU readback.
-            _probeCounter++;
-            if (_probeCounter % 30 == 1)
-            {
-                var probe = ProbeFrame(fb.Address, fb.RowBytes, (int)r.RtW, (int)r.RtH);
-                _lastProbe = probe;
-                PoolDiagnostics.LogLine($"[T{_readbackTicks}.probe] max={probe} nonbg={CountNonBackground(fb.Address, fb.RowBytes, (int)r.RtW, (int)r.RtH)} counter={_probeCounter}");
-                if (_probeCounter % 60 == 1)
-                {
-                    PoolDiagnostics.LogLine(DumpFrameGrid(fb.Address, fb.RowBytes, (int)r.RtW, (int)r.RtH));
-                }
-            }
-            /*
-            // DIAGNOSTIC: capture full frames to inspect the red-fan artifact
-            // off-machine. First probe = clean reference; a fan projects
-            // red-pixel counts far above any legitimate geometry (idle ~2k,
-            // legit run cones+wire <= ~13k, the fan was 100k-200k). Count every
-            // 5th probe (fast enough to catch a fan that lasts a few frames)
-            // and save only when a fan-like count shows up, so a long run
-            // cannot flood the disk with the legit in-frame cones.
-            if (_probeCounter % 5 == 1)
-            {
-                var red = CountConeRed(fb.Address, fb.RowBytes, (int)w, (int)h);
-                // Ring-median spike detector: the legitimate in-scene red (cones +
-                // wire) drifts up to ~13k while moving, and brief artifacts spike
-                // far above it. Save a very-bad frame outright, or any frame that
-                // jumps ~2.5x above the recent median past a 16k floor.
-                _recentRed[_recentRedHead++ % _recentRed.Length] = red;
-                var history = _recentRed.AsSpan().ToArray();
-                Array.Sort(history);
-                var median = history[history.Length / 2];
-                var saved = _probeCounter == 1 || red >= 30000 || (red >= 16000 && red >= median * 2.5);
-                if (saved)
-                {
-                    var dir = System.IO.Path.Combine(
-                        System.IO.Path.GetDirectoryName(System.IO.Path.Combine(
-                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                            "SenderNG", "pool_diag.log"))!,
-                        "fans");
-                    var path = System.IO.Path.Combine(
-                        dir,
-                        $"T{_readbackTicks}.p{_probeCounter}.r{red}.w{(int)w}x{(int)h}.bmp");
-                    SaveFrameBmp(fb.Address, fb.RowBytes, (int)w, (int)h, path);
-                    PoolDiagnostics.LogLine($"[T{_readbackTicks}.fansave] coneRed={red} median={median} saved={path}");
-                    PoolDiagnostics.LogLine($"[T{_readbackTicks}.fanscene] {scene.DumpContent()} cam={scene.DumpCamera()} vm={_vm!.LastControllerPose}");
-                }
-            }
-            */
             GpuImage.InvalidateVisual();
             _diagRing[_diagHead = (_diagHead + 1) % _diagRing.Length] =
                 $"[T{_readbackTicks}] {string.Join(" | ", scene.LiveLayerDumps())} runs={_vm!.DumpRunState()}";
             _readbackTicks++;
-            AccumulateFps();
-            RenderText.Text = $"t {_readbackTicks} / {_fps:F0} fps [p{_lastProbe}]";
         }
         catch (Exception ex)
         {
@@ -673,25 +556,12 @@ public partial class PlotterNexView : UserControl
                 PoolDiagnostics.LogLine("[CRASH]  " + frame.TrimEnd());
             PoolDiagnostics.LogLine("[CRASH] last 12 ticks: " + string.Join(" ", _diagRing.Where(x => x is not null).Append($"[T{_readbackTicks}] (crash tick, no ring entry — throw before capture)")));
             DisableTick();
-            RenderText.Text = $"tick failed: {ex.Message} | {poolSnap}";
             System.Diagnostics.Trace.WriteLine("NEX tick failed: " + poolSnap + "\n" + ex);
         }
     }
 
-    /// <summary>Reports a skip/failure reason in RenderText without spamming it
-    /// every 33 ms when nothing changes.</summary>
-    private string? _lastDiag;
-
     private int _diagHead;
     private readonly string[] _diagRing = new string[12];
-
-    private void SetDiag(string text)
-    {
-        if (_lastDiag == text)
-            return;
-        _lastDiag = text;
-        RenderText.Text = text;
-    }
 
     /// <summary>Percent readout above the zoom cluster — hidden while zoom is
     /// effectively the fitted 100%.</summary>
@@ -707,355 +577,6 @@ public partial class PlotterNexView : UserControl
         ZoomPctText.Text = $"{pct:0}%";
         if (!ZoomPctText.IsVisible)
             ZoomPctText.IsVisible = true;
-    }
-
-    private void AccumulateFps()
-    {
-        var now = Stopwatch.GetTimestamp();
-        _windowFrames++;
-        var elapsed = now - _windowStart;
-        if (elapsed >= Stopwatch.Frequency)
-        {
-            _fps = _windowFrames * (double)Stopwatch.Frequency / elapsed;
-            _windowFrames = 0;
-            _windowStart = now;
-        }
-    }
-
-    /// <summary>DIAGNOSTIC (temporary): CPU-side content of every line draw
-    /// stream followed by the GPU-side records read back from mapped memory
-    /// (post-culling instanceCount is exactly what DrawIndirect consumes).
-    /// LineDraw std430 layout (u32 each): 0 vertexCount, 1 instanceCount,
-    /// 4 meshId, 7 lineCount, 8 cullable, 9 nodeInfoIndex.</summary>
-    private static string DumpLineMaterials(Engine engine, IRenderDataProvider world)
-    {
-        var sb = new StringBuilder();
-        try
-        {
-            var mgr = engine.ResourceManager.LineMaterialManager;
-            sb.Append($"count={mgr.Count} ");
-            sb.Append($"defaultId={mgr.GetMaterialId("Default")} ");
-            var p = mgr.GetPipeline(new MaterialTypeId(0));
-            sb.Append($"p0.valid={p.Valid} p0.idx={p.Index} p0.gen={p.Gen} ");
-            // Also check the material ID actually used by the live streams.
-            var used = new HashSet<uint>();
-            foreach (var s in world.LineDrawStreams.AllStreams)
-            {
-                foreach (var mat in s.GetMaterialTypes())
-                    used.Add(mat.Id);
-            }
-            sb.Append("used=[");
-            foreach (var id in used)
-            {
-                var q = mgr.GetPipeline(new MaterialTypeId(id));
-                sb.Append($"{id}:valid={q.Valid}:idx={q.Index} ");
-            }
-            sb.Append("]");
-        }
-        catch (Exception ex)
-        {
-            sb.Append($"err({ex.GetType().Name}:{ex.Message})");
-        }
-        return sb.ToString();
-    }
-
-    private static string DumpLineStreams(IContext ctx, IRenderDataProvider world)
-    {
-        var sb = new StringBuilder();
-        foreach (var s in world.LineDrawStreams.AllStreams)
-        {
-            sb.Append($"{s.StreamName}:{s.Count} [ ");
-            for (var i = 0; i < s.Count; i++)
-            {
-                if (s.TryGetDraw(i, out var d))
-                {
-                    sb.Append(
-                        $"i{i}(mesh={d.MeshId} inst={d.InstanceCount} lc={d.LineCount} cull={d.Cullable} mat={d.MaterialType} node={d.NodeInfoIndex} " +
-                        $"col={d.LineColor:X8} w={d.LineWidth:0.###}) "
-                    );
-                }
-                else
-                {
-                    sb.Append($"i{i}(UNAVAILABLE) ");
-                }
-            }
-            sb.Append("] gpu[ ");
-            if (s.Count > 0)
-            {
-                try
-                {
-                    unsafe
-                    {
-                        var p = (uint*)ctx.GetMappedPtr(s.Buffer);
-                        if (p == null)
-                        {
-                            sb.Append("no-map ");
-                        }
-                        else
-                        {
-                            var stride = (int)(s.Stride / 4u);
-                            for (var i = 0; i < s.Count; i++)
-                            {
-                                var d = p + (long)i * stride;
-                                sb.Append(
-                                    $"g{i}(mesh={d[4]} inst={d[1]} lc={d[7]} cull={d[8]} node={d[9]} " +
-                                    $"col={d[5]:X8} w={*(float*)(d + 11):0.###} mat={d[6]} dt={d[12]} tex={d[13]} samp={d[14]}) "
-                                );
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    sb.Append($"map-failed({ex.GetType().Name}) ");
-                }
-            }
-            sb.Append("] ");
-        }
-        return sb.ToString();
-    }
-
-    /// <summary>DIAGNOSTIC (temporary): GPU contents of the MeshInfo and
-    /// NodeInfo buffers that the line vertex shader consumes (vsLine.glsl):
-    /// MeshInfo[meshId].vertexBufferAddress (the vertex-fetch source) and
-    /// NodeInfo[nodeInfoIndex].transform (world transform in clipMVP).
-    /// MeshInfo std430: u64 vertexBufferAddress @0, vertexProps @8,
-    /// vertexColor @16, indexBuffer @24, then bounds. GpuNodeInfo std430:
-    /// mat4 transform @0 (m12..m14 = translation), u32 enabled @64,
-    /// worldId @68, entityId @72, renderMask @76.</summary>
-    private static string DumpFetchInputs(IContext ctx, IRenderDataProvider world)
-    {
-        var sb = new StringBuilder();
-        foreach (var s in world.LineDrawStreams.AllStreams)
-        {
-            sb.Append($"{s.StreamName} [ ");
-            for (var i = 0; i < s.Count; i++)
-            {
-                if (!s.TryGetDraw(i, out var d))
-                {
-                    sb.Append($"rec{i}(UNAVAILABLE) ");
-                    continue;
-                }
-                try
-                {
-                    unsafe
-                    {
-                        var pMesh = (byte*)ctx.GetMappedPtr(world.MeshInfos.Buffer);
-                        var pNode = (byte*)ctx.GetMappedPtr(world.NodeInfos.Buffer);
-                        if (pMesh == null || pNode == null)
-                        {
-                            sb.Append($"rec{i}(meshno-map) ");
-                            continue;
-                        }
-                        var meshStride = (int)world.MeshInfos.Stride;
-                        var nodeStride = (int)world.NodeInfos.Stride;
-                        var m = pMesh + (long)d.MeshId * meshStride;
-                        var n = pNode + (long)d.NodeInfoIndex * nodeStride;
-                        var vbAddr = *(ulong*)m;
-                        var vcAddr = *(ulong*)(m + 16);
-                        var sphereRadius = *(float*)(m + 76);
-                        var t12 = *(float*)(n + 48);
-                        var t13 = *(float*)(n + 52);
-                        var t14 = *(float*)(n + 56);
-                        var enabled = *(uint*)(n + 64);
-                        // Full 16-float row-major world transform: identity reads
-                        // diag(1,1,1,1); a zero matrix (broken propagation) reads
-                        // all zeros and collapses every clip position to w=0,
-                        // which the rasterizer discards — silently nothing renders.
-                        var m00 = *(float*)(n + 0);
-                        var m11 = *(float*)(n + 20);
-                        var m22 = *(float*)(n + 40);
-                        var m33 = *(float*)(n + 60);
-                        // Read the actual vertex content of the geometry's GPU
-                        // buffer (dynamic geometry is HostVisible). P0/P1 are the
-                        // endpoints the shader fetches for segment s — zeros here
-                        // mean the upload never happened despite the valid address.
-                        var p0 = 0f;
-                        var p1 = 0f;
-                        var p2 = 0f;
-                        var p3 = 0f;
-                        var p4 = 0f;
-                        var p5 = 0f;
-                        if (d.InstanceCount > 0)
-                        {
-                            var geom = world.GetGeometry(d.MeshId);
-                            if (geom is not null && geom.VertexBuffer.Valid)
-                            {
-                                var pVb = (float*)ctx.GetMappedPtr(geom.VertexBuffer);
-                                if (pVb != null)
-                                {
-                                    p0 = pVb[0];
-                                    p1 = pVb[1];
-                                    p2 = pVb[2];
-                                    p3 = pVb[4];
-                                    p4 = pVb[5];
-                                    p5 = pVb[6];
-                                }
-                            }
-                        }
-                        sb.Append(
-                            $"rec{i}(meshId={d.MeshId} node={d.NodeInfoIndex} vb=0x{vbAddr:X} vc=0x{vcAddr:X} r={sphereRadius:0.00} " +
-                            $"nodeEnabled={enabled} trans=({t12:0.0##},{t13:0.0##},{t14:0.0##}) " +
-                            $"mat00={m00:0.000} m11={m11:0.000} m22={m22:0.000} m33={m33:0.000} " +
-                            $"P0=({p0:0.###},{p1:0.###},{p2:0.###}) P1=({p3:0.###},{p4:0.###},{p5:0.###})) "
-                        );
-                    }
-                }
-                catch (Exception ex)
-                {
-                    sb.Append($"rec{i}(fetch-fail:{ex.GetType().Name}) ");
-                }
-            }
-            sb.Append("] ");
-        }
-        return sb.ToString();
-    }
-
-    /// <summary>Brightness probe of the produced frame (every 30th tick,
-    /// reported as <c>[pN]</c>): max luminance across a few sample pixels.
-    /// 0 means the engine produced only black; a nonzero reading means real
-    /// content is reaching the bitmap and only presentation differs.</summary>
-    private static unsafe int ProbeFrame(IntPtr addr, int pitch, int w, int h)
-    {
-        var px = (byte*)addr;
-        var max = 0;
-        var lit = 0;
-        var litSum = 0;
-        var step = Math.Max(1, Math.Min(w, h) / 32);
-        for (var y = 0; y < h; y += step)
-        {
-            var row = px + (long)y * pitch;
-            for (var x = 0; x < w; x += step)
-            {
-                var p = row + (long)x * 4;
-                var lum = (p[0] + p[1] + p[2]) / 3;
-                if (lum > max)
-                    max = lum;
-                if (p[0] > 64 && p[1] < 32 && p[2] < 32)
-                    lit++; // red-ish pixels (diagnostic background)
-                if (lum > 16)
-                {
-                    litSum++;
-                }
-            }
-        }
-        return max;
-    }
-
-    /// <summary>DIAGNOSTIC (temporary): count of pixels that differ from the
-    /// pure-red diagnostic background. Background (1,0,0,tone-mapped to ~CD) has
-    /// G=0 and B=0, so any pixel with a non-zero green or blue byte is content
-    /// (lines, cones, plane). Full-resolution so a small on-screen object cannot
-    /// be missed by sparse sampling.</summary>
-    private static unsafe int CountNonBackground(IntPtr addr, int pitch, int w, int h)
-    {
-        var px = (byte*)addr;
-        var count = 0;
-        for (var y = 0; y < h; y++)
-        {
-            var row = px + (long)y * pitch;
-            for (var x = 0; x < w; x++)
-            {
-                var p = row + (long)x * 4;
-                if (p[1] > 0 || p[2] > 0)
-                    count++;
-            }
-        }
-        return count;
-    }
-
-    /// <summary>DIAGNOSTIC (temporary): raw RGBA of a coarse grid of the
-    /// readback frame, so we can see exactly which pixels the engine produced
-    /// (red background everywhere = lines never rendered; any non-red pixel =
-    /// the cone/plane DID reach the target).</summary>
-    private static unsafe string DumpFrameGrid(IntPtr addr, int pitch, int w, int h)
-    {
-        var px = (byte*)addr;
-        var cols = 8;
-        var rows = 8;
-        var sb = new StringBuilder("grid[ ");
-        for (var r = 0; r < rows; r++)
-        {
-            for (var c = 0; c < cols; c++)
-            {
-                var x = (int)((long)(c + 0) * w / cols + w / cols / 2);
-                var y = (int)((long)(r + 0) * h / rows + h / rows / 2);
-                var p = px + (long)y * pitch + (long)x * 4;
-                sb.Append($"({p[0]:X2}{p[1]:X2}{p[2]:X2})");
-            }
-            sb.Append(' ');
-        }
-        sb.Append(']');
-        return sb.ToString();
-    }
-
-    /// <summary>DIAGNOSTIC (temporary): full-resolution cone-red pixel count.
-    /// Same classifier as the WboitConeRepro harness (r&gt;150 &amp;&amp; r&gt;g*1.5
-    /// &amp;&amp; r&gt;b*1.5), so captured fan frames compare directly against the
-    /// harness's clean render (cone-only ≈ a few hundred; the fan &gt; 100k).</summary>
-    private static unsafe int CountConeRed(IntPtr addr, int pitch, int w, int h)
-    {
-        var px = (byte*)addr;
-        var count = 0;
-        for (var y = 0; y < h; y++)
-        {
-            var row = px + (long)y * pitch;
-            for (var x = 0; x < w; x++)
-            {
-                var p = row + (long)x * 4;
-                var r = p[0];
-                var g = p[1];
-                var b = p[2];
-                if (r > 150 && r > g * 1.5 && r > b * 1.5)
-                    count++;
-            }
-        }
-        return count;
-    }
-
-    /// <summary>DIAGNOSTIC (temporary): dump the full readback frame to a
-    /// top-down 24bpp BMP (no image-library dependency) so a fan frame can be
-    /// inspected off-machine and compared to harness-rendered clean frames.</summary>
-    private static unsafe void SaveFrameBmp(IntPtr addr, int pitch, int w, int h, string path)
-    {
-        try
-        {
-            var stride = (w * 3 + 3) & ~3;
-            var size = (uint)(stride * h);
-            var bmp = new byte[54 + size];
-            bmp[0] = (byte)'B';
-            bmp[1] = (byte)'M';
-            BitConverter.GetBytes((uint)(54 + size)).CopyTo(bmp, 2);
-            BitConverter.GetBytes((uint)54).CopyTo(bmp, 10);
-            BitConverter.GetBytes((uint)40).CopyTo(bmp, 14);
-            BitConverter.GetBytes((uint)w).CopyTo(bmp, 18);
-            BitConverter.GetBytes((int)-h).CopyTo(bmp, 22); // negative height = top-down
-            BitConverter.GetBytes((ushort)1).CopyTo(bmp, 26);
-            BitConverter.GetBytes((ushort)24).CopyTo(bmp, 28);
-            BitConverter.GetBytes(size).CopyTo(bmp, 34);
-            var px = (byte*)addr;
-            var dst = 54;
-            for (var y = 0; y < h; y++)
-            {
-                var src = px + (long)y * pitch;
-                var d = dst;
-                for (var x = 0; x < w; x++)
-                {
-                    var p = src + (long)x * 4;
-                    bmp[d + 0] = p[2];
-                    bmp[d + 1] = p[1];
-                    bmp[d + 2] = p[0];
-                    d += 3;
-                }
-                dst += stride;
-            }
-            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
-            System.IO.File.WriteAllBytes(path, bmp);
-        }
-        catch (Exception ex)
-        {
-            PoolDiagnostics.LogLine($"[fansave] {ex.GetType().Name}: {ex.Message}");
-        }
     }
 
     private float PxScale() => (float)(TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0);

@@ -236,18 +236,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         </StackPanel>
                     </StackPanel>
                 </Panel>
-
-                <!-- Live viewport render diagnostics (POC). "t N" counts readback
-                     ticks that presented a full frame to the bitmap, "N fps"
-                     reports completed frames per second. A ticking counter with
-                     no FPS means copy/bitmap work never completes; no counter at
-                     all means the render loop never started. -->
-                <StackPanel Orientation="Vertical" Spacing="2"
-                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
-                            IsHitTestVisible="False">
-                    <TextBlock x:Name="CtxText" Text="ctx –" Foreground="#666" FontSize="11" />
-                    <TextBlock x:Name="RenderText" Text="t – / – fps" Foreground="#666" FontSize="11" />
-                </StackPanel>
             </Panel>
 
             <!-- Fallback shown when no Vulkan device could be created. -->
