@@ -61,7 +61,7 @@ Prints camera state: position, target, up vector, orthographic zoom, viewport di
 
 ### `DumpContent()`
 
-Prints scene content summary: total vertex count, layer count, tool position, loft state.
+Prints scene content summary: total vertex count, layer count, tool position.
 
 **File:** `Rendering/NexPlotScene.cs:732-800`
 

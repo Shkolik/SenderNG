@@ -12,7 +12,7 @@ See also: [Architecture](Architecture.md) for data flow | [Diagnostics](Diagnost
 
 **Solution:** The entire rendering layer uses a **swap-pump** pattern. CPU staging lists are mutated in-place, then a `RebuildGate`-coalesced `Pump()` re-uploads them as fresh static geometries. The old geometry is discarded after the new one is uploaded.
 
-**Files:** `NexCarriagePlaneLayer.cs:172-250`, `NexPlotTool.cs:142-200`, `NexLoftSurface.cs:152-200`
+**Files:** `NexCarriagePlaneLayer.cs:172-250`, `NexPlotTool.cs:142-200`
 
 ### Static index buffer repack avoidance
 

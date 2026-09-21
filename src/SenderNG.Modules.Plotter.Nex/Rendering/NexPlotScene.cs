@@ -135,9 +135,8 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private static readonly Vector3 OrbitPivotParked = new(0f, -50_000f, 0f);
 
     /// <summary>Same parked-transform convention applied to the chrome toggles:
-    /// the line path submits disabled nodes while the scene runs with the
-    /// frustum-cull node off (DiagnosticDisableCulling), so hiding a chrome
-    /// node moves it far below the table instead of relying on Enabled.</summary>
+    /// the scene runs with the frustum-cull node permanently off, so hiding a
+    /// chrome node moves it far below the table instead of relying on Enabled.</summary>
     private static readonly Vector3 ChromeParkedPosition = new(0f, -50_000f, 0f);
 
     // Anti-aliasing: both nodes are registered in the engine graph (SMAA runs
@@ -284,14 +283,10 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// <inheritdoc/>
     public ILoftSurface AddLoftSurface()
     {
-        if (DiagnosticDisableLoft)
-            return null!;
         if (_buildComplete)
             ResetBuild();
         _buildComplete = false;
         var loft = new NexLoftSurface(_root, _engine);
-        loft.DiagnosticDisableLoop = DiagnosticDisableLoftLoop;
-        loft.DiagnosticDisableSheet = DiagnosticDisableLoftSheet;
         _liveLofts.Add(loft);
         return loft;
     }
@@ -451,7 +446,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// <summary>Hide/show a chrome node. Enabled also flips (it will gate the
     /// day the frustum-cull node returns) but the working runtime mechanism is
     /// the parked transform — the engine's line path submits disabled nodes
-    /// while the scene runs with DiagnosticDisableCulling.</summary>
+    /// while the scene runs with the frustum-cull node off.</summary>
     private static void ParkOrShow(Node node, bool visible)
     {
         node.Transform.Translation = visible ? Vector3.Zero : ChromeParkedPosition;
@@ -656,10 +651,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         foreach (var tool in _liveTools)
             tool.Dispose();
         foreach (var loft in _liveLofts)
-        {
             loft.DisposeMesh();
-            loft.Node.Dispose();
-        }
         foreach (var layer in _liveLayers)
         {
             layer.ReleaseGeometries();
@@ -692,10 +684,7 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         foreach (var tool in _liveTools)
             tool.Dispose();
         foreach (var loft in _liveLofts)
-        {
             loft.DisposeMesh();
-            loft.Node.Dispose();
-        }
         foreach (var layer in _liveLayers)
         {
             layer.ReleaseGeometries();
@@ -932,23 +921,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         return sb.ToString();
     }
 
-    /// <summary>DIAGNOSTIC (temporary): when true, the scene disables the GPU
-    /// frustum-cull node each frame so geometry visibility no longer depends on
-    /// MeshInfo bounds.</summary>
-    public bool DiagnosticDisableCulling { get; set; } = true;
-
-    /// <summary>DIAGNOSTIC (temporary): when true, <see cref="AddLoftSurface"/>
-    /// returns null so no loft line loop / swept sheet is created. Used to
-    /// isolate the tool wire + cone rendering from the loft surface while
-    /// chasing the red-fan artifact; re-enable to compare.</summary>
-    public bool DiagnosticDisableLoft { get; set; }
-
-    /// <summary>DIAGNOSTIC (temporary): pass the loop-/sheet-disables into each
-    /// created <see cref="NexLoftSurface"/> (SetWirePlane vs SetLoftSheet gates).
-    /// App A/B to attribute the red-fan artifact to the loop or the sheet.</summary>
-    public bool DiagnosticDisableLoftLoop { get; set; }
-    public bool DiagnosticDisableLoftSheet { get; set; }
-
     /// <summary>DIAGNOSTIC (temporary): CPU-side state of every line node owned
     /// by this scene — enabled flag, stream validity, line count, vertex count
     /// and local bounding-sphere radius.</summary>
@@ -970,9 +942,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         sb.Append("] content[ ");
         foreach (var n in _contentNodes)
             NodeInfo(n);
-        sb.Append($"] lofts({_liveLofts.Count})[ ");
-        foreach (var l in _liveLofts)
-            NodeInfo(l.Node);
         sb.Append($"] tools({_liveTools.Count})[ ");
         foreach (var t in _liveTools)
             sb.Append(t.DumpContent() + " ");
@@ -989,16 +958,13 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// host-visible writes.</summary>
     public void PumpCarriagePlanes() => _liveLayers.ForEach(l => l.Pump());
 
-    /// <summary>Swap-pump the tool connector wires and loft surfaces (see
-    /// <see cref="NexLoftSurface.Pump"/> and <see cref="NexPlotTool.Pump"/>). Called
-    /// from the view's tick loop so per-status-poll position changes reach the GPU
-    /// as fresh static geometries instead of in-place host-visible writes — the
-    /// 2-point wire + loft in-place dynamic uploads raced the live render loop and
-    /// produced VK_ERROR_DEVICE_LOST on the foam scenes (mill scenes ran wireless).</summary>
-    public void PumpToolWireAndLofts()
+    /// <summary>Swap-pump the tool connector wire (see <see cref="NexPlotTool.Pump"/>).
+    /// Called from the view's tick loop so per-status-poll position changes reach
+    /// the GPU as fresh static geometries instead of in-place host-visible writes —
+    /// in-place dynamic uploads raced the live render loop and produced
+    /// VK_ERROR_DEVICE_LOST on the foam scenes (mill scenes ran wireless).</summary>
+    public void PumpToolWire()
     {
-        foreach (var loft in _liveLofts)
-            loft.Pump();
         foreach (var tool in _liveTools)
             tool.Pump();
     }

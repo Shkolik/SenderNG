@@ -271,14 +271,8 @@ public partial class PlotterNexView : UserControl
         {
             var scene = new NexPlotScene();
             // A/B verdict (2026-09-16, on-device): the swept loft leading-edge
-            // loop makes NO visible difference, so it is REMOVED permanently.
-            // Production = loft sheet, wire, cones, and the progressing green
-            // ACK outline only. NexCarriagePlaneLayer pre-registers the done
-            // overlay at the build-wave pump (parked degenerate), so there are
-            // ZERO static Adds during a run. Loop stays OFF forever.
-            scene.DiagnosticDisableLoft = false;
-            scene.DiagnosticDisableLoftLoop = true;   // removed 2026-09-16 (fork #7 verdict)
-            scene.DiagnosticDisableLoftSheet = false;
+            // loop is REMOVED permanently. Production = loft sheet, tool wire,
+            // cones, and the progressing green ACK outline only.
             Dispatcher.UIThread.Post(() =>
             {
                 if (_vm is null || generation != _sceneGeneration)
@@ -407,7 +401,7 @@ public partial class PlotterNexView : UserControl
         // their positions stage on status polls (PostUi) and reach the GPU here
         // as fresh staged static geometries instead of in-place host-visible
         // mapped writes racing the in-flight frame.
-        scene.PumpToolWireAndLofts();
+        scene.PumpToolWire();
 
         var tl = TopLevel.GetTopLevel(this);
         var scale = tl?.RenderScaling ?? 1.0;
@@ -495,12 +489,12 @@ public partial class PlotterNexView : UserControl
             // while the grey toolpaths and RGB axes stay readable against it.
             rc.RenderParams.BackgroundColor = new HelixToolkit.Nex.Maths.Color4(5.0f, 5.0f, 5.0f, 1.0f);
 
-            // DIAGNOSTIC (temporary): A/B the GPU frustum culling — with it
-            // disabled, visibility no longer depends on MeshInfo bounds, so we
-            // can tell empty/stale-bound content apart from a real draw issue.
+            // GPU frustum culling stays off permanently: MeshInfo-bound culling was
+            // mis-culling valid geometry while chasing the red-fan artifact, and
+            // hiding chrome relies on the parked transform, not Enabled.
             var cullNode = scene.Engine.GetRenderNode<HelixToolkit.Nex.Rendering.ComputeNodes.FrustumCullNode>();
             if (cullNode is not null)
-                cullNode.Enabled = !scene.DiagnosticDisableCulling;
+                cullNode.Enabled = false;
 
             // The WaitAlls below stay every tick (the CPU download must read
             // GPU-complete output).

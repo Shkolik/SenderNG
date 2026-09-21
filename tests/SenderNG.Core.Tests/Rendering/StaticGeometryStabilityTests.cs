@@ -61,22 +61,18 @@ public static class StaticGeometryStabilityTests
         var p0 = PlaneWorldMapper.ToWorld(geo0, new double[] { 10, 5, 10, 12 }, idx0);
         var p1 = PlaneWorldMapper.ToWorld(geo1, new double[] { 10, 5, 10, 12 }, idx1);
         tool.UpdatePosition(new Endpoint(new[] { p0, p1 }));
-        // The app's status poll feeds the wire-plane loop before the first pump.
-        loft.SetWirePlane([p0, p1]);
 
         // Build wave: the run is populated but nothing has executed yet. This
         // is the moment the static pool is packed for the whole program.
         scene.PumpCarriagePlanes();
-        scene.PumpToolWireAndLofts();
+        scene.PumpToolWire();
 
         // Snapshot the registered static geometry identities the same way the
         // failed draws reference them: the draw stream caches the node geometry.
         var plane0Geo = layer0.Node.Geometry;
         var plane1Geo = layer1.Node.Geometry;
-        var loopGeo = loft.Node.Geometry;
         Assert.NotNull(plane0Geo);
         Assert.NotNull(plane1Geo);
-        Assert.NotNull(loopGeo);
 
         // The executed overlay must ALSO be registered by the build-wave pump,
         // at its full segment budget (parked-degenerate until the first segment
@@ -111,15 +107,13 @@ public static class StaticGeometryStabilityTests
 
             var q0 = PlaneWorldMapper.ToWorld(geo0, runs[round], idx0);
             var q1 = PlaneWorldMapper.ToWorld(geo1, runs[round], idx1);
-            loft.SetWirePlane([q0, q1]);
             tool.UpdatePosition(new Endpoint(new[] { q0, q1 }));
 
             scene.PumpCarriagePlanes();
-            scene.PumpToolWireAndLofts();
+            scene.PumpToolWire();
 
             Assert.Same(plane0Geo, layer0.Node.Geometry);
             Assert.Same(plane1Geo, layer1.Node.Geometry);
-            Assert.Same(loopGeo, loft.Node.Geometry);
             Assert.Same(done0Geo, layer0.DoneNode.Geometry);
             Assert.Same(done1Geo, layer1.DoneNode.Geometry);
         }

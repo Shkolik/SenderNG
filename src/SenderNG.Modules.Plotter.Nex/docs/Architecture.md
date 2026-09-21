@@ -162,7 +162,7 @@ When the controller is in grbl "Check" mode, the tool position shows the last ac
 | 1 | `PulseAckedEnds()` | Fold pending row events into ack state |
 | 2 | `ApplyRunStateWindow()` | Apply run-state colors (every 3rd tick) |
 | 3 | `PumpCarriagePlanes()` | Re-upload plane GPU geometry (every 3rd tick) |
-| 4 | `PumpToolWireAndLofts()` | Re-upload tool position + loft surface |
+| 4 | `PumpToolWire()` | Re-upload tool connector wire position |
 | 5 | `UpdateViewport()` | Update Vulkan camera/viewport |
 | 6 | `RenderOffscreen()` | Vulkan renders to the readback's render-target texture |
 | 7 | `CopyFrame()` | Vulkan staging download → WriteableBitmap |

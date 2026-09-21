@@ -238,27 +238,27 @@ Enums and records.
 
 ## Rendering/
 
-### `NexPlotScene.cs` (1074 lines)
+### `NexPlotScene.cs` (1111 lines)
 
 Vulkan `IPlotScene` implementation. The largest rendering file.
 
 | Member | Line | Purpose |
 |---|---|---|
-| Constructor | 147-245 | Creates engine, cameras, chrome (grid/axes/origin/envelopes) |
-| `AddCarriagePlane()` / `AddLoftSurface()` / `CreateTool()` | 247-284 | Content factory (planes, loft, tool) |
-| `SetGrid()` / `AddAxisArrows()` / `SetOrigin()` | 286-381 | Chrome setup |
-| `SetWorkEnvelope()` / `SetJobEnvelope()` | 383-389 | Envelopes |
-| `SetViewPreset()` | 391-444 | Fit / XY / XZ / YZ / 3D presets |
-| `Pan()` / `ZoomAround()` / `SetViewportSize()` | 446-474 | Navigation wiring; viewport size in px |
-| `PanByScreenDelta()` / `RotateByScreenDelta()` | 476-495 | Drag deltas (pan LMB, orbit RMB) |
-| `BeginOrbit()` | 498-535 | RMB pivot placement: cursor-ray through the render-context snapshot (`_orbitCameraParams`/`_orbitViewportWpx`/`_orbitDpiScale`, fields at 125-134) |
-| `EndOrbit()` / `Reframe()` | 538-545 | Gesture end / re-fit |
-| `Dispose()` | 568 | Fenced teardown |
-| `DumpCamera()` | 817-879 | Diagnostic: camera state |
-| `DumpContent()` | 881-910 | Diagnostic: scene content summary |
-| `LiveLayerDumps()` | 912-916 | Per-layer dumps |
-| `PumpCarriagePlanes()` / `PumpToolWireAndLofts()` | 918-938 | Swap-pump GPU re-uploads |
-| `UpdateViewport()` | 940-1074 | Camera update for tick; snapshots `renderContext.CameraParams`/`WindowSize`/`DpiScale` for `BeginOrbit` |
+| Constructor | 158-270 | Creates engine, cameras, chrome (grid/axes/origin/envelopes) |
+| `AddCarriagePlane()` / `AddLoftSurface()` / `CreateTool()` | 271-295 | Content factory (planes, loft, tool) |
+| `SetGrid()` / `AddAxisArrows()` / `SetOrigin()` | 307-383 | Chrome setup |
+| `SetWorkEnvelope()` / `SetJobEnvelope()` | 384-393 | Envelopes |
+| `SetViewPreset()` | 467-521 | Fit / XY / XZ / YZ / 3D presets |
+| `Pan()` / `ZoomAround()` / `SetViewportSize()` | 522-550 | Navigation wiring; viewport size in px |
+| `PanByScreenDelta()` / `RotateByScreenDelta()` | 552-572 | Drag deltas (pan LMB, orbit RMB) |
+| `BeginOrbit()` | 574-612 | RMB pivot placement: cursor-ray through the render-context snapshot (`_orbitCameraParams`/`_orbitViewportWpx`/`_orbitDpiScale`, fields at 125-134) |
+| `EndOrbit()` / `Reframe()` | 614-642 | Gesture end / re-fit |
+| `Dispose()` | 644 | Fenced teardown |
+| `DumpCamera()` | 880-926 | Diagnostic: camera state |
+| `DumpContent()` | 927-951 | Diagnostic: scene content summary |
+| `LiveLayerDumps()` | 953 | Per-layer dumps |
+| `PumpCarriagePlanes()` / `PumpToolWire()` | 959-971 | Swap-pump GPU re-uploads |
+| `UpdateViewport()` | 978-1111 | Camera update for tick; snapshots `renderContext.CameraParams`/`WindowSize`/`DpiScale` for `BeginOrbit` |
 
 ### `NexCarriagePlaneLayer.cs` (432 lines)
 
@@ -282,15 +282,14 @@ GPU tool: filled cone mesh + static connector wire.
 | `UpdatePosition()` | 102-140 | Move cones via node transforms |
 | `PumpWire()` | 142-200 | Re-upload wire line geometry |
 
-### `NexLoftSurface.cs` (328 lines)
+### `NexLoftSurface.cs` (201 lines)
 
-GPU loft: wire-plane line loop + swept sheet mesh.
+GPU loft: translucent swept sheet mesh. The wire-plane line loop was permanently removed (fork #7 verdict — it was the red-fan culprit); `SetWirePlane` is a retained interface no-op.
 
 | Member | Line | Purpose |
 |---|---|---|
-| Constructor | 64-110 | Create wire loop + sheet mesh (unlit, 35% opacity) |
-| `SetWirePlane()` | 112-150 | Re-upload wire vertices |
-| `SetLoftSheet()` | 152-200 | Build swept sheet from side A/B paths |
+| `SetLoftSheet()` | 87-109 | Build swept sheet from side A/B paths |
+| `DisposeMesh()` | 126-136 | Release sheet mesh node + material |
 
 ### `NexGpuReadback.cs` (149 lines)
 

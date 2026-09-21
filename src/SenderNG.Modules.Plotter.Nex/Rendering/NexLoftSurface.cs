@@ -47,157 +47,34 @@ using SenderNG.Modules.Plotter.Nex.Scene;
 namespace SenderNG.Modules.Plotter.Nex.Rendering;
 
 /// <summary>
-/// One wire-plane loop (the polygon outline) rendered as a long-lived static
-/// line list registered once and re-uploaded in place. <see cref="SetWirePlane"/>
-/// mutates CPU staging only (no GPU work); the GPU gets the SAME device buffer
-/// refreshed through <see cref="NexPlotScene.PumpToolWireAndLofts"/> (a low-Hz
-/// pump polled from the view, same as the carriage planes). A fresh geometry is
-/// only ever Add-ed to the engine when the loop first appears or outgrows its
-/// capacity — never per status poll — so the shared static index buffer never
-/// repacks and other static draws (tool cones, loft sheet) keep their baked
-/// <c>IndexOffset</c> (the stale-FirstIndex mechanism behind the red fan).
-/// This deliberately NEVER writes host-visible mapped buffers that in-flight
-/// frames read — in-place dynamic uploads raced the live render loop and
-/// produced VK_ERROR_DEVICE_LOST on the loft scenes (helix engine
-/// 1.3.0-alpha.41, driver 32.0.15.9608).
+/// The translucent swept sheet between the two carriage planes. The line-loop
+/// wire (<see cref="SetWirePlane"/>) is permanently disabled — fork #7
+/// (2026-09-16) attributed the red-fan artifact to the static index repack that
+/// re-baking the loop geometry could trigger; the sheet is a single static mesh
+/// uploaded once per program build and never re-registered, so it keeps its
+/// baked <c>IndexOffset</c> for the life of the build.
 /// </summary>
 public sealed class NexLoftSurface : ILoftSurface
 {
-    // Opaque dim blue-grey (Skia's semi-transparent loft colour becomes solid —
-    // alpha handling in the Nex line shader is unverified).
-    private static readonly Color4 WireColor = new(0.42f, 0.42f, 0.54f, 1f);
-
     private readonly Engine _engine;
     private readonly Node _root;
-    private readonly Geometry _staging;
-    private readonly LineNode _node;
-    private readonly RebuildGate _rebuildGate = new();
-    private Geometry? _staticLoop;
-    private int _loopCapacity;
     private MeshNode? _sheetNode;
     private Geometry? _sheetGeometry;
     private PBRMaterialProperties? _sheetMaterial;
-    private Vector3[]? _lastLoop;
 
-    /// <summary>DIAGNOSTIC (temporary): skip the per-poll line-loop staging/swap
-    /// (SetWirePlane/Pump) while keeping the sheet. App A/B for the red-fan
-    /// artifact: loop-off isolates the loop from the sheet+cones.</summary>
-    internal bool DiagnosticDisableLoop { get; set; }
-
-    /// <summary>DIAGNOSTIC (temporary): skip the swept sheet mesh (SetLoftSheet)
-    /// while keeping the line loop. App A/B: sheet-off isolates the translucent
-    /// WBOIT mesh from the (opaque) loop + cones.</summary>
-    internal bool DiagnosticDisableSheet { get; set; }
-
-    /// <summary>Create the loft surface under <paramref name="root"/>. The node
-    /// stays geometry-less until the first <see cref="Pump"/>.</summary>
+    /// <summary>Create the loft surface under <paramref name="root"/>. The sheet
+    /// node is created lazily on the first <see cref="SetLoftSheet"/>.</summary>
     public NexLoftSurface(Node root, Engine engine)
     {
         _engine = engine;
         _root = root;
-        // Staging container only — never registered with the engine, never
-        // attached to a node, so nothing here produces GPU buffers. All GPU
-        // content arrives via Pump() as a fresh static geometry.
-        _staging = new Geometry(Topology.Line, isDynamic: true);
-        _node = root.World.CreateLineNode("loft-surface");
-        _node.LineThickness = 2.0f;
-        _node.LineColor = Color4.White;
-        root.AddChild(_node);
     }
 
-    /// <summary>The underlying line node (for scene removal).</summary>
-    internal LineNode Node => _node;
-
-    /// <inheritdoc/>
+    /// <summary>Permanently disabled: the line-loop wire was attributed to the
+    /// red-fan artifact (fork #7, 2026-09-16) and removed. The interface is
+    /// retained so the build pipeline can keep calling it.</summary>
     public void SetWirePlane(Vector3[] polygon)
     {
-        if (DiagnosticDisableLoop)
-            return;
-        // Idle status polls repeat the same polygon dozens of times a second;
-        // re-staging on every poll keeps a static wire on the rebuild cadence.
-        // Only stage when the value actually changed.
-        if (LoopEquals(_lastLoop, polygon))
-            return;
-        _lastLoop = polygon is null or { Length: < 2 } ? null : (Vector3[])polygon.Clone();
-        FillLoop(_staging, polygon);
-        // GPU content never changes here — mark the swap-pump pending instead.
-        _rebuildGate.MarkDirty();
-    }
-
-    private static bool LoopEquals(Vector3[]? a, Vector3[]? b)
-    {
-        if (ReferenceEquals(a, b))
-            return true;
-        if (a is null || b is null)
-            return a is null && b is null;
-        if (a.Length != b.Length)
-            return false;
-        for (var i = 0; i < a.Length; i++)
-            if (a[i] != b[i])
-                return false;
-        return true;
-    }
-
-    /// <summary>Fill <paramref name="target"/> with the closed polygon loop:
-    /// one line per edge (two vertices + two tints), ending back at the first
-    /// point. Any short/null polygon clears the target (loop with nothing to
-    /// draw).</summary>
-    internal static void FillLoop(Geometry target, Vector3[]? polygon)
-    {
-        target.Vertices.Clear();
-        target.VertexColors.Clear();
-        if (polygon is null || polygon.Length < 2)
-            return;
-        var color = WireColor.ToVector4();
-        for (var i = 0; i < polygon.Length; i++)
-        {
-            var next = (i + 1) % polygon.Length;
-            target.Vertices.Add(new Vector4(polygon[i], 1f));
-            target.Vertices.Add(new Vector4(polygon[next], 1f));
-            target.VertexColors.Add(color);
-            target.VertexColors.Add(color);
-        }
-    }
-
-    /// <summary>In-place static pump: copy the staging loop into the ONE long-lived
-    /// static geometry, register it once via the engine's staged buffer upload
-    /// (device-local destination — never a mapped write into a buffer a frame is
-    /// reading), and keep re-uploading into that same buffer. Rebuilds are
-    /// coalesced by <see cref="RebuildGate"/> (position changes arrive at
-    /// status-poll cadence), so this never rewrites a live buffer in place and
-    /// never swaps geometries — the static pool is packed at build, not per poll.</summary>
-    internal void Pump()
-    {
-        if (!_rebuildGate.RebuildDue(DateTime.UtcNow))
-            return;
-
-        var staged = _staging;
-        var n = staged.Vertices.Count;
-        if (n == 0)
-        {
-            // Loop with nothing to draw: hide while keeping the registration.
-            _node.Geometry = null;
-            return;
-        }
-
-        if (_staticLoop is null || n > _loopCapacity)
-        {
-            if (n > _loopCapacity)
-                _loopCapacity = n;
-            var fresh = NexCarriagePlaneLayer.BuildStatic(staged);
-            _staticLoop?.Dispose();
-            _staticLoop = fresh;
-            _engine.Add(_staticLoop);
-            // Count changed — re-set the reference so the draw stream refreshes
-            // its LineCount.
-            _node.Geometry = _staticLoop;
-        }
-        else
-        {
-            NexCarriagePlaneLayer.RefillLines(
-                _staticLoop, staged, _loopCapacity, WireColor.ToVector4());
-            _staticLoop.UpdateBuffers(_engine.Context).CheckResult();
-        }
     }
 
     /// <summary>Swept sheet colour — the legacy loft blue-grey at 35% opacity
@@ -209,8 +86,6 @@ public sealed class NexLoftSurface : ILoftSurface
     /// geometry is disposed after the swap.</summary>
     public void SetLoftSheet(IReadOnlyList<Vector3> sideA, IReadOnlyList<Vector3> sideB)
     {
-        if (DiagnosticDisableSheet)
-            return;
         var sheet = BuildSheet(sideA, sideB);
         var old = _sheetGeometry;
         if (sheet.Vertices.Count == 0)
@@ -255,8 +130,6 @@ public sealed class NexLoftSurface : ILoftSurface
         _sheetMaterial?.Dispose();
         _sheetMaterial = null;
         _sheetGeometry = null;
-        _staticLoop?.Dispose();
-        _staticLoop = null;
     }
 
     /// <summary>Build the static swept sheet as a triangle strip of quads joining
