@@ -123,6 +123,65 @@ public class AboutDialogHeadlessTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task About_dialog_copy_and_close_buttons_wire_the_commands()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = HeadlessTestCatalog.Locale;
+            var vm = new AboutViewModel(new IModule[] { new TestPlugin() });
+            string? copied = null;
+            vm.CopyRequested += (_, t) => copied = t;
+            var window = new AboutView { DataContext = vm };
+            window.Show();
+            for (var i = 0; i < 4; i++) await Pump();
+
+            var buttons = window.GetVisualDescendants().OfType<Button>().ToArray();
+            var copyButton = buttons.FirstOrDefault(b => ReferenceEquals(b.Command, vm.CopyInfoCmd));
+            Assert.NotNull(copyButton);
+            var closeButton = buttons.FirstOrDefault(b => ReferenceEquals(b.Command, vm.CloseCmd));
+            Assert.NotNull(closeButton);
+
+            copyButton.Command!.Execute(copyButton.CommandParameter);
+            for (var i = 0; i < 4; i++) await Pump();
+            Assert.Equal(vm.BuildCopyText(), copied);
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task About_dialog_close_command_closes_the_window()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = HeadlessTestCatalog.Locale;
+            var vm = new AboutViewModel();
+            var window = new AboutView { DataContext = vm };
+            var closed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            window.Closed += (_, _) => closed.TrySetResult(true);
+            window.Show();
+            for (var i = 0; i < 4; i++) await Pump();
+
+            var closeButton = window.GetVisualDescendants()
+                .OfType<Button>()
+                .FirstOrDefault(b => ReferenceEquals(b.Command, vm.CloseCmd));
+            Assert.NotNull(closeButton);
+            closeButton.Command!.Execute(closeButton.CommandParameter);
+            await closed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.True(closed.Task.IsCompletedSuccessfully);
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
     private sealed class TestPlugin : IModule, IPluginInfo, IPluginDependencies
     {
         public string Id => "test";

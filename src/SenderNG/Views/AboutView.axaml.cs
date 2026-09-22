@@ -33,7 +33,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using Avalonia.Controls;
-using Avalonia.Interactivity;
+using Avalonia.Input.Platform;
+using SenderNG.ViewModels;
 
 namespace SenderNG.Views;
 
@@ -42,8 +43,50 @@ public partial class AboutView : Window
     public AboutView()
     {
         InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
     }
 
-    /// <summary>The dialog's Close button</summary>
-    private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
+    private AboutViewModel? _wired;
+
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        if (_wired is { } old)
+        {
+            old.CloseRequested -= OnCloseRequested;
+            old.CopyRequested -= OnCopyRequested;
+        }
+
+        _wired = null;
+        if (DataContext is AboutViewModel vm)
+        {
+            vm.CloseRequested += OnCloseRequested;
+            vm.CopyRequested += OnCopyRequested;
+            _wired = vm;
+        }
+    }
+
+    private void OnCloseRequested(object? sender, bool result) => Close();
+
+    private void OnCopyRequested(object? sender, string text) => _ = WriteClipboardAsync(text);
+
+    private async Task WriteClipboardAsync(string text)
+    {
+        var vm = _wired;
+        var ok = false;
+        try
+        {
+            var top = TopLevel.GetTopLevel(this);
+            if (top?.Clipboard is { } clip)
+            {
+                await clip.SetTextAsync(text);
+                ok = true;
+            }
+        }
+        catch
+        {
+            // Clipboard unavailable or write failed — leave the label alone.
+        }
+
+        vm?.SetCopyResult(ok);
+    }
 }

@@ -73,7 +73,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <ListBox ItemsSource="{Binding Libraries}" Margin="4,8,4,4">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ThirdPartyLibrary">
-                            <Border BorderThickness="0,0,0,1" BorderBrush="#E5E5E5" Padding="0,8,0,8">
+                            <Border BorderThickness="0,0,0,1" BorderBrush="#E5E5E5" Padding="0,2,0,2">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" />
                                     <TextBlock Text="{Binding VersionLicense}" FontSize="11" Foreground="#666" VerticalAlignment="Center" TextWrapping="Wrap" />
@@ -90,36 +90,44 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <ListBox ItemsSource="{Binding Modules}" Margin="4,8,4,4">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ModuleInfoItem">
-                            <StackPanel Spacing="1" Margin="0,4">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding Version}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
+							<Border BorderThickness="0,0,0,1" BorderBrush="#E5E5E5" Padding="0,2,0,2">
+                                <StackPanel Spacing="1">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Version}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding AuthorLicense}" FontSize="11" Foreground="#666" TextWrapping="Wrap" />
+                                    <TextBlock Text="{loc:Loc about.tab.modules.dependencies}" FontSize="11" Foreground="#666"
+                                               IsVisible="{Binding HasDependencies}" Margin="0,4,0,0"/>
+                                    <ItemsControl ItemsSource="{Binding Dependencies}" IsVisible="{Binding HasDependencies}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="core:PluginDependency">
+                                                <TextBlock Text="{Binding OneLine}" FontSize="10" Foreground="#666" Margin="0,0,12,2" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </StackPanel>
-                                <TextBlock Text="{Binding AuthorLicense}" FontSize="11" Foreground="#666" TextWrapping="Wrap" />
-                                <TextBlock Text="{loc:Loc about.tab.modules.dependencies}" FontSize="11" Foreground="#666"
-                                           IsVisible="{Binding HasDependencies}" />
-                                <ItemsControl ItemsSource="{Binding Dependencies}" IsVisible="{Binding HasDependencies}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="core:PluginDependency">
-                                            <TextBlock Text="{Binding OneLine}" FontSize="10" Foreground="#666" Margin="0,0,12,2" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
+							</Border>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
             </TabItem>
         </TabControl>
 
-        <Button Grid.Row="2" HorizontalAlignment="Right" Content="{loc:Loc common.close}"
-                Click="OnCloseClick" Height="28" MinHeight="28" CornerRadius="0" FontSize="11"
-                Background="#eee" BorderBrush="#999" BorderThickness="1"
-                Padding="14,0" VerticalContentAlignment="Center" />
+		<Grid Grid.Row="2" HorizontalAlignment="Stretch" ColumnDefinitions="Auto,*,Auto">
+			<Button Grid.Column="0" HorizontalAlignment="Right" Content="{Binding CopyButtonText}"
+					Command="{Binding CopyInfoCmd}" Height="28" MinHeight="28" CornerRadius="0" FontSize="11"
+					Background="#eee" BorderBrush="#999" BorderThickness="1"
+					Padding="14,0" VerticalContentAlignment="Center" />
+			<Button Grid.Column="2" HorizontalAlignment="Right" Content="{loc:Loc common.close}"
+					Command="{Binding CloseCmd}" Height="28" MinHeight="28" CornerRadius="0" FontSize="11"
+					Background="#eee" BorderBrush="#999" BorderThickness="1"
+					Padding="14,0" VerticalContentAlignment="Center" />
+		</Grid>
     </Grid>
 </Window>
