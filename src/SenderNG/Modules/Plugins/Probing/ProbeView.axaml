@@ -221,7 +221,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                FontSize="11" Grid.ColumnSpan="3" Margin="0,0,0,3" />
                     <TextBlock Grid.Row="1" Classes="fld" Text="{loc:Loc module.probing.diameter, DText='Diameter:'}" />
                     <TextBox Grid.Row="1" Grid.Column="1" Classes="num" Text="{Binding ProbeDiameter, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
-                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="unit" Text="mm" />
+                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
                 </Grid>
             </Border>
 
@@ -232,10 +232,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                FontSize="11" Grid.ColumnSpan="3" Margin="0,0,0,3" />
                     <TextBlock Grid.Row="1" Classes="fld" Text="{loc:Loc module.probing.touchPlate, DText='Touch plate:'}" />
                     <TextBox Grid.Row="1" Grid.Column="1" Classes="num" Text="{Binding TouchPlateHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
-                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="unit" Text="mm" />
+                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
                     <TextBlock Grid.Row="2" Classes="fld" Text="{loc:Loc module.probing.fixture, DText='Fixture:'}" />
                     <TextBox Grid.Row="2" Grid.Column="1" Classes="num" Text="{Binding FixtureHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
-                    <TextBlock Grid.Row="2" Grid.Column="2" Classes="unit" Text="mm" />
+                    <TextBlock Grid.Row="2" Grid.Column="2" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
                 </Grid>
             </Border>
 
@@ -246,19 +246,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                FontSize="11" Grid.ColumnSpan="3" Margin="0,0,0,3" />
                     <TextBlock Grid.Row="1" Classes="fld" Text="{loc:Loc module.probing.rapidsFeedRate, DText='Rapids feed rate:'}" ToolTip.Tip="{loc:Loc module.probing.rapidsFeedRateHint, DText='Feed for rapid moves; 0 uses the controller setting'}" />
                     <TextBox Grid.Row="1" Grid.Column="1" Classes="num" Text="{Binding RapidsFeedRate, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
-                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="unit" Text="mm/min" />
+                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="unit" Text="{loc:Loc common.mmMin, DText='mm/min'}" />
                     <TextBlock Grid.Row="2" Classes="fld" Text="{loc:Loc module.probing.searchFeedRate, DText='Search feed rate:'}" ToolTip.Tip="{loc:Loc module.probing.searchFeedRateHint, DText='Feed rate for the initial probing move'}" />
                     <TextBox Grid.Row="2" Grid.Column="1" Classes="num" Text="{Binding ProbeFeedRate, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
-                    <TextBlock Grid.Row="2" Grid.Column="2" Classes="unit" Text="mm/min" />
+                    <TextBlock Grid.Row="2" Grid.Column="2" Classes="unit" Text="{loc:Loc common.mmMin, DText='mm/min'}" />
                     <TextBlock Grid.Row="3" Classes="fld" Text="{loc:Loc module.probing.latchFeedRate, DText='Latch feed rate:'}" ToolTip.Tip="{loc:Loc module.probing.latchFeedRateHint, DText='Feed rate for the second slow probing move'}" />
                     <TextBox Grid.Row="3" Grid.Column="1" Classes="num" Text="{Binding LatchFeedRate, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
-                    <TextBlock Grid.Row="3" Grid.Column="2" Classes="unit" Text="mm/min" />
+                    <TextBlock Grid.Row="3" Grid.Column="2" Classes="unit" Text="{loc:Loc common.mmMin, DText='mm/min'}" />
                     <TextBlock Grid.Row="4" Classes="fld" Text="{loc:Loc module.probing.probingDistance, DText='Probing distance:'}" ToolTip.Tip="{loc:Loc module.probing.probingDistanceHint, DText='Maximum distance of a probing move'}" />
                     <TextBox Grid.Row="4" Grid.Column="1" Classes="num" Text="{Binding ProbeDistance, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
-                    <TextBlock Grid.Row="4" Grid.Column="2" Classes="unit" Text="mm" />
+                    <TextBlock Grid.Row="4" Grid.Column="2" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
                     <TextBlock Grid.Row="5" Classes="fld" Text="{loc:Loc module.probing.latchDistance, DText='Latch distance:'}" ToolTip.Tip="{loc:Loc module.probing.latchDistanceHint, DText='Retract before the slow probe; 0 skips it'}" />
                     <TextBox Grid.Row="5" Grid.Column="1" Classes="num" Text="{Binding LatchDistance, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
-                    <TextBlock Grid.Row="5" Grid.Column="2" Classes="unit" Text="mm" />
+                    <TextBlock Grid.Row="5" Grid.Column="2" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
                 </Grid>
             </Border>
 
@@ -269,13 +269,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                FontSize="11" Grid.ColumnSpan="3" Margin="0,0,0,3" />
                     <TextBlock Grid.Row="1" Classes="fld" Text="{loc:Loc module.probing.xyClearance, DText='XY Clearance:'}" ToolTip.Tip="{loc:Loc module.probing.xyClearanceHint, DText='Initial distance away from the face to probe'}" />
                     <TextBox Grid.Row="1" Grid.Column="1" Classes="num" Text="{Binding XYClearance, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
-                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="unit" Text="mm" />
+                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
                     <TextBlock Grid.Row="2" Classes="fld" Text="{loc:Loc module.probing.offset, DText='Offset:'}" ToolTip.Tip="{loc:Loc module.probing.offsetHint, DText='Distance from the corner to the probe point'}" />
                     <TextBox Grid.Row="2" Grid.Column="1" Classes="num" Text="{Binding Offset, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
-                    <TextBlock Grid.Row="2" Grid.Column="2" Classes="unit" Text="mm" />
+                    <TextBlock Grid.Row="2" Grid.Column="2" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
                     <TextBlock Grid.Row="3" Classes="fld" Text="{loc:Loc module.probing.depth, DText='Depth:'}" ToolTip.Tip="{loc:Loc module.probing.depthHint, DText='Z below the start position where XY probing happens'}" />
                     <TextBox Grid.Row="3" Grid.Column="1" Classes="num" Text="{Binding Depth, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
-                    <TextBlock Grid.Row="3" Grid.Column="2" Classes="unit" Text="mm" />
+                    <TextBlock Grid.Row="3" Grid.Column="2" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
                 </Grid>
             </Border>
 
@@ -286,11 +286,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                FontSize="11" Grid.ColumnSpan="3" Margin="0,0,0,3" />
                     <TextBlock Grid.Row="1" Classes="fld" Text="X:" ToolTip.Tip="{loc:Loc module.probing.xOffsetHint, DText='X offset from the probe to the controlled point'}" />
                     <TextBox Grid.Row="1" Grid.Column="1" Classes="num" Text="{Binding ProbeOffsetX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
-                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="unit" Text="mm" />
+                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
                     
 					<TextBlock Grid.Row="1" Grid.Column="4" Classes="fld" Text="Y:" ToolTip.Tip="{loc:Loc module.probing.yOffsetHint, DText='Y offset from the probe to the controlled point'}" />
                     <TextBox Grid.Row="1" Grid.Column="5" Classes="num" Text="{Binding ProbeOffsetY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}" />
-                    <TextBlock Grid.Row="1" Grid.Column="6" Classes="unit" Text="mm" />
+                    <TextBlock Grid.Row="1" Grid.Column="6" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
                     <CheckBox Grid.Row="2" Grid.ColumnSpan="3" Content="{loc:Loc module.probing.isTouchPlate, DText='Is touch plate'}" FontSize="11" IsChecked="{Binding TouchPlateIsXY}" />
                 </Grid>
             </Border>

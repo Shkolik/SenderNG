@@ -167,6 +167,66 @@ public class StepperCalibrationViewModelTests
     }
 
     [Fact]
+    public async Task Computes_new_steps_from_the_absolute_distance()
+    {
+        var (vm, _, _) = Create();
+        await vm.InitializeAsync();
+        vm.Distance = -100;
+        vm.MeasuredDistance = 90;
+        Assert.Equal(277.778, vm.NewStepsPerUnit!.Value, 3);
+    }
+
+    [Fact]
+    public async Task Negative_distance_moves_in_the_negative_direction()
+    {
+        var (vm, grbl, _) = Create();
+        await vm.InitializeAsync();
+        grbl.Current.MachinePositions![0] = 100;   // allow the -100 move inside $130=200
+        grbl.Current.Positions[0] = 100;
+        vm.Distance = -100;
+        await vm.NextAsync();
+        Assert.Equal(StepperCalibrationStep.MeasureForward, vm.Step);
+        Assert.Contains(grbl.Lines, l => l == "G21G91G0X-100");
+
+        vm.MeasuredDistance = 100;
+        await vm.NextAsync();                      // return leg comes back +100
+        Assert.Equal(StepperCalibrationStep.MeasureBacklash, vm.Step);
+        Assert.Contains(grbl.Lines, l => l == "G21G91G0X100");
+    }
+
+    [Fact]
+    public async Task Prefills_backlash_when_reaching_the_measure_backlash_step()
+    {
+        var (vm, _, _) = Create();
+        await vm.InitializeAsync();
+        vm.MeasuredDistance = 100;
+        await vm.NextAsync();               // forward
+        Assert.Null(vm.Backlash);
+        await vm.NextAsync();               // return -> MeasureBacklash
+        Assert.Equal(StepperCalibrationStep.MeasureBacklash, vm.Step);
+        Assert.Equal(0d, vm.Backlash);
+        Assert.True(vm.CanSave);
+    }
+
+    [Fact]
+    public async Task Resume_after_stop_keeps_the_entered_backlash()
+    {
+        var (vm, _, _) = Create();
+        await vm.InitializeAsync();
+        vm.MeasuredDistance = 100;
+        await vm.NextAsync();
+        await vm.NextAsync();
+        vm.Backlash = 0.25;
+        await vm.StopAsync();            // abort back to Setup; values are kept so the user can resume
+        Assert.Equal(StepperCalibrationStep.Setup, vm.Step);
+
+        await vm.NextAsync();            // re-run from Setup
+        await vm.NextAsync();
+        Assert.Equal(StepperCalibrationStep.MeasureBacklash, vm.Step);
+        Assert.Equal(0.25, vm.Backlash); // the 0 prefill must not clobber a value already entered
+    }
+
+    [Fact]
     public async Task Advances_through_the_state_machine()
     {
         var (vm, grbl, _) = Create();
@@ -224,6 +284,9 @@ public class StepperCalibrationViewModelTests
         Assert.Contains(grbl.Lines, l => l.StartsWith("$100="));
         Assert.Contains(grbl.Lines, l => l == "$160=0.25");
         Assert.True(vm.BacklashSupported);
+        Assert.Contains("Calibration saved", vm.Status);
+        Assert.Contains("Steps/mm: 250", vm.Status);
+        Assert.Contains("backlash 0.25 mm saved", vm.Status, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -238,7 +301,8 @@ public class StepperCalibrationViewModelTests
         await vm.SaveAsync();
         Assert.DoesNotContain(grbl.Lines, l => l.StartsWith("$160="));
         Assert.False(vm.BacklashSupported);
-        Assert.Contains("not supported", vm.ResultText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Calibration saved", vm.Status);
+        Assert.Contains("not supported", vm.Status, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

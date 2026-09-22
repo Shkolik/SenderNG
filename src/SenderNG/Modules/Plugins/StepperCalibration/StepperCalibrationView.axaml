@@ -37,28 +37,33 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Modules.Plugins"
+             xmlns:conv="clr-namespace:SenderNG.Converters"
              xmlns:loc="clr-namespace:SenderNG.Localization;assembly=SenderNG"
-             mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="460"
+             mc:Ignorable="d" d:DesignWidth="450" d:DesignHeight="400"
+			 MinWidth="450" Height="400"
              x:Class="SenderNG.Modules.Plugins.StepperCalibrationView"
              x:DataType="vm:StepperCalibrationViewModel">
-    <DockPanel Background="#f6f6f6">
+    <DockPanel Background="#f6f6f6" Margin="10">
+        <DockPanel.Styles>
+            <Style Selector="TextBlock.unit">
+                <Setter Property="FontSize" Value="10" />
+                <Setter Property="Foreground" Value="#888" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Margin" Value="6,0,0,0" />
+            </Style>
+        </DockPanel.Styles>
 
-        <Border DockPanel.Dock="Bottom" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="10,8">
-            <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Grid.Column="0" Text="{Binding Status}" FontSize="10" Foreground="#888"
-                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                    <Button Content="{loc:Loc module.stepper-calibration.back}" Command="{Binding BackCommand}"
-                            IsVisible="{Binding CanGoBack}" Padding="14,0" Height="28" MinHeight="28"
-                            CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" />
+        <Border DockPanel.Dock="Bottom" BorderBrush="#aaa" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0">                
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">                    
                     <Button Content="{loc:Loc module.stepper-calibration.next}" Command="{Binding NextCommand}"
                             IsVisible="{Binding CanAdvance}" Padding="14,0" Height="28" MinHeight="28"
                             CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" />
                     <Button Content="{loc:Loc module.stepper-calibration.stop}" Command="{Binding StopCommand}"
-                            IsVisible="{Binding IsMoving}" Padding="14,0" Height="28" MinHeight="28"
+                            IsEnabled="{Binding IsMoving}" Padding="14,0" Height="28" MinHeight="28"
                             CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" />
                     <Button Content="{loc:Loc module.stepper-calibration.save}" Command="{Binding SaveCommand}"
-                            IsVisible="{Binding CanSave}" Padding="14,0" Height="28" MinHeight="28"
+                            IsEnabled="{Binding CanSave}" Padding="14,0" Height="28" MinHeight="28"
                             CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" />
                     <Button Content="{loc:Loc module.stepper-calibration.newCalibration}" Command="{Binding NewCommand}"
                             IsVisible="{Binding IsDone}" Padding="14,0" Height="28" MinHeight="28"
@@ -67,52 +72,36 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             </Grid>
         </Border>
 
-        <StackPanel Margin="14" Spacing="10">
+		<!-- Done -->
+		<TextBlock Text="{Binding Status}" Foreground="Red" TextWrapping="Wrap" DockPanel.Dock="Bottom" Margin="0,10" MaxWidth="450"/>
+		
+		<Grid ColumnDefinitions="Auto, 150, Auto, *" RowDefinitions="Auto,Auto,Auto,20,Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="10">
+			<!-- Setup -->
+			<TextBlock Grid.Column="0" Grid.Row="0" Text="{loc:Loc module.stepper-calibration.axis}" VerticalAlignment="Center" />
+			<ComboBox Grid.Column="1" Grid.Row="0" ItemsSource="{Binding Axes}" SelectedIndex="{Binding SelectedAxis}" Width="150" IsEnabled="{Binding IsSetup}"/>
 
-            <!-- Setup -->
-            <StackPanel Spacing="10" IsVisible="{Binding IsSetup}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{loc:Loc module.stepper-calibration.axis}" VerticalAlignment="Center" Width="140" />
-                    <ComboBox ItemsSource="{Binding Axes}" SelectedIndex="{Binding SelectedAxis}" Width="120" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{loc:Loc module.stepper-calibration.direction}" VerticalAlignment="Center" Width="140" />
-                    <RadioButton Content="{loc:Loc module.stepper-calibration.positive}"
-                                 IsChecked="{Binding MovePositive}" GroupName="dir" />
-                    <RadioButton Content="{loc:Loc module.stepper-calibration.negative}"
-                                 IsChecked="{Binding !MovePositive}" GroupName="dir" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{loc:Loc module.stepper-calibration.distance}" VerticalAlignment="Center" Width="140" />
-                    <TextBox Text="{Binding Distance}" Width="120" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{loc:Loc module.stepper-calibration.currentSteps}" VerticalAlignment="Center" Width="140" />
-                    <TextBlock Text="{Binding CurrentStepsPerUnit, StringFormat={}{0:0.###}}" VerticalAlignment="Center" />
-                </StackPanel>
-            </StackPanel>
+			<TextBlock Grid.Column="0" Grid.Row="1" Text="{loc:Loc module.stepper-calibration.distance}" VerticalAlignment="Center"/>
+			<TextBox x:Name="DistanceBox" Grid.Column="1" Grid.Row="1" Text="{Binding Distance, Converter={x:Static conv:Converters.NumericText}}" Width="150" IsEnabled="{Binding IsSetup}"/>
+			<TextBlock Grid.Column="2" Grid.Row="1" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
 
-            <!-- Measure -->
-            <StackPanel Spacing="10">
-                <StackPanel Orientation="Horizontal" Spacing="8"
-                            IsVisible="{Binding Step, Converter={x:Static vm:StepperCalibrationStepConverters.IsMeasureForward}}">
-                    <TextBlock Text="{loc:Loc module.stepper-calibration.measured}" VerticalAlignment="Center" Width="200" />
-                    <TextBox Text="{Binding MeasuredDistance}" Width="120" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="8"
-                            IsVisible="{Binding Step, Converter={x:Static vm:StepperCalibrationStepConverters.IsMeasureBacklash}}">
-                    <TextBlock Text="{loc:Loc module.stepper-calibration.backlash}" VerticalAlignment="Center" Width="200" />
-                    <TextBox Text="{Binding Backlash}" Width="120" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{loc:Loc module.stepper-calibration.newSteps}" VerticalAlignment="Center" Width="200" />
-                    <TextBlock Text="{Binding NewStepsPerUnit, StringFormat={}{0:0.######}}" VerticalAlignment="Center" />
-                </StackPanel>
-            </StackPanel>
+			<TextBlock Grid.Column="0" Grid.Row="2" Text="{loc:Loc module.stepper-calibration.currentSteps}" VerticalAlignment="Center"/>
+			<TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding CurrentStepsPerUnit, StringFormat={}{0:0.###}}" VerticalAlignment="Center"/>
+			<TextBlock Grid.Column="2" Grid.Row="2" Classes="unit" Text="{loc:Loc common.stepsPerMm, DText='steps/mm'}" />
 
-            <!-- Done -->
-            <TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" IsVisible="{Binding IsDone}" />
+			<!-- Measure -->
+			<TextBlock Grid.Column="0" Grid.Row="4" Text="{loc:Loc module.stepper-calibration.measured}" VerticalAlignment="Center"/>
+			<TextBox x:Name="MeasuredBox" Grid.Column="1" Grid.Row="4" Text="{Binding MeasuredDistance, Converter={x:Static conv:Converters.NumericText}}" Width="150" 
+					 IsEnabled="{Binding Step, Converter={x:Static vm:StepperCalibrationStepConverters.IsMeasureForward}}"/>
+			<TextBlock Grid.Column="2" Grid.Row="4" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
 
-        </StackPanel>
+			<TextBlock Grid.Column="0" Grid.Row="5" Text="{loc:Loc module.stepper-calibration.backlash}" VerticalAlignment="Center"/>
+			<TextBox x:Name="BacklashBox" Grid.Column="1" Grid.Row="5" Text="{Binding Backlash, Converter={x:Static conv:Converters.NumericText}}" Width="150" 
+					 IsEnabled="{Binding Step, Converter={x:Static vm:StepperCalibrationStepConverters.IsMeasureBacklash}}"/>
+			<TextBlock Grid.Column="2" Grid.Row="5" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
+
+			<TextBlock Grid.Column="0" Grid.Row="6" Text="{loc:Loc module.stepper-calibration.newSteps}" VerticalAlignment="Center"/>
+			<TextBlock Grid.Column="1" Grid.Row="6" Text="{Binding NewStepsPerUnit, StringFormat={}{0:0.######}}" VerticalAlignment="Center" />
+			<TextBlock Grid.Column="2" Grid.Row="6" Classes="unit" Text="{loc:Loc common.stepsPerMm, DText='steps/mm'}" />
+		</Grid>
     </DockPanel>
 </UserControl>

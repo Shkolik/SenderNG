@@ -53,28 +53,25 @@ public class StepperCalibrationModule : IModule, IModuleSettingsProvider, ILocal
     public int Order => 39;
     public PanelHint Panel => PanelHint.Menu;
     public bool IsVisibleByDefault => true;
-    public bool CanHide => false;
-    public (double Width, double Height)? DialogPreferredSize => (560.0, 460.0);
+    public bool CanHide => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
         new Dictionary<string, string>
         {
             ["module.stepper-calibration.name"] = "Stepper calibration",
-            ["module.stepper-calibration.distance"] = "Distance (mm)",
+            ["module.stepper-calibration.distance"] = "Distance",
             ["module.stepper-calibration.axis"] = "Axis",
-            ["module.stepper-calibration.direction"] = "Direction",
-            ["module.stepper-calibration.positive"] = "Positive (+)",
-            ["module.stepper-calibration.negative"] = "Negative (−)",
-            ["module.stepper-calibration.measured"] = "Measured distance (mm)",
-            ["module.stepper-calibration.backlash"] = "Backlash (mm)",
-            ["module.stepper-calibration.currentSteps"] = "Current steps/mm",
-            ["module.stepper-calibration.newSteps"] = "New steps/mm",
+            ["module.stepper-calibration.measured"] = "Measured distance",
+            ["module.stepper-calibration.backlash"] = "Backlash",
+            ["module.stepper-calibration.currentSteps"] = "Current steps",
+            ["module.stepper-calibration.newSteps"] = "New steps",
             ["module.stepper-calibration.next"] = "Next",
             ["module.stepper-calibration.back"] = "Back",
             ["module.stepper-calibration.save"] = "Save",
             ["module.stepper-calibration.stop"] = "Stop",
             ["module.stepper-calibration.newCalibration"] = "New calibration",
+            ["module.stepper-calibration.instructions"] = "New calibration. Select axis and enter how far it should move.",
         };
 
     public void RegisterServices(IServiceCollection services) =>

@@ -42,7 +42,6 @@ using SenderNG.Core.Localization;
 using SenderNG.Core.Models;
 using SenderNG.Core.Modules;
 using SenderNG.Core.Settings;
-using SenderNG.ViewModels;
 using ViewModelBase = SenderNG.ViewModels.ViewModelBase;
 
 namespace SenderNG.Modules.Plugins;
@@ -87,7 +86,6 @@ public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClo
         Distance = StepperCalibrationSettingsStore.Load(_settings.Load()).Distance;
 
         NextCommand = new DelegateCommand(_ => _ = NextAsync(), _ => CanAdvance);
-        BackCommand = new DelegateCommand(_ => _ = BackAsync(), _ => CanGoBack);
         SaveCommand = new DelegateCommand(_ => _ = SaveAsync(), _ => CanSave);
         StopCommand = new DelegateCommand(_ => _ = StopAsync(), _ => IsMoving);
         NewCommand = new DelegateCommand(_ => NewCalibration(), _ => IsDone);
@@ -114,9 +112,6 @@ public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClo
 
     public string SelectedAxisLetter =>
         SelectedAxis >= 0 && SelectedAxis < Axes.Count ? Axes[SelectedAxis] : "X";
-
-    private bool _movePositive = true;
-    public bool MovePositive { get => _movePositive; set => SetField(ref _movePositive, value); }
 
     private double _distance = 100;
     public double Distance
@@ -159,9 +154,6 @@ public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClo
     private string _status = string.Empty;
     public string Status { get => _status; private set => SetField(ref _status, value); }
 
-    private string _resultText = string.Empty;
-    public string ResultText { get => _resultText; private set => SetField(ref _resultText, value); }
-
     private StepperCalibrationStep _step = StepperCalibrationStep.Setup;
     public StepperCalibrationStep Step
     {
@@ -186,7 +178,6 @@ public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClo
     public bool IsMoving { get => _moving; private set { if (SetField(ref _moving, value)) RaiseCommands(); } }
 
     public DelegateCommand NextCommand { get; }
-    public DelegateCommand BackCommand { get; }
     public DelegateCommand SaveCommand { get; }
     public DelegateCommand StopCommand { get; }
     public DelegateCommand NewCommand { get; }
@@ -194,23 +185,28 @@ public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClo
     public bool CanAdvance => !IsMoving &&
         Step is StepperCalibrationStep.Setup or StepperCalibrationStep.MeasureForward;
 
-    public bool CanGoBack => !IsMoving &&
-        Step is StepperCalibrationStep.MeasureForward or StepperCalibrationStep.MeasureBacklash;
-
     public bool CanSave => !IsMoving && Step == StepperCalibrationStep.MeasureBacklash &&
-        Backlash is >= 0;
+        Backlash >= 0;
 
     private void RaiseCommands()
     {
-        NextCommand.RaiseCanExecuteChanged();
-        BackCommand.RaiseCanExecuteChanged();
-        SaveCommand.RaiseCanExecuteChanged();
-        StopCommand.RaiseCanExecuteChanged();
-        NewCommand.RaiseCanExecuteChanged();
+        // The wizard's buttons bind IsEnabled to these computed properties
+        // directly (not just through the commands), so raising only
+        // RaiseCanExecuteChanged leaves the bindings stale — Avalonia does not
+        // re-evaluate an explicitly bound IsEnabled when the command changes.
+        // Notify each so the UI follows the same state the commands gate on.
+        OnPropertyChanged(nameof(IsMoving));
+        OnPropertyChanged(nameof(CanAdvance));
+        OnPropertyChanged(nameof(CanSave));
+        NextCommand?.RaiseCanExecuteChanged();
+        SaveCommand?.RaiseCanExecuteChanged();
+        StopCommand?.RaiseCanExecuteChanged();
+        NewCommand?.RaiseCanExecuteChanged();
     }
 
     public async Task InitializeAsync()
     {
+        Status = Resolve("module.stepper-calibration.instructions", "New calibration. \nSelect axis and enter how far it should move.");
         try
         {
             _snapshot = await _loader.LoadAsync();
@@ -240,10 +236,9 @@ public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClo
     public void Recompute()
     {
         NewStepsPerUnit = CurrentStepsPerUnit is { } current && MeasuredDistance is { } measured &&
-                          measured > 0 && Distance > 0
-            ? Math.Round(current * Distance / measured, IsGrblHal ? 6 : 3)
+                          measured > 0 && Distance != 0
+            ? Math.Round(current * Math.Abs(Distance) / measured, IsGrblHal ? 6 : 3)
             : null;
-        OnPropertyChanged(nameof(CanSave));
         RaiseCommands();
     }
 
@@ -262,12 +257,12 @@ public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClo
             return;
         if (Step == StepperCalibrationStep.Setup)
         {
-            if (Distance <= 0)
+            if (Distance == 0)
             {
-                Status = Resolve("module.stepper-calibration.invalidDistance", "Enter a distance greater than 0.");
+                Status = Resolve("module.stepper-calibration.invalidDistance", "Enter a distance greater or lower than 0.");
                 return;
             }
-            var (ok, warning) = await MoveAsync(MovePositive ? 1 : -1, Distance);
+            var (ok, warning) = await MoveAsync(Distance > 0 ? 1 : -1, Math.Abs(Distance));
             if (!ok)
                 return;
             Step = StepperCalibrationStep.MeasureForward;
@@ -281,23 +276,14 @@ public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClo
                 Status = Resolve("module.stepper-calibration.invalidMeasured", "Enter the measured distance.");
                 return;
             }
-            var (ok, warning) = await MoveAsync(MovePositive ? -1 : 1, Distance);
+            var (ok, warning) = await MoveAsync(Distance > 0 ? -1 : 1, Math.Abs(Distance));
             if (!ok)
                 return;
             Step = StepperCalibrationStep.MeasureBacklash;
+            Backlash ??= 0;
             Status = Compose(Resolve("module.stepper-calibration.measureBacklash",
                 "Enter how far short of the start the axis returned (0 = exact)."), warning);
         }
-    }
-
-    public Task BackAsync()
-    {
-        if (!CanGoBack)
-            return Task.CompletedTask;
-        Step = Step == StepperCalibrationStep.MeasureBacklash
-            ? StepperCalibrationStep.MeasureForward
-            : StepperCalibrationStep.Setup;
-        return Task.CompletedTask;
     }
 
     // Returns the warn-only space-check notice (if any) so the caller can keep it
@@ -385,13 +371,13 @@ public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClo
     }
 
     // Completes when the controller reports Idle again after the move, or (false) on
-// an Alarm or a 120s timeout. Callers must invoke this BEFORE issuing the move:
-// the first emission this subscription receives is the BehaviorSubject replay of
-// the last state — which, if subscribed after the send, is the pre-move "Idle"
-// that makes the wait succeed while the axis is still moving. The replay is
-// dropped, and Idle is accepted only after a non-Idle state was actually observed:
-// a poll that answers Idle before the move physically starts (it can beat the G0
-// line to the wire) must not count as completion either.
+    // an Alarm or a 120s timeout. Callers must invoke this BEFORE issuing the move:
+    // the first emission this subscription receives is the BehaviorSubject replay of
+    // the last state — which, if subscribed after the send, is the pre-move "Idle"
+    // that makes the wait succeed while the axis is still moving. The replay is
+    // dropped, and Idle is accepted only after a non-Idle state was actually observed:
+    // a poll that answers Idle before the move physically starts (it can beat the G0
+    // line to the wire) must not count as completion either.
     private async Task<bool> WaitForIdleAsync()
     {
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -466,15 +452,15 @@ public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClo
 
             await RestoreModalAsync(refreshAfterStop: false);
 
-            ResultText = BacklashSupported
+            var summary = BacklashSupported
                 ? Format("module.stepper-calibration.savedWithBacklash",
                     "Steps/mm: {0:0.###} → {1:0.###}; backlash {2:0.###} mm saved.",
                     CurrentStepsPerUnit ?? 0, newSteps ?? 0, Backlash ?? 0)
                 : Format("module.stepper-calibration.savedNoBacklash",
-                    "Steps/mm: {0:0.###} → {1:0.###}. Backlash compensation is not supported by this controller — informational only.",
+                    "Steps/mm: {0:0.###} → {1:0.###}. \nBacklash compensation is not supported by this controller — informational only.",
                     CurrentStepsPerUnit ?? 0, newSteps ?? 0);
+            Status = Compose(Resolve("module.stepper-calibration.saved", "Calibration saved to the controller."), summary);
             Step = StepperCalibrationStep.Done;
-            Status = Resolve("module.stepper-calibration.saved", "Calibration saved to the controller.");
         }
         catch (Exception ex)
         {
@@ -516,13 +502,12 @@ public sealed class StepperCalibrationViewModel : ViewModelBase, IAsyncDialogClo
             return;
         MeasuredDistance = null;
         Backlash = null;
-        ResultText = string.Empty;
         Step = StepperCalibrationStep.Setup;
-        Status = Resolve("module.stepper-calibration.restart", "Ready.");
+        Status = Resolve("module.stepper-calibration.instructions", "New calibration. \nSelect axis and enter how far it should move.");
     }
 
     private static string Compose(string status, string? warning) =>
-        warning is null ? status : $"{status} {warning}";
+        warning is null ? status : $"{status} \n{warning}";
 
     private string Resolve(string key, string fallback) => _localization.T(key) is var t && t != key ? t : fallback;
 
