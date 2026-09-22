@@ -204,7 +204,7 @@ public class AboutDialogModelTests
     }
 
     [Fact]
-    public async Task Copy_info_button_label_swaps_to_copied_and_reverts()
+    public async Task Copy_info_second_copy_within_window_is_not_reverted_by_first_timer()
     {
         var prev = LocalizationService.Current;
         try
@@ -212,11 +212,21 @@ public class AboutDialogModelTests
             LocalizationService.Current = null; // English fallback — deterministic
             var vm = new AboutViewModel();
             Assert.Equal("Copy info", vm.CopyButtonText);
-            vm.SetCopyResult(true);
+
+            vm.SetCopyResult(true); // first copy starts timer #1 (reverts at 2000 ms)
             Assert.Equal("Copied", vm.CopyButtonText);
-            vm.SetCopyResult(true); // a second copy inside the feedback window
-            await Task.Delay(2100, TestContext.Current.CancellationToken);
-            Assert.Equal("Copy info", vm.CopyButtonText);
+            await Task.Delay(1100, TestContext.Current.CancellationToken); // still inside timer #1's window
+
+            vm.SetCopyResult(true); // second copy re-bases the revert to timer #2 (2000 ms from now)
+            Assert.Equal("Copied", vm.CopyButtonText);
+            await Task.Delay(1400, TestContext.Current.CancellationToken); // timer #1's deadline passed, timer #2's has not
+
+            // Discriminating: only the generation guard keeps "Copied" here — without it timer #1 already reverted.
+            Assert.Equal("Copied", vm.CopyButtonText);
+
+            await Task.Delay(1100, TestContext.Current.CancellationToken); // past timer #2's deadline
+
+            Assert.Equal("Copy info", vm.CopyButtonText); // final revert from timer #2
         }
         finally
         {
