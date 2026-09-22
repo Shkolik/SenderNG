@@ -427,7 +427,6 @@
     "app.status.block": "Block: {0}/{1}",
     "app.status.jogStep": "Jog step: {0}",
     "app.status.runTime": "Run time: {0}",
-    "app.settings.machine": "Machine",
     "app.title.demo": "SenderNG (DEMO mode)",
     "app.title.notConnectedSuffix": " - Not connected",
     "app.state.notConnected": "NOT CONNECTED",

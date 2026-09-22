@@ -516,7 +516,6 @@
     "app.status.block": "Блок: {0}/{1}",
     "app.status.jogStep": "Шаг перемещения: {0}",
     "app.status.runTime": "Время работы: {0}",
-    "app.settings.machine": "Станок",
     "app.title.demo": "SenderNG (демо-режим)",
     "app.title.notConnectedSuffix": " — не подключено",
     "app.state.notConnected": "НЕ ПОДКЛЮЧЕНО",

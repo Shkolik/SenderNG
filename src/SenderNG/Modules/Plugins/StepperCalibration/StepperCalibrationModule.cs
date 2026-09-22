@@ -50,7 +50,7 @@ public class StepperCalibrationModule : IModule, IModuleSettingsProvider, ILocal
     public string Id => "stepper-calibration";
     public string Name => "Stepper calibration";
     public string Description => "Measure and correct each axis's steps/mm and backlash.";
-    public int Order => 45;
+    public int Order => 39;
     public PanelHint Panel => PanelHint.Menu;
     public bool IsVisibleByDefault => true;
     public bool CanHide => false;

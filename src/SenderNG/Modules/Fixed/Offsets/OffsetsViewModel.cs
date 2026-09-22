@@ -334,7 +334,7 @@ public sealed class OffsetsViewModel : ViewModelBase
     /// <summary>The tool table is shown only when the user enabled it in App
     /// Settings AND the controller can persist one — no grayed-out placeholder on
     /// controllers without G10 L1.</summary>
-    public bool ShowToolTableSection => Config.ShowToolTable && ControllerSupportsToolTable;
+    public bool ShowToolTableSection => Config.ShowToolTable && ControllerSupportsToolTable && VisibleTools > 0;
 
     /// <summary>Coordinate systems the connected controller can actually write
     /// (classic grbl 1.1 offers only G54..G59; G59.x is grblHAL-only).</summary>

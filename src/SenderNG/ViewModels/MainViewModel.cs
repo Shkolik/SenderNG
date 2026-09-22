@@ -742,7 +742,6 @@ public class MainViewModel : ViewModelBase, IDisposable
     /// <summary>Settings menu entries: fixed items plus one per Menu-claiming module.</summary>
     public IReadOnlyList<MenuEntry> SettingsMenu =>
         [
-            new MenuEntry(Resolve("app.settings.machine", "Machine"), MachineSettingsCommand, null),
             ..MenuModules.Select(m => new MenuEntry(LocalizedModuleName(m), OpenMenuModuleCommand, m)),
         ];
 

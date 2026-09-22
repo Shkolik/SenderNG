@@ -301,7 +301,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 </TabControl>
 
                 <!-- Cycle bar: 4 Buttons left-aligned below Center TabControl — Height 28, flat contour glyphs black/white on bg -->
-                <Border Grid.Row="1" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="6" HorizontalAlignment="Stretch">
+                <Border Grid.Row="1" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="4" HorizontalAlignment="Stretch">
                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left" VerticalAlignment="Center">
                         <Button Command="{Binding CycleStartCommand}" ToolTip.Tip="{loc:HotkeyTip app.cycle.startTip, cycle.start}" CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1" Padding="8,0" FontSize="11" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
