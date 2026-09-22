@@ -39,10 +39,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         xmlns:vm="clr-namespace:SenderNG.ViewModels"
         xmlns:loc="clr-namespace:SenderNG.Localization"
         xmlns:core="clr-namespace:SenderNG.Core.Modules;assembly=SenderNG.Core"
-        mc:Ignorable="d" d:DesignWidth="540" d:DesignHeight="600"
+        mc:Ignorable="d" d:DesignWidth="540" d:DesignHeight="500"
         x:Class="SenderNG.Views.AboutView"
         x:DataType="vm:AboutViewModel"
-        Title="{Binding Title}" Width="540" Height="600"
+        Title="{Binding Title}" Width="540" Height="500"
         Background="#f6f6f6" WindowStartupLocation="CenterOwner">
 
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8" Margin="8">
