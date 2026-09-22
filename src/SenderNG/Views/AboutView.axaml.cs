@@ -72,21 +72,21 @@ public partial class AboutView : Window
     private async Task WriteClipboardAsync(string text)
     {
         var vm = _wired;
-        var ok = false;
         try
         {
+            var ok = false;
             var top = TopLevel.GetTopLevel(this);
             if (top?.Clipboard is { } clip)
             {
                 await clip.SetTextAsync(text);
                 ok = true;
             }
+            vm?.SetCopyResult(ok);
         }
         catch
         {
-            // Clipboard unavailable or write failed — leave the label alone.
+            // Clipboard unavailable or write failed — report failure (the label stays put).
+            vm?.SetCopyResult(false);
         }
-
-        vm?.SetCopyResult(ok);
     }
 }

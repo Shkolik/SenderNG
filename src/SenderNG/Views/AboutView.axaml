@@ -90,7 +90,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <ListBox ItemsSource="{Binding Modules}" Margin="4,8,4,4">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ModuleInfoItem">
-							<Border BorderThickness="0,0,0,1" BorderBrush="#E5E5E5" Padding="0,2,0,2">
+                            <Border BorderThickness="0,0,0,1" BorderBrush="#E5E5E5" Padding="0,2,0,2">
                                 <StackPanel Spacing="1">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" />
@@ -112,22 +112,22 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </StackPanel>
-							</Border>
+                            </Border>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
             </TabItem>
         </TabControl>
 
-		<Grid Grid.Row="2" HorizontalAlignment="Stretch" ColumnDefinitions="Auto,*,Auto">
-			<Button Grid.Column="0" HorizontalAlignment="Right" Content="{Binding CopyButtonText}"
-					Command="{Binding CopyInfoCmd}" Height="28" MinHeight="28" CornerRadius="0" FontSize="11"
-					Background="#eee" BorderBrush="#999" BorderThickness="1"
-					Padding="14,0" VerticalContentAlignment="Center" />
-			<Button Grid.Column="2" HorizontalAlignment="Right" Content="{loc:Loc common.close}"
-					Command="{Binding CloseCmd}" Height="28" MinHeight="28" CornerRadius="0" FontSize="11"
-					Background="#eee" BorderBrush="#999" BorderThickness="1"
-					Padding="14,0" VerticalContentAlignment="Center" />
-		</Grid>
+        <Grid Grid.Row="2" HorizontalAlignment="Stretch" ColumnDefinitions="Auto,*,Auto">
+            <Button Grid.Column="0" HorizontalAlignment="Right" Content="{Binding CopyButtonText}"
+                    Command="{Binding CopyInfoCmd}" Height="28" MinHeight="28" CornerRadius="0" FontSize="11"
+                    Background="#eee" BorderBrush="#999" BorderThickness="1"
+                    Padding="14,0" VerticalContentAlignment="Center" />
+            <Button Grid.Column="2" HorizontalAlignment="Right" Content="{loc:Loc common.close}"
+                    Command="{Binding CloseCmd}" Height="28" MinHeight="28" CornerRadius="0" FontSize="11"
+                    Background="#eee" BorderBrush="#999" BorderThickness="1"
+                    Padding="14,0" VerticalContentAlignment="Center" />
+        </Grid>
     </Grid>
 </Window>
