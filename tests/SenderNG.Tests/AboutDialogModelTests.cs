@@ -93,13 +93,22 @@ public class AboutDialogModelTests
     }
 
     [Fact]
-    public void Bundled_plotter_modules_declare_dependencies()
+    public void Bundled_plotter_modules_declare_third_party_dependencies()
     {
-        var plotter = new SenderNG.Modules.Plotter.PlotterModule();
         var nex = new SenderNG.Modules.Plotter.Nex.PlotterNexModule();
 
-        Assert.Equal("Avalonia", plotter.Dependencies[0].Name);
-        Assert.Contains(nex.Dependencies, d => d.Name == "SixLabors.ImageSharp");
-        Assert.Contains(nex.Dependencies, d => d.Name == "HelixToolkit.Nex.Engine");
+        Assert.True(nex is IPluginDependencies);
+        Assert.Contains(nex.Dependencies, d => d.Name == "SixLabors.ImageSharp" && d.License == "Six Labors Split License");
+        Assert.Contains(nex.Dependencies, d => d.Name == "HelixToolkit.Nex.Engine" && d.Version == "1.3.0-alpha.41");
+        Assert.Contains(nex.Dependencies, d => d.Name == "HelixToolkit.Nex.Graphics.Vulkan");
+        Assert.Contains(nex.Dependencies, d => d.Name == "HelixToolkit.Nex.Interop");
+        Assert.DoesNotContain(nex.Dependencies, d => d.Name == "Avalonia");
+    }
+
+    [Fact]
+    public void Plotter_module_does_not_declare_dependencies()
+    {
+        var plotter = new SenderNG.Modules.Plotter.PlotterModule();
+        Assert.False(plotter is IPluginDependencies);
     }
 }

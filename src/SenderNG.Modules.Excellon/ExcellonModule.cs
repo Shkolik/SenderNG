@@ -46,14 +46,11 @@ namespace SenderNG.Modules.Excellon;
 /// app has no idea Excellon exists. Own locale catalog (module.excellon.*),
 /// own profile-scoped parameters + ShowDialog leaf in App Settings.
 /// </summary>
-public class ExcellonModule : ConverterModuleBase, IPluginInfo, IPluginDependencies
+public class ExcellonModule : ConverterModuleBase, IPluginInfo
 {
     public string Version => "1.0.0";
     public string Author => "Andrew Shkolik";
     public string License => "BSD-3-Clause";
-
-    public IReadOnlyList<PluginDependency> Dependencies { get; } =
-        [new("Avalonia", "12.0.0", "MIT")];
 
     public override string Id => "excellon";
     public override string Name => "Excellon";
