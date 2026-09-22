@@ -1,4 +1,8 @@
+using System.Globalization;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text;
+using SenderNG.Core.Commands;
 using SenderNG.Core.Modules;
 using SenderNG.Localization;
 
@@ -22,6 +26,10 @@ public class AboutViewModel : ViewModelBase
                 t.Deps?.Dependencies))
             .OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        CloseCmd = new DelegateCommand(_ => RequestClose(true));
+        CopyInfoCmd = new DelegateCommand(_ => CopyInfo());
+        CopyButtonText = LocText.Resolve("common.copy_info", "Copy info");
     }
 
     public string Title => LocText.Resolve("about.title", "About SenderNG");
@@ -39,6 +47,81 @@ public class AboutViewModel : ViewModelBase
 
     private static string AssemblyVersion =>
         typeof(AboutViewModel).Assembly.GetName().Version?.ToString() ?? "0.0.0";
+
+    private static readonly TimeSpan CopyFeedbackDuration = TimeSpan.FromMilliseconds(2000);
+    private int _copyGen;
+
+    public event EventHandler<bool>? CloseRequested;
+    public event EventHandler<string>? CopyRequested;
+
+    public DelegateCommand CloseCmd { get; }
+    public DelegateCommand CopyInfoCmd { get; }
+
+    private string _copyButtonText = string.Empty;
+    public string CopyButtonText
+    {
+        get => _copyButtonText;
+        private set => SetField(ref _copyButtonText, value);
+    }
+
+    /// <summary>
+    /// Called by the view after it writes the copied text to the clipboard. On
+    /// success the button label flips to "Copied" for ~2 s; on failure it stays put.
+    /// </summary>
+    public void SetCopyResult(bool success)
+    {
+        if (!success)
+            return;
+        var gen = ++_copyGen;
+        CopyButtonText = LocText.Resolve("common.copied", "Copied");
+        _ = RevertCopyLabelAsync(gen);
+    }
+
+    private async Task RevertCopyLabelAsync(int gen)
+    {
+        await Task.Delay(CopyFeedbackDuration);
+        if (gen == _copyGen)
+            CopyButtonText = LocText.Resolve("common.copy_info", "Copy info");
+    }
+
+    private void RequestClose(bool result) => CloseRequested?.Invoke(this, result);
+
+    private void CopyInfo() => CopyRequested?.Invoke(this, BuildCopyText());
+
+    /// <summary>
+    /// The full clipboard payload: header line, then Libraries / Plugins / System
+    /// sections. Fixed English headings; the header carries the active language.
+    /// </summary>
+    public string BuildCopyText()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"{AppName} Version: {AssemblyVersion} ({LocText.GetLanguage()})");
+        sb.AppendLine();
+
+        sb.AppendLine("Libraries:");
+        foreach (var lib in Libraries)
+            sb.AppendLine($"{lib.Name} {lib.VersionLicense}");
+        sb.AppendLine();
+
+        sb.AppendLine("Plugins:");
+        foreach (var m in Modules)
+        {
+            sb.AppendLine($"{m.Name} v.{m.Version} — {m.AuthorLicense}");
+            if (m.HasDependencies)
+                foreach (var d in m.Dependencies!)
+                    sb.AppendLine($"    {d.OneLine}");
+        }
+        sb.AppendLine();
+
+        sb.AppendLine("System:");
+        sb.AppendLine($"OS: {RuntimeInformation.OSDescription}");
+        sb.AppendLine($"OS architecture: {RuntimeInformation.OSArchitecture}");
+        sb.AppendLine($"Process architecture: {RuntimeInformation.ProcessArchitecture}");
+        sb.AppendLine($".NET runtime: {RuntimeInformation.FrameworkDescription}");
+        sb.AppendLine($"UI culture: {CultureInfo.CurrentUICulture.Name}");
+        sb.AppendLine($"Processors: {Environment.ProcessorCount}");
+        return sb.ToString().Replace("\r\n", "\n");
+    }
 }
 
 /// <summary>One loaded plugin row on the About → Modules tab (IPluginInfo metadata + optional IPluginDependencies).</summary>

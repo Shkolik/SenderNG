@@ -126,6 +126,8 @@
     "common.load": "Load",
     "common.apply": "Apply",
     "common.close": "Close",
+    "common.copy_info": "Copy info",
+    "common.copied": "Copied",
     "common.mmMin": "mm/min",
     "module.goto.referencePoints": "Reference points",
     "module.goto.home": "G28 · Home",

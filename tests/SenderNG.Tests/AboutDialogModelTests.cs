@@ -32,6 +32,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using Microsoft.Extensions.DependencyInjection;
+using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
 using SenderNG.ViewModels;
 using Xunit;
@@ -110,5 +112,164 @@ public class AboutDialogModelTests
     {
         var plotter = new SenderNG.Modules.Plotter.PlotterModule();
         Assert.False(plotter is IPluginDependencies);
+    }
+
+    [Fact]
+    public void BuildCopyText_starts_with_version_header_and_active_language()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = HeadlessTestCatalog.Locale;
+            if (HeadlessTestCatalog.Locale.AvailableLocales.Contains("ru"))
+                HeadlessTestCatalog.Locale.SetLocale("ru");
+            var vm = new AboutViewModel();
+            var firstLine = vm.BuildCopyText().Split('\n')[0];
+            Assert.StartsWith("SenderNG Version: ", firstLine);
+            if (HeadlessTestCatalog.Locale.Locale == "ru")
+                Assert.EndsWith("(ru)", firstLine);
+            else
+                Assert.EndsWith("(en)", firstLine);
+        }
+        finally
+        {
+            HeadlessTestCatalog.Locale.SetLocale("en");
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [Fact]
+    public void BuildCopyText_builds_libraries_plugins_and_system_sections()
+    {
+        var vm = new AboutViewModel();
+        var text = vm.BuildCopyText();
+        Assert.Contains("\nLibraries:\n", text);
+        Assert.Contains("\nPlugins:\n", text);
+        Assert.Contains("\nSystem:\n", text);
+        Assert.Contains("\nOS: ", text);
+        Assert.Contains("OS architecture: ", text);
+        Assert.Contains("Process architecture: ", text);
+        Assert.Contains(".NET runtime: ", text);
+        Assert.Contains("UI culture: ", text);
+        Assert.Contains("Processors: ", text);
+        Assert.EndsWith("\n", text);
+    }
+
+    [Fact]
+    public void BuildCopyText_libraries_match_the_tab_rows()
+    {
+        var vm = new AboutViewModel();
+        var text = vm.BuildCopyText();
+        foreach (var lib in vm.Libraries)
+            Assert.Contains($"{lib.Name} {lib.VersionLicense}", text);
+    }
+
+    [Fact]
+    public void BuildCopyText_plugins_show_info_and_indented_dependencies()
+    {
+        var vm = new AboutViewModel(new IModule[] { new CopyTestPlugin(), new CopyNoDepsTestPlugin() });
+        var text = vm.BuildCopyText();
+        Assert.Contains("Copy Test v.2.0.0 — Tester · MIT", text);
+        Assert.Contains("    SixLabors.ImageSharp v.3.1.12 · Six Labors Split License", text);
+        Assert.Contains("No Deps v.1.0.0 — Tester · BSD-3-Clause", text);
+    }
+
+    [Fact]
+    public void BuildCopyText_plugin_without_dependencies_has_no_indented_lines()
+    {
+        var vm = new AboutViewModel(new IModule[] { new CopyNoDepsTestPlugin() });
+        var text = vm.BuildCopyText();
+        var plugins = text[(text.IndexOf("Plugins:", StringComparison.Ordinal) + 8)..text.IndexOf("\nSystem:", StringComparison.Ordinal)];
+        Assert.DoesNotContain("\n    ", plugins);
+    }
+
+    [Fact]
+    public void CopyInfoCmd_raises_CopyRequested_with_build_copy_text()
+    {
+        var vm = new AboutViewModel();
+        string? received = null;
+        vm.CopyRequested += (_, t) => received = t;
+        vm.CopyInfoCmd.Execute(null);
+        Assert.Equal(vm.BuildCopyText(), received);
+    }
+
+    [Fact]
+    public void CloseCmd_raises_CloseRequested_with_true()
+    {
+        var vm = new AboutViewModel();
+        bool? result = null;
+        vm.CloseRequested += (_, r) => result = r;
+        vm.CloseCmd.Execute(null);
+        Assert.True(result);
+    }
+
+    [Fact]
+    public async Task Copy_info_button_label_swaps_to_copied_and_reverts()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = null; // English fallback — deterministic
+            var vm = new AboutViewModel();
+            Assert.Equal("Copy info", vm.CopyButtonText);
+            vm.SetCopyResult(true);
+            Assert.Equal("Copied", vm.CopyButtonText);
+            vm.SetCopyResult(true); // a second copy inside the feedback window
+            await Task.Delay(2100, TestContext.Current.CancellationToken);
+            Assert.Equal("Copy info", vm.CopyButtonText);
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [Fact]
+    public void Copy_feedback_does_not_flip_label_on_failure()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = null;
+            var vm = new AboutViewModel();
+            vm.SetCopyResult(false);
+            Assert.Equal("Copy info", vm.CopyButtonText);
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    private sealed class CopyTestPlugin : IModule, IPluginInfo, IPluginDependencies
+    {
+        public string Id => "copy-test";
+        public string Name => "Copy Test";
+        public string Description => string.Empty;
+        public int Order => 1;
+        public IReadOnlyList<HotKey> HotKeys { get; } = [];
+        public void RegisterServices(IServiceCollection services) { }
+        public object CreateViewModel(IServiceProvider _) => new object();
+        public object CreateView(object _) => new object();
+        public string Version => "2.0.0";
+        public string Author => "Tester";
+        public string License => "MIT";
+        public IReadOnlyList<PluginDependency> Dependencies { get; } =
+            [new PluginDependency("SixLabors.ImageSharp", "3.1.12", "Six Labors Split License")];
+    }
+
+    private sealed class CopyNoDepsTestPlugin : IModule, IPluginInfo
+    {
+        public string Id => "copy-no-deps";
+        public string Name => "No Deps";
+        public string Description => string.Empty;
+        public int Order => 2;
+        public IReadOnlyList<HotKey> HotKeys { get; } = [];
+        public void RegisterServices(IServiceCollection services) { }
+        public object CreateViewModel(IServiceProvider _) => new object();
+        public object CreateView(object _) => new object();
+        public string Version => "1.0.0";
+        public string Author => "Tester";
+        public string License => "BSD-3-Clause";
     }
 }

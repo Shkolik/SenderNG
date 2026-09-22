@@ -215,6 +215,8 @@
     "common.load": "Загрузить",
     "common.apply": "Применить",
     "common.close": "Закрыть",
+    "common.copy_info": "Скопировать инфо",
+    "common.copied": "Скопировано",
     "common.mmMin": "мм/мин",
     "module.goto.referencePoints": "Опорные точки",
     "module.goto.home": "G28 · Домой",

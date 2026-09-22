@@ -68,4 +68,11 @@ public static class LocText
             return english;
         }
     }
+
+    /// <summary>
+    /// The active locale code, e.g. "en"/"ru" — the app language the user chose
+    /// (AppSettings feeds this through <see cref="LocalizationService.SetLocale"/>).
+    /// English when no catalog is loaded.
+    /// </summary>
+    public static string GetLanguage() => LocalizationService.Current?.Locale ?? "en";
 }
