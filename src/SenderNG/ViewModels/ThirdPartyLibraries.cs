@@ -36,11 +36,11 @@ namespace SenderNG.ViewModels;
 
 public sealed record ThirdPartyLibrary(string Name, string Version, string? License = null)
 {
-    /// <summary>Single list row: "Name v.Version · License" (license omitted when absent).</summary>
-    public string OneLine { get; } =
+    /// <summary>Second row text: "v.{Version}  license: {License}" (license part omitted when absent).</summary>
+    public string VersionLicense { get; } =
         string.IsNullOrEmpty(License)
-            ? $"{Name} v.{Version}"
-            : $"{Name} v.{Version} · {License}";
+            ? $"v.{Version}"
+            : $"v.{Version}  license: {License}";
 }
 
 /// <summary>Static list of the third-party libraries shown in the About dialog's Libraries tab.</summary>

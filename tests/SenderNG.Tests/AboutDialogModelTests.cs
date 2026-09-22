@@ -55,17 +55,24 @@ public class AboutDialogModelTests
     }
 
     [Fact]
-    public void ThirdPartyLibrary_OneLine_formats_name_version_license()
+    public void ThirdPartyLibrary_VersionLicense_formats_version_and_license()
     {
         var lib = new ThirdPartyLibrary("Avalonia", "12.1.1", "MIT");
-        Assert.Equal("Avalonia v.12.1.1 · MIT", lib.OneLine);
+        Assert.Equal("v.12.1.1  license: MIT", lib.VersionLicense);
     }
 
     [Fact]
-    public void ThirdPartyLibrary_OneLine_omits_null_license()
+    public void ThirdPartyLibrary_VersionLicense_omits_null_license()
     {
         var lib = new ThirdPartyLibrary("Foo", "1.0");
-        Assert.Equal("Foo v.1.0", lib.OneLine);
+        Assert.Equal("v.1.0", lib.VersionLicense);
+    }
+
+    [Fact]
+    public void ThirdPartyLibrary_VersionLicense_omits_blank_license()
+    {
+        var lib = new ThirdPartyLibrary("Foo", "1.0", "");
+        Assert.Equal("v.1.0", lib.VersionLicense);
     }
 
     [Fact]
