@@ -96,17 +96,20 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                     <TextBlock Text="{Binding Version}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
                                 </StackPanel>
                                 <TextBlock Text="{Binding AuthorLicense}" FontSize="11" Foreground="#666" TextWrapping="Wrap" />
-                                <Expander Header="{loc:Loc about.tab.modules.dependencies}"
-                                          IsVisible="{Binding HasDependencies}" HorizontalAlignment="Left">
-                                    <ListBox ItemsSource="{Binding Dependencies}" BorderThickness="0"
-                                             Background="Transparent">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate x:DataType="core:PluginDependency">
-                                                <TextBlock Text="{Binding OneLine}" FontSize="11" Foreground="#666" />
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-                                </Expander>
+                                <TextBlock Text="{loc:Loc about.tab.modules.dependencies}" FontSize="11" Foreground="#666"
+                                           IsVisible="{Binding HasDependencies}" />
+                                <ItemsControl ItemsSource="{Binding Dependencies}" IsVisible="{Binding HasDependencies}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="core:PluginDependency">
+                                            <TextBlock Text="{Binding OneLine}" FontSize="10" Foreground="#666" Margin="0,0,12,2" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>

@@ -85,7 +85,7 @@ public class AboutDialogHeadlessTests
     }
 
     [AvaloniaFact]
-    public async Task Modules_tab_renders_two_lines_and_dependency_peek()
+    public async Task Modules_tab_renders_two_lines_and_dependency_chips()
     {
         var prev = LocalizationService.Current;
         try
@@ -101,11 +101,20 @@ public class AboutDialogHeadlessTests
             modulesTab.IsSelected = true;
             for (var i = 0; i < 4; i++) await Pump();
 
-            var card = tabControl.GetVisualDescendants().OfType<StackPanel>().FirstOrDefault();
+            var card = tabControl.GetVisualDescendants().OfType<StackPanel>().First();
             Assert.NotNull(card);
-            var expander = tabControl.GetVisualDescendants().OfType<Expander>().FirstOrDefault();
-            Assert.NotNull(expander);
-            Assert.False(expander!.IsExpanded);
+            // Caption + chips render only when the plugin declared dependencies.
+            const string depCaption = "Dependencies";
+            const string chipText = "SixLabors.ImageSharp v.3.1.12 · Six Labors Split License";
+            var caption = tabControl.GetVisualDescendants()
+                .OfType<TextBlock>()
+                .FirstOrDefault(t => t.Text == depCaption);
+            Assert.NotNull(caption);
+            // The chip strip rendered one dependency (TextBlock matching OneLine).
+            var chip = tabControl.GetVisualDescendants()
+                .OfType<TextBlock>()
+                .FirstOrDefault(t => t.Text == chipText);
+            Assert.NotNull(chip);
             window.Close();
         }
         finally
@@ -128,6 +137,6 @@ public class AboutDialogHeadlessTests
         public string Author => "Author";
         public string License => "MIT";
         public IReadOnlyList<PluginDependency> Dependencies { get; } =
-            [new PluginDependency("Avalonia", "12.0.0", "MIT")];
+            [new PluginDependency("SixLabors.ImageSharp", "3.1.12", "Six Labors Split License")];
     }
 }
