@@ -116,20 +116,22 @@ plugin that nags the user with an always-ask dialog is the author's choice;
 deciding whether to keep that plugin is the user's.
 
 A module can also declare the third-party libraries it depends on, shown on
-the About → Modules tab as an expandable "Dependencies" section under the
-plugin card — useful for users assessing license terms. This is a second
-optional interface (same opt-in, never-validated rule as `IPluginInfo`):
+the About → Modules tab as small chips under the plugin card — useful for
+users assessing license terms. This is a second optional interface (same
+opt-in, never-validated rule as `IPluginInfo`):
 
 ```csharp
 public interface IPluginDependencies
 {
-    IReadOnlyList<PluginDependency> Dependencies { get; }   // "Avalonia 12.0.0 (MIT)"
+    IReadOnlyList<PluginDependency> Dependencies { get; }   // "SixLabors.ImageSharp v.3.1.12 · Six Labors Split License"
 }
 ```
 
 `PluginDependency` is a record `(Name, Version, License)`; the host renders
-each as `Name v.Version · License`. A module implements it alongside
-`IModule`; the host surfaces the list only when the plugin opts in.
+each as `Name v.Version · License`. Declare only the plugin's own
+third-party libraries — the host's base dependency (Avalonia) is implied and
+must not be listed. A module implements the interface alongside `IModule`;
+the host surfaces the list only when the plugin opts in.
 
 ### 3.3 Capability interfaces (optional)
 
