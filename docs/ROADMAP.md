@@ -3,6 +3,27 @@
 Gaps and planned work, roughly in priority order. Items land here when a task
 surfaces a known limitation that we deliberately defer.
 
+## Probing as an optional module plugin (P0) — investigating
+
+**Goal:** move the whole Probing module (`Modules/Plugins/Probing` + its Core
+piece) out of the shipped app and into a **3rd-party plugin** like the
+Plotter / Plotter.Nex / converter modules. Core no longer ships probing, so
+users who don't probe get a smaller app; plugins that want a probe-driven view
+gain a dependency they can declare. The plugin boundary also re-opens the
+**height-map 3D preview** gate: the plugin can render the probed grid with the
+same Vulkan/HelixToolkit.Nex engine as Plotter Nex without the core app
+shipping it — the "Avalonia host problem" gate is what blocked the 3D preview
+in `docs/iosender-gaps.md` P2.
+
+Blocker / gate analysis, what moves across the boundary (VM, views, runner,
+profile store, `ProbeProgramBuilder`, hotkeys, locale catalog, settings leaf,
+test battery), and the SDK surface that must grow (`IModule` panel vs center
+tab, native file dialogs for `.map`, Ionic zip packaging) — **under
+investigation**. Design spec:
+`docs/superpowers/specs/2026-09-23-probing-plugin-design.md` (approved
+2026-09-23; the 3D height-map renderer plugin is a named follow-up the
+contract enables).
+
 ## Controller capability detection (grbl handshake) — DONE
 
 **Resolved (P0, WS-B):** the connect-time `$I` handshake is implemented and the
@@ -69,29 +90,27 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
 `ok = MessageBox.Show(...) == Yes` semantics). Covered by `GCodeJobTests`
 (4 tests: fail-fast default, skip-and-continue, abort, clean file + limits).
 
+## Keyboard shortcuts / key-map settings — DONE
+
+**Resolved:** a full keymap stack is live with a remap screen in App Settings.
+`HotkeyService` (Core) persists action → gesture bindings in `settings.json`;
+`KeymapController` dispatches key events by action id; `KeymapDispatcher`
+(window-scoped in `MainWindow.axaml.cs`) owns focus/scoping and the
+deactivation release. Defaults are declared per module via
+`IModule.HotKeys` (`HotKey(Gesture, ActionId)`); executors come from
+`IHotkeyActionProvider.CreateHotkeyActions`. Landed defaults: jog directions,
+steps/feeds cycling and increments (arrow keys / NumPad, `Ctrl+arrows` for
+jog.together, PageUp/PageDown Z, Home/End A), probe Run/Stop/Probe-connected
+(`Alt+R`/`Alt+S`/`Alt+C`), and the MainViewModel-registered Home/Reset/etc.
+actions. Tooltips render the live gesture via `HotkeyTipExtension`
+(re-emits on remap / locale change). Covered by `KeymapControllerTests`,
+`KeymapDispatcherHeadlessTests`, `HotkeyServiceTests`, `JogHotkeyProviderTests`,
+`MainViewModelHotkeysTests`, `HotkeysSettingsLeafTests`,
+`HotkeysEditorHeadlessTests`, `HotkeyTipHeadlessTests`. ioSender's shortcut
+set was checked for parity defaults before finalizing.
+
 ## Other known deferred items
 
-- **Module enabled vs. visible overhaul** — the plugin SDK declares
-  `IsEnabledByDefault` but nothing consumes it yet. Today there is exactly one
-  per-machine flag (`MachineProfile.Modules[id]`, default `IsVisibleByDefault`)
-  driving UI presence only: MainViewModel filters panels/flyouts by it, App
-  Settings lists only hideable modules or modules that expose a settings
-  surface; fixed modules and settings dialogs with nothing to configure (DRO,
-  Console, Work Parameters, App Settings, GRBL Settings) get no leaf, and
-  non-hideable leaves show no Enabled checkbox, and `IGCodeFileHandler`
-  dispatch is **unconditional** (no flag gates it); every module's `HotKeys`
-  list is empty (this keyboard-shortcuts item below is the consumer that will
-  force the semantics). Scope when tackled: what "disabled" gates exactly
-  (handler dispatch, hotkeys, UI), where the flag persists (per machine vs.
-  per app), and the App Settings surface. Contract declared in
-  `docs/plugin-development.md` §3.1/§6; deliberately left out of the SDK
-  scope.
-- **Keyboard shortcuts / key-map settings** — global hotkeys for the
-  frequently-used buttons (cycle bar Start/Hold/Resume/Stop, Rewind, jog
-  directions, MDI focus, Home/Unlock/Reset) with a settings screen to remap.
-  Plumbing first: a keymap service (action → key binding, persisted like the
-  other settings), command hookup in MainWindow, then the settings tab.
-  Check ioSender's shortcut set for parity defaults before finalizing.
 - **Machine physical configuration** — the app has no model of the machine's
   axis layout today: foam cutters are two-carriage machines (X/Y work plane
   plus an Z/A second plane), mills are XYZ cross-axis, and the app only knows
@@ -170,15 +189,18 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
   Rotate, ArcsToLines and Compress are in Core (`GCodeTransformers`,
   26 tests) behind the File → Transform menu (dialogs, profile-scoped
   compress comment setting, en/ru — see `docs/plans/2026-09-04-gcode-transforms.md`).
-  **Remaining:** Wrap — deferred until the machine physical-configuration
-  presets land. Probing migration **LANDED (2026-09-05)**: height-map apply
+  **Remaining:** Wrap (rotary mapping X/Y → A/B, diameter, Z0-at-center with
+  G93 inverse-time feed switching) — **P1, takeable now**: the earlier gate
+  ("until the machine physical-configuration presets land") is gone — the
+  schema and presets landed 2026-09-07. Probing migration **LANDED (2026-09-05)**:
+  height-map apply
   and rotation rebuilt on the token machinery (the line-based
   `ProgramTransform` is deleted), closing the documented G91/arc-Z,
   rotation-origin limits (origin picker included), and the "Determine X0,Y0
   for right-angled workpiece" corner extra — see
   `docs/plans/2026-09-04-gcode-transforms.md` M4–M5.
-- **Icon & pictogram asset pass (SVG)** — a design deliverable that must land
-  before Probing is closed. Three sets, drawn by hand as SVG sources:
+- **Icon & pictogram asset pass (SVG)** — a design deliverable. Three sets,
+  drawn by hand as SVG sources:
   1. **Toolbar / run-control icons** — replace the hand-drawn inline `Path`
      glyphs (Connect plug, Open folder, Save floppy, Close doc-X, cycle bar
      Start/Hold/Stop/Rewind, Home/Unlock/Reset, flyout ✕) with one
@@ -189,9 +211,10 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
      machine preset picker (Mill XYZ, Foam two-carriage XY | ZA, 2D
      cutter/laser); Machine physical configuration presets (above) reuse
      them in the machine list and the future plotter view headers.
-  3. **Probing selector visuals** — the probe direction / touch-off /
-     selection illustrations for the Probing module (ioSender's selector
-     visualization), required before the module is signed off.
+  3. **Probing selector visuals — DONE:** the probe direction / touch-off /
+     selection illustrations exist — letter-labeled corner/edge diagram with
+     red Z-contact markers (functionally equivalent to ioSender's pictograms,
+     see `docs/probing-gaps.md`). No longer gates the Probing sign-off.
 - Foam CNC mode: functional foam-specific behavior (mode is persisted but only
   changes jog layout today — the layout itself is now schema-driven:
   machine-type preset planes + controller `[AXS:]` letters,
@@ -226,7 +249,10 @@ will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
 > `ControllerCapabilities` + `WorkParameters` + `MachineState` model instead.
 > `GrblInfo` is a read-only facade over an injectable `GrblInfoState` instance
 > (resolved 2026-09-19 — no ambient write path remains).
-> Clean up as features touch them.
+> **Planned P1 work:** retire the stubbed surface as features touch them
+> (a dedicated cleanup pass is queued after the P0 probing-plugin extraction,
+> which will force the surviving `Grbl` consumers to declare their Core deps
+> explicitly). Clean up as features touch them.
 >
 > Status bar / MDI / Cutting widget updates: the status bar is ioSender's exact
 > four-slot layout (Blocks | Message | RunTime | JogStep) in fixed-width slots, so
