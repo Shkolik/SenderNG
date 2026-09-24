@@ -32,16 +32,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Reactive.Subjects;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Modules;
 using SenderNG.Core.Modules.Probing;
+using SenderNG.Core.Services;
 
 namespace SenderNG.Modules.Plugins;
 
-public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule, IHotkeyActionProvider
+public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule, IHotkeyActionProvider,
+    IHeightMapSource, IProfileCompanionSuffixes
 {
     public string Id => "probing";
     public string Name => "Probing";
@@ -80,14 +83,47 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule,
             ["module.probing.tipTool"] = "Tool length",
             ["module.probing.edgeExternal"] = "Edge external",
             ["module.probing.edgeInternal"] = "Edge internal",
+            ["module.probing.preview3d"] = "Preview in 3D",
+            ["module.probing.previewStarted"] = "3D preview started (renderer plugin)",
         };
 
     private SettingsService? _settingsService;
+
+    /// <summary>Per-profile companion file (<c>profiles/&lt;id&gt;.probing.json</c>).</summary>
+    public IReadOnlyList<string> Suffixes => [ProbingProfileStore.CompanionSuffix];
+
+    private readonly Subject<HeightMapLayer?> _heightMap = new();
+
+    /// <inheritdoc />
+    public IObservable<HeightMapLayer?> Snapshot => _heightMap;
+
+    /// <summary>Converts a probed grid into the renderer-facing contract layer.
+    /// Unprobed cells become <see cref="double.NaN"/>.</summary>
+    public static HeightMapLayer? ToHeightMapLayer(HeightMap map)
+    {
+        if (map is null)
+            return null;
+        var z = new double[map.SizeY * map.SizeX];
+        for (var row = 0; row < map.SizeY; row++)
+            for (var col = 0; col < map.SizeX; col++)
+                z[row * map.SizeX + col] = map.Points[col, row] ?? double.NaN;
+        return new HeightMapLayer(
+            Id: "heightmap",
+            OriginX: map.Min.X, OriginY: map.Min.Y,
+            CellX: map.GridX, CellY: map.GridY,
+            Columns: map.SizeX, Rows: map.SizeY,
+            Z: z);
+    }
+
+    /// <summary>Push the latest map (null clears it). Called from the VM when a
+    /// height-map probe completes, a map loads, or a new session begins.</summary>
+    public void PublishHeightMap(HeightMapLayer? layer) => _heightMap.OnNext(layer);
 
     public void RegisterServices(IServiceCollection services)
     {
         services.AddSingleton<ProbeRunner>();
         services.AddSingleton<ProbeViewModel>();
+        services.AddSingleton<IProfileCompanionSuffixes>(this);
     }
 
     // Enabled-tool checkboxes appear in the App Settings dialog; the profiles
@@ -127,6 +163,9 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule,
     public void AttachServices(IServiceProvider services)
     {
         _settingsService = services.GetService<SettingsService>();
+        var vm = services.GetService<ProbeViewModel>();
+        if (vm is not null)
+            vm.HeightMapChanged += PublishHeightMap;
     }
 
     private static Dictionary<string, object> EnsureSection(MachineProfile settings)

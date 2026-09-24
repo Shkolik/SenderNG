@@ -99,6 +99,8 @@
     "module.probing.saveMap": "Сохранить карту",
     "module.probing.loadMap": "Загрузить карту",
     "module.probing.applyToProgram": "Применить",
+    "module.probing.preview3d": "Предпросмотр в 3D",
+    "module.probing.previewStarted": "3D-предпросмотр запущен (плагин рендера)",
     "module.probing.instr.toolLength": "Измерьте пластину/приспособление, чтобы установить смещение длины инструмента.",
     "module.probing.instr.edge": "Выберите кромку, угол или Z на схеме.\nПеред стартом поместите щуп над указанной позицией.",
     "module.probing.instr.center": "Поместите щуп над приблизительным центром заготовки.\nСначала выберите ось и режим измерения внутри или снаружи.",

@@ -41,11 +41,13 @@ using Avalonia.Threading;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using CNC.GCode;
+using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Modules.Probing;
 using SenderNG.Modules.Probing.Localization;
 using SenderNG.Modules.Probing.ViewModels;
 using SenderNG.Core.Commands;
 using SenderNG.Core.Localization;
+using SenderNG.Core.Modules;
 using SenderNG.Core.Modules.Probing;
 
 namespace SenderNG.Modules.Plugins;
@@ -212,6 +214,7 @@ public class ProbeViewModel : ViewModelBase
         HeightMapSaveCommand = new DelegateCommand(_ => _ = SaveHeightMapAsync());
         HeightMapLoadCommand = new DelegateCommand(_ => _ = LoadHeightMapAsync());
         HeightMapApplyCommand = new DelegateCommand(_ => ApplyHeightMapToProgram(), _ => HasHeightMap);
+        Preview3DCommand = new DelegateCommand(_ => OnPreview3D(), _ => Has3DRenderer && HasHeightMap);
         RotationApplyCommand = new DelegateCommand(_ => ApplyRotationToProgram());
     }
 
@@ -404,12 +407,18 @@ public class ProbeViewModel : ViewModelBase
                 // The result is tool-local: showing the previous tool's
                 // message on another tab would be misleading.
                 LastResult = string.Empty;
+                // The renderer snapshot follows the tab: cleared away from the
+                // height-map tab, and the loaded map re-published on return so
+                // a round trip doesn't leave the preview blank.
+                RaiseHeightMapChanged(value == ProbingType.HeightMap ? HeightMapData : null);
+                Preview3DCommand.RaiseCanExecuteChanged();
                 OnPropertyChanged(nameof(IsToolLength));
                 OnPropertyChanged(nameof(IsEdgeExternal));
                 OnPropertyChanged(nameof(IsEdgeInternal));
                 OnPropertyChanged(nameof(IsCenter));
                 OnPropertyChanged(nameof(IsRotation));
                 OnPropertyChanged(nameof(IsHeightMap));
+                OnPropertyChanged(nameof(IsPreview3DVisible));
                 OnPropertyChanged(nameof(IsEdgeFinder));
                 OnPropertyChanged(nameof(IsEdgeSelectorVisible));
                 OnPropertyChanged(nameof(RotationOriginEnabled));
@@ -425,6 +434,16 @@ public class ProbeViewModel : ViewModelBase
     public bool IsCenter => SelectedTool == ProbingType.CenterFinder;
     public bool IsRotation => SelectedTool == ProbingType.Rotation;
     public bool IsHeightMap => SelectedTool == ProbingType.HeightMap;
+
+    /// <summary>True while a height-map renderer module (any
+    /// <see cref="IHeightMap3DRenderer"/> implementation) is registered; gates
+    /// the "Preview in 3D" action.</summary>
+    public bool Has3DRenderer =>
+        _services?.GetService<SenderNG.Core.Modules.IHeightMap3DRenderer>() is not null;
+
+    /// <summary>Renders the "Preview in 3D" button only on the height-map tab
+    /// while a renderer module is registered.</summary>
+    public bool IsPreview3DVisible => IsHeightMap && Has3DRenderer;
 
     /// <summary>Zero-based index of <see cref="SelectedTool"/> in ProbeView's
     /// tool tabs (Tool length, Edge finder, Rotation, Center, Height map);
@@ -802,6 +821,15 @@ public class ProbeViewModel : ViewModelBase
 
     public HeightMap? HeightMapData { get; private set; }
 
+    /// <summary>Raised when the height map changes: the layer (or null when the
+    /// map is cleared) for the probing module to broadcast to renderers. The
+    /// module owns the VM's lifecycle via DI and subscribes in its
+    /// <c>AttachServices</c>; there is no unsubscribe path.</summary>
+    public event Action<HeightMapLayer?>? HeightMapChanged;
+
+    private void RaiseHeightMapChanged(HeightMap? map)
+        => HeightMapChanged?.Invoke(map is null ? null : ProbingModule.ToHeightMapLayer(map));
+
     private bool _hasHeightMap;
     public bool HasHeightMap
     {
@@ -809,7 +837,10 @@ public class ProbeViewModel : ViewModelBase
         private set
         {
             if (SetField(ref _hasHeightMap, value))
+            {
                 (HeightMapApplyCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+                Preview3DCommand.RaiseCanExecuteChanged();
+            }
         }
     }
 
@@ -879,6 +910,7 @@ public class ProbeViewModel : ViewModelBase
     public DelegateCommand HeightMapSaveCommand { get; private set; } = null!;
     public DelegateCommand HeightMapLoadCommand { get; private set; } = null!;
     public DelegateCommand HeightMapApplyCommand { get; private set; } = null!;
+    public DelegateCommand Preview3DCommand { get; private set; } = null!;
     public DelegateCommand RotationApplyCommand { get; private set; } = null!;
 
     private void ApplyToolInstructions() => Instructions = SelectedTool switch
@@ -917,6 +949,13 @@ public class ProbeViewModel : ViewModelBase
         _cts = new CancellationTokenSource();
         IsRunning = true;
         LastResult = string.Empty;
+        // A new probe session invalidates the previous height map: clear it so
+        // the preview gate (the HasHeightMap setter raises CanExecute) and the
+        // renderer snapshot agree that nothing is loaded mid-run.
+        HeightMapData = null;
+        OnPropertyChanged(nameof(HeightMapData));
+        HasHeightMap = false;
+        RaiseHeightMapChanged(null);
 
         var start = CurrentPosition();
         var profile = Snapshot();
@@ -1318,6 +1357,7 @@ public class ProbeViewModel : ViewModelBase
         HeightMapData = map;
         OnPropertyChanged(nameof(HeightMapData));
         HasHeightMap = true;
+        RaiseHeightMapChanged(map);
         LastResult = LocText.Format("module.probing.zRange", "Probing completed: Z range {0} to {1}", ProbeMath.Fmt(zMin), ProbeMath.Fmt(zMax));
     }
 
@@ -1376,6 +1416,7 @@ public class ProbeViewModel : ViewModelBase
             HmGridSizeX = map.GridX;
             HmGridSizeY = map.GridY;
             HasHeightMap = true;
+            RaiseHeightMapChanged(map);
             LastResult = LocText.Format("module.probing.heightMapLoaded", "Height map loaded from {0}", path);
         }
         catch (Exception ex)
@@ -1491,6 +1532,11 @@ public class ProbeViewModel : ViewModelBase
         program.LoadProgram(result, resultText);
         error = string.Empty;
         return true;
+    }
+
+    private void OnPreview3D()
+    {
+        LastResult = LocText.Resolve("module.probing.previewStarted", "3D preview started (renderer plugin)");
     }
 
     private void ApplyHeightMapToProgram()

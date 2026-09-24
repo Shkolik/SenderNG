@@ -32,6 +32,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using SenderNG.Core.Modules;
+using SenderNG.Core.Modules.Probing;
+using SenderNG.Core.Services;
 using SenderNG.Modules.Plugins;
 using Xunit;
 
@@ -64,5 +66,16 @@ public class ProbingModuleTests
         Assert.IsAssignableFrom<IModuleSettingsProvider>(m);
         Assert.IsAssignableFrom<ILocalizedModule>(m);
         Assert.IsAssignableFrom<IHotkeyActionProvider>(m);
+    }
+
+    [Fact]
+    public void ProbingModule_hosts_the_height_map_source_and_companion_suffixes()
+    {
+        var m = new ProbingModule();
+
+        Assert.IsAssignableFrom<IHeightMapSource>(m);
+        Assert.IsAssignableFrom<IProfileCompanionSuffixes>(m);
+        var suffix = Assert.Single(((IProfileCompanionSuffixes)m).Suffixes);
+        Assert.Equal(ProbingProfileStore.CompanionSuffix, suffix);
     }
 }

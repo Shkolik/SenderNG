@@ -38,6 +38,7 @@ using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Modules.Plugins;
 using SenderNG.Core.Localization;
+using SenderNG.Core.Modules;
 using SenderNG.Core.Modules.Probing;
 using Xunit;
 
@@ -360,6 +361,46 @@ public class ProbeViewModelTests : IDisposable
         vm.HeightMapApplyCommand.Execute(null);
 
         Assert.Equal("Probe or load a height map first", vm.LastResult);
+    }
+
+    [Fact]
+    public async Task New_probe_session_clears_the_stale_map_and_un_gates_the_preview()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+        vm.SelectedTool = ProbingType.HeightMap;
+        await vm.StartAsync();
+        Assert.True(vm.HasHeightMap, $"Height map probe failed: {vm.LastResult}");
+
+        // A new session invalidates the previous map: the preview gate must
+        // drop at run start (the synchronous prefix of StartAsync), not stay
+        // enabled while the snapshot is already cleared for renderers.
+        vm.SelectedTool = ProbingType.ToolLength;
+        var run = vm.StartAsync();
+        Assert.False(vm.HasHeightMap);
+
+        await run;
+        Assert.False(vm.HasHeightMap);
+    }
+
+    [Fact]
+    public async Task Returning_to_the_height_map_tab_re_publishes_the_loaded_map()
+    {
+        var demo = await ConnectDemoAsync();
+        var vm = new ProbeViewModel(demo, _settings);
+        vm.SelectedTool = ProbingType.HeightMap;
+        await vm.StartAsync();
+        Assert.True(vm.HasHeightMap, $"Height map probe failed: {vm.LastResult}");
+
+        var seen = new List<HeightMapLayer?>();
+        vm.HeightMapChanged += layer => seen.Add(layer);
+
+        vm.SelectedTool = ProbingType.CenterFinder; // away: snapshot cleared
+        vm.SelectedTool = ProbingType.HeightMap;    // back: map still loaded
+
+        Assert.Equal(2, seen.Count);
+        Assert.Null(seen[0]);
+        Assert.NotNull(seen[1]);
     }
 
     [Fact]
