@@ -41,9 +41,9 @@ using Avalonia.Threading;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using CNC.GCode;
-using SenderNG.Localization;
-using SenderNG.Modules.Fixed;
-using SenderNG.ViewModels;
+using SenderNG.Modules.Probing;
+using SenderNG.Modules.Probing.Localization;
+using SenderNG.Modules.Probing.ViewModels;
 using SenderNG.Core.Commands;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Modules.Probing;
@@ -78,7 +78,7 @@ public class ProbeViewModel : ViewModelBase
 
         // Module settings hold only the enabled-tool checkboxes; the per-profile
         // companion path (profiles/<id>.probing.json) derives from the profile id.
-        var filePath = ProfileSettingsPaths.ProbeCompanionPath(_settingsService.SettingsDir, _profile.Id);
+        var filePath = ProfileSettingsPaths.CompanionPath(_settingsService.SettingsDir, _profile.Id, ProbingProfileStore.CompanionSuffix);
         _enabledTools = ReadEnabledTools();
         _store = new ProbingProfileStore(filePath);
         _runner = new ProbeRunner(grbl);
@@ -125,7 +125,7 @@ public class ProbeViewModel : ViewModelBase
             {
                 _profile = active;
                 _store = new ProbingProfileStore(
-                    ProfileSettingsPaths.ProbeCompanionPath(_settingsService.SettingsDir, active.Id));
+                    ProfileSettingsPaths.CompanionPath(_settingsService.SettingsDir, active.Id, ProbingProfileStore.CompanionSuffix));
                 Profiles.Clear();
                 foreach (var p in _store.Load().Profiles)
                     Profiles.Add(p);
@@ -1428,15 +1428,15 @@ public class ProbeViewModel : ViewModelBase
     /// <summary>Rotation pivot coordinates for the selected origin — resolved
     /// at apply time from the loaded program's limits (ioSender's
     /// <c>apply_Click</c> shape) or the current DRO position.</summary>
-    private (double X, double Y) ResolveRotationOrigin(ProgramViewModel program)
+    private (double X, double Y) ResolveRotationOrigin(IProgramTransformTarget program)
     {
         var minX = 0d; var minY = 0d; var maxX = 0d; var maxY = 0d;
-        foreach (var row in program.LimitRows)
+        foreach (var row in program.Limits)
         {
             switch (row.Letter)
             {
-                case "X": minX = row.Min; maxX = row.Max; break;
-                case "Y": minY = row.Min; maxY = row.Max; break;
+                case 'X': minX = row.Min; maxX = row.Max; break;
+                case 'Y': minY = row.Min; maxY = row.Max; break;
             }
         }
         var centerX = (minX + maxX) / 2d;
@@ -1470,7 +1470,7 @@ public class ProbeViewModel : ViewModelBase
     /// File → Transform (parse → check errors → transform → re-parse → check
     /// errors → load): a transformed program that would fail while sending is
     /// never loaded.</summary>
-    private bool LoadTransformedProgram(ProgramViewModel program, string sourceText,
+    private bool LoadTransformedProgram(IProgramTransformTarget program, string sourceText,
         Func<GCodeProgram, List<string>> transform, out string error)
     {
         var parsed = GCodeProgram.Parse(sourceText);
@@ -1500,7 +1500,7 @@ public class ProbeViewModel : ViewModelBase
             LastResult = LocText.Resolve("module.probing.probeOrLoadFirst", "Probe or load a height map first");
             return;
         }
-        var program = services.GetService(typeof(ProgramViewModel)) as ProgramViewModel;
+        var program = services.GetService(typeof(IProgramTransformTarget)) as IProgramTransformTarget;
         if (program is null || string.IsNullOrEmpty(program.LoadedText))
         {
             LastResult = LocText.Resolve("module.probing.noProgramLoaded", "No program loaded");
@@ -1533,7 +1533,7 @@ public class ProbeViewModel : ViewModelBase
             LastResult = LocText.Resolve("module.probing.probeAngleFirst", "Probe an edge angle first");
             return;
         }
-        var program = services.GetService(typeof(ProgramViewModel)) as ProgramViewModel;
+        var program = services.GetService(typeof(IProgramTransformTarget)) as IProgramTransformTarget;
         if (program is null || string.IsNullOrEmpty(program.LoadedText))
         {
             LastResult = LocText.Resolve("module.probing.noProgramLoaded", "No program loaded");

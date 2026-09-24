@@ -1,7 +1,6 @@
 /*
 
 Copyright (c) 2026 Andrew Shkolik
-
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -31,32 +30,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform;
+namespace SenderNG.Core.Services;
 
-namespace SenderNG.Modules.Plugins;
-
-public partial class RotationPanel : UserControl
+/// <summary>
+/// Per-profile companion-file suffixes a module owns (e.g. the probing
+/// module's <c>.probing.json</c>). <see cref="SettingsService.DeleteProfile"/>
+/// deletes every registered companion alongside the profile file; modules
+/// register themselves in their own <c>RegisterServices</c>.
+/// </summary>
+public interface IProfileCompanionSuffixes
 {
-    public RotationPanel() => InitializeComponent();
-
-    /// <summary>Edge pictograms load on attach (not at XAML parse time): the
-    /// unit tests construct this panel without an Avalonia app, and decoding an
-    /// avares asset there would fail. The AB cell has two stacked pictures —
-    /// plain and "extra probe point" — and the swap is a visibility binding on
-    /// AddAction, so no reload is needed when the option toggles.</summary>
-    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnAttachedToVisualTree(e);
-        RotationADImage.Source = Load("rotationAD.png");
-        RotationCDImage.Source = Load("rotationCD.png");
-        RotationABPlainImage.Source = Load("rotationAB.png");
-        RotationABExtraImage.Source = Load("rotationABextra.png");
-        RotationCBImage.Source = Load("rotationCB.png");
-    }
-
-    private static Bitmap Load(string name) =>
-        new(AssetLoader.Open(new Uri($"avares://SenderNG/Assets/Probing/{name}")));
+    /// <summary>Companion suffixes, e.g. <c>".probing.json"</c> — each is
+    /// appended to a profile id to form <c>profiles/&lt;id&gt;&lt;suffix&gt;</c>.</summary>
+    IReadOnlyList<string> Suffixes { get; }
 }

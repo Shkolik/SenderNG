@@ -62,6 +62,9 @@ public class ProgramModule : IModule, IModuleSettingsProvider
         // The plugin-facing program surface: external modules (the plotter)
         // resolve this interface — never the app-assembly view-model type.
         services.AddSingleton<ILoadedProgramSource>(sp => sp.GetRequiredService<ProgramViewModel>());
+        // The write-capable transform surface (height-map / rotation apply in
+        // the probing plugin reads and reloads the program through this).
+        services.AddSingleton<IProgramTransformTarget>(sp => sp.GetRequiredService<ProgramViewModel>());
     }
 
     // Program settings are machine-coupled (profile-scoped): one machine's

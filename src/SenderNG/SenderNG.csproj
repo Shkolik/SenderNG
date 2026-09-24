@@ -24,9 +24,6 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\banner.png" />
-    <!-- Probing tool pictograms (ioSender-origin placeholders; same-size
-         replacements will drop in later). Referenced via avares://SenderNG/Assets/Probing/*.png -->
-    <AvaloniaResource Include="Assets\Probing\*.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -42,6 +39,7 @@
     <ProjectReference Include="..\SenderNG.Modules.Hpgl\SenderNG.Modules.Hpgl.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Plotter\SenderNG.Modules.Plotter.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Plotter.Nex\SenderNG.Modules.Plotter.Nex.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\SenderNG.Modules.Probing\SenderNG.Modules.Probing.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -90,6 +88,14 @@
     </None>
     <None Include="..\SenderNG.Modules.Plotter.Nex\Locale\**\*.json">
       <Link>Modules\plotter-nex\Locale\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\SenderNG.Modules.Probing\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Probing.dll">
+      <Link>Modules\SenderNG.Modules.Probing.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\SenderNG.Modules.Probing\Locale\**\*.json">
+      <Link>Modules\probing\Locale\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

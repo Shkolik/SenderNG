@@ -1,4 +1,3 @@
-
 /*
 
 Copyright (c) 2026 Andrew Shkolik
@@ -39,38 +38,22 @@ using Avalonia.Platform;
 
 namespace SenderNG.Modules.Plugins;
 
-public partial class EdgeFinderPanel : UserControl
+public partial class CenterFinderPanel : UserControl
 {
-    public EdgeFinderPanel() => InitializeComponent();
+    public CenterFinderPanel() => InitializeComponent();
 
     /// <summary>Pictograms load on attach (not at XAML parse time): the unit
     /// tests construct this panel without an Avalonia app, and decoding an
-    /// avares asset there would fail. Every edge/corner cell stacks the
-    /// external picture over its internal ("I") variant — the visibility swap
-    /// is a pure binding on SelectedTool, so no reload is needed when the
-    /// mode toggles. Z is shared by both modes.</summary>
+    /// avares asset there would fail. Attached panels live in the real app or
+    /// the designer, where the asset loader is present.</summary>
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        CornerDImage.Source = Load("cornerD.png");
-        CornerDIntImage.Source = Load("cornerID.png");
-        EdgeCDImage.Source = Load("edgeCD.png");
-        EdgeCDIntImage.Source = Load("edgeICD.png");
-        CornerCImage.Source = Load("cornerC.png");
-        CornerCIntImage.Source = Load("cornerIC.png");
-        EdgeADImage.Source = Load("edgeAD.png");
-        EdgeADIntImage.Source = Load("edgeIAD.png");
-        EdgeZImage.Source = Load("edgeZ.png");
-        EdgeCBImage.Source = Load("edgeBC.png");
-        EdgeCBIntImage.Source = Load("edgeIBC.png");
-        CornerAImage.Source = Load("cornerA.png");
-        CornerAIntImage.Source = Load("cornerIA.png");
-        EdgeABImage.Source = Load("edgeAB.png");
-        EdgeABIntImage.Source = Load("edgeIAB.png");
-        CornerBImage.Source = Load("cornerB.png");
-        CornerBIntImage.Source = Load("cornerIB.png");
+        CenterInImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG.Modules.Probing/Assets/Probing/centerI.png")));
+        CenterOutImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG.Modules.Probing/Assets/Probing/centerO.png")));
+        CenterXInImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG.Modules.Probing/Assets/Probing/centerXIn.png")));
+        CenterXOutImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG.Modules.Probing/Assets/Probing/centerXOut.png")));
+        CenterYInImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG.Modules.Probing/Assets/Probing/centerYIn.png")));
+        CenterYOutImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG.Modules.Probing/Assets/Probing/centerYOut.png")));
     }
-
-    private static Bitmap Load(string name) =>
-        new(AssetLoader.Open(new Uri($"avares://SenderNG/Assets/Probing/{name}")));
 }

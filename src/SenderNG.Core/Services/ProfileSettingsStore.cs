@@ -37,17 +37,21 @@ namespace CNC.Core.Services;
 
 /// <summary>Paths and helpers for the two-tier settings layout
 /// (<c>global.json</c> + <c>profiles/&lt;id&gt;.json</c> + per-profile
-/// <c>.probing.json</c> companions). See <c>docs/settings-migration.md</c>.</summary>
+/// module companion files such as <c>.probing.json</c>). See
+/// <c>docs/settings-migration.md</c>.</summary>
 public static class ProfileSettingsPaths
 {
     public const string GlobalFileName = "global.json";
     public const string ProfilesDirName = "profiles";
-    public const string ProbeCompanionSuffix = ".probing.json";
 
     public static string GlobalPath(string dir) => Path.Combine(dir, GlobalFileName);
     public static string ProfilesDir(string dir) => Path.Combine(dir, ProfilesDirName);
     public static string ProfilePath(string dir, string id) => Path.Combine(ProfilesDir(dir), Sanitize(id) + ".json");
-    public static string ProbeCompanionPath(string dir, string id) => Path.Combine(ProfilesDir(dir), Sanitize(id) + ProbeCompanionSuffix);
+
+    /// <summary>Per-profile companion file path: <c>profiles/&lt;id&gt;&lt;suffix&gt;</c>,
+    /// e.g. the probing module's <c>.probing.json</c>.</summary>
+    public static string CompanionPath(string dir, string id, string suffix)
+        => Path.Combine(ProfilesDir(dir), Sanitize(id) + suffix);
 
     /// <summary>Id → safe file stem (ids are slugs by construction; defense in depth).</summary>
     public static string Sanitize(string id) => string.IsNullOrWhiteSpace(id) ? MachineProfile.DefaultId : id.Trim();
@@ -107,14 +111,19 @@ public static class ProfilesStore
     }
 
     /// <summary>Profile ids on disk — every *.json in the profiles dir except
-    /// the per-profile probing companions.</summary>
+    /// per-module companion files (ids are dot-free slugs; companions are
+    /// always <c>&lt;id&gt;.&lt;suffix&gt;.json</c>, so a dot in the stem means
+    /// "companion, not a profile").</summary>
     public static IEnumerable<string> Ids(string dir)
     {
         var profiles = ProfileSettingsPaths.ProfilesDir(dir);
         if (!Directory.Exists(profiles))
             return [];
         return Directory.EnumerateFiles(profiles, "*.json")
-            .Where(p => !p.EndsWith(ProfileSettingsPaths.ProbeCompanionSuffix, StringComparison.OrdinalIgnoreCase))
+            // Profile files are <id>.json and ids are dot-free slugs; per-module
+            // companions are always <id>.<suffix>.json, so a dot in the stem
+            // (file name without ".json") means "companion, not a profile".
+            .Where(p => !Path.GetFileNameWithoutExtension(p).Contains('.'))
             .Select(p => Path.GetFileNameWithoutExtension(p))
             .ToArray();
     }

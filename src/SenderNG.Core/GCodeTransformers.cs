@@ -488,7 +488,7 @@ public static class GCodeTransformers
     /// </summary>
     /// <param name="tokens">Engine token stream (caller-owned, never mutated).</param>
     /// <param name="interpolateZ">Surface height at (x, y) — e.g.
-    /// <see cref="SenderNG.Core.Modules.Probing.HeightMap.InterpolateZ"/>.</param>
+    /// <c>HeightMap.InterpolateZ</c> (the probing module's grid surface).</param>
     /// <param name="segmentLength">Split spacing for feeds (the map's min grid
     /// spacing); ≤ 0 disables splitting.</param>
     /// <param name="decimals">Coordinate rounding precision (use <see cref="GCodeProgram.Decimals"/>).</param>

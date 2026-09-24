@@ -36,7 +36,7 @@ using CNC.Core.Services;
 using SenderNG.Core.Modules.Probing;
 using Xunit;
 
-namespace SenderNG.Core.Tests;
+namespace SenderNG.Modules.Probing.Tests;
 
 public class ProbeRunnerTests
 {
@@ -53,7 +53,7 @@ public class ProbeRunnerTests
         var demo = await ConnectDemoAsync();
         var runner = new ProbeRunner(demo);
 
-        var result = await runner.ExecuteAsync(["G91F100", "G38.3F100Z-10"]);
+        var result = await runner.ExecuteAsync(["G91F100", "G38.3F100Z-10"], TestContext.Current.CancellationToken);
 
         Assert.True(result.Success);
         var pos = Assert.Single(result.Positions);
@@ -68,7 +68,7 @@ public class ProbeRunnerTests
 
         // Fast probe (captured), retract (! drops it), slow probe (captured).
         var result = await runner.ExecuteAsync(
-            ["G91F100", "G38.3F100Z-10", "!G0Z0.5", "G38.3F25Z-2"]);
+            ["G91F100", "G38.3F100Z-10", "!G0Z0.5", "G38.3F25Z-2"], TestContext.Current.CancellationToken);
 
         var pos = Assert.Single(result.Positions);
         Assert.Equal(-11.5, pos[2], 3);
@@ -80,7 +80,7 @@ public class ProbeRunnerTests
         var demo = await ConnectDemoAsync();
         var runner = new ProbeRunner(demo);
 
-        var result = await runner.ExecuteAsync(["#Probing point 1 of 4", "G38.3F100Z-5"]);
+        var result = await runner.ExecuteAsync(["#Probing point 1 of 4", "G38.3F100Z-5"], TestContext.Current.CancellationToken);
 
         Assert.True(result.Success);
         Assert.Equal("Probing point 1 of 4", result.LastMessage);
@@ -95,7 +95,7 @@ public class ProbeRunnerTests
         var program = new ProbeProgramBuilder(ProbingProfile.CreateDefault())
             .BuildToolLength(probeFixture: false);
 
-        var result = await runner.ExecuteAsync(program.Lines);
+        var result = await runner.ExecuteAsync(program.Lines, TestContext.Current.CancellationToken);
 
         Assert.True(result.Success);
         var pos = Assert.Single(result.Positions);
@@ -110,7 +110,7 @@ public class ProbeRunnerTests
         var program = new ProbeProgramBuilder(ProbingProfile.CreateDefault())
             .BuildEdgeFinder(Edge.A, new Pos(10, 20, 5), internalFinder: false);
 
-        var result = await runner.ExecuteAsync(program.Lines);
+        var result = await runner.ExecuteAsync(program.Lines, TestContext.Current.CancellationToken);
 
         Assert.True(result.Success);
         Assert.Equal(2, result.Positions.Count); // X probe then Y probe

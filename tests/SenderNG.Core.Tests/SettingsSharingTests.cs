@@ -104,10 +104,12 @@ public Task SendAsync(string line)
 
         // Probing persists profiles to its own per-profile companion file
         // (profiles/<id>.probing.json) and must not touch the shared profile
-        // graph (so a later macro save keeps both).
-        var probeVm = new ProbeViewModel(grbl, settings);
-        probeVm.NewProfileName = "p";
-        probeVm.ProfileAddCommand.Execute(null);
+        // graph (so a later macro save keeps both). The plugin's Test project
+        // covers the profile-add flow itself; here the companion is simulated
+        // so the sharing regression is exercised at the Core level.
+        File.WriteAllText(
+            ProfileSettingsPaths.CompanionPath(dir, settings.Load().Id, ".probing.json"),
+            """{"profiles":[]}""");
 
         var macroVm = new MacroViewModel(settings, grbl);
         macroVm.AddMacroCommand.Execute(null);
@@ -115,6 +117,6 @@ public Task SendAsync(string line)
         var profileFile = Path.Combine(dir, "profiles", settings.Load().Id + ".json");
         var json = File.ReadAllText(profileFile);
         Assert.Contains("Macros", json);
-        Assert.True(File.Exists(ProfileSettingsPaths.ProbeCompanionPath(dir, settings.Load().Id)));
+        Assert.True(File.Exists(ProfileSettingsPaths.CompanionPath(dir, settings.Load().Id, ".probing.json")));
     }
 }

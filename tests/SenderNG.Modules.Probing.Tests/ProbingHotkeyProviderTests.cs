@@ -36,8 +36,9 @@ using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Modules;
 using SenderNG.Modules.Plugins;
+using Xunit;
 
-namespace SenderNG.Core.Tests;
+namespace SenderNG.Modules.Probing.Tests;
 
 public class ProbingHotkeyProviderTests
 {

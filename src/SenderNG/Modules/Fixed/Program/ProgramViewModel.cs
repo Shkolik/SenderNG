@@ -85,11 +85,12 @@ public sealed class BatchObservableCollection<T> : ObservableCollection<T>
 
 // ILoadedProgramSource: the read-only program surface external plugins (the
 // plotter) resolve from DI — they must not reference this app-assembly type.
-public class ProgramViewModel : ViewModelBase, ILoadedProgramSource
+public class ProgramViewModel : ViewModelBase, ILoadedProgramSource, IProgramTransformTarget
 {
     private readonly IGrblService? _grbl;
     private ProgramStreamSession? _session;
     private GCodeProgram? _program;
+    private IReadOnlyList<AxisLimits> _limits = [];
     private MachineState _machineState = new();
     // Incremental acked count (O(1) reads): a per-read scan of ProgramRows is
     // O(n) and ProgressText/DoneCount are re-read on EVERY row update, so a
@@ -186,6 +187,22 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource
     // counter and any other observers re-read their state on it.
     public event Action? RowsChanged;
 
+    // ---- IProgramTransformTarget: the plugin-facing transform surface ----
+
+    /// <summary>Raw program text as loaded (transforms such as height
+    /// map/rotation rewrite it) — exposed through <see cref="IProgramTransformTarget"/>
+    /// so plugin transforms can read and re-load the program without touching
+    /// the app's view-model type.</summary>
+    string? IProgramTransformTarget.LoadedText => LoadedText;
+
+    /// <summary>Per-axis program limits (bounding box), as <see cref="AxisLimits"/>
+    /// — the transform pivot resolves its corners/center from these. Kept in
+    /// sync by <see cref="ApplyLimits"/> / <see cref="ClearProgram"/>.</summary>
+    IReadOnlyList<AxisLimits> IProgramTransformTarget.Limits => _limits;
+
+    void IProgramTransformTarget.LoadProgram(GCodeProgram program, string? text)
+        => LoadProgram(program, text);
+
     // Raised while streaming when a row is touched — the view scrolls the send
     // frontier into the middle of the program pane so the queued commands stay
     // visible. The payload is the touched row's index in <see cref="ProgramRows"/>
@@ -266,6 +283,7 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource
     /// <summary>Rows from a precomputed limits pass (single emulator run, off the UI thread).</summary>
     private void ApplyLimits(IReadOnlyList<AxisLimits> limits)
     {
+        _limits = limits ?? [];
         LimitRows.Clear();
         if (limits is not null)
         {
@@ -282,6 +300,7 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource
     {
         _program = null;
         LoadedText = null;
+        _limits = [];
         ProgramRows.Clear();
         LimitRows.Clear();
         _doneCount = 0;
@@ -298,9 +317,13 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource
     {
         LimitRows.Clear();
         if (_program is null)
+        {
+            _limits = [];
             return;
+        }
 
         var limits = GCodeLimitsCalculator.Compute(_program.Tokens);
+        _limits = limits ?? [];
         if (limits is not null)
         {
             foreach (var l in limits)

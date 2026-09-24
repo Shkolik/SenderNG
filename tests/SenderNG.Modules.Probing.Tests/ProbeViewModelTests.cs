@@ -36,13 +36,12 @@ using System.Reflection;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
-using SenderNG.Modules.Fixed;
 using SenderNG.Modules.Plugins;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Modules.Probing;
 using Xunit;
 
-namespace SenderNG.Core.Tests;
+namespace SenderNG.Modules.Probing.Tests;
 
 [Collection("LocalizationState")] // serializes with other tests mutating LocalizationService.Current
 public class ProbeViewModelTests : IDisposable
@@ -272,7 +271,7 @@ public class ProbeViewModelTests : IDisposable
         // The legacy ProfilesFile override key is gone after the settings split:
         // the companion path derives from the active profile id.
         var settings = _settings.Load();
-        var expectedPath = ProfileSettingsPaths.ProbeCompanionPath(_settings.SettingsDir, settings.Id);
+        var expectedPath = ProfileSettingsPaths.CompanionPath(_settings.SettingsDir, settings.Id, ProbingProfileStore.CompanionSuffix);
 
         var demo = new DemoGrblService(settings);
         var vm = new ProbeViewModel(demo, _settings);
@@ -282,6 +281,24 @@ public class ProbeViewModelTests : IDisposable
 
         Assert.True(File.Exists(expectedPath));
         Assert.Equal(2, new ProbeViewModel(demo, _settings).Profiles.Count);
+    }
+
+    [Fact]
+    public void ProbeViewModel_repoints_its_companion_store_after_switch()
+    {
+        var vm = new ProbeViewModel(new StubGrbl(), _settings);
+        vm.NewProfileName = "p";
+        vm.ProfileAddCommand.Execute(null);
+        Assert.True(File.Exists(ProfileSettingsPaths.CompanionPath(_dir, "default", ProbingProfileStore.CompanionSuffix)));
+
+        var second = _settings.CreateProfile("second", MachineTypes.Mill);
+        _settings.Activate(second.Id);
+
+        Assert.Single(vm.Profiles); // the new machine's companion (default profile only)
+        vm.NewProfileName = "q";
+        vm.ProfileAddCommand.Execute(null);
+        Assert.True(File.Exists(ProfileSettingsPaths.CompanionPath(_dir, "second", ProbingProfileStore.CompanionSuffix)));
+        Assert.DoesNotContain("p", vm.Profiles.Select(p => p.Name));
     }
 
     [Fact]
@@ -307,12 +324,12 @@ public class ProbeViewModelTests : IDisposable
     public async Task Height_map_apply_runs_the_real_probe_then_transforms_the_program()
     {
         var demo = await ConnectDemoAsync();
+        var program = new TransformTargetStub();
         var services = new ServiceCollection()
             .AddSingleton<IGrblService>(demo)
-            .AddSingleton<ProgramViewModel>()
+            .AddSingleton<IProgramTransformTarget>(program)
             .BuildServiceProvider();
         var vm = new ProbeViewModel(demo, _settings, services);
-        var program = services.GetRequiredService<ProgramViewModel>();
         program.LoadGCode("G1 X10 Y0 F100");
 
         vm.SelectedTool = ProbingType.HeightMap;
@@ -349,12 +366,12 @@ public class ProbeViewModelTests : IDisposable
     public async Task Rotation_apply_rotates_about_the_selected_origin()
     {
         var demo = await ConnectDemoAsync();
+        var program = new TransformTargetStub();
         var services = new ServiceCollection()
             .AddSingleton<IGrblService>(demo)
-            .AddSingleton<ProgramViewModel>()
+            .AddSingleton<IProgramTransformTarget>(program)
             .BuildServiceProvider();
         var vm = new ProbeViewModel(demo, _settings, services);
-        var program = services.GetRequiredService<ProgramViewModel>();
         program.LoadGCode("G1 X50 Y0 F100\nG1 X100 Y0 F100");
 
         // The angle is normally written by RunRotationAsync after a live probe;
@@ -767,6 +784,31 @@ public class ProbeViewModelTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_dir, recursive: true); } catch { }
+    }
+
+    /// <summary>App-side program surface the apply commands rewrite — the plugin
+    /// only ever talks to <see cref="IProgramTransformTarget"/>, never the app
+    /// view model, so the plugin tests drive the real height-map/rotation apply
+    /// flow through this stand-in (mirrors ProgramViewModel.LoadGCode + limits).</summary>
+    private sealed class TransformTargetStub : IProgramTransformTarget
+    {
+        private GCodeProgram? _program;
+
+        public string? LoadedText { get; private set; }
+        public IReadOnlyList<AxisLimits> Limits { get; private set; } = [];
+
+        public void LoadGCode(string? text)
+        {
+            var program = GCodeProgram.Parse(text);
+            LoadProgram(program, text);
+        }
+
+        public void LoadProgram(GCodeProgram program, string? text)
+        {
+            _program = program;
+            LoadedText = text;
+            Limits = GCodeLimitsCalculator.Compute(program.Tokens) ?? [];
+        }
     }
 
     /// <summary>Minimal non-connecting IGrblService for VM construction tests.</summary>

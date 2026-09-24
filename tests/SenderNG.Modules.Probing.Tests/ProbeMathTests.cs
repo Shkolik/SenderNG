@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using SenderNG.Core.Modules.Probing;
 using Xunit;
 
-namespace SenderNG.Core.Tests;
+namespace SenderNG.Modules.Probing.Tests;
 
 public class ProbeMathTests
 {

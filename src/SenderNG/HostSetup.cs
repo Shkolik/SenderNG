@@ -121,13 +121,14 @@ public static class HostSetup
         RegisterModule(builder.Services, new Modules.Fixed.AppSettingsModule());
         RegisterModule(builder.Services, new Modules.Fixed.WorkParametersModule());
 
-        // Plugin modules (jog / cutting / coolant / macro / mpos / outline / goto).
+        // Plugin modules registered in code (jog / cutting / coolant / macro / mpos /
+        // outline / goto / stepper calibration) + whatever ModuleCatalog.ScanDirectory
+        // discovers in OutputDir/Modules.
         RegisterModule(builder.Services, new Modules.Plugins.GotoModule());
         RegisterModule(builder.Services, new Modules.Plugins.JogModule());
         RegisterModule(builder.Services, new Modules.Plugins.CuttingModule());
         RegisterModule(builder.Services, new Modules.Plugins.CoolantModule());
         RegisterModule(builder.Services, new Modules.Plugins.MacroModule());
-        RegisterModule(builder.Services, new Modules.Plugins.ProbingModule());
         RegisterModule(builder.Services, new Modules.Plugins.MposModule());
         RegisterModule(builder.Services, new Modules.Plugins.OutlineModule());
         RegisterModule(builder.Services, new Modules.Plugins.StepperCalibrationModule());

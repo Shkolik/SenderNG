@@ -41,7 +41,7 @@ def workpiece(d):
 
 
 def save(im, name):
-    im.save(f"src/SenderNG/Assets/Probing/{name}.png")
+    im.save(f"src/SenderNG.Modules.Probing/Assets/Probing/{name}.png")
     print(name, im.size)
 
 

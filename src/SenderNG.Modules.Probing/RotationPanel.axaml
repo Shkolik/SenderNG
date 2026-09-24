@@ -35,8 +35,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:SenderNG.Modules.Plugins"
-             xmlns:conv="clr-namespace:SenderNG.Converters"
-             xmlns:loc="clr-namespace:SenderNG.Localization;assembly=SenderNG"
+             xmlns:conv="clr-namespace:SenderNG.Modules.Probing.Converters"
+             xmlns:loc="clr-namespace:SenderNG.Modules.Probing.Localization"
              x:Class="SenderNG.Modules.Plugins.RotationPanel"
              x:DataType="vm:ProbeViewModel">
 

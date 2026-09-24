@@ -129,6 +129,28 @@ public class ProgramViewModelTests
     }
 
     [Fact]
+    public void IProgramTransformTarget_Limits_follow_a_reload_without_precomputed_limits()
+    {
+        var vm = new ProgramViewModel();
+        IProgramTransformTarget target = vm;
+
+        // File→Open path: precomputed limits seed the bridge's backing field.
+        vm.LoadProgram(GCodeProgram.Parse("G21 G90\nG0 X10 Y20\nG1 X30 Y40 F100"),
+            "G21 G90\nG0 X10 Y20\nG1 X30 Y40 F100",
+            new[] { new AxisLimits('X', 10, 30), new AxisLimits('Y', 20, 40) });
+        Assert.Equal(10, Assert.Single(target.Limits, l => l.Letter == 'X').Min);
+        Assert.Equal(30, Assert.Single(target.Limits, l => l.Letter == 'X').Max);
+
+        // Probe-apply reload: the transform resubmits the program text with NO
+        // precomputed limits — a chained rotate must resolve its pivot from the
+        // new geometry, not the stale pre-transform bounding box.
+        vm.LoadGCode("G21 G90\nG0 X10\nG1 X50 F100");
+
+        Assert.Equal(10, Assert.Single(target.Limits, l => l.Letter == 'X').Min);
+        Assert.Equal(50, Assert.Single(target.Limits, l => l.Letter == 'X').Max);
+    }
+
+    [Fact]
     public void Limits_recompute_when_controller_work_parameters_arrive()
     {
         // Machine.WorkParametersProvider is a process-global static that parallel

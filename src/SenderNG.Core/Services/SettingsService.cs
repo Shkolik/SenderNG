@@ -31,6 +31,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using Microsoft.Extensions.DependencyInjection;
+
 namespace CNC.Core.Services;
 
 /// <summary>
@@ -52,6 +54,7 @@ namespace CNC.Core.Services;
 public class SettingsService
 {
     private readonly string _dir;
+    private readonly IServiceProvider? _services;
     private MachineProfile? _current;
     private GlobalSettings? _global;
 
@@ -63,9 +66,15 @@ public class SettingsService
     /// re-read or reset — a machine swap invalidates loaded state.</summary>
     public event System.Action<string>? ProfileSwitched;
 
-    public SettingsService(string? dir = null)
+    /// <summary>Creates a settings service rooted at <paramref name="dir"/> (default:
+    /// the per-user settings directory). <paramref name="services"/> — when present —
+    /// supplies module companion providers (<see cref="IProfileCompanionSuffixes"/>)
+    /// whose per-profile files <see cref="DeleteProfile"/> removes alongside the
+    /// profile file.</summary>
+    public SettingsService(string? dir = null, IServiceProvider? services = null)
     {
         _dir = dir ?? DefaultDir();
+        _services = services;
     }
 
     /// <summary>Writable directory used by this service (companion files live here too).</summary>
@@ -208,7 +217,8 @@ public class SettingsService
     }
 
     /// <summary>
-    /// Deletes a profile file + its probing companion. Refuses the active profile
+    /// Deletes a profile file + its per-module companion files (registered via
+    /// <see cref="IProfileCompanionSuffixes"/>). Refuses the active profile
     /// and the last remaining one (both must be handled by the UI first).
     /// </summary>
     public bool DeleteProfile(string id)
@@ -218,7 +228,14 @@ public class SettingsService
         if (ProfilesStore.Ids(_dir).Count() <= 1)
             return false;
         ProfilesStore.Delete(_dir, id);
-        try { File.Delete(ProfileSettingsPaths.ProbeCompanionPath(_dir, id)); } catch { /* best-effort */ }
+        foreach (var companion in _services?.GetServices<SenderNG.Core.Services.IProfileCompanionSuffixes>() ?? [])
+        {
+            foreach (var suffix in companion.Suffixes)
+            {
+                try { File.Delete(ProfileSettingsPaths.CompanionPath(_dir, id, suffix)); }
+                catch { /* best-effort */ }
+            }
+        }
         _global ??= GlobalSettingsStore.Load(_dir);
         _global.Profiles.Remove(id);
         GlobalSettingsStore.Save(_dir, _global);

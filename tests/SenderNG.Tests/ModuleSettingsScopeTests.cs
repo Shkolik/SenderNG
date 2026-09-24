@@ -57,7 +57,6 @@ public class ModuleSettingsScopeTests
     public void Machine_coupled_modules_declare_profile_scope()
     {
         Assert.Equal(SettingsScope.Profile, AsProvider(new JogModule()).Scope);
-        Assert.Equal(SettingsScope.Profile, AsProvider(new ProbingModule()).Scope);
     }
 
     private static IModuleSettingsProvider AsProvider(IModuleSettingsProvider provider) => provider;

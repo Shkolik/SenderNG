@@ -176,8 +176,8 @@ public class ProfileSettingsMigrationTests
         }
 
         // Per-profile probing companions derived from the old probing.json.
-        Assert.True(File.Exists(ProfileSettingsPaths.ProbeCompanionPath(dir, "mill")));
-        Assert.True(File.Exists(ProfileSettingsPaths.ProbeCompanionPath(dir, "foam")));
+        Assert.True(File.Exists(ProfileSettingsPaths.CompanionPath(dir, "mill", ".probing.json")));
+        Assert.True(File.Exists(ProfileSettingsPaths.CompanionPath(dir, "foam", ".probing.json")));
         Assert.Contains("ProbeDiameter", Read(dir, Path.Combine("profiles", "mill.probing.json")));
     }
 
@@ -312,7 +312,7 @@ public class ProfileSettingsMigrationTests
         var dir = NewDir();
         ProfilesStore.Save(dir, new MachineProfile { Id = "mill", Name = "Mill" });
         ProfilesStore.Save(dir, new MachineProfile { Id = "foam", Name = "Foam" });
-        File.WriteAllText(ProfileSettingsPaths.ProbeCompanionPath(dir, "mill"), "{}");
+        File.WriteAllText(ProfileSettingsPaths.CompanionPath(dir, "mill", ".probing.json"), "{}");
 
         Assert.Equal(["foam", "mill"], ProfilesStore.Ids(dir).OrderBy(x => x).ToArray());
         Assert.False(File.Exists(Path.Combine(dir, "settings.json")));

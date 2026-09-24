@@ -180,12 +180,15 @@ public static class SettingsMigrator
             ProfilesStore.Save(dir, JsonSerializer.Deserialize<MachineProfile>(profile.ToJsonString())!);
             profileIds.Add(id);
 
-            // Old probing.json companion → per-profile companion (verbatim copy).
+            // Old probing.json companion → per-profile companion (verbatim copy). The
+            // ".probing.json" suffix is hard-coded: this block migrates a legacy
+            // file layout and records history rather than a living dependency on the
+            // (plugin-hosted) probing module.
             var legacyProbe = Path.Combine(dir, "probing.json");
             if (File.Exists(legacyProbe))
             {
                 Directory.CreateDirectory(ProfileSettingsPaths.ProfilesDir(dir));
-                File.Copy(legacyProbe, ProfileSettingsPaths.ProbeCompanionPath(dir, id), overwrite: true);
+                File.Copy(legacyProbe, ProfileSettingsPaths.CompanionPath(dir, id, ".probing.json"), overwrite: true);
             }
         }
 

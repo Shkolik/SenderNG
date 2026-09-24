@@ -63,6 +63,10 @@
       <Link>Modules\SenderNG.Modules.Plotter.Nex.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="..\..\src\SenderNG.Modules.Probing\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Probing.dll">
+      <Link>Modules\SenderNG.Modules.Probing.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>

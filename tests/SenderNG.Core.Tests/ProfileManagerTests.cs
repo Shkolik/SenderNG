@@ -37,6 +37,7 @@ using CNC.Core.Services;
 using CNC.Core.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Modules;
+using SenderNG.Core.Services;
 using SenderNG.Modules.Fixed;
 using SenderNG.Modules.Plugins;
 using Xunit;
@@ -55,7 +56,17 @@ public class ProfileManagerTests
     {
         var dir = Path.Combine(Path.GetTempPath(), "senderng-profiles-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
-        return (dir, new SettingsService(dir));
+        var services = new ServiceCollection()
+            .AddSingleton<IProfileCompanionSuffixes>(new ProbingCompanionStub())
+            .BuildServiceProvider();
+        return (dir, new SettingsService(dir, services));
+    }
+
+    // Stands in for the probing module's companion registration (Task 3 wires
+    // the real module): DeleteProfile removes ".probing.json" beside the profile.
+    private sealed class ProbingCompanionStub : IProfileCompanionSuffixes
+    {
+        public IReadOnlyList<string> Suffixes { get; } = [".probing.json"];
     }
 
     private static ProfileSettingsLeaf CreateLeaf(SettingsService settings, Func<bool>? guard = null)
@@ -171,14 +182,14 @@ public class ProfileManagerTests
         leaf.ActivateCommand.Execute(null);
         leaf.SelectedProfile = leaf.Profiles.Single(p => p.Id == "other");
         Assert.True(leaf.RemoveCommand.CanExecute(null));
-        File.WriteAllText(ProfileSettingsPaths.ProbeCompanionPath(dir, "other"), "{}");
+        File.WriteAllText(ProfileSettingsPaths.CompanionPath(dir, "other", ".probing.json"), "{}");
         leaf.RemoveCommand.Execute(null);
         Assert.Equal("Remove again to confirm", leaf.RemoveButtonText); // armed, not executed
         leaf.RemoveCommand.Execute(null);
 
         Assert.Single(leaf.Profiles);
         Assert.False(File.Exists(ProfileSettingsPaths.ProfilePath(dir, "other")));
-        Assert.False(File.Exists(ProfileSettingsPaths.ProbeCompanionPath(dir, "other")));
+        Assert.False(File.Exists(ProfileSettingsPaths.CompanionPath(dir, "other", ".probing.json")));
         Assert.DoesNotContain("other", new SettingsService(dir).Global.Profiles.Keys);
     }
 
@@ -375,25 +386,6 @@ public class ProfileSwitchReReadTests
         var feed = doc.RootElement.GetProperty("ModuleSettings")
             .GetProperty(OutlineModule.SettingsSection).GetProperty(OutlineModule.FeedRateKey).GetDouble();
         Assert.Equal(1000.0, feed);
-    }
-
-    [Fact]
-    public void ProbeViewModel_repoints_its_companion_store_after_switch()
-    {
-        var (dir, settings) = MakeSettings();
-        var vm = new ProbeViewModel(new StubGrbl(), settings);
-        vm.NewProfileName = "p";
-        vm.ProfileAddCommand.Execute(null);
-        Assert.True(File.Exists(ProfileSettingsPaths.ProbeCompanionPath(dir, "default")));
-
-        var second = settings.CreateProfile("second", MachineTypes.Mill);
-        settings.Activate(second.Id);
-
-        Assert.Single(vm.Profiles); // the new machine's companion (default profile only)
-        vm.NewProfileName = "q";
-        vm.ProfileAddCommand.Execute(null);
-        Assert.True(File.Exists(ProfileSettingsPaths.ProbeCompanionPath(dir, "second")));
-        Assert.DoesNotContain("p", vm.Profiles.Select(p => p.Name));
     }
 }
 

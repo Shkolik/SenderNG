@@ -31,29 +31,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform;
-
-namespace SenderNG.Modules.Plugins;
-
-public partial class CenterFinderPanel : UserControl
-{
-    public CenterFinderPanel() => InitializeComponent();
-
-    /// <summary>Pictograms load on attach (not at XAML parse time): the unit
-    /// tests construct this panel without an Avalonia app, and decoding an
-    /// avares asset there would fail. Attached panels live in the real app or
-    /// the designer, where the asset loader is present.</summary>
-    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnAttachedToVisualTree(e);
-        CenterInImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG/Assets/Probing/centerI.png")));
-        CenterOutImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG/Assets/Probing/centerO.png")));
-        CenterXInImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG/Assets/Probing/centerXIn.png")));
-        CenterXOutImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG/Assets/Probing/centerXOut.png")));
-        CenterYInImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG/Assets/Probing/centerYIn.png")));
-        CenterYOutImage.Source = new Bitmap(AssetLoader.Open(new Uri("avares://SenderNG/Assets/Probing/centerYOut.png")));
-    }
+using System.ComponentModel; using System.Runtime.CompilerServices;
+namespace SenderNG.Modules.Probing.ViewModels;
+public abstract class ViewModelBase : INotifyPropertyChanged {
+  public event PropertyChangedEventHandler? PropertyChanged;
+  protected void OnPropertyChanged([CallerMemberName]string? n=null)=> PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(n));
+  protected bool SetField<T>(ref T f,T v,[CallerMemberName]string? n=null){ if(EqualityComparer<T>.Default.Equals(f,v)) return false; f=v; OnPropertyChanged(n); return true; }
 }

@@ -31,39 +31,32 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-using Microsoft.Extensions.DependencyInjection;
-using SenderNG.Core.Modules;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 
 namespace SenderNG.Modules.Plugins;
 
-/// <summary>Probe-panel hotkeys. Module-scoped: they only fire while the probe
-/// view has focus, so they can reuse <c>Alt+R</c>/<c>Alt+S</c> alongside the global
-/// cycle controls (ioSender's contextual behavior).</summary>
-internal static class ProbingHotkeyProvider
+public partial class RotationPanel : UserControl
 {
-    private const string ModuleId = "probing";
+    public RotationPanel() => InitializeComponent();
 
-    public static IReadOnlyList<IHotkeyAction> Create(IServiceProvider services)
+    /// <summary>Edge pictograms load on attach (not at XAML parse time): the
+    /// unit tests construct this panel without an Avalonia app, and decoding an
+    /// avares asset there would fail. The AB cell has two stacked pictures —
+    /// plain and "extra probe point" — and the swap is a visibility binding on
+    /// AddAction, so no reload is needed when the option toggles.</summary>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        ProbeViewModel Probe() => services.GetRequiredService<ProbeViewModel>();
-
-        return
-        [
-            new CommandHotkeyAction(
-                "probe.start", "Start probing", "module.probing.hotkey.probe.start",
-                () => Probe().StartCommand.Execute(null),
-                () => Probe().StartCommand.CanExecute(null),
-                scope: HotkeyScope.Module, moduleId: ModuleId),
-            new CommandHotkeyAction(
-                "probe.stop", "Stop probing", "module.probing.hotkey.probe.stop",
-                () => Probe().StopCommand.Execute(null),
-                () => Probe().StopCommand.CanExecute(null),
-                scope: HotkeyScope.Module, moduleId: ModuleId),
-            new CommandHotkeyAction(
-                "probe.connected", "Probe connected", "module.probing.hotkey.probe.connected",
-                () => { },
-                () => false,
-                scope: HotkeyScope.Module, moduleId: ModuleId),
-        ];
+        base.OnAttachedToVisualTree(e);
+        RotationADImage.Source = Load("rotationAD.png");
+        RotationCDImage.Source = Load("rotationCD.png");
+        RotationABPlainImage.Source = Load("rotationAB.png");
+        RotationABExtraImage.Source = Load("rotationABextra.png");
+        RotationCBImage.Source = Load("rotationCB.png");
     }
+
+    private static Bitmap Load(string name) =>
+        new(AssetLoader.Open(new Uri($"avares://SenderNG.Modules.Probing/Assets/Probing/{name}")));
 }

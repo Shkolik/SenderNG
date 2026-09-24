@@ -46,6 +46,9 @@ namespace SenderNG.Core.Modules.Probing;
 /// </summary>
 public class ProbingProfileStore
 {
+    /// <summary>Per-profile companion suffix: <c>profiles/&lt;id&gt;.probing.json</c>.</summary>
+    public const string CompanionSuffix = ".probing.json";
+
     private readonly string _filePath;
 
     public ProbingProfileStore(string? filePath = null)
