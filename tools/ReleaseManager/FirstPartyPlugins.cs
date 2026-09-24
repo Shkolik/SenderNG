@@ -44,7 +44,8 @@ public static class FirstPartyPlugins
         new("excellon", "src/SenderNG.Modules.Excellon/SenderNG.Modules.Excellon.csproj", null),
         new("hpgl", "src/SenderNG.Modules.Hpgl/SenderNG.Modules.Hpgl.csproj", null),
         new("plotter", "src/SenderNG.Modules.Plotter/SenderNG.Modules.Plotter.csproj", null),
-        new("plotter-nex", "src/SenderNG.Modules.Plotter.Nex/SenderNG.Modules.Plotter.Nex.csproj", null)
+        new("plotter-nex", "src/SenderNG.Modules.Plotter.Nex/SenderNG.Modules.Plotter.Nex.csproj", null),
+        new("probing", "src/SenderNG.Modules.Probing/SenderNG.Modules.Probing.csproj", null)
     ];
 
     public static PluginEntry First(string id)

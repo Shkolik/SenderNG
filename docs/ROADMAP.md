@@ -3,26 +3,23 @@
 Gaps and planned work, roughly in priority order. Items land here when a task
 surfaces a known limitation that we deliberately defer.
 
-## Probing as an optional module plugin (P0) — investigating
+## Probing as an optional module plugin (P0) — DONE
 
-**Goal:** move the whole Probing module (`Modules/Plugins/Probing` + its Core
-piece) out of the shipped app and into a **3rd-party plugin** like the
-Plotter / Plotter.Nex / converter modules. Core no longer ships probing, so
-users who don't probe get a smaller app; plugins that want a probe-driven view
-gain a dependency they can declare. The plugin boundary also re-opens the
-**height-map 3D preview** gate: the plugin can render the probed grid with the
-same Vulkan/HelixToolkit.Nex engine as Plotter Nex without the core app
-shipping it — the "Avalonia host problem" gate is what blocked the 3D preview
-in `docs/iosender-gaps.md` P2.
-
-Blocker / gate analysis, what moves across the boundary (VM, views, runner,
-profile store, `ProbeProgramBuilder`, hotkeys, locale catalog, settings leaf,
-test battery), and the SDK surface that must grow (`IModule` panel vs center
-tab, native file dialogs for `.map`, Ionic zip packaging) — **under
-investigation**. Design spec:
-`docs/superpowers/specs/2026-09-23-probing-plugin-design.md` (approved
-2026-09-23; the 3D height-map renderer plugin is a named follow-up the
-contract enables).
+**Shipped (2026-09-23):** the whole Probing module (UI + Core logic) moved out
+of the app into the first-party plugin `src/SenderNG.Modules.Probing`, staged
+under `OutputDir/Modules/` and discovered by the existing `ModuleCatalog`
+scan exactly like the Excellon/Hpgl/Plotter/converter modules. Core no longer
+ships probing — users who don't probe get a smaller app, and plugins that want
+a probe-driven view gain a dependency they can declare. The extraction landed
+a slim Core contract (`HeightMapLayer`, `IHeightMapSource`, nullable-observable
+snapshot, `IHeightMap3DRenderer` presence marker, `IProfileCompanionSuffixes`)
+and left only the delegate-based `IProgramTransformTarget` transform tap-point
+(`ApplyHeightMap`) in Core; the plugin ships its own Locale catalogs and
+`InternalsVisibleTo("SenderNG.Modules.Probing.Tests")`. The plugin boundary
+re-opened the **height-map 3D preview** gate — the "Avalonia host problem" no
+longer blocks a renderer, which is now a named P1 plugin item below. Design
+spec: `docs/superpowers/specs/2026-09-23-probing-plugin-design.md` (approved
+2026-09-23).
 
 ## Controller capability detection (grbl handshake) — DONE
 
@@ -151,6 +148,13 @@ set was checked for parity defaults before finalizing.
   (2026-09-07):** Jog's layout derives from the preset's planes + controller
   letters (M2), fresh profiles seed demo axes from the preset (M3); the
   plotter (P2) and Wrap remain the open consumers.
+- **3D height-map renderer plugin (`SenderNG.Modules.Probing.Nex`,
+  HelixToolkit.Nex engine) — consumes `IHeightMapSource`.** P1 follow-up to the
+  probing-plugin extraction (P0 above): a renderer plugin implements the Core
+  `IHeightMapSource`/`HeightMapLayer` contract and registers an
+  `IHeightMap3DRenderer` so the probing module's "Preview in 3D" gate opens,
+  rendering the probed grid with the same Vulkan/HelixToolkit.Nex engine as
+  Plotter Nex.
 - **Continuous jog** — hold-to-jog with continuous motion (ioSender's
   Continuous mode), feedrate selection, and stop-on-release (0x85
   JogCancel). Axis layout comes from the existing jog pad, later from

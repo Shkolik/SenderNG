@@ -362,6 +362,33 @@ enabled (`IsEnabledByDefault`); App Settings lets users show/hide and
 enable/disable a module independently — what "disabled" gates exactly is the
 enabled/visible overhaul tracked in the ROADMAP.
 
+### 6.1 Reference plugin: probing
+
+`SenderNG.Modules.Probing` is an in-tree, first-party UI plugin — the full
+module example (Excellon is the minimal one). It is the reference for the
+**drop-in layout** and for shipping a **consumable data contract**:
+
+- **Drop-in layout** — the module is a plain `net9.0` class library staged the
+  same way as the converters/plotters: flat `SenderNG.Modules.Probing.dll` into
+  `Modules/`, its own `Locale/` catalog under `Modules/probing/Locale`, and
+  discovered at startup by the `ModuleCatalog.ScanDirectory` pass (no app-side
+  registration, no compile-time reference). The app project links the built DLL
+  and `Locale/**` as build-order staging (`ReferenceOutputAssembly="false"` +
+  `None`/`Link`), exactly as for Excellon/Hpgl/Plotter above.
+- **Height-map contract** — the module implements Core's
+  `IHeightMapSource` (`IObservable<HeightMapLayer?> Snapshot`; a null emission
+  means the map was cleared), publishing `HeightMapLayer` (a row-major
+  Z-sample record: `Z[row * Columns + col]`, with origin, cell spacing,
+  dimensions). A *renderer* plugin (e.g. a 3D viewer) consumes that stream and
+  **registers `IHeightMap3DRenderer`** — a presence marker Core-defined, so
+  the probing module can offer a renderer-gated action ("Preview in 3D") via
+  `GetService<IHeightMap3DRenderer>()` without knowing the renderer type.
+  This is the reference pattern for one first-party plugin exposing data the
+  plugin boundary lets another first-party plugin consume.
+- **Testing** — `InternalsVisibleTo("SenderNG.Modules.Probing.Tests")` opens
+  the module internals to its test assembly; see the "Testing your plugin"
+  section below for the test-battery shape.
+
 ## 7. Testing your plugin
 
 Test the module class directly — no host needed.

@@ -280,9 +280,16 @@ Many already exist; the gaps are listed per widget.
       engine"; see `src/SenderNG.Modules.Plotter.Nex/docs/README.md`.
 - [ ] **Height-map 3D preview** — ioSender renders the probed grid as a mesh;
       SenderNG has the map data + XML save/load but no 3D visualization.
-      Renderer candidates (researched with machine-config-research.md): the
-      real gate is the **Avalonia host problem**, not the engine — how GPU
-      output gets into a control. Windows-only → HelixToolkit.Avalonia.
+      **P0 (2026-09-23) unblocked the plugin boundary:** probing now ships as
+      the `SenderNG.Modules.Probing` module (discovered at runtime, not
+      app-registered) and Core exposes the height-map contract
+      (`HeightMapLayer` row-major samples, `IHeightMapSource` observable,
+      `IHeightMap3DRenderer` presence marker), so a renderer can be a
+      first-party plugin instead of app-hosted code; the renderer is the
+      ROADMAP P1 `SenderNG.Modules.Probing.Nex` item (HelixToolkit.Nex)
+      consuming `IHeightMapSource`. The remaining engine gate is the
+      **Avalonia host problem** — how GPU output gets into a control.
+      Windows-only → HelixToolkit.Avalonia.
       SharpDX (hosted DX11 swapchain, scene graph; SharpDX is abandoned but
       wrapped). Cross-platform → low-level engine with official C# bindings
       (Diligent, Apache-2.0) rendering offscreen + GPU→CPU readback blit;
@@ -407,12 +414,12 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | SignalsControl / StatusControl | Signals + state indicator | done |
 | LimitsControl | Program limits panel | done |
 | MacroEditor / MacroExecuteControl | `Plugins/Macro` | done (flyout) |
-| ProbingView + 6 tool controls | `Plugins/Probing` | done (flyout) — see `probing-gaps.md` |
+| ProbingView + 6 tool controls | `SenderNG.Modules.Probing` (first-party plugin, runtime-discovered) | done (flyout) — see `probing-gaps.md` |
 | GotoControl / GotoFlyoutControl | `Plugins/Goto` | done (flyout, homed-gated) |
 | ToolView | `Fixed/Offsets` tool table + Work Parameters/Probe selectors | done — editor (names, touch-off, radius, VisibleTools) + `[None, Tx (name)]` selectors; ioSender's standalone control deliberately not ported |
 | WorkParametersControl | `Fixed/WorkParameters` flyout | done (read/select; editable write-back in `Fixed/Offsets`) |
 | FileActionControl | File → Open/Save/Close | P1: Save = picker pre-filled with current name (no implicit overwrite) |
-| StepperCalibrationWizard | — | **missing** (P3) |
+| StepperCalibrationWizard | `Settings-menu` stepper-calibration module | done (2026-09-19) |
 | GCodeViewer / RenderControl | `Modules/Plotter` plugin | done (2026-09-08) — flat quadrant views + iso loft, frontier coloring (P2); sibling `Modules/Plotter.Nex` adds an experimental Vulkan 3D orbit view (2026-09-09+, hidden by default) |
 | ProbeVerify / ConfigControl / MacroDialog | — | **missing** (P2) |
 | SDCardView | — | deferred (P4) |

@@ -56,6 +56,7 @@ SenderNG-plugin-excellon-<ver>-<suffix>.zip
 SenderNG-plugin-hpgl-<ver>-<suffix>.zip
 SenderNG-plugin-plotter-<ver>-<suffix>.zip
 SenderNG-plugin-plotter-nex-<ver>-<suffix>.zip
+SenderNG-plugin-probing-<ver>-<suffix>.zip
 SHA256SUMS.txt                              ← <sha256> <relative path> per file
 ```
 
@@ -68,14 +69,16 @@ SHA256SUMS.txt                              ← <sha256> <relative path> per fil
 needed.
 
 **Plugin zips** — one per optional module (`excellon`, `hpgl`,
-`plotter`, `plotter-nex`). Each contains the module's own assembly
+`plotter`, `plotter-nex`, `probing`). Each contains the module's own assembly
 (`SenderNG.Modules.<X>.dll`) plus an `<id>/` support folder (its locale
 catalog; `plotter-nex` also carries its HelixToolkit.Nex/Vulkan closure). The
 app discovers modules by scanning `Modules/*.dll` at startup, so installing a
 module is a straight copy of the zip's contents into the extracted bundle's
 `Modules/` folder: the DLL lands flat next to the SDK, `<id>/` becomes
 `Modules/<id>/`. Skip the ones you don't want — the core bundle runs fine
-without them.
+without them. `probing` is the in-tree first-party module
+(`src/SenderNG.Modules.Probing`) holding the Probing flyout — tool-length,
+edge, center, rotation and height-map probing cycles.
 
 Verify the downloads before installing: on Windows compare `Get-FileHash`
 against `SHA256SUMS.txt`; on Linux run `cd <platform dir> && sha256sum -c
