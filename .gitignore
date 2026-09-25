@@ -52,6 +52,7 @@ TurningProfiles.xml
 
 .freebuff*
 .superpowers/*
+.debug-repro*
 
 # SDD/brainstorm scratch.superpowers/.github/
 .github/copilot-instructions.md

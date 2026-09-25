@@ -1,4 +1,4 @@
-/*
+﻿/*
  * PluginStagingTests.cs - tests for the plugin drop-in staging rules
  */
 
@@ -11,14 +11,14 @@ All rights reserved.
 Redistribution and use in source and binary forms, with or without modification,
 are permitted provided that the following conditions are met:
 
-· Redistributions of source code must retain the above copyright notice, this
+┬╖ Redistributions of source code must retain the above copyright notice, this
 list of conditions and the following disclaimer.
 
-· Redistributions in binary form must reproduce the above copyright notice, this
+┬╖ Redistributions in binary form must reproduce the above copyright notice, this
 list of conditions and the following disclaimer in the documentation and/or
 other materials provided with the distribution.
 
-· Neither the name of the copyright holder nor the names of its contributors may
+┬╖ Neither the name of the copyright holder nor the names of its contributors may
 be used to endorse or promote products derived from this software without
 specific prior written permission.
 
@@ -126,4 +126,52 @@ public class PluginStagingTests
         var ex = Assert.Throws<StagingException>(() => PluginStaging.Stage(publish, project, "test", dest, new SilentLog()));
         Assert.Contains("does not exist", ex.Message);
     }
+    [Fact]
+    public void Stage_third_party_plugin_with_flat_project_locale_stages_locale_under_plugin_id()
+    {
+        // REAL 3rd-party layout (SenderNG.Modules.Probing): publishDir carries own DLL + dep DLLs but
+        // NO Locale (plugin csproj does NOT wire Locale into publish output), and the project keeps
+        // Locale FLAT at projectDir/Locale (en.json + ru.json), NOT Locale/<pluginId>.
+        var publish = TempDir.New();
+        File.WriteAllText(Path.Combine(publish, "SenderNG.Modules.Probing.dll"), "own");
+        File.WriteAllText(Path.Combine(publish, "SenderNG.Core.dll"), "core");
+        File.WriteAllText(Path.Combine(publish, "SenderNG.Modules.Common.dll"), "sdk");
+        File.WriteAllText(Path.Combine(publish, "Avalonia.dll"), "avalonia");
+
+        var project = TempDir.New();
+        Directory.CreateDirectory(Path.Combine(project, "Locale"));
+        File.WriteAllText(Path.Combine(project, "Locale", "en.json"), "{}");
+        File.WriteAllText(Path.Combine(project, "Locale", "ru.json"), "{}");
+
+        var dest = TempDir.New();
+        PluginStaging.Stage(publish, project, "probing", dest, new SilentLog());
+
+        Assert.True(File.Exists(Path.Combine(dest, "SenderNG.Modules.Probing.dll")));
+        Assert.False(File.Exists(Path.Combine(dest, "SenderNG.Core.dll")));
+        Assert.False(File.Exists(Path.Combine(dest, "SenderNG.Modules.Common.dll")));
+        Assert.False(File.Exists(Path.Combine(dest, "probing", "SenderNG.Core.dll")));
+        var locale = Path.Combine(dest, "probing", "Locale");
+        Assert.True(File.Exists(Path.Combine(locale, "en.json")));
+        Assert.True(File.Exists(Path.Combine(locale, "ru.json")));
+    }
+
+    [Fact]
+    public void Stage_plugin_with_rid_split_managed_dependencies_stages_them_flat()
+    {
+        // REAL Avalonia/3rd-party publish splits managed deps under runtimes/<rid>/lib/<tfm>/,
+        // which must be flattened into the staged plugin dir alongside natives.
+        var publish = TempDir.New();
+        File.WriteAllText(Path.Combine(publish, "SenderNG.Modules.Probing.dll"), "own");
+        File.WriteAllText(Path.Combine(publish, "SenderNG.Core.dll"), "core");
+        var winLib = Path.Combine(publish, "runtimes", "win-x64", "lib", "net8.0");
+        Directory.CreateDirectory(winLib);
+        File.WriteAllText(Path.Combine(winLib, "System.IO.Ports.dll"), "riddep");
+
+        var project = TempDir.New();
+        var dest = TempDir.New();
+        PluginStaging.Stage(publish, project, "probing", dest, new SilentLog());
+
+        Assert.True(File.Exists(Path.Combine(dest, "probing", "System.IO.Ports.dll")));
+    }
 }
+

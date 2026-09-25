@@ -11,14 +11,14 @@ All rights reserved.
 Redistribution and use in source and binary forms, with or without modification,
 are permitted provided that the following conditions are met:
 
-· Redistributions of source code must retain the above copyright notice, this
+┬╖ Redistributions of source code must retain the above copyright notice, this
 list of conditions and the following disclaimer.
 
-· Redistributions in binary form must reproduce the above copyright notice, this
+┬╖ Redistributions in binary form must reproduce the above copyright notice, this
 list of conditions and the following disclaimer in the documentation and/or
 other materials provided with the distribution.
 
-· Neither the name of the copyright holder nor the names of its contributors may
+┬╖ Neither the name of the copyright holder nor the names of its contributors may
 be used to endorse or promote products derived from this software without
 specific prior written permission.
 
@@ -88,12 +88,15 @@ public static class PluginStaging
         var runtimes = Path.Combine(publishDir, "runtimes");
         if (Directory.Exists(runtimes))
         {
-            foreach (var native in Directory.EnumerateFiles(runtimes, "*", SearchOption.AllDirectories))
+            foreach (var runtimeFile in Directory.EnumerateFiles(runtimes, "*", SearchOption.AllDirectories))
             {
-                var navSegment = Path.GetFileName(Path.GetDirectoryName(native)!);
-                if (!string.Equals(navSegment, "native", StringComparison.OrdinalIgnoreCase))
+                var ridRelative = Path.GetRelativePath(runtimes, runtimeFile).Replace(Path.DirectorySeparatorChar, '/');
+                var segments = ridRelative.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                var isNativeOrRidLib = segments.Any(s => string.Equals(s, "native", StringComparison.OrdinalIgnoreCase) ||
+                                                          string.Equals(s, "lib", StringComparison.OrdinalIgnoreCase));
+                if (!isNativeOrRidLib)
                     continue;
-                File.Copy(native, Path.Combine(ownDir, Path.GetFileName(native)), overwrite: true);
+                File.Copy(runtimeFile, Path.Combine(ownDir, Path.GetFileName(runtimeFile)), overwrite: true);
             }
         }
 
@@ -103,7 +106,9 @@ public static class PluginStaging
             CopyRecursive(publishLocale, Path.Combine(ownDir, "Locale"));
         }
 
-        var projectLocale = Path.Combine(projectDir, "Locale", pluginId);
+        var projectLocaleNested = Path.Combine(projectDir, "Locale", pluginId);
+        var projectLocaleFlat = Path.Combine(projectDir, "Locale");
+        var projectLocale = Directory.Exists(projectLocaleNested) ? projectLocaleNested : projectLocaleFlat;
         if (Directory.Exists(projectLocale))
         {
             Directory.CreateDirectory(Path.Combine(ownDir, "Locale"));
