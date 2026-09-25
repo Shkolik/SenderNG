@@ -142,13 +142,13 @@ rsync -a \
 cd "$MIRROR"
 
 ARGS=(--skip-tests)
-if [ "$SENDENG_RUN_TESTS" = "1" ]; then
+if [ "${SENDENG_RUN_TESTS:-0}" = "1" ]; then
     ARGS=()
 fi
-if [ "$SENDENG_INCLUDE_PLUGINS" = "1" ]; then
+if [ "${SENDENG_INCLUDE_PLUGINS:-0}" = "1" ]; then
     ARGS+=(--include-plugins)
 fi
-if [ "$SENDENG_NO_ZIP" = "1" ]; then
+if [ "${SENDENG_NO_ZIP:-0}" = "1" ]; then
     ARGS+=(--no-zip)
 fi
 
@@ -205,7 +205,75 @@ fi
     return $lf.TrimEnd("`n")
 }
 
-function Invoke-LinuxReleaseBuild { throw "not implemented yet" }
+function Invoke-LinuxReleaseBuild {
+    $repoRoot = Find-RepoRoot -StartDir $PSScriptRoot
+
+    if ([string]::IsNullOrWhiteSpace($OutRoot)) {
+        $OutRoot = Join-Path $repoRoot "output"
+    }
+    $OutRoot = [System.IO.Path]::GetFullPath($OutRoot)
+
+    $repoWsl = ConvertTo-WslPath $repoRoot
+    $outWsl = ConvertTo-WslPath $OutRoot
+    $mirrorWsl = ""
+    if (-not [string]::IsNullOrWhiteSpace($MirrorDir)) {
+        $mirrorWsl = if ($MirrorDir.StartsWith("/")) { $MirrorDir } else { ConvertTo-WslPath $MirrorDir }
+    }
+
+    # wsl.exe passes argv through unquoted, so a space would split the value.
+    foreach ($p in @($repoWsl, $outWsl, $mirrorWsl)) {
+        if ($p -match '\s') {
+            throw "Path '$p' contains a space, which wsl.exe cannot pass through. Move the repository to a space-free path."
+        }
+    }
+
+    Write-Host "Repo root : $repoRoot"
+    Write-Host "Output    : $(Join-Path $OutRoot 'linux')"
+    Write-Host "Mirror    : $(if ($mirrorWsl) { $mirrorWsl } else { '~/.cache/sendeng-linux-build (default)' })"
+    if ($DryRun) { Write-Host "Mode      : DRY RUN (ReleaseManager will not be invoked)" -ForegroundColor Yellow }
+    Write-Host ""
+
+    $envVars = Get-LinuxBuildEnv -RepoRootWsl $repoWsl -OutRootWsl $outWsl -MirrorDirWsl $mirrorWsl `
+        -IncludePlugins:$Plugins -NoZip:$NoZip -RunTests:$RunTests -DryRun:$DryRun
+
+    $wslArgs = @("-d", $Distro, "-e", "env")
+    foreach ($k in $envVars.Keys) { $wslArgs += "$k=$($envVars[$k])" }
+    $wslArgs += @("bash", "-s")
+
+    if ($DryRun) {
+        Write-Host "--- wsl invocation ---"
+        Write-Host ("wsl.exe " + ($wslArgs -join " "))
+        Write-Host "----------------------"
+        Write-Host ""
+    }
+
+    try {
+        New-LinuxBuildBash | & wsl.exe @wslArgs
+        $code = $LASTEXITCODE
+    } catch [System.Management.Automation.PipelineStoppedException] {
+        Write-Host ""
+        Write-Warning "Cancelled."
+        exit 130
+    }
+
+    if ($code -ne 0) {
+        Write-Host ""
+        Write-Host "FAILED: exit $code" -ForegroundColor Red
+        switch ($code) {
+            2 { Write-Host "  Build failed. See the dotnet output above." }
+            3 { Write-Host "  Staging or verification failed. See the ReleaseManager output above." }
+            4 { Write-Host "  ReleaseManager does not support the host OS. It must run under Linux." }
+        }
+        exit $code
+    }
+
+    $linuxOut = Join-Path $OutRoot "linux"
+    Write-Host ""
+    Write-Host "OK: $linuxOut" -ForegroundColor Green
+    if (Test-Path (Join-Path $OutRoot "win64")) {
+        Write-Host "    (the win64 build was not touched)"
+    }
+}
 
 if ($MyInvocation.InvocationName -ne '.') {
     Invoke-LinuxReleaseBuild

@@ -100,6 +100,69 @@ Assert-Equal ($bash -match [regex]::Escape('exit "$RC"')) $true "propagates the 
 Assert-Equal ($bash -match [regex]::Escape('DRY RUN: would replace')) $true "dry run reports the copy-back instead of performing it"
 Assert-Equal ($bash -match 'rm -rf "\$LINUX_OUT"') $true "a real run still wipes output/linux so the copy-back is fresh"
 
+Write-Host "`nDry run against a scratch output root"
+$scratch = Join-Path $env:TEMP ("sendeng-linux-test-" + [guid]::NewGuid().ToString("N"))
+$scratchMirror = Join-Path $env:TEMP ("sendeng-linux-mirror-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Force -Path $scratch | Out-Null
+$prev = $ErrorActionPreference
+try {
+    $ErrorActionPreference = "Continue"
+    # An owned -MirrorDir keeps the test off the real ~/.cache mirror and lets it
+    # assert on the dry-run stub, which lives in the mirror and not the output.
+    $out = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build-linux-release.ps1") `
+        -DryRun -OutRoot $scratch -MirrorDir $scratchMirror 2>&1
+    $ErrorActionPreference = $prev
+    Assert-Equal $LASTEXITCODE 0 "dry run exits 0"
+    Assert-Equal (Test-Path (Join-Path $scratch "linux")) $false "dry run wrote no linux folder to the output root"
+    Assert-Equal (Test-Path (Join-Path $scratch "win64")) $false "dry run created no win64 folder"
+    Assert-Equal (Test-Path (Join-Path $scratchMirror "output\linux\SHA256SUMS.txt")) $true "dry run staged its stub inside the script-owned mirror"
+    Assert-Equal (($out -join "`n") -match '9\.0\.316') $true "dry run reports the pinned SDK"
+} finally {
+    $ErrorActionPreference = $prev
+    Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $scratchMirror -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+Write-Host "`nExisting win64 and linux builds survive a dry run"
+$scratch2 = Join-Path $env:TEMP ("sendeng-win64-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Force -Path (Join-Path $scratch2 "win64") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $scratch2 "linux") | Out-Null
+$exe = Join-Path $scratch2 "win64\SenderNG.exe"
+Set-Content -LiteralPath $exe -Value "MZ" -NoNewline
+# A pre-existing linux build is exactly what a dry run must not destroy. The
+# content is meaningless; any write, delete or replace changes the hash.
+$sums = Join-Path $scratch2 "linux\SHA256SUMS.txt"
+Set-Content -LiteralPath $sums -Value "pre-existing-build" -NoNewline
+$before = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
+$beforeSums = (Get-FileHash -LiteralPath $sums -Algorithm SHA256).Hash
+$prev = $ErrorActionPreference
+try {
+    $ErrorActionPreference = "Continue"
+    $out2 = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build-linux-release.ps1") -DryRun -OutRoot $scratch2 2>&1
+    $ErrorActionPreference = $prev
+    Assert-Equal $LASTEXITCODE 0 "dry run beside existing builds exits 0"
+    Assert-Equal (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash $before "win64 file is byte-identical after the run"
+    Assert-Equal ((Get-ChildItem (Join-Path $scratch2 "win64")).Count) 1 "no files were added to win64"
+    Assert-Equal (Get-FileHash -LiteralPath $sums -Algorithm SHA256).Hash $beforeSums "a pre-existing linux build is not clobbered by a dry run"
+} finally {
+    $ErrorActionPreference = $prev
+    Remove-Item -LiteralPath $scratch2 -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+Write-Host "`nMirror ownership guard"
+$realClone = (& wsl.exe -d Ubuntu -e bash -lc 'echo $HOME/SenderNG').Trim()
+if ($realClone) {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $out3 = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build-linux-release.ps1") -DryRun -MirrorDir $realClone 2>&1
+    $ErrorActionPreference = $prev
+    Assert-Equal ($LASTEXITCODE -ne 0) $true "refuses to wipe a directory it did not create"
+    Assert-Equal (($out3 -join "`n") -match 'not created by this script') $true "explains why it refused"
+    # The mirror path is a WSL path, so it must be checked from inside WSL.
+    $survived = & wsl.exe -d Ubuntu -e bash -lc "test -f '$realClone/SenderNG.sln' && test -d '$realClone/.git' && echo yes"
+    Assert-Equal ($survived -join "").Trim() "yes" "the pre-existing clone is fully intact"
+}
+
 Write-Host ""
 if ($script:Failed -gt 0) {
     Write-Host "FAILED: $($script:Failed) failed, $($script:Passed) passed"
