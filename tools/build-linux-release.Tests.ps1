@@ -5,7 +5,9 @@ $script:Failed = 0
 
 function Assert-Equal {
     param($Actual, $Expected, [string]$Because)
-    if ([string]$Actual -eq [string]$Expected) {
+    # -ceq, not -eq: PowerShell's -eq is case-insensitive, which would let a
+    # regression to /mnt/C/ pass an assertion named "drive letter lowercased".
+    if ([string]$Actual -ceq [string]$Expected) {
         $script:Passed++
         Write-Host "  ok    $Because"
     } else {
@@ -25,6 +27,17 @@ function Assert-Throws {
     } catch {
         $script:Passed++
         Write-Host "  ok    $Because"
+    }
+}
+
+function Assert-NotNull {
+    param($Value, [string]$Because)
+    if ($null -ne $Value) {
+        $script:Passed++
+        Write-Host "  ok    $Because"
+    } else {
+        $script:Failed++
+        Write-Host "  FAIL  $Because (was null)"
     }
 }
 
