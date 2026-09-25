@@ -55,16 +55,19 @@ Assert-Equal (Test-Path (Join-Path $repoRoot "SenderNG.sln")) $true "finds the r
 Assert-Throws { Find-RepoRoot -StartDir $env:TEMP } "throws when no SenderNG.sln is above the start dir"
 
 Write-Host "`nGet-LinuxBuildEnv"
-$env = Get-LinuxBuildEnv -RepoRootWsl "/mnt/c/r" -OutRootWsl "/mnt/c/r/output" -MirrorDirWsl "" `
+# Not named $env: PowerShell's dynamic scoping means a later Assert-Throws
+# block containing $env.TEMP would resolve this OrderedDictionary instead of
+# the environment provider, and pass for the wrong reason.
+$envDefault = Get-LinuxBuildEnv -RepoRootWsl "/mnt/c/r" -OutRootWsl "/mnt/c/r/output" -MirrorDirWsl "" `
         -IncludePlugins:$false -NoZip:$false -RunTests:$false -DryRun:$false
-Assert-Equal $env.SENDENG_REPO_WSL "/mnt/c/r" "repo path is passed through"
-Assert-Equal $env.SENDENG_OUTROOT_WSL "/mnt/c/r/output" "output root is passed through"
-Assert-NotNull $env.SENDENG_MIRROR_WSL "mirror key exists (guards the empty-string check below)"
-Assert-Equal $env.SENDENG_MIRROR_WSL "" "empty mirror dir defers to the bash default"
-Assert-Equal $env.SENDENG_INCLUDE_PLUGINS "0" "plugins default off"
-Assert-Equal $env.SENDENG_NO_ZIP "0" "zip default on"
-Assert-Equal $env.SENDENG_RUN_TESTS "0" "tests default to skipped"
-Assert-Equal $env.SENDENG_LINUX_DRYRUN "0" "dry run defaults off"
+Assert-Equal $envDefault.SENDENG_REPO_WSL "/mnt/c/r" "repo path is passed through"
+Assert-Equal $envDefault.SENDENG_OUTROOT_WSL "/mnt/c/r/output" "output root is passed through"
+Assert-NotNull $envDefault.SENDENG_MIRROR_WSL "mirror key exists (guards the empty-string check below)"
+Assert-Equal $envDefault.SENDENG_MIRROR_WSL "" "empty mirror dir defers to the bash default"
+Assert-Equal $envDefault.SENDENG_INCLUDE_PLUGINS "0" "plugins default off"
+Assert-Equal $envDefault.SENDENG_NO_ZIP "0" "zip default on"
+Assert-Equal $envDefault.SENDENG_RUN_TESTS "0" "tests default to skipped"
+Assert-Equal $envDefault.SENDENG_LINUX_DRYRUN "0" "dry run defaults off"
 
 $envAll = Get-LinuxBuildEnv -RepoRootWsl "/mnt/c/r" -OutRootWsl "/mnt/c/r/output" -MirrorDirWsl "/home/andrew/m" `
             -IncludePlugins -NoZip -RunTests -DryRun
@@ -87,13 +90,15 @@ Assert-Equal ($bash -notmatch 'rsync -a --delete') $true "avoids rsync --delete,
 Assert-Equal ($bash -match [regex]::Escape("'obj/'")) $true "mirror excludes obj/"
 Assert-Equal ($bash -match [regex]::Escape("'bin/'")) $true "mirror excludes bin/"
 Assert-Equal ($bash -match [regex]::Escape("'output/'")) $true "mirror excludes output/"
-Assert-Equal ($bash -match [regex]::Escape('dotnet run --project tools/ReleaseManager')) $true "invokes ReleaseManager"
+Assert-Equal ($bash -match '(?m)^\s+dotnet run --project tools/ReleaseManager') $true "invokes ReleaseManager"
 Assert-Equal ($bash -match 'cd "\$MIRROR"') $true "runs from the mirror root so SenderNG.sln is the cwd"
 Assert-Equal ($bash -match [regex]::Escape('LINUX_OUT="$OUTROOT/linux"')) $true "target is output/linux"
 Assert-Equal ($bash -match 'basename "\$LINUX_OUT"') $true "guards the delete against a non-linux folder name"
 Assert-Equal (([regex]::Matches($bash, '(?m)^[^#\n]*\bwin64\b')).Count) 0 "win64 never appears on an executable line"
 Assert-Equal ($bash -notmatch 'rm -rf[^#\n]*win64') $true "no rm ever targets win64"
 Assert-Equal ($bash -match [regex]::Escape('exit "$RC"')) $true "propagates the ReleaseManager exit code"
+Assert-Equal ($bash -match [regex]::Escape('DRY RUN: would replace')) $true "dry run reports the copy-back instead of performing it"
+Assert-Equal ($bash -match 'rm -rf "\$LINUX_OUT"') $true "a real run still wipes output/linux so the copy-back is fresh"
 
 Write-Host ""
 if ($script:Failed -gt 0) {

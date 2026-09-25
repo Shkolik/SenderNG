@@ -86,11 +86,22 @@ fail() { echo "build-linux-release: $*" >&2; exit 1; }
 export DOTNET_ROOT="$HOME/.dotnet"
 export PATH="$DOTNET_ROOT:$PATH"
 
-PINNED="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SRC/global.json" | head -n 1)"
+PINNED="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SRC/global.json")"
+# Keep only the first match. Parameter expansion, not `head -n 1`: under
+# `set -o pipefail` a producer larger than the pipe buffer is killed by SIGPIPE
+# (141) when the reader exits early, and `head` here is far too small to matter
+# for a 6-line global.json but would still be a latent false negative.
+PINNED="${PINNED%%$'\n'*}"
 [ -n "$PINNED" ] || fail "could not read the sdk version from $SRC/global.json"
 
+# Check `dotnet` resolves before asking it anything, so a missing SDK produces
+# the tailored message below rather than a raw "command not found".
+command -v dotnet >/dev/null 2>&1 || fail "dotnet is not on PATH in this WSL distribution"
 AVAILABLE="$(dotnet --list-sdks | awk '{print $1}' | tr '\n' ' ')"
-if ! dotnet --list-sdks | awk '{print $1}' | grep -Fxq "$PINNED"; then
+# Same SIGPIPE concern: match in the shell instead of `... | grep -Fxq`. The
+# spaces around $AVAILABLE make this an exact element match, so a pin of
+# 9.0.31 cannot be satisfied by an installed 9.0.316.
+if ! [[ " $AVAILABLE " == *" $PINNED "* ]]; then
     fail "global.json pins SDK $PINNED, which dotnet cannot resolve.
        installed: $AVAILABLE
        install it with:
@@ -161,20 +172,30 @@ fi
 
 # --- 4. Replace output/linux only -------------------------------------------
 # The win64 folder belongs to the Windows build and is never touched here.
+# The guard runs in dry-run mode too: it is a precondition, not an action.
 [ "$(basename "$LINUX_OUT")" = "linux" ] || fail "refusing to replace '$LINUX_OUT': not a 'linux' output folder"
-echo "==> Replacing $LINUX_OUT"
-if [ -e "$LINUX_OUT" ]; then
-    rm -rf "$LINUX_OUT"
+# A dry run must not touch the real output. $MIRROR is script-owned and
+# disposable, so the stub written in step 3 is harmless there; $OUTROOT/linux is
+# the user's real release, and replacing it with a stub would destroy a good
+# build and leave a fake one that later tooling would trust.
+if [ "$DRY" = "1" ]; then
+    echo "==> DRY RUN: would replace $LINUX_OUT with $MIRROR/output/linux"
+    echo "    nothing written to $OUTROOT"
+else
+    echo "==> Replacing $LINUX_OUT"
+    if [ -e "$LINUX_OUT" ]; then
+        rm -rf "$LINUX_OUT"
+    fi
+    mkdir -p "$(dirname "$LINUX_OUT")"
+    rsync -a "$MIRROR/output/linux/" "$LINUX_OUT/"
+
+    [ -d "$LINUX_OUT" ] || fail "copy-back produced nothing at $LINUX_OUT"
+
+    # --- 5. Report ---------------------------------------------------------
+    echo "==> Linux output in $LINUX_OUT"
+    find "$LINUX_OUT" -maxdepth 1 -type f \( -name '*.zip' -o -name 'SHA256SUMS.txt' \) \
+        -printf '    %f  (%s bytes)\n' | sort
 fi
-mkdir -p "$(dirname "$LINUX_OUT")"
-rsync -a "$MIRROR/output/linux/" "$LINUX_OUT/"
-
-[ -d "$LINUX_OUT" ] || fail "copy-back produced nothing at $LINUX_OUT"
-
-# --- 5. Report ---------------------------------------------------------------
-echo "==> Linux output in $LINUX_OUT"
-find "$LINUX_OUT" -maxdepth 1 -type f \( -name '*.zip' -o -name 'SHA256SUMS.txt' \) \
-    -printf '    %f  (%s bytes)\n' | sort
 # end of script
 '@
     # Normalise to LF, and end on a comment with no trailing newline: PowerShell
