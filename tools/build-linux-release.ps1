@@ -227,6 +227,13 @@ function Invoke-LinuxReleaseBuild {
         }
     }
 
+    # Fail with a usable message if the distribution is missing or not running,
+    # rather than letting wsl.exe surface a raw error mid-pipeline.
+    & wsl.exe -d $Distro -e true 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "WSL distribution '$Distro' did not respond to 'wsl.exe -d $Distro -e true'. List installed distributions with 'wsl.exe -l -v'."
+    }
+
     Write-Host "Repo root : $repoRoot"
     Write-Host "Output    : $(Join-Path $OutRoot 'linux')"
     Write-Host "Mirror    : $(if ($mirrorWsl) { $mirrorWsl } else { '~/.cache/sendeng-linux-build (default)' })"
@@ -263,13 +270,19 @@ function Invoke-LinuxReleaseBuild {
             2 { Write-Host "  Build failed. See the dotnet output above." }
             3 { Write-Host "  Staging or verification failed. See the ReleaseManager output above." }
             4 { Write-Host "  ReleaseManager does not support the host OS. It must run under Linux." }
+            130 { Write-Host "  Cancelled." }
         }
         exit $code
     }
 
     $linuxOut = Join-Path $OutRoot "linux"
     Write-Host ""
-    Write-Host "OK: $linuxOut" -ForegroundColor Green
+    if ($DryRun) {
+        # Never claim a directory exists that this run deliberately did not make.
+        Write-Host "OK: dry run complete. Nothing was written to $linuxOut" -ForegroundColor Green
+    } else {
+        Write-Host "OK: $linuxOut" -ForegroundColor Green
+    }
     if (Test-Path (Join-Path $OutRoot "win64")) {
         Write-Host "    (the win64 build was not touched)"
     }
