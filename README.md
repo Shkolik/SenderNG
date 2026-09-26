@@ -111,6 +111,49 @@ SHA256SUMS.txt`.
 4. Run `./SenderNG/SenderNG` → Connect → open the machine's port
    (`/dev/ttyUSB*` / `/dev/ttyACM*` for serial, or TCP).
 
+## Linux release build (WSL2)
+
+`ReleaseManager` builds the platform of the host it runs on, so the Linux
+release must be produced under Linux. `tools/build-linux-release.ps1` runs it
+under WSL2, mirrors the source tree into WSL-native storage for a fast restore
+and publish, and drops the result in `output\linux` next to `output\win64`.
+
+```powershell
+# Linux bundle in output\linux, tests skipped (default)
+.\tools\build-linux-release.ps1
+
+# include plugins
+.\tools\build-linux-release.ps1 -Plugins
+
+# exercise everything except the ReleaseManager invocation
+.\tools\build-linux-release.ps1 -DryRun
+```
+
+| Parameter | Default | Effect |
+|---|---|---|
+| `-Distro` | `Ubuntu` | WSL distribution to build in |
+| `-OutRoot` | `<repo>\output` | Linux output lands in `<OutRoot>\linux` |
+| `-MirrorDir` | `~/.cache/sendeng-linux-build` in WSL | where the source is mirrored; wiped each run |
+| `-Plugins` | off | add `--include-plugins` |
+| `-RunTests` | off | omit `--skip-tests` |
+| `-NoZip` | off | add `--no-zip` |
+| `-DryRun` | off | resolve the SDK, mirror the tree, and report what *would* happen |
+
+A real run replaces `output\linux` wholesale. `output\win64` is never read,
+written, or deleted.
+
+`-DryRun` writes nothing to `<OutRoot>` at all. It stages a stub bundle inside
+the script-owned mirror to prove the mirroring step worked, and leaves any
+existing release in place untouched.
+
+Tests are **skipped by default**: the script passes `--skip-tests` unless you
+ask for `-RunTests`.
+
+The script does not install an SDK or touch NuGet credentials. `global.json`
+pins `9.0.316`, which the script expects to find at `~/.dotnet` inside WSL.
+A path containing a space is rejected, because `wsl.exe` cannot pass one
+through as a single argument.
+
 ## Acknowledgements
 
 - Terje Io / Io Engineering for ioSender and grblHAL
