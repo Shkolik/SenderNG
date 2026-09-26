@@ -49,7 +49,12 @@ public class SerialComPortServiceTests : IDisposable
 
         var ports = new SerialComPortService(_dir).GetPorts();
 
-        Assert.Equal(["ttyACM1", "ttyUSB0"], ports);
+        // Full device paths, not bare names: System.IO.Ports hands the port name
+        // verbatim to open(2) on Unix, so a bare "ttyACM1" would be resolved
+        // against the process working directory and fail with ENOENT.
+        Assert.Equal(
+            [Path.Combine(_dir, "ttyACM1"), Path.Combine(_dir, "ttyUSB0")],
+            ports);
     }
 
     [Fact]
@@ -77,13 +82,16 @@ public class SerialComPortServiceTests : IDisposable
     {
         // On non-Windows (simulated by the injected dev dir) there is no device-
         // description source, so entries must still enumerate with FullName==Name.
+        // Name is the full device path, which is what the transport opens.
         Directory.CreateDirectory(_dir);
         File.WriteAllText(Path.Combine(_dir, "ttyUSB0"), "");
         File.WriteAllText(Path.Combine(_dir, "ttyACM0"), "");
 
         var entries = new SerialComPortService(_dir).GetPortEntries();
 
-        Assert.Equal(["ttyACM0", "ttyUSB0"], entries.Select(e => e.Name));
+        Assert.Equal(
+            [Path.Combine(_dir, "ttyACM0"), Path.Combine(_dir, "ttyUSB0")],
+            entries.Select(e => e.Name));
         Assert.All(entries, e => Assert.Equal(e.Name, e.FullName));
         // Every enumerated ttyUSB/ttyACM device is real — all preferred.
         Assert.All(entries, e => Assert.True(e.Preferred));

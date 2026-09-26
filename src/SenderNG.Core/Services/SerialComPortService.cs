@@ -134,7 +134,12 @@ public class SerialComPortService : IComPortService
         {
             try
             {
-                ports.AddRange(Directory.GetFiles(devDir, pattern).Select(p => Path.GetFileName(p)!));
+                // Full device paths, never bare names: System.IO.Ports passes the
+                // port name verbatim to open(2) on Unix, so a bare "ttyACM0" is
+                // resolved against the process working directory and fails with
+                // ENOENT — which the BCL reports as the misleading
+                // "Access to the port 'ttyACM0' is denied."
+                ports.AddRange(Directory.GetFiles(devDir, pattern));
             }
             catch
             {
