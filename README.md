@@ -46,9 +46,11 @@ dotnet run --project src/SenderNG
 
 ## Running from release assets
 
-Release zips are produced per platform by `tools/ReleaseManager` (see
-`tools/ReleaseManager/README.md` for the build runbooks). A release folder
-(`output/win64/` on Windows, `output/linux/` on Linux) looks like this:
+Release zips are produced per platform by `tools/ReleaseManager`. On Windows,
+build them with `tools/build-linux-release.ps1` (see "Linux release build
+(WSL2)" below); `tools/ReleaseManager/README.md` has the per-platform runbooks
+and the manual fallback. A release folder (`output/win64/` on Windows,
+`output/linux/` on Linux) looks like this:
 
 ```
 SenderNG-<ver>-<suffix>.zip                  ← core bundle: the whole app
@@ -144,7 +146,9 @@ written, or deleted.
 
 `-DryRun` writes nothing to `<OutRoot>` at all. It stages a stub bundle inside
 the script-owned mirror to prove the mirroring step worked, and leaves any
-existing release in place untouched.
+existing release in place untouched. It does still **wipe and rebuild the
+mirror**, exactly as a real run does — so do not start a `-DryRun` while a real
+build is using that mirror.
 
 Tests are **skipped by default**: the script passes `--skip-tests` unless you
 ask for `-RunTests`.
@@ -153,6 +157,21 @@ The script does not install an SDK or touch NuGet credentials. `global.json`
 pins `9.0.316`, which the script expects to find at `~/.dotnet` inside WSL.
 A path containing a space is rejected, because `wsl.exe` cannot pass one
 through as a single argument.
+
+### First real run
+
+Nothing in the test suite performs an actual publish, so the first real run is
+the end-to-end check. Two things worth confirming by eye:
+
+- The bundle is executable: `ls -l output\linux\SenderNG\SenderNG` should start
+  with `-rwx`. If the exec bit was lost in the copy back, the bundle will not
+  launch.
+- On a real build the WSL NuGet cache starts cold, so the first run is
+  noticeably slower than later ones.
+
+If you interrupt a run with Ctrl+C, check for a leftover `wsl.exe` before
+re-running: PowerShell reports the cancellation but does not necessarily kill
+the child process, which may still be writing to `output\linux`.
 
 ## Acknowledgements
 

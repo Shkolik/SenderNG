@@ -158,6 +158,24 @@ else it owns goes under `<plugin-id>/` (locale + closure). Host-owned assemblies
 
 ## Runbook — Linux under WSL2 → thumb drive
 
+> **Superseded for building.** The procedure below is the manual route, kept for
+> reference and for the target-machine X11 setup in steps 1-4. To build the Linux
+> release, use the script instead:
+>
+> ```powershell
+> .\tools\build-linux-release.ps1
+> ```
+>
+> It mirrors the source into WSL-native storage, runs `ReleaseManager` there, and
+> stages the result in `output\linux` on Windows — leaving `output\win64` alone.
+> See "Linux release build (WSL2)" in the top-level `README.md`.
+>
+> Prefer the script because step 5 below copies the working tree to `~/SenderNG`
+> and builds in place, so output lands at `~/SenderNG/output/linux` on the Linux
+> side and has to be copied back by hand. The script also refuses to touch any
+> directory it did not create, which is exactly the protection you want when a
+> real clone is sitting at `~/SenderNG`.
+
 1. **Install WSL2** (Windows 10 2004+ build 19041+, or Windows 11), in
    PowerShell (admin): `wsl --install`. Reboot; finish the Ubuntu setup. If
    already WSL1: `wsl --set-default-version 2`.

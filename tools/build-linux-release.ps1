@@ -267,6 +267,7 @@ function Invoke-LinuxReleaseBuild {
         Write-Host ""
         Write-Host "FAILED: exit $code" -ForegroundColor Red
         switch ($code) {
+            1 { Write-Host "  A precondition failed. See the message above." }
             2 { Write-Host "  Build failed. See the dotnet output above." }
             3 { Write-Host "  Staging or verification failed. See the ReleaseManager output above." }
             4 { Write-Host "  ReleaseManager does not support the host OS. It must run under Linux." }

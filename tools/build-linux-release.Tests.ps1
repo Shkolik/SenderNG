@@ -93,7 +93,7 @@ Assert-Equal ($bash -match [regex]::Escape("'output/'")) $true "mirror excludes 
 Assert-Equal ($bash -match '(?m)^\s+dotnet run --project tools/ReleaseManager') $true "invokes ReleaseManager"
 Assert-Equal ($bash -match 'cd "\$MIRROR"') $true "runs from the mirror root so SenderNG.sln is the cwd"
 Assert-Equal ($bash -match [regex]::Escape('LINUX_OUT="$OUTROOT/linux"')) $true "target is output/linux"
-Assert-Equal ($bash -match 'basename "\$LINUX_OUT"') $true "guards the delete against a non-linux folder name"
+Assert-Equal ($bash -match 'basename "\$LINUX_OUT"') $true "pins the literal linux suffix, so the delete can only ever name output/linux"
 Assert-Equal (([regex]::Matches($bash, '(?m)^[^#\n]*\bwin64\b')).Count) 0 "win64 never appears on an executable line"
 Assert-Equal ($bash -notmatch 'rm -rf[^#\n]*win64') $true "no rm ever targets win64"
 Assert-Equal ($bash -match [regex]::Escape('exit "$RC"')) $true "propagates the ReleaseManager exit code"
@@ -119,6 +119,9 @@ try {
     # Read the pin from global.json rather than hardcoding it, so a legitimate
     # SDK bump does not fail a test whose message would point at the test.
     $sdkPin = (Get-Content (Join-Path $repoRoot "global.json") -Raw | ConvertFrom-Json).sdk.version
+    # Without this, a $null read would make [regex]::Escape produce the empty
+    # pattern, and -match '' is always True - a vacuous pass.
+    Assert-NotNull $sdkPin "the SDK pin was read from global.json"
     Assert-Equal (($out -join "`n") -match [regex]::Escape($sdkPin)) $true "dry run reports the pinned SDK"
 } finally {
     $ErrorActionPreference = $prev
@@ -159,25 +162,32 @@ try {
 }
 
 Write-Host "`nMirror ownership guard"
-# Preconditions: WSL present, a distro named Ubuntu, and a real clone at
-# $HOME/SenderNG. `echo $HOME/SenderNG` always yields a non-empty string, so
-# this block never silently skips - on a machine without those preconditions it
-# goes red, which is the right direction for a regression guard.
-$realClone = (& wsl.exe -d Ubuntu -e bash -lc 'echo $HOME/SenderNG').Trim()
-if ($realClone) {
-    $prev = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = "Continue"
-        $out3 = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build-linux-release.ps1") -DryRun -MirrorDir $realClone 2>&1
-        $ErrorActionPreference = $prev
-        Assert-Equal ($LASTEXITCODE -ne 0) $true "refuses to wipe a directory it did not create"
-        Assert-Equal (($out3 -join "`n") -match 'not created by this script') $true "explains why it refused"
-        # The mirror path is a WSL path, so it must be checked from inside WSL.
-        $survived = & wsl.exe -d Ubuntu -e bash -lc "test -f '$realClone/SenderNG.sln' && test -d '$realClone/.git' && echo yes"
-        Assert-Equal ($survived -join "").Trim() "yes" "the pre-existing clone is fully intact"
-    } finally {
-        $ErrorActionPreference = $prev
-    }
+# A fake clone in %TEMP% exercises the identical guard with zero blast radius.
+# Pointing this at the user's real clone at ~/SenderNG would mean that if the
+# guard ever regressed, the suite would destroy 871 MB of their work while
+# reporting the failure. It still needs WSL for the preflight and for running
+# the script, so it is not fully hermetic - but the thing under test is.
+$fakeClone = Join-Path $env:TEMP ("sendeng-fake-clone-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Force -Path (Join-Path $fakeClone ".git") | Out-Null
+Set-Content -LiteralPath (Join-Path $fakeClone "SenderNG.sln") -Value "fake" -NoNewline
+Set-Content -LiteralPath (Join-Path $fakeClone "tracked.txt") -Value "precious" -NoNewline
+$fakeWsl = ConvertTo-WslPath $fakeClone
+$prev = $ErrorActionPreference
+try {
+    $ErrorActionPreference = "Continue"
+    $out3 = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build-linux-release.ps1") `
+        -DryRun -OutRoot (Join-Path $env:TEMP ("sendeng-guard-out-" + [guid]::NewGuid().ToString("N"))) -MirrorDir $fakeWsl 2>&1
+    $ErrorActionPreference = $prev
+    Assert-Equal ($LASTEXITCODE -ne 0) $true "refuses to wipe a directory it did not create"
+    Assert-Equal (($out3 -join "`n") -match 'not created by this script') $true "explains why it refused"
+    # Integrity, not mere existence: a regression could empty the tree and still
+    # leave the .sln and .git behind.
+    Assert-Equal (Test-Path (Join-Path $fakeClone "tracked.txt")) $true "the unowned directory's contents survived"
+    Assert-Equal ((Get-Content -LiteralPath (Join-Path $fakeClone "tracked.txt") -Raw)) "precious" "tracked file is byte-identical"
+    Assert-Equal (Test-Path (Join-Path $fakeClone ".sendeng-linux-build-mirror")) $false "no ownership marker was written into it"
+} finally {
+    $ErrorActionPreference = $prev
+    Remove-Item -LiteralPath $fakeClone -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host ""
