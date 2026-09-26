@@ -44,6 +44,9 @@ dotnet build
 dotnet run --project src/SenderNG
 ```
 
+Running from source on Linux? The `dialout` group requirement applies here as
+well — see [Serial port permission errors](#serial-port-permission-errors).
+
 ## Running from release assets
 
 Release zips are produced per platform by `tools/ReleaseManager`. On Windows,
@@ -98,20 +101,65 @@ SHA256SUMS.txt`.
 
 ### Linux
 
-1. Requires Avalonia's X11 system libraries. On Debian/Ubuntu:
+1. Grant yourself access to the serial port. Linux gives `/dev/ttyUSB*` and
+   `/dev/ttyACM*` to the `dialout` group, mode `0660` — so your account must be
+   in that group or the kernel refuses the port (see
+   [Serial port permission errors](#serial-port-permission-errors) below):
+   ```
+   sudo usermod -aG dialout $USER
+   ```
+   Log out and back in afterwards; an already-running desktop session keeps the
+   old group set.
+2. Requires Avalonia's X11 system libraries. On Debian/Ubuntu:
    ```
    sudo apt install -y libx11-6 libice6 libsm6 libfontconfig1
    ```
-2. Unzip `SenderNG-<ver>-linux-x64.zip` and restore the runner's execute bit
+3. Unzip `SenderNG-<ver>-linux-x64.zip` and restore the runner's execute bit
    (zips don't always carry it):
    ```
    unzip SenderNG-<ver>-linux-x64.zip
    chmod +x SenderNG/SenderNG
    ```
-3. Optional modules: same copy step as Windows — plugin contents into
+4. Optional modules: same copy step as Windows — plugin contents into
    `SenderNG/Modules/`.
-4. Run `./SenderNG/SenderNG` → Connect → open the machine's port
+5. Run `./SenderNG/SenderNG` → Connect → open the machine's port
    (`/dev/ttyUSB*` / `/dev/ttyACM*` for serial, or TCP).
+
+#### Serial port permission errors
+
+A port that shows up in the dropdown but won't connect usually means the
+`dialout` membership from step 1 is missing or was added without a fresh login.
+The app reports it as:
+
+```
+Access to the port '/dev/ttyACM0' is denied.
+```
+
+That message is misleading — .NET's `System.IO.Ports` collapses *every* failed
+`open()` into that one string, so it also appears for a wrong device path or a
+port another process is holding. It is not necessarily a permissions problem.
+Get the real reason without the app in the way:
+
+```
+ls -l /dev/ttyACM0
+id -nG
+python3 -c "import os
+try:
+    fd=os.open('/dev/ttyACM0', os.O_RDWR|os.O_NOCTTY); print('OPEN OK'); os.close(fd)
+except OSError as e: print('errno', e.errno, '=', os.strerror(e.errno))"
+sudo fuser -v /dev/ttyACM0
+```
+
+- **errno 13, permission denied** — account not in `dialout`. Fix with
+  `sudo usermod -aG dialout $USER`, then log out and back in. The node itself
+  needs no `chmod`; it picks up the new membership on the next open.
+- **errno 16, device or resource busy** — something else holds the port.
+  `fuser` names it; common culprits are ModemManager, brltty, or a second
+  instance of the app.
+- **errno 19, no such device** — the device dropped off the bus. Replug it.
+
+To try a group change without logging out, `newgrp dialout` opens a subshell
+with it already active; launch the app from there.
 
 ## Linux release build (WSL2)
 
