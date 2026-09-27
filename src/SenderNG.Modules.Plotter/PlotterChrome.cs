@@ -36,6 +36,27 @@ using Point3 = CNC.Core.Point3D;
 
 namespace SenderNG.Modules.Plotter;
 
+/// <summary>One plane's placement in the shared world composition. ONE scale
+/// (Sx = Sy = 1 → true machine proportions). Tiles sit diagonally — plane 0
+/// top-left at the world origin, plane 1 bottom-right beyond it — so the whole
+/// composition pans and zooms as one canvas.</summary>
+public readonly record struct PlaneMap(
+    double MinX, double SpanX, double MinY, double SpanY,
+    double BiasX, double BiasY, double Sx, double Sy, double Ox, double Oy)
+{
+    public double Wx(double rawX) => Ox + (rawX - MinX + BiasX) * Sx;
+    public double Wy(double rawY) => Oy + (rawY - MinY + BiasY) * Sy;
+}
+
+/// <summary>The four view toggles, in one value. Defaults are all on, so a
+/// canvas with no settings view model attached still draws the full chrome.
+/// Public because <c>PlotterSettingsViewModel.Flags</c> hands it across the
+/// assembly boundary to <c>SenderNG.Core.Tests</c>.</summary>
+public readonly record struct ChromeFlags(bool Grid, bool Origin, bool Envelope, bool RunState)
+{
+    public static ChromeFlags Default => new(true, true, true, true);
+}
+
 /// <summary>Mode-agnostic chrome geometry, shared by the flat and the iso
 /// painters. Every helper here is pure arithmetic over plain values — the pens
 /// live in <see cref="PlotterChromePens"/> so that touching a helper never

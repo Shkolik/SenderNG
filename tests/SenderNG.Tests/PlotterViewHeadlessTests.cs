@@ -482,6 +482,113 @@ public class PlotterViewHeadlessTests
         Assert.Single(view.DrawableSlotsForTest);
     }
 
+    [AvaloniaFact]
+    public async Task Grid_toggle_off_removes_the_lattice_but_keeps_the_path()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        await Pump();
+
+        var on = PlotterPixels.Snapshot(CaptureFrame(window));
+        var withGrid = CountSurface(on, IsChromeLight);
+        Assert.True(withGrid > 400, $"the default grid must paint, found {withGrid} light pixels");
+
+        view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
+        await Pump();
+        var off = PlotterPixels.Snapshot(CaptureFrame(window));
+        var without = CountSurface(off, IsChromeLight);
+        Assert.True(without < withGrid / 2, $"the grid must go away, found {without} of {withGrid}");
+
+        // The toolpath itself is untouched by the chrome toggles — it can only
+        // GAIN pixels, never lose them: the lattice is drawn OVER the path, and
+        // a lattice pixel sitting on a path pixel at high coverage pushes the
+        // blend out of the IsPathGrey band, so removing it brings the path back.
+        // A whole-frame count would not catch that (the #aaa view frame is itself
+        // grey), which is why this one is scoped and thresholded.
+        var greyOn = CountSurface(on, IsPathGrey);
+        var greyOff = CountSurface(off, IsPathGrey);
+        Assert.True(greyOn > 100, $"the grey toolpath must be on the surface, found {greyOn} path pixels");
+        Assert.True(greyOff >= greyOn, $"the chrome toggles must not eat the path: {greyOff} of {greyOn} path pixels");
+    }
+
+    /// <summary>The grid palette (#e0e0e0 / #c0c0c0) — near-neutral, all channels
+    /// within 8 of each other, and light. Outside the IsPathGrey band by value.</summary>
+    private static bool IsChromeLight(byte r, byte g, byte b) =>
+        Math.Abs(r - g) <= 8 && Math.Abs(g - b) <= 8 && r is >= 180 and <= 250;
+
+    [AvaloniaFact]
+    public async Task Envelope_toggle_draws_the_job_rectangle()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        await Pump();
+
+        var drawn = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsEnvelopeAmber);
+        Assert.True(drawn > 100, $"the job rectangle must paint, found {drawn} amber pixels");
+
+        view.PushChromeFlags(ChromeFlags.Default with { Envelope = false });
+        await Pump();
+        var left = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsEnvelopeAmber);
+        Assert.Equal(0, left);
+    }
+
+    /// <summary>The #c07a20 envelope, allowing for the antialiased edge pixels.</summary>
+    private static bool IsEnvelopeAmber(byte r, byte g, byte b) =>
+        r is >= 150 and <= 215 && g is >= 85 and <= 165 && b < 90 && r > g + 40;
+
+    [AvaloniaFact]
+    public async Task Axes_draw_the_world_X_and_Y_arrows()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        // Settle the pane before counting. A SINGLE pump is not enough and the
+        // failure is silent rather than obvious: the grid and the envelope are
+        // big enough to show up in the first frame whatever the pane's
+        // intermediate viewport is, but the axis arrows are clipped to the slot
+        // viewport and sit at a fractional pixel offset, so in an unsettled pane
+        // they land on lighter antialiased coverage that falls outside the
+        // #2f6fb0 band and the count reads 0. Every other pixel test in this
+        // file settles with 8 pumps for the same reason.
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var axes = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsAxisBlue);
+        Assert.True(axes > 100, $"the world axis arrows must paint, found {axes} blue pixels");
+    }
+
+    /// <summary>The #2f6fb0 axis color.</summary>
+    private static bool IsAxisBlue(byte r, byte g, byte b) => b > 130 && b > r + 40 && g > r + 30;
+
+    /// <summary>Counts on the PLOT SURFACE only — the canvas interior, below the
+    /// 24 px header band and inside the 1 px frame. Every whole-frame count
+    /// here is a trap: the header is #e8e8e8 (21.6k pixels INSIDE the light
+    /// grid band), the frame is #aaa (inside the grey path band), and the
+    /// header's subpixel-antialiased TEXT fringes leak 22 amber and 74 blue
+    /// pixels per frame that have nothing to do with the canvas. Measured, not
+    /// assumed: a whole-frame amber count reads 22 with the envelope OFF.</summary>
+    private static int CountSurface(PlotterPixels.Frame frame, Func<byte, byte, byte, bool> match) =>
+        PlotterPixels.Count(frame, match,
+            xFilter: x => x > 0 && x < frame.Width - 1,
+            yFilter: y => y > 24 && y < frame.Height - 1);
+
     private static WriteableBitmap CaptureFrame(Window window)
     {
         var frame = window.CaptureRenderedFrame();

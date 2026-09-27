@@ -269,6 +269,24 @@ public partial class PlotterView : UserControl
         _canvases.Add(canvas);
     }
 
+    /// <summary>Pushes the view toggles into every canvas. Before the settings view
+    /// model is wired (Task 10) this is the seam the headless tests drive; passing
+    /// nothing falls back to the defaults, and Task 10 changes only the body — the
+    /// optional parameter is what lets the attached model win, so this method is
+    /// never renamed later.</summary>
+    internal void PushChromeFlags(ChromeFlags? flags = null)
+    {
+        foreach (var canvas in _canvases.OfType<PlotCanvas>())
+        {
+            canvas.Chrome = flags ?? ChromeFlags.Default;
+            // Setting Chrome is a plain property write, so nothing repaints on its
+            // own. Without this invalidate the toggle tests measure the SAME frame
+            // twice and the "grid went away" assertion fails on a screen that never
+            // changed — and in the real app the switch would appear dead.
+            canvas.InvalidateVisual();
+        }
+    }
+
     /// <summary>The header's plane-letter string. The generated <c>HeaderLetters</c>
     /// field is internal to the view's own assembly, so tests read this.</summary>
     internal string HeaderLettersForTest => HeaderLetters.Text ?? string.Empty;
@@ -400,6 +418,11 @@ public partial class PlotterView : UserControl
         protected const double FoamFitMargin = 24;
 
         protected readonly PlotterViewModel Vm;
+
+        /// <summary>Which chrome this canvas draws. Pushed from the shared settings
+        /// view model once the view is attached (Task 10).</summary>
+        internal ChromeFlags Chrome { get; set; } = ChromeFlags.Default;
+
         private Point _dragOrigin;
         private Vector _dragBasePan;
         private bool _dragging;
@@ -494,11 +517,11 @@ public partial class PlotterView : UserControl
         /// inside a bake (rate-limited) or as the pre-bake fallback.</summary>
         protected abstract void DrawSlotPathWorld(DrawingContext ctx, int slot, BakePens pens);
 
-        /// <summary>Draw the slot's origin markers in world coordinates (per frame,
-        /// crisp vectors — they must not blur under the baked raster). No grid
-        /// lines anywhere (M9): flat 2D and foam loft panes both draw only the
-        /// machine-origin crosses.</summary>
-        protected abstract void DrawSlotGrid(DrawingContext ctx, int slot);
+        /// <summary>Draw the slot's chrome overlay in world coordinates (per
+        /// frame, crisp vectors — it must not blur under the baked raster): the
+        /// world XY lattice, the machine-origin cross, the world axis arrows and
+        /// the job rectangle, each gated on <see cref="Chrome"/>.</summary>
+        protected abstract void DrawSlotChrome(DrawingContext ctx, int slot);
 
         /// <summary>Coupling/loft wires spanning several slots (foam iso),
         /// drawn once per frame after the per-slot passes. Default: none.</summary>
@@ -626,11 +649,11 @@ public partial class PlotterView : UserControl
                     DrawSlotPathWorld(context, slot, new BakePens(1)); // pre-first-bake fallback
                 DrawSlotFrontier(context, slot);
             }
-            // Origin crosses (M9 removed the grid lines, only crosses remain)
-            // are a crisp shared overlay drawn last so they never sit under a
-            // raster edge.
+            // The chrome overlay (world lattice, origin crosses, axis arrows,
+            // job rectangles) is a crisp shared overlay drawn last so it never
+            // sits under a raster edge.
             for (var slot = 0; slot < SlotCount; slot++)
-                DrawSlotGrid(context, slot);
+                DrawSlotChrome(context, slot);
             DrawCoupling(context, area);
             DrawToolGlyph(context, area, ToolGlyphPosition());
         }
@@ -935,19 +958,6 @@ public partial class PlotterView : UserControl
     /// projected coordinates) plus its source line for frontier coloring.</summary>
     protected readonly record struct WorldSeg(double X0, double Y0, double X1, double Y1, uint Line, bool Rapid);
 
-    /// <summary>One carriage plane's raw→world map (M8 layout unification): a
-    /// single shared transform drives BOTH foam planes, and both planes share
-    /// ONE scale (Sx = Sy = 1 → true machine proportions). Tiles sit
-    /// diagonally — plane 0 top-left at the world origin, plane 1 bottom-right
-    /// beyond it — so the whole composition pans and zooms as one canvas.</summary>
-    private readonly record struct PlaneMap(
-        double MinX, double SpanX, double MinY, double SpanY,
-        double BiasX, double BiasY, double Sx, double Sy, double Ox, double Oy)
-    {
-        public double Wx(double rawX) => Ox + (rawX - MinX + BiasX) * Sx;
-        public double Wy(double rawY) => Oy + (rawY - MinY + BiasY) * Sy;
-    }
-
     /// <summary>Flat canvas: single-plane machines fill the whole surface
     /// with their raw coordinates; foam machines draw both carriage planes as
     /// TRUE-SCALE diagonal tiles of the same canvas — plane 1 top-left, plane
@@ -1141,18 +1151,34 @@ public partial class PlotterView : UserControl
             return row >= 0 ? Vm.RowState(row) : ProgramRowState.Idle;
         }
 
-        protected override void DrawSlotGrid(DrawingContext ctx, int slot)
+        protected override void DrawSlotChrome(DrawingContext ctx, int slot)
         {
             if (!PlaneDrawable(slot))
                 return;
-            // No grid lines (M9): the composed 2×2 canvas reads clearly without
-            // them, and the grid framed each pane into a "box" that made the
-            // shared zoom look clipped when content panned across its edges.
-            // The machine-origin crosses remain.
             var m = _maps[Foam ? slot : 0];
-            var o = WorldToScreen(m.Wx(0), m.Wy(0), _zoom, _pan);
-            ctx.DrawLine(PlotterPens.Origin, new Point(o.X - 6, o.Y), new Point(o.X + 6, o.Y));
-            ctx.DrawLine(PlotterPens.Origin, new Point(o.X, o.Y - 6), new Point(o.X, o.Y + 6));
+            var bounds = PlaneBounds(slot);
+            var viewport = SlotViewport(slot, new Rect(Bounds.Size));
+
+            if (Chrome.Grid)
+                PlotterFlatChrome.DrawGrid(ctx, m, bounds, _zoom, _pan, viewport);
+            if (Chrome.Envelope)
+                PlotterFlatChrome.DrawEnvelope(ctx, m, bounds, _zoom, _pan);
+            // The arrows go over the envelope, and the cross over the arrows, and
+            // both deliberately. G-code is modal from the machine origin, so a
+            // parsed program's bounds start at (0,0): the envelope rect's
+            // bottom-left corner IS the world origin, and the X/Y shafts run
+            // exactly along its bottom and left edges, crossing the 6 px cross.
+            // Under the envelope the arrows are painted out entirely (measured:
+            // 48 axis pixels with the envelope on, 591 with it off), and under
+            // the arrows the cross loses its upper arm and half its horizontal
+            // arm (the cross's own pixels stayed byte-identical to the
+            // pre-task frame only where nothing else covered them). The arrows
+            // are the frame of reference and the cross is the pre-existing
+            // default mark, so the frame, then the envelope, then the arrows,
+            // then the cross.
+            PlotterFlatChrome.DrawAxes(ctx, m, bounds, _zoom, _pan, viewport);
+            if (Chrome.Origin)
+                PlotterFlatChrome.DrawOrigin(ctx, m, _zoom, _pan);
         }
 
         protected override void DrawToolGlyph(DrawingContext ctx, Rect area, double[]? pos)
@@ -1437,7 +1463,7 @@ public partial class PlotterView : UserControl
             return row >= 0 ? Vm.RowState(row) : ProgramRowState.Idle;
         }
 
-        protected override void DrawSlotGrid(DrawingContext ctx, int slot)
+        protected override void DrawSlotChrome(DrawingContext ctx, int slot)
         {
             // No grid (M9): the loft panes read clearly without one — the grid
             // framed each pane into a "box" and stacked a faint lattice over the
