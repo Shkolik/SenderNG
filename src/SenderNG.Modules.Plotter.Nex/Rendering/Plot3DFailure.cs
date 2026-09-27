@@ -47,15 +47,17 @@ internal enum Plot3DFailure
     /// <summary>Nothing reported; the tab is healthy.</summary>
     None,
 
-    /// <summary>Vulkan itself is unusable on this system: the loader is
-    /// missing or vkInitialize failed. Reached through the vkInitialize()
-    /// pre-check, not from an engine return value — see Task 3 Step 0.</summary>
+    /// <summary>No usable Vulkan on this system: the loader is missing, fails to
+    /// initialize, cannot create an instance, or reports no devices. Decided by
+    /// VulkanCapabilities.Detect(), never by an engine return value — see the
+    /// remarks there.</summary>
     NotSupported,
 
-    /// <summary>Vulkan is available but no 1.3 device could be initialised.
-    /// One bucket for several upstream causes (sub-1.3 device, no suitable
-    /// queues, zero devices, driver error) because OnInitializing collapses
-    /// them; the precise cause goes to the diagnostics log.</summary>
+    /// <summary>Vulkan demonstrably works, but no device reports 1.3, so the
+    /// GPU or driver is too old for what Plot 3D needs. Narrow on purpose: this
+    /// is the one cause the user can act on differently from NotSupported, so
+    /// nothing else may be folded into it. Queue and extension problems are not
+    /// detectable by a version check and land in Other.</summary>
     RuntimeError,
 
     /// <summary>Anything else, including a bug in the scene build, and any

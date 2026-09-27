@@ -19,7 +19,7 @@ public class VulkanCapabilityTests
     // Plot3DFailureTests. Enum member names are what ToString() returns, so the
     // expectations are passed as strings and the comparison stays type-safe.
     [Theory]
-    [InlineData("LoaderUnavailable", "NotSupported")]
+    [InlineData("NoUsableVulkan", "NotSupported")]
     [InlineData("NoDevice13", "RuntimeError")]
     [InlineData("Available", null)]
     public void VerdictFor_maps_each_capability_to_its_result_code(
@@ -37,22 +37,22 @@ public class VulkanCapabilityTests
     [Fact]
     public void The_two_failure_capacities_produce_different_verdicts()
     {
-        var loader = VulkanCapabilities.VerdictFor(VulkanCapability.LoaderUnavailable);
+        var noVulkan = VulkanCapabilities.VerdictFor(VulkanCapability.NoUsableVulkan);
         var device = VulkanCapabilities.VerdictFor(VulkanCapability.NoDevice13);
 
-        Assert.NotNull(loader);
+        Assert.NotNull(noVulkan);
         Assert.NotNull(device);
-        Assert.NotEqual(loader, device);
+        Assert.NotEqual(noVulkan, device);
     }
 
-    // Guards the specific defect a review found: instance creation returning
+    // Pins the policy half of a review finding: instance creation returning
     // ErrorIncompatibleDriver used to be folded into "no 1.3 device", so a
     // machine with no installable driver was told to go and update a driver it
-    // did not have. The invariant is therefore that NoDevice13 is the *only*
-    // capability claiming the driver is too old: every other non-healthy
-    // capability must resolve to the NotSupported verdict, and Available must
-    // stay non-failure. Adding a fourth capability mapped to RuntimeError fails
-    // this test, which is the point.
+    // did not have. What is asserted here is the mapping, not the probe: the
+    // probe-side routes into NoUsableVulkan each need a live driver that fails,
+    // and reproducing them means pointing VK_ICD_FILENAMES at an empty
+    // directory, which cannot be done reliably for a loader this process has
+    // already initialised. So the invariant is enforced where it can be.
     [Fact]
     public void Only_a_too_old_device_is_reported_as_a_too_old_device()
     {

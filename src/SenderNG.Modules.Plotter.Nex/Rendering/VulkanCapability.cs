@@ -16,7 +16,7 @@ internal enum VulkanCapability
     /// <summary>No usable Vulkan: the loader is missing, fails to initialize,
     /// cannot create an instance, or reports no devices at all. The machine
     /// needs a Vulkan driver before anything else can work.</summary>
-    LoaderUnavailable,
+    NoUsableVulkan,
 
     /// <summary>Devices are present but none reports Vulkan 1.3. The machine has
     /// a working Vulkan stack; its GPU or driver is too old.</summary>
@@ -31,16 +31,24 @@ internal enum VulkanCapability
 /// <remarks>
 /// <para>
 /// This exists because the engine cannot be trusted to report the reason. In
-/// the shipped <c>HelixToolkit.Nex 1.3.0-alpha.41</c> - a Release build, as NuGet
-/// packages are - <c>ResultCode.CheckResult()</c> only logs on error, because its
-/// assertion is compiled out (<c>HxDebug.EnableDebugAssertions</c> comes from
-/// <c>#if DEBUG</c> <em>inside the engine assembly</em>). And
-/// <c>VulkanContext.InitContext()</c> discards the return values of
-/// <c>InitPhysicalDevice()</c> and <c>InitDevice()</c> before returning
-/// <c>ResultCode.Ok</c> unconditionally. So a machine whose GPU predates Vulkan
-/// 1.3 gets <c>Ok</c> back and a silently broken viewport: the engine's own
-/// "does not support Vulkan 1.3 or higher" check does run, but its verdict is
-/// logged and thrown away.
+/// the shipped <c>HelixToolkit.Nex 1.3.0-alpha.41</c>, <c>ResultCode.CheckResult()</c>
+/// logs the error and returns the code unchanged - it never throws. That is not
+/// a Release-compilation detail: <c>CheckResult</c> calls <c>HxDebug.Assert(false)</c>,
+/// which logs unconditionally and escalates to <c>Debug.Assert</c> only when
+/// <c>HxDebug.EnableDebugAssertions</c> is true. That flag is a public property
+/// defaulting to <c>false</c>, raised only by <c>HxDebug</c>'s static constructor
+/// under <c>#if DEBUG</c> in the engine's own build - and a NuGet package is a
+/// Release build. Verified by running it: <c>CheckResult()</c> on
+/// <c>NotSupported</c> returns <c>NotSupported</c> without throwing, with
+/// <c>EnableDebugAssertions == false</c>.
+/// </para>
+/// <para>
+/// The call site is not compiled out, either. <c>VulkanContext.InitContext()</c>
+/// discards the return values of <c>InitPhysicalDevice()</c> and
+/// <c>InitDevice()</c> and returns <c>ResultCode.Ok</c> unconditionally, so a
+/// machine whose GPU predates Vulkan 1.3 gets <c>Ok</c> back and a silently
+/// broken viewport. The engine's own "does not support Vulkan 1.3 or higher"
+/// check does run - its verdict is logged and then discarded.
 /// </para>
 /// <para>
 /// So the verdict is ours, and deliberately positive: we enumerate devices and
@@ -62,13 +70,12 @@ internal enum VulkanCapability
 /// </remarks>
 internal static class VulkanCapabilities
 {
-    /// <summary>No real machine reports more than a handful of Vulkan devices.
-    /// A driver reporting an absurd count is not to be trusted with a
-    /// stack-allocated array, so the count is clamped and the array is
-    /// heap-allocated: an oversized count then costs an ordinary (catchable)
-    /// allocation failure instead of an uncatchable stack overflow.
+    /// <summary>How many devices we are willing to look at. No real machine
+    /// reports more than a handful; the array is heap-allocated and the count
+    /// clamped to this, so a driver reporting an absurd count costs an ordinary
+    /// (catchable) allocation failure rather than an uncatchable stack overflow.
     /// <para>
-    /// The residual cost of clamping is that on such a machine only the first
+    /// The cost of clamping is that on such a machine only the first
     /// <see cref="MaxDevices"/> devices are inspected, so a 1.3 device beyond
     /// that cut would be missed and reported as <see cref="VulkanCapability.NoDevice13"/>.
     /// That needs more than 64 GPUs to hit, and a driver that miscounts this
@@ -108,21 +115,40 @@ internal static class VulkanCapabilities
     /// </summary>
     public static ResultCode? VerdictFor(VulkanCapability capability) => capability switch
     {
-        VulkanCapability.LoaderUnavailable => ResultCode.NotSupported,
+        VulkanCapability.NoUsableVulkan => ResultCode.NotSupported,
         VulkanCapability.NoDevice13 => ResultCode.RuntimeError,
         VulkanCapability.Available => null,
+
+        // Total on purpose, and this arm is the reason the function is total
+        // rather than a compile error. The call site is the scene constructor,
+        // outside its try/catch, so a SwitchExpressionException here would escape
+        // the constructor entirely - the blank, unexplained tab that this whole
+        // feature exists to prevent. An unnamed value cannot come from the
+        // probe, which only ever returns the three above; it can only come from
+        // a cast or a future enum member, and neither is a reason to crash.
+        //
+        // It maps to NotSupported because that is the verdict we already use
+        // whenever we cannot demonstrate a working loader, so an unclassifiable
+        // capability degrades to the same safe answer instead of inventing a
+        // reason. The alternative - treating it as Available - would silently
+        // claim the machine is fine on the strength of a value we do not
+        // understand.
+        _ => ResultCode.NotSupported,
     };
 
     /// <summary>Do the actual probe. Never throws: any unexpected managed
-    /// failure degrades to <see cref="VulkanCapability.LoaderUnavailable"/>,
+    /// failure degrades to <see cref="VulkanCapability.NoUsableVulkan"/>,
     /// because we cannot demonstrate a working loader in that case, and the
     /// fallback panel is a better outcome than an unhandled exception on the
     /// scene-construction thread pool. Note that a native access violation would
     /// <em>not</em> be caught here - see the comment on <c>vkLoadInstanceOnly</c>.
     /// <para>
-    /// Nothing is logged on this path. The scene constructor's failure is
-    /// reported and logged by the view in Task 5, which sees the code and the
-    /// exception; a second log line here would only duplicate it.
+    /// Nothing is logged on this path, and there is no cause to log: a capability
+    /// is a plain enum, so the swallowed exception is genuinely lost. The view
+    /// in Task 5 logs the <em>verdict</em> - the capability, and the reported
+    /// code - when it reports the failure, which is the part that identifies
+    /// the machine. A second line here would not add the missing detail, and
+    /// this file has no logger of its own to add it with.
     /// </para>
     /// </summary>
     private static VulkanCapability Probe()
@@ -130,13 +156,13 @@ internal static class VulkanCapabilities
         try
         {
             if (Vulkan.vkInitialize() != VkResult.Success)
-                return VulkanCapability.LoaderUnavailable;
+                return VulkanCapability.NoUsableVulkan;
 
             return ProbeDevices();
         }
         catch (Exception)
         {
-            return VulkanCapability.LoaderUnavailable;
+            return VulkanCapability.NoUsableVulkan;
         }
     }
 
@@ -152,7 +178,7 @@ internal static class VulkanCapabilities
     /// that enumerated it.
     /// </para>
     /// <para>
-    /// Every failure below is <see cref="VulkanCapability.LoaderUnavailable"/>,
+    /// Every failure below is <see cref="VulkanCapability.NoUsableVulkan"/>,
     /// not <see cref="VulkanCapability.NoDevice13"/>. That distinction is the
     /// whole point: <c>vkCreateInstance</c> returning
     /// <c>ErrorIncompatibleDriver</c> means no installable driver is compatible,
@@ -183,7 +209,7 @@ internal static class VulkanCapabilities
         };
 
         if (Vulkan.vkCreateInstance(&createInfo, null, out var instance) != VkResult.Success)
-            return VulkanCapability.LoaderUnavailable;
+            return VulkanCapability.NoUsableVulkan;
 
         // Mandatory, and not optional politeness: Vortice dispatches
         // instance-level entry points through pointers it resolves at load time.
@@ -198,13 +224,21 @@ internal static class VulkanCapabilities
         try
         {
             uint count = 0;
+            // This first call passes no array, so it is a pure count query. It
+            // can only return Success or an error - never Incomplete, which is
+            // the one asymmetry with the second call below and the reason the
+            // two are not written the same way.
             if (Vulkan.vkEnumeratePhysicalDevices(instance, &count, null) != VkResult.Success)
-                return VulkanCapability.LoaderUnavailable;
+                return VulkanCapability.NoUsableVulkan;
 
-            // A machine with Vulkan but no devices at all has no driver to
-            // upgrade, so this is the "no usable Vulkan" bucket too.
+            // Defensive. The spec says a successful query reports at least one
+            // device, so this should be unreachable, but a zero-length
+            // allocation would be legal and we would then fall through to
+            // reporting NoDevice13 - "your driver is too old" - on a machine
+            // that has no GPU at all. The one-word guard is cheaper than
+            // trusting the spec about a driver bug.
             if (count == 0)
-                return VulkanCapability.LoaderUnavailable;
+                return VulkanCapability.NoUsableVulkan;
 
             if (count > MaxDevices)
                 count = MaxDevices;
@@ -222,7 +256,7 @@ internal static class VulkanCapabilities
                 // because it had an implausible number of GPUs.
                 var enumerated = Vulkan.vkEnumeratePhysicalDevices(instance, &count, pDevices);
                 if (enumerated is not (VkResult.Success or VkResult.Incomplete))
-                    return VulkanCapability.LoaderUnavailable;
+                    return VulkanCapability.NoUsableVulkan;
 
                 for (var i = 0; i < devices.Length; i++)
                 {
