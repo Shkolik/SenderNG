@@ -257,7 +257,8 @@ public partial class PlotterNexView : UserControl
             // A live scene survives across tab switches: recreate the per-attach
             // render context + readback target at the current view size.
             SetupRenderTarget();
-            EnableTick();
+            if (_vulkanVerdict == Plot3DFailure.None)
+                EnableTick();
         }
     }
 
@@ -342,10 +343,12 @@ public partial class PlotterNexView : UserControl
                     // is kept small by the verdict cache below, which is what
                     // stops a second attempt in the first place.
                     //
-                    // A newer attempt already owns the verdict (the view was
-                    // detached, or another build started): this one is stale, so
-                    // it says nothing.
-                    if (generation == _sceneGeneration)
+                    // Whether this attempt still owns the verdict is the
+                    // generation check below; a newer attempt (view detached, or
+                    // another build started) means this one is stale and says
+                    // nothing. See ShouldOwnVerdict for why that decision is a
+                    // standalone, testable function.
+                    if (ShouldOwnVerdict(generation, _sceneGeneration))
                     {
                         _sceneGeneration++;
                         ReportVulkanFailure(failure);
@@ -384,7 +387,8 @@ public partial class PlotterNexView : UserControl
                     return;
                 }
                 SetupRenderTarget();
-                EnableTick();
+                if (_vulkanVerdict == Plot3DFailure.None)
+                    EnableTick();
                 // A fresh scene renders all chrome visible + AA at the ctor
                 // default; start it from the persisted view toggles and AA
                 // settings (runtime-only, no rebuild).
@@ -392,6 +396,29 @@ public partial class PlotterNexView : UserControl
             });
         });
     }
+
+    /// <summary>Whether a completed scene build still owns the right to report a
+    /// Vulkan verdict. Pure, so the generation guard is testable without a GPU
+    /// or a dispatcher.
+    /// <para>
+    /// Extracted because this exact comparison is where the plan's bug hid: it
+    /// incremented the generation <em>before</em> comparing, turning
+    /// <c>generation == _sceneGeneration</c> into <c>x == x+1</c> — always false,
+    /// so a genuine first failure was never reported. The check must compare
+    /// first, then the caller bumps. Keeping it here and pinning it with a
+    /// three-case test means that class of mistake is caught by the suite
+    /// instead of by a user staring at a blank tab. See
+    /// <c>PlotterNexViewTests.ShouldOwnVerdict_*</c>.
+    /// </para>
+    /// <para>
+    /// Equality means "no newer attempt started, so this attempt is still
+    /// current" → own the verdict. A mismatch means a later
+    /// <c>EnsureScene</c> (or a detach that bumped the generation) superseded
+    /// this one → stay silent, so a stale failure never overwrites a live
+    /// scene's verdict.
+    /// </para></summary>
+    internal static bool ShouldOwnVerdict(int generation, int currentGeneration)
+        => generation == currentGeneration;
 
     /// <summary>Cache the verdict and hand it to the view model, which resolves
     /// the localized detail from it. Safe to call more than once: the view
@@ -446,13 +473,9 @@ public partial class PlotterNexView : UserControl
         }
         catch (Exception ex)
         {
-            // Was: swallowed, leaving a blank viewport with no explanation. It
-            // also nulled the two fields without disposing them, which leaked
-            // the render context the CreateRenderContext above had already
-            // handed us - and nothing could reclaim it afterwards, because the
-            // caller's own cleanup nulls the same fields. FreeRenderResources
-            // is the one place that owns that teardown, so use it rather than
-            // repeating (and getting wrong) half of it.
+            // Was: swallowed, leaving a blank viewport with no explanation; and the
+            // field was nulled rather than disposed, leaking the context. FreeRenderResources
+            // disposes in the right order, so let it.
             FreeRenderResources();
             ReportVulkanFailure(Plot3DFailure.Other);
             LogVulkanFailure("RENDERCTX", Plot3DFailure.Other, "n/a", ex);
