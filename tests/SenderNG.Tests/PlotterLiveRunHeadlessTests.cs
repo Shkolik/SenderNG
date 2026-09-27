@@ -42,7 +42,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-using System.Runtime.InteropServices;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
@@ -529,7 +528,7 @@ public class PlotterLiveRunHeadlessTests
         planeCanvas.InvalidateVisual();
         for (var i = 0; i < 3; i++)
             await Pump();
-        var frame = CaptureFrame(window2);
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window2));
 
         // Introspect the live layout transform + maps so the probes are
         // computed from the real canvas geometry, not window-relative guesses.
@@ -540,25 +539,6 @@ public class PlotterLiveRunHeadlessTests
         var zoom = (double)GF(planeCanvas, "_zoom")!;
         var pan = (Avalonia.Vector)GF(planeCanvas, "_pan")!;
 
-        int CountRect(WriteableBitmap bmp, Func<byte, byte, byte, bool> match, int x0, int x1, int y0, int y1)
-        {
-            using var fb = bmp.Lock();
-            var bgra = fb.Format.ToString().Contains("Bgra") || fb.Format.ToString().Contains("Pbgra");
-            var row = new byte[fb.RowBytes];
-            var count = 0;
-            for (var y = Math.Max(0, y0); y < Math.Min(fb.Size.Height, y1); y++)
-            {
-                Marshal.Copy(fb.Address + y * fb.RowBytes, row, 0, fb.RowBytes);
-                for (var x = Math.Max(0, x0); x < Math.Min(fb.Size.Width, x1); x++)
-                {
-                    var o = x * 4;
-                    var (r, g, b) = bgra ? (row[o + 2], row[o + 1], row[o]) : (row[o], row[o + 1], row[o + 2]);
-                    if (match(r, g, b))
-                        count++;
-                }
-            }
-            return count;
-        }
         // The baked path renders the feed-grey (0x80) stroke AA-washed against
         // white; at ~0.5px stroke most hits fall in the 140..225 range. The
         // machine-origin cross (0x88, 1px) similarly AA-washes to 120..190 and
@@ -601,38 +581,21 @@ public class PlotterLiveRunHeadlessTests
         // inside it — the window chrome (title bar) pushes it down a few px.
         // Detect the canvas top = first fully-bright row in the middle columns
         // (canvas background is white; the chrome isn't) and offset all probes.
-        var coy = -1;
-        using (var fb = frame.Lock())
-        {
-            var bgra = fb.Format.ToString().Contains("Bgra") || fb.Format.ToString().Contains("Pbgra");
-            var row = new byte[fb.RowBytes];
-            for (var y = 0; y < 60 && coy == -1; y++)
-            {
-                Marshal.Copy(fb.Address + y * fb.RowBytes, row, 0, fb.RowBytes);
-                var bright = 0;
-                for (var x = 200; x < 720; x += 8)
-                {
-                    var o = x * 4;
-                    var (r, g, b) = bgra ? (row[o + 2], row[o + 1], row[o]) : (row[o], row[o + 1], row[o + 2]);
-                    if (r > 245 && g > 245 && b > 245) bright++;
-                }
-                if (bright >= 60) coy = y;
-            }
-        }
+        var coy = FirstBrightRow(frame);
         var cox = 1;
         (int X0, int X1, int Y0, int Y1) W(int x0, int x1, int y0, int y1) =>
             (cox + x0, cox + x1, coy + y0, coy + y1);
 
         var (sx0, sx1, sy0, sy1) = W((int)Math.Round(stl0.Sx0) + 6, (int)Math.Round(stl0.Sx0) + 230, (int)Math.Round(stl0.Sy0) + 5, (int)Math.Round(sbr0.Sy0) - 5);
-        int streak = CountRect(frame, LineGrey, sx0, sx1, sy0, sy1);
+        int streak = CountRectHalfOpen(frame, LineGrey, sx0, sx1, sy0, sy1);
         var (b0_, b1_, c0_, c1_) = W((int)Math.Round(stl1.Sx0) + 6, (int)Math.Round(sbr1.Sx0) - 6, (int)Math.Round(stl1.Sy0) + 5, (int)Math.Round(sbr1.Sy0) - 5);
-        int band = CountRect(frame, LineGrey, b0_, b1_, c0_, c1_);
+        int band = CountRectHalfOpen(frame, LineGrey, b0_, b1_, c0_, c1_);
         var (g0_, g1_, i0_, i1_) = W((int)Math.Round(sbr0.Sx0) + 2, (int)Math.Round(stl1.Sx0) - 2, (int)Math.Round(stl0.Sy0), (int)Math.Round(sbr1.Sy0));
-        int gapPixels = CountRect(frame, LineGrey, g0_, g1_, i0_, i1_);
+        int gapPixels = CountRectHalfOpen(frame, LineGrey, g0_, g1_, i0_, i1_);
         var (j0_, j1_, k0_, k1_) = W(bx0 - 10, bx0 + 10, by0 - 10, by0 + 12);
-        int cross1 = CountRect(frame, CrossGrey, j0_, j1_, k0_, k1_);
+        int cross1 = CountRectHalfOpen(frame, CrossGrey, j0_, j1_, k0_, k1_);
         var (m0_, m1_, n0_, n1_) = W(bx1 - 10, bx1 + 10, by1 - 10, by1 + 12);
-        int cross2 = CountRect(frame, CrossGrey, m0_, m1_, n0_, n1_);
+        int cross2 = CountRectHalfOpen(frame, CrossGrey, m0_, m1_, n0_, n1_);
 
         Assert.True(coy >= 20 && coy <= 32, $"canvas chrome offset must be sane, got y={coy}");
         Assert.True(streak > 150, "plane0 must draw as a true-scale band in the top-left tile");
@@ -652,30 +615,13 @@ public class PlotterLiveRunHeadlessTests
         isoCanvas.InvalidateVisual();
         for (var i = 0; i < 3; i++)
             await Pump();
-        var iso = CaptureFrame(window2);
-        var icoy = -1;
-        using (var fb = iso.Lock())
-        {
-            var ibgra = fb.Format.ToString().Contains("Bgra") || fb.Format.ToString().Contains("Pbgra");
-            var irow = new byte[fb.RowBytes];
-            for (var y = 0; y < 60 && icoy == -1; y++)
-            {
-                Marshal.Copy(fb.Address + y * fb.RowBytes, irow, 0, fb.RowBytes);
-                var bright = 0;
-                for (var x = 200; x < 720; x += 8)
-                {
-                    var o = x * 4;
-                    var (r, g, b) = ibgra ? (irow[o + 2], irow[o + 1], irow[o]) : (irow[o], irow[o + 1], irow[o + 2]);
-                    if (r > 245 && g > 245 && b > 245) bright++;
-                }
-                if (bright >= 60) icoy = y;
-            }
-        }
-        int Rect(WriteableBitmap b, Func<byte, byte, byte, bool> m, int x0, int x1, int y0, int y1) =>
-            CountRect(b, m, 1 + x0, 1 + x1, icoy + y0, icoy + y1);
-        var isoStreak = Rect(iso, LineGrey, 12, 252, 196, 272);
-        var isoBand = Rect(iso, LineGrey, 268, 900, 300, 352);
-        var isoCross2 = Rect(iso, CrossGrey, 262, 282, 337, 359);
+        var isoFrame = PlotterPixels.Snapshot(CaptureFrame(window2));
+        var icoy = FirstBrightRow(isoFrame);
+        int Rect(PlotterPixels.Frame f, Func<byte, byte, byte, bool> m, int x0, int x1, int y0, int y1) =>
+            CountRectHalfOpen(f, m, 1 + x0, 1 + x1, icoy + y0, icoy + y1);
+        var isoStreak = Rect(isoFrame, LineGrey, 12, 252, 196, 272);
+        var isoBand = Rect(isoFrame, LineGrey, 268, 900, 300, 352);
+        var isoCross2 = Rect(isoFrame, CrossGrey, 262, 282, 337, 359);
         Assert.True(icoy >= 20 && icoy <= 32, $"iso canvas chrome offset must be sane, got y={icoy}");
         Assert.True(isoStreak > 150, "iso plane0 must draw its small tile top-left");
         Assert.True(isoBand > 150, "iso plane1 must draw its loft across the bottom tile");
@@ -719,47 +665,11 @@ public class PlotterLiveRunHeadlessTests
         planeCanvas.InvalidateVisual();
         for (var i = 0; i < 3; i++)
             await Pump();
-        var frame = CaptureFrame(window2);
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window2));
 
         var cox = 1;
-        var coy = -1;
-        using (var fb = frame.Lock())
-        {
-            var bgra = fb.Format.ToString().Contains("Bgra") || fb.Format.ToString().Contains("Pbgra");
-            var row = new byte[fb.RowBytes];
-            for (var y = 0; y < 60 && coy == -1; y++)
-            {
-                Marshal.Copy(fb.Address + y * fb.RowBytes, row, 0, fb.RowBytes);
-                var bright = 0;
-                for (var x = 200; x < 720; x += 8)
-                {
-                    var o = x * 4;
-                    var (r, g, b) = bgra ? (row[o + 2], row[o + 1], row[o]) : (row[o], row[o + 1], row[o + 2]);
-                    if (r > 245 && g > 245 && b > 245) bright++;
-                }
-                if (bright >= 60) coy = y;
-            }
-        }
+        var coy = FirstBrightRow(frame);
 
-        int CountRect(WriteableBitmap bmp, Func<byte, byte, byte, bool> match, int x0, int x1, int y0, int y1)
-        {
-            using var fb = bmp.Lock();
-            var bgra = fb.Format.ToString().Contains("Bgra") || fb.Format.ToString().Contains("Pbgra");
-            var row = new byte[fb.RowBytes];
-            var count = 0;
-            for (var y = Math.Max(0, y0); y < Math.Min(fb.Size.Height, y1); y++)
-            {
-                Marshal.Copy(fb.Address + y * fb.RowBytes, row, 0, fb.RowBytes);
-                for (var x = Math.Max(0, x0); x < Math.Min(fb.Size.Width, x1); x++)
-                {
-                    var o = x * 4;
-                    var (r, g, b) = bgra ? (row[o + 2], row[o + 1], row[o]) : (row[o], row[o + 1], row[o + 2]);
-                    if (match(r, g, b))
-                        count++;
-                }
-            }
-            return count;
-        }
         // Idle feed is grey #808080, AA-washed against white.
         bool LineGrey(byte r, byte g, byte b) =>
             Math.Abs(r - g) <= 14 && Math.Abs(g - b) <= 14 && r is >= 100 and <= 220;
@@ -768,36 +678,48 @@ public class PlotterLiveRunHeadlessTests
         // Probe the vertical strip just right of the canvas center, still inside
         // plane 0's own tile (the ~8mm gap keeps plane 1 some pixels further).
         var (sx0, sx1, sy0, sy1) = (cox + centerX + 6, cox + rightMoved - 6, coy + top0 + 6, coy + bottom0 - 6);
-        var pastCenter = CountRect(frame, LineGrey, sx0, Math.Max(sx0 + 1, sx1), sy0, Math.Max(sy0 + 1, sy1));
+        var pastCenter = CountRectHalfOpen(frame, LineGrey, sx0, Math.Max(sx0 + 1, sx1), sy0, Math.Max(sy0 + 1, sy1));
         Assert.True(pastCenter > 30,
             $"dragging plane 0 across the center must keep the profile visible beyond it, got {pastCenter} px right of x={centerX}");
     }
 
+    /// <summary>Count matching pixels in a HALF-OPEN rectangle
+    /// <c>[x0,x1) x [y0,y1)</c> — the convention every probe rectangle in
+    /// this file was written in, and the one the literal arguments above
+    /// express. The one shared reader takes INCLUSIVE bounds, so the whole
+    /// conversion lives here, once, instead of a per-call-site <c>- 1</c>
+    /// that could silently shrink a probe. Out-of-frame coordinates are
+    /// clipped by <c>At</c>, which reports them black.</summary>
+    private static int CountRectHalfOpen(
+        PlotterPixels.Frame frame, Func<byte, byte, byte, bool> match,
+        int x0, int x1, int y0, int y1) =>
+        PlotterPixels.CountRect(frame, match, x0, y0, x1 - 1, y1 - 1);
+
+    /// <summary>Row index of the first fully-bright band in the first 60 rows,
+    /// or -1. The capture is the whole WINDOW while the canvas sits a few px
+    /// lower inside it, so this is how the probes learn the canvas's top edge;
+    /// the sampled columns 200..720 are canvas, never window chrome.</summary>
+    private static int FirstBrightRow(PlotterPixels.Frame frame)
+    {
+        for (var y = 0; y < 60 && y < frame.Height; y++)
+        {
+            var bright = PlotterPixels.Count(frame, IsCanvasWhite,
+                xFilter: x => x >= 200 && x < 720 && (x - 200) % 8 == 0,
+                yFilter: yy => yy == y);
+            if (bright >= 60)
+                return y;
+        }
+        return -1;
+    }
+
+    /// <summary>Canvas background is white; the window chrome around it is
+    /// not, which is what makes the row above a usable canvas-top probe.</summary>
+    private static bool IsCanvasWhite(byte r, byte g, byte b) => r > 245 && g > 245 && b > 245;
+
     private static (double X, double Y) GreyCentroid(WriteableBitmap bmp, Func<int, bool>? xFilter = null)
     {
-        using var fb = bmp.Lock();
-        var bgra = fb.Format.ToString().Contains("Bgra") || fb.Format.ToString().Contains("Pbgra");
-        var row = new byte[fb.RowBytes];
-        var count = 0;
-        double sx = 0, sy = 0;
-        for (var y = 0; y < fb.Size.Height; y++)
-        {
-            Marshal.Copy(fb.Address + y * fb.RowBytes, row, 0, fb.RowBytes);
-            for (var x = 0; x < fb.Size.Width; x++)
-            {
-                if (xFilter is not null && !xFilter(x))
-                    continue;
-                var o = x * 4;
-                var (r, g, b) = bgra ? (row[o + 2], row[o + 1], row[o]) : (row[o], row[o + 1], row[o + 2]);
-                if (IsPathGrey(r, g, b))
-                {
-                    count++;
-                    sx += x;
-                    sy += y;
-                }
-            }
-        }
-        return count == 0 ? (0, 0) : (sx / count, sy / count);
+        var centroid = PlotterPixels.Centroid(PlotterPixels.Snapshot(bmp), IsPathGrey, xFilter: xFilter);
+        return (centroid.X, centroid.Y);
     }
 
     private static WriteableBitmap CaptureFrame(Window window)
@@ -824,28 +746,8 @@ public class PlotterLiveRunHeadlessTests
     private static bool IsToolRed(byte r, byte g, byte b) =>
         r > 150 && g < 90 && b < 90;
 
-    private static (int Count, double X, double Y) Glyph(WriteableBitmap bmp)
-    {
-        using var fb = bmp.Lock();
-        var bgra = fb.Format.ToString().Contains("Bgra") || fb.Format.ToString().Contains("Pbgra");
-        var row = new byte[fb.RowBytes];
-        var count = 0;
-        double sx = 0, sy = 0;
-        for (var y = 0; y < fb.Size.Height; y++)
-        {
-            Marshal.Copy(fb.Address + y * fb.RowBytes, row, 0, fb.RowBytes);
-            for (var x = 0; x < fb.Size.Width; x++)
-            {
-                var o = x * 4;
-                var (r, g, b) = bgra ? (row[o + 2], row[o + 1], row[o]) : (row[o], row[o + 1], row[o + 2]);
-                if (IsToolRed(r, g, b))
-                {
-                    count++;
-                    sx += x;
-                    sy += y;
-                }
-            }
-        }
-        return count == 0 ? (0, 0, 0) : (count, sx / count, sy / count);
-    }
+    /// <summary>The red tool mark: how many pixels it covers and where its
+    /// center of mass sits, so a probe can follow it across frames.</summary>
+    private static (int Count, double X, double Y) Glyph(WriteableBitmap bmp) =>
+        PlotterPixels.Centroid(PlotterPixels.Snapshot(bmp), IsToolRed);
 }

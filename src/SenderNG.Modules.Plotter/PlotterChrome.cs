@@ -63,6 +63,11 @@ public static class PlotterChrome
     /// never runs past <paramref name="max"/>.</summary>
     public static (double Start, double Step, int Count) AxisTicks(double min, double max, int target)
     {
+        // The IsNaN terms cannot decide this branch: `max > min` is already
+        // false whenever either bound is NaN, so they are unreachable defense
+        // kept as written rather than trimmed. If the guard below is ever
+        // rewritten to use a NaN-true comparison, they are what still hold
+        // the line.
         if (target < 2 || !(max > min) || double.IsNaN(min) || double.IsNaN(max))
             return (min, 1, 0);
         var step = NiceStep((max - min) / target);
@@ -115,7 +120,10 @@ public static class PlotterChrome
     }
 
     /// <summary>A screen-space arrowhead at <paramref name="tip"/>, opening
-    /// back along the shaft from <paramref name="from"/>.</summary>
+    /// back along the shaft from <paramref name="from"/>. The one member with
+    /// no unit test: it can only be observed through a real
+    /// <see cref="DrawingContext"/>, so a test would need an Avalonia runtime
+    /// rather than the plain arithmetic every other helper here is made of.</summary>
     public static void ArrowHead(
         DrawingContext ctx, IPen pen, Point from, Point tip, double size = 6)
     {

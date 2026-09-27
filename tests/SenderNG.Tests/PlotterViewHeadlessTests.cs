@@ -314,7 +314,9 @@ public class PlotterViewHeadlessTests
         Assert.True(grey > 100,
             $"expected the foam 2D+loft in the iso frame, found {grey} path pixels");
         // The loft layout: plane 1 top-left, plane 2 bottom-right — grey path
-        // must appear in BOTH halves of the iso frame.
+        // must appear in BOTH halves of the iso frame. 280 is the midpoint of
+        // the Height = 560 window declared above; the live-run sibling splits
+        // the same way off finalFrame.Height / 2.
         var top = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsPathGrey, yFilter: y => y < 280);
         var bottom = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsPathGrey, yFilter: y => y >= 280);
         Assert.True(top > 30, $"plane 1 must draw in the iso top-left, found {top} path pixels");

@@ -74,12 +74,21 @@ public class PlotterChromeTests
     }
 
     [Fact]
-    public void AxisTicks_of_a_negative_range_starts_on_its_nearest_multiple()
+    public void AxisTicks_of_a_negative_range_starts_on_the_first_multiple_at_or_above_min()
     {
+        // (12 - -37) / 10 = 4.9 snaps to step 5, so the ticks are the
+        // multiples of 5 from -35 up: NOT -30, and NOT a multiple of a
+        // literal 10. Pin the numbers, because "a multiple of some step at or
+        // above the minimum" is also satisfied by a degenerate AxisTicks that
+        // returns (min, 1, 0) for every input.
         var (start, step, _) = PlotterChrome.AxisTicks(-37, 12, 10);
-        // A multiple of the step it snapped to (5 here), not of a literal 10.
-        Assert.Equal(0, start % step, 9);
-        Assert.True(start >= -37 - 1e-9);
+        Assert.Equal(5, step);
+        Assert.Equal(-35, start);
+        // One step back falls off the bottom of the range, which is what makes
+        // -35 the FIRST tick at or above -37 rather than merely a near one.
+        Assert.True(start - step < -37 + 1e-9,
+            $"the tick before {start} (at {start - step}) must fall below the range minimum -37");
+        Assert.True(start >= -37, $"the first tick must still be inside the range, got {start}");
     }
 
     [Fact]

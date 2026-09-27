@@ -58,9 +58,18 @@ internal static class PlotterPixels
     internal static Frame Snapshot(WriteableBitmap bmp)
     {
         using var fb = bmp.Lock();
+        // The format NAME is the only evidence of channel order available, so
+        // this gate accepts exactly the orders it can decode and refuses every
+        // other name instead of guessing: a wrong guess silently returns
+        // plausible colour counts, a refusal is loud. A leading "P" is
+        // Avalonia's premultiplied flag, which changes alpha scaling and not
+        // the byte order — alpha is ignored on both sides (Pbgra8888 has
+        // always been read this way), so Pbgra and Prgba join their
+        // non-premultiplied twins. "Rgb32" is deliberately NOT accepted: that
+        // name states no order at all, so it must not be guessed either.
         var format = fb.Format.ToString();
         var bgra = format.Contains("Bgra") || format.Contains("Pbgra");
-        if (!bgra && !(format.Contains("Rgba") || format.Contains("PArgb")))
+        if (!bgra && !(format.Contains("Rgba") || format.Contains("PArgb") || format.Contains("Prgba")))
             throw new InvalidOperationException($"unexpected framebuffer format: {format}");
 
         var width = fb.Size.Width;
@@ -109,5 +118,36 @@ internal static class PlotterPixels
     internal static int CountRect(
         Frame frame, Func<byte, byte, byte, bool> match,
         int x0, int y0, int x1, int y1) =>
-        Count(frame, match, x => x >= x0 && x <= x1, y => y >= y0 && y <= y1);
+        Count(frame, match,
+            xFilter: x => x >= x0 && x <= x1,
+            yFilter: y => y >= y0 && y <= y1);
+
+    /// <summary>How many pixels match, and where their center of mass sits —
+    /// the tool-glyph probe, which is the one reader that needs a position and
+    /// not just a tally. A frame with no match reads as the zeroed triple, so
+    /// a glyph that vanished reports itself instead of dividing by zero.</summary>
+    internal static (int Count, double X, double Y) Centroid(
+        Frame frame, Func<byte, byte, byte, bool> match,
+        Func<int, bool>? xFilter = null, Func<int, bool>? yFilter = null)
+    {
+        var count = 0;
+        double sx = 0, sy = 0;
+        for (var y = 0; y < frame.Height; y++)
+        {
+            if (yFilter is not null && !yFilter(y))
+                continue;
+            for (var x = 0; x < frame.Width; x++)
+            {
+                if (xFilter is not null && !xFilter(x))
+                    continue;
+                var p = At(frame, x, y);
+                if (!match(p.R, p.G, p.B))
+                    continue;
+                count++;
+                sx += x;
+                sy += y;
+            }
+        }
+        return count == 0 ? (0, 0d, 0d) : (count, sx / count, sy / count);
+    }
 }
