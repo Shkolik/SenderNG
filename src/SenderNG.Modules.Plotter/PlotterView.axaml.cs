@@ -1159,23 +1159,22 @@ public partial class PlotterView : UserControl
             var bounds = PlaneBounds(slot);
             var viewport = SlotViewport(slot, new Rect(Bounds.Size));
 
-            // The z-order is load-bearing, so it is worth saying why. G-code is
-            // modal from the machine origin, so a parsed program's bounds start
-            // at (0,0): the job envelope's bottom-left corner IS the world
-            // origin, and the world axis shafts run out of that same point
-            // along the envelope's bottom and left edges. Every one of these
-            // marks therefore wants to be drawn on top of the previous one.
-            // The brief drew the cross SECOND, which let the new envelope and
-            // arrows paint straight over the pre-existing mark; before this
-            // task nothing painted after the cross at all, so at the defaults
-            // the cross was on top and read as a clean #888888 cross. Draw the
-            // cross LAST to put it back, and the arrows before it so the new
-            // chrome can never bury the mark a profile at the defaults saw.
             if (Chrome.Grid)
                 PlotterFlatChrome.DrawGrid(ctx, m, bounds, _zoom, _pan, viewport);
             PlotterFlatChrome.DrawAxes(ctx, m, bounds, _zoom, _pan, viewport);
             if (Chrome.Envelope)
                 PlotterFlatChrome.DrawEnvelope(ctx, m, bounds, _zoom, _pan);
+            // The origin cross paints LAST, on top of everything. This order is
+            // right but it is NOT what makes the cross visible: G-code starts at
+            // the machine origin, so the cross sits exactly on the job
+            // envelope's corner and under the axis shafts, and the first draft
+            // of this plan drew Origin second, so the new chrome painted over
+            // it. Reordering recovered 0 of the missing pixels, because a cross
+            // blended against amber is still tinted whatever order it is in. The
+            // fix that works is the 2 px stroke in
+            // PlotterFlatChrome.DrawOrigin. Keeping the cross on top is still
+            // correct (nothing painted after it before this task), so leave the
+            // order alone.
             if (Chrome.Origin)
                 PlotterFlatChrome.DrawOrigin(ctx, m, _zoom, _pan);
         }

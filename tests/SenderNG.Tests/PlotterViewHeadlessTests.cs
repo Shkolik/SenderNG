@@ -565,14 +565,24 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 8; i++)
             await Pump();
 
-        // Count with the envelope OFF, and that is the point of this state.
+        // Count with the envelope OFF. This is deliberate; do NOT "simplify" it
+        // back to the default flags, which makes this test fail at 48 pixels.
+        //
         // G-code is modal from the machine origin, so the job rectangle's
         // bottom-left corner IS the world origin and its 1.5px stroke runs
         // exactly along the two axis shafts. The z-order draws the arrows
-        // BEFORE the envelope (PlaneCanvas.DrawSlotChrome), so at the defaults
-        // the rectangle's own edges bury the shafts and leave 48 arrowhead
-        // pixels. The arrows carry no flag of their own, so this is the state
-        // that measures them, and removing DrawAxes still drops this to 0.
+        // BEFORE the envelope (see PlaneCanvas.DrawSlotChrome), so at the
+        // defaults the rectangle's own edges bury the shafts and leave only the
+        // two arrowheads: 48 blue pixels, under this test's 100 threshold. The
+        // arrows carry no flag of their own, so the envelope toggle is the only
+        // lever that isolates them, and this state measures them cleanly: 568
+        // blue pixels, against 48 with the envelope on and 0 with the envelope
+        // AND the grid off.
+        //
+        // The test is not vacuous in this state. Removing the DrawAxes call from
+        // DrawSlotChrome drops it to 0 blue pixels, so it still fails if the
+        // arrows stop painting; it just measures them without the job rectangle
+        // lying on top of them.
         view.PushChromeFlags(ChromeFlags.Default with { Envelope = false });
         for (var i = 0; i < 4; i++)
             await Pump();

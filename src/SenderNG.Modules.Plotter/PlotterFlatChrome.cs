@@ -42,6 +42,12 @@ namespace SenderNG.Modules.Plotter;
 /// ran the plane's mapping, so nothing here knows about carriage planes.</summary>
 public static class PlotterFlatChrome
 {
+    /// <summary>The origin cross's pen. Deliberately a 2 px stroke rather than
+    /// the view's 1 px <c>PlotterPens.Origin</c> — see <see cref="DrawOrigin"/>
+    /// for why a 1 px stroke is invisible against the new chrome. Private to
+    /// this painter: no other call site wants it.</summary>
+    private static readonly IPen OriginPen = new Pen(PlotterPens.OriginBrush, 2);
+
     /// <summary>The world XY grid, face-on. A grid line is a world-space
     /// constant, so it is a straight screen segment — no projection and no
     /// per-tile stepping.</summary>
@@ -65,13 +71,23 @@ public static class PlotterFlatChrome
         }
     }
 
-    /// <summary>The machine-origin cross, 6 px each way — the same marks the view
-    /// drew before this task, so the default output is unchanged.</summary>
+    /// <summary>The machine-origin cross, 6 px each way. The stroke is 2 px,
+    /// not the view's original 1 px <c>PlotterPens.Origin</c>: G-code starts at
+    /// the machine origin, so the cross sits on the job envelope's amber corner
+    /// with the red tool glyph on the same point. A 1 px stroke at a fractional
+    /// coordinate is never opaque — every pixel is a blend with the paint
+    /// beneath — so over amber it yields #CB5448, and
+    /// <c>Foam_2d_renders_toscale_tiles_and_origin_crosses</c> greyscale probe
+    /// drops from 10 neutral pixels to 3 and fails. Draw order cannot fix a
+    /// blend; 2 px gives the stroke full coverage, so the cross keeps painting
+    /// neutral #888888 over any background. The cross is therefore fatter than
+    /// it was before this task — a deliberate, reviewed trade, not an accident.
+    /// Do not "restore" it to <c>PlotterPens.Origin</c>.</summary>
     public static void DrawOrigin(DrawingContext ctx, PlaneMap map, double zoom, Vector pan)
     {
         var o = Screen(map, new Point3(0, 0, 0), zoom, pan);
-        ctx.DrawLine(PlotterPens.Origin, new Point(o.X - 6, o.Y), new Point(o.X + 6, o.Y));
-        ctx.DrawLine(PlotterPens.Origin, new Point(o.X, o.Y - 6), new Point(o.X, o.Y + 6));
+        ctx.DrawLine(OriginPen, new Point(o.X - 6, o.Y), new Point(o.X + 6, o.Y));
+        ctx.DrawLine(OriginPen, new Point(o.X, o.Y - 6), new Point(o.X, o.Y + 6));
     }
 
     /// <summary>The world X and Y axis arrows, leaving the pane's world origin
