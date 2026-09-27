@@ -64,20 +64,21 @@ internal enum Plot3DFailure
     Other,
 }
 
-/// <summary>Thrown by the scene constructor when the Vulkan context cannot be
-/// created. Carries the engine's result code so the caller can tell a
-/// too-old device apart from a driver failure instead of showing one
-/// generic message for both.</summary>
+/// <summary>Thrown by the scene constructor when the Plot 3D context cannot be
+/// created. Carries the engine's result code, plus the originating exception
+/// when there was one, so the diagnostics log can record both the verdict and
+/// the cause instead of only a code.</summary>
 internal sealed class Plot3DUnavailableException : Exception
 {
-    public Plot3DUnavailableException(ResultCode code)
-        : base($"Vulkan context initialization failed: {code}.")
+    public Plot3DUnavailableException(ResultCode code, Exception? inner = null)
+        : base($"Vulkan context initialization failed: {code}.", inner)
     {
         Code = code;
     }
 
-    /// <summary>The engine's own verdict. Never shown to the user; it selects
-    /// the localized hint and is written to the diagnostics log.</summary>
+    /// <summary>The engine's own verdict, or the verdict our own capability
+    /// probe reached. Never shown to the user; it selects the localized hint
+    /// and is written to the diagnostics log.</summary>
     public ResultCode Code { get; }
 }
 

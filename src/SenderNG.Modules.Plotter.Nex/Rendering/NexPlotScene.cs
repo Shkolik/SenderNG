@@ -149,50 +149,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
 
     private bool _runStateVisible = true;
 
-    /// <summary>Whether a Vulkan loader on this system is usable at all: one
-    /// <c>vkInitialize()</c> call, which is the spec's own test for loader
-    /// presence. It never enumerates physical devices, so it stays inside the
-    /// no-device-enumeration constraint. This is what makes
-    /// <c>NotSupported</c> reachable at all: without it, a system with no Vulkan
-    /// and a system whose GPU is below 1.3 both arrive as RuntimeError, because
-    /// <c>OnInitializing</c> collapses them.
-    /// </summary>
-    /// <remarks>
-    /// The engine has an equivalent probe, <c>VulkanContext.IsSupported()</c>,
-    /// but <c>VulkanContext</c> is <c>internal</c> in 1.3.0-alpha.41, so a
-    /// public static method on it is unreachable from here and the package
-    /// grants no <c>InternalsVisibleTo</c>. Reaching it by reflection was
-    /// rejected: a string-based lookup of an internal API degrades silently to
-    /// RuntimeError if a future package moves it, with nothing failing at build
-    /// or test time. This direct call is checked by the compiler instead.
-    /// <para>
-    /// It is deliberately narrower than the engine's: <c>vkInitialize()</c>
-    /// proves the loader loads and initializes, not that the instance is 1.1+.
-    /// An instance below 1.1 is effectively unreachable on desktop, so the
-    /// narrower check buys compile-time safety for no real loss of coverage.
-    /// The three exceptions caught below are the positive evidence of a missing
-    /// loader, so that any other failure defers to the engine rather than
-    /// telling a user with a working driver that they have no Vulkan.
-    /// </para>
-    /// </remarks>
-    private static bool IsVulkanLoaderSupported()
-    {
-        try
-        {
-            return Vulkan.vkInitialize() == VkResult.Success;
-        }
-        catch (Exception ex) when (ex is DllNotFoundException
-                                      or EntryPointNotFoundException
-                                      or BadImageFormatException)
-        {
-            return false;
-        }
-        catch (Exception)
-        {
-            return true;
-        }
-    }
-
     /// <summary>Create the scene and the whole render pipeline.</summary>
     /// <remarks>
     /// Plain headless Vulkan on every OS: the readback is a Vulkan-internal
@@ -204,13 +160,18 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// </remarks>
     public NexPlotScene()
     {
-        // Without this pre-check we could not tell "this system has no Vulkan"
-        // from "Vulkan works but no 1.3 device" — OnInitializing collapses both
-        // to RuntimeError, so the panel would blame a user's driver for a machine
-        // that has no driver at all. NotSupported is therefore our own verdict
-        // from the loader probe, not a code the engine returns on this path.
-        if (!IsVulkanLoaderSupported())
-            throw new Plot3DUnavailableException(ResultCode.NotSupported);
+        // Without this probe we cannot tell "this system has no Vulkan" from
+        // "Vulkan works but no 1.3 device", and the engine cannot tell us: its
+        // own verdict is logged and discarded, so a 1.2 machine gets Ok back.
+        // The capability is therefore ours to determine, and the two failures
+        // call for different user actions, so they are not merged.
+        switch (VulkanCapabilities.Detect())
+        {
+            case VulkanCapability.LoaderUnavailable:
+                throw new Plot3DUnavailableException(ResultCode.NotSupported);
+            case VulkanCapability.NoDevice13:
+                throw new Plot3DUnavailableException(ResultCode.RuntimeError);
+        }
 
         // Built uninitialized, then initialized by hand, because
         // VulkanBuilder.CreateHeadless's own Initialize() collapses every
@@ -225,17 +186,40 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         // upstream Initializable and never calls OnTearingDown(). Disposing
         // would be a no-op at best. The instance leak is bounded instead — the
         // view caches the failure so we only ever try once per process.
-        _context = VulkanBuilder.CreateHeadless(
-            new VulkanContextConfig
-            {
-                // False: relying on validation layers being installed would
-                // degrade machines without them to the VulkanUnavailable notice.
-                EnableValidation = false
-            },
-            initialize: false);
-        var init = _context.Initialize();
-        if (init != ResultCode.Ok)
-            throw new Plot3DUnavailableException(init);
+        // Built uninitialized, then initialized by hand, so the returned
+        // ResultCode is observable rather than buried in an exception. (The
+        // returned code is still not much of a signal — see the remarks on
+        // VulkanCapabilities — which is why the probe above decides the verdict
+        // and this code is only a backstop.)
+        //
+        // The try/catch is not defensive padding. The engine throws bare
+        // System.Exception from several places on this path, and an
+        // unrecognised exception escaping the scene constructor would bypass the
+        // view's Plot3DUnavailableException handling entirely, leaving the tab
+        // blank with no explanation. Converting anything unexpected into our own
+        // exception keeps the localized fallback reachable.
+        try
+        {
+            _context = VulkanBuilder.CreateHeadless(
+                new VulkanContextConfig
+                {
+                    // False: relying on validation layers being installed would
+                    // degrade machines without them to the VulkanUnavailable notice.
+                    EnableValidation = false
+                },
+                initialize: false);
+            var init = _context.Initialize();
+            if (init != ResultCode.Ok)
+                throw new Plot3DUnavailableException(init);
+        }
+        catch (Plot3DUnavailableException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new Plot3DUnavailableException(ResultCode.RuntimeError, ex);
+        }
 
         _engine = EngineBuilder.Create(_context)
             .WithDefaultNodes(renderToSwapchain: false)
