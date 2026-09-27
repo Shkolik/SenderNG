@@ -41,6 +41,7 @@ using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Localization;
 using SenderNG.Modules.Plotter.Nex.Model;
+using SenderNG.Modules.Plotter.Nex.Rendering;
 using SenderNG.Modules.Plotter.Nex.Scene;
 using SenderNG.Modules.Plotter.Nex.Settings;
 
@@ -87,7 +88,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     private uint[][] _planeOutputLines = [];
     private Dictionary<uint, int> _lineToRow = new();
     private int _generation;
-    private bool _vulkanUnavailable;
+    private Plot3DFailure _vulkanFailure = Plot3DFailure.None;
     private string? _lastControllerPose;
     private int _lastAppliedTouched = -1; // last TouchedRow whose rows were fully applied
     private int _recoloredUpTo = -1; // last row whose late ack was re-applied to the planes
@@ -164,18 +165,47 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     /// failed).</summary>
     public string? StatusText { get; private set; }
 
-    /// <summary>Set by the view when its Vulkan adapter reports no device —
-    /// surfaced on the diagnostics screen; false by default.</summary>
-    public bool VulkanUnavailable
+    /// <summary>Set by the view when its Vulkan adapter reports no usable
+    /// device; false until <see cref="ReportVulkanUnavailable"/> is called. The
+    /// only consumers are this module's own XAML — the Plot 3D tab's fallback
+    /// panel and the scene panel's inverse visibility.</summary>
+    public bool VulkanUnavailable => _vulkanFailure != Plot3DFailure.None;
+
+    /// <summary>Why 3D plotting is unavailable; <see cref="Plot3DFailure.None"/>
+    /// while it is available.</summary>
+    internal Plot3DFailure VulkanFailure => _vulkanFailure;
+
+    /// <summary>Localized one-line explanation of <see cref="VulkanFailure"/>,
+    /// shown as the Plot 3D tab's fallback hint. The existing
+    /// vulkanUnavailableHint value is the Resolve fallback for every kind, so a
+    /// locale file that has not gained the per-kind keys still shows a
+    /// sensible message instead of an empty panel. Empty only while healthy —
+    /// the panel is hidden then, so nothing is ever shown blank.</summary>
+    internal string VulkanFailureDetail => _vulkanFailure switch
     {
-        get => _vulkanUnavailable;
-        set
-        {
-            if (_vulkanUnavailable == value)
-                return;
-            _vulkanUnavailable = value;
-            OnPropertyChanged();
-        }
+        Plot3DFailure.NotSupported => Hint("module.plotter-nex.vulkanUnavailable.notSupported"),
+        Plot3DFailure.RuntimeError => Hint("module.plotter-nex.vulkanUnavailable.runtimeError"),
+        Plot3DFailure.OutOfMemory => Hint("module.plotter-nex.vulkanUnavailable.outOfMemory"),
+        _ => Hint("module.plotter-nex.vulkanUnavailable.other"),
+    };
+
+    private string Hint(string key) => _localization.Resolve(
+        key, "No Vulkan 1.3 device could be created — 2D plotting stays available.");
+
+    /// <summary>Record why 3D plotting is unavailable and notify the three
+    /// properties the fallback panel binds. The first reason wins: a later,
+    /// different failure must not overwrite the one the user is already
+    /// reading, and re-notifying would churn the bindings for nothing.
+    /// <see cref="Plot3DFailure.None"/> is ignored, so a caller cannot report
+    /// "unavailable" without a reason.</summary>
+    internal void ReportVulkanUnavailable(Plot3DFailure failure)
+    {
+        if (failure == Plot3DFailure.None || _vulkanFailure != Plot3DFailure.None)
+            return;
+        _vulkanFailure = failure;
+        OnPropertyChanged(nameof(VulkanUnavailable));
+        OnPropertyChanged(nameof(VulkanFailure));
+        OnPropertyChanged(nameof(VulkanFailureDetail));
     }
 
     /// <summary>Diagnostic (temporary): the raw controller axes that last drove

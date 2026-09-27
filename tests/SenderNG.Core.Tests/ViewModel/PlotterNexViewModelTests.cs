@@ -44,6 +44,7 @@ using CNC.Core.Services;
 using SenderNG.Core.Localization;
 using SenderNG.Modules.Plotter.Nex;
 using SenderNG.Modules.Plotter.Nex.Model;
+using SenderNG.Modules.Plotter.Nex.Rendering;
 using SenderNG.Modules.Plotter.Nex.Scene;
 using SenderNG.Modules.Plotter.Nex.Settings;
 
@@ -772,6 +773,120 @@ public class PlotterNexViewModelTests : IDisposable
         settings.Save(profile3);
 
         Assert.True(scene.Layers.Count > layersBefore);
+    }
+
+    [Fact]
+    public void Vulkan_is_available_before_any_report()
+    {
+        using var vm = MakeVm(new StubProgramSource(), new RecorderScene());
+
+        Assert.False(vm.VulkanUnavailable);
+        Assert.Equal(Plot3DFailure.None, vm.VulkanFailure);
+    }
+
+    [Fact]
+    public void Reporting_a_failure_sets_both_properties_and_raises_both()
+    {
+        using var vm = MakeVm(new StubProgramSource(), new RecorderScene());
+        var raised = new List<string>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName!);
+
+        vm.ReportVulkanUnavailable(Plot3DFailure.NotSupported);
+
+        Assert.True(vm.VulkanUnavailable);
+        Assert.Equal(Plot3DFailure.NotSupported, vm.VulkanFailure);
+        Assert.Contains(nameof(PlotterNexViewModel.VulkanUnavailable), raised);
+        Assert.Contains(nameof(PlotterNexViewModel.VulkanFailure), raised);
+    }
+
+    [Fact]
+    public void Reporting_a_failure_twice_keeps_the_first_reason_and_raises_nothing()
+    {
+        using var vm = MakeVm(new StubProgramSource(), new RecorderScene());
+        vm.ReportVulkanUnavailable(Plot3DFailure.NotSupported);
+        var raised = new List<string>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName!);
+
+        vm.ReportVulkanUnavailable(Plot3DFailure.OutOfMemory);
+
+        Assert.Equal(Plot3DFailure.NotSupported, vm.VulkanFailure);
+        Assert.Empty(raised);
+    }
+
+    [Fact]
+    public void Reporting_None_is_ignored()
+    {
+        using var vm = MakeVm(new StubProgramSource(), new RecorderScene());
+
+        vm.ReportVulkanUnavailable(Plot3DFailure.None);
+
+        Assert.False(vm.VulkanUnavailable);
+        Assert.Equal(Plot3DFailure.None, vm.VulkanFailure);
+    }
+
+    /// <summary>Locale carrying the four per-kind hint keys as distinct
+    /// sentinels. The file's existing <c>MakeVm</c> builds its
+    /// <c>LocalizationService</c> from an empty string table, so
+    /// <c>Resolve</c> always returns its fallback there. With an empty locale
+    /// every kind resolves to the *same* text, which cannot tell "each kind
+    /// picks its own key" apart from "every kind returns the fallback" — so the
+    /// key-selection test needs a locale that actually has the keys.</summary>
+    private static LocalizationService LocaleWithHintKeys() => new(new MemoryStream(
+        """
+        { "strings": {
+          "module.plotter-nex.vulkanUnavailable.notSupported": "DETAIL-NOT-SUPPORTED",
+          "module.plotter-nex.vulkanUnavailable.runtimeError": "DETAIL-RUNTIME-ERROR",
+          "module.plotter-nex.vulkanUnavailable.outOfMemory": "DETAIL-OUT-OF-MEMORY",
+          "module.plotter-nex.vulkanUnavailable.other": "DETAIL-OTHER"
+        } }
+        """u8.ToArray()));
+
+    private PlotterNexViewModel MakeVmWithHintKeys(StubProgramSource source, RecorderScene scene)
+    {
+        var settings = new SettingsService(_settingsDir);
+        var profile = settings.Load();
+        profile.MachineTypeId = MachineTypes.Mill;
+        settings.Save(profile);
+
+        return new PlotterNexViewModel(source, _grbl, settings,
+            LocaleWithHintKeys(),
+            new KinematicSceneFactory(scene));
+    }
+
+    /// <summary>Plot3DFailure is internal, and a public test method cannot take
+    /// an internal parameter type (CS0051): InternalsVisibleTo does not help,
+    /// because the signature is public, and xUnit v2 requires public test
+    /// methods. So the row carries the enum member name — exactly what
+    /// ToString() returns — parsed back inside so the report/compare stays
+    /// type-safe. Mirrors Plot3DFailureTests.Map_translates_each_result_code.</summary>
+    [Theory]
+    [InlineData("NotSupported", "DETAIL-NOT-SUPPORTED")]
+    [InlineData("RuntimeError", "DETAIL-RUNTIME-ERROR")]
+    [InlineData("OutOfMemory", "DETAIL-OUT-OF-MEMORY")]
+    [InlineData("Other", "DETAIL-OTHER")]
+    public void Each_failure_kind_resolves_its_own_key(string failureName, string expected)
+    {
+        using var vm = MakeVmWithHintKeys(new StubProgramSource(), new RecorderScene());
+        var failure = Enum.Parse<Plot3DFailure>(failureName);
+
+        vm.ReportVulkanUnavailable(failure);
+
+        Assert.Equal(expected, vm.VulkanFailureDetail);
+    }
+
+    [Fact]
+    public void Detail_text_falls_back_to_the_generic_hint_when_the_locale_lacks_the_key()
+    {
+        // MakeVm's locale is empty, so Resolve returns its fallback. That
+        // fallback is the safety net: a locale file that has not gained the
+        // per-kind keys shows a sensible message, not a blank panel.
+        using var vm = MakeVm(new StubProgramSource(), new RecorderScene());
+
+        vm.ReportVulkanUnavailable(Plot3DFailure.NotSupported);
+
+        Assert.Equal(
+            "No Vulkan 1.3 device could be created — 2D plotting stays available.",
+            vm.VulkanFailureDetail);
     }
 
     /// <summary>Read-only program facade over a parsed G-code string, with an
