@@ -559,15 +559,22 @@ public class PlotterViewHeadlessTests
         var view = new PlotterView { DataContext = vm };
         var window = new Window { Width = 920, Height = 560, Content = view };
         window.Show();
-        // Settle the pane before counting. A SINGLE pump is not enough and the
-        // failure is silent rather than obvious: the grid and the envelope are
-        // big enough to show up in the first frame whatever the pane's
-        // intermediate viewport is, but the axis arrows are clipped to the slot
-        // viewport and sit at a fractional pixel offset, so in an unsettled pane
-        // they land on lighter antialiased coverage that falls outside the
-        // #2f6fb0 band and the count reads 0. Every other pixel test in this
-        // file settles with 8 pumps for the same reason.
+        // Settle the pane before counting: the arrows are clipped to the slot
+        // viewport, so they only land once the pane's final viewport is in
+        // effect. Every other pixel test in this file settles with 8 pumps.
         for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // Count with the envelope OFF, and that is the point of this state.
+        // G-code is modal from the machine origin, so the job rectangle's
+        // bottom-left corner IS the world origin and its 1.5px stroke runs
+        // exactly along the two axis shafts. The z-order draws the arrows
+        // BEFORE the envelope (PlaneCanvas.DrawSlotChrome), so at the defaults
+        // the rectangle's own edges bury the shafts and leave 48 arrowhead
+        // pixels. The arrows carry no flag of their own, so this is the state
+        // that measures them, and removing DrawAxes still drops this to 0.
+        view.PushChromeFlags(ChromeFlags.Default with { Envelope = false });
+        for (var i = 0; i < 4; i++)
             await Pump();
 
         var axes = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsAxisBlue);

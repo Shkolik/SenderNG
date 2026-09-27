@@ -1159,24 +1159,23 @@ public partial class PlotterView : UserControl
             var bounds = PlaneBounds(slot);
             var viewport = SlotViewport(slot, new Rect(Bounds.Size));
 
+            // The z-order is load-bearing, so it is worth saying why. G-code is
+            // modal from the machine origin, so a parsed program's bounds start
+            // at (0,0): the job envelope's bottom-left corner IS the world
+            // origin, and the world axis shafts run out of that same point
+            // along the envelope's bottom and left edges. Every one of these
+            // marks therefore wants to be drawn on top of the previous one.
+            // The brief drew the cross SECOND, which let the new envelope and
+            // arrows paint straight over the pre-existing mark; before this
+            // task nothing painted after the cross at all, so at the defaults
+            // the cross was on top and read as a clean #888888 cross. Draw the
+            // cross LAST to put it back, and the arrows before it so the new
+            // chrome can never bury the mark a profile at the defaults saw.
             if (Chrome.Grid)
                 PlotterFlatChrome.DrawGrid(ctx, m, bounds, _zoom, _pan, viewport);
+            PlotterFlatChrome.DrawAxes(ctx, m, bounds, _zoom, _pan, viewport);
             if (Chrome.Envelope)
                 PlotterFlatChrome.DrawEnvelope(ctx, m, bounds, _zoom, _pan);
-            // The arrows go over the envelope, and the cross over the arrows, and
-            // both deliberately. G-code is modal from the machine origin, so a
-            // parsed program's bounds start at (0,0): the envelope rect's
-            // bottom-left corner IS the world origin, and the X/Y shafts run
-            // exactly along its bottom and left edges, crossing the 6 px cross.
-            // Under the envelope the arrows are painted out entirely (measured:
-            // 48 axis pixels with the envelope on, 591 with it off), and under
-            // the arrows the cross loses its upper arm and half its horizontal
-            // arm (the cross's own pixels stayed byte-identical to the
-            // pre-task frame only where nothing else covered them). The arrows
-            // are the frame of reference and the cross is the pre-existing
-            // default mark, so the frame, then the envelope, then the arrows,
-            // then the cross.
-            PlotterFlatChrome.DrawAxes(ctx, m, bounds, _zoom, _pan, viewport);
             if (Chrome.Origin)
                 PlotterFlatChrome.DrawOrigin(ctx, m, _zoom, _pan);
         }
