@@ -31,7 +31,7 @@ When set, `ApplyRunStateWindow()` and `RecolorAckedRows()` are skipped entirely.
 
 Call `PoolDiagnostics.DumpAll(engine)` with the Vulkan engine instance. Output is logged to the diagnostic stream. This is called automatically on tick crash (see below).
 
-**File:** `Rendering/PoolDiagnostics.cs:12-333`
+**File:** `Rendering/PoolDiagnostics.cs:11-349`
 
 ## Tick Crash Recovery
 
@@ -47,7 +47,7 @@ Exceptions in `OnTick()` are caught, logged, and the tick is disabled to prevent
 
 After logging, the tick timer is stopped. The view shows stale content. The user must reload the module tab to retry.
 
-**File:** `PlotterNexView.axaml.cs:380-561`
+**File:** `PlotterNexView.axaml.cs:535-720`
 
 ## Diagnostic Methods
 
@@ -108,7 +108,67 @@ dotnet test tests/SenderNG.Core.Tests/
 When investigating rendering problems:
 
 1. **Set `NEX_NO_RUN_STATE=1`** to isolate whether the issue is run-state related
-2. **Call `PoolDiagnostics.DumpAll()`** to inspect GPU pool state
+2. **Call `PoolDiagnostics.DumpAll(engine)`** to inspect GPU pool state
 3. **Use `DumpContent()`** to verify vertex counts are as expected
 4. **Check tick crash logs** for the ring buffer of recent tick durations
-5. **Verify HelixToolkit.Nex version** is 1.3.0-alpha.41 (not 1.2.0)
+5. **Verify the HelixToolkit.Nex _package_ version** is 1.3.0-alpha.41 (not 1.2.0).
+   This is the library version, **not** the Vulkan API version — do not read it as
+   a statement about the device. The Plot 3D tab needs a **Vulkan 1.3 device**,
+   and the failure hint in the UI is what tells you whether the device falls
+   short. See [Why Plot 3D says it is unavailable](#why-plot-3d-says-it-is-unavailable).
+
+## Why Plot 3D says it is unavailable
+
+When the Vulkan context cannot be created, the Plot 3D tab stops trying to render
+and shows a **localized** panel with the reason, instead of a blank viewport. It
+also writes one `[VULKAN]` record to the pool diagnostics log
+(`%LOCALAPPDATA%\SenderNG\pool_diag.log`) — two lines, a summary and its stack:
+
+```
+[VULKAN] CONTEXT failed=NotSupported code=NotSupported Plot3DUnavailableException: Vulkan context initialization failed: NotSupported.
+[VULKAN] CONTEXT stack:    at SenderNG.Modules.Plotter.Nex.Rendering.NexPlotScene..ctor()
+```
+
+- **`failed`** is the user-facing failure *kind* that selects the localized hint:
+  `NotSupported`, `RuntimeError`, or `Other`.
+- **`code`** is the engine's own `HelixToolkit.Nex.ResultCode`, or `n/a` for the
+  stages that do not come from an engine result.
+- The **`stage`** prefix tells you where it happened:
+  - `CONTEXT` — creating/initializing the Vulkan context failed
+  - `SCENE` — the scene build threw something unexpected (a bug, not a verdict)
+  - `ATTACH` — the scene built, but attaching it to the view model failed
+  - `RENDERCTX` — the render target / readback failed to initialize
+  - `SNAP` — a preset re-frame (Iso/Xy/Xz/Yz) failed on an otherwise live scene
+
+The three failure kinds mean different things, and only two of them name a
+hardware cause:
+
+- **`NotSupported`** — no usable Vulkan: the loader, instance creation, device
+  enumeration, or the device list itself. The driver may be missing or too old to
+  install a Vulkan instance at all.
+- **`RuntimeError`** — Vulkan works and devices were found, but **none of them
+  reports Vulkan 1.3**. This is the one case with a specific, actionable cause;
+  the hint points you at `vulkaninfo --summary`.
+- **`Other`** — a single operation failed (build, attach, render target, snap),
+  or something unexpected threw. This is deliberately *not* a hardware verdict: an
+  unexpected engine fault is never relabelled as a version problem, because that
+  would tell you your driver is too old for something your driver did not cause.
+  See the design's Known limitations #3 — an `Other` failure disables 3D for the
+  session (until the app restarts) even if Vulkan is fine, because the failure
+  path leaks a `VkInstance` and is not retried.
+
+Exactly **one** `CONTEXT` record is ever written per session: a failed Vulkan
+context leaks its instance, so the verdict is cached and the view never re-enters
+Vulkan for the life of the module. So:
+
+- **One `[VULKAN] CONTEXT` line and a panel** → a real Vulkan verdict; read
+  `failed` above and act on it.
+- **No `CONTEXT` line but the tab is blank** → the failure is elsewhere
+  (`SCENE`/`ATTACH`/`RENDERCTX`), or the context succeeded and the problem is in
+  rendering — check the tick crash log instead.
+
+The exception message and stack go to the diagnostics log **only** — never to the
+UI, which stays localized. The panel and the log are the two halves of this
+feature: the panel says what the user can act on, the log says exactly what the
+engine threw.
+
