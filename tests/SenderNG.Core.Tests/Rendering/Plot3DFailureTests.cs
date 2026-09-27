@@ -42,15 +42,21 @@ namespace SenderNG.Core.Tests;
 
 public class Plot3DFailureTests
 {
+    // Plot3DFailure is internal, and a public test method cannot take an
+    // internal parameter type (CS0051). InternalsVisibleTo does not help: the
+    // signature is public, not the assembly. xUnit v2 requires a public test
+    // class, so the expectations are the enum member names — which is exactly
+    // what ToString() returns. Both parameter types stay public and the
+    // comparison stays type-safe.
     [Theory]
-    [InlineData(ResultCode.NotSupported, Plot3DFailure.NotSupported)]
-    [InlineData(ResultCode.RuntimeError, Plot3DFailure.RuntimeError)]
-    [InlineData(ResultCode.OutOfMemory, Plot3DFailure.OutOfMemory)]
-    [InlineData(ResultCode.CompileError, Plot3DFailure.Other)]
-    [InlineData(ResultCode.ArgumentError, Plot3DFailure.Other)]
-    [InlineData(ResultCode.Unknown, Plot3DFailure.Other)]
-    public void Map_translates_each_result_code(ResultCode code, object expected)
-        => Assert.Equal(expected, Plot3DFailures.Map(code));
+    [InlineData(ResultCode.NotSupported, "NotSupported")]
+    [InlineData(ResultCode.RuntimeError, "RuntimeError")]
+    [InlineData(ResultCode.OutOfMemory, "OutOfMemory")]
+    [InlineData(ResultCode.CompileError, "Other")]
+    [InlineData(ResultCode.ArgumentError, "Other")]
+    [InlineData(ResultCode.Unknown, "Other")]
+    public void Map_translates_each_result_code(ResultCode code, string expected)
+        => Assert.Equal(expected, Plot3DFailures.Map(code).ToString());
 
     [Fact]
     public void Map_treats_success_as_other_because_the_caller_never_maps_ok()
