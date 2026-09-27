@@ -84,6 +84,9 @@ public partial class PlotterNexView : UserControl
     private PlotterNexViewModel? _vm;
     private NexPlotScene? _scene;
     private int _sceneGeneration;
+    // Why Vulkan failed, remembered for the view's lifetime so a failed context
+    // is never re-attempted. None = healthy or not yet tried.
+    private Plot3DFailure _vulkanVerdict = Plot3DFailure.None;
     private bool _attached;
     private bool _tickSubscribed;
 
@@ -141,6 +144,13 @@ public partial class PlotterNexView : UserControl
         DetachedFromVisualTree += OnDetachedFromVisualTree;
         FallbackTitle.Text = LocalizationService.Current?.Resolve(
             "module.plotter-nex.vulkanUnavailable", "3D plotting unavailable") ?? "3D plotting unavailable";
+        // Pre-failure default only: the generic localized hint, so the panel is
+        // never English-only or blank on a non-English machine. ReportVulkanFailure
+        // overwrites this with the per-kind text as soon as there is a reason to
+        // show, and the panel is invisible until then. Kept because
+        // VulkanFailureDetail is module-internal and so cannot be bound from
+        // XAML (see there) - this is the fallback for the paths that do not go
+        // through that method.
         FallbackHint.Text = LocalizationService.Current?.Resolve(
             "module.plotter-nex.vulkanUnavailableHint",
             "No Vulkan 1.3 device could be created — 2D plotting stays available.")
@@ -274,32 +284,84 @@ public partial class PlotterNexView : UserControl
         if (_vm is null || _scene is not null)
             return;
 
+        // Cached verdict: a failed VulkanContext leaks its VkInstance (upstream
+        // Teardown no-ops on a failed init), so re-attempting per tab switch
+        // would leak one instance per switch. One leak per process, once.
+        if (_vulkanVerdict != Plot3DFailure.None)
+        {
+            ReportVulkanFailure(_vulkanVerdict);
+            return;
+        }
+
         var generation = ++_sceneGeneration;
         Task.Run(() =>
         {
-            var scene = new NexPlotScene();
-            // A/B verdict (2026-09-16, on-device): the swept loft leading-edge
-            // loop is REMOVED permanently. Production = loft sheet, tool wire,
-            // cones, and the progressing green ACK outline only.
+            NexPlotScene? scene = null;
+            Plot3DFailure failure;
+            try
+            {
+                // A/B verdict (2026-09-16, on-device): the swept loft leading-edge
+                // loop is REMOVED permanently. Production = loft sheet, tool wire,
+                // cones, and the progressing green ACK outline only.
+                //
+                // Constructed here, on the pool: the Vulkan context must never
+                // be created on the Avalonia UI thread.
+                scene = new NexPlotScene();
+                failure = Plot3DFailure.None;
+            }
+            catch (Plot3DUnavailableException ex)
+            {
+                // The engine could not start Vulkan: its own result code, mapped
+                // to the kind the user can act on, decides the hint.
+                failure = Plot3DFailures.Map(ex.Code);
+                LogVulkanFailure("CONTEXT", failure, ex.Code.ToString(), ex);
+            }
+            catch (Exception ex)
+            {
+                // A bug in the scene build must surface the same panel rather
+                // than vanish, exactly as a missing driver now does.
+                failure = Plot3DFailure.Other;
+                LogVulkanFailure("SCENE", failure, "n/a", ex);
+            }
+
+            var built = scene;
             Dispatcher.UIThread.Post(() =>
             {
-                if (_vm is null || generation != _sceneGeneration)
+                if (failure != Plot3DFailure.None)
                 {
-                    scene.Dispose();
+                    built?.Dispose();
+                    // A newer attempt already owns the verdict (the view was
+                    // detached, or another build started): this one is stale, so
+                    // it only disposes its half-built scene and says nothing.
+                    if (generation == _sceneGeneration)
+                    {
+                        _sceneGeneration++;
+                        ReportVulkanFailure(failure);
+                    }
                     return;
                 }
-                _scene = scene;
+
+                if (_vm is null || generation != _sceneGeneration)
+                {
+                    built?.Dispose();
+                    return;
+                }
+                _scene = built;
                 try
                 {
-                    _vm.AttachScene(new KinematicSceneFactory(scene));
+                    // Non-null here by construction: failure is None only when the
+                    // constructor returned, so the scene exists.
+                    _vm.AttachScene(new KinematicSceneFactory(built!));
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // CreateHeadless threw (no Vulkan) or the attach failed.
+                    // Attach failed after a healthy context: still a 3D-only
+                    // failure, so show the panel rather than a blank viewport.
                     _scene = null;
-                    scene.Dispose();
+                    built!.Dispose();
                     FreeRenderResources();
-                    _vm.ReportVulkanUnavailable(Plot3DFailure.Other);
+                    ReportVulkanFailure(Plot3DFailure.Other);
+                    LogVulkanFailure("ATTACH", Plot3DFailure.Other, "n/a", ex);
                     return;
                 }
                 SetupRenderTarget();
@@ -310,6 +372,38 @@ public partial class PlotterNexView : UserControl
                 PushOverlayState();
             });
         });
+    }
+
+    /// <summary>Cache the verdict and hand it to the view model, which resolves
+    /// the localized detail from it. Safe to call more than once: the view
+    /// model keeps the first reason, and re-entering Vulkan is prevented by the
+    /// cached verdict. A null view model is not an error — the tab may have
+    /// been torn down between the pool work and this UI-thread post.</summary>
+    private void ReportVulkanFailure(Plot3DFailure failure)
+    {
+        _vulkanVerdict = failure;
+        var vm = _vm;
+        if (vm is null)
+            return;
+        vm.ReportVulkanUnavailable(failure);
+        // Read back the reason the view model just recorded, so the hint names
+        // THIS failure kind instead of one hard-coded key. Set from here rather
+        // than bound in XAML because VulkanFailureDetail is module-internal and
+        // an Avalonia reflection binding resolves public members only (a bound
+        // internal property reads back null, i.e. an empty hint). This runs
+        // before the next frame, so the panel never appears without its text.
+        FallbackHint.Text = vm.VulkanFailureDetail;
+    }
+
+    /// <summary>One diagnostics record per failure, always with the engine's own
+    /// code plus the exception type, message, and stack. The UI panel never
+    /// shows this — it stays localized, and raw exception text is noise
+    /// there. Two lines because <c>PoolDiagnostics.LogLine</c> takes a single
+    /// string; the stack goes on its own line so the summary stays greppable.</summary>
+    private static void LogVulkanFailure(string stage, Plot3DFailure failure, string code, Exception ex)
+    {
+        PoolDiagnostics.LogLine($"[VULKAN] {stage} failed={failure} code={code} {ex.GetType().Name}: {ex.Message}");
+        PoolDiagnostics.LogLine($"[VULKAN] {stage} stack: {ex.StackTrace}");
     }
 
     /// <summary>Create (or re-create) the render context and readback target
@@ -324,11 +418,13 @@ public partial class PlotterNexView : UserControl
             _renderContext = scene.Engine.CreateRenderContext();
             _renderContext.Initialize();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            // Was: swallowed, leaving a blank viewport with no explanation.
             _readback = null;
             _renderContext = null;
-            return;
+            ReportVulkanFailure(Plot3DFailure.Other);
+            LogVulkanFailure("RENDERCTX", Plot3DFailure.Other, "n/a", ex);
         }
     }
 
@@ -702,9 +798,14 @@ public partial class PlotterNexView : UserControl
             scene.SetViewPreset(preset);
             UpdateSnapButtons(preset);
         }
-        catch
+        catch (Exception ex)
         {
-            _vm!.ReportVulkanUnavailable(Plot3DFailure.RuntimeError);
+            // A preset re-frame failing is a later-operation failure, not an
+            // initialisation one: _scene is not null, so Vulkan demonstrably
+            // started. Reporting RuntimeError here would blame the user's
+            // Vulkan version for something the version did not cause.
+            ReportVulkanFailure(Plot3DFailure.Other);
+            LogVulkanFailure("SNAP", Plot3DFailure.Other, "n/a", ex);
         }
     }
 
