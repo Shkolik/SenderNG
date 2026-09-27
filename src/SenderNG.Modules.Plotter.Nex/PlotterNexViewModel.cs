@@ -189,7 +189,6 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         Plot3DFailure.None => string.Empty,
         Plot3DFailure.NotSupported => Hint("module.plotter-nex.vulkanUnavailable.notSupported"),
         Plot3DFailure.RuntimeError => Hint("module.plotter-nex.vulkanUnavailable.runtimeError"),
-        Plot3DFailure.OutOfMemory => Hint("module.plotter-nex.vulkanUnavailable.outOfMemory"),
         _ => Hint("module.plotter-nex.vulkanUnavailable.other"),
     };
 

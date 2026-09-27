@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Numerics;
+using System.Reflection;
 using System.Text;
 using HelixToolkit.Nex;
 using HelixToolkit.Nex.Engine;
@@ -75,6 +76,19 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private static readonly Color4 GridMajorColor = new(0.62f, 0.62f, 0.62f, 1f);
     private static readonly Color4 JobEnvelopeColor = new(0f, 0.7f, 0.9f, 1f);
     private static readonly Color4 OrbitPivotColor = new(1f, 0.66f, 0.1f, 1f);
+
+    // The engine's own loader probe, resolved once. VulkanContext.IsSupported()
+    // is exactly the check the constructor needs, but VulkanContext is internal
+    // in HelixToolkit.Nex 1.3.0-alpha.41 — a public static method on an
+    // internal type is unreachable from this assembly, and the package grants no
+    // InternalsVisibleTo. Reflection is the only way in that adds no
+    // Vortice.Vulkan reference and enumerates no devices. Null if a future
+    // package moves or renames it; the constructor then skips the pre-check
+    // rather than failing, so the worst case is the pre-probe behaviour.
+    private static readonly MethodInfo? VulkanSupportProbe = typeof(VulkanBuilder)
+        .Assembly
+        .GetType("HelixToolkit.Nex.Graphics.Vulkan.VulkanContext", throwOnError: false)?
+        .GetMethod("IsSupported", BindingFlags.Public | BindingFlags.Static, Type.EmptyTypes);
 
     private readonly IContext _context;
     private readonly Engine _engine;
@@ -148,6 +162,30 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
 
     private bool _runStateVisible = true;
 
+    /// <summary>Whether the Vulkan loader itself is usable on this system, per
+    /// the engine's own <c>VulkanContext.IsSupported()</c>: it calls
+    /// vkInitialize(), enumerates instance extensions, requires Vulkan 1.1+, and
+    /// swallows its own exceptions. It never enumerates physical devices, so it
+    /// stays inside the no-device-enumeration constraint. This is what makes
+    /// <c>NotSupported</c> reachable at all: without it, a system with no Vulkan
+    /// at all and a system whose GPU is below 1.3 both arrive as RuntimeError,
+    /// because OnInitializing collapses them. A missing or throwing probe counts
+    /// as supported — see the field comment; a false "no Vulkan" here would
+    /// tell a user with a working driver that their system has no Vulkan.</summary>
+    private static bool IsVulkanLoaderSupported()
+    {
+        if (VulkanSupportProbe is null)
+            return true;
+        try
+        {
+            return VulkanSupportProbe.Invoke(null, null) is true;
+        }
+        catch (Exception)
+        {
+            return true;
+        }
+    }
+
     /// <summary>Create the scene and the whole render pipeline.</summary>
     /// <remarks>
     /// Plain headless Vulkan on every OS: the readback is a Vulkan-internal
@@ -159,11 +197,21 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// </remarks>
     public NexPlotScene()
     {
+        // Without this pre-check we could not tell "this system has no Vulkan"
+        // from "Vulkan works but no 1.3 device" — OnInitializing collapses both
+        // to RuntimeError, so the panel would blame a user's driver for a machine
+        // that has no driver at all. NotSupported is therefore our own verdict
+        // from the loader probe, not a code the engine returns on this path.
+        if (!IsVulkanLoaderSupported())
+            throw new Plot3DUnavailableException(ResultCode.NotSupported);
+
         // Built uninitialized, then initialized by hand, because
         // VulkanBuilder.CreateHeadless's own Initialize() collapses every
-        // failure into a generic InvalidOperationException — including
-        // ResultCode.NotSupported, which is the answer a user on Vulkan 1.2
-        // needs. Calling the public IInitializable.Initialize() keeps the code.
+        // failure into a generic InvalidOperationException. Calling the public
+        // IInitializable.Initialize() keeps whatever code comes back — in
+        // practice always RuntimeError, since InitContext() throws rather than
+        // returning a non-Ok code and OnInitializing catches. See Task 3
+        // Step 0 for the full chain.
         //
         // A failed context is deliberately NOT disposed: Initialize() leaves
         // IsInitialized == false, so Dispose() -> Teardown() early-returns in

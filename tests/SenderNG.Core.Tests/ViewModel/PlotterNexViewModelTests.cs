@@ -850,7 +850,7 @@ public class PlotterNexViewModelTests : IDisposable
         var raised = new List<string>();
         vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName!);
 
-        vm.ReportVulkanUnavailable(Plot3DFailure.OutOfMemory);
+        vm.ReportVulkanUnavailable(Plot3DFailure.Other);
 
         Assert.Equal(Plot3DFailure.NotSupported, vm.VulkanFailure);
         Assert.Empty(raised);
@@ -867,7 +867,7 @@ public class PlotterNexViewModelTests : IDisposable
         Assert.Equal(Plot3DFailure.None, vm.VulkanFailure);
     }
 
-    /// <summary>Locale carrying the four per-kind hint keys as distinct
+    /// <summary>Locale carrying the three per-kind hint keys as distinct
     /// sentinels. The file's existing <c>MakeVm</c> builds its
     /// <c>LocalizationService</c> from an empty string table, so
     /// <c>Resolve</c> always returns its fallback there. With an empty locale
@@ -879,7 +879,6 @@ public class PlotterNexViewModelTests : IDisposable
         { "strings": {
           "module.plotter-nex.vulkanUnavailable.notSupported": "DETAIL-NOT-SUPPORTED",
           "module.plotter-nex.vulkanUnavailable.runtimeError": "DETAIL-RUNTIME-ERROR",
-          "module.plotter-nex.vulkanUnavailable.outOfMemory": "DETAIL-OUT-OF-MEMORY",
           "module.plotter-nex.vulkanUnavailable.other": "DETAIL-OTHER"
         } }
         """u8.ToArray()));
@@ -905,7 +904,6 @@ public class PlotterNexViewModelTests : IDisposable
     [Theory]
     [InlineData("NotSupported", "DETAIL-NOT-SUPPORTED")]
     [InlineData("RuntimeError", "DETAIL-RUNTIME-ERROR")]
-    [InlineData("OutOfMemory", "DETAIL-OUT-OF-MEMORY")]
     [InlineData("Other", "DETAIL-OTHER")]
     public void Each_failure_kind_resolves_its_own_key(string failureName, string expected)
     {
@@ -933,7 +931,7 @@ public class PlotterNexViewModelTests : IDisposable
     }
 
     /// <summary>Locale carrying ONLY the generic vulkanUnavailableHint key and
-    /// none of the four per-kind keys — the shape of a locale file written
+    /// none of the three per-kind keys — the shape of a locale file written
     /// before the per-kind keys existed.</summary>
     private static LocalizationService LocaleWithGenericHintOnly() => new(new MemoryStream(
         """

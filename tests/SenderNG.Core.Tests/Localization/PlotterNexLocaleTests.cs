@@ -62,7 +62,7 @@ namespace SenderNG.Core.Tests;
 /// </summary>
 public class PlotterNexLocaleTests
 {
-    /// <summary>The four per-kind hints VulkanFailureDetail looks up, one per
+    /// <summary>The three per-kind hints VulkanFailureDetail looks up, one per
     /// non-None Plot3DFailure member. They are literals in production, inside a
     /// switch expression, so a test cannot reach them without changing
     /// production code for a test's benefit — which means a rename there leaves
@@ -73,7 +73,6 @@ public class PlotterNexLocaleTests
     {
         "module.plotter-nex.vulkanUnavailable.notSupported",
         "module.plotter-nex.vulkanUnavailable.runtimeError",
-        "module.plotter-nex.vulkanUnavailable.outOfMemory",
         "module.plotter-nex.vulkanUnavailable.other",
     };
 

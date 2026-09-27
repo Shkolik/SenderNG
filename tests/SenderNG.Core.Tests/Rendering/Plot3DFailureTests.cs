@@ -51,7 +51,11 @@ public class Plot3DFailureTests
     [Theory]
     [InlineData(ResultCode.NotSupported, "NotSupported")]
     [InlineData(ResultCode.RuntimeError, "RuntimeError")]
-    [InlineData(ResultCode.OutOfMemory, "OutOfMemory")]
+    // The engine never returns OutOfMemory on the initialization path, which is
+    // why Plot3DFailure has no such member — so the code is now the sharpest
+    // available proof that an unmapped real enum member falls through to Other
+    // rather than silently inventing a kind.
+    [InlineData(ResultCode.OutOfMemory, "Other")]
     [InlineData(ResultCode.CompileError, "Other")]
     [InlineData(ResultCode.ArgumentError, "Other")]
     [InlineData(ResultCode.Unknown, "Other")]

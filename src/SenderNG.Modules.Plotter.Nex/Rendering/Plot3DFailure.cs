@@ -47,19 +47,21 @@ internal enum Plot3DFailure
     /// <summary>Nothing reported; the tab is healthy.</summary>
     None,
 
-    /// <summary>The device reports a Vulkan version below the 1.3 this engine
-    /// requires.</summary>
+    /// <summary>Vulkan itself is unusable on this system: the loader is
+    /// missing, vkInitialize failed, or the instance is below 1.1. Reached
+    /// through the VulkanContext.IsSupported() pre-check, not from an engine
+    /// return value — see Task 3 Step 0.</summary>
     NotSupported,
 
-    /// <summary>The loader or device failed to start for a reason other than
-    /// version or memory: no loader installed, no device exposed, driver
-    /// error.</summary>
+    /// <summary>Vulkan is available but no 1.3 device could be initialised.
+    /// One bucket for several upstream causes (sub-1.3 device, no suitable
+    /// queues, zero devices, driver error) because OnInitializing collapses
+    /// them; the precise cause goes to the diagnostics log.</summary>
     RuntimeError,
 
-    /// <summary>Device or host allocation failed.</summary>
-    OutOfMemory,
-
-    /// <summary>Anything else, including a bug in the scene build.</summary>
+    /// <summary>Anything else, including a bug in the scene build, and any
+    /// failure of a later operation rather than initialisation (Snap,
+    /// SetupRenderTarget).</summary>
     Other,
 }
 
@@ -93,7 +95,6 @@ internal static class Plot3DFailures
     {
         ResultCode.NotSupported => Plot3DFailure.NotSupported,
         ResultCode.RuntimeError => Plot3DFailure.RuntimeError,
-        ResultCode.OutOfMemory => Plot3DFailure.OutOfMemory,
         _ => Plot3DFailure.Other,
     };
 }
