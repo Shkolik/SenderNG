@@ -161,8 +161,11 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// different codes so the caller can tell the user which applies. Any other
     /// failure propagates unchanged rather than being relabelled, so the
     /// caller reports it as a generic 3D failure instead of asserting a cause
-    /// this constructor cannot know. The caller is the only construction site
-    /// and catches both.
+    /// this constructor cannot know. The view's scene-build path is the only
+    /// <em>production</em> construction site and catches both. The geometry
+    /// tests construct it directly and so require a working device — which is a
+    /// reason they are skipped without one, not a reason an unhandled
+    /// <see cref="Plot3DUnavailableException"/> is safe anywhere.
     /// </para>
     /// </remarks>
     public NexPlotScene()

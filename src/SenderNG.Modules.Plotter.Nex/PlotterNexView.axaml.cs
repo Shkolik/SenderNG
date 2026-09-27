@@ -101,6 +101,9 @@ public partial class PlotterNexView : UserControl
 
     private RenderContext? _renderContext;
     private NexGpuReadback? _readback;
+    // True while the readback has been failing, so the failure is logged once
+    // per episode rather than once per retry tick. See LogReadbackFailure.
+    private bool _readbackFailed;
     private WriteableBitmap? _bitmap;
     private DispatcherTimer? _tick;
     private uint _wPx;
@@ -345,14 +348,20 @@ public partial class PlotterNexView : UserControl
                     //
                     // Whether this attempt still owns the verdict is the
                     // generation check below; a newer attempt (view detached, or
-                    // another build started) means this one is stale and says
-                    // nothing. See ShouldOwnVerdict for why that decision is a
-                    // standalone, testable function.
-                    if (ShouldOwnVerdict(generation, _sceneGeneration))
-                    {
-                        _sceneGeneration++;
+                    // another build started) means this one is stale.
+                    //
+                    // The verdict is cached either way, and that split is the
+                    // point. A stale failure is still a real failure, and it
+                    // still leaked a VkInstance; forgetting it means the next
+                    // tab return sees an empty cache, re-enters Vulkan, and
+                    // leaks another instance - per attach, with no panel shown.
+                    // So remembering is unconditional, and only *reporting* is
+                    // gated, because reporting mutates the view model and the
+                    // panel, which the current attempt owns.
+                    if (ShouldReportFailure(generation, ref _sceneGeneration))
                         ReportVulkanFailure(failure);
-                    }
+                    else
+                        _vulkanVerdict = RememberFailure(_vulkanVerdict, failure);
                     return;
                 }
 
@@ -398,27 +407,68 @@ public partial class PlotterNexView : UserControl
     }
 
     /// <summary>Whether a completed scene build still owns the right to report a
-    /// Vulkan verdict. Pure, so the generation guard is testable without a GPU
-    /// or a dispatcher.
+    /// Vulkan verdict, advancing the generation as a side effect.
     /// <para>
-    /// Extracted because this exact comparison is where the plan's bug hid: it
-    /// incremented the generation <em>before</em> comparing, turning
-    /// <c>generation == _sceneGeneration</c> into <c>x == x+1</c> — always false,
-    /// so a genuine first failure was never reported. The check must compare
-    /// first, then the caller bumps. Keeping it here and pinning it with a
-    /// three-case test means that class of mistake is caught by the suite
-    /// instead of by a user staring at a blank tab. See
-    /// <c>PlotterNexViewTests.ShouldOwnVerdict_*</c>.
+    /// The bump is inside this function, and deliberately AFTER the comparison.
+    /// The plan's version of this guard incremented the generation first, which
+    /// turned the comparison into <c>x == x+1</c> — always false — so a genuine
+    /// first-attempt failure was never reported and the tab stayed blank with no
+    /// explanation. That is the exact bug this feature exists to prevent, and it
+    /// is invisible to review-by-reading: both orderings look plausible and
+    /// compile cleanly.
+    /// </para>
+    /// <para>
+    /// Folding the bump in here rather than leaving it at the call site is what
+    /// makes the ordering testable. A test that only called a pure
+    /// <c>generation == current</c> helper would pass just as happily against the
+    /// broken call site, which is the point: the bug lived in the *sequence*, not
+    /// in the comparison, so the sequence is what has to be under test.
+    /// See <c>PlotterNexViewTests.ShouldReportFailure_*</c>.
     /// </para>
     /// <para>
     /// Equality means "no newer attempt started, so this attempt is still
-    /// current" → own the verdict. A mismatch means a later
-    /// <c>EnsureScene</c> (or a detach that bumped the generation) superseded
-    /// this one → stay silent, so a stale failure never overwrites a live
-    /// scene's verdict.
+    /// current": report, and advance so no in-flight build can still apply. A
+    /// mismatch means a later <c>EnsureScene</c> (or a detach that advanced the
+    /// generation) superseded this one: stay silent, and do NOT advance, or the
+    /// newer attempt would be invalidated by the stale one it replaced.
     /// </para></summary>
-    internal static bool ShouldOwnVerdict(int generation, int currentGeneration)
-        => generation == currentGeneration;
+    internal static bool ShouldReportFailure(int generation, ref int currentGeneration)
+    {
+        if (generation != currentGeneration)
+            return false;
+        currentGeneration++;
+        return true;
+    }
+
+    /// <summary>First-reason-wins merge for a remembered verdict. A failure that
+    /// is remembered but not reported must not overwrite a verdict the user may
+    /// already have been shown, so an existing entry always wins.</summary>
+    internal static Plot3DFailure RememberFailure(Plot3DFailure cached, Plot3DFailure incoming)
+        => cached == Plot3DFailure.None ? incoming : cached;
+
+    private void LogReadbackFailure(Exception ex)
+    {
+        // No verdict here, deliberately. A readback that will not allocate is
+        // usually transient (host memory pressure) and this path RETRIES on
+        // every tick, so reporting a failure kind would cache Other for the
+        // session and disable a scene that Vulkan is running perfectly well -
+        // the same over-reach the taxonomy forbids elsewhere. What was missing
+        // before is the explanation: this used to swallow the exception, so a
+        // permanently blank viewport was indistinguishable in the log from a
+        // blank one of unknown cause. `failed=` is n/a because no verdict was
+        // reached; the stage says where it happened.
+        //
+        // Logged once per episode, not once per tick: a readback that keeps
+        // throwing would otherwise write ~30 lines a second and bury everything
+        // else in the file. The flag is cleared when a readback finally
+        // succeeds, so a later distinct episode is reported again.
+        if (_readbackFailed)
+            return;
+        _readbackFailed = true;
+        PoolDiagnostics.LogLine(
+            $"[VULKAN] READBACK failed=n/a code=n/a {ex.GetType().Name}: {ex.Message}");
+        PoolDiagnostics.LogLine($"[VULKAN] READBACK stack: {ex.StackTrace}");
+    }
 
     /// <summary>Cache the verdict and hand it to the view model, which resolves
     /// the localized detail from it. Safe to call more than once: the view
@@ -603,9 +653,12 @@ public partial class PlotterNexView : UserControl
                     AlphaFormat.Opaque);
                 GpuImage.Source = _bitmap;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                // Retried next tick, by design - see LogReadbackFailure. Not a
+                // verdict, so the panel does not appear; but no longer silent.
                 _readback = null;
+                LogReadbackFailure(ex);
                 return;
             }
         }
@@ -625,9 +678,11 @@ public partial class PlotterNexView : UserControl
                     AlphaFormat.Opaque);
                 GpuImage.Source = _bitmap;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                // Retried next tick, by design - see LogReadbackFailure.
                 _readback = null;
+                LogReadbackFailure(ex);
                 return;
             }
         }
@@ -638,6 +693,11 @@ public partial class PlotterNexView : UserControl
         {
             return;
         }
+
+        // The readback is live, so any earlier failure episode is over: clear
+        // the latch so a later one is logged again rather than swallowed as a
+        // duplicate.
+        _readbackFailed = false;
 
         try
         {

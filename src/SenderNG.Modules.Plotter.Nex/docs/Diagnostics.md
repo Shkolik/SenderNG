@@ -130,7 +130,8 @@ also writes one `[VULKAN]` record to the pool diagnostics log
 ```
 
 - **`failed`** is the user-facing failure *kind* that selects the localized hint:
-  `NotSupported`, `RuntimeError`, or `Other`.
+  `NotSupported`, `RuntimeError`, or `Other`. `n/a` means no verdict was reached —
+  see the `READBACK` stage below.
 - **`code`** is the engine's own `HelixToolkit.Nex.ResultCode`, or `n/a` for the
   stages that do not come from an engine result.
 - The **`stage`** prefix tells you where it happened:
@@ -139,6 +140,14 @@ also writes one `[VULKAN]` record to the pool diagnostics log
   - `ATTACH` — the scene built, but attaching it to the view model failed
   - `RENDERCTX` — the render target / readback failed to initialize
   - `SNAP` — a preset re-frame (Iso/Xy/Xz/Yz) failed on an otherwise live scene
+  - `READBACK` — the readback target could not be allocated or resized *after*
+    the scene was already live. This one reports `failed=n/a` on purpose: it is
+    usually transient host-memory pressure, and this path retries every tick, so
+    giving it a verdict would cache `Other` for the session and disable a scene
+    whose Vulkan is working perfectly well. It is logged **once per failure
+    episode**, not once per retry, so a persistently failing readback does not
+    bury the log at 30 lines a second. A `READBACK` line with no panel showing is
+    the expected shape — the viewport may recover on the next tick.
 
 The three failure kinds mean different things, and only two of them name a
 hardware cause:
@@ -158,8 +167,10 @@ hardware cause:
   path leaks a `VkInstance` and is not retried.
 
 Exactly **one** `CONTEXT` record is ever written per session: a failed Vulkan
-context leaks its instance, so the verdict is cached and the view never re-enters
-Vulkan for the life of the module. So:
+context leaks its instance, so the verdict is cached — including when the failure
+lands after the view has already superseded the attempt that produced it, which
+is why a tab switch during the build window cannot cause a second Vulkan entry —
+and the view never re-enters Vulkan for the life of the module. So:
 
 - **One `[VULKAN] CONTEXT` line and a panel** → a real Vulkan verdict; read
   `failed` above and act on it.

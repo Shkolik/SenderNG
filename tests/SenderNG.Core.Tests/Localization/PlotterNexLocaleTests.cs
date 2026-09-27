@@ -142,6 +142,52 @@ public class PlotterNexLocaleTests
         }
     }
 
+    /// <summary>Every Russian value is actually Russian, and is not the English
+    /// string pasted across.
+    /// <para>
+    /// The tests above check presence, key parity, and non-blankness — so
+    /// copying the English text into ru.json satisfied all of them, which is
+    /// exactly the regression that has already happened twice in this module and
+    /// been caught by hand both times. No test can judge whether Russian is
+    /// <em>good</em>, but it can catch the copy-paste, and that is the failure
+    /// with the worst ratio of damage to detection cost: a user sees English in
+    /// a Russian UI and nothing anywhere records a defect.
+    /// </para>
+    /// <para>
+    /// Cyrillic is checked rather than "differs from English" alone, because a
+    /// value that differs from English only by a stray character would pass a
+    /// weaker test while still being untranslated. Latin-script technical terms
+    /// inside a Russian sentence are fine and expected - `vulkaninfo --summary`,
+    /// `Vulkan 1.3`, `2D` - so the check is that the value *contains* Cyrillic,
+    /// not that it contains nothing else. All five values are full sentences, so
+    /// none is exempt.
+    /// </para></summary>
+    [Fact]
+    public void Every_russian_value_is_translated_rather_than_copied_from_english()
+    {
+        var en = Strings("en");
+        var ru = Strings("ru");
+
+        foreach (var (key, russian) in ru)
+        {
+            Assert.NotEqual(en[key], russian);
+            Assert.True(
+                russian.Any(c => c is >= 'Ѐ' and <= 'ӿ'),
+                $"ru.json key '{key}' has no Cyrillic characters: '{russian}'. " +
+                "It looks like the English value was copied across.");
+        }
+    }
+
+    /// <summary>The `vulkaninfo` command name must survive translation verbatim:
+    /// it is something the user types, and transliterating it would send them
+    /// to a command that does not exist.</summary>
+    [Fact]
+    public void Russian_keeps_the_vulkaninfo_command_name_intact()
+    {
+        const string command = "vulkaninfo --summary";
+        Assert.Contains(command, Strings("ru")["module.plotter-nex.vulkanUnavailable.runtimeError"]);
+    }
+
     private static readonly string[] Locales = ["en", "ru"];
 
     /// <summary>Absolute path to one of the module's real catalogs. Asserts
