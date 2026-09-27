@@ -44,3 +44,27 @@ public sealed class PlotterPlaneGeometry
     /// <summary>World-axis offset, always length 3 after normalization.</summary>
     public double[] Origin { get; set; } = [0, 0, 0];
 }
+
+/// <summary>The <c>plotter</c> section: four view toggles plus one
+/// <see cref="PlotterPlaneGeometry"/> per carriage plane. All toggles default
+/// <c>true</c> and the planes default to identity, so a profile that has never
+/// seen this section renders exactly as it did before.</summary>
+public sealed class PlotterSettings
+{
+    /// <summary>World XY grid, on the iso floor and face-on in the flat panes.</summary>
+    public bool ShowGrid { get; set; } = true;
+
+    /// <summary>Machine-origin cross. Iso only — the flat tiles are true-scale
+    /// in a shared composition and a per-tile offset would break it.</summary>
+    public bool ShowOrigin { get; set; } = true;
+
+    /// <summary>The job's rectangle in the flat panes / box in iso.</summary>
+    public bool ShowEnvelope { get; set; } = true;
+
+    /// <summary>Live run-state coloring. Off resolves every row to idle, which
+    /// the bake already falls through to the neutral feed pen.</summary>
+    public bool ShowRunState { get; set; } = true;
+
+    /// <summary>One entry per carriage plane, in plane order.</summary>
+    public List<PlotterPlaneGeometry> Planes { get; set; } = [];
+}
