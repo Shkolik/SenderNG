@@ -118,5 +118,8 @@ public class PlotterPlaneMapperTests
         Assert.Equal(2, PlotterPlaneMapper.OriginFor(g, 1));
         Assert.Equal(0, PlotterPlaneMapper.OriginFor(g, 9));
         Assert.Equal(0, PlotterPlaneMapper.OriginFor(null, 0));
+        // A settings file is untrusted input, so a wrong-length Origin clamps
+        // to zero instead of indexing — the arm the length guard exists for.
+        Assert.Equal(0, PlotterPlaneMapper.OriginFor(new PlotterPlaneGeometry { Origin = [1, 2] }, 0));
     }
 }
