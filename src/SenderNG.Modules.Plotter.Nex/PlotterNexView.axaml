@@ -242,21 +242,24 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 </Panel>
             </Panel>
 
-            <!-- Fallback shown when no Vulkan device could be created. The Text
-                 below is only the pre-failure default: the constructor replaces
-                 it with the generic localized hint, and ReportVulkanFailure
-                 replaces that with the per-kind text (notSupported /
-                 runtimeError / other). It is assigned from code-behind rather
-                 than bound, deliberately - see the comment on
-                 ReportVulkanFailure. -->
+            <!-- Fallback shown when no Vulkan device could be created. Both Text
+                 values below are intentionally empty: the constructor assigns the
+                 localized title and the generic localized hint, and
+                 ReportVulkanFailure replaces the hint with the per-kind text
+                 (notSupported / runtimeError / other). A literal here would be a
+                 second copy of an English string that can never be seen - the
+                 constructor overwrites it before the panel is ever shown - and
+                 that has to be kept in sync with the localized one for no
+                 benefit. The text is assigned from code-behind rather than bound,
+                 deliberately; see the comment on ReportVulkanFailure. -->
             <Border Background="#22262B" IsVisible="{Binding VulkanUnavailable, Mode=OneWay}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="460">
                     <TextBlock x:Name="FallbackTitle"
-                               Text="3D plotting unavailable"
+                               Text=""
                                FontSize="16" FontWeight="SemiBold"
                                Foreground="#EEE" HorizontalAlignment="Center" />
                     <TextBlock x:Name="FallbackHint"
-                               Text="No Vulkan 1.3 device could be created — 2D plotting stays available."
+                               Text=""
                                Foreground="#AAA" TextWrapping="Wrap" HorizontalAlignment="Center" />
                 </StackPanel>
             </Border>

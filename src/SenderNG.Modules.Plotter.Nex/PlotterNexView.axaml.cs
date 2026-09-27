@@ -448,11 +448,14 @@ public partial class PlotterNexView : UserControl
         FallbackHint.Text = vm.VulkanFailureDetail;
     }
 
-    /// <summary>One diagnostics record per failure, always with the engine's own
-    /// code plus the exception type, message, and stack. The UI panel never
-    /// shows this — it stays localized, and raw exception text is noise
-    /// there. Two lines because <c>PoolDiagnostics.LogLine</c> takes a single
-    /// string; the stack goes on its own line so the summary stays greppable.</summary>
+    /// <summary>One diagnostics record per distinct failure, always with the
+    /// engine's own code plus the exception type, message, and stack. A
+    /// re-report from the verdict cache deliberately does NOT log a second
+    /// time — the cache re-pushes the panel but the failure already has its
+    /// record. The UI panel never shows this — it stays localized, and raw
+    /// exception text is noise there. Two lines because
+    /// <c>PoolDiagnostics.LogLine</c> takes a single string; the stack goes on
+    /// its own line so the summary stays greppable.</summary>
     private static void LogVulkanFailure(string stage, Plot3DFailure failure, string code, Exception ex)
     {
         PoolDiagnostics.LogLine($"[VULKAN] {stage} failed={failure} code={code} {ex.GetType().Name}: {ex.Message}");
