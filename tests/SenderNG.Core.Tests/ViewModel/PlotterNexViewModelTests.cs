@@ -819,6 +819,30 @@ public class PlotterNexViewModelTests : IDisposable
     }
 
     [Fact]
+    public void The_flag_is_raised_after_the_reason_and_the_detail()
+    {
+        using var vm = MakeVm(new StubProgramSource(), new RecorderScene());
+        var raised = new List<string>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName!);
+
+        vm.ReportVulkanUnavailable(Plot3DFailure.NotSupported);
+
+        // Order, not merely set: the VulkanUnavailable handler disposes the
+        // scene and calls ReleaseScene() synchronously, so raising the flag
+        // first would let a throw in that teardown leave the panel's IsVisible
+        // already flipped while its Text binding never re-read — a visible
+        // panel showing a stale hint. The flag is the commit point, so it has
+        // to be published last.
+        Assert.Equal(
+            [
+                nameof(PlotterNexViewModel.VulkanFailure),
+                nameof(PlotterNexViewModel.VulkanFailureDetail),
+                nameof(PlotterNexViewModel.VulkanUnavailable),
+            ],
+            raised);
+    }
+
+    [Fact]
     public void Reporting_a_failure_twice_keeps_the_first_reason_and_raises_nothing()
     {
         using var vm = MakeVm(new StubProgramSource(), new RecorderScene());
@@ -906,6 +930,48 @@ public class PlotterNexViewModelTests : IDisposable
         Assert.Equal(
             "No Vulkan 1.3 device could be created — 2D plotting stays available.",
             vm.VulkanFailureDetail);
+    }
+
+    /// <summary>Locale carrying ONLY the generic vulkanUnavailableHint key and
+    /// none of the four per-kind keys — the shape of a locale file written
+    /// before the per-kind keys existed.</summary>
+    private static LocalizationService LocaleWithGenericHintOnly() => new(new MemoryStream(
+        """
+        { "strings": {
+          "module.plotter-nex.vulkanUnavailableHint": "DETAIL-GENERIC-HINT"
+        } }
+        """u8.ToArray()));
+
+    private PlotterNexViewModel MakeVmWithGenericHintOnly(StubProgramSource source, RecorderScene scene)
+    {
+        var settings = new SettingsService(_settingsDir);
+        var profile = settings.Load();
+        profile.MachineTypeId = MachineTypes.Mill;
+        settings.Save(profile);
+
+        return new PlotterNexViewModel(source, _grbl, settings,
+            LocaleWithGenericHintOnly(),
+            new KinematicSceneFactory(scene));
+    }
+
+    [Fact]
+    public void A_missing_per_kind_key_degrades_to_the_localized_generic_hint()
+    {
+        // The complement of Detail_text_falls_back_to_the_generic_hint...: that
+        // test's locale is completely EMPTY, so the inner Resolve returns the
+        // English literal and a nested Resolve is indistinguishable from a
+        // single one. This locale HAS the generic key, so the two paths diverge:
+        // nested Resolve yields the generic sentinel, single Resolve yields
+        // English. That divergence is what makes the localization load-bearing.
+        using var vm = MakeVmWithGenericHintOnly(new StubProgramSource(), new RecorderScene());
+
+        vm.ReportVulkanUnavailable(Plot3DFailure.NotSupported);
+
+        // Exact equality settles all three outcomes at once: the generic
+        // sentinel (not the English last-resort literal, which a single
+        // Resolve would return, and not the per-kind key name leaking through
+        // as text).
+        Assert.Equal("DETAIL-GENERIC-HINT", vm.VulkanFailureDetail);
     }
 
     /// <summary>Read-only program facade over a parsed G-code string, with an
