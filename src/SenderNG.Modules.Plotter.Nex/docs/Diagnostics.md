@@ -12,7 +12,7 @@ Disables all run-state coloring. Used for A/B testing without GPU churn from geo
 
 When set, `ApplyRunStateWindow()` and `RecolorAckedRows()` are skipped entirely. All lines remain in their default color.
 
-**File:** `PlotterNexViewModel.cs:691-702`
+**File:** `PlotterNexViewModel.cs:703-709` (`ApplyRunStateWindow`)
 
 ## Pool Diagnostics
 
@@ -29,7 +29,10 @@ When set, `ApplyRunStateWindow()` and `RecolorAckedRows()` are skipped entirely.
 
 ### Usage
 
-Call `PoolDiagnostics.DumpAll(engine)` with the Vulkan engine instance. Output is logged to the diagnostic stream. This is called automatically on tick crash (see below).
+Call `PoolDiagnostics.Dump(context, label)` with the scene's **context**
+(`scene.Context`) — it reflects over the context's command pools, not the engine.
+The result is a string; the caller logs it. This is called automatically on tick
+crash (see below), which passes the label `"CRASH"`.
 
 **File:** `Rendering/PoolDiagnostics.cs:11-349`
 
@@ -40,14 +43,18 @@ Exceptions in `OnTick()` are caught, logged, and the tick is disabled to prevent
 ### What gets logged
 
 1. The exception message and stack trace
-2. Last 12 ticks from a ring buffer (tick number, duration, what was pumped)
+2. Last 12 ticks from a ring buffer (tick number, the per-layer dump, run state)
 3. Scene content summary (vertex counts, layer counts)
 4. Controller pose (last known position, grbl state)
-5. Full `PoolDiagnostics.DumpAll()` output
+5. Full `PoolDiagnostics.Dump(scene.Context, "CRASH")` output
 
-After logging, the tick timer is stopped. The view shows stale content. The user must reload the module tab to retry.
+After logging, the tick timer is stopped, so the view shows stale content and
+stays there. **Switching to another tab and back restarts it:** detach keeps the
+scene and the engine alive, and re-attaching rebuilds the per-attach render
+context and re-arms the tick. A full app restart is only needed to clear a
+*cached* Vulkan verdict, which disables 3D for the session (see `Other` above).
 
-**File:** `PlotterNexView.axaml.cs:535-720`
+**File:** `PlotterNexView.axaml.cs:595-786` (`OnTick`)
 
 ## Diagnostic Methods
 
@@ -57,19 +64,19 @@ These methods are available on `NexPlotScene` for runtime inspection:
 
 Prints camera state: position, target, up vector, orthographic zoom, viewport dimensions.
 
-**File:** `Rendering/NexPlotScene.cs:700-730`
+**File:** `Rendering/NexPlotScene.cs:933` (`DumpCamera`)
 
 ### `DumpContent()`
 
 Prints scene content summary: total vertex count, layer count, tool position.
 
-**File:** `Rendering/NexPlotScene.cs:732-800`
+**File:** `Rendering/NexPlotScene.cs:980` (`DumpContent`)
 
 ### `LiveLayerDumps()`
 
 Per-layer diagnostic dump: vertex counts, material properties, bounding boxes for each carriage plane layer.
 
-**File:** `Rendering/NexPlotScene.cs:802-947`
+**File:** `Rendering/NexPlotScene.cs:1006` (`LiveLayerDumps`)
 
 ## Headless Testing
 
@@ -92,10 +99,14 @@ The entire scene interface is abstract (`Scene/` folder), allowing headless test
 
 | File | Lines | Tests |
 |---|---|---|
-| `PlotterNexModuleTests.cs` | 158 | Module contract, discovery, service registration |
-| `PlotterNexViewModelTests.cs` | 846 | Geometry pipeline, run-state coloring, async builds |
-| `PlotterNexSettingsViewModelTests.cs` | 104 | Settings editor, axis deduplication |
+| `PlotterNexViewModelTests.cs` | 1125 | Geometry pipeline, run-state coloring, async builds |
+| `PlotterNexSettingsViewModelTests.cs` | 259 | Settings editor, axis deduplication |
+| `PlotterNexModuleTests.cs` | 209 | Module contract, discovery, service registration |
+| `PlotterNexLocaleTests.cs` | 251 | Catalog parity, non-blank values, untranslated-value guard |
 | `PlotterNexConfigTests.cs` | 143 | Config load/save, defaults, mismatch handling |
+| `PlotterNexViewTests.cs` | 108 | Scene-generation ownership guard, verdict caching |
+
+Line counts drift; treat the file name as authoritative.
 
 ### Running tests
 
@@ -108,9 +119,9 @@ dotnet test tests/SenderNG.Core.Tests/
 When investigating rendering problems:
 
 1. **Set `NEX_NO_RUN_STATE=1`** to isolate whether the issue is run-state related
-2. **Call `PoolDiagnostics.DumpAll(engine)`** to inspect GPU pool state
+2. **Call `PoolDiagnostics.Dump(scene.Context, label)`** to inspect GPU pool state
 3. **Use `DumpContent()`** to verify vertex counts are as expected
-4. **Check tick crash logs** for the ring buffer of recent tick durations
+4. **Check tick crash logs** for the ring buffer of recent ticks
 5. **Verify the HelixToolkit.Nex _package_ version** is 1.3.0-alpha.41 (not 1.2.0).
    This is the library version, **not** the Vulkan API version — do not read it as
    a statement about the device. The Plot 3D tab needs a **Vulkan 1.3 device**,
@@ -121,7 +132,7 @@ When investigating rendering problems:
 
 When the Vulkan context cannot be created, the Plot 3D tab stops trying to render
 and shows a **localized** panel with the reason, instead of a blank viewport. It
-also writes one `[VULKAN]` record to the pool diagnostics log
+also writes `[VULKAN]` records to the pool diagnostics log
 (`%LOCALAPPDATA%\SenderNG\pool_diag.log`) — two lines, a summary and its stack:
 
 ```
@@ -175,29 +186,36 @@ attempt owns.
 
 **That distinction is visible in the log, and worth knowing before you go
 looking for a panel.** A superseded attempt's failure is remembered but never
-reported, so no panel appears for it. If a later attempt succeeded, the viewport
-is drawing normally *and* the verdict is cached, and nothing will ever raise that
-panel: a live scene suppresses further scene builds. The `CONTEXT` line is the
-only record that the failure happened. If you see a `CONTEXT` line and no panel,
-check whether 3D is in fact rendering before concluding the panel is missing.
+reported, so no panel appears *for that verdict*. If a later attempt succeeded,
+the viewport is drawing normally and that cached verdict can never reach the
+panel, because a live scene suppresses further scene builds. The `CONTEXT` line
+is then the only record that the failure happened.
+
+Be precise about what that does and does not mean. A panel **can** still appear
+while 3D is rendering, because the live scene's own later failures report
+independently of the cache — a `SNAP` re-frame or a `RENDERCTX` failure raises
+one (see the stage table above). So "3D is drawing, yet a panel is showing" is a
+normal state pointing at a *later* stage, not at the cached verdict.
 
 **The cache can also only stop attempts it already knows about**, and the window
 is real: any re-attach before the failing attempt's result has been *processed on
 the UI thread* starts a second attempt, because at re-attach the cache is still
 empty. That window is wider than "before the attempt failed" — the cache is
-written when the dispatcher runs the completion, not when the attempt fails — and
-it does not require a tab switch, since a data-context change also re-enters
-`EnsureScene`. So a `CONTEXT` line per attempt in that window is possible, each
-with its own leak. So:
+written when the dispatcher runs the completion, not when the attempt fails.
+Tab switching is the usual trigger; a data-context change also re-enters
+`EnsureScene`, though in the shipped app the context is assigned once, so that
+route fires at startup rather than on demand. So a `CONTEXT` line per attempt in
+that window is possible, each with its own leak. So:
 
 - **One `[VULKAN] CONTEXT` line and a panel** → a real Vulkan verdict; read
   `failed` above and act on it.
 - **Several `CONTEXT` lines, seconds apart** → repeated attach attempts inside
-  that window (tab switching, or a data-context change), not a new problem.
-  `failed` on the first line is the real verdict.
-- **A `CONTEXT` line and no panel** → the failure was superseded and is cached
-  without being reported. Fine if 3D is rendering; if it is blank, the live
-  attempt failed somewhere else and its own stage line will say so.
+  that window, not a new problem. The panel shows the verdict of the attempt that
+  *won* ownership, since a reported verdict overwrites the cache; an earlier
+  superseded line can name a different kind.
+- **A `CONTEXT` line and no panel** → that failure was superseded and cached
+  without being reported. Fine if 3D is rendering; if the view is blank, the live
+  attempt failed at a later stage and its own line will say so.
 - **No `CONTEXT` line but the tab is blank** → the failure is elsewhere
   (`SCENE`/`ATTACH`/`RENDERCTX`), or the context succeeded and the problem is in
   rendering — check the tick crash log instead.

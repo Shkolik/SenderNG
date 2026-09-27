@@ -553,10 +553,10 @@ public partial class PlotterNexView : UserControl
         // reasoning that only a failure reachable before an EnableTick call
         // could have set one. That stopped being true when a superseded build
         // attempt started caching verdicts too: a live scene could be denied
-        // its tick - attached, never drawn, no panel and no log line, because
-        // EnsureScene early-returns while a scene exists. Keying on the
-        // precondition, in the one place that starts the tick, cannot be
-        // fooled by who else has written the verdict.
+        // its tick - attached and never drawn, which looks healthy because the
+        // scene is alive and the failure behind the cache is logged, not shown.
+        // Keying on the precondition, in the one place that starts the tick,
+        // cannot be fooled by who else has written the verdict.
         if (_renderContext is null)
             return;
         if (_tick is null)

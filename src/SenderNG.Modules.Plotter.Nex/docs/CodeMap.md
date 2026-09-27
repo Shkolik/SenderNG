@@ -309,9 +309,11 @@ Reflection-based Vulkan command buffer pool inspection.
 
 | Member | Line | Purpose |
 |---|---|---|
-| `DumpPoolState()` | 30-120 | Read free/in-flight counts, staging regions |
-| `DumpQueueTopology()` | 122-180 | Read queue family info |
-| `DumpAll()` | 200-333 | Full diagnostic dump |
+| `LogLine(string)` | 13 | Append one line to `pool_diag.log` (serialized, autoflush) |
+| `LogQueueTopologyOnce(object?)` | 139 | Log queue topology at most once per process |
+| `QueueTopology(object?)` | 147 | Read queue family info from a context |
+| `Dump(object?, string)` | 197 | Full diagnostic dump; takes a **context**, not the engine |
+| `PoolState(...)` | 227 | Private: free/in-flight counts, staging regions |
 
 ### `RebuildGate.cs` (49 lines)
 
