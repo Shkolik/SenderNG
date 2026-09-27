@@ -154,9 +154,16 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// Plain headless Vulkan on every OS: the readback is a Vulkan-internal
     /// staging copy (IContext.Download), so no external memory, no D3D11
     /// device, and no device-LUID matching are needed. Requires a Vulkan 1.3
-    /// device; when the context cannot be initialized this throws
-    /// <see cref="Plot3DUnavailableException"/>, and the caller reports that as
-    /// VulkanUnavailable in the UI.
+    /// device.
+    /// <para>
+    /// Throws <see cref="Plot3DUnavailableException"/> when the machine has no
+    /// usable Vulkan, or no device reporting 1.3 — the two cases carry
+    /// different codes so the caller can tell the user which applies. Any other
+    /// failure propagates unchanged rather than being relabelled, so the
+    /// caller reports it as a generic 3D failure instead of asserting a cause
+    /// this constructor cannot know. The caller is the only construction site
+    /// and catches both.
+    /// </para>
     /// </remarks>
     public NexPlotScene()
     {
@@ -169,46 +176,41 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         if (verdict is { } unsupported)
             throw new Plot3DUnavailableException(unsupported);
 
-        // Built uninitialized, then initialized by hand, so the returned
-        // ResultCode is observable rather than buried in an exception. That code
-        // is a weak signal for the reason - see the remarks on
-        // VulkanCapabilities - which is why the probe above decides the verdict
-        // and this is only a backstop.
+        // Built uninitialized, then initialized by hand, so a failure surfaces as
+        // a ResultCode we can map rather than being buried in the engine's
+        // InvalidOperationException. That code is a weak signal for the reason -
+        // see the remarks on VulkanCapabilities - which is why the probe above
+        // decides the verdict and this is only a backstop.
         //
-        // The try/catch is not defensive padding. The engine throws bare
-        // System.Exception from several places on this path, and an
-        // unrecognised exception escaping the scene constructor would bypass the
-        // view's Plot3DUnavailableException handling entirely, leaving the tab
-        // blank with no explanation. Converting anything unexpected into our own
-        // exception keeps the localized fallback reachable.
+        // The engine throws bare System.Exception from several places on this
+        // path, and none of them is caught and relabelled: the caller's catch
+        // handles them, which keeps the taxonomy honest (see below).
         //
         // A failed context is deliberately NOT disposed: Initialize() leaves
         // IsInitialized == false, so Dispose() -> Teardown() early-returns in
         // upstream Initializable and never calls OnTearingDown(). Disposing
         // would be a no-op at best. The instance leak is bounded instead — the
         // view caches the failure so we only ever try once per process.
-        try
-        {
-            _context = VulkanBuilder.CreateHeadless(
-                new VulkanContextConfig
-                {
-                    // False: relying on validation layers being installed would
-                    // degrade machines without them to the VulkanUnavailable notice.
-                    EnableValidation = false
-                },
-                initialize: false);
-            var init = _context.Initialize();
-            if (init != ResultCode.Ok)
-                throw new Plot3DUnavailableException(init);
-        }
-        catch (Plot3DUnavailableException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            throw new Plot3DUnavailableException(ResultCode.RuntimeError, ex);
-        }
+        _context = VulkanBuilder.CreateHeadless(
+            new VulkanContextConfig
+            {
+                // False: relying on validation layers being installed would
+                // degrade machines without them to the VulkanUnavailable notice.
+                EnableValidation = false
+            },
+            initialize: false);
+        var init = _context.Initialize();
+        if (init != ResultCode.Ok)
+            throw new Plot3DUnavailableException(init);
+        // Nothing is caught and relabelled here on purpose. An unexpected
+        // exception from this path is not evidence that the machine lacks a 1.3
+        // device, so labelling it RuntimeError would tell the user their Vulkan
+        // is too old for something their Vulkan did not cause - the one claim
+        // Plot3DFailure.RuntimeError is documented to mean exclusively. It used
+        // to be wrapped as RuntimeError here, by a catch-all that also caught
+        // the exception this method throws itself; the sole caller now catches
+        // it as Other and logs the real exception, which is both truthful and
+        // strictly more informative than inventing a result code for it.
 
         _engine = EngineBuilder.Create(_context)
             .WithDefaultNodes(renderToSwapchain: false)

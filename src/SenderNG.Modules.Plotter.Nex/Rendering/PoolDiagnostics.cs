@@ -12,12 +12,20 @@ internal static class PoolDiagnostics
 {
     public static void LogLine(string line)
     {
-        try
+        // Every writer serializes here. LogLine is reached from the pool thread
+        // (a failed scene build logs its verdict) as well as from the UI thread
+        // (the render tick and Initialize), and StreamWriter is not thread-safe:
+        // concurrent WriteLine calls can interleave a line or throw. The lock is
+        // re-entrant, so the Log getter locking again below is safe.
+        lock (LogLock)
         {
-            Log.WriteLine(line);
-        }
-        catch
-        {
+            try
+            {
+                Log.WriteLine(line);
+            }
+            catch
+            {
+            }
         }
     }
 
@@ -39,20 +47,28 @@ internal static class PoolDiagnostics
     private static bool _initialized;
     private static bool _topologyLogged;
     private static StreamWriter? _log;
+    private static readonly object LogLock = new();
 
     private static StreamWriter Log
     {
         get
         {
-            if (_log is null)
+            // Locked as well as LogLine, because this is a plain null check and
+            // two threads reaching it together would each open the file - and
+            // since the writer appends: false, the second would truncate what the
+            // first had just written and leak its handle.
+            lock (LogLock)
             {
-                var path = System.IO.Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "SenderNG", "pool_diag.log");
-                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
-                _log = new StreamWriter(path, append: false) { AutoFlush = true };
+                if (_log is null)
+                {
+                    var path = System.IO.Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "SenderNG", "pool_diag.log");
+                    System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
+                    _log = new StreamWriter(path, append: false) { AutoFlush = true };
+                }
+                return _log;
             }
-            return _log;
         }
     }
 
@@ -188,20 +204,20 @@ internal static class PoolDiagnostics
             if (_immediateField is null || _commandsType is null)
             {
                 var msg = $"[{label}] not initialized";
-                Log.WriteLine(msg);
+                LogLine(msg);
                 return msg;
             }
 
             var renderDump = PoolState(context, _immediateField, label);
             var uploadDump = PoolState(context, _uploadImmediateField, $"{label}.upload");
             var line = $"{renderDump} | {uploadDump} | pending={StagingRegions(context)}{TransferQueueInfo(context)}";
-            Log.WriteLine(line);
+            LogLine(line);
             return line;
         }
         catch (Exception ex)
         {
             var msg = $"[{label}] diag error: {ex.Message}";
-            try { Log.WriteLine(msg); } catch { }
+            LogLine(msg);
             return msg;
         }
     }

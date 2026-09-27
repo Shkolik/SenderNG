@@ -67,13 +67,21 @@ internal enum Plot3DFailure
 }
 
 /// <summary>Thrown by the scene constructor when the Plot 3D context cannot be
-/// created. Carries the engine's result code, plus the originating exception
-/// when there was one, so the diagnostics log can record both the verdict and
-/// the cause instead of only a code.</summary>
+/// created for a reason we can name. Carries the code that reason maps from, so
+/// the diagnostics log records a verdict rather than only a message.
+/// <para>
+/// There is deliberately no inner-exception parameter. An earlier version took
+/// one and wrapped every failure from the engine as RuntimeError; that both
+/// invented a cause (see the taxonomy on <see cref="Plot3DFailure.RuntimeError"/>)
+/// and lost the original stack. Unexpected exceptions now propagate untouched to
+/// the caller's catch, which logs them as they are, so nothing needs to be
+/// carried here. An exception that cannot be attributed to a cause is not
+/// thrown as if it could be - it is allowed to arrive unlabelled.
+/// </para></summary>
 internal sealed class Plot3DUnavailableException : Exception
 {
-    public Plot3DUnavailableException(ResultCode code, Exception? inner = null)
-        : base($"Vulkan context initialization failed: {code}.", inner)
+    public Plot3DUnavailableException(ResultCode code)
+        : base($"Vulkan context initialization failed: {code}.")
     {
         Code = code;
     }

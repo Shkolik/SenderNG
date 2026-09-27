@@ -144,13 +144,13 @@ public partial class PlotterNexView : UserControl
         DetachedFromVisualTree += OnDetachedFromVisualTree;
         FallbackTitle.Text = LocalizationService.Current?.Resolve(
             "module.plotter-nex.vulkanUnavailable", "3D plotting unavailable") ?? "3D plotting unavailable";
-        // Pre-failure default only: the generic localized hint, so the panel is
-        // never English-only or blank on a non-English machine. ReportVulkanFailure
-        // overwrites this with the per-kind text as soon as there is a reason to
-        // show, and the panel is invisible until then. Kept because
-        // VulkanFailureDetail is module-internal and so cannot be bound from
-        // XAML (see there) - this is the fallback for the paths that do not go
-        // through that method.
+        // Pre-failure default only, and a real fallback rather than decoration:
+        // ReportVulkanFailure replaces this with the per-kind text as soon as
+        // there is a reason to show, and the panel is invisible until then. It
+        // matters because the per-kind text is assigned from code (see there),
+        // so without this the element would hold the XAML literal - English on
+        // every machine - for any path that shows the panel without reporting a
+        // reason first.
         FallbackHint.Text = LocalizationService.Current?.Resolve(
             "module.plotter-nex.vulkanUnavailableHint",
             "No Vulkan 1.3 device could be created — 2D plotting stays available.")
@@ -329,10 +329,22 @@ public partial class PlotterNexView : UserControl
             {
                 if (failure != Plot3DFailure.None)
                 {
-                    built?.Dispose();
+                    // Nothing to dispose, and the null-conditional that used to
+                    // stand here was hiding that. `scene` is only ever assigned
+                    // from a constructor that returned, so on every path that
+                    // sets a failure it is still null - the call could not have
+                    // run. It also implied a safety that did not exist: when the
+                    // constructor throws partway it is a half-built object that
+                    // is unreachable, so a dispose on this thread could not reach
+                    // it either. The bound on that leak is documented on
+                    // NexPlotScene (the context is not disposed because the
+                    // engine's own Dispose is a no-op before initialization) and
+                    // is kept small by the verdict cache below, which is what
+                    // stops a second attempt in the first place.
+                    //
                     // A newer attempt already owns the verdict (the view was
                     // detached, or another build started): this one is stale, so
-                    // it only disposes its half-built scene and says nothing.
+                    // it says nothing.
                     if (generation == _sceneGeneration)
                     {
                         _sceneGeneration++;
@@ -358,6 +370,13 @@ public partial class PlotterNexView : UserControl
                     // Attach failed after a healthy context: still a 3D-only
                     // failure, so show the panel rather than a blank viewport.
                     _scene = null;
+                    // Release the model before disposing the scene. AttachScene
+                    // may have already stored the factory, and the model's own
+                    // release is normally driven by the VulkanUnavailable
+                    // handler below - which is gated on _scene being non-null, so
+                    // having just nulled it here that path cannot fire. Without
+                    // this the model keeps handing out a disposed scene.
+                    _vm.ReleaseScene();
                     built!.Dispose();
                     FreeRenderResources();
                     ReportVulkanFailure(Plot3DFailure.Other);
@@ -386,12 +405,19 @@ public partial class PlotterNexView : UserControl
         if (vm is null)
             return;
         vm.ReportVulkanUnavailable(failure);
-        // Read back the reason the view model just recorded, so the hint names
-        // THIS failure kind instead of one hard-coded key. Set from here rather
-        // than bound in XAML because VulkanFailureDetail is module-internal and
-        // an Avalonia reflection binding resolves public members only (a bound
-        // internal property reads back null, i.e. an empty hint). This runs
-        // before the next frame, so the panel never appears without its text.
+        // Set here rather than bound in XAML, deliberately. VulkanFailureDetail
+        // is module-internal, keeping the failure vocabulary off this module's
+        // public surface on purpose, and the view reads it directly because that
+        // is guaranteed by the compiler. An Avalonia reflection binding does
+        // reach non-public members (verified against the pinned Avalonia by
+        // running a headless probe), so binding would work today - but that is
+        // an implementation detail of the binding engine rather than a documented
+        // contract, and a blank hint is a silent user-visible failure that no
+        // test here could catch, since the view needs a GPU. Reading it here also
+        // covers paths that never raise PropertyChanged, such as re-attaching to
+        // a view model that already holds a verdict. Read back from the model
+        // rather than echoing `failure`, because the model keeps the FIRST
+        // reason and this keeps the two in agreement.
         FallbackHint.Text = vm.VulkanFailureDetail;
     }
 
@@ -420,9 +446,14 @@ public partial class PlotterNexView : UserControl
         }
         catch (Exception ex)
         {
-            // Was: swallowed, leaving a blank viewport with no explanation.
-            _readback = null;
-            _renderContext = null;
+            // Was: swallowed, leaving a blank viewport with no explanation. It
+            // also nulled the two fields without disposing them, which leaked
+            // the render context the CreateRenderContext above had already
+            // handed us - and nothing could reclaim it afterwards, because the
+            // caller's own cleanup nulls the same fields. FreeRenderResources
+            // is the one place that owns that teardown, so use it rather than
+            // repeating (and getting wrong) half of it.
+            FreeRenderResources();
             ReportVulkanFailure(Plot3DFailure.Other);
             LogVulkanFailure("RENDERCTX", Plot3DFailure.Other, "n/a", ex);
         }
