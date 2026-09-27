@@ -183,9 +183,11 @@ public class PlotterModuleTests
         Assert.Equal(2, seg0.To[1]);
         Assert.Equal(8, seg1.To[0]);
         Assert.Equal(2, seg1.To[1]);
-        // Foam letters ride the controller's letters: Z/A on the second plane.
+        // Letters name the WORLD axes each plane feeds, not its machine roles:
+        // identity maps both foam planes' roles onto world X and Y, so the
+        // second carriage reads "XY" even though its roles are Z/A.
         Assert.Equal("XY", vm.PlaneLetters[0]);
-        Assert.Equal("ZA", vm.PlaneLetters[1]);
+        Assert.Equal("XY", vm.PlaneLetters[1]);
     }
 
     [Fact]
@@ -599,7 +601,7 @@ public class PlotterModuleTests
     {
         var source = new ProgramViewModel();
         var vm = MakeVmAround(source);
-        var initial = vm.GeometryVersion; // 1: the ctor's empty state counts as a geometry
+        var initial = vm.GeometryVersion; // non-zero: the ctor's identity mapping and empty state both count
 
         source.LoadGCode("G1 X10 F100");
         var afterLoad = vm.GeometryVersion;
@@ -610,7 +612,10 @@ public class PlotterModuleTests
         source.Rewind();
         Assert.Equal(afterLoad, vm.GeometryVersion);
 
+        // A clear is a geometry change. It now reports through more than one
+        // event (the plane mapping re-derives from the machine type, then the
+        // geometry empties), so the count is not pinned — only the direction.
         source.ClearProgram();
-        Assert.Equal(afterLoad + 1, vm.GeometryVersion);
+        Assert.True(vm.GeometryVersion > afterLoad);
     }
 }

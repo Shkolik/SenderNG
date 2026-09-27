@@ -52,6 +52,7 @@ using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Localization;
 using SenderNG.Modules.Plotter;
+using SenderNG.Modules.Plotter.Settings;
 using Xunit;
 
 namespace SenderNG.Tests;
@@ -361,6 +362,124 @@ public class PlotterViewHeadlessTests
         var green = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
         Assert.True(green > 200,
             $"live updates must survive a tab switch, found {green} green pixels");
+    }
+
+    /// <summary>The header must name the WORLD axes each plane feeds — the
+    /// same mapping the pane below it draws — so the letters can never
+    /// describe a different picture than the one on screen. Identity maps every
+    /// plane's roles onto world X and Y in turn, hence "XY | XY" for a foam
+    /// machine whose second carriage is mechanically Z/A.</summary>
+    [AvaloniaFact]
+    public async Task Header_letters_name_the_world_axes_each_plane_feeds()
+    {
+        var source = new StubProgramSource();
+        // G21 + a feed word: a G1 with no feed in effect is a parse error, and
+        // the program would carry no geometry at all.
+        source.Load("G21\nG1 X10 Y10 F240");
+        var vm = MakeVm(source, MachineTypes.Foam);
+        vm.SetPlaneGeometries([
+            PlotterPlaneMapper.Identity(2),
+            PlotterPlaneMapper.Identity(2),
+        ]);
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        await Pump();
+
+        // Foam plane 1's roles are Z and A; identity maps them onto world X and Y.
+        Assert.Equal("XY | XY", view.HeaderLettersForTest);
+
+        // The letters FOLLOW the mapping: plane 1 fed by world Y then X reads
+        // "YX" — not its machine roles' letters, which never move.
+        vm.SetPlaneGeometries([
+            PlotterPlaneMapper.Identity(2),
+            new PlotterPlaneGeometry { WorldAxes = [1, 0] },
+        ]);
+        await Pump();
+        Assert.Equal("XY | YX", view.HeaderLettersForTest);
+    }
+
+    /// <summary>The whole point of routing the panes through one mapping: a
+    /// swap must TRANSPOSE the pane (a new tile extent, therefore a new fit
+    /// zoom), not merely relabel the header. The program is anisotropic on
+    /// purpose — plane 0 spans 100 in its first role and 20 in its second,
+    /// plane 1 spans 20 then 100 — so the two compositions differ and the
+    /// assertion cannot pass on a cancelled-out change.</summary>
+    [AvaloniaFact]
+    public async Task Swapping_a_planes_feeds_transposes_that_pane()
+    {
+        var source = new StubProgramSource();
+        source.Load("G21\nG1 X100 Y20 Z20 A100 F240");
+        var vm = MakeVm(source, MachineTypes.Foam);
+        vm.SetPlaneGeometries([
+            PlotterPlaneMapper.Identity(2),
+            PlotterPlaneMapper.Identity(2),
+        ]);
+        // Both carriages carry motion, so both tiles are drawn before the swap.
+        Assert.Equal(2, vm.Planes.Count);
+        Assert.True(vm.Planes[0].Count > 0);
+        Assert.True(vm.Planes[1].Count > 0);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 4; i++)
+            await Pump();
+
+        var before = view.CompositionForTest;
+        // One canvas carries the whole diagonal composition (both foam tiles).
+        Assert.Single(before);
+        Assert.Equal([0, 1], view.DrawableSlotsForTest.ToArray());
+        // The fit must have run: an unfitted (NaN) zoom would satisfy the
+        // NotEqual below for the wrong reason (NaN != NaN).
+        Assert.False(double.IsNaN(before[0].Zoom));
+
+        // Swap plane 1's feeds: its wide axis now feeds world Y, so the shared
+        // composition's vertical extent grows and the fit zoom must change.
+        vm.SetPlaneGeometries([
+            PlotterPlaneMapper.Identity(2),
+            new PlotterPlaneGeometry { WorldAxes = [1, 0] },
+        ]);
+        await Pump();
+
+        var after = view.CompositionForTest;
+        Assert.Single(after);
+        Assert.Equal([0, 1], view.DrawableSlotsForTest.ToArray());
+        Assert.NotEqual(before[0].Zoom, after[0].Zoom, 6);
+    }
+
+    /// <summary>A plane feeding only X and Z has no 2D extent: the flat pane
+    /// must refuse to draw it instead of plotting its first two roles as if
+    /// they were world X and Y. The program moves BOTH carriages, so the only
+    /// reason plane 1 is missing is its mapping — an empty plane would pass
+    /// this test vacuously.</summary>
+    [AvaloniaFact]
+    public async Task A_plane_with_no_world_Y_is_not_drawn_in_the_flat_view()
+    {
+        var source = new StubProgramSource();
+        source.Load("G21\nG1 X10 Y10 Z10 A10 F240");
+        var vm = MakeVm(source, MachineTypes.Foam);
+        vm.SetPlaneGeometries([
+            PlotterPlaneMapper.Identity(2),
+            new PlotterPlaneGeometry { WorldAxes = [0, 2] },
+        ]);
+        // The second carriage HAS motion — it is the mapping that removes it.
+        Assert.True(vm.Planes[1].Count > 0);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        await Pump();
+
+        // The header still names what plane 1 feeds (world X and Z): the
+        // mapping is live and reported, the pane simply has no extent for it.
+        Assert.Equal("XY | XZ", view.HeaderLettersForTest);
+        // Only plane 0 is drawable, so the composition holds a single tile.
+        var frame = PlotterPixels.Snapshot(PlotterViewHeadlessTests.CaptureFrame(window));
+        Assert.True(PlotterPixels.Count(frame, PlotterViewHeadlessTests.IsPathGrey) > 0);
+        Assert.Single(view.DrawableSlotsForTest);
     }
 
     private static WriteableBitmap CaptureFrame(Window window)

@@ -39,6 +39,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Modules.Plotter.Settings;
 
 namespace SenderNG.Modules.Plotter;
 
@@ -268,6 +269,21 @@ public partial class PlotterView : UserControl
         _canvases.Add(canvas);
     }
 
+    /// <summary>The header's plane-letter string. The generated <c>HeaderLetters</c>
+    /// field is internal to the view's own assembly, so tests read this.</summary>
+    internal string HeaderLettersForTest => HeaderLetters.Text ?? string.Empty;
+
+    /// <summary>One transform per canvas, for headless tests.</summary>
+    internal IReadOnlyList<(double Zoom, Vector Pan)> CompositionForTest =>
+        _canvases.OfType<PlotCanvas>().Select(c => c.SlotTransformForTest(0)).ToArray();
+
+    /// <summary>Slots the flat canvas currently considers drawable. A plane whose
+    /// mapping does not feed world Y has no 2D extent, so it is skipped.</summary>
+    internal IReadOnlyList<int> DrawableSlotsForTest =>
+        _canvases.OfType<PlaneCanvas>()
+            .SelectMany(c => Enumerable.Range(0, c.SlotCountForTest).Where(c.IsSlotDrawableForTest))
+            .ToArray();
+
     private void UpdateHeader()
     {
         if (_vm is null)
@@ -391,6 +407,13 @@ public partial class PlotterView : UserControl
         private long _lastInputTicks = long.MinValue;
         private readonly RedrawThrottle _throttle = new();
         private readonly DispatcherTimer _settleTimer;
+
+        /// <summary>Internal, not the protected <see cref="SlotZoom"/>/<see cref="SlotPan"/>:
+        /// a containing type may not read a nested type's protected members, so the
+        /// view reads the transform through this seam (as it already does for
+        /// <see cref="OnGeometryReplaced"/>).</summary>
+        internal (double Zoom, Vector Pan) SlotTransformForTest(int slot) =>
+            (SlotZoom(slot), SlotPan(slot));
 
         // Per-slot raster caches: the path drawn ONCE per (geometry, settled
         // zoom) into a world-sized bitmap; every frame blits it through the
@@ -981,20 +1004,32 @@ public partial class PlotterView : UserControl
 
         private bool PlaneDrawable(int slot)
         {
+            if (slot >= Vm.PlaneCount || Vm.Planes[slot].Count == 0 || Vm.Bounds.Length == 0)
+                return false;
             var indices = Vm.PlaneAxisIndices(slot);
-            return slot < Vm.Planes.Count && Vm.Planes[slot].Count > 0
-                && indices.Length >= 2 && Vm.Bounds.Length > indices[^1];
+            if (indices.Length < 2 || Vm.Bounds.Length <= indices[^1])
+                return false;
+            var (sx, sy) = PaneFeeds(slot);
+            return sx >= 0 && sy >= 0;
         }
+
+        /// <summary>The plane slots feeding world X and world Y. This is the ONLY
+        /// place the flat view turns a plane mapping into slots — bounds, the baked
+        /// segments, the vector overlay, the glyph and the chrome painters all read
+        /// these two numbers, so they cannot drift apart.</summary>
+        private (int X, int Y) PaneFeeds(int slot) =>
+            PlotterPlaneMapper.Feeds(Vm.GeometryFor(slot));
 
         private (double MinX, double MinY, double MaxX, double MaxY) PlaneBounds(int slot)
         {
             if (!PlaneDrawable(slot))
                 return (0, 0, 1, 1);
             var indices = Vm.PlaneAxisIndices(slot);
-            var minX = Vm.Bounds[indices[0]][0];
-            var spanX = Math.Max(Vm.Bounds[indices[0]][1] - minX, 1e-6);
-            var minY = Vm.Bounds[indices[1]][0];
-            var spanY = Math.Max(Vm.Bounds[indices[1]][1] - minY, 1e-6);
+            var (sx, sy) = PaneFeeds(slot);
+            var minX = Vm.Bounds[indices[sx]][0];
+            var spanX = Math.Max(Vm.Bounds[indices[sx]][1] - minX, 1e-6);
+            var minY = Vm.Bounds[indices[sy]][0];
+            var spanY = Math.Max(Vm.Bounds[indices[sy]][1] - minY, 1e-6);
             return (minX, minY, minX + spanX, minY + spanY);
         }
 
@@ -1078,8 +1113,9 @@ public partial class PlotterView : UserControl
         {
             var s = Vm.Planes[slot][index];
             var m = _maps[Foam ? slot : 0];
-            return new WorldSeg(m.Wx(s.From[0]), m.Wy(s.From[1]),
-                m.Wx(s.To[0]), m.Wy(s.To[1]), s.Line, s.Rapid);
+            var (sx, sy) = PaneFeeds(slot);
+            return new WorldSeg(m.Wx(s.From[sx]), m.Wy(s.From[sy]),
+                m.Wx(s.To[sx]), m.Wy(s.To[sy]), s.Line, s.Rapid);
         }
 
         protected override void DrawSlotPathWorld(DrawingContext ctx, int slot, BakePens pens)
@@ -1088,13 +1124,14 @@ public partial class PlotterView : UserControl
                 return;
             var segments = Vm.Planes[slot];
             var m = _maps[Foam ? slot : 0];
+            var (sx, sy) = PaneFeeds(slot);
             for (var i = 0; i < segments.Count; i++)
             {
                 var s = segments[i];
                 var pen = BakePenFor(pens, s.Rapid, RowStateFor(s.Line));
                 ctx.DrawLine(pen,
-                    new Point(m.Wx(s.From[0]), m.Wy(s.From[1])),
-                    new Point(m.Wx(s.To[0]), m.Wy(s.To[1])));
+                    new Point(m.Wx(s.From[sx]), m.Wy(s.From[sy])),
+                    new Point(m.Wx(s.To[sx]), m.Wy(s.To[sy])));
             }
         }
 
@@ -1130,20 +1167,22 @@ public partial class PlotterView : UserControl
                 if (!PlaneDrawable(0))
                     return;
                 var idx0 = Vm.PlaneAxisIndices(0);
+                var (x0, y0) = PaneFeeds(0);
                 if (pos.Length <= idx0[^1])
                     return;
                 var m0 = _maps[0];
-                var p0 = WorldToScreen(m0.Wx(pos[idx0[0]]), m0.Wy(pos[idx0[1]]), _zoom, _pan);
+                var p0 = WorldToScreen(m0.Wx(pos[idx0[x0]]), m0.Wy(pos[idx0[y0]]), _zoom, _pan);
                 if (!PlaneDrawable(1))
                 {
                     ctx.DrawEllipse(PlotterPens.ToolBrush, PlotterPens.Tool, p0, 4, 4);
                     return;
                 }
                 var idx1 = Vm.PlaneAxisIndices(1);
+                var (x1, y1) = PaneFeeds(1);
                 if (pos.Length <= idx1[^1])
                     return;
                 var m1 = _maps[1];
-                var p1 = WorldToScreen(m1.Wx(pos[idx1[0]]), m1.Wy(pos[idx1[1]]), _zoom, _pan);
+                var p1 = WorldToScreen(m1.Wx(pos[idx1[x1]]), m1.Wy(pos[idx1[y1]]), _zoom, _pan);
                 ctx.DrawLine(PlotterPens.Tool, p0, p1);
                 ctx.DrawEllipse(PlotterPens.ToolBrush, null, p0, 3, 3);
                 ctx.DrawEllipse(PlotterPens.ToolBrush, null, p1, 3, 3);
@@ -1153,13 +1192,21 @@ public partial class PlotterView : UserControl
                 if (!PlaneDrawable(0))
                     return;
                 var indices = Vm.PlaneAxisIndices(0);
+                var (sx, sy) = PaneFeeds(0);
                 if (pos.Length <= indices[^1])
                     return;
                 var m = _maps[0];
-                var p = WorldToScreen(m.Wx(pos[indices[0]]), m.Wy(pos[indices[1]]), _zoom, _pan);
+                var p = WorldToScreen(m.Wx(pos[indices[sx]]), m.Wy(pos[indices[sy]]), _zoom, _pan);
                 ctx.DrawEllipse(PlotterPens.ToolBrush, PlotterPens.Tool, p, 4, 4);
             }
         }
+
+        /// <summary>Tile count of the flat composition (2 for foam, 1 otherwise).</summary>
+        internal int SlotCountForTest => SlotCount;
+
+        /// <summary>Whether the flat pane for <paramref name="slot"/> has a usable
+        /// 2D extent — it must feed both world X and world Y.</summary>
+        internal bool IsSlotDrawableForTest(int slot) => PlaneDrawable(slot);
     }
 
     /// <summary>

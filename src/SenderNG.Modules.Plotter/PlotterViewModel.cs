@@ -40,6 +40,7 @@ using System.Runtime.CompilerServices;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Localization;
+using SenderNG.Modules.Plotter.Settings;
 
 namespace SenderNG.Modules.Plotter;
 
@@ -83,6 +84,12 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
     private int _generation;
 
     private MachineType _machineType;
+
+    /// <summary>Per-plane axis→world mapping. Identity until the settings VM
+    /// (Task 8) pushes a stored section in — which is exactly what the renderer
+    /// assumed before this section existed.</summary>
+    private List<PlotterPlaneGeometry> _planeGeometries = [];
+
     private double[][] _bounds = [];
     private Dictionary<uint, int> _lineToRow = new();
 
@@ -97,6 +104,9 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         _settings = settings;
         _localization = localization;
         _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
+        // The mapping is indexed by plane, so it must match the resolved type
+        // before anything can read it.
+        ResetPlaneGeometries();
 
         _programSource.ProgramChanged += OnProgramChanged;
         _programSource.RowsChanged += OnRowsChanged;
@@ -136,11 +146,46 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
     /// the view maps segment/LivePosition slots through these.</summary>
     public int[] PlaneAxisIndices(int plane) => _machineType.PlaneAxisIndices(plane);
 
-    /// <summary>Display letters per plane, from the controller's reported axis
-    /// letters (fallback: the preset's conventional letters).</summary>
+    /// <summary>The active per-plane mappings, in plane order.</summary>
+    public IReadOnlyList<PlotterPlaneGeometry> PlaneGeometries => _planeGeometries;
+
+    /// <summary>Plane <paramref name="plane"/>'s mapping, falling back to identity
+    /// for that plane's role count when none is set or the stored one is
+    /// malformed.</summary>
+    public PlotterPlaneGeometry GeometryFor(int plane)
+    {
+        var roles = plane >= 0 && plane < _machineType.Planes.Count
+            ? _machineType.Planes[plane].Roles.Count
+            : 2;
+        var stored = plane >= 0 && plane < _planeGeometries.Count ? _planeGeometries[plane] : null;
+        return PlotterPlaneMapper.For(stored, roles);
+    }
+
+    /// <summary>Replaces the mapping set and repaints. The App Settings leaf and the
+    /// plot view share this one list, so a change in either is visible in both.</summary>
+    public void SetPlaneGeometries(IReadOnlyList<PlotterPlaneGeometry> planes)
+    {
+        _planeGeometries = [.. planes];
+        // The letters are a header read, the geometry version the re-fit
+        // (Bounds moved, so the fit zoom must move with it), the plane letters
+        // also the slot layout rebuild (a plane can lose its world Y and stop
+        // being drawable) and Bump the plain redraw tick.
+        OnPropertyChanged(nameof(PlaneLetters));
+        GeometryVersion++;
+        OnPropertyChanged(nameof(GeometryVersion));
+        Bump();
+    }
+
+    /// <summary>Every plane back to identity — the pre-section mapping.</summary>
+    public void ResetPlaneGeometries() =>
+        SetPlaneGeometries([.. _machineType.Planes.Select(p => PlotterPlaneMapper.Identity(p.Roles.Count))]);
+
+    /// <summary>Display letters per plane, naming the <em>world</em> axes that
+    /// plane feeds — the same mapping the panes draw, so the header cannot
+    /// disagree with the picture.</summary>
     public string[] PlaneLetters => _machineType.Planes
-        .Select((_, p) => new string(
-            _machineType.PlaneAxisIndices(p).Select(AxisLetter).ToArray()))
+        .Select((plane, p) => new string(
+            GeometryFor(p).WorldAxes.Select(AxisLetter).ToArray()))
         .ToArray();
 
     /// <summary>Per-axis bounds [min,max] over the whole toolpath (program frame).</summary>
@@ -228,6 +273,9 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         // Profile may have changed since construction (a machine switch clears
         // the program; the type rides the active profile).
         _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
+        // The mapping set is indexed by plane and was built for the previous
+        // type, so it re-derives from the new one.
+        ResetPlaneGeometries();
         OnPropertyChanged(nameof(PlaneCount));
         OnPropertyChanged(nameof(PlaneLetters));
         Rebuild();
