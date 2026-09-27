@@ -188,25 +188,30 @@ public class PlotterNexLocaleTests
     {
         const string command = "vulkaninfo --summary";
         var ru = Strings("ru");
-        var expected = new[] { "notSupported", "runtimeError" };
-
-        foreach (var suffix in expected)
+        var pinned = new[]
         {
-            var key = "module.plotter-nex.vulkanUnavailable." + suffix;
+            "module.plotter-nex.vulkanUnavailable.notSupported",
+            "module.plotter-nex.vulkanUnavailable.runtimeError",
+        };
+
+        foreach (var key in pinned)
+        {
             Assert.True(ru.ContainsKey(key), $"ru.json key '{key}' is missing.");
             Assert.Contains(command, ru[key]);
         }
 
-            // Nothing else in the catalog may mention a command we have not pinned.
-            foreach (var (key, value) in ru)
-            {
-                if (expected.Any(s => key.EndsWith("." + s, StringComparison.Ordinal)))
-                    continue;
-                Assert.False(value.Contains("vulkaninfo", StringComparison.Ordinal),
-                    $"ru.json key '{key}' mentions vulkaninfo but is not covered by " +
-                    "this test - add its key to `expected`.");
-            }
-
+        // Nothing else in the catalog may mention a command we have not pinned.
+        // Membership is tested on the WHOLE key, not a suffix: an unrelated key
+        // that merely ends in ".notSupported" must not be able to slip past as
+        // if it were one of the two above.
+        foreach (var (key, value) in ru)
+        {
+            if (pinned.Contains(key, StringComparer.Ordinal))
+                continue;
+            Assert.False(value.Contains("vulkaninfo", StringComparison.Ordinal),
+                $"ru.json key '{key}' mentions vulkaninfo but is not covered by " +
+                "this test - add its key to `pinned`.");
+        }
     }
 
     private static readonly string[] Locales = ["en", "ru"];

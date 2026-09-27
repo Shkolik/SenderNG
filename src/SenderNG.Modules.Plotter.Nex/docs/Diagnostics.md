@@ -167,22 +167,37 @@ hardware cause:
   path leaks a `VkInstance` and is not retried.
 
 A failed Vulkan context leaks its `VkInstance`, so the verdict is cached and the
-view does not re-enter Vulkan for the life of the module. The cache is written even
-when the failure lands after the view has already superseded the attempt that
-produced it, so the panel appears and the leak stays bounded at one.
+view does not re-enter Vulkan once it knows about the failure. The cache is
+written even when the failure lands after the view has already superseded the
+attempt that produced it — remembering is unconditional, and only *reporting* is
+gated, because reporting mutates the view model and the panel, which the newer
+attempt owns.
 
-**But the cache can only stop attempts it already knows about**, and that is worth
-being precise about, because the window is real: a tab switch *during* the build
-window — detach, then re-attach before the first attempt has failed — starts a
-second attempt, because at re-attach the cache is still empty. So a `CONTEXT` line
-per attempt in that window is possible, each with its own leak, and a superseding
-attempt that later succeeds leaves the earlier failure cached and the panel
-showing. Two `CONTEXT` lines in quick succession means exactly that. So:
+**That distinction is visible in the log, and worth knowing before you go
+looking for a panel.** A superseded attempt's failure is remembered but never
+reported, so no panel appears for it. If a later attempt succeeded, the viewport
+is drawing normally *and* the verdict is cached, and nothing will ever raise that
+panel: a live scene suppresses further scene builds. The `CONTEXT` line is the
+only record that the failure happened. If you see a `CONTEXT` line and no panel,
+check whether 3D is in fact rendering before concluding the panel is missing.
+
+**The cache can also only stop attempts it already knows about**, and the window
+is real: any re-attach before the failing attempt's result has been *processed on
+the UI thread* starts a second attempt, because at re-attach the cache is still
+empty. That window is wider than "before the attempt failed" — the cache is
+written when the dispatcher runs the completion, not when the attempt fails — and
+it does not require a tab switch, since a data-context change also re-enters
+`EnsureScene`. So a `CONTEXT` line per attempt in that window is possible, each
+with its own leak. So:
 
 - **One `[VULKAN] CONTEXT` line and a panel** → a real Vulkan verdict; read
   `failed` above and act on it.
-- **Several `CONTEXT` lines, seconds apart** → repeated tab switching during the
-  build window, not a new problem. `failed` on the first line is the real verdict.
+- **Several `CONTEXT` lines, seconds apart** → repeated attach attempts inside
+  that window (tab switching, or a data-context change), not a new problem.
+  `failed` on the first line is the real verdict.
+- **A `CONTEXT` line and no panel** → the failure was superseded and is cached
+  without being reported. Fine if 3D is rendering; if it is blank, the live
+  attempt failed somewhere else and its own stage line will say so.
 - **No `CONTEXT` line but the tab is blank** → the failure is elsewhere
   (`SCENE`/`ATTACH`/`RENDERCTX`), or the context succeeded and the problem is in
   rendering — check the tick crash log instead.

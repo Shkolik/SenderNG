@@ -549,13 +549,13 @@ public partial class PlotterNexView : UserControl
     private void EnableTick()
     {
         // The tick drives a render context, so that is what gates it. It used
-        // to be gated on the cached verdict instead, at each call site, because
-        // the verdict's only writer was SetupRenderTarget's own failure path.
-        // That is no longer true: a superseded build attempt caches a verdict
-        // without the current attempt having failed, so a live scene could be
-        // denied its tick - attached, never drawn, no panel and no log line,
-        // because EnsureScene early-returns while a scene exists. Keying on
-        // the precondition, in the one place that starts the tick, cannot be
+        // to be gated on the cached verdict instead, at each call site, on the
+        // reasoning that only a failure reachable before an EnableTick call
+        // could have set one. That stopped being true when a superseded build
+        // attempt started caching verdicts too: a live scene could be denied
+        // its tick - attached, never drawn, no panel and no log line, because
+        // EnsureScene early-returns while a scene exists. Keying on the
+        // precondition, in the one place that starts the tick, cannot be
         // fooled by who else has written the verdict.
         if (_renderContext is null)
             return;
