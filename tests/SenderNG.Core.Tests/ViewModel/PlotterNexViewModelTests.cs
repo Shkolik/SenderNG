@@ -782,10 +782,14 @@ public class PlotterNexViewModelTests : IDisposable
 
         Assert.False(vm.VulkanUnavailable);
         Assert.Equal(Plot3DFailure.None, vm.VulkanFailure);
+        // Healthy means no explanation at all, not the generic failure hint: a
+        // consumer binding this unconditionally must not read a failure
+        // message on a working machine.
+        Assert.Equal(string.Empty, vm.VulkanFailureDetail);
     }
 
     [Fact]
-    public void Reporting_a_failure_sets_both_properties_and_raises_both()
+    public void Reporting_a_failure_sets_all_three_properties_and_raises_all_three()
     {
         using var vm = MakeVm(new StubProgramSource(), new RecorderScene());
         var raised = new List<string>();
@@ -795,8 +799,18 @@ public class PlotterNexViewModelTests : IDisposable
 
         Assert.True(vm.VulkanUnavailable);
         Assert.Equal(Plot3DFailure.NotSupported, vm.VulkanFailure);
-        Assert.Contains(nameof(PlotterNexViewModel.VulkanUnavailable), raised);
-        Assert.Contains(nameof(PlotterNexViewModel.VulkanFailure), raised);
+        Assert.False(string.IsNullOrEmpty(vm.VulkanFailureDetail));
+        // Exactly these three, compared as an unordered set so that a missing
+        // notification fails AND a fourth stray one fails. VulkanFailureDetail
+        // is in the list because a Text binding only re-reads on notification —
+        // without it the panel would show the detail's pre-report empty value.
+        Assert.Equal(
+            [
+                nameof(PlotterNexViewModel.VulkanFailure),
+                nameof(PlotterNexViewModel.VulkanFailureDetail),
+                nameof(PlotterNexViewModel.VulkanUnavailable),
+            ],
+            raised.Order(StringComparer.Ordinal));
     }
 
     [Fact]

@@ -176,36 +176,53 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     internal Plot3DFailure VulkanFailure => _vulkanFailure;
 
     /// <summary>Localized one-line explanation of <see cref="VulkanFailure"/>,
-    /// shown as the Plot 3D tab's fallback hint. The existing
-    /// vulkanUnavailableHint value is the Resolve fallback for every kind, so a
-    /// locale file that has not gained the per-kind keys still shows a
-    /// sensible message instead of an empty panel. Empty only while healthy —
-    /// the panel is hidden then, so nothing is ever shown blank.</summary>
+    /// shown as the Plot 3D tab's fallback hint. Empty while healthy
+    /// (<see cref="Plot3DFailure.None"/>), so a consumer can bind it
+    /// unconditionally and never show a failure explanation on a working
+    /// machine. Otherwise the reported kind's own key, degrading through the
+    /// existing generic vulkanUnavailableHint value and only then to a
+    /// last-resort English literal — so a locale file that has not gained the
+    /// per-kind keys still shows a sensible, localized message rather than a
+    /// blank panel.</summary>
     internal string VulkanFailureDetail => _vulkanFailure switch
     {
+        Plot3DFailure.None => string.Empty,
         Plot3DFailure.NotSupported => Hint("module.plotter-nex.vulkanUnavailable.notSupported"),
         Plot3DFailure.RuntimeError => Hint("module.plotter-nex.vulkanUnavailable.runtimeError"),
         Plot3DFailure.OutOfMemory => Hint("module.plotter-nex.vulkanUnavailable.outOfMemory"),
         _ => Hint("module.plotter-nex.vulkanUnavailable.other"),
     };
 
-    private string Hint(string key) => _localization.Resolve(
-        key, "No Vulkan 1.3 device could be created — 2D plotting stays available.");
+    /// <summary>Resolve one per-kind hint key, degrading to the module's
+    /// existing generic hint and only then to a hardcoded English literal.
+    /// <para>The generic hint is itself a localized key, so the degradation
+    /// path stays translated: a Russian locale that has not gained the
+    /// per-kind keys yields the Russian generic hint, not the English
+    /// literal.</para></summary>
+    private string Hint(string key) => _localization.Resolve(key, _localization.Resolve(
+        "module.plotter-nex.vulkanUnavailableHint",
+        "No Vulkan 1.3 device could be created — 2D plotting stays available."));
 
     /// <summary>Record why 3D plotting is unavailable and notify the three
     /// properties the fallback panel binds. The first reason wins: a later,
     /// different failure must not overwrite the one the user is already
     /// reading, and re-notifying would churn the bindings for nothing.
     /// <see cref="Plot3DFailure.None"/> is ignored, so a caller cannot report
-    /// "unavailable" without a reason.</summary>
+    /// "unavailable" without a reason.
+    /// <para>The flag is raised LAST, and the order is load-bearing: its
+    /// handler tears the scene down synchronously, so raising it first would
+    /// make the panel visible against a stale hint if any of that work
+    /// threw. Publishing the reason and the detail first makes the flag the
+    /// commit point. All three raises land in one dispatcher work item, so
+    /// reordering them costs nothing visually.</para></summary>
     internal void ReportVulkanUnavailable(Plot3DFailure failure)
     {
         if (failure == Plot3DFailure.None || _vulkanFailure != Plot3DFailure.None)
             return;
         _vulkanFailure = failure;
-        OnPropertyChanged(nameof(VulkanUnavailable));
         OnPropertyChanged(nameof(VulkanFailure));
         OnPropertyChanged(nameof(VulkanFailureDetail));
+        OnPropertyChanged(nameof(VulkanUnavailable));
     }
 
     /// <summary>Diagnostic (temporary): the raw controller axes that last drove
