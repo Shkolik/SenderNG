@@ -39,7 +39,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-using System.Runtime.InteropServices;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
@@ -153,8 +152,8 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 8; i++)
             await Pump();
 
-        var frame = CaptureFrame(window);
-        var grey = CountPixels(frame, IsPathGrey);
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        var grey = PlotterPixels.Count(frame, IsPathGrey);
         Assert.True(grey > 100,
             $"expected the grey toolpath in the frame, found {grey} path pixels (raster bake missing?)");
     }
@@ -182,15 +181,15 @@ public class PlotterViewHeadlessTests
             await Pump();
         Assert.True(vm.Isometric);
 
-        var frame = CaptureFrame(window);
-        var grey = CountPixels(frame, IsPathGrey);
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        var grey = PlotterPixels.Count(frame, IsPathGrey);
         Assert.True(grey > 100,
             $"expected the grey iso toolpath in the frame, found {grey} path pixels (raster bake missing?)");
 
         // M4 layout fix: the iso canvas must stretch over the WHOLE panel, not
         // linger in the flat layout's left column — so the path must reach the
         // right part of the frame.
-        var right = CountPixels(frame, IsPathGrey, x => x > frame.PixelSize.Width * 0.6);
+        var right = PlotterPixels.Count(frame, IsPathGrey, xFilter: x => x > frame.Width * 0.6);
         Assert.True(right > 20,
             $"iso toolpath does not fill the panel: {right} path pixels in the right 40% (stale grid columns?)");
     }
@@ -214,14 +213,14 @@ public class PlotterViewHeadlessTests
             await Pump();
 
         // Fresh load: everything idle (blue), nothing green.
-        Assert.Equal(0, CountPixels(CaptureFrame(window), IsDoneGreen));
+        Assert.Equal(0, PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen));
 
         // Ack the first half of the rows — exactly the live-run tick.
         source.AckRows(1, 301);
         for (var i = 0; i < 8; i++)
             await Pump();
 
-        var green = CountPixels(CaptureFrame(window), IsDoneGreen);
+        var green = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
         Assert.True(green > 200,
             $"acked segments must turn green from RowsChanged alone, found {green} green pixels");
 
@@ -229,7 +228,7 @@ public class PlotterViewHeadlessTests
         source.AckRows(301, 601);
         for (var i = 0; i < 8; i++)
             await Pump();
-        var greenAll = CountPixels(CaptureFrame(window), IsDoneGreen);
+        var greenAll = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
         Assert.True(greenAll > green,
             $"green frontier must advance, was {green}, now {greenAll}");
     }
@@ -268,7 +267,7 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 4; i++)
             await Pump();
 
-        var grey = CountPixels(CaptureFrame(window), IsPathGrey);
+        var grey = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsPathGrey);
         Assert.True(grey > 200,
             $"the path must stay visible after zoom+pan, found {grey} path pixels (blank raster edge?)");
     }
@@ -311,18 +310,18 @@ public class PlotterViewHeadlessTests
             await Pump();
         Assert.True(vm.Isometric);
 
-        var grey = CountPixels(CaptureFrame(window), IsPathGrey);
+        var grey = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsPathGrey);
         Assert.True(grey > 100,
             $"expected the foam 2D+loft in the iso frame, found {grey} path pixels");
         // The loft layout: plane 1 top-left, plane 2 bottom-right — grey path
         // must appear in BOTH halves of the iso frame.
-        var top = CountPixels(CaptureFrame(window), IsPathGrey, y => y < 280);
-        var bottom = CountPixels(CaptureFrame(window), IsPathGrey, y => y >= 280);
+        var top = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsPathGrey, yFilter: y => y < 280);
+        var bottom = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsPathGrey, yFilter: y => y >= 280);
         Assert.True(top > 30, $"plane 1 must draw in the iso top-left, found {top} path pixels");
         Assert.True(bottom > 30, $"plane 2 must draw in the iso bottom-right, found {bottom} path pixels");
         // And the semi-transparent coupling mesh must be present (its blend is
         // a light blue-grey, distinct from the pure-grey path).
-        var wire = CountPixels(CaptureFrame(window), IsWireBlend);
+        var wire = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsWireBlend);
         Assert.True(wire > 20, $"the loft coupling mesh must draw, found {wire} wire pixels");
     }
 
@@ -342,7 +341,7 @@ public class PlotterViewHeadlessTests
         window.Show();
         for (var i = 0; i < 8; i++)
             await Pump();
-        Assert.Equal(0, CountPixels(CaptureFrame(window), IsDoneGreen));
+        Assert.Equal(0, PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen));
 
         // Switch tabs: the view leaves the visual tree (the TabControl keeps
         // hidden tab content detached) and comes back.
@@ -357,7 +356,7 @@ public class PlotterViewHeadlessTests
         source.AckRows(1, 301);
         for (var i = 0; i < 8; i++)
             await Pump();
-        var green = CountPixels(CaptureFrame(window), IsDoneGreen);
+        var green = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
         Assert.True(green > 200,
             $"live updates must survive a tab switch, found {green} green pixels");
     }
@@ -387,33 +386,4 @@ public class PlotterViewHeadlessTests
 
     private static bool IsDoneGreen(byte r, byte g, byte b) =>
         g > 100 && r < 90 && b < 110;
-
-    private static int CountPixels(
-        WriteableBitmap bmp, Func<byte, byte, byte, bool> match, Func<int, bool>? xFilter = null)
-    {
-        using var fb = bmp.Lock();
-        var format = fb.Format.ToString();
-        var bgra = format.Contains("Bgra") || format.Contains("Pbgra");
-        var rgba = format.Contains("Rgba") || format.Contains("PArgb");
-        if (!bgra && !rgba)
-            throw new InvalidOperationException($"unexpected framebuffer format: {format}");
-        var row = new byte[fb.RowBytes];
-        var count = 0;
-        for (var y = 0; y < fb.Size.Height; y++)
-        {
-            Marshal.Copy(fb.Address + y * fb.RowBytes, row, 0, fb.RowBytes);
-            for (var x = 0; x < fb.Size.Width; x++)
-            {
-                if (xFilter is not null && !xFilter(x))
-                    continue;
-                var o = x * 4;
-                var (r, g, b) = bgra
-                    ? (row[o + 2], row[o + 1], row[o])
-                    : (row[o], row[o + 1], row[o + 2]);
-                if (match(r, g, b))
-                    count++;
-            }
-        }
-        return count;
-    }
 }

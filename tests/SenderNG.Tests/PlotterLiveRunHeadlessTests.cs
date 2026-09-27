@@ -218,8 +218,8 @@ public class PlotterLiveRunHeadlessTests
 
         // Colors: green grows monotonically with the frontier â€” the earliest
         // frame is near-blue, the last is fully green.
-        var greenFirst = CountPixels(frames[0], IsDoneGreen);
-        var greenLast = CountPixels(frames[^1], IsDoneGreen);
+        var greenFirst = PlotterPixels.Count(PlotterPixels.Snapshot(frames[0]), IsDoneGreen);
+        var greenLast = PlotterPixels.Count(PlotterPixels.Snapshot(frames[^1]), IsDoneGreen);
         Assert.True(greenLast > 300,
             $"the completed run must leave a green frontier, found {greenLast} green pixels");
         Assert.True(greenLast > greenFirst + 100,
@@ -274,14 +274,16 @@ public class PlotterLiveRunHeadlessTests
         // Both quadrants recolor: green must appear above AND below the middle
         // of the final frame (plane 1 is the bottom-right quadrant), and the
         // mid-run frames must already show real-time green.
-var mid = frames[frames.Count / 2].Bitmap;
+        var mid = frames[frames.Count / 2].Bitmap;
         var final = frames[^1].Bitmap;
-        var greenTop = CountPixels(final, IsDoneGreen, y => y < final.PixelSize.Height / 2);
-        var greenBottom = CountPixels(final, IsDoneGreen, y => y >= final.PixelSize.Height / 2);
+        var midFrame = PlotterPixels.Snapshot(mid);
+        var finalFrame = PlotterPixels.Snapshot(final);
+        var greenTop = PlotterPixels.Count(finalFrame, IsDoneGreen, yFilter: y => y < finalFrame.Height / 2);
+        var greenBottom = PlotterPixels.Count(finalFrame, IsDoneGreen, yFilter: y => y >= finalFrame.Height / 2);
         Assert.True(greenTop > 100, $"plane 1 (top-left) must recolor, found {greenTop} green pixels");
         Assert.True(greenBottom > 100, $"plane 2 (bottom-right) must recolor, found {greenBottom} green pixels");
-        Assert.True(CountPixels(mid, IsDoneGreen) > 50,
-            $"foam 2D must recolor in real time mid-run, found {CountPixels(mid, IsDoneGreen)} green pixels");
+        Assert.True(PlotterPixels.Count(midFrame, IsDoneGreen) > 50,
+            $"foam 2D must recolor in real time mid-run, found {PlotterPixels.Count(midFrame, IsDoneGreen)} green pixels");
 
         // The wire glyph (red) must be visible mid-run and travel to the end.
         // Sample it at a done-fraction anchor (the first captured frame past
@@ -399,7 +401,7 @@ var mid = frames[frames.Count / 2].Bitmap;
         Assert.NotEqual(total, total2);
         Assert.Equal($"0/{total2}", plotter.ProgressText);
 
-        var grey = CountPixels(CaptureFrame(window), IsPathGrey);
+        var grey = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsPathGrey);
         Assert.True(grey > 100,
             $"the reloaded program must render, found {grey} path pixels");
     }
@@ -821,29 +823,6 @@ var mid = frames[frames.Count / 2].Bitmap;
 
     private static bool IsToolRed(byte r, byte g, byte b) =>
         r > 150 && g < 90 && b < 90;
-
-    private static int CountPixels(
-        WriteableBitmap bmp, Func<byte, byte, byte, bool> match, Func<int, bool>? yFilter = null)
-    {
-        using var fb = bmp.Lock();
-        var bgra = fb.Format.ToString().Contains("Bgra") || fb.Format.ToString().Contains("Pbgra");
-        var row = new byte[fb.RowBytes];
-        var count = 0;
-        for (var y = 0; y < fb.Size.Height; y++)
-        {
-            if (yFilter is not null && !yFilter(y))
-                continue;
-            Marshal.Copy(fb.Address + y * fb.RowBytes, row, 0, fb.RowBytes);
-            for (var x = 0; x < fb.Size.Width; x++)
-            {
-                var o = x * 4;
-                var (r, g, b) = bgra ? (row[o + 2], row[o + 1], row[o]) : (row[o], row[o + 1], row[o + 2]);
-                if (match(r, g, b))
-                    count++;
-            }
-        }
-        return count;
-    }
 
     private static (int Count, double X, double Y) Glyph(WriteableBitmap bmp)
     {

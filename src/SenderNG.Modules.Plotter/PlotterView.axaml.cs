@@ -78,8 +78,6 @@ internal static class PlotterPens
     public const double ErrorW = 1.65;
     public static readonly IBrush InFlightBrush = new SolidColorBrush(Color.FromRgb(0xe0, 0x96, 0x20));
     public const double InFlightW = 1.1;
-    public static readonly IBrush GridBrush = new SolidColorBrush(Color.FromRgb(0xec, 0xec, 0xec));
-    public const double GridW = 0.7;
     public static readonly IBrush OriginBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
     public const double OriginW = 1;
     public static readonly IBrush ToolBrush = new SolidColorBrush(Color.FromRgb(0xd0, 0x20, 0x20));
@@ -94,7 +92,6 @@ internal static class PlotterPens
     public static readonly IPen Done = new Pen(DoneBrush, DoneW);
     public static readonly IPen Error = new Pen(ErrorBrush, ErrorW);
     public static readonly IPen InFlight = new Pen(InFlightBrush, InFlightW);
-    public static readonly IPen Grid = new Pen(GridBrush, GridW);
     public static readonly IPen Origin = new Pen(OriginBrush, OriginW);
     public static readonly IPen Tool = new Pen(ToolBrush, ToolW);
     public static readonly IPen Wire = new Pen(WireBrush, WireW);
@@ -1162,21 +1159,6 @@ public partial class PlotterView : UserControl
                 var p = WorldToScreen(m.Wx(pos[indices[0]]), m.Wy(pos[indices[1]]), _zoom, _pan);
                 ctx.DrawEllipse(PlotterPens.ToolBrush, PlotterPens.Tool, p, 4, 4);
             }
-        }
-
-        private static double NiceStep(double raw)
-        {
-            if (raw <= 0)
-                return 1;
-            var pow = Math.Pow(10, Math.Floor(Math.Log10(raw)));
-            var norm = raw / pow;
-            return norm switch
-            {
-                < 1.5 => pow,
-                < 3.5 => 2 * pow,
-                < 7.5 => 5 * pow,
-                _ => 10 * pow,
-            };
         }
     }
 
