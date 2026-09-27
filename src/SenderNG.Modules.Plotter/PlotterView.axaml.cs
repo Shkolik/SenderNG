@@ -1157,11 +1157,23 @@ public partial class PlotterView : UserControl
                 return;
             var m = _maps[Foam ? slot : 0];
             var bounds = PlaneBounds(slot);
-            var viewport = SlotViewport(slot, new Rect(Bounds.Size));
+            // The chrome clips to the whole canvas, NOT to SlotViewport. A
+            // foam slot's viewport is its quadrant, but the fit centres the
+            // whole diagonal two-tile composition, so whenever plane 0's Y
+            // extent exceeds plane 1's by more than FoamTileGap — the normal
+            // XY-vs-XZ case — plane 0's world area reaches past its quadrant
+            // into the other tile's half of the canvas. Clipping the lattice to
+            // the quadrant sliced it with a hard horizontal edge at the canvas
+            // midline while the same tile's envelope and cross, which take no
+            // clip, kept drawing past it. This is the same trimming the file's
+            // own rule at BlitOrBake's call site forbids for the raster; a
+            // non-foam slot's viewport is the whole control, so for a mill the
+            // two rects are identical and nothing here changes.
+            var clip = new Rect(Bounds.Size);
 
             if (Chrome.Grid)
-                PlotterFlatChrome.DrawGrid(ctx, m, bounds, _zoom, _pan, viewport);
-            PlotterFlatChrome.DrawAxes(ctx, m, bounds, _zoom, _pan, viewport);
+                PlotterFlatChrome.DrawGrid(ctx, m, bounds, _zoom, _pan, clip);
+            PlotterFlatChrome.DrawAxes(ctx, m, bounds, _zoom, _pan, clip);
             if (Chrome.Envelope)
                 PlotterFlatChrome.DrawEnvelope(ctx, m, bounds, _zoom, _pan);
             // The origin cross paints LAST, on top of everything. This order is

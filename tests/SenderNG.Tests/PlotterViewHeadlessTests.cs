@@ -500,7 +500,8 @@ public class PlotterViewHeadlessTests
         Assert.True(withGrid > 400, $"the default grid must paint, found {withGrid} light pixels");
 
         view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
-        await Pump();
+        for (var i = 0; i < 8; i++)
+            await Pump();
         var off = PlotterPixels.Snapshot(CaptureFrame(window));
         var without = CountSurface(off, IsChromeLight);
         Assert.True(without < withGrid / 2, $"the grid must go away, found {without} of {withGrid}");
@@ -518,7 +519,12 @@ public class PlotterViewHeadlessTests
     }
 
     /// <summary>The grid palette (#e0e0e0 / #c0c0c0) — near-neutral, all channels
-    /// within 8 of each other, and light. Outside the IsPathGrey band by value.</summary>
+    /// within 8 of each other, and light. Outside the IsPathGrey band by value.
+    /// It does NOT exclude the toolpath: the #808080 path's antialiased halo
+    /// is light and neutral, and in the grid-OFF state about 2115 of the
+    /// counted pixels are that halo, which is why the off figure is nowhere near
+    /// zero. The band is a relative measure, and the toggle tests lean on the
+    /// on/off ratio rather than on the absolute floor.</summary>
     private static bool IsChromeLight(byte r, byte g, byte b) =>
         Math.Abs(r - g) <= 8 && Math.Abs(g - b) <= 8 && r is >= 180 and <= 250;
 
@@ -539,7 +545,8 @@ public class PlotterViewHeadlessTests
         Assert.True(drawn > 100, $"the job rectangle must paint, found {drawn} amber pixels");
 
         view.PushChromeFlags(ChromeFlags.Default with { Envelope = false });
-        await Pump();
+        for (var i = 0; i < 8; i++)
+            await Pump();
         var left = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsEnvelopeAmber);
         Assert.Equal(0, left);
     }
@@ -559,9 +566,10 @@ public class PlotterViewHeadlessTests
         var view = new PlotterView { DataContext = vm };
         var window = new Window { Width = 920, Height = 560, Content = view };
         window.Show();
-        // Settle the pane before counting: the arrows are clipped to the slot
-        // viewport, so they only land once the pane's final viewport is in
-        // effect. Every other pixel test in this file settles with 8 pumps.
+        // Settle the pane before counting, the same 8 pumps every pixel test in
+        // this file uses. A non-foam pane's chrome clip is the whole control, so
+        // the arrows are not waiting on a viewport here; they land with the
+        // first frame and the pumps are simply this file's settling convention.
         for (var i = 0; i < 8; i++)
             await Pump();
 
@@ -575,16 +583,16 @@ public class PlotterViewHeadlessTests
         // defaults the rectangle's own edges bury the shafts and leave only the
         // two arrowheads: 48 blue pixels, under this test's 100 threshold. The
         // arrows carry no flag of their own, so the envelope toggle is the only
-        // lever that isolates them, and this state measures them cleanly: 568
-        // blue pixels, against 48 with the envelope on and 0 with the envelope
-        // AND the grid off.
+        // lever that isolates them, and this state measures them cleanly at 568
+        // blue pixels. The grid toggle makes no difference (568 either way) —
+        // the arrows are neither toggleable nor occluded by the lattice.
         //
         // The test is not vacuous in this state. Removing the DrawAxes call from
-        // DrawSlotChrome drops it to 0 blue pixels, so it still fails if the
-        // arrows stop painting; it just measures them without the job rectangle
-        // lying on top of them.
+        // DrawSlotChrome drops it to 0 blue pixels — that is a mutation, not a
+        // flag state, and it is the number that proves the test still fails if
+        // the arrows stop painting.
         view.PushChromeFlags(ChromeFlags.Default with { Envelope = false });
-        for (var i = 0; i < 4; i++)
+        for (var i = 0; i < 8; i++)
             await Pump();
 
         var axes = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsAxisBlue);
@@ -593,6 +601,85 @@ public class PlotterViewHeadlessTests
 
     /// <summary>The #2f6fb0 axis color.</summary>
     private static bool IsAxisBlue(byte r, byte g, byte b) => b > 130 && b > r + 40 && g > r + 30;
+
+    /// <summary>A foam program whose plane 0 (X,Y) Y-extent dwarfs plane 1's
+    /// (X,Z): Y climbs 0..60 while Z only plunges 0..2, and X sweeps, so both
+    /// planes are drawable. That is the normal foam XY-vs-XZ case, and the one
+    /// that matters here — plane 0's Y extent exceeds plane 1's by far more
+    /// than the 8 mm <c>FoamTileGap</c>, so plane 0's tile reaches past the
+    /// canvas midline into the bottom-left quadrant that its own slot viewport
+    /// stops at.</summary>
+    private static string TallPlaneProgram()
+    {
+        var sb = new StringBuilder("G21\nG90\n");
+        for (var i = 0; i <= 240; i++)
+        {
+            var t = i / 240.0;
+            var x = 30 + 25 * Math.Sin(t * Math.PI * 4);
+            sb.AppendLine($"G1 X{x:F3} Y{60 * t:F3} Z{2 * t:F3} F240");
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>The foam lattice must not be sliced at the canvas midline.
+    /// The flat pane lays its two tiles out on the diagonal (plane 0 top-left,
+    /// plane 1 bottom-right), but the shared transform fits the WHOLE
+    /// composition into the control, so a tile that is taller than its
+    /// neighbour — the normal XY-vs-XZ case — reaches into the quadrant its
+    /// slot viewport excludes. Clipping the lattice to that quadrant drew a hard
+    /// horizontal edge through plane 0's grid while the same tile's envelope and
+    /// cross, which take no clip, carried on past it, and nothing tested it.
+    /// <para>This asserts the lattice is PRESENT in the region the per-quadrant
+    /// clip cut off, measured against the same region with the grid toggled off
+    /// so the toolpath's own light halo cannot stand in for it.</para></summary>
+    [AvaloniaFact]
+    public async Task Foam_lattice_is_not_cut_at_the_canvas_midline()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        source.Load(TallPlaneProgram());
+        Assert.True(vm.PlaneCount > 1, $"the foam profile must give the flat pane two planes, got {vm.PlaneCount}");
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // Below the canvas midline AND left of it: exactly the bottom-left
+        // quadrant, which is not slot 0's viewport (top-left) and not slot 1's
+        // either (bottom-right). Under the per-quadrant clip NO lattice could
+        // reach it, from either plane.
+        static int BelowMidlineLeft(PlotterPixels.Frame f, Func<byte, byte, byte, bool> match) =>
+            PlotterPixels.Count(f, match,
+                xFilter: x => x > 0 && x < f.Width / 2,
+                yFilter: y => y > f.Height / 2 && y < f.Height - 1);
+
+        var on = BelowMidlineLeft(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
+
+        view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var off = BelowMidlineLeft(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
+
+        // The lattice has to ADD pixels there, not merely sit near zero: the
+        // measured pair is 3788 on against 446 off, and under the per-quadrant
+        // clip it collapses to 553 against 424 — a delta of 129, well under this
+        // floor. So the margin is roughly 25x over the clipped reading and the
+        // test cannot pass on the toolpath's own halo.
+        Assert.True(on - off > 500,
+            $"plane 0's lattice must reach past the canvas midline: {on} light pixels with the grid on, {off} with it off");
+
+        // The axis arrows share that clip, so the bottom-left quadrant must
+        // carry blue too: 40 blue pixels with the canvas-wide clip and 0 under
+        // the per-quadrant one. Threshold 20 sits between the two, so it
+        // discriminates the clip rather than the stroke's antialiasing.
+        var arrows = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsAxisBlue,
+            xFilter: x => x > 0 && x < window.Width / 2,
+            yFilter: y => y > window.Height / 2 && y < window.Height - 1);
+        Assert.True(arrows > 20,
+            $"the world axis arrows must reach past the canvas midline too, found {arrows} blue pixels");
+    }
 
     /// <summary>Counts on the PLOT SURFACE only — the canvas interior, below the
     /// 24 px header band and inside the 1 px frame. Every whole-frame count

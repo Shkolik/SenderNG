@@ -44,21 +44,21 @@ public static class PlotterFlatChrome
 {
     /// <summary>The origin cross's pen. Deliberately a 2 px stroke rather than
     /// the view's 1 px <c>PlotterPens.Origin</c> — see <see cref="DrawOrigin"/>
-    /// for why a 1 px stroke is invisible against the new chrome. Private to
-    /// this painter: no other call site wants it.</summary>
+    /// for why a 1 px stroke gets tinted by the new chrome. Private to this
+    /// painter: no other call site wants it.</summary>
     private static readonly IPen OriginPen = new Pen(PlotterPens.OriginBrush, 2);
 
     /// <summary>The world XY grid, face-on. A grid line is a world-space
     /// constant, so it is a straight screen segment — no projection and no
-    /// per-tile stepping.</summary>
+    /// per-tile stepping. <paramref name="viewport"/> clips the lattice to the
+    /// pane's whole drawable area, not to one plane's quadrant: see
+    /// <c>PlaneCanvas.DrawSlotChrome</c> for why the quadrant is the wrong
+    /// boundary.</summary>
     public static void DrawGrid(
         DrawingContext ctx, PlaneMap map,
         (double MinX, double MinY, double MaxX, double MaxY) bounds,
         double zoom, Vector pan, Rect viewport)
     {
-        if (!(bounds.MaxX > bounds.MinX) || !(bounds.MaxY > bounds.MinY))
-            return;
-
         using (ctx.PushClip(viewport))
         {
             foreach (var line in PlotterChrome.FloorLines(
