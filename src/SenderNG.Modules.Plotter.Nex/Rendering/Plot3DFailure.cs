@@ -48,9 +48,8 @@ internal enum Plot3DFailure
     None,
 
     /// <summary>Vulkan itself is unusable on this system: the loader is
-    /// missing, vkInitialize failed, or the instance is below 1.1. Reached
-    /// through the VulkanContext.IsSupported() pre-check, not from an engine
-    /// return value — see Task 3 Step 0.</summary>
+    /// missing or vkInitialize failed. Reached through the vkInitialize()
+    /// pre-check, not from an engine return value — see Task 3 Step 0.</summary>
     NotSupported,
 
     /// <summary>Vulkan is available but no 1.3 device could be initialised.

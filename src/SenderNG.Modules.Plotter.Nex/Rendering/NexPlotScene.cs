@@ -35,7 +35,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Numerics;
-using System.Reflection;
 using System.Text;
 using HelixToolkit.Nex;
 using HelixToolkit.Nex.Engine;
@@ -52,6 +51,7 @@ using HelixToolkit.Nex.Scene;
 using HelixToolkit.Nex.Shaders.Frag;
 using SenderNG.Modules.Plotter.Nex.Scene;
 using SenderNG.Modules.Plotter.Nex.Settings;
+using Vortice.Vulkan;
 using Format = HelixToolkit.Nex.Graphics.Format;
 using SBounds = SenderNG.Modules.Plotter.Nex.Scene.BoundingBox;
 
@@ -76,19 +76,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     private static readonly Color4 GridMajorColor = new(0.62f, 0.62f, 0.62f, 1f);
     private static readonly Color4 JobEnvelopeColor = new(0f, 0.7f, 0.9f, 1f);
     private static readonly Color4 OrbitPivotColor = new(1f, 0.66f, 0.1f, 1f);
-
-    // The engine's own loader probe, resolved once. VulkanContext.IsSupported()
-    // is exactly the check the constructor needs, but VulkanContext is internal
-    // in HelixToolkit.Nex 1.3.0-alpha.41 — a public static method on an
-    // internal type is unreachable from this assembly, and the package grants no
-    // InternalsVisibleTo. Reflection is the only way in that adds no
-    // Vortice.Vulkan reference and enumerates no devices. Null if a future
-    // package moves or renames it; the constructor then skips the pre-check
-    // rather than failing, so the worst case is the pre-probe behaviour.
-    private static readonly MethodInfo? VulkanSupportProbe = typeof(VulkanBuilder)
-        .Assembly
-        .GetType("HelixToolkit.Nex.Graphics.Vulkan.VulkanContext", throwOnError: false)?
-        .GetMethod("IsSupported", BindingFlags.Public | BindingFlags.Static, Type.EmptyTypes);
 
     private readonly IContext _context;
     private readonly Engine _engine;
@@ -162,23 +149,43 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
 
     private bool _runStateVisible = true;
 
-    /// <summary>Whether the Vulkan loader itself is usable on this system, per
-    /// the engine's own <c>VulkanContext.IsSupported()</c>: it calls
-    /// vkInitialize(), enumerates instance extensions, requires Vulkan 1.1+, and
-    /// swallows its own exceptions. It never enumerates physical devices, so it
-    /// stays inside the no-device-enumeration constraint. This is what makes
+    /// <summary>Whether a Vulkan loader on this system is usable at all: one
+    /// <c>vkInitialize()</c> call, which is the spec's own test for loader
+    /// presence. It never enumerates physical devices, so it stays inside the
+    /// no-device-enumeration constraint. This is what makes
     /// <c>NotSupported</c> reachable at all: without it, a system with no Vulkan
-    /// at all and a system whose GPU is below 1.3 both arrive as RuntimeError,
-    /// because OnInitializing collapses them. A missing or throwing probe counts
-    /// as supported — see the field comment; a false "no Vulkan" here would
-    /// tell a user with a working driver that their system has no Vulkan.</summary>
+    /// and a system whose GPU is below 1.3 both arrive as RuntimeError, because
+    /// <c>OnInitializing</c> collapses them.
+    /// </summary>
+    /// <remarks>
+    /// The engine has an equivalent probe, <c>VulkanContext.IsSupported()</c>,
+    /// but <c>VulkanContext</c> is <c>internal</c> in 1.3.0-alpha.41, so a
+    /// public static method on it is unreachable from here and the package
+    /// grants no <c>InternalsVisibleTo</c>. Reaching it by reflection was
+    /// rejected: a string-based lookup of an internal API degrades silently to
+    /// RuntimeError if a future package moves it, with nothing failing at build
+    /// or test time. This direct call is checked by the compiler instead.
+    /// <para>
+    /// It is deliberately narrower than the engine's: <c>vkInitialize()</c>
+    /// proves the loader loads and initializes, not that the instance is 1.1+.
+    /// An instance below 1.1 is effectively unreachable on desktop, so the
+    /// narrower check buys compile-time safety for no real loss of coverage.
+    /// The three exceptions caught below are the positive evidence of a missing
+    /// loader, so that any other failure defers to the engine rather than
+    /// telling a user with a working driver that they have no Vulkan.
+    /// </para>
+    /// </remarks>
     private static bool IsVulkanLoaderSupported()
     {
-        if (VulkanSupportProbe is null)
-            return true;
         try
         {
-            return VulkanSupportProbe.Invoke(null, null) is true;
+            return Vulkan.vkInitialize() == VkResult.Success;
+        }
+        catch (Exception ex) when (ex is DllNotFoundException
+                                      or EntryPointNotFoundException
+                                      or BadImageFormatException)
+        {
+            return false;
         }
         catch (Exception)
         {
