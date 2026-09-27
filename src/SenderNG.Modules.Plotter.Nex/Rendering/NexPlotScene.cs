@@ -163,9 +163,10 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// caller reports it as a generic 3D failure instead of asserting a cause
     /// this constructor cannot know. The view's scene-build path is the only
     /// <em>production</em> construction site and catches both. The geometry
-    /// tests construct it directly and so require a working device — which is a
-    /// reason they are skipped without one, not a reason an unhandled
-    /// <see cref="Plot3DUnavailableException"/> is safe anywhere.
+    /// tests construct it directly, so on a machine with no Vulkan 1.3 device
+    /// they fail with this exception rather than skipping: nothing detects the
+    /// absent device, and pretending otherwise would let a caller rely on an
+    /// unhandled <see cref="Plot3DUnavailableException"/> being safe.
     /// </para>
     /// </remarks>
     public NexPlotScene()

@@ -146,8 +146,8 @@ also writes one `[VULKAN]` record to the pool diagnostics log
     giving it a verdict would cache `Other` for the session and disable a scene
     whose Vulkan is working perfectly well. It is logged **once per failure
     episode**, not once per retry, so a persistently failing readback does not
-    bury the log at 30 lines a second. A `READBACK` line with no panel showing is
-    the expected shape — the viewport may recover on the next tick.
+    bury the log at roughly sixty lines a second. A `READBACK` line with no panel
+    showing is the expected shape — the viewport may recover on the next tick.
 
 The three failure kinds mean different things, and only two of them name a
 hardware cause:
@@ -166,14 +166,23 @@ hardware cause:
   session (until the app restarts) even if Vulkan is fine, because the failure
   path leaks a `VkInstance` and is not retried.
 
-Exactly **one** `CONTEXT` record is ever written per session: a failed Vulkan
-context leaks its instance, so the verdict is cached — including when the failure
-lands after the view has already superseded the attempt that produced it, which
-is why a tab switch during the build window cannot cause a second Vulkan entry —
-and the view never re-enters Vulkan for the life of the module. So:
+A failed Vulkan context leaks its `VkInstance`, so the verdict is cached and the
+view does not re-enter Vulkan for the life of the module. The cache is written even
+when the failure lands after the view has already superseded the attempt that
+produced it, so the panel appears and the leak stays bounded at one.
+
+**But the cache can only stop attempts it already knows about**, and that is worth
+being precise about, because the window is real: a tab switch *during* the build
+window — detach, then re-attach before the first attempt has failed — starts a
+second attempt, because at re-attach the cache is still empty. So a `CONTEXT` line
+per attempt in that window is possible, each with its own leak, and a superseding
+attempt that later succeeds leaves the earlier failure cached and the panel
+showing. Two `CONTEXT` lines in quick succession means exactly that. So:
 
 - **One `[VULKAN] CONTEXT` line and a panel** → a real Vulkan verdict; read
   `failed` above and act on it.
+- **Several `CONTEXT` lines, seconds apart** → repeated tab switching during the
+  build window, not a new problem. `failed` on the first line is the real verdict.
 - **No `CONTEXT` line but the tab is blank** → the failure is elsewhere
   (`SCENE`/`ATTACH`/`RENDERCTX`), or the context succeeded and the problem is in
   rendering — check the tick crash log instead.

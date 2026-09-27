@@ -260,8 +260,7 @@ public partial class PlotterNexView : UserControl
             // A live scene survives across tab switches: recreate the per-attach
             // render context + readback target at the current view size.
             SetupRenderTarget();
-            if (_vulkanVerdict == Plot3DFailure.None)
-                EnableTick();
+            EnableTick();
         }
     }
 
@@ -396,8 +395,7 @@ public partial class PlotterNexView : UserControl
                     return;
                 }
                 SetupRenderTarget();
-                if (_vulkanVerdict == Plot3DFailure.None)
-                    EnableTick();
+                EnableTick();
                 // A fresh scene renders all chrome visible + AA at the ctor
                 // default; start it from the persisted view toggles and AA
                 // settings (runtime-only, no rebuild).
@@ -459,9 +457,10 @@ public partial class PlotterNexView : UserControl
         // reached; the stage says where it happened.
         //
         // Logged once per episode, not once per tick: a readback that keeps
-        // throwing would otherwise write ~30 lines a second and bury everything
-        // else in the file. The flag is cleared when a readback finally
-        // succeeds, so a later distinct episode is reported again.
+        // throwing would otherwise write two lines every 33ms - about sixty a
+        // second - and bury everything else in the file. The flag is cleared
+        // when a readback finally succeeds, so a later distinct episode is
+        // reported again.
         if (_readbackFailed)
             return;
         _readbackFailed = true;
@@ -549,6 +548,17 @@ public partial class PlotterNexView : UserControl
 
     private void EnableTick()
     {
+        // The tick drives a render context, so that is what gates it. It used
+        // to be gated on the cached verdict instead, at each call site, because
+        // the verdict's only writer was SetupRenderTarget's own failure path.
+        // That is no longer true: a superseded build attempt caches a verdict
+        // without the current attempt having failed, so a live scene could be
+        // denied its tick - attached, never drawn, no panel and no log line,
+        // because EnsureScene early-returns while a scene exists. Keying on
+        // the precondition, in the one place that starts the tick, cannot be
+        // fooled by who else has written the verdict.
+        if (_renderContext is null)
+            return;
         if (_tick is null)
         {
             // Normal (not Render) priority: fire independently of Avalonia's

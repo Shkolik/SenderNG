@@ -159,8 +159,8 @@ public class PlotterNexLocaleTests
     /// weaker test while still being untranslated. Latin-script technical terms
     /// inside a Russian sentence are fine and expected - `vulkaninfo --summary`,
     /// `Vulkan 1.3`, `2D` - so the check is that the value *contains* Cyrillic,
-    /// not that it contains nothing else. All five values are full sentences, so
-    /// none is exempt.
+    /// not that it contains nothing else. Every key in the module's catalogs is
+    /// required to be a translated sentence, so no key is exempt.
     /// </para></summary>
     [Fact]
     public void Every_russian_value_is_translated_rather_than_copied_from_english()
@@ -178,14 +178,35 @@ public class PlotterNexLocaleTests
         }
     }
 
-    /// <summary>The `vulkaninfo` command name must survive translation verbatim:
-    /// it is something the user types, and transliterating it would send them
-    /// to a command that does not exist.</summary>
+    /// <summary>The `vulkaninfo` command name must survive translation verbatim
+    /// wherever it appears: it is something the user types, and transliterating
+    /// it would send them to a command that does not exist. Both kinds that
+    /// mention the command are checked, so adding a third does not slip
+    /// through unasserted.</summary>
     [Fact]
     public void Russian_keeps_the_vulkaninfo_command_name_intact()
     {
         const string command = "vulkaninfo --summary";
-        Assert.Contains(command, Strings("ru")["module.plotter-nex.vulkanUnavailable.runtimeError"]);
+        var ru = Strings("ru");
+        var expected = new[] { "notSupported", "runtimeError" };
+
+        foreach (var suffix in expected)
+        {
+            var key = "module.plotter-nex.vulkanUnavailable." + suffix;
+            Assert.True(ru.ContainsKey(key), $"ru.json key '{key}' is missing.");
+            Assert.Contains(command, ru[key]);
+        }
+
+            // Nothing else in the catalog may mention a command we have not pinned.
+            foreach (var (key, value) in ru)
+            {
+                if (expected.Any(s => key.EndsWith("." + s, StringComparison.Ordinal)))
+                    continue;
+                Assert.False(value.Contains("vulkaninfo", StringComparison.Ordinal),
+                    $"ru.json key '{key}' mentions vulkaninfo but is not covered by " +
+                    "this test - add its key to `expected`.");
+            }
+
     }
 
     private static readonly string[] Locales = ["en", "ru"];
