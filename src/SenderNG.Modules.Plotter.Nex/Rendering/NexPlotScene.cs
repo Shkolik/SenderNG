@@ -36,6 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Numerics;
 using System.Text;
+using HelixToolkit.Nex;
 using HelixToolkit.Nex.Engine;
 using HelixToolkit.Nex.Engine.Cameras;
 using HelixToolkit.Nex.Geometries;
@@ -152,16 +153,34 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// Plain headless Vulkan on every OS: the readback is a Vulkan-internal
     /// staging copy (IContext.Download), so no external memory, no D3D11
     /// device, and no device-LUID matching are needed. Requires a Vulkan 1.3
-    /// device; a missing driver surfaces as VulkanUnavailable in the UI.
+    /// device; when the context cannot be initialized this throws
+    /// <see cref="Plot3DUnavailableException"/> carrying the engine's own
+    /// result code, and the caller reports that as VulkanUnavailable in the UI.
     /// </remarks>
     public NexPlotScene()
     {
-        _context = VulkanBuilder.CreateHeadless(new VulkanContextConfig
-        {
-            // False: relying on validation layers being installed would
-            // degrade machines without them to the VulkanUnavailable notice.
-            EnableValidation = false
-        });
+        // Built uninitialized, then initialized by hand, because
+        // VulkanBuilder.CreateHeadless's own Initialize() collapses every
+        // failure into a generic InvalidOperationException — including
+        // ResultCode.NotSupported, which is the answer a user on Vulkan 1.2
+        // needs. Calling the public IInitializable.Initialize() keeps the code.
+        //
+        // A failed context is deliberately NOT disposed: Initialize() leaves
+        // IsInitialized == false, so Dispose() -> Teardown() early-returns in
+        // upstream Initializable and never calls OnTearingDown(). Disposing
+        // would be a no-op at best. The instance leak is bounded instead — the
+        // view caches the failure so we only ever try once per process.
+        _context = VulkanBuilder.CreateHeadless(
+            new VulkanContextConfig
+            {
+                // False: relying on validation layers being installed would
+                // degrade machines without them to the VulkanUnavailable notice.
+                EnableValidation = false
+            },
+            initialize: false);
+        var init = _context.Initialize();
+        if (init != ResultCode.Ok)
+            throw new Plot3DUnavailableException(init);
 
         _engine = EngineBuilder.Create(_context)
             .WithDefaultNodes(renderToSwapchain: false)
