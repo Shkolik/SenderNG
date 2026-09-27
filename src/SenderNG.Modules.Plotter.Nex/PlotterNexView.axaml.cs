@@ -299,7 +299,7 @@ public partial class PlotterNexView : UserControl
                     _scene = null;
                     scene.Dispose();
                     FreeRenderResources();
-                    _vm.VulkanUnavailable = true;
+                    _vm.ReportVulkanUnavailable(Plot3DFailure.Other);
                     return;
                 }
                 SetupRenderTarget();
@@ -704,7 +704,7 @@ public partial class PlotterNexView : UserControl
         }
         catch
         {
-            _vm!.VulkanUnavailable = true;
+            _vm!.ReportVulkanUnavailable(Plot3DFailure.RuntimeError);
         }
     }
 
