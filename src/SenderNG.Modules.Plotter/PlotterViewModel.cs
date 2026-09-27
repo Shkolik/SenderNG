@@ -105,8 +105,12 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         _localization = localization;
         _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
         // The mapping is indexed by plane, so it must match the resolved type
-        // before anything can read it.
-        ResetPlaneGeometries();
+        // before anything can read it. Assigned, NOT SetPlaneGeometries: no
+        // subscriber exists yet, so the setter's three notifications would be
+        // pure noise, and GeometryVersion would start at 2 instead of 1 (the
+        // ctor's own empty state) — a geometry event for a state that never
+        // existed, which the version's contract does not allow.
+        _planeGeometries = IdentityMappings(_machineType);
 
         _programSource.ProgramChanged += OnProgramChanged;
         _programSource.RowsChanged += OnRowsChanged;
@@ -177,8 +181,13 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>Every plane back to identity — the pre-section mapping.</summary>
-    public void ResetPlaneGeometries() =>
-        SetPlaneGeometries([.. _machineType.Planes.Select(p => PlotterPlaneMapper.Identity(p.Roles.Count))]);
+    public void ResetPlaneGeometries() => SetPlaneGeometries(IdentityMappings(_machineType));
+
+    /// <summary>The identity mapping for each plane of <paramref name="type"/> —
+    /// the state a machine type's mapping starts in, and the fallback
+    /// <see cref="GeometryFor"/> degrades to.</summary>
+    private static List<PlotterPlaneGeometry> IdentityMappings(MachineType type) =>
+        [.. type.Planes.Select(p => PlotterPlaneMapper.Identity(p.Roles.Count))];
 
     /// <summary>Display letters per plane, naming the <em>world</em> axes that
     /// plane feeds — the same mapping the panes draw, so the header cannot
@@ -273,9 +282,12 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         // Profile may have changed since construction (a machine switch clears
         // the program; the type rides the active profile).
         _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
-        // The mapping set is indexed by plane and was built for the previous
-        // type, so it re-derives from the new one.
-        ResetPlaneGeometries();
+        // The stored mapping is deliberately NOT reset here: this fires on
+        // every program change, and the settings leaf (Task 8) only pushes a
+        // mapping on its own change events — resetting would silently drop a
+        // stored mapping on the next program load. A mapping from the previous
+        // type is harmless anyway: GeometryFor validates each entry against
+        // that plane's role count and falls back to identity.
         OnPropertyChanged(nameof(PlaneCount));
         OnPropertyChanged(nameof(PlaneLetters));
         Rebuild();

@@ -16,6 +16,7 @@ using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
 using SenderNG.Modules.Fixed;
 using SenderNG.Modules.Plotter;
+using SenderNG.Modules.Plotter.Settings;
 
 namespace SenderNG.Core.Tests;
 
@@ -601,7 +602,10 @@ public class PlotterModuleTests
     {
         var source = new ProgramViewModel();
         var vm = MakeVmAround(source);
-        var initial = vm.GeometryVersion; // non-zero: the ctor's identity mapping and empty state both count
+        var initial = vm.GeometryVersion; // 1: the ctor's empty state counts as a geometry
+        // Pinned, because it is only 1 if the ctor assigned the field instead
+        // of calling the notifying ResetPlaneGeometries (that would start at 2).
+        Assert.Equal(1, initial);
 
         source.LoadGCode("G1 X10 F100");
         var afterLoad = vm.GeometryVersion;
@@ -612,10 +616,35 @@ public class PlotterModuleTests
         source.Rewind();
         Assert.Equal(afterLoad, vm.GeometryVersion);
 
-        // A clear is a geometry change. It now reports through more than one
-        // event (the plane mapping re-derives from the machine type, then the
-        // geometry empties), so the count is not pinned — only the direction.
+        // A clear is exactly ONE geometry event — not two: the plane mapping is
+        // not re-derived on a program change (it is the settings layer's job),
+        // so nothing here may add a bump.
         source.ClearProgram();
-        Assert.True(vm.GeometryVersion > afterLoad);
+        Assert.Equal(afterLoad + 1, vm.GeometryVersion);
+    }
+
+    /// <summary>A program change must NOT revert the mapping the settings leaf
+    /// pushed. ProgramChanged fires on every load — and a profile switch clears
+    /// the program, so it fires on that too — while the leaf only pushes on its
+    /// own change events: a mapping reset here would be lost for the session.
+    /// Re-deriving on a genuine machine-type change is the settings layer's
+    /// job, and a stale entry is already harmless (GeometryFor validates it
+    /// against the plane's role count and falls back to identity).</summary>
+    [Fact]
+    public void Program_change_keeps_the_pushed_plane_mapping()
+    {
+        var (vm, source) = MakeVm(MachineTypes.Foam);
+        source.Load("G21\nG1 X10 Y2 Z8 A2 F100");
+        vm.SetPlaneGeometries([
+            PlotterPlaneMapper.Identity(2),
+            new PlotterPlaneGeometry { WorldAxes = [1, 0] },
+        ]);
+        Assert.Equal("XY | YX", string.Join(" | ", vm.PlaneLetters));
+
+        source.Load("G21\nG1 X4 Y2 Z8 A2 F100"); // any later load, or a profile switch's clear
+
+        Assert.Equal(2, vm.PlaneGeometries.Count);
+        Assert.Equal([1, 0], vm.PlaneGeometries[1].WorldAxes);
+        Assert.Equal("XY | YX", string.Join(" | ", vm.PlaneLetters));
     }
 }
