@@ -30,6 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Text.Json;
 using CNC.Core.Services;
 using SenderNG.Modules.Plotter.Settings;
 
@@ -71,14 +72,38 @@ public class PlotterConfigTests
         var profile = NewProfile();
         var saved = PlotterConfig.Defaults(MachineTypeCatalog.Resolve(MachineTypes.Mill));
         saved.ShowGrid = false;
+        saved.ShowOrigin = false;
+        saved.ShowEnvelope = false;
+        saved.ShowRunState = false;
         saved.Planes[0] = new PlotterPlaneGeometry { WorldAxes = [1, 2, 0], Origin = [1, 2, 3] };
 
         PlotterConfig.Save(profile, saved);
         var loaded = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Mill));
 
         Assert.False(loaded.ShowGrid);
+        Assert.False(loaded.ShowOrigin);
+        Assert.False(loaded.ShowEnvelope);
+        Assert.False(loaded.ShowRunState);
         Assert.Equal([1, 2, 0], loaded.Planes[0].WorldAxes);
         Assert.Equal([1, 2, 3], loaded.Planes[0].Origin);
+    }
+
+    [Fact]
+    public void A_two_plane_section_round_trips_each_plane_independently()
+    {
+        var profile = new MachineProfile { Id = "p1", Name = "P1", MachineTypeId = MachineTypes.Foam };
+        var saved = PlotterConfig.Defaults(MachineTypeCatalog.Resolve(MachineTypes.Foam));
+        saved.Planes[0] = new PlotterPlaneGeometry { WorldAxes = [1, 0], Origin = [-50, 0, 0] };
+        saved.Planes[1] = new PlotterPlaneGeometry { WorldAxes = [0, 1], Origin = [50, 25, 0] };
+
+        PlotterConfig.Save(profile, saved);
+        var loaded = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Foam));
+
+        Assert.Equal(2, loaded.Planes.Count);
+        Assert.Equal([1, 0], loaded.Planes[0].WorldAxes);
+        Assert.Equal([-50d, 0, 0], loaded.Planes[0].Origin);
+        Assert.Equal([0, 1], loaded.Planes[1].WorldAxes);
+        Assert.Equal([50d, 25, 0], loaded.Planes[1].Origin);
     }
 
     [Fact]
@@ -92,22 +117,35 @@ public class PlotterConfigTests
     }
 
     [Fact]
-    public void A_plane_count_mismatch_falls_back_to_defaults()
+    public void A_wrong_value_type_falls_back_to_defaults()
     {
         var profile = NewProfile();
-        var wrong = PlotterConfig.Defaults(MachineTypeCatalog.Resolve(MachineTypes.Mill));
-        wrong.Planes.Add(PlotterPlaneMapper.Identity(3));   // two planes on a mill
-        PlotterConfig.Save(profile, wrong);
-        Assert.Single(PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Mill)).Planes);
+        profile.ModuleSettings[PlotterConfig.SectionKey] = """{"ShowGrid":"yes"}""";
+        var s = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Mill));
+        Assert.True(s.ShowGrid);
+        Assert.Equal([0, 1, 2], s.Planes[0].WorldAxes);
+    }
+
+    [Fact]
+    public void A_plane_count_mismatch_falls_back_to_defaults()
+    {
+        var profile = new MachineProfile { Id = "p1", Name = "P1", MachineTypeId = MachineTypes.Foam };
+        profile.ModuleSettings[PlotterConfig.SectionKey] =   // one plane on a foam
+            JsonSerializer.Serialize(new PlotterSettings { Planes = [new PlotterPlaneGeometry()] });
+
+        var s = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Foam));
+        Assert.Equal(2, s.Planes.Count);
     }
 
     [Fact]
     public void A_malformed_plane_mapping_is_replaced_with_identity()
     {
         var profile = NewProfile();
-        var s = new PlotterSettings();
-        s.Planes.Add(new PlotterPlaneGeometry { WorldAxes = [0, 0, 0] });
-        PlotterConfig.Save(profile, s);
+        profile.ModuleSettings[PlotterConfig.SectionKey] =
+            JsonSerializer.Serialize(new PlotterSettings
+            {
+                Planes = [new PlotterPlaneGeometry { WorldAxes = [0, 0, 0] }],
+            });
 
         var loaded = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Mill));
         Assert.Equal([0, 1, 2], loaded.Planes[0].WorldAxes);
@@ -117,10 +155,56 @@ public class PlotterConfigTests
     public void A_malformed_origin_is_replaced_with_zeros()
     {
         var profile = NewProfile();
-        var s = new PlotterSettings();
-        s.Planes.Add(new PlotterPlaneGeometry { WorldAxes = [0, 1, 2], Origin = [5] });
-        PlotterConfig.Save(profile, s);
-        Assert.Equal([0d, 0d, 0d], PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Mill)).Planes[0].Origin);
+        profile.ModuleSettings[PlotterConfig.SectionKey] =
+            JsonSerializer.Serialize(new PlotterSettings
+            {
+                Planes = [new PlotterPlaneGeometry { WorldAxes = [0, 1, 2], Origin = [5] }],
+            });
+
+        var loaded = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Mill));
+        Assert.Equal([0d, 0d, 0d], loaded.Planes[0].Origin);
+    }
+
+    [Fact]
+    public void A_malformed_second_plane_leaves_the_first_plane_untouched()
+    {
+        var profile = new MachineProfile { Id = "p1", Name = "P1", MachineTypeId = MachineTypes.Foam };
+        profile.ModuleSettings[PlotterConfig.SectionKey] =
+            JsonSerializer.Serialize(new PlotterSettings
+            {
+                Planes =
+                [
+                    new PlotterPlaneGeometry { WorldAxes = [1, 0], Origin = [-50, 0, 0] },
+                    new PlotterPlaneGeometry { WorldAxes = [0, 0], Origin = [0, 0, 0] },
+                ],
+            });
+
+        var loaded = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Foam));
+        Assert.Equal([1, 0], loaded.Planes[0].WorldAxes);
+        Assert.Equal([-50d, 0, 0], loaded.Planes[0].Origin);
+        Assert.Equal([0, 1], loaded.Planes[1].WorldAxes);
+    }
+
+    [Fact]
+    public void A_null_planes_array_falls_back_to_defaults()
+    {
+        var profile = new MachineProfile { Id = "p1", Name = "P1", MachineTypeId = MachineTypes.Foam };
+        profile.ModuleSettings[PlotterConfig.SectionKey] =
+            JsonSerializer.Serialize(new PlotterSettings { Planes = null! });
+
+        var s = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Foam));
+        Assert.Equal(2, s.Planes.Count);
+    }
+
+    [Fact]
+    public void A_null_plane_element_falls_back_to_defaults()
+    {
+        var profile = NewProfile();
+        profile.ModuleSettings[PlotterConfig.SectionKey] =
+            JsonSerializer.Serialize(new PlotterSettings { Planes = [null!] });
+
+        var loaded = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Mill));
+        Assert.Equal([0, 1, 2], loaded.Planes[0].WorldAxes);
     }
 
     [Fact]
