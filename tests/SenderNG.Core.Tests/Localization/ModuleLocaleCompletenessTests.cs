@@ -1,0 +1,153 @@
+/*
+ * ModuleLocaleCompletenessTests.cs - guards the plotter-nex module's real Locale
+ * catalogs: both files parse, carry the per-kind Vulkan-unavailable hints, agree
+ * on their key set, and hold no blank value
+ */
+
+/*
+
+Copyright (c) 2026 Andrew Shkolik
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+· Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+
+· Redistributions in binary form must reproduce the above copyright notice, this
+list of conditions and the following disclaimer in the documentation and/or
+other materials provided with the distribution.
+
+· Neither the name of the copyright holder nor the names of its contributors may
+be used to endorse or promote products derived from this software without
+specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+using System.Text.Json;
+
+namespace SenderNG.Core.Tests;
+
+/// <summary>
+/// The one test that reads the Nex module's shipped Locale/*.json. It exists
+/// because every other check of those files is either a one-off shell command or
+/// the view model's own degradation path, and both are blind to a mistake in the
+/// data: <c>PlotterNexViewModel.VulkanFailureDetail</c> resolves a missing hint
+/// key to the generic <c>vulkanUnavailableHint</c> and renders a perfectly
+/// plausible panel, so a key typo — or a key added to en.json and forgotten in
+/// ru.json — would ship as a silently degraded message rather than a failure.
+/// <para>Paths come from the module-staging convention the ScanDirectory tests
+/// already rely on: the catalogs are linked into this project's
+/// OutputDir/Modules/plotter-nex/Locale by SenderNG.csproj, so the files read
+/// here are copies of the sources that actually ship.</para>
+/// </summary>
+public class ModuleLocaleCompletenessTests
+{
+    /// <summary>The four per-kind hints VulkanFailureDetail looks up, one per
+    /// non-None Plot3DFailure member.</summary>
+    public static TheoryData<string> VulkanHintKeys() => new()
+    {
+        "module.plotter-nex.vulkanUnavailable.notSupported",
+        "module.plotter-nex.vulkanUnavailable.runtimeError",
+        "module.plotter-nex.vulkanUnavailable.outOfMemory",
+        "module.plotter-nex.vulkanUnavailable.other",
+    };
+
+    [Theory]
+    [MemberData(nameof(VulkanHintKeys))]
+    public void Every_vulkan_unavailable_hint_key_exists_in_both_locales(string key)
+    {
+        foreach (var locale in Locales)
+        {
+            var strings = Strings(locale);
+            Assert.True(strings.ContainsKey(key),
+                $"{locale}.json has no '{key}'. Without it the panel falls back to the " +
+                "generic hint and the specific reason is never shown.");
+        }
+    }
+
+    [Fact]
+    public void Both_locale_files_parse_as_json()
+    {
+        foreach (var locale in Locales)
+        {
+            // Parse throws on malformed JSON — that throw is the assertion.
+            using var doc = JsonDocument.Parse(File.ReadAllText(LocaleFile(locale)));
+
+            Assert.Equal(JsonValueKind.Object, doc.RootElement.ValueKind);
+            Assert.True(doc.RootElement.TryGetProperty("strings", out var strings),
+                $"{locale}.json has no top-level \"strings\" object.");
+            Assert.Equal(JsonValueKind.Object, strings.ValueKind);
+        }
+    }
+
+    [Fact]
+    public void English_and_russian_key_sets_are_identical()
+    {
+        // Both directions matter: a key added to only one file leaves the other
+        // locale's users with the generic message.
+        var en = Strings("en").Keys.OrderBy(k => k, StringComparer.Ordinal).ToList();
+        var ru = Strings("ru").Keys.OrderBy(k => k, StringComparer.Ordinal).ToList();
+
+        Assert.Equal(en, ru);
+    }
+
+    [Fact]
+    public void No_value_is_empty_or_whitespace()
+    {
+        foreach (var locale in Locales)
+        {
+            foreach (var (key, value) in Strings(locale))
+                Assert.False(string.IsNullOrWhiteSpace(value),
+                    $"{locale}.json key '{key}' is empty or whitespace.");
+        }
+    }
+
+    private static readonly string[] Locales = ["en", "ru"];
+
+    /// <summary>Absolute path to one of the module's real catalogs. Asserts
+    /// each level exists: a path that silently resolves to nothing would make
+    /// every test above pass on missing data, which is the exact failure this
+    /// file is meant to catch.</summary>
+    private static string LocaleFile(string locale)
+    {
+        var modules = Path.Combine(AppContext.BaseDirectory, "Modules");
+        Assert.True(Directory.Exists(modules),
+            "plugin staging missing — rebuild the test project: " + modules);
+
+        var dir = Path.Combine(modules, "plotter-nex", "Locale");
+        Assert.True(Directory.Exists(dir), "plotter-nex locale staging missing: " + dir);
+
+        var file = Path.Combine(dir, locale + ".json");
+        Assert.True(File.Exists(file), "locale catalog missing: " + file);
+
+        return file;
+    }
+
+    /// <summary>The "strings" object of one catalog. Throws if the file is
+    /// malformed or shaped differently, so no caller can mistake a wrong shape
+    /// for an empty key set.</summary>
+    private static Dictionary<string, string> Strings(string locale)
+    {
+        using var doc = JsonDocument.Parse(File.ReadAllText(LocaleFile(locale)));
+        if (!doc.RootElement.TryGetProperty("strings", out var strings) ||
+            strings.ValueKind != JsonValueKind.Object)
+            throw new InvalidDataException(
+                $"{locale}.json has no top-level \"strings\" object: {LocaleFile(locale)}");
+
+        return strings.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString() ?? string.Empty);
+    }
+}
