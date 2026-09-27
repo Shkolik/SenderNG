@@ -1,7 +1,7 @@
 /*
- * ModuleLocaleCompletenessTests.cs - guards the plotter-nex module's real Locale
- * catalogs: both files parse, carry the per-kind Vulkan-unavailable hints, agree
- * on their key set, and hold no blank value
+ * PlotterNexLocaleTests.cs - guards the plotter-nex module's real Locale
+ * catalogs: both files parse, carry no UTF-8 BOM, hold the per-kind
+ * Vulkan-unavailable hints, agree on their key set, and hold no blank value
  */
 
 /*
@@ -42,22 +42,33 @@ using System.Text.Json;
 namespace SenderNG.Core.Tests;
 
 /// <summary>
-/// The one test that reads the Nex module's shipped Locale/*.json. It exists
-/// because every other check of those files is either a one-off shell command or
-/// the view model's own degradation path, and both are blind to a mistake in the
-/// data: <c>PlotterNexViewModel.VulkanFailureDetail</c> resolves a missing hint
-/// key to the generic <c>vulkanUnavailableHint</c> and renders a perfectly
-/// plausible panel, so a key typo — or a key added to en.json and forgotten in
-/// ru.json — would ship as a silently degraded message rather than a failure.
+/// Guards the plotter-nex module's shipped Locale/*.json, and only those. The
+/// other modules staging catalogs into the same output tree (plotter, excellon,
+/// hpgl, probing) and the app's own Locale/ are NOT covered here. The name is
+/// deliberately narrow rather than a walk over every Modules/*/Locale, because
+/// that would reach outside this feature and surface any pre-existing mismatch
+/// in another module's files.
+/// <para>These two files need guarding because every other check of them is
+/// either a one-off shell command or the view model's own degradation path, and
+/// both are blind to a mistake in the data:
+/// <c>PlotterNexViewModel.VulkanFailureDetail</c> resolves a missing hint key to
+/// the generic <c>vulkanUnavailableHint</c> and renders a perfectly plausible
+/// panel, so a key typo — or a key added to en.json and forgotten in ru.json —
+/// would ship as a silently degraded message rather than a failure.</para>
 /// <para>Paths come from the module-staging convention the ScanDirectory tests
 /// already rely on: the catalogs are linked into this project's
 /// OutputDir/Modules/plotter-nex/Locale by SenderNG.csproj, so the files read
 /// here are copies of the sources that actually ship.</para>
 /// </summary>
-public class ModuleLocaleCompletenessTests
+public class PlotterNexLocaleTests
 {
     /// <summary>The four per-kind hints VulkanFailureDetail looks up, one per
-    /// non-None Plot3DFailure member.</summary>
+    /// non-None Plot3DFailure member. They are literals in production, inside a
+    /// switch expression, so a test cannot reach them without changing
+    /// production code for a test's benefit — which means a rename there leaves
+    /// this list quietly stale and every assertion below still green.
+    /// KEEP IN SYNC with PlotterNexViewModel.VulkanFailureDetail
+    /// (PlotterNexViewModel.cs).</summary>
     public static TheoryData<string> VulkanHintKeys() => new()
     {
         "module.plotter-nex.vulkanUnavailable.notSupported",
@@ -91,6 +102,22 @@ public class ModuleLocaleCompletenessTests
             Assert.True(doc.RootElement.TryGetProperty("strings", out var strings),
                 $"{locale}.json has no top-level \"strings\" object.");
             Assert.Equal(JsonValueKind.Object, strings.ValueKind);
+        }
+    }
+
+    [Fact]
+    public void Neither_locale_file_starts_with_a_utf8_bom()
+    {
+        foreach (var locale in Locales)
+        {
+            var path = LocaleFile(locale);
+            // Raw bytes, not the text reader: the parse test above cannot see a
+            // BOM because JsonDocument.Parse tolerates one, so this is the only
+            // check enforcing the UTF-8-without-BOM format the catalogs require.
+            var head = File.ReadAllBytes(path).Take(3).ToArray();
+            Assert.False(head is [0xEF, 0xBB, 0xBF],
+                $"{locale}.json starts with a UTF-8 BOM (EF BB BF): {path}. " +
+                "The catalogs must be UTF-8 without one.");
         }
     }
 
