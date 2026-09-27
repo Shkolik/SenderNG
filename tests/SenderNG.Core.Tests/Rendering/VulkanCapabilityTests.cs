@@ -2,6 +2,7 @@
  * VulkanCapabilityTests.cs - the policy half of the Vulkan capability probe
  */
 
+using HelixToolkit.Nex;
 using SenderNG.Modules.Plotter.Nex.Rendering;
 using Xunit.Abstractions;
 
@@ -20,39 +21,46 @@ public class VulkanCapabilityTests
     [Theory]
     [InlineData("LoaderUnavailable", "NotSupported")]
     [InlineData("NoDevice13", "RuntimeError")]
-    [InlineData("Available", "None")]
-    public void ToFailure_maps_each_capability_to_its_kind(
+    [InlineData("Available", null)]
+    public void VerdictFor_maps_each_capability_to_its_result_code(
         string capability,
-        string expected)
+        string? expected)
     {
         var parsed = Enum.Parse<VulkanCapability>(capability);
-        Assert.Equal(expected, VulkanCapabilities.ToFailure(parsed).ToString());
+        var actual = VulkanCapabilities.VerdictFor(parsed);
+
+        Assert.Equal(expected, actual?.ToString());
     }
 
-    // The mapping decides which of two different instructions the user is given,
-    // so it is pinned separately from the Vulkan calls it feeds.
+    // The two failure verdicts drive two different pieces of user-facing copy
+    // with different instructions, so collapsing them is the bug this guards.
     [Fact]
-    public void LoaderUnavailable_and_NoDevice13_map_to_different_kinds()
+    public void The_two_failure_capacities_produce_different_verdicts()
     {
-        var loader = VulkanCapabilities.ToFailure(VulkanCapability.LoaderUnavailable);
-        var device = VulkanCapabilities.ToFailure(VulkanCapability.NoDevice13);
+        var loader = VulkanCapabilities.VerdictFor(VulkanCapability.LoaderUnavailable);
+        var device = VulkanCapabilities.VerdictFor(VulkanCapability.NoDevice13);
 
+        Assert.NotNull(loader);
+        Assert.NotNull(device);
         Assert.NotEqual(loader, device);
     }
 
-    // Detect() runs on the scene-construction thread pool, where an escaping
-    // exception would leave the tab blank with no explanation. Its contract is
-    // that it never throws and only ever returns a defined value. The specific
-    // value is machine-dependent, so it is reported rather than asserted.
+    // Guards the specific defect a review found: instance creation returning
+    // ErrorIncompatibleDriver used to be folded into "no 1.3 device", so a
+    // machine with no installable driver was told to go and update a driver it
+    // did not have. The invariant is therefore that NoDevice13 is the *only*
+    // capability claiming the driver is too old: every other non-healthy
+    // capability must resolve to the NotSupported verdict, and Available must
+    // stay non-failure. Adding a fourth capability mapped to RuntimeError fails
+    // this test, which is the point.
     [Fact]
-    public void Detect_never_throws_and_returns_a_defined_capability()
+    public void Only_a_too_old_device_is_reported_as_a_too_old_device()
     {
-        var capability = VulkanCapabilities.Detect();
+        var runtimeFailures = Enum.GetValues<VulkanCapability>()
+            .Where(c => VulkanCapabilities.VerdictFor(c) == ResultCode.RuntimeError)
+            .ToArray();
 
-        _output.WriteLine($"Detected capability on this machine: {capability}");
-        Assert.True(
-            Enum.IsDefined(capability),
-            $"Detect() returned an undefined capability: {capability}");
+        Assert.Equal([VulkanCapability.NoDevice13], runtimeFailures);
     }
 
     // The scene is only built once per process, and the probe is published
@@ -69,5 +77,20 @@ public class VulkanCapabilityTests
         Parallel.For(0, others.Length, _ => others[_] = VulkanCapabilities.Detect());
 
         Assert.All(others, c => Assert.Equal(first, c));
+    }
+
+    // Detect() runs on the scene-construction thread pool, where an escaping
+    // exception would leave the tab blank with no explanation. Its contract is
+    // that it never throws and only ever returns a defined value. The specific
+    // value is machine-dependent, so it is reported rather than asserted.
+    [Fact]
+    public void Detect_never_throws_and_returns_a_defined_capability()
+    {
+        var capability = VulkanCapabilities.Detect();
+
+        _output.WriteLine($"Detected capability on this machine: {capability}");
+        Assert.True(
+            Enum.IsDefined(capability),
+            $"Detect() returned an undefined capability: {capability}");
     }
 }

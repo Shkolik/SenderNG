@@ -155,42 +155,25 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     /// staging copy (IContext.Download), so no external memory, no D3D11
     /// device, and no device-LUID matching are needed. Requires a Vulkan 1.3
     /// device; when the context cannot be initialized this throws
-    /// <see cref="Plot3DUnavailableException"/> carrying the engine's own
-    /// result code, and the caller reports that as VulkanUnavailable in the UI.
+    /// <see cref="Plot3DUnavailableException"/>, and the caller reports that as
+    /// VulkanUnavailable in the UI.
     /// </remarks>
     public NexPlotScene()
     {
-        // Without this probe we cannot tell "this system has no Vulkan" from
-        // "Vulkan works but no 1.3 device", and the engine cannot tell us: its
-        // own verdict is logged and discarded, so a 1.2 machine gets Ok back.
-        // The capability is therefore ours to determine, and the two failures
-        // call for different user actions, so they are not merged.
-        switch (VulkanCapabilities.Detect())
-        {
-            case VulkanCapability.LoaderUnavailable:
-                throw new Plot3DUnavailableException(ResultCode.NotSupported);
-            case VulkanCapability.NoDevice13:
-                throw new Plot3DUnavailableException(ResultCode.RuntimeError);
-        }
+        // The verdict is ours, not the engine's: a Release build of
+        // HelixToolkit.Nex logs the device check and discards the code, so a
+        // machine whose GPU predates 1.3 gets Ok back. See the remarks on
+        // VulkanCapabilities. The two verdicts call for different user actions,
+        // so they are not merged.
+        var verdict = VulkanCapabilities.VerdictFor(VulkanCapabilities.Detect());
+        if (verdict is { } unsupported)
+            throw new Plot3DUnavailableException(unsupported);
 
-        // Built uninitialized, then initialized by hand, because
-        // VulkanBuilder.CreateHeadless's own Initialize() collapses every
-        // failure into a generic InvalidOperationException. Calling the public
-        // IInitializable.Initialize() keeps whatever code comes back — in
-        // practice always RuntimeError, since InitContext() throws rather than
-        // returning a non-Ok code and OnInitializing catches. See Task 3
-        // Step 0 for the full chain.
-        //
-        // A failed context is deliberately NOT disposed: Initialize() leaves
-        // IsInitialized == false, so Dispose() -> Teardown() early-returns in
-        // upstream Initializable and never calls OnTearingDown(). Disposing
-        // would be a no-op at best. The instance leak is bounded instead — the
-        // view caches the failure so we only ever try once per process.
         // Built uninitialized, then initialized by hand, so the returned
-        // ResultCode is observable rather than buried in an exception. (The
-        // returned code is still not much of a signal — see the remarks on
-        // VulkanCapabilities — which is why the probe above decides the verdict
-        // and this code is only a backstop.)
+        // ResultCode is observable rather than buried in an exception. That code
+        // is a weak signal for the reason - see the remarks on
+        // VulkanCapabilities - which is why the probe above decides the verdict
+        // and this is only a backstop.
         //
         // The try/catch is not defensive padding. The engine throws bare
         // System.Exception from several places on this path, and an
@@ -198,6 +181,12 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
         // view's Plot3DUnavailableException handling entirely, leaving the tab
         // blank with no explanation. Converting anything unexpected into our own
         // exception keeps the localized fallback reachable.
+        //
+        // A failed context is deliberately NOT disposed: Initialize() leaves
+        // IsInitialized == false, so Dispose() -> Teardown() early-returns in
+        // upstream Initializable and never calls OnTearingDown(). Disposing
+        // would be a no-op at best. The instance leak is bounded instead — the
+        // view caches the failure so we only ever try once per process.
         try
         {
             _context = VulkanBuilder.CreateHeadless(
