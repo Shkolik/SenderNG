@@ -613,7 +613,12 @@ public class PlotterNexViewModelTests : IDisposable
         using var vm = MakeVm(source, scene);
         source.Load(gcode);
         // > AsyncBuildThreshold builds on a worker, then lands via ApplyBuild.
-        Assert.True(SpinWait.SpinUntil(() => vm.HasGeometry, TimeSpan.FromSeconds(10)),
+        // The budget is a wall-clock allowance for that worker, not a performance
+        // assertion: it should finish in well under a second, but a full-solution
+        // run drives four test processes at once and the worker can be starved
+        // past a tight budget. The assertion message reports StatusText, so a
+        // genuinely broken build still fails with a useful diagnostic.
+        Assert.True(SpinWait.SpinUntil(() => vm.HasGeometry, TimeSpan.FromSeconds(60)),
             $"async program build never completed (status={vm.StatusText})");
         var layer = scene.Layers[^1];
 
