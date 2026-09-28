@@ -39,12 +39,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Globalization;
+using System.IO;
+using System.Reflection;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Headless.XUnit;
+using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -113,8 +117,10 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 6; i++)
             await Pump();
 
-        // Flip the iso toggle exactly like the user does.
-        var toggle = window.GetVisualDescendants().OfType<CheckBox>().Single();
+        // Flip the iso toggle exactly like the user does. Named, not
+        // Single(): the plot overlay's own chrome toggles are checkboxes too,
+        // so a bare Single() here is a coin flip on how many the view hosts.
+        var toggle = window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle");
         toggle.IsChecked = true;
         for (var i = 0; i < 6; i++)
             await Pump();
@@ -244,7 +250,7 @@ public class PlotterViewHeadlessTests
         window.Show();
         for (var i = 0; i < 6; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked = true;
+        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
         for (var i = 0; i < 6; i++)
             await Pump();
         Assert.True(vm.Isometric);
@@ -564,6 +570,363 @@ public class PlotterViewHeadlessTests
             "ChromeFlags.Default must re-enable the grid");
     }
 
+    /// <summary>A foam program whose two carriages are DISJOINT in the source:
+    /// the first block moves X and Y (plane 1 = XY), the second moves Z and A
+    /// (plane 2 = ZA). <c>PlotterViewModel.SlicePlanes</c> only files a segment
+    /// under a plane when one of THAT plane's own axes moves, so a source row
+    /// can be acked into one slot and never touch the other.
+    /// <para>That disjointness is what lets the test below attribute a pixel
+    /// count to a SLOT instead of splitting the frame: the two tiles are laid
+    /// out on the diagonal around the canvas midpoint, so a tile regularly
+    /// straddles the midline and any half-frame probe would be measuring the
+    /// wrong slot half the time.</para></summary>
+    private static (string Program, int Plane0Rows) TwoCarriageProgram(int lines)
+    {
+        var sb = new StringBuilder("G21\nG90\n");
+        // A boustrophedon fill of a 50x50 tile: dense enough that the baked
+        // stroke lands thousands of pixels inside the green band, and one mm
+        // stays one mm on both planes. The axis letters are written out rather
+        // than taken from the schema, because a foam carriage's roles are the
+        // whole point of the fixture: X,Y on tower 1 and Z,A on tower 2.
+        void Block(char a, char b)
+        {
+            for (var i = 0; i < lines; i++)
+            {
+                var t = i / (lines - 1d);
+                var u = i % 12 / 11d;
+                var second = 50 * ((i / 12) % 2 == 0 ? u : 1 - u);
+                sb.AppendLine($"G1 {a}{50 * t:F3} {b}{second:F3} F600");
+            }
+        }
+        Block('X', 'Y'); // tower 1 (XY)
+        var split = 2 + lines;
+        Block('Z', 'A'); // tower 2 (ZA)
+        return (sb.ToString(), split);
+    }
+
+    /// <summary>A run-state flip must repaint EVERY slot, not the one that
+    /// happens to be first.
+    /// <para><c>ChromeFlags.RunState</c> is the one flag the raster BAKE reads,
+    /// so flipping it requests a rebake — and those requests used to be single
+    /// per-canvas booleans that <c>BakeSlot</c> cleared from inside the bake.
+    /// On a two-slot canvas slot 0 baked, the booleans went false, slot 1
+    /// recomputed <c>needBake</c> as "nothing to do" and blitted its STALE
+    /// raster, so the toggle half-applied on foam: one carriage changed colour
+    /// and the other kept the old one.</para>
+    /// <para>The assertions are the positive form on purpose. "Slot 1 did not
+    /// change" would pass just as well against a canvas that painted nothing at
+    /// all, so the test instead measures green with the toggle ON and OFF for
+    /// EACH carriage separately — by acking one carriage's rows while the
+    /// other's stay idle, every green pixel on the surface provably belongs to
+    /// the carriage under test.</para></summary>
+    [AvaloniaFact]
+    public async Task The_run_state_toggle_repaints_BOTH_carriages()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        var (gcode, plane0Rows) = TwoCarriageProgram(120);
+        source.Load(gcode);
+        Assert.Equal(2, vm.Planes.Count);
+        // The two blocks must land in DIFFERENT carriages, or the whole
+        // attribution below is void and the test passes for the wrong reason.
+        Assert.True(vm.Planes[0].Count > 0, "the XY block must reach carriage 1");
+        Assert.True(vm.Planes[1].Count > 0, "the ZA block must reach carriage 2");
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.Equal([0, 1], view.DrawableSlotsForTest.ToArray());
+
+        // Premise: the defect is only observable once BOTH slots hold a raster.
+        // Slot 1's is born on the first bake the 500 ms rate limiter lets
+        // through, so wait past the limiter and poke the canvas again.
+        await Task.Delay(600);
+        var planeCanvas = window.GetVisualDescendants()
+            .Single(c => c.GetType().Name == "PlaneCanvas");
+        planeCanvas.InvalidateVisual();
+        for (var i = 0; i < 3; i++)
+            await Pump();
+        var caches = (Array?)Field(planeCanvas, "_cache");
+        Assert.NotNull(caches);
+        for (var slot = 0; slot < 2; slot++)
+            Assert.True(caches!.GetValue(slot) is not null,
+                $"slot {slot} must hold a baked raster before the toggle, or this test only ever measures one slot");
+
+        // Carriage 1 alone: only its rows are acked, so any green on the
+        // surface is carriage 1's and carriage 2 provably contributes none.
+        source.AckRows(0, plane0Rows);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.PushChromeFlags(ChromeFlags.Default with { RunState = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var offEmpty = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
+        view.PushChromeFlags(ChromeFlags.Default);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var carriage1 = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
+        Assert.True(offEmpty == 0, $"run-state off must paint no green at all, found {offEmpty}");
+        Assert.True(carriage1 > 400,
+            $"carriage 1's own rows must paint green with the toggle on, found {carriage1} green pixels");
+
+        // Carriage 2 as well: the same two flips again. Carriage 1's raster
+        // already paints green and is NOT touched by the rebake (its rows and
+        // its Chrome are unchanged), so the whole difference between the two
+        // readings is carriage 2's raster.
+        source.AckRows(plane0Rows, source.RowCount);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.PushChromeFlags(ChromeFlags.Default with { RunState = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.PushChromeFlags(ChromeFlags.Default);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var both = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
+        Assert.True(both > carriage1 + 400,
+            $"carriage 2 must repaint with the toggle: {both} green pixels with both carriages against {carriage1} with carriage 1 alone");
+    }
+
+    /// <summary>Private-field read, with the base-type hop the private nested
+    /// <c>PlotCanvas</c> base needs (<c>_cache</c> and friends are declared
+    /// there, not on the derived canvas).</summary>
+    private static object? Field(object o, string name) =>
+        o.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(o)
+        ?? o.GetType().BaseType!
+            .GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(o);
+
+    /// <summary>Raises a named button's Click the way the user does. Avalonia has
+    /// no <c>Button.Command.Execute</c> shortcut here (these are Click handlers,
+    /// not commands), so the routed event is the honest equivalent.</summary>
+    private static void Click(PlotterView view, string name) =>
+        view.FindControl<Button>(name)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+    /// <summary>The zoom cluster scales the composition about its CENTER, not
+    /// about the cursor: the two foam planes share one transform, so a
+    /// cursor-anchored zoom slides the OTHER plane sideways per notch — the
+    /// "zooming shrinks / clips the path" report. The button cluster is
+    /// therefore center-anchored, and round-tripping in and back out has to
+    /// land on the exact fitted zoom or the buttons would slowly drift the
+    /// view.</summary>
+    [AvaloniaFact]
+    public async Task The_zoom_buttons_scale_the_composition_about_its_center()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var start = view.CurrentZoom;
+        Assert.True(start > 0, $"the fit must have run before the readout means anything, got {start}");
+
+        // The anchor, measured through the pixels. The drawn path's world bounds
+        // never change, so a center-anchored zoom shrinks the on-screen box
+        // TOWARD the canvas center and leaves it sitting there. A zoom that
+        // raised the zoom factor but left the pan alone scales the box just the
+        // same — it slides it off the center instead, which is what the delta
+        // below catches. Zooming OUT rather than in is deliberate: the fit has
+        // no margin, so the very first zoom-in clips the box at the frame edge
+        // and there is nothing left to measure. The overlay is hidden for the
+        // measurement: the chrome's own grey button borders would widen the box
+        // by themselves.
+        view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var planes = view.FindControl<Control>("PlanesGrid")!;
+        var topLeft = planes.TranslatePoint(default, window)
+            ?? throw new InvalidOperationException("the plot grid is not in the window");
+        var cx = topLeft.X + planes.Bounds.Width / 2;
+        var cy = topLeft.Y + planes.Bounds.Height / 2;
+        var before = PathBounds(CaptureFrame(window));
+        Assert.True(before.Width > 50, $"the path must be drawn to measure it, got {before}");
+
+        Click(view, "ZoomOutButton");
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.True(view.CurrentZoom < start, $"zoom out must scale down: {start} → {view.CurrentZoom}");
+
+        var after = PathBounds(CaptureFrame(window));
+        Assert.True(after.Width < before.Width * 0.9,
+            $"the drawing must shrink: {before.Width:F1} px wide before, {after.Width:F1} after");
+        Assert.True(Math.Abs(after.Cx - before.Cx) < 6 && Math.Abs(after.Cy - before.Cy) < 6,
+            $"the center must hold still: the path box was centered on ({before.Cx:F0},{before.Cy:F0}) " +
+            $"(the canvas center is ({cx:F0},{cy:F0})) and must still be there after the zoom, but it " +
+            $"moved to ({after.Cx:F0},{after.Cy:F0}) — {before} then {after}");
+
+        // Round-tripping in and back out has to land on the exact fitted zoom,
+        // or the buttons would slowly drift the view.
+        Click(view, "ZoomInButton");
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.Equal(start, view.CurrentZoom, 6);
+
+        Click(view, "ZoomInButton");
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Click(view, "ZoomFitButton");
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.Equal(start, view.CurrentZoom, 6);
+    }
+
+    /// <summary>The wheel has to feed the readout too, not just the buttons: the
+    /// wheel is how a user zooms most of the time, and a percentage that only
+    /// moves for the button cluster reads as a broken indicator. At exactly
+    /// 1:1 the readout is hidden — the number is noise when the drawing is at
+    /// its natural size.</summary>
+    [AvaloniaFact]
+    public async Task The_zoom_readout_hides_at_one_to_one()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var readout = view.FindControl<TextBlock>("ZoomPctText")!;
+
+        view.ZoomTo(1.0);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.False(readout.IsVisible, "at 1:1 the readout is noise");
+
+        view.ZoomTo(1.25);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.True(readout.IsVisible);
+        Assert.Contains("125", readout.Text);
+
+        // The wheel reaches the same indicator: one notch is 1.15x, so the
+        // number on screen follows the pointer. Driven from the FITTED view
+        // (where the readout is already showing) rather than from 1:1: at
+        // exactly 1:1 the headless platform routes the wheel past the canvas
+        // and the notch never lands, which is a test-harness artefact, not
+        // something the indicator can see. What is asserted here is the rule
+        // that matters - the readout is a multiple of 1:1 and it tracks the
+        // canvas - and the 1:1 case is already pinned by the two lines above.
+        view.Reframe();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.True(readout.IsVisible, "the fitted zoom is not 1:1, so the readout is showing");
+        var before = readout.Text;
+        window.MouseWheel(new Point(460, 280), new Vector(0, 1), RawInputModifiers.None);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.NotEqual(before, readout.Text);
+        Assert.Contains(
+            ((int)Math.Round(view.CurrentZoom * 100)).ToString(CultureInfo.InvariantCulture),
+            readout.Text);
+    }
+
+    /// <summary>Every overlay control exists and is an overlay: the PNG export
+    /// (Task 12) paints through fresh canvases and never instantiates this
+    /// XAML, so "a saved image has no header or buttons" is true by
+    /// construction ONLY while these live here instead of in the header.</summary>
+    [AvaloniaFact]
+    public void The_overlay_chrome_exists_and_is_hidden_from_the_toolpath()
+    {
+        var view = new PlotterView();
+
+        foreach (var name in new[]
+        {
+            "GridToggle", "OriginToggle", "EnvelopeToggle", "RunStateToggle",
+            "ZoomInButton", "ZoomOutButton", "ZoomFitButton", "SavePngButton",
+        })
+            Assert.True(view.FindControl<Control>(name) is not null, $"the overlay is missing {name}");
+
+        // The header must NOT grow them: the iso toggle was the header's only
+        // control by design and the 24px row has no room for four more.
+        var chromeInHeader = view.GetVisualDescendants().OfType<CheckBox>()
+            .Where(c => c.Name is "GridToggle" or "OriginToggle" or "EnvelopeToggle" or "RunStateToggle")
+            .Any(c => c.GetVisualAncestors().Any(a => a is Border { Name: "HeaderHost" }));
+        Assert.False(chromeInHeader, "the chrome toggles belong in the overlay, not the header row");
+    }
+
+    /// <summary>The overlay and the App Settings leaf are two views onto ONE
+    /// model — the same instance the module hands both. Two clones would let a
+    /// flip on one surface leave the other stale, which is the whole class of
+    /// bug the shared model exists to prevent.
+    /// <para>It is asserted through the PIXELS, not through
+    /// <c>DebugStoredChromeFlags</c>: the model reaching the setter proves
+    /// nothing about the canvases, and the canvases are what the user sees.</para></summary>
+    [AvaloniaFact]
+    public async Task The_overlay_and_the_settings_leaf_share_one_model()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "plotter-overlay-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var settingsService = new SettingsService(dir);
+            var mill = settingsService.Load();
+            mill.MachineTypeId = MachineTypes.Mill;
+            settingsService.Save(mill);
+
+            var shared = new PlotterSettingsViewModel(settingsService);
+            Assert.True(shared.ShowGrid, "the four toggles default to on");
+
+            var source = new StubProgramSource();
+            var vm = MakeVm(source, MachineTypes.Mill);
+            source.Load(SpiralProgram(600));
+
+            var view = new PlotterView { DataContext = vm, OverlaySettings = shared };
+            var window = new Window { Width = 920, Height = 560, Content = view };
+            window.Show();
+            for (var i = 0; i < 8; i++)
+                await Pump();
+
+            // The model reached the overlay's checkboxes...
+            var gridToggle = window.GetVisualDescendants()
+                .OfType<CheckBox>().Single(c => c.Name == "GridToggle");
+            Assert.True(gridToggle.IsChecked == true);
+
+            // The lattice the shared model's default asked for is on the canvas.
+            var on = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
+            Assert.True(on > 0, $"the default grid must paint, found {on} light pixels");
+
+            // ...and a LEAF-side flip (the settings dialog, not the overlay)
+            // has to repaint the plot canvases, which only happens if the view
+            // is bound to the live model rather than to a copy of it. The
+            // threshold is a RATIO, like the grid-toggle test: IsChromeLight
+            // also catches the toolpath's antialiased halo, so the off figure
+            // is nowhere near zero on its own.
+            shared.ShowGrid = false;
+            for (var i = 0; i < 8; i++)
+                await Pump();
+            Assert.False(gridToggle.IsChecked == true, "the overlay must follow the shared model");
+            var without = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
+            Assert.True(without < on / 2,
+                $"the lattice must go away after the leaf-side flip, found {without} of {on} light pixels");
+
+            // And the other direction: the overlay's own checkbox writes through
+            // to the model, so the leaf is not left stale.
+            gridToggle.IsChecked = true;
+            for (var i = 0; i < 8; i++)
+                await Pump();
+            Assert.True(shared.ShowGrid, "the overlay must write through to the shared model");
+            var back = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
+            Assert.True(back > without,
+                $"the lattice must come back after the overlay-side flip, {back} light pixels against {without}");
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
     [AvaloniaFact]
     public async Task Envelope_toggle_draws_the_job_rectangle()
     {
@@ -576,6 +939,15 @@ public class PlotterViewHeadlessTests
         var window = new Window { Width = 920, Height = 560, Content = view };
         window.Show();
         await Pump();
+
+        // The overlay is hidden for the measurement: these two assertions are
+        // about the CANVAS painters, and the chrome's own glyphs antialias into
+        // the same amber the envelope uses, so a visible toolbar would show up
+        // as eight "envelope" pixels after the envelope was switched off. The
+        // chrome has its own tests; this one stays about the drawing.
+        view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
+        for (var i = 0; i < 8; i++)
+            await Pump();
 
         var drawn = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsEnvelopeAmber);
         Assert.True(drawn > 100, $"the job rectangle must paint, found {drawn} amber pixels");
@@ -764,6 +1136,12 @@ public class PlotterViewHeadlessTests
         window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
+        // Hidden for the same reason as in the envelope test above: the chrome
+        // is a different subject, and its glyph edges land in the amber/blue
+        // bands this test asserts are empty.
+        view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
+        for (var i = 0; i < 8; i++)
+            await Pump();
 
         // Both carriages still draw, so the surface is live.
         var withCross = PlotterPixels.Snapshot(CaptureFrame(window));
@@ -873,6 +1251,34 @@ public class PlotterViewHeadlessTests
         PlotterPixels.Count(frame, match,
             xFilter: x => x > 0 && x < frame.Width - 1,
             yFilter: y => y > 24 && y < frame.Height - 1);
+
+    /// <summary>The drawn path's on-screen bounding box: the one measurement
+    /// that can say where a zoom anchored, because the path's WORLD bounds do
+    /// not move when the view does. Excludes the header band and the 1px frame
+    /// the same way <see cref="CountSurface"/> does.</summary>
+    private static (int Left, int Top, int Right, int Bottom, double Cx, double Cy, double Width)
+        PathBounds(WriteableBitmap bmp)
+    {
+        var frame = PlotterPixels.Snapshot(bmp);
+        var left = frame.Width;
+        var top = frame.Height;
+        var right = -1;
+        var bottom = -1;
+        for (var y = 25; y < frame.Height - 1; y++)
+            for (var x = 1; x < frame.Width - 1; x++)
+            {
+                var p = PlotterPixels.At(frame, x, y);
+                if (!IsPathGrey(p.R, p.G, p.B))
+                    continue;
+                if (x < left) left = x;
+                if (x > right) right = x;
+                if (y < top) top = y;
+                if (y > bottom) bottom = y;
+            }
+        if (right < 0)
+            return (0, 0, -1, -1, 0, 0, 0);
+        return (left, top, right, bottom, (left + right) / 2d, (top + bottom) / 2d, right - left);
+    }
 
     private static WriteableBitmap CaptureFrame(Window window)
     {

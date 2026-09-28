@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Modules.Plotter"
+             xmlns:s="clr-namespace:SenderNG.Modules.Plotter.Settings"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="400"
              x:Class="SenderNG.Modules.Plotter.PlotterView"
              x:DataType="vm:PlotterViewModel">
@@ -48,7 +49,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
          isometric view, plus a header row and a progress line. -->
     <Border BorderBrush="#aaa" BorderThickness="1" Background="White">
         <DockPanel>
-            <Border DockPanel.Dock="Top" Background="#e8e8e8" Height="24">
+            <Border x:Name="HeaderHost" DockPanel.Dock="Top" Background="#e8e8e8" Height="24">
                 <DockPanel Margin="6,0">
                     <CheckBox x:Name="IsoToggle" DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center" />
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -58,7 +59,67 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     </StackPanel>
                 </DockPanel>
             </Border>
-            <Grid x:Name="PlanesGrid" />
+            <Grid>
+                <!-- The plot canvases are custom-drawn (code-behind): RebuildCanvases owns this grid's columns and rows. -->
+                <Grid x:Name="PlanesGrid" />
+
+                <!-- The view chrome, OVERLAID on the plot rather than put in the header:
+                     - the header row is 24px and already carries the iso toggle;
+                     - the PNG export (Task 12) paints through fresh canvases and never
+                       instantiates this XAML, so nothing in here can reach a saved image —
+                       "the PNG has no buttons in it" is true by construction, not by
+                       remembering to clip the header out.
+                      OverlayHost carries its own DataContext ({x:Null} stops it inheriting the
+                      root's PlotterViewModel) and its own x:DataType, or every compiled binding
+                      below would be type-checked against the plot view model, which has none of
+                      these properties. A Grid with no background is not hit-testable over its
+                      empty parts, so a spot with no control on it falls through to the canvas
+                      underneath and panning and the wheel keep working — measured, not assumed:
+                      GetVisualAt over the middle of the plot returns the PlaneCanvas, not this
+                      grid. It is left that way deliberately; IsHitTestVisible="False" here with
+                      True back on the eight controls was tried and changed no hit test at all. -->
+                <Grid x:Name="OverlayHost" DataContext="{x:Null}"
+                      x:DataType="s:PlotterSettingsViewModel">
+                    <StackPanel x:Name="TogglesPanel"
+                                HorizontalAlignment="Right" VerticalAlignment="Top"
+                                Margin="0,6,6,0" Spacing="1">
+                        <CheckBox x:Name="GridToggle" FontSize="11"
+                                  IsChecked="{Binding ShowGrid}"
+                                  Content="{Binding ShowGridLabel}"
+                                  ToolTip.Tip="{Binding ShowGridLabel}" />
+                        <CheckBox x:Name="OriginToggle" FontSize="11"
+                                  IsChecked="{Binding ShowOrigin}"
+                                  Content="{Binding ShowOriginLabel}"
+                                  ToolTip.Tip="{Binding ShowOriginLabel}" />
+                        <CheckBox x:Name="EnvelopeToggle" FontSize="11"
+                                  IsChecked="{Binding ShowEnvelope}"
+                                  Content="{Binding ShowEnvelopeLabel}"
+                                  ToolTip.Tip="{Binding ShowEnvelopeLabel}" />
+                        <CheckBox x:Name="RunStateToggle" FontSize="11"
+                                  IsChecked="{Binding ShowRunState}"
+                                  Content="{Binding ShowRunStateLabel}"
+                                  ToolTip.Tip="{Binding ShowRunStateLabel}" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="ZoomPanel"
+                                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                Margin="0,0,6,6" Orientation="Horizontal" Spacing="2">
+                        <TextBlock x:Name="ZoomPctText" FontSize="11" Foreground="#333"
+                                   VerticalAlignment="Center" IsVisible="False" />
+                        <Button x:Name="ZoomOutButton" Content="−" Width="24" Height="20"
+                                Click="OnZoomOut" ToolTip.Tip="{Binding ZoomOutLabel}" />
+                        <Button x:Name="ZoomFitButton" Content="⛶" Width="24" Height="20"
+                                Click="OnZoomFit" ToolTip.Tip="{Binding ZoomFitLabel}" />
+                        <Button x:Name="ZoomInButton" Content="+" Width="24" Height="20"
+                                Click="OnZoomIn" ToolTip.Tip="{Binding ZoomInLabel}" />
+                    </StackPanel>
+
+                    <Button x:Name="SavePngButton" Content="⤓" Width="24" Height="20"
+                            HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                            Margin="6,0,0,6"
+                            Click="OnSavePng" ToolTip.Tip="{Binding SavePngLabel}" />
+                </Grid>
+            </Grid>
         </DockPanel>
     </Border>
 </UserControl>

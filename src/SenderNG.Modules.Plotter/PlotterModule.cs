@@ -209,7 +209,14 @@ public class PlotterModule : IModule, ILocalizedModule, IPluginInfo, IModuleSett
     {
         if (viewModel is PlotterViewModel vm)
             _plotVm = vm;
-        var view = new PlotterView { DataContext = viewModel };
+        var view = new PlotterView
+        {
+            DataContext = viewModel,
+            // The overlay binds to the SAME instance the App Settings leaf
+            // edits. Without this the checkboxes would be bound to nothing and
+            // the two surfaces would drift apart.
+            OverlaySettings = _sharedSettingsVm,
+        };
         _plotView = view;
         // The toggles live on the CANVASES, not on the view model, so the flags
         // are pushed here rather than in CreateViewModel — at that point this

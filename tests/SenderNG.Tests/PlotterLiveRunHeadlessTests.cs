@@ -419,7 +419,7 @@ public class PlotterLiveRunHeadlessTests
         var (demo, service, program, plotter, window) = Setup(MachineTypes.Foam, 4, WingProgram(400));
         for (var i = 0; i < 6; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked = true;
+        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
         for (var i = 0; i < 6; i++)
             await Pump();
 
@@ -460,7 +460,7 @@ public class PlotterLiveRunHeadlessTests
         var wrap = (StateDrivenWrapper)service;
         for (var i = 0; i < 6; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked = true;
+        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
         for (var i = 0; i < 6; i++)
             await Pump();
         wrap.Emit(new CNC.Core.Services.MachineState { Status = "Check", Positions = new double[] { 15, 35, 10, 8 } });
@@ -612,7 +612,7 @@ public class PlotterLiveRunHeadlessTests
         // The iso canvas composes the same way; its plane1 loft + cross must
         // render too (checked via the same predicates against its own window
         // offset).
-        window2.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked = true;
+        window2.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
         await Task.Delay(600);
@@ -697,7 +697,10 @@ public class PlotterLiveRunHeadlessTests
     /// <para>This file hosts the test because it is the regression net for BOTH
     /// plotters, so it also flips the iso canvas and pins the twin of
     /// <c>RowStateFor</c> — a mutation that removed the guard from only one of
-    /// the two copies would otherwise pass.</para>
+    /// the two copies would otherwise pass. The iso half measures the OFF state
+    /// AND the ON state: a zero is satisfied just as well by an iso canvas that
+    /// never colors anything, so without the positive control the whole iso half
+    /// of this test is unfalsifiable.</para>
     /// <para>The fixture is the shared deterministic stub, NOT this file's
     /// <c>Setup</c>: the assertion is a two-line flag collapse and streaming a
     /// real 1.2 s run to observe it would buy only timing flake.</para></summary>
@@ -752,6 +755,23 @@ public class PlotterLiveRunHeadlessTests
             await Pump();
         Assert.True(PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen) == 0,
             "the iso canvas's RowStateFor must collapse to Idle too");
+
+        // ...which is only a statement about the OFF state, and a zero asserts
+        // just as happily about a canvas that paints no run-state colors at
+        // all. So the iso half also needs the ON control: without it the
+        // assertion above would still hold if RowStateFor were deleted outright.
+        // The rebake is the flag flip itself (a RunState change requests one
+        // immediately), so the very next push is the repaint — no extra wait.
+        view.PushChromeFlags(ChromeFlags.Default);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var isoOn = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
+        // 430 green pixels measured on the iso surface (430 on all three
+        // sampling runs) and 0 with the painter gone. The floor is 200:
+        // 2.15x over the mutational zero, and still 46% of the measured
+        // count, so neither a weaker painter nor a hairier sample passes.
+        Assert.True(isoOn > 200,
+            $"the iso canvas must paint run-state colors with the toggle ON, found {isoOn} green pixels");
     }
 
     /// <summary>Count matching pixels in a HALF-OPEN rectangle

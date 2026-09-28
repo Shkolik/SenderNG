@@ -31,9 +31,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.ComponentModel;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
@@ -146,8 +148,28 @@ public partial class PlotterView : UserControl
     /// keeps the UI thread free for input.</summary>
     private const int RedrawIntervalMs = 33;
 
-    public PlotterView()
+    /// <summary>The PNG save dialog service. Null in the headless tests and
+    /// wherever the module builds the view without the app's DI, which is why
+    /// <see cref="OnSavePng"/> reads it before doing anything — an assigned but
+    /// unread field is CS0414 and the build is 0-warning by contract. The
+    /// export itself is Task 12; until then the button is inert.</summary>
+    private readonly IFileDialogService? _dialogs;
+
+    /// <summary>Parameterless, and NOT just a convenience: the Avalonia XAML
+    /// compiler warns (AVLN3001) when a compiled view has no public one, because
+    /// the runtime loader needs it — with only the optional-argument ctor the
+    /// build went to 1 warning, and this project is 0-warning by contract.
+    /// No dialog service means the PNG button is inert, which is what the
+    /// headless tests get.</summary>
+    public PlotterView() : this(null)
     {
+    }
+
+    /// <param name="dialogs">The app's file-dialog service. Null in the headless
+    /// tests and wherever the module builds the view without the app's DI.</param>
+    public PlotterView(IFileDialogService? dialogs)
+    {
+        _dialogs = dialogs;
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
         // Avalonia has no Checked/Unchecked CLR events — observe IsChecked.
@@ -261,6 +283,7 @@ public partial class PlotterView : UserControl
             var iso = new IsoCanvas(_vm);
             PlanesGrid.Children.Add(iso);
             _canvases.Add(iso);
+            iso.ZoomChanged = UpdateZoomReadout;
             // A fresh PlotCanvas starts at ChromeFlags.Default, so the rebuild
             // has to hand it the flags the user already chose — see ApplyChrome.
             ApplyChrome();
@@ -270,7 +293,123 @@ public partial class PlotterView : UserControl
         var canvas = new PlaneCanvas(_vm);
         PlanesGrid.Children.Add(canvas);
         _canvases.Add(canvas);
+        canvas.ZoomChanged = UpdateZoomReadout;
         ApplyChrome();
+    }
+
+    /// <summary>The shared settings model — the SAME instance the App Settings
+    /// leaf binds, handed in by the module. Setting it binds the overlay chrome
+    /// to it and re-applies the toggles into the canvases, so a flip on either
+    /// surface is visible on both.
+    /// <para>The <c>Changed</c> subscription is what makes the OTHER direction
+    /// work: the App Settings leaf writes to the model, not to this view, so
+    /// without it a leaf-side flip would move the leaf's checkbox and leave the
+    /// plot's lattice on screen. The same shape as
+    /// <c>PlotterNexView.OverlaySettings</c>. The module pushes on the same
+    /// event as well; this view keeps its own so one built outside the module
+    /// still follows the model instead of depending on its host to forward
+    /// it. Both paths are idempotent — they set the same flags.</para></summary>
+    public PlotterSettingsViewModel? OverlaySettings
+    {
+        get => _overlaySettings;
+        set
+        {
+            if (_overlaySettings is not null)
+                _overlaySettings.Changed -= OnOverlaySettingsChanged;
+            _overlaySettings = value;
+            if (OverlayHost is not null)
+                OverlayHost.DataContext = value;
+            if (_overlaySettings is not null)
+                _overlaySettings.Changed += OnOverlaySettingsChanged;
+            // Bare call = re-apply, NOT a reset: with nothing pushed before, the
+            // attached model's flags are the first thing in effect, and on a
+            // later assignment the user's toggles must survive.
+            PushChromeFlags();
+        }
+    }
+
+    /// <summary>A settings edit reached the model — from the overlay's own
+    /// checkbox or from the App Settings leaf, which are the same object. The
+    /// model has already raised PropertyChanged for the individual flags by now
+    /// (<c>Persist</c> notifies first, then raises this), so
+    /// <see cref="Flags"/> reads the new set.</summary>
+    private void OnOverlaySettingsChanged() => PushChromeFlags();
+
+    private PlotterSettingsViewModel? _overlaySettings;
+
+    /// <summary>How far out the view may be zoomed before the wheels give up.</summary>
+    internal const double MinZoom = 0.02;
+
+    /// <summary>Scales every canvas about its own center, so the composition's
+    /// midpoint stays put. The wheel keeps its cursor-anchored behavior — this is
+    /// the button cluster only.</summary>
+    public void ZoomBy(double factor)
+    {
+        foreach (var canvas in _canvases.OfType<PlotCanvas>())
+            canvas.ZoomSlot(0, factor, MinZoom);
+        UpdateZoomReadout();
+        InvalidateAll();
+    }
+
+    /// <summary>Zooms to an exact multiple of 1:1 about the composition's center.
+    /// A no-op before the first fit (<see cref="CurrentZoom"/> is 0 then) and for
+    /// a non-positive target, so a bad caller cannot invert the view.</summary>
+    public void ZoomTo(double zoom)
+    {
+        var current = CurrentZoom;
+        if (current <= 0 || zoom <= 0)
+            return;
+        ZoomBy(zoom / current);
+    }
+
+    /// <summary>Back to the fitted view.</summary>
+    public void Reframe()
+    {
+        foreach (var canvas in _canvases.OfType<PlotCanvas>())
+            canvas.Reframe();
+        UpdateZoomReadout();
+        InvalidateAll();
+    }
+
+    /// <summary>The composition's current zoom as a multiple of 1:1, or 0 before
+    /// the first fit — a canvas that has not been fitted yet holds NaN, and the
+    /// filter drops it, so an empty match yields <c>default(double)</c>.</summary>
+    internal double CurrentZoom =>
+        _canvases.OfType<PlotCanvas>()
+            .Select(c => c.SlotTransformForTest(0).Zoom)
+            .FirstOrDefault(z => !double.IsNaN(z) && z > 0);
+
+    /// <summary>Refreshes the overlay's zoom readout. The canvas posts its
+    /// render-pass announcements (see <c>PlotCanvas.AnnounceZoom</c>), so this
+    /// runs either inline from the wheel/button path or from the dispatcher
+    /// queue afterwards.</summary>
+    private void UpdateZoomReadout()
+    {
+        if (ZoomPctText is null)
+            return;
+        var zoom = CurrentZoom;
+        var show = !double.IsNaN(zoom) && Math.Abs(zoom - 1.0) > 1e-6;
+        ZoomPctText.Text = show
+            ? (zoom * 100).ToString("0", CultureInfo.InvariantCulture) + "%"
+            : string.Empty;
+        ZoomPctText.IsVisible = show;
+    }
+
+    private void OnZoomIn(object? sender, RoutedEventArgs e) => ZoomBy(1.25);
+
+    private void OnZoomOut(object? sender, RoutedEventArgs e) => ZoomBy(1 / 1.25);
+
+    private void OnZoomFit(object? sender, RoutedEventArgs e) => Reframe();
+
+    /// <summary>PNG export is Task 12. The stub reads <see cref="_dialogs"/> on
+    /// purpose: there is nowhere to save to without a dialog service, and an
+    /// assigned-but-unread field would be CS0414. It is deliberately NOT
+    /// <c>async</c> — there is nothing to await, and an async body with no
+    /// await is CS1998.</summary>
+    private void OnSavePng(object? sender, RoutedEventArgs e)
+    {
+        if (_dialogs is null)
+            return; // no dialog service wired: the save path does not exist yet
     }
 
     /// <summary>The last set of flags <see cref="PushChromeFlags"/> was given, kept
@@ -299,11 +438,13 @@ public partial class PlotterView : UserControl
     }
 
     /// <summary>The flags the view would hand the next canvas it creates: the last
-    /// value pushed, or <see cref="ChromeFlags.Default"/> when nothing was ever
-    /// pushed. This is the same expression <see cref="ApplyChrome"/> uses, read
-    /// back through one property so a test can assert the retained state without
-    /// duplicating the fallback — and without painting pixels to do it.</summary>
-    internal ChromeFlags? DebugStoredChromeFlags => _chromeFlags ?? ChromeFlags.Default;
+    /// value pushed, then an attached overlay model, then
+    /// <see cref="ChromeFlags.Default"/> when neither exists. This is the same
+    /// expression <see cref="ApplyChrome"/> uses, read back through one property
+    /// so a test can assert the retained state without duplicating the fallback —
+    /// and without painting pixels to do it.</summary>
+    internal ChromeFlags? DebugStoredChromeFlags =>
+        _chromeFlags ?? _overlaySettings?.Flags ?? ChromeFlags.Default;
 
     /// <summary>Writes the remembered flags into every canvas. Split out of
     /// <see cref="PushChromeFlags"/> so <see cref="RebuildCanvases"/> can re-apply
@@ -313,9 +454,15 @@ public partial class PlotterView : UserControl
     /// had set — the reported "set the toggles, toggle iso, watch them disappear".</summary>
     private void ApplyChrome()
     {
+        // The overlay's attached model wins over the retained state, so
+        // RebuildCanvases picks up a newly-assigned model with no special case
+        // of its own (it routes through here too). An explicit push is a test
+        // or a module-driven override, and it is what the retained state is
+        // for; with neither, the defaults.
+        var flags = _chromeFlags ?? _overlaySettings?.Flags ?? ChromeFlags.Default;
         foreach (var canvas in _canvases.OfType<PlotCanvas>())
         {
-            canvas.Chrome = _chromeFlags ?? ChromeFlags.Default;
+            canvas.Chrome = flags;
             // Setting Chrome is a plain property write, so nothing repaints on its
             // own. Without this invalidate the toggle tests measure the SAME frame
             // twice and the "grid went away" assertion fails on a screen that never
@@ -497,6 +644,60 @@ public partial class PlotterView : UserControl
         private readonly RedrawThrottle _throttle = new();
         private readonly DispatcherTimer _settleTimer;
 
+    /// <summary>Scales the slot about its own center, so the composition's
+    /// midpoint stays put. The wheel keeps its cursor-anchored behavior — this is
+    /// the button cluster only.
+    /// <para>Internal, and it takes the work rather than exposing the transform:
+    /// <c>protected</c> on a NESTED type is reachable from that type and its
+    /// derived types, NOT from the class that encloses it, so the view cannot
+    /// read <see cref="SlotZoom"/>/<see cref="SlotPan"/>/<see cref="SetSlotTransform"/>
+    /// however much the plan says otherwise. Same reason
+    /// <see cref="SlotTransformForTest"/> exists.</para></summary>
+    internal void ZoomSlot(int slot, double factor, double minZoom)
+    {
+        var zoom = SlotZoom(slot);
+        if (double.IsNaN(zoom) || zoom <= 0)
+            return;
+        var area = new Rect(Bounds.Size);
+        if (area.Width < 1 || area.Height < 1)
+            return;
+        var pan = SlotPan(slot);
+
+        // The world point under the canvas center, so it can be put back.
+        var world = ScreenToWorld(area.Center, zoom, pan);
+        var next = Math.Max(zoom * factor, minZoom);
+        SetSlotTransform(slot, next,
+            new Vector(area.Center.X - world.X * next, area.Center.Y + world.Y * next));
+        InvalidateVisual();
+    }
+
+    /// <summary>Drops the fitted transform so the next render re-fits — the
+    /// "Fit" button, and the seam for the same reason as
+    /// <see cref="ZoomSlot"/>. Internal wrapper rather than widening
+    /// <see cref="ResetTransforms"/> itself: nothing outside this type should be
+    /// able to wipe the viewport.</summary>
+    internal void Reframe() => ResetTransforms();
+
+    /// <summary>Notifies the view that the zoom changed, from either caller, but
+    /// the two need different timing. The wheel is an input event: the view can
+    /// update the readout inline. The fit runs INSIDE a render pass, and
+    /// <c>TextBlock.Text</c> is a measure invalidation — so that one is posted
+    /// and lands after the render, instead of mutating layout from inside it.
+    /// The canvas is the only side that knows which caller it is, so the choice
+    /// lives here and the view just gets told.</summary>
+    private void AnnounceZoom(bool insideRender)
+    {
+        if (insideRender)
+            Dispatcher.UIThread.Post(() => ZoomChanged?.Invoke(), DispatcherPriority.Normal);
+        else
+            ZoomChanged?.Invoke();
+    }
+
+    /// <summary>Set by the view when it creates this canvas: the zoom changed
+    /// (a wheel notch, or the initial fit), so the readout has to follow.
+    /// The canvas cannot reach the overlay's TextBlock itself.</summary>
+    internal Action? ZoomChanged { get; set; }
+
         /// <summary>Internal, not the protected <see cref="SlotZoom"/>/<see cref="SlotPan"/>:
         /// a containing type may not read a nested type's protected members, so the
         /// view reads the transform through this seam (as it already does for
@@ -665,6 +866,7 @@ public partial class PlotterView : UserControl
             pan += new Vector(anchor.X - anchored.X, anchor.Y - anchored.Y);
             SetSlotTransform(slot, zoom, pan);
             InvalidateVisual();
+            AnnounceZoom(insideRender: false);
         }
 
         /// <summary>Slot whose viewport contains <paramref name="point"/>
@@ -709,6 +911,21 @@ public partial class PlotterView : UserControl
             EnsureCacheArrays();
             DetectFrontierChanges();
 
+            // The rebake request is PASS-SCOPED, and this snapshot is what makes
+            // it so. It used to be cleared from inside BakeSlot, which made the
+            // request effectively single-slot: slot 0 baked, the booleans went
+            // false, and slot 1 then recomputed needBake as "nothing to do" and
+            // blitted its stale raster — a chrome flip (RunState is the one flag
+            // the bake reads) half-applied on foam, repainting one carriage and
+            // leaving the other in the old colours. Lifting and clearing the
+            // request once per pass hands the SAME decision to every slot; a
+            // request raised mid-pass (DrawSlotFrontier's overflow branch) stays
+            // in the field and is picked up by the next pass.
+            var rebake = _rebakeRequested;
+            var immediate = _rebakeImmediate;
+            _rebakeRequested = false;
+            _rebakeImmediate = false;
+
             // The slot viewports are the planes' HOME positions, not bounds:
             // the true-scale composition shares ONE transform, so panning /
             // zooming moves a plane's raster across the screen-center line and
@@ -716,7 +933,7 @@ public partial class PlotterView : UserControl
             // already clips the drawing to the control bounds.
             for (var slot = 0; slot < SlotCount; slot++)
             {
-                if (!BlitOrBake(context, slot))
+                if (!BlitOrBake(context, slot, rebake, immediate))
                     DrawSlotPathWorld(context, slot, new BakePens(1)); // pre-first-bake fallback
                 DrawSlotFrontier(context, slot);
             }
@@ -771,6 +988,10 @@ public partial class PlotterView : UserControl
                     continue;
                 var viewport = SlotViewport(slot, area);
                 FitSlot(slot, viewport);
+                // The FIRST fit is a zoom change too: without this the readout
+                // stays blank until the user happens to zoom, on a view that is
+                // already off 1:1.
+                AnnounceZoom(insideRender: true);
             }
         }
 
@@ -895,19 +1116,35 @@ public partial class PlotterView : UserControl
         }
 
         /// <summary>Bakes the slot's raster when needed (geometry replaced,
-        /// settled zoom changed, recolor window overflow) and blits it through
-        /// the current transform. Returns true when the path is on screen.</summary>
-        private bool BlitOrBake(DrawingContext ctx, int slot)
+        /// settled zoom changed, recolor window overflow, rebake requested) and
+        /// blits it through the current transform. Returns true when the path is
+        /// on screen.
+        /// <para><paramref name="rebake"/>/<paramref name="immediate"/> are the
+        /// pass-scoped snapshot taken by <see cref="Render"/>, NOT the live
+        /// fields: reading the fields here is what used to make the first slot
+        /// consume the request and leave the rest of the slots stale.</para></summary>
+        private bool BlitOrBake(DrawingContext ctx, int slot, bool rebake, bool immediate)
         {
             var zoom = SlotZoom(slot);
             var cache = _cache[slot];
             var needBake = cache is null
                 || _cacheGeoVersion[slot] != Vm.GeometryVersion
-                || _rebakeRequested
+                || rebake
                 || (!Interacting && Math.Abs(zoom - _cacheZoom[slot]) / Math.Max(_cacheZoom[slot], 1e-9) > ZoomTolerance);
 
-            if (needBake && (_rebakeImmediate || CanBakeNow()))
-                BakeSlot(slot);
+            if (needBake)
+            {
+                if (immediate || CanBakeNow())
+                    BakeSlot(slot);
+                else if (rebake)
+                {
+                    // The chain limiter refused this slot's rebake, and the pass
+                    // snapshot has already dropped the request — re-arm it so a
+                    // later pass repaints this slot instead of stranding it on
+                    // its stale raster.
+                    _rebakeRequested = true;
+                }
+            }
             cache = _cache[slot];
             if (cache is null)
                 return false; // first frames before the first bake → direct draw
@@ -932,7 +1169,11 @@ public partial class PlotterView : UserControl
 
         /// <summary>Renders the slot's path (colored by CURRENT row states)
         /// into a world-sized raster at the slot's zoom (clamped), then marks
-        /// the recolor window clean up to the current touched frontier.</summary>
+        /// the recolor window clean up to the current touched frontier.
+        /// <para>It deliberately does NOT touch <see cref="_rebakeRequested"/>:
+        /// the request is owned by the pass that took the snapshot
+        /// (<see cref="Render"/>), so one bake cannot cancel the same pass's
+        /// remaining slots.</para></summary>
         private void BakeSlot(int slot)
         {
             var (minX, minY, maxX, maxY) = SlotWorldBounds(slot);
@@ -955,8 +1196,6 @@ public partial class PlotterView : UserControl
             _cache[slot] = bmp;
             _cacheZoom[slot] = zc;
             _cacheGeoVersion[slot] = Vm.GeometryVersion;
-            _rebakeRequested = false;
-            _rebakeImmediate = false;
             _bakedFrontierRow = Vm.TouchedRow; // cache colors reflect ≤ this
         }
 
