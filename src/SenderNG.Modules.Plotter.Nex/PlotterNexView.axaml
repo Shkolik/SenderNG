@@ -58,10 +58,27 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <DockPanel Margin="8,0,6,0">
                     <StackPanel Orientation="Horizontal" Spacing="4"
                                 DockPanel.Dock="Right" VerticalAlignment="Center">
-                        <ToggleButton x:Name="SnapXyButton" Content="XY" FontSize="11" Padding="8,1" Click="OnSnapXy" />
-                        <ToggleButton x:Name="SnapXzButton" Content="XZ" FontSize="11" Padding="8,1" Click="OnSnapXz" />
-                        <ToggleButton x:Name="SnapYzButton" Content="YZ" FontSize="11" Padding="8,1" Click="OnSnapYz" />
-                        <ToggleButton x:Name="SnapIsoButton" Content="3D" FontSize="11" Padding="8,1" Click="OnSnapIso" IsChecked="True" />
+                        <StackPanel.Styles>
+                            <!-- Dimmed explicitly rather than relying on the
+                                 default theme's disabled state: this module
+                                 hardcodes its colours instead of using theme
+                                 resources, so whether a disabled ToggleButton
+                                 is visibly greyed is an unverified assumption
+                                 about a dependency default. The four buttons
+                                 are direct children, so the type selector here
+                                 matches exactly them. -->
+                            <Style Selector="ToggleButton:disabled">
+                                <Setter Property="Opacity" Value="0.4" />
+                            </Style>
+                        </StackPanel.Styles>
+                        <ToggleButton x:Name="SnapXyButton" Content="XY" FontSize="11" Padding="8,1" Click="OnSnapXy"
+                                      IsEnabled="{Binding !VulkanUnavailable, Mode=OneWay}" />
+                        <ToggleButton x:Name="SnapXzButton" Content="XZ" FontSize="11" Padding="8,1" Click="OnSnapXz"
+                                      IsEnabled="{Binding !VulkanUnavailable, Mode=OneWay}" />
+                        <ToggleButton x:Name="SnapYzButton" Content="YZ" FontSize="11" Padding="8,1" Click="OnSnapYz"
+                                      IsEnabled="{Binding !VulkanUnavailable, Mode=OneWay}" />
+                        <ToggleButton x:Name="SnapIsoButton" Content="3D" FontSize="11" Padding="8,1" Click="OnSnapIso" IsChecked="True"
+                                      IsEnabled="{Binding !VulkanUnavailable, Mode=OneWay}" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="{Binding PlaneLettersText, Mode=OneWay}"
@@ -252,15 +269,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                  that has to be kept in sync with the localized one for no
                  benefit. The text is assigned from code-behind rather than bound,
                  deliberately; see the comment on ReportVulkanFailure. -->
-            <Border Background="#22262B" IsVisible="{Binding VulkanUnavailable, Mode=OneWay}">
+            <Border Background="Transparent" IsVisible="{Binding VulkanUnavailable, Mode=OneWay}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="460">
                     <TextBlock x:Name="FallbackTitle"
                                Text=""
                                FontSize="16" FontWeight="SemiBold"
-                               Foreground="#EEE" HorizontalAlignment="Center" />
+                               Foreground="#222" HorizontalAlignment="Center" />
                     <TextBlock x:Name="FallbackHint"
                                Text=""
-                               Foreground="#AAA" TextWrapping="Wrap" HorizontalAlignment="Center" />
+                               Foreground="#555" TextWrapping="Wrap" HorizontalAlignment="Center" />
                 </StackPanel>
             </Border>
         </DockPanel>
