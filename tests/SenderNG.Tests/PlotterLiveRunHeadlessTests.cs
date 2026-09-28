@@ -57,6 +57,11 @@ using SenderNG.Modules.Fixed;
 using SenderNG.Modules.Plotter;
 using Xunit;
 
+// The deterministic program stub + view-model factory, shared with
+// PlotterViewHeadlessTests. This file's own Setup(...) is a streamed
+// DemoGrblService run and is deliberately NOT what the flag tests use.
+using static SenderNG.Tests.PlotterTestStubs;
+
 namespace SenderNG.Tests;
 
 public class PlotterLiveRunHeadlessTests
@@ -681,6 +686,72 @@ public class PlotterLiveRunHeadlessTests
         var pastCenter = CountRectHalfOpen(frame, LineGrey, sx0, Math.Max(sx0 + 1, sx1), sy0, Math.Max(sy0 + 1, sy1));
         Assert.True(pastCenter > 30,
             $"dragging plane 0 across the center must keep the profile visible beyond it, got {pastCenter} px right of x={centerX}");
+    }
+
+    /// <summary>The run-state toggle collapses every row to Idle, so
+    /// <c>RowStateFor</c> stops reaching for the row state at all and
+    /// <c>BakePens.For</c> falls through to <c>_ =&gt; rapid ? Rapid : Feed</c>
+    /// — cuts take the neutral feed pen, rapids keep theirs. The toggle does NOT
+    /// gate <c>PenForRow</c>: that one colors the executed frontier, which is
+    /// what the user watches advance, so it stays live with the toggle off.
+    /// <para>This file hosts the test because it is the regression net for BOTH
+    /// plotters, so it also flips the iso canvas and pins the twin of
+    /// <c>RowStateFor</c> — a mutation that removed the guard from only one of
+    /// the two copies would otherwise pass.</para>
+    /// <para>The fixture is the shared deterministic stub, NOT this file's
+    /// <c>Setup</c>: the assertion is a two-line flag collapse and streaming a
+    /// real 1.2 s run to observe it would buy only timing flake.</para></summary>
+    [AvaloniaFact]
+    public async Task Run_state_off_paints_no_state_colors()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        // The F600 is load-bearing: a G1 with no feed word parses to zero motion
+        // tokens and the error is swallowed per line, so the test would silently
+        // run against an empty program.
+        source.Load("G21\r\nG1 X100 Y50 Z20 F600");
+        Assert.True(vm.HasGeometry, "the run-state colors need a real path to recolor");
+        // Ack EVERY row. `DoneCount + 1` is 1 here — DoneCount is 0 until the
+        // first ack — so it acked row 0 alone, the `G21` header, which carries
+        // no segment, and the green count read 0 for a reason that had nothing
+        // to do with the toggle.
+        source.AckRows(0, source.RowCount);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // Sanity: the toggle is ON first, so the count is non-zero and the later
+        // zero is a real change rather than a never-green fixture.
+        // 854 green pixels, and 854 on all six sampling runs — the fixture is
+        // pixel-deterministic, so the 400 floor is 47% of the measured value
+        // and cannot be a render-cadence flake. It is not a light-pixel count
+        // like Task 6's, so the blank-canvas reading here is 0, not ~1250: a
+        // floor anywhere above 0 discriminates, and 400 leaves 2x headroom.
+        var on = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
+        Assert.True(on > 400, $"run-state colors must show when the toggle is on, found {on} green pixels");
+
+        // The run-state colors are BAKED into the raster, not drawn per frame
+        // like the lattice, so the flag has to reach a rebake — see the Chrome
+        // setter. 8 pumps, per this file's settling convention.
+        view.PushChromeFlags(ChromeFlags.Default with { RunState = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.Equal(0, PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen));
+
+        // The iso canvas is a REBUILD, and a fresh PlotCanvas starts at
+        // ChromeFlags.Default — so the flag has to be pushed again or the iso
+        // copy of RowStateFor is measured with the toggle on.
+        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.PushChromeFlags(ChromeFlags.Default with { RunState = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.True(PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen) == 0,
+            "the iso canvas's RowStateFor must collapse to Idle too");
     }
 
     /// <summary>Count matching pixels in a HALF-OPEN rectangle

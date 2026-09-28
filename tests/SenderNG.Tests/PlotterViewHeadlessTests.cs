@@ -48,82 +48,20 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using CNC.Core.Abstractions;
 using CNC.Core.Services;
-using SenderNG.Core.Localization;
 using SenderNG.Modules.Plotter;
 using SenderNG.Modules.Plotter.Settings;
 using Xunit;
+
+// StubProgramSource and MakeVm live in the shared helper so the live-run file
+// can use the same deterministic fixture; a `using static` import keeps every
+// call site below spelled exactly as it was before the move.
+using static SenderNG.Tests.PlotterTestStubs;
 
 namespace SenderNG.Tests;
 
 public class PlotterViewHeadlessTests
 {
-    private sealed class StubProgramSource : ILoadedProgramSource
-    {
-        private ProgramRowState[] _states = [];
-        public GCodeProgram? Program { get; set; }
-        public event System.Action? ProgramChanged;
-        public event System.Action? RowsChanged;
-        public int RowCount => Program?.Entries.Count ?? 0;
-        public int SendableCount => Program?.Entries.Count(e => e.IsSendable) ?? 0;
-        public int DoneCount => _states.Count(s => s == ProgramRowState.Ok);
-        public int TouchedRow { get; private set; }
-        public ProgramRowState GetRowState(int index) =>
-            index >= 0 && index < _states.Length ? _states[index] : ProgramRowState.Idle;
-
-        public void Load(string gcode)
-        {
-            Program = GCodeProgram.Parse(gcode);
-            _states = new ProgramRowState[Program.Entries.Count];
-            TouchedRow = 0;
-            ProgramChanged?.Invoke();
-        }
-
-        /// <summary>Mark rows <paramref name="from"/>..<paramref name="to"/>
-        /// (exclusive) acked and raise RowsChanged — the live-run tick.</summary>
-        public void AckRows(int from, int to, ProgramRowState state = ProgramRowState.Ok)
-        {
-            for (var i = from; i < to && i < _states.Length; i++)
-                _states[i] = state;
-            TouchedRow = Math.Max(TouchedRow, Math.Min(to - 1, _states.Length - 1));
-            RowsChanged?.Invoke();
-        }
-    }
-
-    private sealed class NeverObservable : IObservable<MachineState>
-    {
-        public IDisposable Subscribe(IObserver<MachineState> observer) => new Noop();
-        private sealed class Noop : IDisposable
-        {
-            public void Dispose() { }
-        }
-    }
-
-    private sealed class StubGrbl : IGrblService
-    {
-        public bool IsConnected => false;
-        public ControllerCapabilities Capabilities => ControllerCapabilities.Full with { AxisLetters = "XYZA" };
-        public IObservable<MachineState> State => new NeverObservable();
-        public Task ConnectAsync(string port) => Task.CompletedTask;
-        public void Disconnect() { }
-        public Task SendAsync(string line) => Task.CompletedTask;
-        public void SendRealtime(byte code) { }
-    }
-
-    private static PlotterViewModel MakeVm(StubProgramSource source, string machineTypeId)
-    {
-        var dir = Path.Combine(Path.GetTempPath(), "plotter-ui-tests-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
-        var settings = new SettingsService(dir);
-        var profile = settings.Load();
-        profile.MachineTypeId = machineTypeId;
-        settings.Save(profile);
-
-        return new PlotterViewModel(source, new StubGrbl(), settings,
-            new LocalizationService(new MemoryStream("{ \"strings\": {} }"u8.ToArray())));
-    }
-
     /// <summary>A long, dense toolpath so a "is the path drawn at all" pixel
     /// check is decisive (a broken raster bake renders ZERO path pixels).</summary>
     private static string SpiralProgram(int segments)

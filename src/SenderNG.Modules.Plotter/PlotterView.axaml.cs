@@ -420,8 +420,37 @@ public partial class PlotterView : UserControl
         protected readonly PlotterViewModel Vm;
 
         /// <summary>Which chrome this canvas draws. Pushed from the shared settings
-        /// view model once the view is attached (Task 10).</summary>
-        internal ChromeFlags Chrome { get; set; } = ChromeFlags.Default;
+        /// view model once the view is attached (Task 10).
+        /// <para><see cref="ChromeFlags.RunState"/> is the ONE flag the raster
+        /// bake reads: <c>RowStateFor</c> collapses to Idle without it, and the
+        /// row states it resolves are baked into the cached raster. So flipping
+        /// it has to invalidate that raster — an <c>InvalidateVisual</c> alone
+        /// re-blits the old green and the switch looks dead, which is the trap
+        /// the grid/axes/envelope flags do not have, because those are drawn
+        /// per frame in <c>DrawSlotChrome</c> and never reach the bake.</para></summary>
+        internal ChromeFlags Chrome
+        {
+            get => _chrome;
+            set
+            {
+                if (value.RunState != _chrome.RunState)
+                {
+                    // Two requests, and the second one is the load-bearing part.
+                    // _rebakeRequested alone is NOT enough: a bake is rate-limited
+                    // to one per BakeMinIntervalMs, the flag push invalidates
+                    // exactly once, and with no run in flight nothing invalidates
+                    // again — so the render that could have rebaked is refused by
+                    // the limiter and the switch stays dead until the user pans or
+                    // zooms. A toggle is one discrete user event, not a chain of
+                    // frames, so it is allowed to pay for its own bake.
+                    _rebakeRequested = true;
+                    _rebakeImmediate = true;
+                }
+                _chrome = value;
+            }
+        }
+
+        private ChromeFlags _chrome = ChromeFlags.Default;
 
         private Point _dragOrigin;
         private Vector _dragBasePan;
@@ -446,6 +475,11 @@ public partial class PlotterView : UserControl
         private int[] _cacheGeoVersion = [];
         private long _lastBakeTicks = long.MinValue;
         private bool _rebakeRequested;
+        /// <summary>A rebake the user asked for directly (a chrome flag flip),
+        /// which skips <see cref="CanBakeNow"/>'s chain limiter once. See the
+        /// <see cref="Chrome"/> setter for why the plain request is not
+        /// enough.</summary>
+        private bool _rebakeImmediate;
 
         // Run-frontier tracking: rows ≤ _bakedFrontierRow are reflected in the
         // cached colors; rows above recolor as vectors until a rebake.
@@ -835,7 +869,7 @@ public partial class PlotterView : UserControl
                 || _rebakeRequested
                 || (!Interacting && Math.Abs(zoom - _cacheZoom[slot]) / Math.Max(_cacheZoom[slot], 1e-9) > ZoomTolerance);
 
-            if (needBake && CanBakeNow())
+            if (needBake && (_rebakeImmediate || CanBakeNow()))
                 BakeSlot(slot);
             cache = _cache[slot];
             if (cache is null)
@@ -885,6 +919,7 @@ public partial class PlotterView : UserControl
             _cacheZoom[slot] = zc;
             _cacheGeoVersion[slot] = Vm.GeometryVersion;
             _rebakeRequested = false;
+            _rebakeImmediate = false;
             _bakedFrontierRow = Vm.TouchedRow; // cache colors reflect ≤ this
         }
 
@@ -1147,6 +1182,8 @@ public partial class PlotterView : UserControl
 
         private ProgramRowState RowStateFor(uint line)
         {
+            if (!Chrome.RunState)
+                return ProgramRowState.Idle;
             var row = Vm.RowForLine(line);
             return row >= 0 ? Vm.RowState(row) : ProgramRowState.Idle;
         }
@@ -1469,6 +1506,8 @@ public partial class PlotterView : UserControl
 
         private ProgramRowState RowStateFor(uint line)
         {
+            if (!Chrome.RunState)
+                return ProgramRowState.Idle;
             var row = Vm.RowForLine(line);
             return row >= 0 ? Vm.RowState(row) : ProgramRowState.Idle;
         }
