@@ -50,24 +50,25 @@ public static class PlotterFlatChrome
 
     /// <summary>The world XY grid, face-on. A grid line is a world-space
     /// constant, so it is a straight screen segment — no projection and no
-    /// per-tile stepping. <paramref name="viewport"/> clips the lattice to the
-    /// pane's whole drawable area, not to one plane's quadrant: see
-    /// <c>PlaneCanvas.DrawSlotChrome</c> for why the quadrant is the wrong
-    /// boundary.</summary>
+    /// per-tile stepping.
+    /// <para>The painter sets NO clip of its own: an export canvas loses every
+    /// draw AFTER a <c>PushClip</c> that precedes the toolpath's
+    /// <c>PushTransform</c>, so the grid must stay clip-free and let the target
+    /// surface trim the overhang (the control's render clip on screen, the
+    /// bitmap's own bounds in the PNG export). The caller never tightens the
+    /// lattice to one plane's quadrant anyway: see <c>PlaneCanvas</c> for why
+    /// that boundary is wrong.</para></summary>
     public static void DrawGrid(
         DrawingContext ctx, PlaneMap map,
         (double MinX, double MinY, double MaxX, double MaxY) bounds,
-        double zoom, Vector pan, Rect viewport)
+        double zoom, Vector pan)
     {
-        using (ctx.PushClip(viewport))
+        foreach (var line in PlotterChrome.FloorLines(
+            new Point3(bounds.MinX, bounds.MinY, 0),
+            new Point3(bounds.MaxX, bounds.MaxY, 0), 8))
         {
-            foreach (var line in PlotterChrome.FloorLines(
-                new Point3(bounds.MinX, bounds.MinY, 0),
-                new Point3(bounds.MaxX, bounds.MaxY, 0), 8))
-            {
-                var pen = line.Major ? PlotterChromePens.GridMajor : PlotterChromePens.GridMinor;
-                ctx.DrawLine(pen, Screen(map, line.A, zoom, pan), Screen(map, line.B, zoom, pan));
-            }
+            var pen = line.Major ? PlotterChromePens.GridMajor : PlotterChromePens.GridMinor;
+            ctx.DrawLine(pen, Screen(map, line.A, zoom, pan), Screen(map, line.B, zoom, pan));
         }
     }
 

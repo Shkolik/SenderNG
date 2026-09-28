@@ -36,6 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.ComponentModel;
 using System.Globalization;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
@@ -166,10 +167,28 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>Replaces the mapping set and repaints. The App Settings leaf and the
-    /// plot view share this one list, so a change in either is visible in both.</summary>
+    /// plot view share this one list, so a change in either is visible in both.
+    /// <para>A set that already matches what is applied is a NO-OP. The module
+    /// pushes the whole settings section on every chrome toggle (grid, origin,
+    /// envelope, run-state), and GeometryVersion is the "the toolpath moved,
+    /// drop the view and re-fit" signal: bumping it for an identical mapping is
+    /// the zoom snapping back to fitted the moment the user toggles a visibility
+    /// button. Nothing has changed, so nothing bumps.</para>
+    /// <para>The copy must be a SNAPSHOT, not a reference into
+    /// <paramref name="planes"/>: the settings leaf edits its geometry objects
+    /// IN PLACE (<c>PlotterSettingsViewModel.ApplyPermutation</c> swaps the
+    /// array on the stored object, <c>ApplyOrigin</c> writes into the stored
+    /// array), so aliasing them would make a later in-place edit read as
+    /// "already applied" here and never reach the view.</para></summary>
     public void SetPlaneGeometries(IReadOnlyList<PlotterPlaneGeometry> planes)
     {
-        _planeGeometries = [.. planes];
+        if (SameMappings(_planeGeometries, planes))
+            return;
+        _planeGeometries = [.. planes.Select(p => new PlotterPlaneGeometry
+        {
+            WorldAxes = [.. p.WorldAxes],
+            Origin = [.. p.Origin],
+        })];
         // The letters are a header read, the geometry version the re-fit
         // (Bounds moved, so the fit zoom must move with it), the plane letters
         // also the slot layout rebuild (a plane can lose its world Y and stop
@@ -178,6 +197,24 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         GeometryVersion++;
         OnPropertyChanged(nameof(GeometryVersion));
         Bump();
+    }
+
+    /// <summary>Two mapping sets are the same iff every plane maps the same
+    /// world axes to the same origin offsets. Arrays compare BY VALUE, not by
+    /// reference — the snapshot above and the settings list are deliberately
+    /// different objects with the same content.</summary>
+    private static bool SameMappings(
+        IReadOnlyList<PlotterPlaneGeometry> a, IReadOnlyList<PlotterPlaneGeometry> b)
+    {
+        if (ReferenceEquals(a, b))
+            return true;
+        if (a.Count != b.Count)
+            return false;
+        for (var i = 0; i < a.Count; i++)
+            if (!a[i].WorldAxes.SequenceEqual(b[i].WorldAxes)
+                || !a[i].Origin.SequenceEqual(b[i].Origin))
+                return false;
+        return true;
     }
 
     /// <summary>Every plane back to identity — the pre-section mapping.</summary>

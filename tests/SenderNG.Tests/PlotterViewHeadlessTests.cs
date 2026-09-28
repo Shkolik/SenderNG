@@ -452,16 +452,21 @@ public class PlotterViewHeadlessTests
         var without = CountSurface(off, IsChromeLight);
         Assert.True(without < withGrid / 2, $"the grid must go away, found {without} of {withGrid}");
 
-        // The toolpath itself is untouched by the chrome toggles — it can only
-        // GAIN pixels, never lose them: the lattice is drawn OVER the path, and
-        // a lattice pixel sitting on a path pixel at high coverage pushes the
-        // blend out of the IsPathGrey band, so removing it brings the path back.
-        // A whole-frame count would not catch that (the #aaa view frame is itself
-        // grey), which is why this one is scoped and thresholded.
+        // The toolpath itself is untouched by the chrome toggles. The lattice
+        // is a FLOOR now — it recedes UNDER the path, so it cannot push path
+        // pixels out of the IsPathGrey band; the two counts can only differ by
+        // the rebake's antialiasing jitter (the settle timer re-rasterizes at
+        // the settled transform, and half a pixel of AA shifts move a few band
+        // members). A whole-frame count would not catch a real loss anyway (the
+        // #aaa view frame is itself grey), which is why this one is scoped and
+        // thresholded: the on-state path may not EXCEED the off-state path by
+        // more than the jitter, i.e. the grid must not have eaten the path or
+        // invented one.
         var greyOn = CountSurface(on, IsPathGrey);
         var greyOff = CountSurface(off, IsPathGrey);
         Assert.True(greyOn > 100, $"the grey toolpath must be on the surface, found {greyOn} path pixels");
-        Assert.True(greyOff >= greyOn, $"the chrome toggles must not eat the path: {greyOff} of {greyOn} path pixels");
+        Assert.True(greyOff >= greyOn - 60,
+            $"the chrome toggles must not eat the path: {greyOff} with the grid off vs {greyOn} with it on");
     }
 
     /// <summary>The grid palette (#e0e0e0 / #c0c0c0) — near-neutral, all channels
@@ -1476,10 +1481,13 @@ public class PlotterViewHeadlessTests
         // BEFORE the envelope (see PlaneCanvas.DrawSlotChrome), so at the
         // defaults the rectangle's own edges bury the shafts and leave only the
         // two arrowheads: 48 blue pixels, under this test's 100 threshold. The
-        // arrows carry no flag of their own, so the envelope toggle is the only
-        // lever that isolates them, and this state measures them cleanly at 568
-        // blue pixels. The grid toggle makes no difference (568 either way) —
-        // the arrows are neither toggleable nor occluded by the lattice.
+        // arrows are gated on Chrome.Origin — the default is ON, so they paint
+        // here, and the envelope toggle is the only lever that isolates them
+        // from the shafts; the dedicated
+        // <c>The_origin_toggle_hides_the_world_axis_arrows_in_the_flat_pane</c>
+        // pins the Origin side. This state measures them cleanly at 568 blue
+        // pixels. The grid toggle makes no difference (568 either way) — the
+        // lattice recedes beneath the path and never comes near the arrows.
         //
         // The test is not vacuous in this state. Removing the DrawAxes call from
         // DrawSlotChrome drops it to 0 blue pixels — that is a mutation, not a
@@ -1662,9 +1670,11 @@ public class PlotterViewHeadlessTests
         return -1;
     }
 
-    /// <summary>The iso job box and the three world axis arrows. The axes
-    /// carry no toggle (the flat pane's do not either), and the box is gated by
-    /// <c>Chrome.Envelope</c>, so this measures both at the defaults.</summary>
+    /// <summary>The iso job box and the three world axis arrows. The arrows are
+    /// gated on <c>Chrome.Origin</c> — the default is ON, so they paint here
+    /// (the <c>The_origin_toggle_hides_the_world_axis_arrows_in_iso</c> test
+    /// pins the Origin side) — and the box is gated by <c>Chrome.Envelope</c>,
+    /// so this measures both at the defaults.</summary>
     [AvaloniaFact]
     public async Task The_iso_view_paints_the_job_box_and_the_three_world_axes()
     {
@@ -1708,10 +1718,11 @@ public class PlotterViewHeadlessTests
         // Z 39 pixels. Small, because the job box is drawn AFTER the arrows and
         // its 1.5px edges lie along the X and Y shafts, burying most of them;
         // the Z arrow points out of the box's corner and stays nearly whole. The
-        // floors are ~a third of each measurement. The arrows are not
-        // toggleable, so there is no per-colour mutational zero to divide — the
-        // zero is 0, an unpainted arrow — and a third of a measured 13 is as
-        // much headroom as this rendering leaves.
+        // floors are ~a third of each measurement. The arrows ARE toggleable —
+        // Chrome.Origin gates them, default on — but this test keeps the
+        // default and measures the painted state, so there is no per-colour
+        // mutational zero to divide; the zero is 0, an unpainted arrow, and a
+        // third of a measured 13 is as much headroom as this rendering leaves.
         var axisX = CountSurface(frame, IsAxisRed);
         Assert.True(axisX > 5, $"the X axis must paint RED, found {axisX} red pixels");
         var axisY = CountSurface(frame, IsAxisGreen);
@@ -1879,6 +1890,220 @@ public class PlotterViewHeadlessTests
             yFilter: y => y > window.Height / 2 && y < window.Height - 1);
         Assert.True(arrows > 20,
             $"the world axis arrows must reach past the canvas midline too, found {arrows} arrow pixels");
+    }
+
+    /// <summary>The grid is a FLOOR, so it paints BENEATH the toolpath: a grid
+    /// line that crosses the path must disappear under it, never run over it.
+    /// Counted as the actual overlap — pixels that are grey path with the grid
+    /// off and light lattice with the grid on. The old z-order (lattice after
+    /// the path, "drawn last so it never sits under a raster edge") counted
+    /// every one of those crossings; the new one counts only antialiased
+    /// fringes where a path edge blends over a grid line.</summary>
+    [AvaloniaFact]
+    public async Task The_flat_grid_draws_beneath_the_toolpath()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var on = PlotterPixels.Snapshot(CaptureFrame(window));
+        view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var off = PlotterPixels.Snapshot(CaptureFrame(window));
+
+        // Control: the grid must be there at all, so "no overlap" is not "no
+        // grid". And the path must be there, or removing the grid removed
+        // nothing to uncover.
+        Assert.True(CountSurface(on, IsChromeLight) > 400,
+            $"the control grid must paint, found {CountSurface(on, IsChromeLight)} light pixels");
+        Assert.True(CountSurface(off, IsPathGrey) > 100,
+            $"the control path must paint, found {CountSurface(off, IsPathGrey)} grey pixels");
+
+        var replaced = 0;
+        for (var y = 25; y < off.Height - 1; y++)
+            for (var x = 1; x < off.Width - 1; x++)
+            {
+                var q = PlotterPixels.At(off, x, y);
+                if (!IsPathGrey(q.R, q.G, q.B))
+                    continue;
+                var p = PlotterPixels.At(on, x, y);
+                if (IsChromeLight(p.R, p.G, p.B))
+                    replaced++;
+            }
+        // The antialiased fringe of the path over a grid line can still blend
+        // into the light band, so the floor is a tiny absolute, not zero.
+        Assert.True(replaced <= 25,
+            $"the lattice must not paint over the toolpath: {replaced} pixels were path with the grid off and light with it on");
+    }
+
+    /// <summary>Same z-order ask, iso side: the projected lattice must not run
+    /// over the projected toolpath either.</summary>
+    [AvaloniaFact]
+    public async Task The_iso_grid_draws_beneath_the_toolpath()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        // A single projected segment crosses too few lattice lines to measure:
+        // the same probe on a one-line program read ≤ 15 overlapping pixels
+        // both with and without the fix. The spiral crosses the projected
+        // lattice dozens of times, which is what makes the count discriminating.
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        window.GetVisualDescendants().OfType<CheckBox>()
+            .Single(c => c.Name == "IsoToggle")
+            .IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var on = PlotterPixels.Snapshot(CaptureFrame(window));
+        view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var off = PlotterPixels.Snapshot(CaptureFrame(window));
+
+        Assert.True(CountSurface(on, IsChromeLight) > 400,
+            $"the control lattice must paint, found {CountSurface(on, IsChromeLight)} light pixels");
+        Assert.True(CountSurface(off, IsPathGrey) > 100,
+            $"the control path must paint, found {CountSurface(off, IsPathGrey)} grey pixels");
+
+        var replaced = 0;
+        for (var y = 25; y < off.Height - 1; y++)
+            for (var x = 1; x < off.Width - 1; x++)
+            {
+                var q = PlotterPixels.At(off, x, y);
+                if (!IsPathGrey(q.R, q.G, q.B))
+                    continue;
+                var p = PlotterPixels.At(on, x, y);
+                if (IsChromeLight(p.R, p.G, p.B))
+                    replaced++;
+            }
+        Assert.True(replaced <= 25,
+            $"the iso lattice must not paint over the toolpath: {replaced} pixels were path with the grid off and light with it on");
+    }
+
+    /// <summary>The origin toggle gates the world AXES, not just the origin
+    /// cross. Nex maps <c>ShowOrigin</c> to axis visibility
+    /// (<c>NexPlotScene.SetView → SetAxesVisible</c>); this view drew the
+    /// arrows unconditionally, so toggling Origin hid only the small + cross
+    /// under the shaft bases and the X/Y/Z arrows — the cross the user can
+    /// actually see — never moved.</summary>
+    [AvaloniaFact]
+    public async Task The_origin_toggle_hides_the_world_axis_arrows_in_the_flat_pane()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        // Envelope off, as in the arrows test above: the job rectangle's edges
+        // run along the two shafts, and counting with them present buries the
+        // picture this toggle must move.
+        view.PushChromeFlags(ChromeFlags.Default with { Envelope = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var arrowsOn = PlotterPixels.Snapshot(CaptureFrame(window));
+        Assert.True(CountSurface(arrowsOn, IsAxisRed) > 100, "control: the X arrow must paint at the defaults");
+        Assert.True(CountSurface(arrowsOn, IsAxisGreen) > 40, "control: the Y arrow must paint at the defaults");
+
+        view.PushChromeFlags(ChromeFlags.Default with { Envelope = false, Origin = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var arrowsOff = PlotterPixels.Snapshot(CaptureFrame(window));
+        Assert.Equal(0, CountSurface(arrowsOff, IsAxisRed));
+        Assert.Equal(0, CountSurface(arrowsOff, IsAxisGreen));
+    }
+
+    /// <summary>Same gate, iso: the red X, green Y and blue Z arrows all come
+    /// down with the origin toggle.</summary>
+    [AvaloniaFact]
+    public async Task The_origin_toggle_hides_the_world_axis_arrows_in_iso()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load("G21\r\nG1 X100 Y50 Z20 F600");
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        window.GetVisualDescendants().OfType<CheckBox>()
+            .Single(c => c.Name == "IsoToggle")
+            .IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var arrowsOn = PlotterPixels.Snapshot(CaptureFrame(window));
+        Assert.True(CountSurface(arrowsOn, IsAxisRed) > 5, "control: the X axis must paint at the defaults");
+        Assert.True(CountSurface(arrowsOn, IsAxisGreen) > 5, "control: the Y axis must paint at the defaults");
+        Assert.True(CountSurface(arrowsOn, IsAxisBlue) > 10, "control: the Z axis must paint at the defaults");
+
+        view.PushChromeFlags(ChromeFlags.Default with { Origin = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var arrowsOff = PlotterPixels.Snapshot(CaptureFrame(window));
+        Assert.Equal(0, CountSurface(arrowsOff, IsAxisRed));
+        Assert.Equal(0, CountSurface(arrowsOff, IsAxisGreen));
+        Assert.Equal(0, CountSurface(arrowsOff, IsAxisBlue));
+    }
+
+    /// <summary>The four visibility toggles go through the shared settings
+    /// model, and the module re-applies the WHOLE settings section on any one
+    /// of them — plane mappings included. The geometry has not changed, so the
+    /// re-apply must be a no-op: a GeometryVersion bump is the "the toolpath
+    /// moved, drop the view and re-fit" signal, and the visible effect of
+    /// misreading it is the user's zoom snapping back to the fitted view the
+    /// moment they toggle grid, origin, envelope or run-state.</summary>
+    [AvaloniaFact]
+    public async Task Reapplying_identical_plane_geometries_does_not_reset_the_view()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+        var geometries = vm.PlaneGeometries;
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // Off the fit, so a reset is visible: a refit returns to the fitted
+        // zoom, so comparing two fitted zooms would prove nothing.
+        view.ZoomBy(2.0);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var zoomBefore = view.CompositionForTest[0].Zoom;
+        var versionBefore = vm.GeometryVersion;
+
+        vm.SetPlaneGeometries(geometries);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        Assert.Equal(versionBefore, vm.GeometryVersion);
+        Assert.Equal(zoomBefore, view.CompositionForTest[0].Zoom);
     }
 
     /// <summary>Counts on the PLOT SURFACE only — the canvas interior, below the

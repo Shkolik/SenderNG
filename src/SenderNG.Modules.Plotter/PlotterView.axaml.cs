@@ -1104,10 +1104,19 @@ public partial class PlotterView : UserControl
         /// onto one point and the export comes out blank.</summary>
         protected abstract void EnsureLayout(Rect area);
 
+        /// <summary>Draw the slot's world grid UNDER the toolpath. The grid is a
+        /// floor: a grid line crossing the path disappears under it, it never
+        /// runs over it. Runs once per slot, BEFORE the per-slot path pass, so
+        /// any lattice a slot draws must be here and not in
+        /// <see cref="DrawSlotChrome"/>, which paints over the path. The default
+        /// paints nothing.</summary>
+        protected virtual void DrawSlotGridUnder(DrawingContext ctx, int slot) { }
+
         /// <summary>Draw the slot's chrome overlay in world coordinates (per
         /// frame, crisp vectors — it must not blur under the baked raster): the
-        /// world XY lattice, the machine-origin cross, the world axis arrows and
-        /// the job rectangle, each gated on <see cref="Chrome"/>.</summary>
+        /// machine-origin cross, the world axis arrows and the job rectangle,
+        /// each gated on <see cref="Chrome"/>. The world lattice is NOT chrome —
+        /// it draws beneath the path in <see cref="DrawSlotGridUnder"/>.</summary>
         protected abstract void DrawSlotChrome(DrawingContext ctx, int slot);
 
         /// <summary>Coupling/loft wires spanning several slots (foam iso),
@@ -1309,6 +1318,11 @@ public partial class PlotterView : UserControl
             // per paint costs one comparison and one small record assignment.
             EnsureLayout(area);
             EnsureCacheArrays();
+            // The world lattice is a FLOOR and recedes under the toolpath, so
+            // it paints first, reticulated AROUND the path to come — then the
+            // baked raster covers wherever the two cross.
+            for (var slot = 0; slot < SlotCount; slot++)
+                DrawSlotGridUnder(ctx, slot);
             for (var slot = 0; slot < SlotCount; slot++)
             {
                 if (mode == PaintMode.Export)
@@ -1326,9 +1340,9 @@ public partial class PlotterView : UserControl
                 }
                 DrawSlotFrontier(ctx, slot);
             }
-            // The chrome overlay (world lattice, origin crosses, axis arrows,
-            // job rectangles) is a crisp shared overlay drawn last so it never
-            // sits under a raster edge.
+            // The chrome overlay (origin crosses, axis arrows, job rectangles)
+            // is a crisp shared overlay drawn last so it never sits under a
+            // raster edge.
             for (var slot = 0; slot < SlotCount; slot++)
                 DrawSlotChrome(ctx, slot);
             DrawCoupling(ctx, area);
@@ -2013,29 +2027,39 @@ public partial class PlotterView : UserControl
             return row >= 0 ? Vm.RowState(row) : ProgramRowState.Idle;
         }
 
+        protected override void DrawSlotGridUnder(DrawingContext ctx, int slot)
+        {
+            if (!PlaneDrawable(slot))
+                return;
+            var m = _maps[Foam ? slot : 0];
+            var bounds = PlaneBounds(slot);
+            // The lattice sets NO clip here, and that is deliberate: on the PNG export
+            // a PushClip that precedes the toolpath's PushTransform silently
+            // eats every draw after it, so the grid — the one chrome that must
+            // draw BEFORE the path — cannot clip and stays clip-free (see
+            // PlotterFlatChrome.DrawGrid). The target surface trims the
+            // overhang: the control's render clip on screen, the bitmap's own
+            // bounds in the export. A foam slot's world area does reach past
+            // its quadrant into the other tile's half of the canvas — the old
+            // whole-canvas clip was there to let it, and the surface lets it
+            // the same way; tightening the lattice to the quadrant was the bug
+            // that sliced it with a hard edge at the canvas midline.
+            if (Chrome.Grid)
+                PlotterFlatChrome.DrawGrid(ctx, m, bounds, _zoom, _pan);
+        }
+
         protected override void DrawSlotChrome(DrawingContext ctx, int slot)
         {
             if (!PlaneDrawable(slot))
                 return;
             var m = _maps[Foam ? slot : 0];
             var bounds = PlaneBounds(slot);
-            // The chrome clips to the whole canvas, NOT to SlotViewport. A
-            // foam slot's viewport is its quadrant, but the fit centres the
-            // whole diagonal two-tile composition, so whenever plane 0's Y
-            // extent exceeds plane 1's by more than FoamTileGap — the normal
-            // XY-vs-XZ case — plane 0's world area reaches past its quadrant
-            // into the other tile's half of the canvas. Clipping the lattice to
-            // the quadrant sliced it with a hard horizontal edge at the canvas
-            // midline while the same tile's envelope and cross, which take no
-            // clip, kept drawing past it. This is the same trimming the file's
-            // own rule at BlitOrBake's call site forbids for the raster; a
-            // non-foam slot's viewport is the whole control, so for a mill the
-            // two rects are identical and nothing here changes.
+            // The axes take the same whole-canvas clip as the box below, per the
+            // foam-quadrant reasoning noted above — a non-foam slot's viewport is
+            // the whole control, so for a mill nothing here changes.
             var clip = new Rect(Bounds.Size);
-
-            if (Chrome.Grid)
-                PlotterFlatChrome.DrawGrid(ctx, m, bounds, _zoom, _pan, clip);
-            PlotterFlatChrome.DrawAxes(ctx, m, bounds, _zoom, _pan, clip);
+            if (Chrome.Origin)
+                PlotterFlatChrome.DrawAxes(ctx, m, bounds, _zoom, _pan, clip);
             if (Chrome.Envelope)
                 PlotterFlatChrome.DrawEnvelope(ctx, m, bounds, _zoom, _pan);
             // The origin cross paints LAST, on top of everything. This order is
@@ -2337,20 +2361,47 @@ public partial class PlotterView : UserControl
             return row >= 0 ? Vm.RowState(row) : ProgramRowState.Idle;
         }
 
-        /// <summary>The iso view's chrome: the world lattice, the origin cross,
-        /// the three world axis arrows and the job box, drawn last over the
-        /// projected composition.
-        /// <para>The mill's composition IS the projected world, so the world XY
-        /// floor, the arrows and the box are drawn THROUGH
+        /// <summary>The iso view's world floor: the projected lattice UNDER the
+        /// toolpath, so a projection crossing the path disappears beneath it.
+        /// Gated on <see cref="Chrome.Grid"/>, drawn through
         /// <c>PlotterProjection.Project</c> — a world grid line is straight in
-        /// 3D, so it is one projected segment and the lattice recedes correctly
-        /// when the view zooms. The M9 note that stood here said the grid framed
-        /// each pane into a "box" and stacked a faint lattice over the canvas;
-        /// that objection was about the LOFT, whose panes are not a projection
-        /// at all (see the branch below), and for the mill the flat view now
-        /// draws the same world lattice on by default, so the two views agree
-        /// and switching between them no longer makes the chrome appear and
-        /// vanish. The lattice is opt-out through <see cref="Chrome"/>.</para></summary>
+        /// 3D, so it is one projected segment, and the lattice recedes
+        /// correctly when the view zooms. It stands on the same
+        /// <see cref="JobZRange"/> floor the job box extrudes from, so the two
+        /// cannot drift apart. The painter sets NO clip (see
+        /// <c>PlotterIsoChrome.DrawGrid</c>): a clip here would eat every draw
+        /// after it on the PNG export, and the surface trims the overhang
+        /// anyway. The loft draws no lattice: its panes are not a projection at
+        /// all (see <see cref="DrawSlotChrome"/>).</summary>
+        protected override void DrawSlotGridUnder(DrawingContext ctx, int slot)
+        {
+            var zoom = _zoom;
+            var pan = _pan;
+            if (double.IsNaN(zoom))
+                return;
+            if (Loft)
+                return;
+            if (!Chrome.Grid
+                || !PlotterPlaneMapper.TryWorldFootprint(
+                    Vm.GeometryFor(0), Vm.PlaneAxisIndices(0), Vm.Bounds, out var footprint))
+                return;
+            var (floorZ, _) = JobZRange();
+            PlotterIsoChrome.DrawGrid(ctx, footprint, floorZ, zoom, pan);
+        }
+
+        /// <summary>The iso view's chrome: the origin cross, the three world
+        /// axis arrows and the job box, drawn last over the projected
+        /// composition. The world lattice is a floor now, drawn beneath the
+        /// toolpath by <see cref="DrawSlotGridUnder"/>.
+        /// <para>The mill's composition IS the projected world, so the arrows
+        /// and the box are drawn THROUGH <c>PlotterProjection.Project</c>. The
+        /// M9 note that stood here said the grid framed each pane into a "box"
+        /// and stacked a faint lattice over the canvas; that objection was
+        /// about the LOFT, whose panes are not a projection at all (see the
+        /// branch below), and for the mill the flat view draws the same world
+        /// lattice on by default, so the two views agree and switching between
+        /// them no longer makes the chrome appear and vanish. The lattice is
+        /// opt-out through <see cref="Chrome"/>.</para></summary>
         protected override void DrawSlotChrome(DrawingContext ctx, int slot)
         {
             var zoom = _zoom;
@@ -2391,10 +2442,10 @@ public partial class PlotterView : UserControl
             // framework already clips the drawing to the control. (The mill's
             // single slot makes the two rects the same thing today; the clip is
             // the canvas area so a future multi-slot iso pane cannot slice the
-            // lattice at a quadrant edge.)
+            // arrows or the box at a quadrant edge.)
             var clip = new Rect(Bounds.Size);
-            // Everything the lattice, the arrows and the box have in common is
-            // the drawn plane's world XY extent, so it is resolved ONCE here. A
+            // Everything the arrows and the box have in common is the drawn plane's
+            // world XY extent, so it is resolved ONCE here. A
             // plane that feeds no world X or no world Y has no extent to
             // measure: the extent-derived chrome is skipped rather than wrapped
             // around a default. The mill's built-in mapping is a permutation of
@@ -2404,16 +2455,13 @@ public partial class PlotterView : UserControl
             var hasFootprint = PlotterPlaneMapper.TryWorldFootprint(
                 Vm.GeometryFor(0), Vm.PlaneAxisIndices(0), Vm.Bounds, out var footprint);
 
-            // The job box's Z span, read ONCE and before either consumer. The
-            // lattice stands on the same floor the envelope is extruded from, and
-            // reading it twice is how the two would drift: a second read inside
-            // the envelope branch is correct only while the grid happens to want
-            // the same number, and the grid is what pins the visible surface the
-            // tool works on. One span, two painters, no way to disagree.
+            // The job box's Z span, read ONCE here and again in the behind pass.
+            // The lattice stands on the same floor the envelope is extruded from,
+            // and both painters read the same <see cref="JobZRange"/> — a pure
+            // function of the geometry, which cannot change between the two passes
+            // of one frame — so the two cannot drift apart.
             var (floorZ, ceilingZ) = JobZRange();
 
-            if (hasFootprint && Chrome.Grid)
-                PlotterIsoChrome.DrawGrid(ctx, footprint, floorZ, zoom, pan, clip);
             // The cross is the machine ORIGIN, not the extent, so it paints
             // even where there is no footprint — and at the pre-existing 1 px
             // PlotterPens.Origin, unlike the flat panes' deliberate 2 px.
@@ -2426,7 +2474,10 @@ public partial class PlotterView : UserControl
             // enough to name the direction, short enough to stay off the path.
             var reach = Math.Max(Math.Max(footprint.MaxX - footprint.MinX,
                 footprint.MaxY - footprint.MinY), 1e-6) * 0.25;
-            PlotterIsoChrome.DrawAxes(ctx, zoom, pan, clip, reach);
+            // The arrows are the axes the origin cross points to — Chrome.Origin
+            // gates BOTH, matching Nex's ShowOrigin → SetAxesVisible.
+            if (Chrome.Origin)
+                PlotterIsoChrome.DrawAxes(ctx, zoom, pan, clip, reach);
             if (Chrome.Envelope)
                 PlotterIsoChrome.DrawEnvelope(ctx, footprint, floorZ, ceilingZ, zoom, pan, clip);
         }

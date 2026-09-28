@@ -55,27 +55,27 @@ public static class PlotterIsoChrome
     /// <c>MinZ</c>. Pinned to 0 the lattice floats above the box for any program
     /// that cuts below the origin, which is most foam work — the box bottom is
     /// the surface the tool actually works on, so that is where the grid belongs.
-    /// The caller passes the same <c>MinZ</c> the envelope is extruded from, so
-    /// the two cannot drift apart when the envelope toggle is off.</para>
-    /// <paramref name="viewport"/> clips the lattice; the caller passes the
-    /// whole canvas area, never one slot's viewport (see
-    /// <c>PlaneCanvas.DrawSlotChrome</c> for why a quadrant is the wrong
-    /// boundary).</summary>
+    /// parameter, so the two cannot drift apart when the envelope toggle is off.
+    /// <para>The painter sets NO clip of its own: an export canvas loses every
+    /// draw AFTER a <c>PushClip</c> that precedes the toolpath's
+    /// <c>PushTransform</c>, so the grid must stay clip-free and let the target
+    /// surface trim the overhang (the control's render clip on screen, the
+    /// bitmap's own bounds in the PNG export). A viewport that tightens the
+    /// lattice to anything less than the surface is wrong anyway: see
+    /// <c>PlaneCanvas</c> for why one slot's quadrant is the wrong
+    /// boundary.</para></summary>
     public static void DrawGrid(
         DrawingContext ctx,
         (double MinX, double MinY, double MaxX, double MaxY) footprint,
-        double floorZ, double zoom, Vector pan, Rect viewport)
+        double floorZ, double zoom, Vector pan)
     {
-        using (ctx.PushClip(viewport))
+        foreach (var line in PlotterChrome.FloorLines(
+            new Point3(footprint.MinX, footprint.MinY, floorZ),
+            new Point3(footprint.MaxX, footprint.MaxY, floorZ), 8))
         {
-            foreach (var line in PlotterChrome.FloorLines(
-                new Point3(footprint.MinX, footprint.MinY, floorZ),
-                new Point3(footprint.MaxX, footprint.MaxY, floorZ), 8))
-            {
-                var pen = line.Major ? PlotterChromePens.GridMajor : PlotterChromePens.GridMinor;
-                ctx.DrawLine(pen,
-                    Projected(line.A, zoom, pan), Projected(line.B, zoom, pan));
-            }
+            var pen = line.Major ? PlotterChromePens.GridMajor : PlotterChromePens.GridMinor;
+            ctx.DrawLine(pen,
+                Projected(line.A, zoom, pan), Projected(line.B, zoom, pan));
         }
     }
 
