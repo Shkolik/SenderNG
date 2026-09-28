@@ -39,7 +39,7 @@ Core view model. The heart of the module.
 | `OnProgramChanged()` | 247-281 | Program load handler; dispatches to Rebuild |
 | `PulseAckedEnds()` | 289-297 | Coalesced per-tick row event fold |
 | `RecolorAckedRows()` | 299-337 | Late ack handling behind the frontier |
-| `ApplyRunStateWindow()` | 703-709 | Per-frame frontier apply with flood bounding |
+| `ApplyRunStateWindow()` | 703-742 | Per-frame frontier apply with flood bounding |
 | `Rebuild()` | 388-426 | Async/sync build dispatch with generation guard |
 | `BuildGeometry()` | 513-553 | Calls ToolpathBuilder.Build, computes line-to-row mapping |
 | `ApplyBuild()` | 428-487 | Scene construction + per-plane population |

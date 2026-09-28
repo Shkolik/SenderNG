@@ -12,7 +12,7 @@ Disables all run-state coloring. Used for A/B testing without GPU churn from geo
 
 When set, `ApplyRunStateWindow()` and `RecolorAckedRows()` are skipped entirely. All lines remain in their default color.
 
-**File:** `PlotterNexViewModel.cs:703-709` (`ApplyRunStateWindow`)
+**File:** `PlotterNexViewModel.cs:703-742` (`ApplyRunStateWindow`)
 
 ## Pool Diagnostics
 
@@ -81,9 +81,11 @@ single total vertex count and no layer count.
 
 ### `LiveLayerDumps()`
 
-Per-layer counters, one line each: vertices drawn, executed segments, and plane
-colour writes. It prints no material properties and no bounding boxes — for
-geometry detail use `DumpContent()`.
+Per-layer counters — done-overlay vertices, executed segments, plane colour
+writes. It prints no material properties and no bounding boxes — for geometry
+detail use `DumpContent()`. The caller joins the layers onto a single line with
+`" | "`, and `done verts` counts the finished-overlay vertices (two per executed
+segment), not vertices submitted.
 
 **File:** `Rendering/NexPlotScene.cs:1006` (`LiveLayerDumps`)
 
@@ -183,18 +185,20 @@ hardware cause:
   unexpected engine fault is never relabelled as a version problem, because that
   would tell you your driver is too old for something your driver did not cause.
   See the design's Known limitations #3 — an `Other` failure disables 3D for the
-  session (until the app restarts) even if Vulkan is fine. Note the reason is the
-  **verdict cache**, not a leak: these later-stage failures dispose their resources
-  properly. What makes them unrecoverable is that nothing retries them, and a
-  cached verdict is never cleared.
+  session (until the app restarts) even if Vulkan is fine. Two separate things
+  make that stick, and they do not apply equally: a cached verdict is never
+  cleared and nothing retries these paths, and a `build` (`SCENE`) failure also
+  leaks, because a constructor that throws partway leaves a half-built scene
+  that nothing holds a reference to. The later stages that fail *after* a
+  complete scene — attach, render context, snap — dispose theirs properly.
 
-Be careful about which path a given verdict came from, because the leak rationale
-below only covers some of them. `NotSupported` and `RuntimeError` are decided by
-the capability probe, which runs *before* any engine context exists and destroys
-its own instance in a `finally` — nothing is leaked, and the cache exists to
-avoid paying that probe cost again rather than to bound a leak. A genuine engine
-context-init failure (`CONTEXT`) does leak its `VkInstance`, because upstream
-teardown is a no-op after a failed init, and that is the leak the cache is really
+Which path a verdict came from matters, because the leak rationale only covers
+some. `NotSupported` and `RuntimeError` are decided by the capability probe,
+which runs before any engine context exists and destroys its own instance in a
+`finally`, so nothing leaks. A genuine engine context-init failure (`CONTEXT`)
+does leak its `VkInstance`, because upstream teardown is a no-op after a failed
+init — and so does a `SCENE` failure, for the unreachable-object reason above.
+The cache is what bounds those two: it is why only one attempt happens.
 there to bound.
 
 A failed Vulkan context leaks its `VkInstance`, so the verdict is cached and the
@@ -228,14 +232,18 @@ written when the dispatcher runs the completion, not when the attempt fails.
 Tab switching is the usual trigger; a data-context change also re-enters
 `EnsureScene`, though in the shipped app the context is assigned once, so that
 route fires at startup rather than on demand. So a `CONTEXT` line per attempt in
-that window is possible, each with its own leak. So:
+that window is possible. In the shipped build these lines are cheap rather than
+leaky: they come from the memoized capability probe, which leaks nothing, and
+the verdict is memoized too — so every line in the window carries the **same**
+`failed` kind, and they do not contradict each other. So:
 
 - **One `[VULKAN] CONTEXT` line and a panel** → a real Vulkan verdict; read
   `failed` above and act on it.
 - **Several `CONTEXT` lines, seconds apart** → repeated attach attempts inside
-  that window, not a new problem. The panel shows whichever attempt first
-  *reported*; an earlier superseded line may name a different kind, and the
-  panel's hint will not match it.
+  that window, not a new problem. All of them should name the same `failed`
+  kind; if one does not, say so, because the probe result is memoized and a
+  differing kind is not expected. The panel shows whichever attempt first
+  *reported*.
 - **A `CONTEXT` line and no panel** → that failure was superseded and cached
   without being reported. Fine if 3D is rendering; if the view is blank, the live
   attempt failed at a later stage and its own line will say so.
