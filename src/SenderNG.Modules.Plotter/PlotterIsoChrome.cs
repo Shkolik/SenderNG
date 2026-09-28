@@ -50,6 +50,13 @@ public static class PlotterIsoChrome
     /// line is straight in 3D, so it is one projected segment — which is the
     /// whole difference from the flat painter: the lattice recedes with the
     /// zoom because its geometry is world, not screen.
+    /// <para><paramref name="floorZ"/> is the work envelope's FLOOR, not world
+    /// Z = 0, and not the same value for every job: it is the job box's own
+    /// <c>MinZ</c>. Pinned to 0 the lattice floats above the box for any program
+    /// that cuts below the origin, which is most foam work — the box bottom is
+    /// the surface the tool actually works on, so that is where the grid belongs.
+    /// The caller passes the same <c>MinZ</c> the envelope is extruded from, so
+    /// the two cannot drift apart when the envelope toggle is off.</para>
     /// <paramref name="viewport"/> clips the lattice; the caller passes the
     /// whole canvas area, never one slot's viewport (see
     /// <c>PlaneCanvas.DrawSlotChrome</c> for why a quadrant is the wrong
@@ -57,13 +64,13 @@ public static class PlotterIsoChrome
     public static void DrawGrid(
         DrawingContext ctx,
         (double MinX, double MinY, double MaxX, double MaxY) footprint,
-        double zoom, Vector pan, Rect viewport)
+        double floorZ, double zoom, Vector pan, Rect viewport)
     {
         using (ctx.PushClip(viewport))
         {
             foreach (var line in PlotterChrome.FloorLines(
-                new Point3(footprint.MinX, footprint.MinY, 0),
-                new Point3(footprint.MaxX, footprint.MaxY, 0), 8))
+                new Point3(footprint.MinX, footprint.MinY, floorZ),
+                new Point3(footprint.MaxX, footprint.MaxY, floorZ), 8))
             {
                 var pen = line.Major ? PlotterChromePens.GridMajor : PlotterChromePens.GridMinor;
                 ctx.DrawLine(pen,
@@ -85,9 +92,12 @@ public static class PlotterIsoChrome
     }
 
     /// <summary>The three world axis arrows leaving the origin, each
-    /// <paramref name="reach"/> long along its own world axis. The header
-    /// carries the letters; the arrows carry the directions. Not toggleable —
-    /// neither are the flat pane's.</summary>
+    /// <paramref name="reach"/> long along its own world axis, and each in ITS OWN
+    /// colour: X red, Y green, Z blue, the scheme
+    /// <c>NexPlotScene.AxisColor</c> uses. One blue pen for all three said
+    /// nothing about which arrow was which, which is the one job these arrows
+    /// have. The header carries the letters; the arrows carry the directions.
+    /// Not toggleable — neither are the flat pane's.</summary>
     public static void DrawAxes(
         DrawingContext ctx, double zoom, Vector pan, Rect viewport, double reach)
     {
@@ -101,10 +111,10 @@ public static class PlotterIsoChrome
 
         using (ctx.PushClip(viewport))
         {
-            foreach (var tip in tips)
+            for (var axis = 0; axis < tips.Length; axis++)
             {
-                ctx.DrawLine(PlotterChromePens.Axis, o, tip);
-                PlotterChrome.ArrowHead(ctx, PlotterChromePens.Axis, o, tip, 5);
+                ctx.DrawLine(PlotterChromePens.AxisByIndex[axis], o, tips[axis]);
+                PlotterChrome.ArrowHead(ctx, PlotterChromePens.AxisByIndex[axis], o, tips[axis], 5);
             }
         }
     }

@@ -91,7 +91,10 @@ public static class PlotterFlatChrome
     }
 
     /// <summary>The world X and Y axis arrows, leaving the pane's world origin
-    /// along each axis for a quarter of the pane's own span.</summary>
+    /// along each axis for a quarter of the pane's own span. X red, Y green, as
+    /// in the iso painter and in Nex — the same two axes, so the same two
+    /// colours, and a reader who learned the scheme in one view can read it in
+    /// the other. No Z: a face-on pane has no Z direction to point.</summary>
     public static void DrawAxes(
         DrawingContext ctx, PlaneMap map,
         (double MinX, double MinY, double MaxX, double MaxY) bounds,
@@ -106,10 +109,10 @@ public static class PlotterFlatChrome
 
         using (ctx.PushClip(viewport))
         {
-            ctx.DrawLine(PlotterChromePens.Axis, o, xTip);
-            PlotterChrome.ArrowHead(ctx, PlotterChromePens.Axis, o, xTip);
-            ctx.DrawLine(PlotterChromePens.Axis, o, yTip);
-            PlotterChrome.ArrowHead(ctx, PlotterChromePens.Axis, o, yTip);
+            ctx.DrawLine(PlotterChromePens.AxisX, o, xTip);
+            PlotterChrome.ArrowHead(ctx, PlotterChromePens.AxisX, o, xTip);
+            ctx.DrawLine(PlotterChromePens.AxisY, o, yTip);
+            PlotterChrome.ArrowHead(ctx, PlotterChromePens.AxisY, o, yTip);
         }
     }
 

@@ -857,8 +857,14 @@ public class PlotterLiveRunHeadlessTests
     private static bool IsPathGrey(byte r, byte g, byte b) =>
         Math.Abs(r - g) <= 14 && Math.Abs(g - b) <= 14 && r is >= 95 and <= 175;
 
+    /// <summary>The run-state "done" green, <c>PlotterPens.DoneBrush</c> =
+    /// #1b9e3e — and specifically that colour, not green in general: the world
+    /// Y axis arrow is also green (#33cc33) and is painted unconditionally, so
+    /// the loose predicate counted the arrow as recoloured work. Done leans blue
+    /// (b - r = 35), the arrow does not (b - r = 0). See the same probe in
+    /// <see cref="PlotterViewHeadlessTests"/>.</summary>
     private static bool IsDoneGreen(byte r, byte g, byte b) =>
-        g > 100 && r < 90 && b < 110;
+        g > 100 && r < 90 && b < 110 && b > r + 15;
 
     private static bool IsToolRed(byte r, byte g, byte b) =>
         r > 150 && g < 90 && b < 90;

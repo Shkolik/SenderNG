@@ -93,44 +93,163 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
                 <Grid x:Name="OverlayHost" DataContext="{x:Null}"
                       x:DataType="s:PlotterSettingsViewModel">
+                    <Grid.Styles>
+                        <!-- navBtn, ported verbatim from PlotterNexView.axaml so the
+                             two plots' chrome is the same control, not merely a
+                             similar one: same 32x32 box, same #777 idle grey, the
+                             same pointerover/pressed/checked ramp, and the same
+                             borderless ContentPresenter template that lets an
+                             icon Path take the button's Foreground. It is a
+                             copy and not a shared resource because the Nex view
+                             defines it in its OWN Panel.Styles; hoisting it to a
+                             common file is a bigger change than this parity fix,
+                             and a divergence here would be a silent one.
+                             If you change one, change both. -->
+                        <Style Selector="Button.navBtn, ToggleButton.navBtn">
+                            <Setter Property="Width" Value="32" />
+                            <Setter Property="Height" Value="32" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="FontSize" Value="24" />
+                            <Setter Property="Foreground" Value="#777" />
+                            <Setter Property="FontWeight" Value="Normal" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="0" />
+                        </Style>
+                        <Style Selector="Button.navBtn">
+                            <Setter Property="Template">
+                                <ControlTemplate TargetType="Button">
+                                    <ContentPresenter x:Name="PART_ContentPresenter"
+                                                      Background="Transparent"
+                                                      Content="{TemplateBinding Content}"
+                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                      HorizontalContentAlignment="Center"
+                                                      VerticalContentAlignment="Center" />
+                                </ControlTemplate>
+                            </Setter>
+                        </Style>
+                        <Style Selector="ToggleButton.navBtn">
+                            <Setter Property="Template">
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <ContentPresenter x:Name="PART_ContentPresenter"
+                                                      Background="Transparent"
+                                                      Content="{TemplateBinding Content}"
+                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                      HorizontalContentAlignment="Center"
+                                                      VerticalContentAlignment="Center" />
+                                </ControlTemplate>
+                            </Setter>
+                        </Style>
+                        <Style Selector="Button.navBtn:pointerover, ToggleButton.navBtn:pointerover">
+                            <Setter Property="Foreground" Value="#444" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Style>
+                        <Style Selector="Button.navBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                                     ToggleButton.navBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="Foreground" Value="#444" />
+                        </Style>
+                        <Style Selector="Button.navBtn:pressed, ToggleButton.navBtn:pressed">
+                            <Setter Property="Foreground" Value="#222" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Style>
+                        <Style Selector="Button.navBtn:pressed /template/ ContentPresenter#PART_ContentPresenter,
+                                     ToggleButton.navBtn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="Foreground" Value="#222" />
+                        </Style>
+                        <Style Selector="ToggleButton.navBtn:checked">
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                            <Setter Property="Foreground" Value="#222" />
+                        </Style>
+                        <Style Selector="ToggleButton.navBtn:checked /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="Foreground" Value="#222" />
+                            <Setter Property="Background" Value="Transparent" />
+                        </Style>
+                        <Style Selector="ToggleButton.navBtn:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="Foreground" Value="#222" />
+                            <Setter Property="Background" Value="#22000000" />
+                        </Style>
+                    </Grid.Styles>
+
+                    <!-- The four visibility toggles: a horizontal row of icon
+                         buttons at the top LEFT, as in Nex. They were a vertical
+                         column of text CheckBoxes at the top right, which is a
+                         different control doing the same job in a different
+                         place — and the text made the overlay wider than the
+                         plot it sat on. Same x:Names, so the headless tests that
+                         address them by name still find them; IsChecked and the
+                         tooltip bind to the same shared-model properties, so only
+                         the presentation changed. -->
                     <StackPanel x:Name="TogglesPanel"
-                                HorizontalAlignment="Right" VerticalAlignment="Top"
-                                Margin="0,6,6,0" Spacing="1">
-                        <CheckBox x:Name="GridToggle" FontSize="11"
-                                  IsChecked="{Binding ShowGrid}"
-                                  Content="{Binding ShowGridLabel}"
-                                  ToolTip.Tip="{Binding ShowGridLabel}" />
-                        <CheckBox x:Name="OriginToggle" FontSize="11"
-                                  IsChecked="{Binding ShowOrigin}"
-                                  Content="{Binding ShowOriginLabel}"
-                                  ToolTip.Tip="{Binding ShowOriginLabel}" />
-                        <CheckBox x:Name="EnvelopeToggle" FontSize="11"
-                                  IsChecked="{Binding ShowEnvelope}"
-                                  Content="{Binding ShowEnvelopeLabel}"
-                                  ToolTip.Tip="{Binding ShowEnvelopeLabel}" />
-                        <CheckBox x:Name="RunStateToggle" FontSize="11"
-                                  IsChecked="{Binding ShowRunState}"
-                                  Content="{Binding ShowRunStateLabel}"
-                                  ToolTip.Tip="{Binding ShowRunStateLabel}" />
+                                HorizontalAlignment="Left" VerticalAlignment="Top"
+                                Margin="12" Spacing="6" Orientation="Horizontal">
+                        <ToggleButton x:Name="GridToggle" Classes="navBtn"
+                                      IsChecked="{Binding ShowGrid}"
+                                      ToolTip.Tip="{Binding ShowGridLabel}">
+                            <Path Width="16" Height="16" Stretch="Uniform"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Stroke="{Binding $parent[ToggleButton].Foreground}"
+                                  StrokeThickness="1.5"
+                                  Data="M 1,1 L 15,1 L 15,15 L 1,15 Z M 1,5.66 L 15,5.66 M 1,10.33 L 15,10.33 M 5.66,1 L 5.66,15 M 10.33,1 L 10.33,15" />
+                        </ToggleButton>
+                        <ToggleButton x:Name="OriginToggle" Classes="navBtn"
+                                      IsChecked="{Binding ShowOrigin}"
+                                      ToolTip.Tip="{Binding ShowOriginLabel}">
+                            <Path Width="16" Height="16" Stretch="Uniform"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Stroke="{Binding $parent[ToggleButton].Foreground}"
+                                  StrokeThickness="1.5"
+                                  Data="M 8,8 L 8,1 M 8,1 L 6.5,3 M 8,1 L 9.5,3 M 8,8 L 2,11.5 M 2,11.5 L 4,11 M 2,11.5 L 2.5,9.5 M 8,8 L 14,11.5 M 14,11.5 L 13.5,9.5 M 14,11.5 L 12,11" />
+                        </ToggleButton>
+                        <ToggleButton x:Name="EnvelopeToggle" Classes="navBtn"
+                                      IsChecked="{Binding ShowEnvelope}"
+                                      ToolTip.Tip="{Binding ShowEnvelopeLabel}">
+                            <Path Width="16" Height="16" Stretch="Uniform"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Stroke="{Binding $parent[ToggleButton].Foreground}"
+                                  StrokeThickness="1.5"
+                                  Data="M 8,1 L 15,4.5 L 15,11.5 L 8,15 L 1,11.5 L 1,4.5 Z M 1,4.5 L 8,8 L 15,4.5 M 8,8 L 8,15" />
+                        </ToggleButton>
+                        <ToggleButton x:Name="RunStateToggle" Classes="navBtn"
+                                      IsChecked="{Binding ShowRunState}"
+                                      ToolTip.Tip="{Binding ShowRunStateLabel}">
+                            <Path Width="16" Height="16" Stretch="Uniform"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Stroke="{Binding $parent[ToggleButton].Foreground}"
+                                  StrokeThickness="1.5"
+                                  Data="M 4,2 L 13,8 L 4,14 Z" />
+                        </ToggleButton>
                     </StackPanel>
 
+                    <!-- The zoom cluster: the percentage ABOVE the buttons, and
+                         the buttons on navBtn like every other chrome button in
+                         the two views. The readout used to sit to the LEFT of the
+                         row, which put a number between the plot and the buttons
+                         that change it. Vertical stack, readout on top, and the
+                         same bottom-right corner it has always occupied. -->
                     <StackPanel x:Name="ZoomPanel"
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                Margin="0,0,6,6" Orientation="Horizontal" Spacing="2">
-                        <TextBlock x:Name="ZoomPctText" FontSize="11" Foreground="#333"
-                                   VerticalAlignment="Center" IsVisible="False" />
-                        <Button x:Name="ZoomOutButton" Content="−" Width="24" Height="20"
-                                Click="OnZoomOut" ToolTip.Tip="{Binding ZoomOutLabel}" />
-                        <Button x:Name="ZoomFitButton" Content="⛶" Width="24" Height="20"
-                                Click="OnZoomFit" ToolTip.Tip="{Binding ZoomFitLabel}" />
-                        <Button x:Name="ZoomInButton" Content="+" Width="24" Height="20"
-                                Click="OnZoomIn" ToolTip.Tip="{Binding ZoomInLabel}" />
+                                Margin="0,0,12,12" Spacing="6">
+                        <TextBlock x:Name="ZoomPctText" FontSize="12" Foreground="#777"
+                                   HorizontalAlignment="Center" IsVisible="False" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button x:Name="ZoomOutButton" Classes="navBtn" Content="−"
+                                    Click="OnZoomOut" ToolTip.Tip="{Binding ZoomOutLabel}" />
+                            <Button x:Name="ZoomFitButton" Classes="navBtn" Content="⛶"
+                                    Click="OnZoomFit" ToolTip.Tip="{Binding ZoomFitLabel}" />
+                            <Button x:Name="ZoomInButton" Classes="navBtn" Content="+"
+                                    Click="OnZoomIn" ToolTip.Tip="{Binding ZoomInLabel}" />
+                        </StackPanel>
                     </StackPanel>
 
-                    <Button x:Name="SavePngButton" Content="⤓" Width="24" Height="20"
+                    <Button x:Name="SavePngButton" Classes="navBtn"
                             HorizontalAlignment="Left" VerticalAlignment="Bottom"
-                            Margin="6,0,0,6"
-                            Click="OnSavePng" ToolTip.Tip="{Binding SavePngLabel}" />
+                            Margin="12"
+                            Click="OnSavePng" ToolTip.Tip="{Binding SavePngLabel}">
+                        <Path Width="16" Height="16" Stretch="Uniform"
+                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                              Stroke="{Binding $parent[Button].Foreground}"
+                              StrokeThickness="1.3"
+                              Data="M 2,1 L 12,1 L 14,3 L 14,14 L 2,14 Z M 4,1 L 4,6 L 12,6 L 12,1 M 3,14 L 3,9 L 13,9 L 13,14 M 6,2 L 10,2" />
+                    </Button>
                 </Grid>
             </Grid>
         </DockPanel>

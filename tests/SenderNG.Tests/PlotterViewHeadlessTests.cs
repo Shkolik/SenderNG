@@ -45,6 +45,7 @@ using System.Reflection;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Headless.XUnit;
@@ -117,9 +118,10 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 6; i++)
             await Pump();
 
-        // Flip the iso toggle exactly like the user does. Named, not
-        // Single(): the plot overlay's own chrome toggles are checkboxes too,
-        // so a bare Single() here is a coin flip on how many the view hosts.
+// Flip the iso toggle exactly like the user does. Named, not
+          // Single(): the plot overlay's own chrome toggles used to be
+          // checkboxes too (they are ToggleButtons now), so a bare Single()
+          // here is a coin flip on how many controls the view hosts.
         var toggle = window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle");
         toggle.IsChecked = true;
         for (var i = 0; i < 6; i++)
@@ -1113,15 +1115,20 @@ public class PlotterViewHeadlessTests
         Assert.False(readout.IsVisible, "an unfitted view has no zoom to report");
         Assert.Equal(string.Empty, readout.Text);
 
-        // Now a real fit, and a target a hair above 1:1.
+        // Now a real fit, and a target a hair above it. The baseline is the
+        // FIT, not 1.0: the view scales to its content, so the fit is already a
+        // scale of ten or more and 1.0 is an arbitrary pixel-per-unit that would
+        // make every reading meaningless. Asking for fit * 1.004 is the same
+        // "a hair off the default" question this test was written to ask.
         source.Load(SpiralProgram(600));
         for (var i = 0; i < 8; i++)
             await Pump();
-        view.ZoomTo(1.004);
+        Assert.True(view.FittedZoom > 0, "a loaded program must have been fitted by now");
+        view.ZoomTo(view.FittedZoom * 1.004);
         for (var i = 0; i < 8; i++)
             await Pump();
-        Assert.True(readout.IsVisible, "1.004 is not 1:1, so there is something to say");
-        // 99, not 100: 100% is exactly the claim the hidden-at-1:1 rule exists
+        Assert.True(readout.IsVisible, "1.004x the fit is not the fit, so there is something to say");
+        // 99, not 100: 100% is exactly the claim the hidden-at-fit rule exists
         // to keep off the screen, and 1.004 * 100 is 100.4, which both Round
         // and Floor turn into 100.
         Assert.Equal("99%", readout.Text);
@@ -1130,9 +1137,9 @@ public class PlotterViewHeadlessTests
 
     /// <summary>The wheel has to feed the readout too, not just the buttons: the
     /// wheel is how a user zooms most of the time, and a percentage that only
-    /// moves for the button cluster reads as a broken indicator. At exactly
-    /// 1:1 the readout is hidden — the number is noise when the drawing is at
-    /// its natural size.</summary>
+    /// moves for the button cluster reads as a broken indicator. At the fitted
+    /// view — 100% — the readout is hidden: the number is noise when the drawing
+    /// is at the size the viewport asked for.</summary>
     /// <summary>The plot surface must be the wheel and drag target at EVERY zoom,
     /// including a low one.
     /// <para>Avalonia hit-tests a custom-drawn control over what it PAINTS, and
@@ -1218,7 +1225,7 @@ public class PlotterViewHeadlessTests
 
 
     [AvaloniaFact]
-    public async Task The_zoom_readout_hides_at_one_to_one()
+    public async Task The_zoom_readout_hides_at_the_fitted_view()
     {
         var source = new StubProgramSource();
         var vm = MakeVm(source, MachineTypes.Mill);
@@ -1232,13 +1239,18 @@ public class PlotterViewHeadlessTests
             await Pump();
 
         var readout = view.FindControl<TextBlock>("ZoomPctText")!;
+        Assert.True(view.FittedZoom > 0, "a loaded program must have been fitted by now");
 
-        view.ZoomTo(1.0);
+        // 100% is the FITTED view: the whole content in the viewport at the size
+        // the viewport wants it. That is the state "back to normal", and a
+        // percentage on it is noise — which is the rule that used to be stated
+        // against 1.1 and read as a claim about physical size.
+        view.ZoomTo(view.FittedZoom);
         for (var i = 0; i < 8; i++)
             await Pump();
-        Assert.False(readout.IsVisible, "at 1:1 the readout is noise");
+        Assert.False(readout.IsVisible, "at the fit the readout is noise");
 
-        view.ZoomTo(1.25);
+        view.ZoomTo(view.FittedZoom * 1.25);
         for (var i = 0; i < 8; i++)
             await Pump();
         Assert.True(readout.IsVisible);
@@ -1260,12 +1272,23 @@ public class PlotterViewHeadlessTests
         view.Reframe();
         for (var i = 0; i < 8; i++)
             await Pump();
-        Assert.True(readout.IsVisible, "the fitted zoom is not 1:1, so the readout is showing");
+        // Reframe puts the view BACK ON THE FIT, which is 100% — so the readout
+        // is now hidden. This assertion used to be the other way round, and the
+        // reason it was written that way is the bug: the fit is a scale of ten or
+        // more, "not 1:1" was true of the fitted view, and so a freshly fitted
+        // view greeted the user with a percentage instead of silence.
+        Assert.False(readout.IsVisible, "a re-fitted view is exactly 100%, so the readout is hidden");
 
         // The canvas type is private to the view, hence the name match rather
         // than a type test.
         var probe = new Point(460, 280);
         Assert.Equal("PlaneCanvas", window.GetVisualAt(probe)?.GetType().Name);
+
+        // Zoom off the fit first, so there is a number for the wheel to move.
+        view.ZoomTo(view.FittedZoom * 1.25);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.True(readout.IsVisible, "off the fit there is a percentage to report");
 
         var before = readout.Text;
         window.MouseWheel(probe, new Vector(0, 1), RawInputModifiers.None);
@@ -1276,8 +1299,9 @@ public class PlotterViewHeadlessTests
         // percentage it has rounded up to, so 1.004 reads 99% rather than a
         // visible "100%". Asserting the rounded figure here instead is how the
         // old rounding rule survived in this test after the readout was fixed.
+        // Relative to the fit, for the same reason the readout is.
         Assert.Contains(
-            ((int)Math.Floor(view.CurrentZoom * 100)).ToString(CultureInfo.InvariantCulture),
+            ((int)Math.Floor(view.CurrentZoom / view.FittedZoom * 100)).ToString(CultureInfo.InvariantCulture),
             readout.Text);
     }
 
@@ -1298,8 +1322,11 @@ public class PlotterViewHeadlessTests
             Assert.True(view.FindControl<Control>(name) is not null, $"the overlay is missing {name}");
 
         // The header must NOT grow them: the iso toggle was the header's only
-        // control by design and the 24px row has no room for four more.
-        var chromeInHeader = view.GetVisualDescendants().OfType<CheckBox>()
+        // control by design and the 24px row has no room for four more. The
+        // toggles are ToggleButtons since the navBtn port; enumerating CheckBox
+        // here would have gone on passing after they stopped being CheckBoxes,
+        // which is exactly the vacuous pass this assertion exists to forbid.
+        var chromeInHeader = view.GetVisualDescendants().OfType<ToggleButton>()
             .Where(c => c.Name is "GridToggle" or "OriginToggle" or "EnvelopeToggle" or "RunStateToggle")
             .Any(c => c.GetVisualAncestors().Any(a => a is Border { Name: "HeaderHost" }));
         Assert.False(chromeInHeader, "the chrome toggles belong in the overlay, not the header row");
@@ -1337,9 +1364,10 @@ public class PlotterViewHeadlessTests
             for (var i = 0; i < 8; i++)
                 await Pump();
 
-            // The model reached the overlay's checkboxes...
+            // The model reached the overlay's toggles (ToggleButtons since the
+            // navBtn port — CheckBox would no longer find them)...
             var gridToggle = window.GetVisualDescendants()
-                .OfType<CheckBox>().Single(c => c.Name == "GridToggle");
+                .OfType<ToggleButton>().Single(c => c.Name == "GridToggle");
             Assert.True(gridToggle.IsChecked == true);
 
             // The lattice the shared model's default asked for is on the canvas.
@@ -1461,12 +1489,35 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 8; i++)
             await Pump();
 
-        var axes = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsAxisBlue);
-        Assert.True(axes > 100, $"the world axis arrows must paint, found {axes} blue pixels");
+        // Per colour, and the envelope is off here so nothing buries a shaft.
+        // Measured in this state: X 456, Y 94, Z 0. The mutational zero for all
+        // three is 0 — removing the DrawAxes call empties every count — and the
+        // floors sit well under the measurements so a different window size
+        // cannot tip them over. Z is asserted EQUAL to zero, which is a real
+        // statement rather than a gap in the test: a face-on pane has no Z
+        // direction to point, and the iso painter is the only one that draws it.
+        var axesFrame = PlotterPixels.Snapshot(CaptureFrame(window));
+        var flatX = CountSurface(axesFrame, IsAxisRed);
+        Assert.True(flatX > 100, $"the X arrow must paint RED, found {flatX} red pixels");
+        var flatY = CountSurface(axesFrame, IsAxisGreen);
+        Assert.True(flatY > 40, $"the Y arrow must paint GREEN, found {flatY} green pixels");
+        Assert.Equal(0, CountSurface(axesFrame, IsAxisBlue));
     }
 
-    /// <summary>The #2f6fb0 axis color.</summary>
-    private static bool IsAxisBlue(byte r, byte g, byte b) => b > 130 && b > r + 40 && g > r + 30;
+    /// <summary>The three axis colours, one predicate each: #d93333 X red,
+    /// #33cc33 Y green, #3359e6 Z blue. Separate rather than one "is it bluish"
+    /// band, because a single band matched only the Z arrow the moment the
+    /// palette became per-axis and the "the arrows must paint" assertion went on
+    /// passing while two of the three arrows went unpainted. Each is checked
+    /// separately below, so an unpainted arrow is a failing test.</summary>
+    private static bool IsAxisRed(byte r, byte g, byte b) =>
+        r > 150 && g < 110 && b < 110 && r > g + 60;
+
+    private static bool IsAxisGreen(byte r, byte g, byte b) =>
+        g > 140 && r < 110 && b < 110 && g > r + 60;
+
+    private static bool IsAxisBlue(byte r, byte g, byte b) =>
+        b > 150 && r < 110 && g < 130 && b > r + 100;
 
     /// <summary>The iso view paints the world lattice through the projection:
     /// the same world grid the flat pane draws face-on, run through
@@ -1522,6 +1573,95 @@ public class PlotterViewHeadlessTests
         Assert.True(off < grid / 2, $"the iso lattice must go away: {off} light pixels of {grid}");
     }
 
+    /// <summary>The lattice stands on the work envelope's FLOOR, not on world
+    /// Z = 0. For any job that cuts below the origin those are different planes,
+    /// and the floor is the one the tool actually works on — so a lattice pinned
+    /// to Z = 0 hangs in mid-air above the box, which is what the mill profile
+    /// showed on a program whose Z span was -6.4 to +2.
+    /// <para>The discriminator is a coincidence, not a pixel count. The lattice
+    /// spans the same XY footprint as the box's bottom face and is drawn at the
+    /// same Z, so its LOWEST row is the same projected point as the box's lowest
+    /// amber row. Float it up to Z = 0 and the two separate by the height of the
+    /// whole Z span. Counting is not the fragile part here; <c>IsChromeLight</c>
+    /// also matches the toolpath's antialiased halo, and the halo reaches the
+    /// floor here, so a raw "lowest light row" would match even with the bug.
+    /// The grid-OFF render subtracts it: the envelope, the axes and the path are
+    /// identical in both frames, so light-here-and-not-there IS the lattice.</para>
+    [AvaloniaFact]
+    public async Task The_iso_grid_stands_on_the_envelope_floor_not_on_world_zero()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        // Straddles the origin on purpose: JobZRange unions the span with 0, so a
+        // job that only cuts below zero still gets a box up to Z = 0 and the bug
+        // would hide in its ceiling. Here the floor is -20 and the ceiling +20,
+        // so a Z = 0 lattice lands halfway up the box — unmistakable.
+        source.Load("G21\r\nG1 X10 Y10 Z-20 F600\r\nG1 X100 Y50 Z20 F600");
+        Assert.True(vm.HasGeometry, "the iso chrome needs real motion to wrap a job box around");
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        window.GetVisualDescendants().OfType<CheckBox>()
+            .Single(c => c.Name == "IsoToggle")
+            .IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // Both renders keep the envelope ON, so the amber reference is present
+        // in the frame the lattice is measured against.
+        var withGrid = PlotterPixels.Snapshot(CaptureFrame(window));
+        view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var withoutGrid = PlotterPixels.Snapshot(CaptureFrame(window));
+
+        var boxBottom = LowestRow(withGrid, IsEnvelopeAmber);
+        var latticeBottom = LowestRowThatIs(withGrid, IsChromeLight, withoutGrid);
+        Assert.True(boxBottom > 0, $"the iso job box must paint, no amber found in {withGrid.Width}x{withGrid.Height}");
+        Assert.True(latticeBottom > 0, "the lattice must paint: nothing was light in one render and not the other");
+
+        // Same plane, same footprint, same projection: the same point, so this is
+        // a couple of rows of antialiasing and nothing more. Before the fix the
+        // gap was the projected height of 40mm of Z, which is ~40 rows here.
+        Assert.True(Math.Abs(latticeBottom - boxBottom) <= 6,
+            $"the lattice must stand on the envelope floor: its lowest row is {latticeBottom}, the box's is {boxBottom}");
+    }
+
+    /// <summary>Lowest row (largest y) holding a matching pixel, or -1. Skips the
+    /// 24 px header and the 1 px frame for the reason
+    /// <see cref="PathBounds"/> records: the header's subpixel text fringes leak
+    /// amber and blue pixels that have nothing to do with the canvas.</summary>
+    private static int LowestRow(PlotterPixels.Frame frame, Func<byte, byte, byte, bool> match)
+    {
+        for (var y = frame.Height - 2; y >= 25; y--)
+            for (var x = 1; x < frame.Width - 1; x++)
+                if (match(PlotterPixels.At(frame, x, y).R, PlotterPixels.At(frame, x, y).G, PlotterPixels.At(frame, x, y).B))
+                    return y;
+        return -1;
+    }
+
+    /// <summary>Lowest row holding a pixel that matches in <paramref name="frame"/>
+    /// but not in <paramref name="without"/>, which is how the lattice is told
+    /// apart from the toolpath halo it shares a colour band with.</summary>
+    private static int LowestRowThatIs(
+        PlotterPixels.Frame frame, Func<byte, byte, byte, bool> match, PlotterPixels.Frame without)
+    {
+        for (var y = frame.Height - 2; y >= 25; y--)
+            for (var x = 1; x < frame.Width - 1; x++)
+            {
+                var p = PlotterPixels.At(frame, x, y);
+                if (!match(p.R, p.G, p.B))
+                    continue;
+                var q = PlotterPixels.At(without, x, y);
+                if (!match(q.R, q.G, q.B))
+                    return y;
+            }
+        return -1;
+    }
+
     /// <summary>The iso job box and the three world axis arrows. The axes
     /// carry no toggle (the flat pane's do not either), and the box is gated by
     /// <c>Chrome.Envelope</c>, so this measures both at the defaults.</summary>
@@ -1554,8 +1694,30 @@ public class PlotterViewHeadlessTests
         // 100 floor would leave 6% of headroom — a flake waiting for a different
         // window size. 40 is 38% of the measured count and still 2.6x over the
         // mutational zero, so it can only pass when the arrows are painted.
-        var axes = CountSurface(frame, IsAxisBlue);
-        Assert.True(axes > 40, $"the three world axes must paint, found {axes} blue pixels");
+        // The per-colour counts are below; the blue figure quoted here is the
+        // pre-recolour measurement and is kept only to date the 40.
+        // Each axis is counted in ITS OWN colour, and each must clear the same
+        // 40-pixel floor the single blue count used. The job box is drawn after
+        // the arrows and its 1.5px edges bury parts of the shafts, so these are
+        // small budgets; the floor is ~38% of what the blue count measured in
+        // this state, and 2.6x over the mutational zero, so a missing arrow
+        // fails and a buried one still passes.
+        // Each axis is counted in ITS OWN colour, so an unpainted or
+        // mis-coloured arrow is a failing test rather than a blue count that
+        // only ever proved the Z arrow. Measured in this state: X 15, Y 13,
+        // Z 39 pixels. Small, because the job box is drawn AFTER the arrows and
+        // its 1.5px edges lie along the X and Y shafts, burying most of them;
+        // the Z arrow points out of the box's corner and stays nearly whole. The
+        // floors are ~a third of each measurement. The arrows are not
+        // toggleable, so there is no per-colour mutational zero to divide — the
+        // zero is 0, an unpainted arrow — and a third of a measured 13 is as
+        // much headroom as this rendering leaves.
+        var axisX = CountSurface(frame, IsAxisRed);
+        Assert.True(axisX > 5, $"the X axis must paint RED, found {axisX} red pixels");
+        var axisY = CountSurface(frame, IsAxisGreen);
+        Assert.True(axisY > 5, $"the Y axis must paint GREEN, found {axisY} green pixels");
+        var axisZ = CountSurface(frame, IsAxisBlue);
+        Assert.True(axisZ > 10, $"the Z axis must paint BLUE, found {axisZ} blue pixels");
     }
 
     /// <summary>Records the loft decision, because it is a decision and not an
@@ -1611,6 +1773,13 @@ public class PlotterViewHeadlessTests
         Assert.True(CountSurface(withCross, IsPathGrey) > 100,
             $"the loft must still draw its toolpath, found {CountSurface(withCross, IsPathGrey)} path pixels");
         Assert.Equal(0, CountSurface(withCross, IsEnvelopeAmber));
+        // The loft draws NO axis arrows, and the two colours that would prove it
+        // are red and green. This used to assert zero BLUE, which was the arrow
+        // colour when there was one colour — with the palette per-axis it would
+        // have gone on passing while the X and Y arrows appeared over the foam
+        // tiles, which is the whole thing this assertion is here to prevent.
+        Assert.Equal(0, CountSurface(withCross, IsAxisRed));
+        Assert.Equal(0, CountSurface(withCross, IsAxisGreen));
         Assert.Equal(0, CountSurface(withCross, IsAxisBlue));
 
         // The cross is grey (#888888, 1 px) so it lands in the path's own band:
@@ -1696,11 +1865,20 @@ public class PlotterViewHeadlessTests
         // carry blue too: 40 blue pixels with the canvas-wide clip and 0 under
         // the per-quadrant one. Threshold 20 sits between the two, so it
         // discriminates the clip rather than the stroke's antialiasing.
-        var arrows = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsAxisBlue,
+        // Red and green, because those are the two arrows a face-on foam tile
+        // draws. Counting blue here measured nothing: the flat panes have no Z
+        // arrow, so a blue count in this region was 0 whether the clip was
+        // canvas-wide or per-quadrant, and the assertion could not have
+        // distinguished them at all.
+        var arrowFrame = PlotterPixels.Snapshot(CaptureFrame(window));
+        var arrows = PlotterPixels.Count(arrowFrame, IsAxisRed,
+            xFilter: x => x > 0 && x < window.Width / 2,
+            yFilter: y => y > window.Height / 2 && y < window.Height - 1)
+            + PlotterPixels.Count(arrowFrame, IsAxisGreen,
             xFilter: x => x > 0 && x < window.Width / 2,
             yFilter: y => y > window.Height / 2 && y < window.Height - 1);
         Assert.True(arrows > 20,
-            $"the world axis arrows must reach past the canvas midline too, found {arrows} blue pixels");
+            $"the world axis arrows must reach past the canvas midline too, found {arrows} arrow pixels");
     }
 
     /// <summary>Counts on the PLOT SURFACE only — the canvas interior, below the
@@ -2059,6 +2237,14 @@ public class PlotterViewHeadlessTests
     private static bool IsWireBlend(byte r, byte g, byte b) =>
         b > r + 8 && b > 190 && g >= 180 && Math.Abs(r - g) <= 16;
 
+    /// <summary>The run-state "done" green, <c>PlotterPens.DoneBrush</c> =
+    /// #1b9e3e. The <c>b > r + 15</c> is what makes this a probe for THAT colour
+    /// rather than for green in general. The world Y axis arrow is green too
+    /// (#33cc33), it is drawn unconditionally in the flat panes and the iso view
+    /// alike, and "any green" therefore read ~20 arrow pixels as a finished run
+    /// and failed <c>Run_state_off_paints_no_state_colors</c>. The two greens
+    /// separate cleanly: done leans blue (b - r = 35), the arrow does not
+    /// (b - r = 0), and the arrow is the one that is always there.</summary>
     private static bool IsDoneGreen(byte r, byte g, byte b) =>
-        g > 100 && r < 90 && b < 110;
+        g > 100 && r < 90 && b < 110 && b > r + 15;
 }

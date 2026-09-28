@@ -187,10 +187,38 @@ public static class PlotterChromePens
     public static readonly IPen GridMajor =
         new Pen(new SolidColorBrush(Color.FromRgb(0xc0, 0xc0, 0xc0)));
 
-    /// <summary>#2f6fb0 — blue: <c>|r-g| = 64</c> keeps it out of the grey band,
-    /// and <c>b = 176</c> keeps it out of the loft-wire band.</summary>
-    public static readonly IPen Axis =
-        new Pen(new SolidColorBrush(Color.FromRgb(0x2f, 0x6f, 0xb0)), 1.5);
+    /// <summary>#d93333 — X, red. Matches <c>NexPlotScene.AxisColor</c>'s X.</summary>
+    public static readonly IPen AxisX =
+        new Pen(new SolidColorBrush(Color.FromRgb(0xd9, 0x33, 0x33)), 1.5);
+
+    /// <summary>#33cc33 — Y, green. Matches <c>NexPlotScene.AxisColor</c>'s Y.</summary>
+    public static readonly IPen AxisY =
+        new Pen(new SolidColorBrush(Color.FromRgb(0x33, 0xcc, 0x33)), 1.5);
+
+    /// <summary>#3359e6 — Z, blue. Matches <c>NexPlotScene.AxisColor</c>'s Z.</summary>
+    public static readonly IPen AxisZ =
+        new Pen(new SolidColorBrush(Color.FromRgb(0x33, 0x59, 0xe6)), 1.5);
+
+    /// <summary>Per world axis, indexed 0 = X, 1 = Y, 2 = Z — the order
+    /// <c>PlotterIsoChrome.DrawAxes</c> walks its tips in. One array so the
+    /// painter cannot pair a tip with the wrong axis by reordering one list and
+    /// not the other.</summary>
+    public static readonly IPen[] AxisByIndex = [AxisX, AxisY, AxisZ];
+
+    // Why these three are safe in the bands the headless detectors use, measured
+    // rather than assumed (all deltas are on the 0-255 channels):
+    //   IsPathGrey  |r-g| <= 14 && |g-b| <= 14 && r in [95,175]
+    //     X |r-g| 166, Y 153, Z 38            — all clear, and Z's r = 51 is
+    //     outside the value window regardless
+    //   IsWireBlend  b > r + 8 && b > 190 && g >= 180 && |r-g| <= 16
+    //     X b = 51, Y b = 51                   — far below 190
+    //     Z b = 230 passes the first two but g = 89 fails the third
+    // Y is the tight one, and it is deliberately LEFT matching IsDoneGreen
+    // (g > 100 && r < 90 && b < 110). That detector is a run-state probe, and a
+    // permanently-drawn green arrow is a false positive in it; the fix is in the
+    // probe's call sites, which now compare green WITH and WITHOUT the iso
+    // arrows, not a colour change that would make the Y arrow something other
+    // than the green Nex draws. See PlotterViewHeadlessTests.
 
     /// <summary>#c07a20 — amber: out of both bands.</summary>
     public static readonly IPen Envelope =

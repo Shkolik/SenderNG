@@ -522,26 +522,49 @@ public partial class PlotterView : UserControl
             ZoomPctText.IsVisible = false;
             return;
         }
-        var show = Math.Abs(zoom - 1.0) > 1e-6;
+        // Relative to the FIT, not to 1.0. `FittedZoom` is 0 until the first fit
+        // has run, and a view with no fit has no meaningful percentage at all —
+        // dividing by it would be the infinity the `zoom <= 0` guard above exists
+        // to prevent, reached by the other door.
+        var fitted = FittedZoom;
+        if (fitted <= 0)
+        {
+            ZoomPctText.Text = string.Empty;
+            ZoomPctText.IsVisible = false;
+            return;
+        }
+        var relative = zoom / fitted;
+        var show = Math.Abs(relative - 1.0) > 1e-6;
         ZoomPctText.Text = show
-            ? DisplayPercent(zoom)
+            ? DisplayPercent(relative)
             : string.Empty;
         ZoomPctText.IsVisible = show;
     }
 
-    /// <summary>The percentage as the readout shows it: whole percent,
-    /// floored, and never 100.
+    /// <summary>The first canvas's fitted zoom — the 100% of the readout. 0
+    /// before the first fit, and dropped back to 0 by a canvas that has re-fitted
+    /// but not yet been read, in which case the readout hides rather than
+    /// dividing by a stale or absent baseline. The first NON-ZERO fitted zoom
+    /// wins so a foam composition whose slot 0 has not drawn yet still reports
+    /// from the slot that has.</summary>
+    internal double FittedZoom =>
+        _canvases.OfType<PlotCanvas>()
+            .Select(c => c.FittedZoom)
+            .FirstOrDefault(z => !double.IsNaN(z) && z > 0);
+
+    /// <summary>The percentage as the readout shows it, from a zoom RELATIVE to
+    /// the fit: whole percent, floored, and never 100.
     /// <para>Floored because the readout must not round UP into a claim it is
-    /// not making. And 100 is barred outright, because 100% IS the 1:1 claim:
-    /// a visible readout is only ever shown when the zoom is not 1:1, so
+    /// not making. And 100 is barred outright, because 100% IS the at-fit claim:
+    /// a visible readout is only ever shown when the zoom is not the fit, so
     /// printing 100% there says the one thing the visibility rule exists to
-    /// avoid. 1.004 is the case that forced this — it is not 1:1, so the
+    /// avoid. 1.004 is the case that forced this — it is not the fit, so the
     /// readout shows, and both <c>Math.Round</c> and <c>Math.Floor</c> of
     /// 100.4 give 100. It reads 99%, which understates by less than a percent
     /// and is the only honest option at the precision on screen.</para></summary>
-    private static string DisplayPercent(double zoom)
+    private static string DisplayPercent(double relative)
     {
-        var percent = Math.Floor(zoom * 100);
+        var percent = Math.Floor(relative * 100);
         // Only the exact 100, NOT everything above it: 150% and 1279% are
         // perfectly good claims and must survive untouched.
         if (Math.Abs(percent - 100) < 1e-9)
@@ -936,6 +959,16 @@ public partial class PlotterView : UserControl
         /// <see cref="OnGeometryReplaced"/>).</summary>
         internal (double Zoom, Vector Pan) SlotTransformForTest(int slot) =>
             (SlotZoom(slot), SlotPan(slot));
+
+        /// <summary>The zoom the LAST fit chose, i.e. pixels per world unit at
+        /// which this slot's content exactly fills the viewport. 0 before the
+        /// first fit. This — not 1.0 — is the 100% of the zoom readout: the view
+        /// fits to the content, so for a small job on a large panel the fit is a
+        /// scale of ten or more, and dividing by 1.0 printed "1500%" for a view
+        /// that was showing the user precisely what they asked to see. The number
+        /// is only meaningful RELATIVE to the fit, and the fit is what the user
+        /// means by "back to normal".</summary>
+        internal double FittedZoom { get; private set; }
 
         // Per-slot raster caches: the path drawn ONCE per (geometry, settled
         // zoom) into a world-sized bitmap; every frame blits it through the
@@ -1383,6 +1416,15 @@ public partial class PlotterView : UserControl
                     continue;
                 var viewport = SlotViewport(slot, area);
                 FitSlot(slot, viewport);
+                // Read the fit back rather than having the subclass report it:
+                // FitSlot is abstract and each subclass writes its own field, so
+                // the one number every subclass already agrees on is the zoom
+                // that just landed in the slot. Slot 0 is the reference, because
+                // the readout has always reported one number for the whole
+                // composition — inventing a second, per-slot figure would change
+                // what the readout means for the foam view.
+                if (slot == 0)
+                    FittedZoom = SlotZoom(0);
                 // The FIRST fit is a zoom change too: without this the readout
                 // stays blank until the user happens to zoom, on a view that is
                 // already off 1:1.
@@ -2362,8 +2404,16 @@ public partial class PlotterView : UserControl
             var hasFootprint = PlotterPlaneMapper.TryWorldFootprint(
                 Vm.GeometryFor(0), Vm.PlaneAxisIndices(0), Vm.Bounds, out var footprint);
 
+            // The job box's Z span, read ONCE and before either consumer. The
+            // lattice stands on the same floor the envelope is extruded from, and
+            // reading it twice is how the two would drift: a second read inside
+            // the envelope branch is correct only while the grid happens to want
+            // the same number, and the grid is what pins the visible surface the
+            // tool works on. One span, two painters, no way to disagree.
+            var (floorZ, ceilingZ) = JobZRange();
+
             if (hasFootprint && Chrome.Grid)
-                PlotterIsoChrome.DrawGrid(ctx, footprint, zoom, pan, clip);
+                PlotterIsoChrome.DrawGrid(ctx, footprint, floorZ, zoom, pan, clip);
             // The cross is the machine ORIGIN, not the extent, so it paints
             // even where there is no footprint — and at the pre-existing 1 px
             // PlotterPens.Origin, unlike the flat panes' deliberate 2 px.
@@ -2378,10 +2428,7 @@ public partial class PlotterView : UserControl
                 footprint.MaxY - footprint.MinY), 1e-6) * 0.25;
             PlotterIsoChrome.DrawAxes(ctx, zoom, pan, clip, reach);
             if (Chrome.Envelope)
-            {
-                var (minZ, maxZ) = JobZRange();
-                PlotterIsoChrome.DrawEnvelope(ctx, footprint, minZ, maxZ, zoom, pan, clip);
-            }
+                PlotterIsoChrome.DrawEnvelope(ctx, footprint, floorZ, ceilingZ, zoom, pan, clip);
         }
 
         /// <summary>The world Z span of the job box: the machine axis that feeds
