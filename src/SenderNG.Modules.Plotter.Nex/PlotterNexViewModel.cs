@@ -200,7 +200,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     /// literal.</para></summary>
     private string Hint(string key) => _localization.Resolve(key, _localization.Resolve(
         "module.plotter-nex.vulkanUnavailableHint",
-        "No Vulkan 1.3 device could be created — 2D plotting stays available."));
+        "No Vulkan 1.3 device could be created."));
 
     /// <summary>Record why 3D plotting is unavailable and notify the three
     /// properties the fallback panel binds. The first reason wins: a later,

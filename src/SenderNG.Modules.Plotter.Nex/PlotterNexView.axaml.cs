@@ -145,19 +145,42 @@ public partial class PlotterNexView : UserControl
         // OnDetachedFromVisualTree).
         AttachedToVisualTree += (_, _) => OnAttachedToVisualTree();
         DetachedFromVisualTree += OnDetachedFromVisualTree;
-        FallbackTitle.Text = LocalizationService.Current?.Resolve(
-            "module.plotter-nex.vulkanUnavailable", "3D plotting unavailable") ?? "3D plotting unavailable";
-        // Pre-failure default only, and a real fallback rather than decoration:
-        // ReportVulkanFailure replaces this with the per-kind text as soon as
-        // there is a reason to show, and the panel is invisible until then. It
-        // matters because the per-kind text is assigned from code (see there),
-        // so without this the element would hold the XAML literal - English on
-        // every machine - for any path that shows the panel without reporting a
-        // reason first.
-        FallbackHint.Text = LocalizationService.Current?.Resolve(
-            "module.plotter-nex.vulkanUnavailableHint",
-            "No Vulkan 1.3 device could be created — 2D plotting stays available.")
-            ?? "No Vulkan 1.3 device could be created — 2D plotting stays available.";
+        // No dispatcher post: Changed is raised by the language picker, which
+        // is already on the UI thread, and this is two dictionary lookups and
+        // two property assignments. Matches the module's own settings view
+        // (Settings/PlotterNexSettingsViewModel.cs).
+        var loc = LocalizationService.Current;
+        if (loc is not null)
+            loc.Changed += (_, _) => ApplyFallbackTexts();
+        ApplyFallbackTexts();
+    }
+
+    /// <summary>Resolve both panel labels in the current locale. Called from the
+    /// constructor, whenever a verdict is reported, and on every locale change.
+    /// <para>Assigning from code-behind rather than binding is deliberate; see
+    /// the comment on ReportVulkanFailure. Re-reading the view model's detail
+    /// here is what makes a live language change work: the property resolves on
+    /// every read, so it returns the new locale without the view model raising
+    /// anything.</para>
+    /// <para>The hint is never left empty. A verdict-less panel is invisible, but
+    /// an empty TextBlock would break the invariant that this element always
+    /// holds a real localized string, so the generic hint is used as the floor
+    /// for both "no view model yet" and "no verdict yet".</para></summary>
+    private void ApplyFallbackTexts()
+    {
+        var loc = LocalizationService.Current;
+
+        FallbackTitle.Text = loc?.Resolve(
+            "module.plotter-nex.vulkanUnavailable", "3D plotting unavailable")
+            ?? "3D plotting unavailable";
+
+        var detail = _vm?.VulkanFailureDetail;
+        FallbackHint.Text = !string.IsNullOrEmpty(detail)
+            ? detail
+            : loc?.Resolve(
+                "module.plotter-nex.vulkanUnavailableHint",
+                "No Vulkan 1.3 device could be created.")
+              ?? "No Vulkan 1.3 device could be created.";
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
@@ -494,7 +517,7 @@ public partial class PlotterNexView : UserControl
         // a view model that already holds a verdict. Read back from the model
         // rather than echoing `failure`, because the model keeps the FIRST
         // reason and this keeps the two in agreement.
-        FallbackHint.Text = vm.VulkanFailureDetail;
+        ApplyFallbackTexts();
     }
 
     /// <summary>One diagnostics record per distinct failure, always with the

@@ -926,7 +926,7 @@ public class PlotterNexViewModelTests : IDisposable
         vm.ReportVulkanUnavailable(Plot3DFailure.NotSupported);
 
         Assert.Equal(
-            "No Vulkan 1.3 device could be created — 2D plotting stays available.",
+            "No Vulkan 1.3 device could be created.",
             vm.VulkanFailureDetail);
     }
 
