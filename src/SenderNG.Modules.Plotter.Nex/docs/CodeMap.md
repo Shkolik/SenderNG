@@ -39,7 +39,7 @@ Core view model. The heart of the module.
 | `OnProgramChanged()` | 247-281 | Program load handler; dispatches to Rebuild |
 | `PulseAckedEnds()` | 289-297 | Coalesced per-tick row event fold |
 | `RecolorAckedRows()` | 299-337 | Late ack handling behind the frontier |
-| `ApplyRunStateWindow()` | 601-635 | Per-frame frontier apply with flood bounding |
+| `ApplyRunStateWindow()` | 703-709 | Per-frame frontier apply with flood bounding |
 | `Rebuild()` | 388-426 | Async/sync build dispatch with generation guard |
 | `BuildGeometry()` | 513-553 | Calls ToolpathBuilder.Build, computes line-to-row mapping |
 | `ApplyBuild()` | 428-487 | Scene construction + per-plane population |
@@ -303,7 +303,7 @@ Pure-Vulkan CPU readback. The engine renders into the readback's Vulkan render-t
 | `Resize()` | 133-138 | Recreate the render target for a new pixel size |
 | `Dispose()` | 140-148 | Release target + scratch buffer |
 
-### `PoolDiagnostics.cs` (333 lines)
+### `PoolDiagnostics.cs` (349 lines)
 
 Reflection-based Vulkan command buffer pool inspection.
 
@@ -313,7 +313,8 @@ Reflection-based Vulkan command buffer pool inspection.
 | `LogQueueTopologyOnce(object?)` | 139 | Log queue topology at most once per process |
 | `QueueTopology(object?)` | 147 | Read queue family info from a context |
 | `Dump(object?, string)` | 197 | Full diagnostic dump; takes a **context**, not the engine |
-| `PoolState(...)` | 227 | Private: free/in-flight counts, staging regions |
+| `PoolState(...)` | 227 | Private: free/in-flight counts, buffer availability |
+| `StagingRegions(...)` | 314 | Private: outstanding staging regions on the staging device |
 
 ### `RebuildGate.cs` (49 lines)
 
@@ -332,17 +333,28 @@ Localization strings. Keys: `PlotterNex_Name`, `PlotterNex_Description`, `Plotte
 
 ## Tests
 
-### `PlotterNexModuleTests.cs` (158 lines)
+Line counts drift; treat the file name as authoritative. These mirror the table in
+[Diagnostics](Diagnostics.md#test-files).
 
-Module contract and discovery tests.
-
-### `PlotterNexViewModelTests.cs` (846 lines)
+### `PlotterNexViewModelTests.cs` (1125 lines)
 
 Headless VM tests using `RecorderScene` implementations.
 
-### `PlotterNexSettingsViewModelTests.cs` (104 lines)
+### `PlotterNexSettingsViewModelTests.cs` (259 lines)
 
 Settings editor tests.
+
+### `PlotterNexModuleTests.cs` (209 lines)
+
+Module contract and discovery tests.
+
+### `PlotterNexLocaleTests.cs` (251 lines)
+
+Catalog parity, non-blank values, untranslated-value guard.
+
+### `PlotterNexViewTests.cs` (108 lines)
+
+Scene-generation ownership guard, verdict caching.
 
 ### `PlotterNexConfigTests.cs` (143 lines)
 
