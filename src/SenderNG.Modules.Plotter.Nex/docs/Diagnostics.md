@@ -56,7 +56,7 @@ context and re-arms the tick. A full app restart is only needed to clear a
 bullet under [Why Plot 3D says it is
 unavailable](#why-plot-3d-says-it-is-unavailable) below).
 
-**File:** `PlotterNexView.axaml.cs:595-786` (`OnTick`)
+**File:** `PlotterNexView.axaml.cs:618-809` (`OnTick`)
 
 ## Diagnostic Methods
 
@@ -113,7 +113,7 @@ The entire scene interface is abstract (`Scene/` folder), allowing headless test
 | `PlotterNexViewModelTests.cs` | 1125 | Geometry pipeline, run-state coloring, async builds |
 | `PlotterNexSettingsViewModelTests.cs` | 259 | Settings editor, axis deduplication |
 | `PlotterNexModuleTests.cs` | 209 | Module contract, discovery, service registration |
-| `PlotterNexLocaleTests.cs` | 251 | Catalog parity, non-blank values, untranslated-value guard |
+| `PlotterNexLocaleTests.cs` | 273 | Catalog parity, non-blank values, untranslated-value guard |
 | `PlotterNexConfigTests.cs` | 143 | Config load/save, defaults, mismatch handling |
 | `PlotterNexViewTests.cs` | 108 | Scene-generation ownership guard, verdict caching |
 

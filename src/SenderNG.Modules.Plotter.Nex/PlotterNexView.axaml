@@ -260,15 +260,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             </Panel>
 
             <!-- Fallback shown when no Vulkan device could be created. Both Text
-                 values below are intentionally empty: the constructor assigns the
-                 localized title and the generic localized hint, and
-                 ReportVulkanFailure replaces the hint with the per-kind text
-                 (notSupported / runtimeError / other). A literal here would be a
-                 second copy of an English string that can never be seen - the
-                 constructor overwrites it before the panel is ever shown - and
-                 that has to be kept in sync with the localized one for no
-                 benefit. The text is assigned from code-behind rather than bound,
-                 deliberately; see the comment on ReportVulkanFailure. -->
+                 values below are intentionally empty: ApplyFallbackTexts is their
+                 only assigner - it sets the localized title and the generic
+                 localized hint, swaps the hint for the per-kind text
+                 (notSupported / runtimeError / other) once a verdict is reported,
+                 and re-resolves both on every locale change. A literal here would
+                 be a second copy of an English string that can never be seen - it
+                 is overwritten before the panel is ever shown - and that has to be
+                 kept in sync with the localized one for no benefit. The text is
+                 assigned from code-behind rather than bound, deliberately; see the
+                 comment on ReportVulkanFailure. -->
             <Border Background="Transparent" IsVisible="{Binding VulkanUnavailable, Mode=OneWay}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="460">
                     <TextBlock x:Name="FallbackTitle"

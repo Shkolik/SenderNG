@@ -348,7 +348,7 @@ Settings editor tests.
 
 Module contract and discovery tests.
 
-### `PlotterNexLocaleTests.cs` (251 lines)
+### `PlotterNexLocaleTests.cs` (273 lines)
 
 Catalog parity, non-blank values, untranslated-value guard.
 
