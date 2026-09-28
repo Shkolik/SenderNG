@@ -69,15 +69,20 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                        instantiates this XAML, so nothing in here can reach a saved image —
                        "the PNG has no buttons in it" is true by construction, not by
                        remembering to clip the header out.
-                      OverlayHost carries its own DataContext ({x:Null} stops it inheriting the
-                      root's PlotterViewModel) and its own x:DataType, or every compiled binding
-                      below would be type-checked against the plot view model, which has none of
-                      these properties. A Grid with no background is not hit-testable over its
-                      empty parts, so a spot with no control on it falls through to the canvas
-                      underneath and panning and the wheel keep working — measured, not assumed:
-                      GetVisualAt over the middle of the plot returns the PlaneCanvas, not this
-                      grid. It is left that way deliberately; IsHitTestVisible="False" here with
-                      True back on the eight controls was tried and changed no hit test at all. -->
+                       OverlayHost carries its own DataContext ({x:Null} stops it inheriting the
+                       root's PlotterViewModel) and its own x:DataType, or every compiled binding
+                       below would be type-checked against the plot view model, which has none of
+                       these properties. It is left non-hit-testable by default - measured, not
+                       assumed. A Grid is a hit-testable control, but it only answers for its
+                       CHILDREN: over an empty spot it returns nothing, so the hit falls past it.
+                       What it falls to is the white Border wrapping the plot, not the canvas -
+                       GetVisualAt over the middle of the plot returns that Border, so the wheel
+                       and panning reach the canvas only when the canvas is itself the hit target.
+                       (Measured on the headless harness: the canvas is returned at zoom 2.0 and
+                       above and the Border at 1.25 and below, at every probe point tried.)
+                       IsHitTestVisible="False" here with True back on the eight controls was
+                       tried and changed no hit test at all, so the default stands. -->
+
                 <Grid x:Name="OverlayHost" DataContext="{x:Null}"
                       x:DataType="s:PlotterSettingsViewModel">
                     <StackPanel x:Name="TogglesPanel"

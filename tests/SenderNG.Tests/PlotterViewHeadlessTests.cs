@@ -1113,18 +1113,33 @@ public class PlotterViewHeadlessTests
 
         // The wheel reaches the same indicator: one notch is 1.15x, so the
         // number on screen follows the pointer. Driven from the FITTED view
-        // (where the readout is already showing) rather than from 1:1: at
-        // exactly 1:1 the headless platform routes the wheel past the canvas
-        // and the notch never lands, which is a test-harness artefact, not
-        // something the indicator can see. What is asserted here is the rule
-        // that matters - the readout is a multiple of 1:1 and it tracks the
-        // canvas - and the 1:1 case is already pinned by the two lines above.
+        // (where the readout is already showing) rather than from 1:1.
+        //
+        // This comment used to blame 1:1 and call it a harness artefact. That
+        // was wrong, and the number is what gives it away: the canvas is the
+        // GetVisualAt hit target at zoom 2.0 and above, and it is NOT at 1.25
+        // and below - probed at every 5x5 grid point at 1:1, all of them
+        // return the white Border wrapping the plot. So the boundary is
+        // somewhere between 1.25 and 2.0 and has nothing to do with the
+        // readout being hidden. The overlay is present in this test
+        // throughout, so it is not the overlay stealing the hit either: what
+        // decides it is whether the CANVAS is the hit target, because the
+        // wheel handler lives on the canvas. Exercising the wheel where the
+        // canvas is the hit target is the only way to assert anything about
+        // it; the 1:1 case is pinned above.
         view.Reframe();
         for (var i = 0; i < 8; i++)
             await Pump();
         Assert.True(readout.IsVisible, "the fitted zoom is not 1:1, so the readout is showing");
+
+        // The probe point is only meaningful if the canvas is what it hits, so
+        // assert that up front. The canvas type is private to the view, hence
+        // the name match rather than a type test.
+        var probe = new Point(460, 280);
+        Assert.Equal("PlaneCanvas", window.GetVisualAt(probe)?.GetType().Name);
+
         var before = readout.Text;
-        window.MouseWheel(new Point(460, 280), new Vector(0, 1), RawInputModifiers.None);
+        window.MouseWheel(probe, new Vector(0, 1), RawInputModifiers.None);
         for (var i = 0; i < 8; i++)
             await Pump();
         Assert.NotEqual(before, readout.Text);
