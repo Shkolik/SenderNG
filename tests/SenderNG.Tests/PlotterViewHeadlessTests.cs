@@ -818,10 +818,13 @@ public class PlotterViewHeadlessTests
         Assert.True(carriage1 > 400,
             $"carriage 1's own rows must paint green with the toggle on, found {carriage1} green pixels");
 
-        // Carriage 2 as well: the same two flips again. Carriage 1's raster
-        // already paints green and is NOT touched by the rebake (its rows and
-        // its Chrome are unchanged), so the whole difference between the two
-        // readings is carriage 2's raster.
+        // Carriage 2 as well: the same two flips again. BOTH slots are rebaked
+        // here - nothing in the request path skips one - so the whole
+        // difference between the two readings is not carriage 2 having been
+        // baked while carriage 1 was skipped. It is that carriage 1's re-render
+        // comes out IDENTICAL, so it adds no green, while carriage 2's flips
+        // from its previous reading. The attribution rests on that, so it is
+        // stated here rather than left as a claim about the rebake path.
         source.AckRows(plane0Rows, source.RowCount);
         for (var i = 0; i < 8; i++)
             await Pump();
@@ -1079,6 +1082,52 @@ public class PlotterViewHeadlessTests
         Assert.Equal(start, view.CurrentZoom, 6);
     }
 
+    /// <summary>The readout must never state something untrue about the zoom,
+    /// in either direction: a view with no fit has no zoom to report, and a
+    /// hair above 1:1 is not 1:1 and must not round up to claiming it is.
+    /// <para>Both were live. <c>UpdateZoomReadout</c> guarded on "not NaN",
+    /// and <c>CurrentZoom</c> reports 0 — not NaN — for a view that has never
+    /// been fitted, so an unfitted view rendered a permanent visible <b>"0%"</b>
+    /// claiming it was infinitely far out. And at 1.004 the readout is visible
+    /// (that is not 1:1) while <c>(1.004 * 100).ToString("0")</c> prints
+    /// <b>"100"</b> — visible, and claiming exactly the value it is defined to
+    /// hide. Flooring the rounded value rather than the raw one is what makes
+    /// the second honest: 1.004 then reads 99%.</para></summary>
+    [AvaloniaFact]
+    public async Task The_zoom_readout_claims_neither_an_unfitted_zero_nor_a_rounded_up_100()
+    {
+        // No program loaded, so nothing is ever fitted and the zoom stays 0.
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var readout = view.FindControl<TextBlock>("ZoomPctText")!;
+        Assert.Equal(0, view.CurrentZoom, 6);   // an unloaded view has no zoom
+        view.Reframe();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.False(readout.IsVisible, "an unfitted view has no zoom to report");
+        Assert.Equal(string.Empty, readout.Text);
+
+        // Now a real fit, and a target a hair above 1:1.
+        source.Load(SpiralProgram(600));
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.ZoomTo(1.004);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.True(readout.IsVisible, "1.004 is not 1:1, so there is something to say");
+        // 99, not 100: 100% is exactly the claim the hidden-at-1:1 rule exists
+        // to keep off the screen, and 1.004 * 100 is 100.4, which both Round
+        // and Floor turn into 100.
+        Assert.Equal("99%", readout.Text);
+        Assert.DoesNotContain("100%", readout.Text);
+    }
+
     /// <summary>The wheel has to feed the readout too, not just the buttons: the
     /// wheel is how a user zooms most of the time, and a percentage that only
     /// moves for the button cluster reads as a broken indicator. At exactly
@@ -1143,8 +1192,12 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 8; i++)
             await Pump();
         Assert.NotEqual(before, readout.Text);
+        // Floor, not Round, to match the readout: the readout never claims a
+        // percentage it has rounded up to, so 1.004 reads 99% rather than a
+        // visible "100%". Asserting the rounded figure here instead is how the
+        // old rounding rule survived in this test after the readout was fixed.
         Assert.Contains(
-            ((int)Math.Round(view.CurrentZoom * 100)).ToString(CultureInfo.InvariantCulture),
+            ((int)Math.Floor(view.CurrentZoom * 100)).ToString(CultureInfo.InvariantCulture),
             readout.Text);
     }
 
@@ -1210,8 +1263,16 @@ public class PlotterViewHeadlessTests
             Assert.True(gridToggle.IsChecked == true);
 
             // The lattice the shared model's default asked for is on the canvas.
+            //
+            // No `on > 0` precondition here, and that is a correction: it stood
+            // in for "the grid painted" and proved nothing. IsChromeLight also
+            // counts the toolpath's antialiased halo, so a view with the grid
+            // entirely absent still measured ~16k light pixels — the red run
+            // behind this test read on=16117 against without=16130, i.e. the
+            // grid contributed nothing at all and the precondition sailed
+            // through. The ratio assertion at the end is the one that carries
+            // the claim, and it subsumes this anyway.
             var on = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
-            Assert.True(on > 0, $"the default grid must paint, found {on} light pixels");
 
             // ...and a LEAF-side flip (the settings dialog, not the overlay)
             // has to repaint the plot canvases, which only happens if the view
@@ -1454,8 +1515,13 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 8; i++)
             await Pump();
         // Hidden for the same reason as in the envelope test above: the chrome
-        // is a different subject, and its glyph edges land in the amber/blue
-        // bands this test asserts are empty.
+        // is a different subject, and its glyph edges land in the amber band
+        // this test asserts is empty.
+        //
+        // The overlay is hidden, not just ignored: what was measured putting
+        // amber there was 8 px of it, and NO blue contamination was found at
+        // all. The blue assertion below is kept as a guard, not as a report of
+        // something that was ever observed.
         view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
         for (var i = 0; i < 8; i++)
             await Pump();

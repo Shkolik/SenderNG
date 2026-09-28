@@ -337,7 +337,11 @@ public partial class PlotterView : UserControl
 
     private PlotterSettingsViewModel? _overlaySettings;
 
-    /// <summary>How far out the view may be zoomed before the wheels give up.</summary>
+    /// <summary>How far out the view may be zoomed before the button cluster
+    /// gives up. NOT the wheel's floor: <c>OnPointerWheelChanged</c> applies no
+    /// minimum of its own and only <c>ZoomSlot</c> clamps, using whatever
+    /// minimum it is handed — which is this constant on the button path and
+    /// nothing at all on the wheel path.</summary>
     internal const double MinZoom = 0.02;
 
     /// <summary>Scales every canvas about its own center, so the composition's
@@ -388,11 +392,50 @@ public partial class PlotterView : UserControl
         if (ZoomPctText is null)
             return;
         var zoom = CurrentZoom;
-        var show = !double.IsNaN(zoom) && Math.Abs(zoom - 1.0) > 1e-6;
+        // `zoom > 0`, not merely "not NaN": CurrentZoom reports 0 for a view
+        // that has never been fitted, and 0 is not NaN, so a view with no
+        // geometry rendered a permanent "0%" claiming it was infinitely far
+        // out. Reframe() hit the same guard on the first frame of a view whose
+        // fit has not happened yet.
+        //
+        // The floor is applied to the ROUNDED value, not the raw one. The
+        // stated invariant is that a multiple of 1:1 is shown and exactly 1:1
+        // is not, but rounding first breaks it: 1.004 is not 1:1, so the
+        // readout shows — and `(1.004 * 100).ToString("0")` is "100", so it
+        // claims exactly 1:1 while being visible. Flooring the rounded number
+        // instead turns 1.004 into 99%, which is honest at the precision the
+        // readout actually displays.
+        if (zoom <= 0)
+        {
+            ZoomPctText.Text = string.Empty;
+            ZoomPctText.IsVisible = false;
+            return;
+        }
+        var show = Math.Abs(zoom - 1.0) > 1e-6;
         ZoomPctText.Text = show
-            ? (zoom * 100).ToString("0", CultureInfo.InvariantCulture) + "%"
+            ? DisplayPercent(zoom)
             : string.Empty;
         ZoomPctText.IsVisible = show;
+    }
+
+    /// <summary>The percentage as the readout shows it: whole percent,
+    /// floored, and never 100.
+    /// <para>Floored because the readout must not round UP into a claim it is
+    /// not making. And 100 is barred outright, because 100% IS the 1:1 claim:
+    /// a visible readout is only ever shown when the zoom is not 1:1, so
+    /// printing 100% there says the one thing the visibility rule exists to
+    /// avoid. 1.004 is the case that forced this — it is not 1:1, so the
+    /// readout shows, and both <c>Math.Round</c> and <c>Math.Floor</c> of
+    /// 100.4 give 100. It reads 99%, which understates by less than a percent
+    /// and is the only honest option at the precision on screen.</para></summary>
+    private static string DisplayPercent(double zoom)
+    {
+        var percent = Math.Floor(zoom * 100);
+        // Only the exact 100, NOT everything above it: 150% and 1279% are
+        // perfectly good claims and must survive untouched.
+        if (Math.Abs(percent - 100) < 1e-9)
+            percent = 99;
+        return percent.ToString(CultureInfo.InvariantCulture) + "%";
     }
 
     private void OnZoomIn(object? sender, RoutedEventArgs e) => ZoomBy(1.25);
@@ -454,11 +497,19 @@ public partial class PlotterView : UserControl
     /// had set — the reported "set the toggles, toggle iso, watch them disappear".</summary>
     private void ApplyChrome()
     {
-        // The overlay's attached model wins over the retained state, so
-        // RebuildCanvases picks up a newly-assigned model with no special case
-        // of its own (it routes through here too). An explicit push is a test
-        // or a module-driven override, and it is what the retained state is
-        // for; with neither, the defaults.
+        // The RETAINED state wins, not the attached model: `_chromeFlags` is
+        // checked first. It was previously documented the other way round, and
+        // in the shipped app it is not true — the module calls ApplySettings()
+        // (and so PushChromeFlags) AFTER the view's initializer, which both
+        // populates `_chromeFlags` and pushes the flags explicitly, so from
+        // that moment on the retained value shadows the model.
+        //
+        // The overlay's flips still work, but not through this line: they land
+        // because the model raises Changed and the view re-pushes on it, which
+        // updates `_chromeFlags` first and only then reaches here. A model
+        // assigned with no push after it therefore has no effect until
+        // something else pushes — the ordering dependency worth knowing before
+        // reordering those two calls.
         var flags = _chromeFlags ?? _overlaySettings?.Flags ?? ChromeFlags.Default;
         foreach (var canvas in _canvases.OfType<PlotCanvas>())
         {
@@ -677,59 +728,60 @@ public partial class PlotterView : UserControl
         /// a refusal that is still pending restarts it.</para></summary>
         private readonly DispatcherTimer _rebakeRetry;
 
-    /// <summary>Scales the slot about its own center, so the composition's
-    /// midpoint stays put. The wheel keeps its cursor-anchored behavior — this is
-    /// the button cluster only.
-    /// <para>Internal, and it takes the work rather than exposing the transform:
-    /// <c>protected</c> on a NESTED type is reachable from that type and its
-    /// derived types, NOT from the class that encloses it, so the view cannot
-    /// read <see cref="SlotZoom"/>/<see cref="SlotPan"/>/<see cref="SetSlotTransform"/>
-    /// however much the plan says otherwise. Same reason
-    /// <see cref="SlotTransformForTest"/> exists.</para></summary>
-    internal void ZoomSlot(int slot, double factor, double minZoom)
-    {
-        var zoom = SlotZoom(slot);
-        if (double.IsNaN(zoom) || zoom <= 0)
-            return;
-        var area = new Rect(Bounds.Size);
-        if (area.Width < 1 || area.Height < 1)
-            return;
-        var pan = SlotPan(slot);
+        /// <summary>Scales the slot about its own center, so the composition's
+        /// midpoint stays put. The wheel keeps its cursor-anchored behavior — this is
+        /// the button cluster only.
+        /// <para>Internal, and it takes the work rather than exposing the transform:
+        /// <c>protected</c> on a NESTED type is reachable from that type and its
+        /// derived types, NOT from the class that encloses it, so the view cannot
+        /// read <see cref="SlotZoom"/>/<see cref="SlotPan"/>/<see cref="SetSlotTransform"/>
+        /// however much the plan says otherwise. Same reason
+        /// <see cref="SlotTransformForTest"/> exists.</para></summary>
+        internal void ZoomSlot(int slot, double factor, double minZoom)
+        {
+            var zoom = SlotZoom(slot);
+            if (double.IsNaN(zoom) || zoom <= 0)
+                return;
+            var area = new Rect(Bounds.Size);
+            if (area.Width < 1 || area.Height < 1)
+                return;
+            var pan = SlotPan(slot);
 
-        // The world point under the canvas center, so it can be put back.
-        var world = ScreenToWorld(area.Center, zoom, pan);
-        var next = Math.Max(zoom * factor, minZoom);
-        SetSlotTransform(slot, next,
-            new Vector(area.Center.X - world.X * next, area.Center.Y + world.Y * next));
-        InvalidateVisual();
-    }
+            // The world point under the canvas center, so it can be put back.
+            var world = ScreenToWorld(area.Center, zoom, pan);
+            var next = Math.Max(zoom * factor, minZoom);
+            SetSlotTransform(slot, next,
+                new Vector(area.Center.X - world.X * next, area.Center.Y + world.Y * next));
+            InvalidateVisual();
+        }
 
-    /// <summary>Drops the fitted transform so the next render re-fits — the
-    /// "Fit" button, and the seam for the same reason as
-    /// <see cref="ZoomSlot"/>. Internal wrapper rather than widening
-    /// <see cref="ResetTransforms"/> itself: nothing outside this type should be
-    /// able to wipe the viewport.</summary>
-    internal void Reframe() => ResetTransforms();
+        /// <summary>Drops the fitted transform so the next render re-fits — the
+        /// "Fit" button, and the seam for the same reason as
+        /// <see cref="ZoomSlot"/>. Internal wrapper rather than widening
+        /// <see cref="ResetTransforms"/> itself: nothing outside this type should be
+        /// able to wipe the viewport.</summary>
+        internal void Reframe() => ResetTransforms();
 
-    /// <summary>Notifies the view that the zoom changed, from either caller, but
-    /// the two need different timing. The wheel is an input event: the view can
-    /// update the readout inline. The fit runs INSIDE a render pass, and
-    /// <c>TextBlock.Text</c> is a measure invalidation — so that one is posted
-    /// and lands after the render, instead of mutating layout from inside it.
-    /// The canvas is the only side that knows which caller it is, so the choice
-    /// lives here and the view just gets told.</summary>
-    private void AnnounceZoom(bool insideRender)
-    {
-        if (insideRender)
-            Dispatcher.UIThread.Post(() => ZoomChanged?.Invoke(), DispatcherPriority.Normal);
-        else
-            ZoomChanged?.Invoke();
-    }
+        /// <summary>Notifies the view that the zoom changed, from either caller, but
+        /// the two need different timing. The wheel is an input event: the view can
+        /// update the readout inline. The fit runs INSIDE a render pass, and
+        /// <c>TextBlock.Text</c> is a measure invalidation — so that one is posted
+        /// and lands after the render, instead of mutating layout from inside it.
+        /// The canvas is the only side that knows which caller it is, so the choice
+        /// lives here and the view just gets told.</summary>
+        private void AnnounceZoom(bool insideRender)
+        {
+            if (insideRender)
+                Dispatcher.UIThread.Post(() => ZoomChanged?.Invoke(), DispatcherPriority.Normal);
+            else
+                ZoomChanged?.Invoke();
+        }
 
-    /// <summary>Set by the view when it creates this canvas: the zoom changed
-    /// (a wheel notch, or the initial fit), so the readout has to follow.
-    /// The canvas cannot reach the overlay's TextBlock itself.</summary>
-    internal Action? ZoomChanged { get; set; }
+        /// <summary>Set by the view when it creates this canvas: the zoom changed
+        /// (a wheel notch, or the initial fit), so the readout has to follow.
+        /// The canvas cannot reach the overlay's TextBlock itself.</summary>
+        internal Action? ZoomChanged { get; set; }
+
 
         /// <summary>Internal, not the protected <see cref="SlotZoom"/>/<see cref="SlotPan"/>:
         /// a containing type may not read a nested type's protected members, so the
