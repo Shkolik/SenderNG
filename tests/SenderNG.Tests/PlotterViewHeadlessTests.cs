@@ -1720,9 +1720,13 @@ public class PlotterViewHeadlessTests
     /// not move when the view does. Excludes the header band and the 1px frame
     /// the same way <see cref="CountSurface"/> does.</summary>
     private static (int Left, int Top, int Right, int Bottom, double Cx, double Cy, double Width)
-        PathBounds(WriteableBitmap bmp)
+        PathBounds(WriteableBitmap bmp) => PathBounds(PlotterPixels.Snapshot(bmp));
+
+    /// <summary>Same measurement for a PNG that came off disk, so an export can
+    /// be compared against the view it was taken from.</summary>
+    private static (int Left, int Top, int Right, int Bottom, double Cx, double Cy, double Width)
+        PathBounds(PlotterPixels.Frame frame)
     {
-        var frame = PlotterPixels.Snapshot(bmp);
         var left = frame.Width;
         var top = frame.Height;
         var right = -1;
@@ -1741,6 +1745,255 @@ public class PlotterViewHeadlessTests
         if (right < 0)
             return (0, 0, -1, -1, 0, 0, 0);
         return (left, top, right, bottom, (left + right) / 2d, (top + bottom) / 2d, right - left);
+    }
+
+    /// <summary>A dialog service that returns a fixed save path, so the export
+    /// has somewhere to write and the test can prove it wrote there. Records
+    /// the arguments the view passed, because "the dialog was even asked" and
+    /// "the suggested name is a .png" are part of the contract.</summary>
+    private sealed class StubFileDialog : CNC.Core.Abstractions.IFileDialogService
+    {
+        public string? PathToReturn { get; init; }
+        public string? AskedTitle { get; private set; }
+        public string? AskedSuggestedName { get; private set; }
+        public string[]? AskedFilters { get; private set; }
+        public List<string> Errors { get; } = [];
+
+        public Task<string?> OpenFileAsync(string title, params string[] filters) =>
+            Task.FromResult<string?>(null);
+
+        public Task<string?> SaveFileAsync(string title, string suggestedFileName, params string[] filters)
+        {
+            AskedTitle = title;
+            AskedSuggestedName = suggestedFileName;
+            AskedFilters = filters;
+            return Task.FromResult(PathToReturn);
+        }
+
+        public Task ShowErrorAsync(string title, string message)
+        {
+            Errors.Add($"{title}: {message}");
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>Builds a mill view showing <paramref name="segments"/> of toolpath,
+    /// hosted and pumped like every other test here so the live canvas has
+    /// actually fitted itself before the export reads its transform. The save
+    /// path is returned rather than taken as an <c>out</c> parameter: an async
+    /// method cannot have one (CS1988).</summary>
+    private static async Task<(PlotterView View, Window Window, StubFileDialog Dialogs, string File)>
+        ShowMillForExport(int segments)
+    {
+        var file = Path.Combine(Path.GetTempPath(), $"plot-{Guid.NewGuid():N}.png");
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(segments));
+        Assert.True(vm.HasGeometry);
+
+        var dialogs = new StubFileDialog { PathToReturn = file };
+        var view = new PlotterView(dialogs) { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        return (view, window, dialogs, file);
+    }
+
+    [AvaloniaFact]
+    public async Task Export_writes_a_2x_image_with_chrome_and_leaves_the_view_alone()
+    {
+        var (view, window, dialogs, file) = await ShowMillForExport(600);
+        try
+        {
+            var before = view.CompositionForTest;
+            await view.ExportPngAsync();
+
+            // Errors first: a failed export also writes no file, and "the export
+            // must reach the chosen path" on its own hides the reason.
+            Assert.True(dialogs.Errors.Count == 0, $"the export reported: {string.Join("; ", dialogs.Errors)}");
+            Assert.True(File.Exists(file), "the export must reach the chosen path");
+            // The size contract is the RATIO, not a pixel count: the view is the
+            // window's content, so its exact size is Avalonia's business, but
+            // "twice the view" is ours. Asserting 1840x1120 would pin the window
+            // layout too and fail on an unrelated framework change.
+            var frame = PlotterPixels.SnapshotPng(file);
+            Assert.Equal((int)Math.Ceiling(view.Bounds.Width * 2), frame.Width);
+            Assert.Equal((int)Math.Ceiling(view.Bounds.Height * 2), frame.Height);
+            Assert.True(frame.Width > 1000, $"the export must be a real 2x image, got {frame.Width}px wide");
+            Assert.True(PlotterPixels.Count(frame, IsChromeLight) > 300,
+                "the exported image must include the chrome");
+
+            var after = view.CompositionForTest;
+            Assert.Equal(before[0].Zoom, after[0].Zoom, 9);
+            Assert.Equal(before[0].Pan, after[0].Pan);
+            Assert.Empty(dialogs.Errors);
+        }
+        finally
+        {
+            window.Close();
+            File.Delete(file);
+        }
+    }
+
+    /// <summary>The export must reproduce what the user is looking at, at twice
+    /// the resolution. This is the test the plan does NOT have, and it is the one
+    /// that matters: the chrome is drawn from SCREEN coordinates, so a version
+    /// that forgot to map the toolpath's WORLD coordinates through the slot
+    /// transform still exports a full frame of grid and axes and looks fine in
+    /// every other assertion - it just puts the toolpath in a corner at 1 mm per
+    /// pixel. Only a path-pixel count on the EXPORTED image can see that.
+    /// <para>Also pins the zoom/pan relationship: the export copies the live
+    /// transform, so a path drawn in the same place on screen must land in the
+    /// same place in the file, scaled by exactly 2.</para></summary>
+    [AvaloniaFact]
+    public async Task Export_places_the_toolpath_where_the_view_shows_it_at_twice_the_size()
+    {
+        var (view, window, _, file) = await ShowMillForExport(600);
+        try
+        {
+            var onScreen = PlotterPixels.Snapshot(CaptureFrame(window));
+            var screenPath = PathBounds(CaptureFrame(window));
+            Assert.True(screenPath.Width > 100,
+                $"the on-screen path must be visible to compare against, got {screenPath.Width}px wide");
+            var onScreenGrey = PlotterPixels.Count(onScreen, IsPathGrey);
+            Assert.True(onScreenGrey > 100, $"expected the toolpath on screen, found {onScreenGrey}px");
+
+            await view.ExportPngAsync();
+
+            var frame = PlotterPixels.SnapshotPng(file);
+            var exportedGrey = PlotterPixels.Count(frame, IsPathGrey);
+            Assert.True(exportedGrey > 0,
+                "the exported image must contain the toolpath, not just the chrome");
+            // The scale factor, measured on WIDTH rather than on pixel count. A
+            // 2x image of a hairline does not cover 4x the area: at 1x the line
+            // is mostly anti-aliased pixels that fail the grey threshold, and at
+            // 2x it has a solid core that passes, so the count roughly doubles
+            // rather than quadruples (measured: 4542 -> 8911). Pinning the
+            // ratio to 4x would be pinning Skia's anti-aliasing, not our
+            // contract. Width is the honest measure of the scale, and the
+            // generous lower bound is only there to catch a 1x export dressed
+            // up as a 2x one.
+            Assert.True(exportedGrey > onScreenGrey * 1.5,
+                $"a 2x export must draw a bigger path than the {onScreenGrey}px on screen, got {exportedGrey}px");
+            // Same relative placement: the path's centre in the file must sit
+            // where the view put it. A missing world->screen map sends the
+            // centre off toward the origin corner instead.
+            var exportedPath = PathBounds(frame);
+            var widthRatio = exportedPath.Width / (double)screenPath.Width;
+            Assert.True(widthRatio is > 1.6 and < 2.4,
+                $"the exported path must be 2x the on-screen width: {exportedPath.Width}px vs {screenPath.Width}px is {widthRatio:F2}x");
+            var expectedCx = screenPath.Cx * 2;
+            Assert.True(Math.Abs(exportedPath.Cx - expectedCx) < screenPath.Width,
+                $"the exported path must keep the view's horizontal placement: centre {exportedPath.Cx:F1}, expected near {expectedCx:F1}");
+        }
+        finally
+        {
+            window.Close();
+            File.Delete(file);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Export_draws_vectors_and_never_bakes()
+    {
+        var (view, window, _, file) = await ShowMillForExport(600);
+        try
+        {
+            var screen = Assert.Single(view.CanvasesForTest);
+            var used = screen.BakePathUsesForTest;
+            Assert.True(used > 0, "the on-screen path does bake");
+
+            await view.ExportPngAsync();
+
+            Assert.Equal(used, screen.BakePathUsesForTest);
+            var exported = view.LastExportCanvasForTest;
+            Assert.NotNull(exported);
+            Assert.Equal(0, exported.BakePathUsesForTest);
+            // Every slot's bake count, not an empty list: the export canvas sizes
+            // its per-slot arrays like any other, so there is one entry per
+            // slot. "Empty" would have passed on a canvas too broken to draw
+            // anything at all, which is the exact failure this test exists to
+            // rule out — assert the bakes did not HAPPEN instead.
+            var counts = view.LastExportBakeCountsForTest;
+            Assert.NotEmpty(counts);
+            Assert.All(counts, c => Assert.Equal(0, c));
+        }
+        finally
+        {
+            window.Close();
+            File.Delete(file);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Export_without_a_chosen_path_writes_nothing()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var dialogs = new StubFileDialog { PathToReturn = null };
+        var view = new PlotterView(dialogs) { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        try
+        {
+            await view.ExportPngAsync();
+            Assert.Null(view.LastExportCanvasForTest);
+            Assert.Empty(dialogs.Errors);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>A save failure must surface as a dialog, not as an unhandled
+    /// exception and not as silence: the path the user just chose can be
+    /// unwritable, and a silent no-op reads as "the app is broken".
+    /// <para>The bad path is a file used as a DIRECTORY — the shape a stale
+    /// "save to" location really takes. An earlier version pointed into a
+    /// directory that did not exist, which reads better but proved nothing:
+    /// Avalonia's string Save overload swallows the I/O error, so the test was
+    /// asserting the ENCODER's behaviour rather than the view's error path. It
+    /// passed in isolation and failed in full runs — the worst kind of flake.
+    /// A file where a directory must be cannot be written on any platform, and
+    /// the view opens the stream itself, so the failure is ours to report.</para></summary>
+    [AvaloniaFact]
+    public async Task Export_reports_a_failure_instead_of_throwing()
+    {
+        var blocker = Path.Combine(Path.GetTempPath(), $"plot-{Guid.NewGuid():N}.png");
+        File.WriteAllText(blocker, "not a directory");
+        var badPath = Path.Combine(blocker, "nested", "plot.png");
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var dialogs = new StubFileDialog { PathToReturn = badPath };
+        var view = new PlotterView(dialogs) { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        try
+        {
+            await view.ExportPngAsync();
+            Assert.NotNull(view.LastExportCanvasForTest); // it painted before the save failed
+            Assert.NotEmpty(dialogs.Errors);
+            Assert.False(File.Exists(badPath));
+        }
+        finally
+        {
+            window.Close();
+            File.Delete(blocker);
+        }
     }
 
     private static WriteableBitmap CaptureFrame(Window window)

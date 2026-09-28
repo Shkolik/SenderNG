@@ -265,6 +265,114 @@ public partial class PlotterView : UserControl
         }
     }
 
+    /// <summary>Which of <see cref="PlotCanvas.PaintScene"/>'s two jobs is
+    /// running. The on-screen path may fit and cache; the export may not.</summary>
+    public enum PaintMode
+    {
+        /// <summary>On screen: fit and re-detect the frontier as needed.</summary>
+        Screen,
+
+        /// <summary>Into a bitmap: never writes zoom, pan or the bake cache.</summary>
+        Export,
+    }
+
+    /// <summary>Every plot canvas, for headless tests.</summary>
+    internal IReadOnlyList<PlotCanvas> CanvasesForTest => _canvases.OfType<PlotCanvas>().ToArray();
+
+    /// <summary>The throwaway canvas the last export painted through, for
+    /// headless tests. Null until an export reaches the point of painting, so
+    /// "cancelled" and "never tried" are the same observation by design.</summary>
+    internal PlotCanvas? LastExportCanvasForTest { get; private set; }
+
+    /// <summary>Bakes on the export canvas, which must be none. A throwaway
+    /// canvas has nothing to blit, so a bake here would mean the export
+    /// rasterised the toolpath and then upscaled a soft 1x image — the one
+    /// outcome the direct-vector rule exists to prevent.</summary>
+    internal IReadOnlyList<int> LastExportBakeCountsForTest =>
+        LastExportCanvasForTest is null ? [] : LastExportCanvasForTest.SlotBakeCounts;
+
+    /// <summary>Writes the plot and its chrome to a PNG at 2x.
+    /// <para>Paints through a throwaway canvas rather than the live one, because
+    /// the export must not move the view: <see cref="PlotCanvas.EnsureFit"/>
+    /// writes the slot zoom and pan, so painting the live canvas would re-fit it
+    /// and the user's zoom would jump. The throwaway adopts the live transform
+    /// instead, so the file is a 2x snapshot of what was on screen.</para>
+    /// <para>Also does not go through the bake: that raster is 1x, and scaling
+    /// the finished image to 2x would only enlarge a soft raster.</para></summary>
+    public async Task ExportPngAsync()
+    {
+        // Cleared on ENTRY, not only on the success path: a cancel after an
+        // earlier export would otherwise leave the previous run's canvas here,
+        // and a test asserting "cancelling exports nothing" would then be
+        // reading an artefact of the run before it.
+        LastExportCanvasForTest = null;
+        if (_dialogs is null || _vm is null || !_vm.HasGeometry)
+            return;
+
+        var size = Bounds.Size;
+        if (size.Width < 1 || size.Height < 1)
+            return;
+
+        var path = await _dialogs.SaveFileAsync(
+            _overlaySettings?.SavePngLabel ?? "Save PNG",
+            $"plot-{DateTime.Now:yyyyMMdd-HHmmss}.png",
+            "PNG (*.png)|*.png");
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        const double scale = 2;
+        var title = _overlaySettings?.SavePngLabel ?? "Save PNG";
+        var width = (int)Math.Ceiling(size.Width * scale);
+        var height = (int)Math.Ceiling(size.Height * scale);
+        try
+        {
+            // A canvas that is never in the visual tree, so nothing the export
+            // does can reach the live one. Typed as the base because the ternary
+            // of two unrelated sealed subclasses has no common type.
+            PlotCanvas canvas = _vm.Isometric ? new IsoCanvas(_vm) : new PlaneCanvas(_vm);
+            canvas.Measure(size);
+            canvas.Arrange(new Rect(size));
+            // The RETAINED flags, through the same accessor ApplyChrome reads.
+            // Reading `_overlaySettings?.Flags` directly here looked equivalent
+            // and was not: it drops `_chromeFlags`, so a canvas whose flags came
+            // from a push (the overlay's own flips, which land via Changed)
+            // would export with a different chrome than the user is looking at.
+            canvas.Chrome = DebugStoredChromeFlags!.Value;
+            var live = _canvases.OfType<PlotCanvas>().FirstOrDefault();
+            if (live is not null)
+                canvas.AdoptTransformFrom(live, new Rect(size));
+            LastExportCanvasForTest = canvas;
+
+            var bitmap = new RenderTargetBitmap(
+                new PixelSize(width, height), new Vector(96 * scale, 96 * scale));
+            using (var ctx = bitmap.CreateDrawingContext())
+            {
+                ctx.FillRectangle(Brushes.White, new Rect(0, 0, width, height));
+                // The whole scene at 2x. Chrome, frontier and glyph already emit
+                // screen coordinates, so this alone scales them; the toolpath's
+                // world coordinates are mapped by the paint itself.
+                using (ctx.PushTransform(Matrix.CreateScale(scale, scale)))
+                    canvas.PaintScene(ctx, new Rect(size), PaintMode.Export);
+            }
+            // Opened here rather than handed to bitmap.Save(path) on purpose.
+            // Avalonia's string overload swallows I/O failures: pointed at a
+            // path whose directory does not exist, it returns quietly having
+            // written nothing — verified against 12.0.0, where File.Create on
+            // the same path throws DirectoryNotFoundException while Save does
+            // not. The catch below would then never run and the user would get
+            // silence after choosing a folder that turned out to be unwritable,
+            // which is the one outcome this method exists to prevent. Opening
+            // the file first puts the failure inside our own try, where it can
+            // be reported.
+            using (var file = new FileStream(path, FileMode.Create, FileAccess.Write))
+                bitmap.Save(file);
+        }
+        catch (Exception ex)
+        {
+            await _dialogs.ShowErrorAsync(title, ex.Message);
+        }
+    }
+
     /// <summary>Rebuilds the canvas set: one isometric canvas when the toggle
     /// is on (stretched over the whole panel), otherwise ONE canvas — the two
     /// foam planes draw in diagonal quadrants of the same surface (plane 1
@@ -447,15 +555,27 @@ public partial class PlotterView : UserControl
 
     private void OnZoomFit(object? sender, RoutedEventArgs e) => Reframe();
 
-    /// <summary>PNG export is Task 12. The stub reads <see cref="_dialogs"/> on
-    /// purpose: there is nowhere to save to without a dialog service, and an
-    /// assigned-but-unread field would be CS0414. It is deliberately NOT
-    /// <c>async</c> — there is nothing to await, and an async body with no
-    /// await is CS1998.</summary>
-    private void OnSavePng(object? sender, RoutedEventArgs e)
+    /// <summary>PNG export. The dialog owns the path and the failure reporting;
+    /// everything else lives in <see cref="ExportPngAsync"/>, which is public so
+    /// the same code path runs whether a button or a test called it — a
+    /// private-only variant would let the two drift.
+    /// <para>A catch of its own rather than a discarded task, because
+    /// <see cref="ExportPngAsync"/>'s own try begins AFTER the save dialog: a
+    /// dialog that fails to open would otherwise leave the failure on an
+    /// unobserved task, i.e. silent, which is the one outcome this button
+    /// exists to prevent.</para></summary>
+    private async void OnSavePng(object? sender, RoutedEventArgs e)
     {
-        if (_dialogs is null)
-            return; // no dialog service wired: the save path does not exist yet
+        try
+        {
+            await ExportPngAsync();
+        }
+        catch (Exception ex)
+        {
+            if (_dialogs is not null)
+                await _dialogs.ShowErrorAsync(
+                    _overlaySettings?.SavePngLabel ?? "Save PNG", ex.Message);
+        }
     }
 
     /// <summary>The last set of flags <see cref="PushChromeFlags"/> was given, kept
@@ -651,8 +771,14 @@ public partial class PlotterView : UserControl
     /// handlers are on the subclasses, and this makes all of them reachable
     /// everywhere on the surface.
     /// </para>
+    /// <para>
+    /// <c>internal</c>, not <c>private</c>: the PNG export hands a test the canvas
+    /// it painted through, and a member cannot expose a less accessible type
+    /// (CS0050). The subclasses stay <c>private</c> — nothing names them, the
+    /// seam is the base type.
+    /// </para>
     /// </summary>
-    private abstract class PlotCanvas : Control, ICustomHitTest
+    internal abstract class PlotCanvas : Control, ICustomHitTest
     {
         /// <summary>Recolor window cap per frame: the delta since the last
         /// bake draws as vectors on top of the raster; a bigger delta (demo
@@ -938,6 +1064,13 @@ public partial class PlotterView : UserControl
         /// inside a bake (rate-limited) or as the pre-bake fallback.</summary>
         protected abstract void DrawSlotPathWorld(DrawingContext ctx, int slot, BakePens pens);
 
+        /// <summary>Rebuild the plane→world maps this subclass's painters read.
+        /// Called by the paint, not only by <c>FitSlot</c>: the PNG export's
+        /// throwaway canvas inherits an already-fitted transform and so never
+        /// fits, yet still needs the maps — without them every segment collapses
+        /// onto one point and the export comes out blank.</summary>
+        protected abstract void EnsureLayout(Rect area);
+
         /// <summary>Draw the slot's chrome overlay in world coordinates (per
         /// frame, crisp vectors — it must not blur under the baked raster): the
         /// world XY lattice, the machine-origin cross, the world axis arrows and
@@ -1047,18 +1180,49 @@ public partial class PlotterView : UserControl
             _ => neutral,
         };
 
-        public override void Render(DrawingContext context)
+        public override void Render(DrawingContext context) =>
+            PaintScene(context, new Rect(Bounds.Size), PaintMode.Screen);
+
+        /// <summary>How many times this canvas took the bake path instead of
+        /// drawing the toolpath as vectors. A headless test reads it to prove the
+        /// export never bakes.</summary>
+        internal int BakePathUsesForTest { get; private set; }
+
+        /// <summary>Adopt <paramref name="live"/>'s per-slot transform, so an
+        /// export is a snapshot of what the user is looking at rather than a
+        /// re-fit that quietly disagrees with the screen.
+        /// <para>A slot the live canvas never fitted is NaN zoom; that case fits
+        /// THIS canvas instead, which touches only the throwaway. Fitting the
+        /// live one would be the one way to move the view.</para></summary>
+        internal void AdoptTransformFrom(PlotCanvas live, Rect area)
         {
-            var area = new Rect(Bounds.Size);
+            for (var slot = 0; slot < SlotCount; slot++)
+            {
+                var zoom = live.SlotZoom(slot);
+                if (double.IsNaN(zoom))
+                    FitSlot(slot, SlotViewport(slot, area));
+                else
+                    SetSlotTransform(slot, zoom, live.SlotPan(slot));
+            }
+        }
+
+        /// <summary>Paint the plot. <see cref="PaintMode.Screen"/> owns the view's
+        /// mutable state — the fit, the bake cache, the executed frontier. <see
+        /// cref="PaintMode.Export"/> writes none of it, so saving a PNG cannot move
+        /// the view or warm the raster.</summary>
+        internal void PaintScene(DrawingContext ctx, Rect area, PaintMode mode)
+        {
             if (area.Width < 1 || area.Height < 1 || !Vm.HasGeometry)
             {
-                DrawEmpty(context, area);
+                DrawEmpty(ctx, area);
                 return;
             }
 
-            EnsureFit(area);
-            EnsureCacheArrays();
-            DetectFrontierChanges();
+            if (mode == PaintMode.Screen)
+            {
+                EnsureFit(area);
+                DetectFrontierChanges();
+            }
 
             // The rebake request is PER SLOT, and this pass tracks only WHICH
             // SLOTS have already spent the limiter window.
@@ -1094,19 +1258,87 @@ public partial class PlotterView : UserControl
             // zooming moves a plane's raster across the screen-center line and
             // it must NOT be trimmed at its quadrant edge (M9). The framework
             // already clips the drawing to the control bounds.
+            //
+            // NOT inside the screen branch above. Two pieces of derived state
+            // the paint reads are built elsewhere, and BOTH are missing on the
+            // throwaway the PNG export builds, which inherits a fitted
+            // transform and so never runs FitSlot:
+            //
+            //  - the plane maps, built by EnsureLayout (called from FitSlot), so
+            //    a default-constructed map collapsed every segment onto one
+            //    point and the export came out as a correct frame of white with
+            //    a stray glyph in the corner;
+            //  - the per-slot overlay arrays, read by DrawSlotFrontier, which
+            //    the export draws too — and on a canvas nothing has ever sized
+            //    them, the frontier's first index threw.
+            //
+            // Both are pure functions of the VM and the area, so re-running them
+            // per paint costs one comparison and one small record assignment.
+            EnsureLayout(area);
+            EnsureCacheArrays();
             for (var slot = 0; slot < SlotCount; slot++)
             {
-                if (!BlitOrBake(context, slot))
-                    DrawSlotPathWorld(context, slot, new BakePens(1)); // pre-first-bake fallback
-                DrawSlotFrontier(context, slot);
+                if (mode == PaintMode.Export)
+                    DrawSlotPathForExport(ctx, slot);
+                else
+                {
+                    // Counts entries into the bake branch, not bakes: a blit of
+                    // an already-baked raster takes the same branch. The export
+                    // must be provably NOT on this branch at all, which is what
+                    // the test pins; <see cref="SlotBakeCounts"/> is the seam
+                    // for actual bake work.
+                    BakePathUsesForTest++;
+                    if (!BlitOrBake(ctx, slot))
+                        DrawSlotPathWorld(ctx, slot, new BakePens(1)); // pre-first-bake fallback
+                }
+                DrawSlotFrontier(ctx, slot);
             }
             // The chrome overlay (world lattice, origin crosses, axis arrows,
             // job rectangles) is a crisp shared overlay drawn last so it never
             // sits under a raster edge.
             for (var slot = 0; slot < SlotCount; slot++)
-                DrawSlotChrome(context, slot);
-            DrawCoupling(context, area);
-            DrawToolGlyph(context, area, ToolGlyphPosition());
+                DrawSlotChrome(ctx, slot);
+            DrawCoupling(ctx, area);
+            DrawToolGlyph(ctx, area, ToolGlyphPosition());
+        }
+
+        /// <summary>The export's toolpath draw, and the reason it is a separate
+        /// method: <see cref="DrawSlotPathWorld"/> emits WORLD millimetres, and
+        /// only the bake supplies the transform that maps them onto pixels (see
+        /// <see cref="BakeSlot"/>). Everything else on screen — the frontier, the
+        /// chrome, the glyph — goes through <c>WorldToScreen</c> and needs none.
+        /// <para>So the export supplies that transform itself, at the slot's
+        /// current zoom. Without it the toolpath lands at one millimetre per
+        /// pixel in the corner while the chrome, drawn from screen coordinates
+        /// through the caller's scale, still looks perfectly plausible — which
+        /// is why the test counts path pixels in the EXPORTED image instead of
+        /// trusting its chrome.</para>
+        /// <para>The pen divisor is the slot's zoom, exactly as in the bake, and
+        /// that is the whole point of <see cref="BakePens"/>: it declares a width
+        /// in LOGICAL units by cancelling everything the CTM multiplies back. The
+        /// export's device CTM is the caller's export scale times this
+        /// transform, so passing the export scale in here as well would cancel
+        /// one factor too many and leave the toolpath a half-weight hairline —
+        /// 1 device pixel wide inside a 2x image, i.e. thinner than the chrome
+        /// around it and a quarter the area the same path covers on screen.
+        /// Leaving the export scale to the caller's transform is what makes the
+        /// whole scene — path included — come out at one consistent size.</para>
+        /// <para>The transform itself is at the slot's ZOOM, not zoom times the
+        /// export scale: the caller already pushed the export scale around the
+        /// whole scene, and nested transforms multiply. Putting the export scale
+        /// in both would draw the toolpath at 4x while the chrome, which is
+        /// emitted in screen coordinates, stayed at 2x — and the chrome being
+        /// right is precisely what stops that from looking obviously
+        /// broken.</para></summary>
+        private void DrawSlotPathForExport(DrawingContext ctx, int slot)
+        {
+            var zoom = SlotZoom(slot);
+            if (double.IsNaN(zoom) || zoom <= 0)
+                return; // never fitted, so there is no transform to export through
+            var pan = SlotPan(slot);
+            using (ctx.PushTransform(
+                Matrix.CreateScale(zoom, -zoom) * Matrix.CreateTranslation(pan.X, pan.Y)))
+                DrawSlotPathWorld(ctx, slot, new BakePens(zoom));
         }
 
         /// <summary>Tool-glyph position source (M9 priority flip): OUTSIDE check
@@ -1538,8 +1770,11 @@ public partial class PlotterView : UserControl
     }
 
     /// <summary>One straight world-space piece of a slot's path (plane axes or
-    /// projected coordinates) plus its source line for frontier coloring.</summary>
-    protected readonly record struct WorldSeg(double X0, double Y0, double X1, double Y1, uint Line, bool Rapid);
+    /// projected coordinates) plus its source line for frontier coloring.
+    /// <c>internal</c> because <c>PlotCanvas</c> is (its
+    /// <c>SlotSegmentAt</c> returns one), and a member may not expose a less
+    /// accessible type.</summary>
+    internal readonly record struct WorldSeg(double X0, double Y0, double X1, double Y1, uint Line, bool Rapid);
 
     /// <summary>Flat canvas: single-plane machines fill the whole surface
     /// with their raw coordinates; foam machines draw both carriage planes as
@@ -1633,7 +1868,7 @@ public partial class PlotterView : UserControl
         /// so the origin cross always sits in-frame. Tiles sit diagonally (plane
         /// 0 top-left, plane 1 bottom-right) exactly like the old quadrants.
         /// Single-plane: the identity map (raw coordinates ARE the world).</summary>
-        private void EnsureLayout(Rect area)
+        protected override void EnsureLayout(Rect area)
         {
             if (Foam)
             {
@@ -1930,7 +2165,7 @@ public partial class PlotterView : UserControl
         /// origin cross always sits in-frame. Tiles sit diagonally (plane 0
         /// top-left, plane 1 bottom-right). Mill: the identity map over
         /// projected coordinates.</summary>
-        private void EnsureLayout(Rect area)
+        protected override void EnsureLayout(Rect area)
         {
             if (Loft)
             {
