@@ -1133,6 +1133,90 @@ public class PlotterViewHeadlessTests
     /// moves for the button cluster reads as a broken indicator. At exactly
     /// 1:1 the readout is hidden — the number is noise when the drawing is at
     /// its natural size.</summary>
+    /// <summary>The plot surface must be the wheel and drag target at EVERY zoom,
+    /// including a low one.
+    /// <para>Avalonia hit-tests a custom-drawn control over what it PAINTS, and
+    /// <c>PlotCanvas</c> paints a cached raster, so the blank majority of the
+    /// surface was not a target: the hit fell through to the white <c>Border</c> in
+    /// the view, which has no handlers, and wheel-zoom plus drag-pan were dead over
+    /// most of the plot. Probing a 5x5 grid found the canvas returned at zoom 2.0
+    /// and the Border at 1.25 and below, at every point tried.</para>
+    /// <para>The fix is <c>PlotCanvas : Control, ICustomHitTest</c> claiming its
+    /// whole box (<c>Background = Brushes.Transparent</c> was tried first and does
+    /// not port from the Nex view: that works on a <c>Panel</c>, while
+    /// <c>Background</c> on a <c>TemplatedControl</c> is template-bound and these
+    /// canvases have no template - measured, still falling through). This test
+    /// asserts the canvas is in the hit chain at a zoom where it demonstrably was
+    /// not, so <c>false &amp;&amp;</c> in that override turns it red.</para></summary>
+    [AvaloniaFact]
+    public async Task The_plot_canvas_is_the_hit_target_at_a_low_zoom()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // Zoom right down, so the world is as large on screen as the clamp allows -
+        // the regime where the blank-area fall-through showed. The fit lands near 8x
+        // for this program, so a handful of 1.25 steps is enough; the loop stops as
+        // soon as the target is reached rather than assuming how many steps it takes.
+        for (var i = 0; i < 24 && view.CurrentZoom > 0.35; i++)
+        {
+            view.ZoomBy(1 / 1.25);
+            for (var p = 0; p < 8; p++)
+                await Pump();
+        }
+        Assert.True(view.CurrentZoom <= 0.35,
+            $"this test is about a LOW zoom; CurrentZoom is {view.CurrentZoom}");
+
+        // Probe a grid across the surface's OWN box. Hard-coded window coordinates
+        // landed on the 24px header and outside the planes area, which tests
+        // something else entirely.
+        var surface = window.GetVisualDescendants()
+            .OfType<Control>()
+            .FirstOrDefault(c => c.GetType().Name is "PlaneCanvas" or "IsoCanvas");
+        Assert.NotNull(surface);
+        // Bounds are in the canvas's own coordinates; InputHitTest wants window
+        // coordinates, so translate the local box out before probing.
+        var origin = surface!.TranslatePoint(new Point(0, 0), window)
+            ?? throw new InvalidOperationException("the surface is not in the window");
+        var box = new Rect(origin, surface.Bounds.Size);
+        Assert.True(box.Width > 40 && box.Height > 40,
+            $"the surface box is too small to probe: {box.Width}x{box.Height}");
+
+        for (var x = box.X + 6; x < box.Right - 6; x += box.Width / 4)
+        {
+            for (var y = box.Y + 6; y < box.Bottom - 6; y += box.Height / 4)
+            {
+                var point = new Point(x, y);
+                var hit = window.InputHitTest(point);
+                Assert.NotNull(hit);
+                Assert.True(hit!.IsHitTestVisible,
+                    $"probe ({point}) resolved to something not hit-testable: {hit.GetType().Name}");
+
+                // The wheel reaches the plot only if the thing under the cursor
+                // chains up to a PlotCanvas. An overlay control or the wrapping
+                // Border carries no handlers, so either one means dead input. Walk
+                // out and look for the canvas rather than testing the leaf's type:
+                // the invariant is that the canvas is in the chain, wherever in it
+                // the hit lands.
+                var chain = new List<string>();
+                for (var node = hit as Avalonia.Visual; node is not null; node = node.GetVisualParent())
+                    chain.Add(node.GetType().Name);
+                Assert.True(
+                    chain.Any(t => t.StartsWith("PlaneCanvas", StringComparison.Ordinal)
+                                || t.StartsWith("IsoCanvas", StringComparison.Ordinal)),
+                    $"at zoom {view.CurrentZoom:F2} probe ({point}) in box {box} the wheel and drag are dead "
+                    + $"there: no canvas in the hit chain [{string.Join(" < ", chain)}]");
+            }
+        }
+    }
+
+
     [AvaloniaFact]
     public async Task The_zoom_readout_hides_at_one_to_one()
     {

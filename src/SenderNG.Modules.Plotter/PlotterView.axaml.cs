@@ -38,6 +38,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Rendering;
 using Avalonia.Threading;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
@@ -630,8 +631,26 @@ public partial class PlotterView : UserControl
     /// sized cache can never expose blank edges (panning is a pure translate)
     /// and the recolor window keeps frontier coloring real-time.
     /// </para>
+    /// <para>
+    /// INPUT: <see cref="ICustomHitTest.HitTest"/> below is load-bearing, not
+    /// decoration. Avalonia hit-tests a custom-drawn control over what it PAINTS,
+    /// and this class paints into a cached raster, so most of the surface — every
+    /// pixel the toolpath does not cover — was not a hit target. Wheel-zoom and
+    /// drag-pan then fell through to the white wrapping <c>Border</c> in
+    /// <c>PlotterView.axaml</c>, which carries no handlers, and died over most of
+    /// the plot. Measured: a 5x5 probe grid returned the canvas at zoom 2.0 and
+    /// the Border at 1.25 and below, at every point tried.
+    /// <c>Background = Brushes.Transparent</c> — the one-liner
+    /// <c>PlotterNexView.axaml:86</c> uses on its input panel — does NOT port: that
+    /// works on a <c>Panel</c>, which paints the brush itself, while
+    /// <c>Background</c> on a <c>TemplatedControl</c> is template-bound and these
+    /// canvases have no template (measured: still falling through). So the canvas
+    /// stays a <c>Control</c> and declares the hit area directly. The four pointer
+    /// handlers are on the subclasses, and this makes all of them reachable
+    /// everywhere on the surface.
+    /// </para>
     /// </summary>
-    private abstract class PlotCanvas : Control
+    private abstract class PlotCanvas : Control, ICustomHitTest
     {
         /// <summary>Recolor window cap per frame: the delta since the last
         /// bake draws as vectors on top of the raster; a bigger delta (demo
@@ -847,6 +866,13 @@ public partial class PlotterView : UserControl
         // advanced per frontier delta instead of the old O(n) full walk.
         private int _glyphRow = -1;
         private double[]? _ackedEnd;
+
+        /// <summary>The whole surface is a wheel/drag target, not just the pixels
+        /// the toolpath covers — see the INPUT note on the class. Coordinates are
+        /// local, so the bounds check is what keeps a point outside the canvas
+        /// from being claimed.</summary>
+        bool ICustomHitTest.HitTest(Point p)
+            => p.X >= 0 && p.Y >= 0 && p.X <= Bounds.Width && p.Y <= Bounds.Height;
 
         protected PlotCanvas(PlotterViewModel vm)
         {
