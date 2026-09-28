@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -77,6 +77,14 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+  <!-- No Content item for the plotter module's OWN catalogs, on purpose: this
+       project references src/SenderNG/SenderNG.csproj, and that app project
+       already stages every module's locale pair into Modules/<id>/Locale. An
+       extra item here would duplicate the file and MASK a regression in the app's
+       staging, which is the one thing
+       PlotterLocaleTests.The_staged_catalogs_ship_the_keys exists to catch. The
+       test therefore reads whatever the app's staging put there, and nothing
+       else. -->
 
   <!-- Mirror of the app's StageNexPluginClosure: the Nex module DLL is staged
        flat above, and its package closure + natives land in Modules\plotter-nex\

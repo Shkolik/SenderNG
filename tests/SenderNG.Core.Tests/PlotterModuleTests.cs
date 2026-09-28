@@ -46,6 +46,57 @@ public class PlotterModuleTests
         Assert.False(string.IsNullOrWhiteSpace(module.Description));
     }
 
+    /// <summary>Every key the module DECLARES must exist in both catalogs.
+    ///
+    /// <para><c>LocalizationKeys</c> is the module's own list of the strings it
+    /// produces (<c>ILocalizedModule</c> documents it as such, and the Nex sibling
+    /// lists all 17 of its keys). Before the view chrome landed it listed 8 while
+    /// the catalogs carried 20, and nothing cross-checked the two - so deleting a
+    /// key such as <c>module.plotter.noMotion</c> from BOTH files was invisible:
+    /// the en/ru drift guard passes when the two agree, and every one of those
+    /// labels has a hardcoded English fallback in the view model, so the result
+    /// was a silently untranslated status line rather than a failure.</para>
+    ///
+    /// <para>Kept here, next to the module contract, rather than in
+    /// <c>PlotterLocaleTests</c> because the subject is the module's declaration;
+    /// that file owns the catalogs. Reads the source tree through the same
+    /// walk-up, so a mutation needs no rebuild.</para></summary>
+    [Fact]
+    public void Every_declared_locale_key_exists_in_both_catalogs()
+    {
+        var module = new PlotterModule();
+
+        foreach (var locale in new[] { "en.json", "ru.json" })
+        {
+            var keys = CatalogKeys(locale);
+            foreach (var key in module.LocalizationKeys.Keys)
+            {
+                Assert.True(
+                    keys.Contains(key),
+                    $"LocalizationKeys declares {key} but {locale} has no entry for it");
+            }
+        }
+    }
+
+    /// <summary>Walk up from the test binary to the repo root, then into the
+    /// plotter module's locale folder — the catalogs are source data, and the
+    /// staged copies are asserted separately by
+    /// <c>PlotterLocaleTests.The_staged_catalogs_ship_the_keys</c>.</summary>
+    private static HashSet<string> CatalogKeys(string file)
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            var path = Path.Combine(dir.FullName, "src", "SenderNG.Modules.Plotter", "Locale", file);
+            if (!File.Exists(path))
+                continue;
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path, Encoding.UTF8));
+            return doc.RootElement.GetProperty("strings").EnumerateObject()
+                .Select(p => p.Name).ToHashSet();
+        }
+
+        throw new FileNotFoundException($"Could not find src/SenderNG.Modules.Plotter/Locale/{file}.");
+    }
+
     [Fact]
     public void Module_carries_plugin_metadata()
     {

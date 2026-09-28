@@ -84,6 +84,14 @@ public class PlotterModule : IModule, ILocalizedModule, IPluginInfo, IModuleSett
     public string Author => "Andrew Shkolik";
     public string License => "BSD-3-Clause";
 
+    /// <summary>Every user-visible string this module produces, per
+    /// <see cref="ILocalizedModule"/>. The 12 view-chrome keys are here because
+    /// the Nex sibling lists its own <c>settings.*</c> keys the same way: this
+    /// dictionary is the module's declaration of what it can localize, and a key
+    /// resolved only inside <c>PlotterSettingsViewModel</c> is invisible to
+    /// <c>PlotterModuleTests.Every_declared_locale_key_exists_in_both_catalogs</c>.
+    /// The values are the English fallbacks, and they match
+    /// <c>Locale/en.json</c> byte for byte.</summary>
     public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
         new Dictionary<string, string>
         {
@@ -95,6 +103,18 @@ public class PlotterModule : IModule, ILocalizedModule, IPluginInfo, IModuleSett
             ["module.plotter.buildFailed"] = "Program could not be plotted.",
             ["module.plotter.building"] = "Plotting…",
             ["module.plotter.isometric"] = "Iso",
+            ["module.plotter.settings.view"] = "View",
+            ["module.plotter.settings.showGrid"] = "Show grid",
+            ["module.plotter.settings.showOrigin"] = "Show origin",
+            ["module.plotter.settings.showEnvelope"] = "Show envelope",
+            ["module.plotter.settings.showRunState"] = "Show run state",
+            ["module.plotter.settings.worldAxes"] = "World axes",
+            ["module.plotter.settings.origin"] = "Origin",
+            ["module.plotter.settings.plane"] = "Plane {0}",
+            ["module.plotter.zoomIn"] = "Zoom in",
+            ["module.plotter.zoomOut"] = "Zoom out",
+            ["module.plotter.zoomFit"] = "Fit",
+            ["module.plotter.savePng"] = "Save PNG",
         };
 
     public void RegisterServices(IServiceCollection services) { }
