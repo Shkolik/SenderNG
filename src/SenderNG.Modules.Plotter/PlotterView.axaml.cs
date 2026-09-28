@@ -475,6 +475,15 @@ public partial class PlotterView : UserControl
     /// field is internal to the view's own assembly, so tests read this.</summary>
     internal string HeaderLettersForTest => HeaderLetters.Text ?? string.Empty;
 
+    /// <summary>The injected dialog service, for headless tests.
+    /// <para>A seam rather than a public property because the field is only
+    /// meaningful as a question of FACT — "did the host hand this view the
+    /// app's dialog service, or a null one it can never save through?" — and
+    /// there is no behaviour to observe until PNG export lands. Reflection
+    /// would answer the same question without the production surface growing a
+    /// member that exists only for tests.</para></summary>
+    internal IFileDialogService? DialogsForTest => _dialogs;
+
     /// <summary>One transform per canvas, for headless tests.</summary>
     internal IReadOnlyList<(double Zoom, Vector Pan)> CompositionForTest =>
         _canvases.OfType<PlotCanvas>().Select(c => c.SlotTransformForTest(0)).ToArray();

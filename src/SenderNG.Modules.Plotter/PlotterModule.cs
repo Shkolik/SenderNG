@@ -172,6 +172,15 @@ public class PlotterModule : IModule, ILocalizedModule, IPluginInfo, IModuleSett
         // Rebuilt HERE, not lazily: ApplySettings below reads the new profile's
         // mappings, and a lazy build would push the empty list instead.
         _ = SharedSettingsVm();
+
+        // The overlay must be re-pointed at the replacement. It was left bound
+        // to the DISPOSED model above, so its checkboxes kept writing through a
+        // disposed view model and Persist() saved the PREVIOUS profile's config
+        // file — the new profile's toggles were silently discarded while the old
+        // one was rewritten. The sibling module does exactly this.
+        if (_plotView is not null)
+            _plotView.OverlaySettings = _sharedSettingsVm;
+
         ApplySettings();
     }
 
@@ -209,13 +218,26 @@ public class PlotterModule : IModule, ILocalizedModule, IPluginInfo, IModuleSett
     {
         if (viewModel is PlotterViewModel vm)
             _plotVm = vm;
-        var view = new PlotterView
+
+        // The dialog service, not the parameterless ctor. The module DOES have
+        // the app's DI, and the old call dropped it, so _dialogs was null in the
+        // only production path and the PNG button was inert — while the field's
+        // own doc claimed null happened "wherever the module builds the view
+        // without the app's DI", which was nowhere. As in the sibling module.
+        var view = new PlotterView(_services?.GetService<IFileDialogService>())
         {
             DataContext = viewModel,
             // The overlay binds to the SAME instance the App Settings leaf
             // edits. Without this the checkboxes would be bound to nothing and
             // the two surfaces would drift apart.
-            OverlaySettings = _sharedSettingsVm,
+            //
+            // Through the ACCESSOR, not the field. Reading the field binds
+            // whatever happens to be cached, which is null both when CreateView
+            // runs before CreateViewModel and after SharedSettingsVm() swallowed
+            // a service-lookup failure — and a null overlay model makes every
+            // checkbox dead with no diagnostic anywhere. The accessor is the one
+            // that builds on demand.
+            OverlaySettings = SharedSettingsVm(),
         };
         _plotView = view;
         // The toggles live on the CANVASES, not on the view model, so the flags
