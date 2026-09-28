@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Modules.Plotter.Settings"
+             mc:Ignorable="d" d:DesignWidth="240" d:DesignHeight="180"
+             x:Class="SenderNG.Modules.Plotter.Settings.PlotterSettingsView"
+             x:DataType="vm:PlotterSettingsViewModel">
+    <!-- The four view toggles, then one row per carriage plane: the axis→world
+         permutation combo and the three world-axis origin offsets. Every label
+         is a *Label property on the model, resolved code-side — plugin views
+         cannot use the app-only {Loc} markup (PlotterSettingsViewModel.Resolve). -->
+    <StackPanel Spacing="4">
+        <TextBlock Text="{Binding ViewLabel}" FontSize="12" FontWeight="SemiBold"
+                   Foreground="#333" Margin="0,6,0,0" />
+        <Grid ColumnDefinitions="Auto,24,Auto" RowDefinitions="Auto,Auto">
+            <CheckBox Grid.Column="0" Grid.Row="0" Content="{Binding ShowGridLabel}"
+                      IsChecked="{Binding ShowGrid, Mode=TwoWay}" FontSize="11" />
+            <CheckBox Grid.Column="0" Grid.Row="1" Content="{Binding ShowOriginLabel}"
+                      IsChecked="{Binding ShowOrigin, Mode=TwoWay}" FontSize="11" />
+            <CheckBox Grid.Column="2" Grid.Row="0" Content="{Binding ShowRunStateLabel}"
+                      IsChecked="{Binding ShowRunState, Mode=TwoWay}" FontSize="11" />
+            <CheckBox Grid.Column="2" Grid.Row="1" Content="{Binding ShowEnvelopeLabel}"
+                      IsChecked="{Binding ShowEnvelope, Mode=TwoWay}" FontSize="11" />
+        </Grid>
+        <Rectangle Height="1" Fill="#ddd" />
+        <ItemsControl ItemsSource="{Binding PlaneRows}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:PlotterSettingsViewModel+PlotterPlaneRow">
+                    <StackPanel Margin="0,6" Spacing="4">
+                        <TextBlock Text="{Binding PlaneLabel}" FontSize="12"
+                                   FontWeight="SemiBold" Foreground="#333" />
+                        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,24,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding WorldAxesLabel}"
+                                       FontSize="11" Margin="0,4,0,6" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding OriginLabel}"
+                                       FontSize="11" Margin="0,4,0,6" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="1" Grid.Column="0"
+                                      ItemsSource="{Binding Permutations}"
+                                      SelectedIndex="{Binding SelectedPermutationIndex, Mode=TwoWay}"
+                                      Width="150" Height="28" MinHeight="28" CornerRadius="0" />
+                            <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                                <ItemsControl ItemsSource="{Binding Origins}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="6" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:PlotterSettingsViewModel+PlotterOriginRow">
+                                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                                <TextBlock Text="{Binding AxisLabel}" FontSize="11"
+                                                           VerticalAlignment="Center" />
+                                                <TextBox Text="{Binding Value, Mode=TwoWay}"
+                                                         Width="56" Height="28" MinHeight="28"
+                                                         CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                                         FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

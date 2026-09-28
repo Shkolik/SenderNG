@@ -466,6 +466,67 @@ public class PlotterViewHeadlessTests
     private static bool IsChromeLight(byte r, byte g, byte b) =>
         Math.Abs(r - g) <= 8 && Math.Abs(g - b) <= 8 && r is >= 180 and <= 250;
 
+    /// <summary>The pushed flags must SURVIVE a canvas rebuild.
+    /// <c>PushChromeFlags</c> wrote <c>canvas.Chrome</c> and kept nothing at the
+    /// view level, so every <c>RebuildCanvases</c> — and the iso toggle is
+    /// exactly that — brought up canvases back at <c>ChromeFlags.Default</c> and
+    /// silently dropped every toggle the user had set. This stops being cosmetic
+    /// the moment the flags come from the shared settings model (Task 9): set
+    /// the toggles in App Settings, flip iso, watch them disappear.
+    /// <para>Deliberately NO second push between the rebuild and the reading —
+    /// pushing again is exactly what the pre-fix code needed, and it would hide
+    /// the drop this test exists to catch.</para></summary>
+    [AvaloniaFact]
+    public async Task Iso_rebuild_keeps_the_pushed_chrome_flags()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // Flat, as a control: the push bites here, and the defaults paint.
+        view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var flatOff = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
+        view.PushChromeFlags(ChromeFlags.Default);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var flatOn = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
+        Assert.True(flatOn > 400, $"the default grid must paint in the flat view, found {flatOn} light pixels");
+        Assert.True(flatOff < flatOn / 2, $"the pushed grid-off must bite, {flatOff} of {flatOn} light pixels");
+
+        // Grid off, THEN the iso toggle. RebuildCanvases swaps in a fresh
+        // IsoCanvas and nothing is pushed after this point.
+        view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var isoOff = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
+
+        // The iso lattice uses the SAME two pens as the flat one
+        // (PlotterChromePens.GridMajor/Minor, #c0c0c0 / #e0e0e0) and nothing
+        // else in the iso view lands in this band: the cross is #888888 (r=136,
+        // below the 180 floor), the box #c07a20 and the arrows #2f6fb0 are both
+        // far from neutral. So the same predicate isolates the grid in both
+        // views, and the comparison is the on/off RATIO rather than a floor.
+        view.PushChromeFlags(ChromeFlags.Default);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var isoOn = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
+        Assert.True(isoOn > 400, $"the iso lattice must paint, found {isoOn} light pixels");
+        Assert.True(isoOff < isoOn / 2,
+            $"the iso rebuild dropped the pushed flags: {isoOff} light pixels after the rebuild against {isoOn} with the grid on");
+    }
+
     [AvaloniaFact]
     public async Task Envelope_toggle_draws_the_job_rectangle()
     {

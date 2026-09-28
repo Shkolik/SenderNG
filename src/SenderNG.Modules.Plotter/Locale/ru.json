@@ -7,7 +7,6 @@
     "module.plotter.axisMismatch": "Станку требуется {0} осей; в программе {1}. Нерендеримые плоскости скрыты.",
     "module.plotter.buildFailed": "Не удалось построить траекторию программы.",
     "module.plotter.building": "Построение траектории…",
-    "module.plotter.isometric": "Изо",
-    "module.plotter.loft": "Лофт"
+    "module.plotter.isometric": "Изо"
   }
 }

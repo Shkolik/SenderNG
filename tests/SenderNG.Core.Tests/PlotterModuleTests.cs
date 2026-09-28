@@ -9,6 +9,7 @@
  */
 
 using System.Text;
+using Avalonia.Controls;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -646,5 +647,149 @@ public class PlotterModuleTests
         Assert.Equal(2, vm.PlaneGeometries.Count);
         Assert.Equal([1, 0], vm.PlaneGeometries[1].WorldAxes);
         Assert.Equal("XY | YX", string.Join(" | ", vm.PlaneLetters));
+    }
+
+    // ---- App Settings provider (Task 9) ----
+
+    /// <summary>A directory-backed <see cref="LocalizationService"/> over a real
+    /// en/ru pair. The stream ctor leaves <c>_localeDirectory</c> null and
+    /// <c>SetLocale</c> returns BEFORE raising <c>Changed</c>
+    /// (LocalizationService.cs:160-161), so a locale-change assertion against a
+    /// stream-built service would pass without ever entering the raise — the same
+    /// trap Task 8's <c>A_locale_change_re_notifies_every_label</c> documents.</summary>
+    private static LocalizationService Localizable(string root)
+    {
+        var dir = Path.Combine(root, "loc");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "en.json"),
+            """{"strings":{"module.plotter.settings.view":"VIEW"}}""");
+        File.WriteAllText(Path.Combine(dir, "ru.json"),
+            """{"strings":{"module.plotter.settings.view":"ВИД"}}""");
+        return LocalizationService.LoadFromDirectory(dir, "en");
+    }
+
+    /// <summary>Two profiles (foam active, mill idle) plus the service provider
+    /// the module resolves them through. The bag must reach the DISK before
+    /// <c>Activate</c>: Activate reloads the graph from the file and
+    /// <c>SaveProfile</c> does not refresh it, so a section written only in
+    /// memory is invisible to the view model's <c>Load()</c>.</summary>
+    private static (SettingsService Settings, ServiceProvider Services, string FoamId, string MillId)
+        ModuleHost(PlotterSettings? foamSection = null)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "plotter-module-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var settings = new SettingsService(dir);
+        var foam = settings.CreateProfile("foam", MachineTypes.Foam);
+        var mill = settings.CreateProfile("mill", MachineTypes.Mill);
+        if (foamSection is not null)
+        {
+            PlotterConfig.Save(foam, foamSection);
+            settings.SaveProfile(foam);
+        }
+        settings.Activate(foam.Id);
+
+        var sc = new ServiceCollection();
+        sc.AddSingleton(settings);
+        sc.AddSingleton(Localizable(dir));
+        sc.AddSingleton<ILoadedProgramSource>(new StubProgramSource());
+        sc.AddSingleton<IGrblService>(new StubGrbl());
+        return (settings, sc.BuildServiceProvider(), foam.Id, mill.Id);
+    }
+
+    /// <summary>The one shared settings model behind the App Settings leaf. Read
+    /// through the leaf, which is how the host reaches it — never through a
+    /// private field, so a leaf that stopped being bound fails here.</summary>
+    private static PlotterSettingsViewModel LeafOf(IModuleSettingsProvider provider) =>
+        (PlotterSettingsViewModel)((Control)provider.CreateSettingsView()!).DataContext!;
+
+    [Fact]
+    public void The_plotter_module_is_a_settings_provider()
+    {
+        Assert.IsAssignableFrom<IModuleSettingsProvider>(new PlotterModule());
+    }
+
+    [Fact]
+    public void The_plotter_section_is_profile_scoped()
+    {
+        // The declaration AppSettingsViewModel.BuildModuleLeaves reads to decide
+        // where the section is stored. Global would put the toggles in
+        // global.json and share one machine's view setup with every other.
+        Assert.Equal(
+            SettingsScope.Profile,
+            ((IModuleSettingsProvider)new PlotterModule()).Scope);
+    }
+
+    [Fact]
+    public void A_module_with_no_services_attached_offers_no_settings_leaf()
+    {
+        // App Settings can enumerate providers before any service is resolved;
+        // the leaf must be null rather than throw.
+        Assert.Null(((IModuleSettingsProvider)new PlotterModule()).CreateSettingsView());
+    }
+
+    [Fact]
+    public void An_attached_module_offers_the_plotter_settings_leaf()
+    {
+        // The whole point of the interface: with services attached the App
+        // Settings card gets a Plot leaf, bound to the shared settings model.
+        var (_, services, _, _) = ModuleHost();
+        var module = new PlotterModule();
+        module.AttachServices(services);
+
+        var vm = LeafOf((IModuleSettingsProvider)module);
+        Assert.Equal(2, vm.PlaneRows.Count);              // the foam profile's two planes
+        Assert.Equal("Show grid", vm.ShowGridLabel);
+    }
+
+    [Fact]
+    public void Every_settings_leaf_binds_the_same_settings_model()
+    {
+        // ONE model, shared by both editor surfaces: a flip on one leaf must show
+        // on the other, which a second VM (or a per-call rebuild) cannot do.
+        var (_, services, _, _) = ModuleHost();
+        var module = new PlotterModule();
+        module.AttachServices(services);
+
+        var first = LeafOf((IModuleSettingsProvider)module);
+        var second = LeafOf((IModuleSettingsProvider)module);
+
+        first.ShowGrid = false;
+        Assert.False(second.ShowGrid);
+    }
+
+    [Fact]
+    public void Profile_switches_do_not_accumulate_locale_subscriptions()
+    {
+        // The locale service is app-lifetime, and a settings model that subscribed
+        // to it with a lambda it cannot unsubscribe made every profile switch
+        // leak one more live model: after 3 switches a single language change ran
+        // FOUR relabel passes. A smoke test cannot see that, so this is a COUNT
+        // over every model the module ever handed out.
+        const int switches = 3;
+        var (settings, services, foamId, millId) = ModuleHost();
+        var module = new PlotterModule();
+        module.AttachServices(services);
+
+        var notified = new List<string>();
+        var models = new List<PlotterSettingsViewModel>();
+        void Track()
+        {
+            var vm = LeafOf((IModuleSettingsProvider)module);
+            vm.PropertyChanged += (_, e) => notified.Add(e.PropertyName!);
+            models.Add(vm);
+        };
+
+        Track();
+        for (var i = 0; i < switches; i++)
+        {
+            settings.Activate(i % 2 == 0 ? millId : foamId);
+            Track();
+        }
+        Assert.Equal(switches + 1, models.Count);
+
+        notified.Clear();
+        ((LocalizationService)services.GetService(typeof(LocalizationService))!).SetLocale("ru");
+
+        Assert.Equal(1, notified.Count(n => n == nameof(PlotterSettingsViewModel.ViewLabel)));
     }
 }

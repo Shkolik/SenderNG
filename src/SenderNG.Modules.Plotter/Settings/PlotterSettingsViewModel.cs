@@ -42,8 +42,12 @@ namespace SenderNG.Modules.Plotter.Settings;
 /// <summary>App-Settings editor for the <c>plotter</c> section: the four view
 /// toggles, and per plane the axis→world permutation plus the iso origin
 /// offsets. ONE instance binds both editor surfaces — the App Settings leaf
-/// and the plot view's overlay — so a flip on either is visible on both.</summary>
-public sealed class PlotterSettingsViewModel : ViewModelBase
+/// and the plot view's overlay — so a flip on either is visible on both.
+/// <para>Disposable because it subscribes to the app-lifetime
+/// <see cref="LocalizationService"/>, which outlives a machine switch: without
+/// an unsubscribe the model leaked one locale subscription per profile switch,
+/// and a single language change then ran one relabel pass per model ever built.</para></summary>
+public sealed class PlotterSettingsViewModel : ViewModelBase, IDisposable
 {
     private readonly SettingsService _settingsService;
     private readonly LocalizationService? _loc;
@@ -66,7 +70,24 @@ public sealed class PlotterSettingsViewModel : ViewModelBase
             Model.Planes.Select((_, p) => new PlotterPlaneRow(this, p)));
 
         if (localization is not null)
-            localization.Changed += (_, _) => RelocalizeLabels();
+            localization.Changed += OnLocalizationChanged;
+    }
+
+    /// <summary>Named so <see cref="Dispose"/> can take the subscription back
+    /// off the locale service. The lambda this replaced was reachable only from
+    /// inside the ctor, so the subscription could never be undone.</summary>
+    private void OnLocalizationChanged(object? sender, System.EventArgs e) => RelocalizeLabels();
+
+    /// <summary>Detaches the locale subscription. The module calls this before
+    /// dropping the model on a profile switch, because the locale service is
+    /// app-lifetime and the model is profile-scoped. After this the model is
+    /// inert — its labels no longer follow a language change — so the module
+    /// must not hand it out again; the App Settings dialog builds its leaf over
+    /// the replacement model instead.</summary>
+    public void Dispose()
+    {
+        if (_loc is not null)
+            _loc.Changed -= OnLocalizationChanged;
     }
 
     /// <summary>The live settings. Mutating it is the module's job; the rows

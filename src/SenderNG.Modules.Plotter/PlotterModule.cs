@@ -39,6 +39,7 @@ using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
+using SenderNG.Modules.Plotter.Settings;
 
 namespace SenderNG.Modules.Plotter;
 
@@ -57,8 +58,14 @@ namespace SenderNG.Modules.Plotter;
 /// so the plugin stays swappable by any third-party visualizer.
 /// </para>
 /// </summary>
-public class PlotterModule : IModule, ILocalizedModule, IPluginInfo
+public class PlotterModule : IModule, ILocalizedModule, IPluginInfo, IModuleSettingsProvider
 {
+    private IServiceProvider? _services;
+    private PlotterSettingsViewModel? _sharedSettingsVm;
+    private bool _profileSwitchedSubscribed;
+    private PlotterView? _plotView;
+    private PlotterViewModel? _plotVm;
+
     public string Id => "plotter";
     public string Name => "Plot";
     public string Description => "G-code path plotter: program toolpath with live run overlay.";
@@ -88,24 +95,121 @@ public class PlotterModule : IModule, ILocalizedModule, IPluginInfo
             ["module.plotter.buildFailed"] = "Program could not be plotted.",
             ["module.plotter.building"] = "Plotting…",
             ["module.plotter.isometric"] = "Iso",
-            ["module.plotter.loft"] = "Loft",
         };
 
     public void RegisterServices(IServiceCollection services) { }
 
+    public SettingsScope Scope => SettingsScope.Profile;
+
+    // Settings fields must work before the module's own view is opened: the App
+    // Settings dialog enumerates the providers first.
+    public void AttachServices(IServiceProvider services) => _services = services;
+
+    /// <summary>The ONE settings model behind every surface: the App Settings
+    /// leaf, the plot view's plane mappings and its canvas chrome. Built on
+    /// first demand (a leaf, or the plot view opening) and rebuilt only by
+    /// <see cref="OnProfileSwitched"/>.</summary>
+    private PlotterSettingsViewModel? SharedSettingsVm()
+    {
+        if (_sharedSettingsVm is not null)
+            return _sharedSettingsVm;
+        try
+        {
+            var settings = _services!.GetRequiredService<SettingsService>();
+            if (!_profileSwitchedSubscribed)
+            {
+                settings.ProfileSwitched += OnProfileSwitched;
+                _profileSwitchedSubscribed = true;
+            }
+            _sharedSettingsVm = new PlotterSettingsViewModel(
+                settings, _services!.GetService<LocalizationService>());
+            _sharedSettingsVm.Changed += ApplySettings;
+            return _sharedSettingsVm;
+        }
+        catch
+        {
+            // Every failure mode funnels here, not just a failed service lookup:
+            // an unregistered SettingsService, a corrupt profile file, or a throw
+            // from the loader. A module that cannot read its section must still
+            // leave the App Settings dialog and the plot view standing, so both
+            // surfaces simply stay unbound — which is why CreateSettingsView
+            // checks for null services FIRST instead of relying on this.
+            return null;
+        }
+    }
+
+    /// <summary>Pushes the live settings into the plot view. An empty plane list
+    /// is not "no mapping": <c>PlotterViewModel.GeometryFor</c> falls back to
+    /// <c>PlotterPlaneMapper.For(null, roles)</c> per plane, which IS identity
+    /// for that plane's role count — so a missing or short mapping degrades one
+    /// plane at a time, and a machine-type change that alters the plane count
+    /// cannot leave the view reporting no planes at all.</summary>
+    private void ApplySettings()
+    {
+        _plotVm?.SetPlaneGeometries(_sharedSettingsVm?.Model.Planes ?? []);
+        _plotView?.PushChromeFlags(_sharedSettingsVm?.Flags);
+    }
+
+    /// <summary>A machine switch invalidates the stored section: the new profile
+    /// keeps its own toggles and plane mappings. The outgoing model is DISPOSED,
+    /// not merely dropped — it holds a subscription to the app-lifetime
+    /// <see cref="LocalizationService"/> that keeps a reference to it, so
+    /// nulling the field alone leaked one live model per switch and one language
+    /// change ran one relabel pass per switch ever made.</summary>
+    private void OnProfileSwitched(string profileId)
+    {
+        if (_sharedSettingsVm is not null)
+        {
+            _sharedSettingsVm.Changed -= ApplySettings;
+            _sharedSettingsVm.Dispose();
+            _sharedSettingsVm = null;
+        }
+        // Rebuilt HERE, not lazily: ApplySettings below reads the new profile's
+        // mappings, and a lazy build would push the empty list instead.
+        _ = SharedSettingsVm();
+        ApplySettings();
+    }
+
+    public object? CreateSettingsView() =>
+        // No services means the module was never attached (constructed in a test
+        // or outside the host): SharedSettingsVm() would swallow the failed
+        // service lookup and bind the leaf to a null model, so decline outright
+        // and leave the App Settings dialog with nothing to show for `plotter`.
+        _services is null
+            ? null
+            : new PlotterSettingsView { DataContext = SharedSettingsVm() };
+
     public object CreateViewModel(IServiceProvider serviceProvider)
     {
+        _services ??= serviceProvider;
         // The host realizes module view models on the UI thread — capture the
         // dispatcher for the VM's event marshaling (headless constructions of
         // PlotterViewModel never initialize it and stay inline; see PlotterUi).
         PlotterUi.Initialize();
-        return new PlotterViewModel(
+        var vm = new PlotterViewModel(
             serviceProvider.GetRequiredService<ILoadedProgramSource>(),
             serviceProvider.GetRequiredService<IGrblService>(),
             serviceProvider.GetRequiredService<SettingsService>(),
             serviceProvider.GetRequiredService<LocalizationService>());
+        _plotVm = vm;
+        // The shared model FIRST: ApplySettings reads it, so calling ApplySettings
+        // before this would push an EMPTY mapping list and silently ignore
+        // whatever the active profile stores.
+        _ = SharedSettingsVm();
+        ApplySettings();
+        return vm;
     }
 
-    public object CreateView(object viewModel) =>
-        new PlotterView { DataContext = viewModel };
+    public object CreateView(object viewModel)
+    {
+        if (viewModel is PlotterViewModel vm)
+            _plotVm = vm;
+        var view = new PlotterView { DataContext = viewModel };
+        _plotView = view;
+        // The toggles live on the CANVASES, not on the view model, so the flags
+        // are pushed here rather than in CreateViewModel — at that point this
+        // view did not exist and there were no canvases to push them into.
+        ApplySettings();
+        return view;
+    }
 }

@@ -261,24 +261,45 @@ public partial class PlotterView : UserControl
             var iso = new IsoCanvas(_vm);
             PlanesGrid.Children.Add(iso);
             _canvases.Add(iso);
+            // A fresh PlotCanvas starts at ChromeFlags.Default, so the rebuild
+            // has to hand it the flags the user already chose — see ApplyChrome.
+            ApplyChrome();
             return;
         }
 
         var canvas = new PlaneCanvas(_vm);
         PlanesGrid.Children.Add(canvas);
         _canvases.Add(canvas);
+        ApplyChrome();
     }
 
-    /// <summary>Pushes the view toggles into every canvas. Before the settings view
-    /// model is wired (Task 10) this is the seam the headless tests drive; passing
-    /// nothing falls back to the defaults, and Task 10 changes only the body — the
-    /// optional parameter is what lets the attached model win, so this method is
-    /// never renamed later.</summary>
+    /// <summary>The flags the last <see cref="PushChromeFlags"/> was given, kept so
+    /// <see cref="RebuildCanvases"/> can hand them to the canvases it creates. Null
+    /// means "never pushed" and reads as <see cref="ChromeFlags.Default"/>, which is
+    /// also what a fresh <c>PlotCanvas</c> starts at — so with nothing pushed this
+    /// field only re-states the default.</summary>
+    private ChromeFlags? _chromeFlags;
+
+    /// <summary>Pushes the view toggles into every canvas and remembers them. Passing
+    /// nothing falls back to the defaults (the headless tests' own path) and clears
+    /// the memory, so a later rebuild also lands on the defaults.</summary>
     internal void PushChromeFlags(ChromeFlags? flags = null)
+    {
+        _chromeFlags = flags;
+        ApplyChrome();
+    }
+
+    /// <summary>Writes the remembered flags into every canvas. Split out of
+    /// <see cref="PushChromeFlags"/> so <see cref="RebuildCanvases"/> can re-apply
+    /// them to the canvases it just created: the iso toggle rebuilds the whole set,
+    /// and before this existed a rebuild handed every new canvas
+    /// <see cref="ChromeFlags.Default"/>, silently dropping every toggle the user
+    /// had set — the reported "set the toggles, toggle iso, watch them disappear".</summary>
+    private void ApplyChrome()
     {
         foreach (var canvas in _canvases.OfType<PlotCanvas>())
         {
-            canvas.Chrome = flags ?? ChromeFlags.Default;
+            canvas.Chrome = _chromeFlags ?? ChromeFlags.Default;
             // Setting Chrome is a plain property write, so nothing repaints on its
             // own. Without this invalidate the toggle tests measure the SAME frame
             // twice and the "grid went away" assertion fails on a screen that never
