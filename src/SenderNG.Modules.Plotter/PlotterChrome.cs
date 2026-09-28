@@ -63,6 +63,15 @@ public readonly record struct ChromeFlags(bool Grid, bool Origin, bool Envelope,
 /// runs a static initializer that needs an Avalonia runtime.</summary>
 public static class PlotterChrome
 {
+    /// <summary>The ONE world-to-screen transform the whole chrome shares:
+    /// scale by <paramref name="zoom"/>, offset by <paramref name="pan"/>, and
+    /// flip Y (world Y up is screen Y down). <c>PlotCanvas.WorldToScreen</c>
+    /// and both painters' own projection helpers call this, so the flip and the
+    /// pan sign are written down once — a private copy per painter is exactly
+    /// how they drifted apart before.</summary>
+    public static Point ToScreen(double x, double y, double zoom, Vector pan) =>
+        new(zoom * x + pan.X, -zoom * y + pan.Y);
+
     /// <summary>Snaps a raw step to 1, 2, 5 or 10 times a power of ten.</summary>
     public static double NiceStep(double raw)
     {

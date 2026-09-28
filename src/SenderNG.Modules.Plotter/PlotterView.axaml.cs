@@ -608,10 +608,10 @@ public partial class PlotterView : UserControl
         }
 
         protected static Point WorldToScreen(double wx, double wy, double zoom, Vector pan) =>
-            new(zoom * wx + pan.X, -zoom * wy + pan.Y);
+            PlotterChrome.ToScreen(wx, wy, zoom, pan);
 
         protected static Point WorldToScreen(Point world, double zoom, Vector pan) =>
-            new(zoom * world.X + pan.X, -zoom * world.Y + pan.Y);
+            PlotterChrome.ToScreen(world.X, world.Y, zoom, pan);
 
         protected static Point ScreenToWorld(Point s, double zoom, Vector pan) =>
             new((s.X - pan.X) / zoom, (pan.Y - s.Y) / zoom);
@@ -1473,28 +1473,106 @@ public partial class PlotterView : UserControl
             return row >= 0 ? Vm.RowState(row) : ProgramRowState.Idle;
         }
 
+        /// <summary>The iso view's chrome: the world lattice, the origin cross,
+        /// the three world axis arrows and the job box, drawn last over the
+        /// projected composition.
+        /// <para>The mill's composition IS the projected world, so the world XY
+        /// floor, the arrows and the box are drawn THROUGH
+        /// <c>PlotterProjection.Project</c> — a world grid line is straight in
+        /// 3D, so it is one projected segment and the lattice recedes correctly
+        /// when the view zooms. The M9 note that stood here said the grid framed
+        /// each pane into a "box" and stacked a faint lattice over the canvas;
+        /// that objection was about the LOFT, whose panes are not a projection
+        /// at all (see the branch below), and for the mill the flat view now
+        /// draws the same world lattice on by default, so the two views agree
+        /// and switching between them no longer makes the chrome appear and
+        /// vanish. The lattice is opt-out through <see cref="Chrome"/>.</para></summary>
         protected override void DrawSlotChrome(DrawingContext ctx, int slot)
         {
-            // No grid (M9): the loft panes read clearly without one — the grid
-            // framed each pane into a "box" and stacked a faint lattice over the
-            // whole canvas. The machine-origin crosses remain, one per pane.
-            if (!Loft)
+            var zoom = _zoom;
+            var pan = _pan;
+            if (double.IsNaN(zoom))
+                return;
+
+            if (Loft)
             {
-                // Mill iso: the machine origin in projected space.
-                var (px, py) = PlotterProjection.Project(0, 0, 0);
-                var o = WorldToScreen(px, py, _zoom, _pan);
-                ctx.DrawLine(PlotterPens.Origin, new Point(o.X - 6, o.Y), new Point(o.X + 6, o.Y));
-                ctx.DrawLine(PlotterPens.Origin, new Point(o.X, o.Y - 6), new Point(o.X, o.Y + 6));
+                // The loft's two panes are NOT a projection: they are FLAT
+                // true-scale tiles sharing one composition, drawn in each
+                // plane's own role order. A projected lattice over them would be
+                // a foreshortened 30-degree grid whose mm are NOT the tiles' mm —
+                // a wrong measurement, not a style question — and the
+                // extent-derived chrome for exactly these two tiles is already
+                // drawn by the flat view, which lays out the same diagonal
+                // composition through the flat painter. So the loft keeps what
+                // it has always drawn here: one machine-origin cross per
+                // carriage plane, through that plane's own map. Adding the
+                // lattice to these panes is a flat-painter question (it also has
+                // to settle the role-vs-world feed difference the two canvases
+                // still have), not this task's.
+                if (!PlaneDrawable(slot))
+                    return;
+                if (Chrome.Origin)
+                {
+                    var m = _maps[slot];
+                    var o = WorldToScreen(m.Wx(0), m.Wy(0), zoom, pan);
+                    ctx.DrawLine(PlotterPens.Origin, new Point(o.X - 6, o.Y), new Point(o.X + 6, o.Y));
+                    ctx.DrawLine(PlotterPens.Origin, new Point(o.X, o.Y - 6), new Point(o.X, o.Y + 6));
+                }
                 return;
             }
-            if (!PlaneDrawable(slot))
+
+            // The chrome clips to the whole canvas, NOT to SlotViewport — same
+            // rule as the flat pane, and for the same reason: the iso view's
+            // slot viewports are a pane's HOME position, not its bounds, and the
+            // framework already clips the drawing to the control. (The mill's
+            // single slot makes the two rects the same thing today; the clip is
+            // the canvas area so a future multi-slot iso pane cannot slice the
+            // lattice at a quadrant edge.)
+            var clip = new Rect(Bounds.Size);
+            // Everything the lattice, the arrows and the box have in common is
+            // the drawn plane's world XY extent, so it is resolved ONCE here. A
+            // plane that feeds no world X or no world Y has no extent to
+            // measure: the extent-derived chrome is skipped rather than wrapped
+            // around a default. The mill's built-in mapping is a permutation of
+            // world X/Y/Z and so always has a footprint; this guard is for a
+            // mapping that does not, which is a legal (and user-settable) plane
+            // mapping elsewhere in this file.
+            var hasFootprint = PlotterPlaneMapper.TryWorldFootprint(
+                Vm.GeometryFor(0), Vm.PlaneAxisIndices(0), Vm.Bounds, out var footprint);
+
+            if (hasFootprint && Chrome.Grid)
+                PlotterIsoChrome.DrawGrid(ctx, footprint, zoom, pan, clip);
+            // The cross is the machine ORIGIN, not the extent, so it paints
+            // even where there is no footprint — and at the pre-existing 1 px
+            // PlotterPens.Origin, unlike the flat panes' deliberate 2 px.
+            if (Chrome.Origin)
+                PlotterIsoChrome.DrawOrigin(ctx, zoom, pan);
+            if (!hasFootprint)
                 return;
-            // Loft panes: the machine origin THROUGH each plane's map (XY pane,
-            // ZA pane) — a cross per carriage plane, like the flat view.
-            var m = _maps[slot];
-            var o2 = WorldToScreen(m.Wx(0), m.Wy(0), _zoom, _pan);
-            ctx.DrawLine(PlotterPens.Origin, new Point(o2.X - 6, o2.Y), new Point(o2.X + 6, o2.Y));
-            ctx.DrawLine(PlotterPens.Origin, new Point(o2.X, o2.Y - 6), new Point(o2.X, o2.Y + 6));
+
+            // A quarter of the pane's own span, as in the flat painter: long
+            // enough to name the direction, short enough to stay off the path.
+            var reach = Math.Max(Math.Max(footprint.MaxX - footprint.MinX,
+                footprint.MaxY - footprint.MinY), 1e-6) * 0.25;
+            PlotterIsoChrome.DrawAxes(ctx, zoom, pan, clip, reach);
+            if (Chrome.Envelope)
+            {
+                var (minZ, maxZ) = JobZRange();
+                PlotterIsoChrome.DrawEnvelope(ctx, footprint, minZ, maxZ, zoom, pan, clip);
+            }
+        }
+
+        /// <summary>The world Z span of the job box: the machine axis that feeds
+        /// world Z, unioned with the origin. A plane that does not feed world Z
+        /// gets a flat box on Z = 0, because that is the extent it really has.
+        /// One rule, no special case, and it is what the mill (which does feed
+        /// world Z) wants.</summary>
+        private (double Min, double Max) JobZRange()
+        {
+            if (!PlotterPlaneMapper.TryWorldSpan(
+                Vm.GeometryFor(0), Vm.PlaneAxisIndices(0), Vm.Bounds, 2, out var z))
+                return (0, 0);
+            return (Math.Min(z.Min, 0), Math.Max(z.Max, 0));
         }
 
         /// <summary>The foam loft's coupling mesh: for each source segment, a

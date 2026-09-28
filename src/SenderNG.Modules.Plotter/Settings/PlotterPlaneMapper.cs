@@ -95,4 +95,49 @@ public static class PlotterPlaneMapper
         && (uint)worldAxis < WorldAxisCount
             ? origin[worldAxis]
             : 0;
+
+    /// <summary>One world axis's extent, read through the plane's mapping out of
+    /// the program frame's per-axis bounds — or false when it cannot be read.
+    /// False is the honest answer for a plane that does not feed the world axis
+    /// and for a role or machine axis the frame has no bounds for; it is never a
+    /// stand-in number.</summary>
+    public static bool TryWorldSpan(
+        PlotterPlaneGeometry? g, int[] planeAxisIndices, double[][] bounds, int worldAxis,
+        out (double Min, double Max) span)
+    {
+        span = default;
+        var role = SlotForWorldAxis(g?.WorldAxes, worldAxis);
+        if (role < 0 || planeAxisIndices is null || role >= planeAxisIndices.Length)
+            return false;
+        var machineAxis = planeAxisIndices[role];
+        if (machineAxis < 0 || machineAxis >= bounds.Length
+            || bounds[machineAxis] is not { Length: 2 } b)
+            return false;
+        span = (b[0], b[1]);
+        return true;
+    }
+
+    /// <summary>The world XY footprint the iso lattice, the iso axis arrows and
+    /// the iso job box are all measured against: world X and world Y read
+    /// through the plane's mapping, each UNIONED with the machine origin so the
+    /// lattice reaches the origin the arrows start from.
+    /// <para>False means no footprint, never a default one. A plane that feeds
+    /// neither world X nor world Y has no extent to measure, and a magic 1 mm
+    /// square standing in for it would put a lattice and a job box on screen that
+    /// belong to no machine — the caller skips the extent-derived chrome
+    /// instead. A zero-thickness extent is a real measurement and IS returned:
+    /// a program that never moves an axis has a face, and the job box's flat
+    /// side is the truth about it (the lattice itself comes back empty from
+    /// <c>PlotterChrome.FloorLines</c>, which is a decision, not a fallback).</para></summary>
+    public static bool TryWorldFootprint(
+        PlotterPlaneGeometry? g, int[] planeAxisIndices, double[][] bounds,
+        out (double MinX, double MinY, double MaxX, double MaxY) footprint)
+    {
+        footprint = default;
+        if (!TryWorldSpan(g, planeAxisIndices, bounds, 0, out var x)
+            || !TryWorldSpan(g, planeAxisIndices, bounds, 1, out var y))
+            return false;
+        footprint = (Math.Min(x.Min, 0), Math.Min(y.Min, 0), Math.Max(x.Max, 0), Math.Max(y.Max, 0));
+        return true;
+    }
 }

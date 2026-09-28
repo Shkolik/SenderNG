@@ -143,7 +143,8 @@ public static class PlotterFlatChrome
 
     /// <summary>World point through the plane map, then to screen. The map's
     /// scale is 1 in both axes, so a world delta is the same delta in the map's
-    /// own units.</summary>
+    /// own units — and the screen half is <see cref="PlotterChrome.ToScreen"/>,
+    /// the transform the canvases and the iso painter share.</summary>
     private static Point Screen(PlaneMap map, Point3 world, double zoom, Vector pan) =>
-        new(zoom * map.Wx(world.X) + pan.X, -zoom * map.Wy(world.Y) + pan.Y);
+        PlotterChrome.ToScreen(map.Wx(world.X), map.Wy(world.Y), zoom, pan);
 }

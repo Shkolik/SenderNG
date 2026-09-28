@@ -602,6 +602,151 @@ public class PlotterViewHeadlessTests
     /// <summary>The #2f6fb0 axis color.</summary>
     private static bool IsAxisBlue(byte r, byte g, byte b) => b > 130 && b > r + 40 && g > r + 30;
 
+    /// <summary>The iso view paints the world lattice through the projection:
+    /// the same world grid the flat pane draws face-on, run through
+    /// <c>PlotterProjection.Project</c>, so zooming the iso view makes the
+    /// lattice recede. Two things carry the test: the pixels must be there, and
+    /// the grid toggle must REMOVE them — an absolute count alone cannot tell
+    /// the lattice from the toolpath's own light halo.</summary>
+    [AvaloniaFact]
+    public async Task The_iso_view_paints_the_world_grid()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        // The F600 is load-bearing: a G1 with no feed word parses to zero motion
+        // tokens and the error is swallowed per line, so the test would silently
+        // run against an empty program.
+        source.Load("G21\r\nG1 X100 Y50 Z20 F600");
+        Assert.True(vm.HasGeometry, "the iso chrome needs real motion to wrap a job box around");
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // 8 pumps, not one: a toggle-then-count on a single pump is the latent
+        // flake Task 5 found, and the iso toggle has more to settle than the flat
+        // chrome's flags do.
+        window.GetVisualDescendants().OfType<CheckBox>()
+            .Single(c => c.Name == "IsoToggle")
+            .IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        // IsChromeLight also matches the toolpath's own antialiased halo, and
+        // that halo's raster drifts with the 500 ms bake rate limiter: the same
+        // predicate read 1249 / 1345 / 1540 light pixels with no painter at all
+        // across three runs. A floor under ~1.5k would therefore be a test that
+        // cannot fail. The lattice itself measured 11104 and 13949, so 5000 sits
+        // 3.6x clear of the worst blank-canvas reading and under half of the
+        // smallest painted one — and removing the DrawGrid call drops it to 1540,
+        // so this floor discriminates the painter.
+        var grid = CountSurface(frame, IsChromeLight);
+        Assert.True(grid > 5000, $"the iso grid must paint, found {grid} light pixels");
+
+        // `PushChromeFlags` walks every `PlotCanvas` in `_canvases` and
+        // invalidates, so this reaches the iso surface too - confirmed, not
+        // assumed.
+        view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var off = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
+        Assert.True(off < grid / 2, $"the iso lattice must go away: {off} light pixels of {grid}");
+    }
+
+    /// <summary>The iso job box and the three world axis arrows. The axes
+    /// carry no toggle (the flat pane's do not either), and the box is gated by
+    /// <c>Chrome.Envelope</c>, so this measures both at the defaults.</summary>
+    [AvaloniaFact]
+    public async Task The_iso_view_paints_the_job_box_and_the_three_world_axes()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load("G21\r\nG1 X100 Y50 Z20 F600");
+        Assert.True(vm.HasGeometry, "the iso chrome needs real motion to wrap a job box around");
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        // 4084 amber pixels with DrawEnvelope, 0 without it: a 40x margin, and
+        // the mutation (not a flag state) is what proves the floor bites.
+        var box = CountSurface(frame, IsEnvelopeAmber);
+        Assert.True(box > 100, $"the iso job box must paint, found {box} amber pixels");
+        // 106 blue pixels with the arrows, 0 without them. The floor is 40, not
+        // 100: the job box is drawn after the arrows and its 1.5px edges bury
+        // the two shafts, so 106 is the whole visible budget in this state and a
+        // 100 floor would leave 6% of headroom — a flake waiting for a different
+        // window size. 40 is 38% of the measured count and still 2.6x over the
+        // mutational zero, so it can only pass when the arrows are painted.
+        var axes = CountSurface(frame, IsAxisBlue);
+        Assert.True(axes > 40, $"the three world axes must paint, found {axes} blue pixels");
+    }
+
+    /// <summary>Records the loft decision, because it is a decision and not an
+    /// omission. The foam loft's two panes are FLAT true-scale tiles sharing one
+    /// composition, drawn in each plane's role order — NOT a projection — so the
+    /// projected lattice, the projected job box and the projected arrows are
+    /// deliberately not drawn there: over true-scale tiles a foreshortened
+    /// 30-degree grid is a wrong measurement, not a style, and the flat view
+    /// already draws the chrome for exactly these two tiles. What the loft keeps
+    /// is the one machine-origin cross per carriage plane it has always drawn,
+    /// and that cross is gated by <c>Chrome.Origin</c> like every other cross.
+    /// <para>The mill side is covered by the two tests above; this one pins the
+    /// other half, with the toolpath asserted present so "no chrome" cannot be
+    /// satisfied by a canvas that failed to draw anything.</para></summary>
+    [AvaloniaFact]
+    public async Task The_foam_loft_keeps_one_origin_cross_and_no_projected_chrome()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        // Four axes, so both foam carriages carry motion and the iso loft is
+        // live. The F600 is load-bearing (see above).
+        source.Load("G21\r\nG1 X100 Y20 Z20 A100 F600");
+        Assert.Equal(2, vm.PlaneCount);
+        Assert.True(vm.Planes[0].Count > 0);
+        Assert.True(vm.Planes[1].Count > 0);
+        vm.SetPlaneGeometries([
+            PlotterPlaneMapper.Identity(2),
+            PlotterPlaneMapper.Identity(2),
+        ]);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // Both carriages still draw, so the surface is live.
+        var withCross = PlotterPixels.Snapshot(CaptureFrame(window));
+        Assert.True(CountSurface(withCross, IsPathGrey) > 100,
+            $"the loft must still draw its toolpath, found {CountSurface(withCross, IsPathGrey)} path pixels");
+        Assert.Equal(0, CountSurface(withCross, IsEnvelopeAmber));
+        Assert.Equal(0, CountSurface(withCross, IsAxisBlue));
+
+        // The cross is grey (#888888, 1 px) so it lands in the path's own band:
+        // it is isolated by the toggle, not by colour. Removing it must take
+        // pixels out of that band, which is what makes this non-vacuous.
+        view.PushChromeFlags(ChromeFlags.Default with { Origin = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var withoutCross = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsPathGrey);
+        Assert.True(withoutCross < CountSurface(withCross, IsPathGrey),
+            $"the origin cross must be gated by Chrome.Origin, found {CountSurface(withCross, IsPathGrey)} with it and {withoutCross} without");
+    }
+
     /// <summary>A foam program whose plane 0 (X,Y) Y-extent dwarfs plane 1's
     /// (X,Z): Y climbs 0..60 while Z only plunges 0..2, and X sweeps, so both
     /// planes are drawable. That is the normal foam XY-vs-XZ case, and the one
