@@ -7,6 +7,18 @@
     "module.plotter.axisMismatch": "Станку требуется {0} осей; в программе {1}. Нерендеримые плоскости скрыты.",
     "module.plotter.buildFailed": "Не удалось построить траекторию программы.",
     "module.plotter.building": "Построение траектории…",
-    "module.plotter.isometric": "Изо"
+    "module.plotter.isometric": "Изо",
+    "module.plotter.settings.view": "Вид",
+    "module.plotter.settings.showGrid": "Показать сетку",
+    "module.plotter.settings.showOrigin": "Показать начало координат",
+    "module.plotter.settings.showEnvelope": "Показать границы задания",
+    "module.plotter.settings.showRunState": "Показать состояние",
+    "module.plotter.settings.worldAxes": "Мировые оси",
+    "module.plotter.settings.origin": "Начало",
+    "module.plotter.settings.plane": "Плоскость {0}",
+    "module.plotter.zoomIn": "Приблизить",
+    "module.plotter.zoomOut": "Отдалить",
+    "module.plotter.zoomFit": "Вписать",
+    "module.plotter.savePng": "Сохранить PNG"
   }
 }
