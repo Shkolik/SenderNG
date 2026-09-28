@@ -580,6 +580,39 @@ public class PlotterViewHeadlessTests
     /// out on the diagonal around the canvas midpoint, so a tile regularly
     /// straddles the midline and any half-frame probe would be measuring the
     /// wrong slot half the time.</para></summary>
+    /// <summary>Mirror of <c>PlotCanvas.OverlayCap</c> (private there). Spelled
+    /// out here rather than reflected so a change to the cap has to be made
+    /// deliberately in both places: the overflow test sizes its program against
+    /// it, and a silently-shared value would let the test keep passing after
+    /// the thing it tests moved.</summary>
+    private const int OverlayCap = 2048;
+
+    /// <summary>Pumps until the view model's geometry has landed.
+    /// <para>A program over <c>PlotterViewModel.AsyncBuildThreshold</c> (4000
+    /// tokens) builds on the THREAD POOL and posts the result back to the UI
+    /// thread, so <c>Planes</c> stays empty until the dispatcher runs. That is
+    /// why the older 120-line fixture can assert immediately after
+    /// <c>Load</c> and a 2100-line one cannot — and why an unsettled one would
+    /// measure a canvas with no geometry on it, which passes everything.</para>
+    /// <para>Budgeted in milliseconds, not in rounds: a round count is a
+    /// disguised wall-clock assumption, and a loaded machine spends longer
+    /// inside a round. The original 400 rounds was four seconds' worth of
+    /// headroom that happened to be enough on an idle box and not enough with
+    /// the rest of the suite running. Failing loudly beats settling late —
+    /// carrying on would measure an empty canvas and assert something
+    /// meaningless.</para></summary>
+    private static async Task SettleGeometry(PlotterViewModel vm, int timeoutMs = 30_000)
+    {
+        var deadline = Environment.TickCount64 + timeoutMs;
+        while (vm.Planes.Count == 0)
+        {
+            Assert.True(Environment.TickCount64 < deadline,
+                $"geometry did not build within {timeoutMs} ms; the canvas would be measured with nothing on it");
+            await Pump();
+            await Task.Delay(10);
+        }
+    }
+
     private static (string Program, int Plane0Rows) TwoCarriageProgram(int lines)
     {
         var sb = new StringBuilder("G21\nG90\n");
@@ -659,13 +692,19 @@ public class PlotterViewHeadlessTests
         source.AckRows(0, plane0Rows);
         for (var i = 0; i < 8; i++)
             await Pump();
+        // The limiter defers all but the first slot's bake, and the queue it
+        // leaves behind is served by a timer — so every flip pair below has to
+        // be drained before the surface is read. Reading early is what made
+        // this test unable to see a slot repaint at all.
         view.PushChromeFlags(ChromeFlags.Default with { RunState = false });
         for (var i = 0; i < 8; i++)
             await Pump();
+        await DrainRebakeQueue(view);
         var offEmpty = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
         view.PushChromeFlags(ChromeFlags.Default);
         for (var i = 0; i < 8; i++)
             await Pump();
+        await DrainRebakeQueue(view);
         var carriage1 = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
         Assert.True(offEmpty == 0, $"run-state off must paint no green at all, found {offEmpty}");
         Assert.True(carriage1 > 400,
@@ -681,9 +720,11 @@ public class PlotterViewHeadlessTests
         view.PushChromeFlags(ChromeFlags.Default with { RunState = false });
         for (var i = 0; i < 8; i++)
             await Pump();
+        await DrainRebakeQueue(view);
         view.PushChromeFlags(ChromeFlags.Default);
         for (var i = 0; i < 8; i++)
             await Pump();
+        await DrainRebakeQueue(view);
         var both = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
         Assert.True(both > carriage1 + 400,
             $"carriage 2 must repaint with the toggle: {both} green pixels with both carriages against {carriage1} with carriage 1 alone");
@@ -696,6 +737,159 @@ public class PlotterViewHeadlessTests
         o.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(o)
         ?? o.GetType().BaseType!
             .GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(o);
+
+    /// <summary>A recolor-window OVERFLOW must repaint EVERY carriage, and only
+    /// the carriages that overflowed.
+    /// <para>This is the path the existing run-state test cannot reach. That one
+    /// flips a chrome flag, which sets the request <c>urgent</c>; this one
+    /// overflows <c>OverlayCap</c> inside <c>DrawSlotFrontier</c>, which does
+    /// NOT — and the two took different routes through the old code. The
+    /// overflow wrote one canvas-wide boolean, so whichever slot baked next
+    /// satisfied the request for both. Slot 0 is always evaluated first and
+    /// always found the 500 ms window open, so it baked and slot 1 recomputed
+    /// <c>needBake</c> as false and blitted its stale raster: a &gt;2048-row
+    /// delta (routine on a 100k-segment file) left carriage 2 permanently
+    /// stale. Worse, the re-arm kept the request true, so slot 0 rebaked a
+    /// full world-sized raster every 500 ms for as long as the flag stood.</para>
+    /// <para>Green is the observable, and it can only come from a BAKE here: the
+    /// overflow branch returns before drawing any vectors, so the recolor
+    /// window contributes nothing. Per-carriage counts, because the defect is
+    /// asymmetric and a surface total would be satisfied by slot 0 alone.</para></summary>
+    [AvaloniaFact]
+    public async Task A_recolor_window_overflow_rebakes_BOTH_carriages_and_then_stops()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        // More than OverlayCap (2048) motion rows PER CARRIAGE, so acking
+        // everything overflows the window in BOTH slots. Half the rows would
+        // overflow only slot 0 and the assertion could not tell "slot 1 was
+        // never asked" from "slot 1 was asked and starved".
+        source.Load(TwoCarriageProgram(2400).Program);
+        await SettleGeometry(vm);   // over AsyncBuildThreshold: the build is on the thread pool
+        Assert.Equal(2, vm.Planes.Count);
+        Assert.True(vm.Planes[0].Count > OverlayCap, $"carriage 1 must hold more than the cap of {OverlayCap} rows, got {vm.Planes[0].Count}");
+        Assert.True(vm.Planes[1].Count > OverlayCap, $"carriage 2 must hold more than the cap of {OverlayCap} rows, got {vm.Planes[1].Count}");
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // Slot 1's first raster is born on the first bake the limiter lets
+        // through, so wait past the window and poke the canvas again — the
+        // limiter is real and this test is not entitled to skip it.
+        var canvas = window.GetVisualDescendants().Single(c => c.GetType().Name == "PlaneCanvas");
+        await PumpPastBakeWindow();
+        canvas.InvalidateVisual();
+        for (var i = 0; i < 3; i++)
+            await Pump();
+
+        // Ack EVERY row: both carriages' recolor windows now exceed the cap, so
+        // the overflow branch is what asks for the rebake in both slots.
+        source.AckRows(0, source.RowCount);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        // Past the limiter, so slot 1 — queued behind slot 0 — is served too.
+        await DrainRebakeQueue(view);
+
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        var carriage0 = GreenInCarriage(frame, 0);
+        var carriage1 = GreenInCarriage(frame, 1);
+        Assert.True(carriage0 > 400, $"carriage 1 must be rebaked green, found {carriage0} green pixels");
+        Assert.True(carriage1 > 400, $"carriage 2 must be rebaked green too, found {carriage1} green pixels");
+
+        // And it has to STOP. With the canvas-wide request the re-arm never
+        // cleared, so slot 0 rebaked every 500 ms forever; two windows with
+        // nothing changing in between must produce no new bake at all.
+        var bakes = view.BakeCountsForTest.Sum();
+        await Task.Delay(1200);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var later = view.BakeCountsForTest.Sum();
+        Assert.Equal(bakes, later);
+    }
+
+    /// <summary><see cref="BakeMinIntervalMs"/> has to bind the URGENT path too.
+    /// <para>The old code short-circuited it — <c>immediate || CanBakeNow()</c>
+    /// — so a single chrome flip on foam baked EVERY slot back to back, each one
+    /// a full world-sized raster, against a constant whose doc says "bakes of
+    /// huge paths take tens to hundreds of ms, so they must never chain". The
+    /// short-circuit also skipped <c>CanBakeNow</c>'s side effect, so
+    /// <c>_lastBakeTicks</c> was never stamped for the work just done and the
+    /// limiter's window was blind to it: the very next pass started a fresh
+    /// window.</para>
+    /// <para>Asserted on a bake COUNT, not on pixels: a limiter that refuses a
+    /// bake and a limiter that runs one are indistinguishable on the surface
+    /// when the flags produce the same picture. The flip must still take effect
+    /// on both carriages, so the limiter is not allowed to swallow the request
+    /// either — the second half waits the window out and repaints.</para></summary>
+    [AvaloniaFact]
+    public async Task A_burst_of_chrome_flips_does_not_chain_one_bake_per_slot()
+    {
+        const int flips = 6;
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        var (gcode, _) = TwoCarriageProgram(600);
+        source.Load(gcode);
+        await SettleGeometry(vm);
+        Assert.Equal(2, vm.Planes.Count);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        await PumpPastBakeWindow();
+        var canvas = window.GetVisualDescendants().Single(c => c.GetType().Name == "PlaneCanvas");
+        canvas.InvalidateVisual();
+        for (var i = 0; i < 3; i++)
+            await Pump();
+
+        var before = view.BakeCountsForTest.Sum();
+        for (var i = 0; i < flips; i++)
+        {
+            // Alternate, or the RunState setter sees no change and asks for
+            // nothing — the burst would be a no-op and the count would prove
+            // nothing.
+            view.PushChromeFlags(ChromeFlags.Default with { RunState = i % 2 == 0 });
+            for (var p = 0; p < 8; p++)
+                await Pump();
+        }
+        var after = view.BakeCountsForTest.Sum();
+        var chained = after - before;
+
+        // The old behaviour was one bake per slot per flip: 12. The limiter lets
+        // ONE slot open the window early, once per window, and queues the rest,
+        // so a burst inside a single window costs one bake, not one per slot per
+        // flip. The floor of 1 is the real one: the flips must not be swallowed.
+        Assert.True(chained <= 2,
+            $"{flips} chrome flips must not chain {flips * 2} bakes, but produced {chained}");
+        Assert.True(chained >= 1,
+            $"the flips still have to reach the bake path, but produced only {chained} bakes");
+
+        // The limiter must not turn into a stranding: both carriages end up
+        // repainted once the window opens.
+        await PumpPastBakeWindow();
+        source.AckRows(0, source.RowCount);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        await DrainRebakeQueue(view);
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        Assert.True(GreenInCarriage(frame, 0) > 400, $"carriage 1 must be rebaked, found {GreenInCarriage(frame, 0)} green pixels");
+        Assert.True(GreenInCarriage(frame, 1) > 400, $"carriage 2 must be rebaked, found {GreenInCarriage(frame, 1)} green pixels");
+    }
+
+    /// <summary>Green pixels inside ONE carriage's diagonal tile of the foam
+    /// composition — slot 0 is the top-left quadrant, slot 1 the bottom-right
+    /// (<c>PlaneCanvas.SlotViewport</c>). The two are counted separately
+    /// because the defect this exists for is ASYMMETRIC: slot 0 always won the
+    /// bake limiter and slot 1 stayed stale, so a whole-surface total would be
+    /// satisfied by slot 0 alone.</summary>
+    private static int GreenInCarriage(PlotterPixels.Frame frame, int slot) =>
+        PlotterPixels.Count(frame, IsDoneGreen,
+            xFilter: x => x > 0 && x < frame.Width - 1 && (slot == 0 ? x < frame.Width / 2 : x >= frame.Width / 2),
+            yFilter: y => y > 24 && y < frame.Height - 1 && (slot == 0 ? y < frame.Height / 2 : y >= frame.Height / 2));
 
     /// <summary>Raises a named button's Click the way the user does. Avalonia has
     /// no <c>Button.Command.Execute</c> shortcut here (these are Click handlers,
@@ -1292,6 +1486,46 @@ public class PlotterViewHeadlessTests
         Dispatcher.UIThread.RunJobs();
         AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
         await Task.Yield();
+    }
+
+    /// <summary>Advances both clocks the rebake queue depends on, so a slot that
+    /// was queued behind the limiter actually gets served.
+    /// <para>The limiter reads <c>Environment.TickCount64</c> — real time — so it
+    /// needs a real delay. The retry that brings back a pass is a
+    /// <see cref="DispatcherTimer"/>, which runs on the headless STUB clock, and
+    /// only <c>ForceRenderTimerTick</c> moves that. Doing just one of the two is
+    /// how this test failed with "carriage 2 found 0 green pixels" while the
+    /// production code was right: the bake was permitted and still never ran.
+    /// 40 ticks x 16 ms = 640 ms, past <c>BakeMinIntervalMs</c>.</para></summary>
+    private static async Task PumpPastBakeWindow()
+    {
+        await Task.Delay(560);
+        for (var i = 0; i < 40; i++)
+            await Pump();
+    }
+
+    /// <summary>Waits the rebake queue out, instead of guessing how many limiter
+    /// windows it needs.
+    /// <para>One round is NOT always enough, and the reason is worth recording:
+    /// a slot queued behind the limiter is served by a
+    /// <see cref="DispatcherTimer"/>, which (a) needs REAL time to elapse and
+    /// (b) can only be dispatched by pumping the UI thread — a real delay alone
+    /// does not pump, so the tick cannot be observed until the pumps that
+    /// follow it. Each round therefore has to be its own delay+pump pair, and
+    /// the retry that serves slot 1 lands close enough to slot 0's bake that it
+    /// can be refused for "window not open yet" and re-armed. Measured on this
+    /// suite: up to three rounds. The loop is bounded so a genuinely stuck
+    /// queue fails the assertion that follows instead of hanging.</para></summary>
+    private static async Task DrainRebakeQueue(PlotterView view, int maxRounds = 6)
+    {
+        for (var round = 0; round < maxRounds; round++)
+        {
+            await Task.Delay(560);
+            for (var i = 0; i < 8; i++)
+                await Pump();
+            if (!view.HasPendingRebake)
+                return;
+        }
     }
 
     /// <summary>The idle path is grey (#808080).</summary>

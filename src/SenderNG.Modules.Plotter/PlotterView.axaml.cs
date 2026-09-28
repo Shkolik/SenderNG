@@ -479,6 +479,15 @@ public partial class PlotterView : UserControl
     internal IReadOnlyList<(double Zoom, Vector Pan)> CompositionForTest =>
         _canvases.OfType<PlotCanvas>().Select(c => c.SlotTransformForTest(0)).ToArray();
 
+    /// <summary>Raster bakes run per canvas, for headless tests. The chain
+    /// limiter is invisible from pixels — a refused bake and a bake of identical
+    /// pixels look the same on the surface — so "the limiter limits" has to be
+    /// asserted on a count.</summary>
+    internal IReadOnlyList<int> BakeCountsForTest =>
+        _canvases.OfType<PlotCanvas>().SelectMany(c => c.SlotBakeCounts).ToArray();
+
+    internal bool HasPendingRebake => _canvases.OfType<PlotCanvas>().Any(c => c.HasPendingRebake);
+
     /// <summary>Slots the flat canvas currently considers drawable. A plane whose
     /// mapping does not feed world Y has no 2D extent, so it is skipped.</summary>
     internal IReadOnlyList<int> DrawableSlotsForTest =>
@@ -620,15 +629,19 @@ public partial class PlotterView : UserControl
                 if (value.RunState != _chrome.RunState)
                 {
                     // Two requests, and the second one is the load-bearing part.
-                    // _rebakeRequested alone is NOT enough: a bake is rate-limited
+                    // A plain request alone is NOT enough: a bake is rate-limited
                     // to one per BakeMinIntervalMs, the flag push invalidates
                     // exactly once, and with no run in flight nothing invalidates
                     // again — so the render that could have rebaked is refused by
                     // the limiter and the switch stays dead until the user pans or
                     // zooms. A toggle is one discrete user event, not a chain of
-                    // frames, so it is allowed to pay for its own bake.
-                    _rebakeRequested = true;
-                    _rebakeImmediate = true;
+                    // frames, so the FIRST slot is allowed to pay for its own bake
+                    // (see BlitOrBake) and the rest queue behind it.
+                    //
+                    // RequestRebake sizes the arrays: this is the one caller that
+                    // can run before the first render has done it.
+                    for (var slot = 0; slot < SlotCount; slot++)
+                        RequestRebake(slot, urgent: true);
                 }
                 _chrome = value;
             }
@@ -643,6 +656,17 @@ public partial class PlotterView : UserControl
         private long _lastInputTicks = long.MinValue;
         private readonly RedrawThrottle _throttle = new();
         private readonly DispatcherTimer _settleTimer;
+
+        /// <summary>One-shot: brings back a render that the bake limiter refused.
+        /// <para>A refused rebake keeps its per-slot pending bit, but a pending
+        /// bit only repaints when a render happens, and with nothing else
+        /// driving one the queue would sit unapplied — the settle timer runs
+        /// only after a gesture, and the VM's throttled ticks stop when the run
+        /// does. Firing one interval after the refusal is what makes "refused
+        /// now, repainted later" true rather than "refused until the user pans".
+        /// Re-entrant starts are harmless: the tick stops the timer first, and
+        /// a refusal that is still pending restarts it.</para></summary>
+        private readonly DispatcherTimer _rebakeRetry;
 
     /// <summary>Scales the slot about its own center, so the composition's
     /// midpoint stays put. The wheel keeps its cursor-anchored behavior — this is
@@ -712,16 +736,46 @@ public partial class PlotterView : UserControl
         private double[] _cacheZoom = [];
         private int[] _cacheGeoVersion = [];
         private long _lastBakeTicks = long.MinValue;
-        private bool _rebakeRequested;
-        /// <summary>A rebake the user asked for directly (a chrome flag flip),
-        /// which skips <see cref="CanBakeNow"/>'s chain limiter once. See the
-        /// <see cref="Chrome"/> setter for why the plain request is not
-        /// enough.</summary>
-        private bool _rebakeImmediate;
+        /// <summary>Bakes run since construction. A test seam for the chain
+        /// limiter, which is otherwise invisible: a refused bake and a bake of
+        /// identical pixels look exactly the same on screen.</summary>
+        /// <summary>Bakes per slot, for tests only. Zeroed, never reset: a
+        /// clearing count cannot express "stopped rebaking", which is half of
+        /// what the overflow regression has to prove.</summary>
+        private int[] _bakeCounts = [];
 
-        // Run-frontier tracking: rows ≤ _bakedFrontierRow are reflected in the
-        // cached colors; rows above recolor as vectors until a rebake.
-        private int _bakedFrontierRow = -1;
+        // Rebake requests, PER SLOT. These were two canvas-wide booleans lifted
+        // and cleared once per render pass, which is what let the first slot to
+        // ask spend the limiter window and strand every slot after it.
+        /// <summary>This slot owes a rebake: anything that makes its cached
+        /// raster wrong (a recolor-window overflow, a rewind, a chrome flip).
+        /// Cleared ONLY by this slot's own bake, so a slot the limiter refuses
+        /// re-arms itself and a refusal can never cancel a sibling's
+        /// request.</summary>
+        private bool[] _rebakePending = [];
+        /// <summary>This slot's pending rebake came from a direct user request
+        /// (a chrome flag flip), so it may open the limiter window early instead
+        /// of waiting out <see cref="BakeMinIntervalMs"/>. See the
+        /// <see cref="Chrome"/> setter for why the plain request is not enough.
+        /// At most ONE slot per pass spends it — see <see cref="BlitOrBake"/>.</summary>
+        private bool[] _rebakeUrgent = [];
+
+        /// <summary>The current <see cref="BakeMinIntervalMs"/> window has
+        /// already been opened early by an urgent request, so it cannot be opened
+        /// early again until the window elapses.
+        /// <para>Per WINDOW, not per pass: the old code let every slot bypass the
+        /// limiter on every pass, so one chrome toggle chained SlotCount
+        /// full-world bakes. Scoping it to a pass was not enough either — the
+        /// next pass re-armed it and the queue behind slot 0 drained one slot per
+        /// pass, which is still a chain.</para></summary>
+        private bool _urgentSpentInWindow;
+
+        // Run-frontier tracking, PER SLOT for the same reason: rows ≤
+        // _bakedFrontierRow[slot] are reflected in that slot's cached colors;
+        // rows above recolor as vectors until a rebake. Canvas-wide it was, so
+        // slot 0's bake closed slot 1's recolor window too and nothing ever
+        // repainted the second carriage.
+        private int[] _bakedFrontierRow = [];
         private int _lastSeenDone = -1;
         private int _lastTouched = -1;
         private long _lastRunTicks = long.MinValue;
@@ -742,6 +796,12 @@ public partial class PlotterView : UserControl
             {
                 _settleTimer.Stop();
                 InvalidateVisual(); // interaction over → the render can rebake
+            };
+            _rebakeRetry = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(BakeMinIntervalMs) };
+            _rebakeRetry.Tick += (_, _) =>
+            {
+                _rebakeRetry.Stop();
+                InvalidateVisual(); // the limiter window has opened → serve the queue
             };
         }
 
@@ -911,21 +971,35 @@ public partial class PlotterView : UserControl
             EnsureCacheArrays();
             DetectFrontierChanges();
 
-            // The rebake request is PASS-SCOPED, and this snapshot is what makes
-            // it so. It used to be cleared from inside BakeSlot, which made the
-            // request effectively single-slot: slot 0 baked, the booleans went
-            // false, and slot 1 then recomputed needBake as "nothing to do" and
-            // blitted its stale raster — a chrome flip (RunState is the one flag
-            // the bake reads) half-applied on foam, repainting one carriage and
-            // leaving the other in the old colours. Lifting and clearing the
-            // request once per pass hands the SAME decision to every slot; a
-            // request raised mid-pass (DrawSlotFrontier's overflow branch) stays
-            // in the field and is picked up by the next pass.
-            var rebake = _rebakeRequested;
-            var immediate = _rebakeImmediate;
-            _rebakeRequested = false;
-            _rebakeImmediate = false;
-
+            // The rebake request is PER SLOT, and this pass tracks only WHICH
+            // SLOTS have already spent the limiter window.
+            //
+            // The request used to be a pair of canvas-wide booleans that this
+            // loop lifted and cleared ONCE, which made the request effectively
+            // single-slot in the opposite direction: slot 0 baked, the flags
+            // went false, and slot 1 recomputed needBake as "nothing to do" and
+            // blitted its stale raster (a chrome flip half-applied on foam).
+            // Lifting the flags per pass fixed that and created two worse bugs,
+            // because the flags are still canvas-wide:
+            //
+            //  - a request raised by a NON-immediate path (DrawSlotFrontier's
+            //    overflow branch) was picked up by the NEXT pass, whose slot 0
+            //    always found the window open, stamped _lastBakeTicks, and baked
+            //    a full world-sized raster; slot 1, microseconds later, was
+            //    refused and re-armed, so carriage 2 could never repaint while
+            //    carriage 0 rebaked every 500 ms for as long as the flag stood;
+            //  - `immediate` short-circuited the limiter for EVERY slot, so one
+            //    chrome toggle on foam paid for SlotCount back-to-back bakes
+            //    against BakeMinIntervalMs's stated purpose, and skipped the
+            //    stamp, leaving the window blind to the work just done.
+            //
+            // Both are per-slot state now: the flags live in the arrays, only
+            // the slot that actually baked clears its own, and a slot may open
+            // the limiter window early at most ONCE per window. That last rule
+            // needs no per-pass bookkeeping — every bake stamps _lastBakeTicks,
+            // so the next slot's CanBakeNow() in the same pass is refused, and
+            // one pass cannot chain bakes.
+            //
             // The slot viewports are the planes' HOME positions, not bounds:
             // the true-scale composition shares ONE transform, so panning /
             // zooming moves a plane's raster across the screen-center line and
@@ -933,7 +1007,7 @@ public partial class PlotterView : UserControl
             // already clips the drawing to the control bounds.
             for (var slot = 0; slot < SlotCount; slot++)
             {
-                if (!BlitOrBake(context, slot, rebake, immediate))
+                if (!BlitOrBake(context, slot))
                     DrawSlotPathWorld(context, slot, new BakePens(1)); // pre-first-bake fallback
                 DrawSlotFrontier(context, slot);
             }
@@ -1005,8 +1079,12 @@ public partial class PlotterView : UserControl
         {
             for (var i = 0; i < _cacheGeoVersion.Length; i++)
                 _cacheGeoVersion[i] = -1;
-            _bakedFrontierRow = -1;
-            _rebakeRequested = false;
+            for (var i = 0; i < _rebakePending.Length; i++)
+            {
+                _rebakePending[i] = false;
+                _rebakeUrgent[i] = false;
+                _bakedFrontierRow[i] = -1;
+            }
         }
 
         private void EnsureCacheArrays()
@@ -1017,6 +1095,10 @@ public partial class PlotterView : UserControl
             Array.Resize(ref _cache, n);
             Array.Resize(ref _cacheZoom, n);
             Array.Resize(ref _cacheGeoVersion, n);
+            Array.Resize(ref _rebakePending, n);
+            Array.Resize(ref _rebakeUrgent, n);
+            Array.Resize(ref _bakedFrontierRow, n);
+            Array.Resize(ref _bakeCounts, n);
             for (var i = 0; i < n; i++)
                 _cacheGeoVersion[i] = -1;
         }
@@ -1115,34 +1197,88 @@ public partial class PlotterView : UserControl
             return lo;
         }
 
+        /// <summary>Records that <paramref name="slot"/> owes a rebake, and
+        /// guarantees a render will come to take it.
+        /// <para>The second half is not bookkeeping, it is the whole reason a
+        /// request can be lost. A request raised INSIDE a render — the overflow
+        /// branch of <see cref="DrawSlotFrontier"/>, which runs after this
+        /// slot's <see cref="BlitOrBake"/> — cannot be served by that pass, and
+        /// nothing else is obliged to produce another one: the settle timer runs
+        /// only after a gesture, and the VM's throttled ticks stop when the run
+        /// does. The same applies to a bake the limiter refused. Both used to
+        /// leave the request pending on a raster that never repainted.</para></summary>
+        private void RequestRebake(int slot, bool urgent)
+        {
+            // Sizing lives HERE, at the only place these arrays are written,
+            // rather than in the first render. The Chrome setter reaches this
+            // before any render has run — ApplyChrome pushes the flags while the
+            // canvases are still being built — and a length check is far cheaper
+            // than rediscovering that as an IndexOutOfRange on the first push.
+            EnsureCacheArrays();
+
+            _rebakePending[slot] = true;
+            if (urgent)
+                _rebakeUrgent[slot] = true;
+            _rebakeRetry.Start();
+        }
+
         /// <summary>Bakes the slot's raster when needed (geometry replaced,
         /// settled zoom changed, recolor window overflow, rebake requested) and
         /// blits it through the current transform. Returns true when the path is
         /// on screen.
-        /// <para><paramref name="rebake"/>/<paramref name="immediate"/> are the
-        /// pass-scoped snapshot taken by <see cref="Render"/>, NOT the live
-        /// fields: reading the fields here is what used to make the first slot
-        /// consume the request and leave the rest of the slots stale.</para></summary>
-        private bool BlitOrBake(DrawingContext ctx, int slot, bool rebake, bool immediate)
+        /// <para>The rebake request is read from the PER-SLOT array, not from a
+        /// pass-scoped snapshot. Both halves of that decision used to be
+        /// canvas-wide and each was wrong in a different direction: one shared
+        /// flag pair lifted once per pass made a slot the first bake could leave
+        /// stale forever, and a per-pass "urgent" flag let every slot bypass the
+        /// chain limiter. Per-slot state fixes both, and
+        /// <paramref name="bakedThisPass"/> is what keeps one pass from chaining
+        /// several full-world bakes.</para></summary>
+        private bool BlitOrBake(DrawingContext ctx, int slot)
         {
             var zoom = SlotZoom(slot);
             var cache = _cache[slot];
             var needBake = cache is null
                 || _cacheGeoVersion[slot] != Vm.GeometryVersion
-                || rebake
+                || _rebakePending[slot]
                 || (!Interacting && Math.Abs(zoom - _cacheZoom[slot]) / Math.Max(_cacheZoom[slot], 1e-9) > ZoomTolerance);
 
             if (needBake)
             {
-                if (immediate || CanBakeNow())
-                    BakeSlot(slot);
-                else if (rebake)
+                // The user asked for this one (a chrome flag flip), so it may
+                // open the limiter window early — but ONCE per window. Every
+                // other slot falls through to the limiter and keeps its pending
+                // bit, so the queue behind the first one drains across passes
+                // instead of chaining several full-world bakes back to back.
+                var urgent = _rebakeUrgent[slot] && !_urgentSpentInWindow;
+                if (urgent || CanBakeNow())
                 {
-                    // The chain limiter refused this slot's rebake, and the pass
-                    // snapshot has already dropped the request — re-arm it so a
-                    // later pass repaints this slot instead of stranding it on
-                    // its stale raster.
-                    _rebakeRequested = true;
+                    if (urgent)
+                    {
+                        // Stamp on the urgent path too: the old short-circuit
+                        // skipped CanBakeNow's side effect, so _lastBakeTicks
+                        // was never written for the work just done and the
+                        // limiter's window was blind to it. The stamp is also
+                        // what caps a pass at one bake — the next slot's
+                        // CanBakeNow() sees a window that just opened.
+                        _urgentSpentInWindow = true;
+                        _lastBakeTicks = Environment.TickCount64;
+                    }
+                    // Clear ONLY this slot's request. A bake used to be able to
+                    // cancel the same pass's remaining slots, which is how a
+                    // chrome flip half-applied on foam.
+                    _rebakePending[slot] = false;
+                    _rebakeUrgent[slot] = false;
+                    BakeSlot(slot);
+                }
+                else
+                {
+                    // Refused. RequestRebake deliberately does not clear either
+                    // bit — that IS the re-arm, because the request is per-slot
+                    // and only this slot can clear it. It also books the retry
+                    // pass, without which the pending bit would sit on a raster
+                    // that never repaints.
+                    RequestRebake(slot, urgent: false);
                 }
             }
             cache = _cache[slot];
@@ -1164,16 +1300,18 @@ public partial class PlotterView : UserControl
             if (_lastBakeTicks != long.MinValue && now - _lastBakeTicks < BakeMinIntervalMs)
                 return false;
             _lastBakeTicks = now;
+            // A fresh window, so whatever early-open the previous one bought is
+            // spent and the next urgent request may take one again.
+            _urgentSpentInWindow = false;
             return true;
         }
 
         /// <summary>Renders the slot's path (colored by CURRENT row states)
         /// into a world-sized raster at the slot's zoom (clamped), then marks
-        /// the recolor window clean up to the current touched frontier.
-        /// <para>It deliberately does NOT touch <see cref="_rebakeRequested"/>:
-        /// the request is owned by the pass that took the snapshot
-        /// (<see cref="Render"/>), so one bake cannot cancel the same pass's
-        /// remaining slots.</para></summary>
+        /// THAT SLOT's recolor window clean up to the current touched frontier.
+        /// <para>It deliberately does NOT touch the rebake request: that belongs
+        /// to the slot, and the caller (<see cref="BlitOrBake"/>) clears it after
+        /// this returns, so one slot's bake cannot cancel another's.</para></summary>
         private void BakeSlot(int slot)
         {
             var (minX, minY, maxX, maxY) = SlotWorldBounds(slot);
@@ -1196,8 +1334,21 @@ public partial class PlotterView : UserControl
             _cache[slot] = bmp;
             _cacheZoom[slot] = zc;
             _cacheGeoVersion[slot] = Vm.GeometryVersion;
-            _bakedFrontierRow = Vm.TouchedRow; // cache colors reflect ≤ this
+            // Per slot, or slot 0's bake closed slot 1's recolor window as a side
+            // effect and nothing repainted the second carriage.
+            _bakedFrontierRow[slot] = Vm.TouchedRow; // cache colors reflect ≤ this
+            _bakeCounts[slot]++;
         }
+
+        /// <summary>Number of bakes this canvas has run. Test seam: the chain
+        /// limiter is invisible from pixels, because a refused bake and a bake of
+        /// identical pixels look the same on the surface.</summary>
+        internal IReadOnlyList<int> SlotBakeCounts => _bakeCounts.Take(SlotCount).ToArray();
+
+        /// <summary>True while any slot still owes a bake, for tests that have to
+        /// wait the queue out rather than guess how many limiter windows it
+        /// takes.</summary>
+        internal bool HasPendingRebake => _rebakePending.Take(SlotCount).Any(p => p);
 
         /// <summary>Per-frame recolor: the rows acked/sent since the bake draw
         /// as vectors on top of the raster (with a small margin below the bake
@@ -1207,17 +1358,26 @@ public partial class PlotterView : UserControl
         private void DrawSlotFrontier(DrawingContext ctx, int slot)
         {
             var touched = Vm.TouchedRow;
-            if (touched <= _bakedFrontierRow)
+            if (touched <= _bakedFrontierRow[slot])
                 return;
             var n = SlotSegmentCount(slot);
             if (n == 0)
                 return;
 
-            var i0 = LowerBoundSlotRow(slot, Math.Max(0, _bakedFrontierRow - 3));
+            var i0 = LowerBoundSlotRow(slot, Math.Max(0, _bakedFrontierRow[slot] - 3));
             var i1 = LowerBoundSlotRow(slot, touched + 1);
             if (i1 - i0 > OverlayCap)
             {
-                _rebakeRequested = true; // window too big → refresh the raster
+                // Window too big → refresh the raster. Marked on THIS slot: the
+                // request used to be canvas-wide, so slot 0's bake satisfied
+                // slot 1's overflow request too and the second carriage could
+                // never repaint. Not urgent either — this is a steady-state
+                // overflow during a run, not a user gesture, so it waits for the
+                // limiter rather than bypassing it. RequestRebake books the
+                // retry pass, which this branch genuinely needs: the request is
+                // raised after this slot's BlitOrBake, so this pass cannot
+                // serve it and no tick is coming.
+                RequestRebake(slot, urgent: false);
                 return;
             }
 
@@ -1238,7 +1398,9 @@ public partial class PlotterView : UserControl
                     WorldToScreen(seg.X1, seg.Y1, zoom, pan));
                 if (++drawn >= OverlayCap)
                 {
-                    _rebakeRequested = true;
+                    // Ran out of budget mid-window: same overflow, same
+                    // non-urgent rebake request as the pre-loop check.
+                    RequestRebake(slot, urgent: false);
                     break;
                 }
             }

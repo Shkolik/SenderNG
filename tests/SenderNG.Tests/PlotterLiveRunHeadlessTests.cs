@@ -760,11 +760,13 @@ public class PlotterLiveRunHeadlessTests
         // just as happily about a canvas that paints no run-state colors at
         // all. So the iso half also needs the ON control: without it the
         // assertion above would still hold if RowStateFor were deleted outright.
-        // The rebake is the flag flip itself (a RunState change requests one
-        // immediately), so the very next push is the repaint — no extra wait.
+        // The OFF push above already spent this window's early open, so this
+        // one is queued rather than immediate — the surface is read only after
+        // the queue drains.
         view.PushChromeFlags(ChromeFlags.Default);
         for (var i = 0; i < 8; i++)
             await Pump();
+        await DrainRebakeQueue(view);
         var isoOn = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
         // 430 green pixels measured on the iso surface (430 on all three
         // sampling runs) and 0 with the painter gone. The floor is 200:
@@ -825,6 +827,30 @@ public class PlotterLiveRunHeadlessTests
         Dispatcher.UIThread.RunJobs();
         AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
         await Task.Yield();
+    }
+
+    /// <summary>Waits the plotter's rebake queue out.
+    /// <para>A bake is limited to one per <c>BakeMinIntervalMs</c> per window,
+    /// and only ONE slot may open that window early. A chrome toggle therefore
+    /// repaints immediately only for the first slot of the first push; a second
+    /// push inside the same window is queued and served by the retry timer. Any
+    /// test that flips a flag twice in a row and then reads the surface has to
+    /// wait for that, which is why the "no extra wait" reasoning no longer
+    /// holds.
+    /// <para>Each round is a real delay plus pumps, because the retry timer
+    /// needs real time to elapse AND a pumped dispatcher to be dispatched — a
+    /// delay on its own observes nothing. Bounded so a stuck queue fails the
+    /// assertion that follows instead of hanging.</para></summary>
+    private static async Task DrainRebakeQueue(PlotterView view, int maxRounds = 6)
+    {
+        for (var round = 0; round < maxRounds; round++)
+        {
+            await Task.Delay(560);
+            for (var i = 0; i < 8; i++)
+                await Pump();
+            if (!view.HasPendingRebake)
+                return;
+        }
     }
 
     /// <summary>The idle path is grey (#808080).</summary>

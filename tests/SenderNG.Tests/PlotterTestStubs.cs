@@ -42,6 +42,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using Avalonia.Threading;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Localization;
@@ -120,6 +121,22 @@ internal static class PlotterTestStubs
         var profile = settings.Load();
         profile.MachineTypeId = machineTypeId;
         settings.Save(profile);
+
+        // This factory stands in for PlotterModule.CreateViewModel, and that is
+        // where PlotterUi.Initialize() is called. Skipping it here inherits a
+        // PROCESS-WIDE static that an earlier test already filled in, and that
+        // static captures a Dispatcher belonging to that test's headless
+        // session. A program over AsyncBuildThreshold then marshals its result
+        // to a dispatcher nobody pumps, Planes stays empty, and the test waits
+        // out a geometry build that can never land — observed as a 30 s
+        // "geometry did not build" on the async tests only, and only when they
+        // ran after PlotterLiveRunHeadlessTests, which is exactly the "passes
+        // alone, fails in the suite" shape. Rebinding per test is the
+        // documented mitigation; see the class remarks on
+        // PlotterModuleSettingsHeadlessTests. Guarded on CheckAccess because
+        // capturing the dispatcher from a non-UI thread is the ORIGINAL bug.
+        if (Dispatcher.UIThread.CheckAccess())
+            PlotterUi.Initialize();
 
         return new PlotterViewModel(source, new StubGrbl(), settings,
             new LocalizationService(new MemoryStream("{ \"strings\": {} }"u8.ToArray())));
