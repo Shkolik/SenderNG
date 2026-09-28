@@ -1248,26 +1248,22 @@ public class PlotterViewHeadlessTests
         // number on screen follows the pointer. Driven from the FITTED view
         // (where the readout is already showing) rather than from 1:1.
         //
-        // This comment used to blame 1:1 and call it a harness artefact. That
-        // was wrong, and the number is what gives it away: the canvas is the
-        // GetVisualAt hit target at zoom 2.0 and above, and it is NOT at 1.25
-        // and below - probed at every 5x5 grid point at 1:1, all of them
-        // return the white Border wrapping the plot. So the boundary is
-        // somewhere between 1.25 and 2.0 and has nothing to do with the
-        // readout being hidden. The overlay is present in this test
-        // throughout, so it is not the overlay stealing the hit either: what
-        // decides it is whether the CANVAS is the hit target, because the
-        // wheel handler lives on the canvas. Exercising the wheel where the
-        // canvas is the hit target is the only way to assert anything about
-        // it; the 1:1 case is pinned above.
+        // This comment used to blame 1:1 and call it a harness artefact, then
+        // a second version blamed a "boundary between 1.25 and 2.0". Both were
+        // describing the same real defect - the canvas was only a hit target
+        // where it painted, so below ~2.0 the hit fell through to the white
+        // Border and the wheel did nothing - and e7ea40d fixed the cause
+        // (PlotCanvas implements ICustomHitTest and claims its whole box). The
+        // boundary is gone, not merely unexplained. The probe below is still
+        // asserted because the wheel handler lives on the canvas: driving the
+        // wheel without proving the event can reach it would test nothing.
         view.Reframe();
         for (var i = 0; i < 8; i++)
             await Pump();
         Assert.True(readout.IsVisible, "the fitted zoom is not 1:1, so the readout is showing");
 
-        // The probe point is only meaningful if the canvas is what it hits, so
-        // assert that up front. The canvas type is private to the view, hence
-        // the name match rather than a type test.
+        // The canvas type is private to the view, hence the name match rather
+        // than a type test.
         var probe = new Point(460, 280);
         Assert.Equal("PlaneCanvas", window.GetVisualAt(probe)?.GetType().Name);
 

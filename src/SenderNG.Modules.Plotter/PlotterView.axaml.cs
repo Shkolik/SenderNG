@@ -149,11 +149,12 @@ public partial class PlotterView : UserControl
     /// keeps the UI thread free for input.</summary>
     private const int RedrawIntervalMs = 33;
 
-    /// <summary>The PNG save dialog service. Null in the headless tests and
-    /// wherever the module builds the view without the app's DI, which is why
-    /// <see cref="OnSavePng"/> reads it before doing anything — an assigned but
-    /// unread field is CS0414 and the build is 0-warning by contract. The
-    /// export itself is Task 12; until then the button is inert.</summary>
+    /// <summary>The PNG save dialog service. Resolved from the app's DI by
+    /// <c>PlotterModule.CreateView</c>, so it is non-null in the only production
+    /// path; null only in the headless tests, which use the parameterless ctor.
+    /// That is why <see cref="OnSavePng"/> reads it before doing anything — an
+    /// assigned but unread field is CS0414 and the build is 0-warning by
+    /// contract. The export itself is Task 12; until then the button is inert.</summary>
     private readonly IFileDialogService? _dialogs;
 
     /// <summary>Parameterless, and NOT just a convenience: the Avalonia XAML
@@ -166,8 +167,9 @@ public partial class PlotterView : UserControl
     {
     }
 
-    /// <param name="dialogs">The app's file-dialog service. Null in the headless
-    /// tests and wherever the module builds the view without the app's DI.</param>
+    /// <param name="dialogs">The app's file-dialog service. Supplied by
+    /// <c>PlotterModule.CreateView</c> in production; null only in the headless
+    /// tests, which leave the PNG button inert.</param>
     public PlotterView(IFileDialogService? dialogs)
     {
         _dialogs = dialogs;

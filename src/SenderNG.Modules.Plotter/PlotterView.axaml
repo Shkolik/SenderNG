@@ -63,33 +63,33 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <!-- The plot canvases are custom-drawn (code-behind): RebuildCanvases owns this grid's columns and rows. -->
                 <Grid x:Name="PlanesGrid" />
 
-                <!-- The view chrome, OVERLAID on the plot rather than put in the header:
+                <!-- <para>The view chrome, OVERLAID on the plot rather than put in the header:
                      - the header row is 24px and already carries the iso toggle;
                      - the PNG export (Task 12) paints through fresh canvases and never
                        instantiates this XAML, so nothing in here can reach a saved image —
                        "the PNG has no buttons in it" is true by construction, not by
-                       remembering to clip the header out.
-                       OverlayHost carries its own DataContext ({x:Null} stops it inheriting the
-                       root's PlotterViewModel) and its own x:DataType, or every compiled binding
-                       below would be type-checked against the plot view model, which has none of
-                        these properties.
-
-                        Input: the wheel and drag belong to the canvas UNDER this
-                        overlay, so the overlay's empty regions must not swallow
-                        them. An Avalonia Grid answers a hit test for its CHILDREN
-                        only - over its own empty space it returns nothing and the
-                        hit passes through - so that is the wanted shape here, and
-                        the eight controls on top are real targets, so a click on a
-                        toggle or a zoom button still works.
-
-                        That relies on the canvas beneath being a hit target over
-                        its whole area, which it is NOT for free: a custom-drawn
-                        control is only hit-tested where it paints, and the toolpath
-                        covers little of the plot. This was a live bug - at low zoom
-                        the wheel and drag fell through to the white Border below at
-                        every probed point. PlotterView.PlotCanvas now implements
-                        Avalonia.Rendering.ICustomHitTest to claim its whole box.
-                        Do not remove it. -->
+                        remembering to clip the header out.
+                     </para>
+                     <para>OverlayHost carries its own DataContext ({x:Null} stops it inheriting the
+                     root's PlotterViewModel) and its own x:DataType, or every compiled binding
+                     below would be type-checked against the plot view model, which has none of
+                     these properties.</para>
+                     <para>Input: the wheel and drag belong to the canvas UNDER this
+                     overlay, so the overlay's empty regions must not swallow
+                     them. An Avalonia Grid answers a hit test for its CHILDREN
+                     only - over its own empty space it returns nothing and the
+                     hit passes through - so that is the wanted shape here, and
+                     the eight controls on top are real targets, so a click on a
+                     toggle or a zoom button still works.</para>
+                     <para>That relies on the canvas beneath being a hit target over
+                     its whole area, which it is NOT for free: a custom-drawn
+                     control is only hit-tested where it paints, and the toolpath
+                     covers little of the plot. This was a live bug - at low zoom
+                     the wheel and drag fell through to the white Border below at
+                     every probed point. PlotterView.PlotCanvas now implements
+                     Avalonia.Rendering.ICustomHitTest to claim its whole box.
+                     Do not remove it.</para>
+                     -->
 
                 <Grid x:Name="OverlayHost" DataContext="{x:Null}"
                       x:DataType="s:PlotterSettingsViewModel">
