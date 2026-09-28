@@ -18,7 +18,8 @@
  *    JsonDocument.Parse on raw bytes rejects it" has the second half right for
  *    the wrong reason: these files carry NO BOM (first bytes 7B 0D 0A 20), and
  *    the BOM only matters because the APP parses module locales from raw bytes
- *    (LocalizationService.LoadStringsFrom). Measured, not assumed:
+ *    (LocalizationService.ReadStrings, called unguarded from
+ *    RegisterModuleLocales). Measured, not assumed:
  *      JsonDocument.Parse(<BOM>{"strings":{}})  ->  JsonReaderException
  *          '0xEF' is an invalid start of a value. LineNumber: 0 | BytePositionInLine: 0.
  *    File.ReadAllText(path, Encoding.UTF8) STRIPS a BOM, so a text-based guard
@@ -131,9 +132,10 @@ public class PlotterLocaleTests
     }
 
     /// <summary>A BOM here is a startup failure, not a style note: the app parses
-    /// module locales from raw bytes (<c>LocalizationService.LoadStringsFrom</c>),
-    /// and a BOM makes that throw. Nothing else in the suite would see it, because
-    /// every label in these files also has a hardcoded English fallback.</summary>
+    /// module locales from raw bytes (<c>LocalizationService.ReadStrings</c>, via
+    /// <c>RegisterModuleLocales</c>), and a BOM makes that throw. Nothing else in
+    /// the suite would see it, because every label in these files also has a
+    /// hardcoded English fallback.</summary>
     [Theory]
     [InlineData("en.json")]
     [InlineData("ru.json")]
@@ -176,8 +178,13 @@ public class PlotterLocaleTests
     private static JsonElement Strings(string file)
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(LocalePath(file), Encoding.UTF8));
-        // The element outlives the document only because EnumerateObject() here
-        // materializes immediately: everything below copies out before Dispose.
+        // Clone() is load-bearing, not decoration: a JsonElement from a parsed
+        // document is a view into that document's pooled buffers, so the `using`
+        // above would dispose them and leave every caller holding an element that
+        // throws ObjectDisposedException on first use. Clone() copies into a
+        // detached element that owns its own memory. Measured: deleting this call
+        // breaks 6 of the 10 tests below, including the ones that never call
+        // EnumerateObject(), which is why this comment must not credit them.
         return doc.RootElement.GetProperty("strings").Clone();
     }
 
@@ -186,8 +193,13 @@ public class PlotterLocaleTests
     /// not depend on the working directory the runner happens to pick. The walk
     /// stops at the checkout's own root - <c>.git</c> is a directory in a normal
     /// clone and a file in a worktree - so a mislaid test project can never make
-    /// this read a DIFFERENT checkout's catalogs and pass against them.</summary>
-    private static string LocalePath(string file)
+    /// this read a DIFFERENT checkout's catalogs and pass against them.
+    ///
+    /// <para><c>internal</c> and used by <c>PlotterModuleTests</c> too: this worktree
+    /// sits UNDER the main checkout and both contain the same relative path, so a
+    /// second, near-identical walk-up that omitted the <c>.git</c> stop would happily
+    /// validate the OUTER checkout's catalogs instead. One walk, one set of rules.</para></summary>
+    internal static string LocalePath(string file)
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {

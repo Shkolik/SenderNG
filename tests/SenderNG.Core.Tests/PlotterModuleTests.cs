@@ -49,13 +49,18 @@ public class PlotterModuleTests
     /// <summary>Every key the module DECLARES must exist in both catalogs.
     ///
     /// <para><c>LocalizationKeys</c> is the module's own list of the strings it
-    /// produces (<c>ILocalizedModule</c> documents it as such, and the Nex sibling
-    /// lists all 17 of its keys). Before the view chrome landed it listed 8 while
-    /// the catalogs carried 20, and nothing cross-checked the two - so deleting a
-    /// key such as <c>module.plotter.noMotion</c> from BOTH files was invisible:
-    /// the en/ru drift guard passes when the two agree, and every one of those
-    /// labels has a hardcoded English fallback in the view model, so the result
-    /// was a silently untranslated status line rather than a failure.</para>
+    /// produces — <c>ILocalizedModule</c> documents it as such, and the Nex sibling
+    /// declares its own <c>settings.*</c> keys the same way. Before the view chrome
+    /// landed this list held 8 while the catalogs carried 20, and nothing
+    /// cross-checked the two - so deleting a key such as
+    /// <c>module.plotter.noMotion</c> from BOTH files was invisible: the en/ru
+    /// drift guard passes when the two agree, and every one of those labels has a
+    /// hardcoded English fallback in the view model, so the result was a silently
+    /// untranslated status line rather than a failure.</para>
+    ///
+    /// <para>One-directional on purpose, i.e. declared ⊆ catalog. Nothing at runtime
+    /// reads this dictionary, so an extra catalog key still resolves; the risk worth
+    /// guarding is a declared key that resolves to nothing.</para>
     ///
     /// <para>Kept here, next to the module contract, rather than in
     /// <c>PlotterLocaleTests</c> because the subject is the module's declaration;
@@ -78,23 +83,18 @@ public class PlotterModuleTests
         }
     }
 
-    /// <summary>Walk up from the test binary to the repo root, then into the
-    /// plotter module's locale folder — the catalogs are source data, and the
-    /// staged copies are asserted separately by
-    /// <c>PlotterLocaleTests.The_staged_catalogs_ship_the_keys</c>.</summary>
+    /// <summary>Keys in a source-tree catalog — the catalogs are source data, and
+    /// the staged copies are asserted separately by
+    /// <c>PlotterLocaleTests.The_staged_catalogs_ship_the_keys</c>. Reuses that
+    /// file's walk-up rather than repeating it: a near-identical second copy that
+    /// lacked the <c>.git</c> root stop would climb past this worktree into the
+    /// main checkout above it and validate the wrong files.</summary>
     private static HashSet<string> CatalogKeys(string file)
     {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            var path = Path.Combine(dir.FullName, "src", "SenderNG.Modules.Plotter", "Locale", file);
-            if (!File.Exists(path))
-                continue;
-            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path, Encoding.UTF8));
-            return doc.RootElement.GetProperty("strings").EnumerateObject()
-                .Select(p => p.Name).ToHashSet();
-        }
-
-        throw new FileNotFoundException($"Could not find src/SenderNG.Modules.Plotter/Locale/{file}.");
+        var path = Localization.PlotterLocaleTests.LocalePath(file);
+        using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path, Encoding.UTF8));
+        return doc.RootElement.GetProperty("strings").EnumerateObject()
+            .Select(p => p.Name).ToHashSet();
     }
 
     [Fact]
