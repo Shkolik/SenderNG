@@ -214,6 +214,28 @@ public class PlotterNexLocaleTests
         }
     }
 
+    /// <summary>No message may claim 2D plotting is still available. This module
+    /// cannot know whether the user has the 2D plotting plugin installed, so
+    /// asserting it either way is unsupported - the four hints once ended with
+    /// that reassurance. The check is on the CLAIM PHRASE, not on the token
+    /// "2D": a legitimate sentence may name 2D (see the note on
+    /// Every_russian_value_is_translated_rather_than_copied_from_english), and
+    /// only the availability promise is forbidden. Every key in both catalogs
+    /// is scanned, so a new hint cannot reintroduce the claim unasserted.
+    /// </summary>
+    [Theory]
+    [InlineData("en", "2D plotting stays available")]
+    [InlineData("ru", "2D-построение продолжает работать")]
+    public void No_message_claims_2d_plotting_stays_available(string locale, string claim)
+    {
+        foreach (var (key, value) in Strings(locale))
+        {
+            Assert.False(value.Contains(claim, StringComparison.Ordinal),
+                $"{locale}.json key '{key}' still claims 2D plotting availability: '{value}'. " +
+                "This module cannot know whether the 2D plugin is installed.");
+        }
+    }
+
     private static readonly string[] Locales = ["en", "ru"];
 
     /// <summary>Absolute path to one of the module's real catalogs. Asserts
