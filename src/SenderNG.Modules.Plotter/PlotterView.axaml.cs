@@ -273,21 +273,37 @@ public partial class PlotterView : UserControl
         ApplyChrome();
     }
 
-    /// <summary>The flags the last <see cref="PushChromeFlags"/> was given, kept so
-    /// <see cref="RebuildCanvases"/> can hand them to the canvases it creates. Null
-    /// means "never pushed" and reads as <see cref="ChromeFlags.Default"/>, which is
-    /// also what a fresh <c>PlotCanvas</c> starts at — so with nothing pushed this
-    /// field only re-states the default.</summary>
+    /// <summary>The last set of flags <see cref="PushChromeFlags"/> was given, kept
+    /// so <see cref="RebuildCanvases"/> can hand them to the canvases it creates.
+    /// Null means "nothing was ever pushed" and reads as
+    /// <see cref="ChromeFlags.Default"/>, which is also what a fresh
+    /// <c>PlotCanvas</c> starts at — so with nothing pushed this field only
+    /// re-states the default.</summary>
     private ChromeFlags? _chromeFlags;
 
-    /// <summary>Pushes the view toggles into every canvas and remembers them. Passing
-    /// nothing falls back to the defaults (the headless tests' own path) and clears
-    /// the memory, so a later rebuild also lands on the defaults.</summary>
+    /// <summary>Pushes the view toggles into every canvas, remembering them so a
+    /// later rebuild re-applies the same set.
+    /// <para>Passing nothing is a pure re-apply: it does NOT clear the memory. That
+    /// matters because the rebuild path and the overlay-settings setter both call
+    /// this with no argument to mean "re-apply what is already in effect", so
+    /// treating a null argument as "reset to default" would discard the user's
+    /// toggles on exactly the calls that are supposed to preserve them. To go back
+    /// to the defaults, pass <see cref="ChromeFlags.Default"/> explicitly.</para></summary>
     internal void PushChromeFlags(ChromeFlags? flags = null)
     {
-        _chromeFlags = flags;
+        // Only a real value updates the memory. A null argument is the re-apply
+        // call, not a reset — see the doc above and RebuildCanvases.
+        if (flags is not null)
+            _chromeFlags = flags;
         ApplyChrome();
     }
+
+    /// <summary>The flags the view would hand the next canvas it creates: the last
+    /// value pushed, or <see cref="ChromeFlags.Default"/> when nothing was ever
+    /// pushed. This is the same expression <see cref="ApplyChrome"/> uses, read
+    /// back through one property so a test can assert the retained state without
+    /// duplicating the fallback — and without painting pixels to do it.</summary>
+    internal ChromeFlags? DebugStoredChromeFlags => _chromeFlags ?? ChromeFlags.Default;
 
     /// <summary>Writes the remembered flags into every canvas. Split out of
     /// <see cref="PushChromeFlags"/> so <see cref="RebuildCanvases"/> can re-apply

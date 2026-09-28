@@ -527,6 +527,43 @@ public class PlotterViewHeadlessTests
             $"the iso rebuild dropped the pushed flags: {isoOff} light pixels after the rebuild against {isoOn} with the grid on");
     }
 
+    /// <summary>A no-argument <c>PushChromeFlags()</c> is a RE-APPLY, not a reset.
+    /// <para>Task 9's first cut stored <c>_chromeFlags = flags</c> unconditionally,
+    /// so a null argument wiped the memory. Nothing in Task 9 called it that way,
+    /// which is why every test stayed green — but Task 10 is written against the
+    /// opposite contract: its overlay-settings setter and its rebuild path both
+    /// call it bare to mean "re-apply what is already in effect" (plan
+    /// <c>canvas.Chrome = flags ?? _overlaySettings?.Flags ?? ChromeFlags.Default</c>).
+    /// Under the old semantics the single most common call shape in the next task
+    /// would have silently thrown away every toggle the user set.
+    /// <para>So this pins the contract itself, not the pixels: push grid-off, call
+    /// the method with no argument, and assert the flags did NOT revert. Returning
+    /// to the defaults has to be explicit — <c>PushChromeFlags(ChromeFlags.Default)</c>.</para></summary>
+    [AvaloniaFact]
+    public void A_bare_PushChromeFlags_reapplies_and_does_not_reset()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        var window = new Window { Width = 920, Height = 560 };
+        var view = new PlotterView { DataContext = vm };
+        window.Content = view;
+        window.Show();
+
+        view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
+        Assert.False(view.DebugStoredChromeFlags?.Grid ?? false,
+            "the pushed grid-off must be the retained state");
+
+        view.PushChromeFlags();
+        Assert.False(view.DebugStoredChromeFlags?.Grid ?? false,
+            "a bare PushChromeFlags() is a re-apply; it must not reset the flags to default");
+
+        // And the explicit path really does return to the defaults.
+        view.PushChromeFlags(ChromeFlags.Default);
+        Assert.True(view.DebugStoredChromeFlags?.Grid ?? false,
+            "ChromeFlags.Default must re-enable the grid");
+    }
+
     [AvaloniaFact]
     public async Task Envelope_toggle_draws_the_job_rectangle()
     {

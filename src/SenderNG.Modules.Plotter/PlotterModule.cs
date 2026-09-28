@@ -128,12 +128,17 @@ public class PlotterModule : IModule, ILocalizedModule, IPluginInfo, IModuleSett
         }
         catch
         {
-            // Every failure mode funnels here, not just a failed service lookup:
-            // an unregistered SettingsService, a corrupt profile file, or a throw
-            // from the loader. A module that cannot read its section must still
-            // leave the App Settings dialog and the plot view standing, so both
-            // surfaces simply stay unbound — which is why CreateSettingsView
-            // checks for null services FIRST instead of relying on this.
+            // This swallows EVERY exception, not a named list: an unregistered
+            // SettingsService, a corrupt profile file, a throw from the loader, and
+            // also cancellation and threading failures. A bare catch cannot be
+            // selective, so the doc must not imply otherwise. In practice the
+            // method is fully synchronous with no token and no dispatcher hop, so
+            // the last two cannot actually occur here.
+            //
+            // A module that cannot read its section must still leave the App
+            // Settings dialog and the plot view standing, so both surfaces simply
+            // stay unbound — which is why CreateSettingsView checks for null
+            // services FIRST instead of relying on this.
             return null;
         }
     }

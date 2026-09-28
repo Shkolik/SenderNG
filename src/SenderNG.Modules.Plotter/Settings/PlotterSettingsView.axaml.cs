@@ -38,8 +38,9 @@ namespace SenderNG.Modules.Plotter.Settings;
 /// <summary>The App Settings leaf for the <c>plotter</c> section. It binds the
 /// module's ONE shared <see cref="PlotterSettingsViewModel"/> and holds no state
 /// of its own — a flip here is the same model the plot view's canvas chrome
-/// reads, and a rebuild after a profile switch hands this leaf a fresh view over
-/// the fresh model.</summary>
+/// reads. On a profile switch the host does not hand this instance a fresh model:
+/// it mints a NEW leaf over the new model and discards this one
+/// (<c>AppSettingsViewModel.ReloadProfile</c>).</summary>
 public partial class PlotterSettingsView : UserControl
 {
     public PlotterSettingsView() => InitializeComponent();
