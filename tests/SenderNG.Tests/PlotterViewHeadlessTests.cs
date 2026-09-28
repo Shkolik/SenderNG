@@ -637,6 +637,114 @@ public class PlotterViewHeadlessTests
         return (sb.ToString(), split);
     }
 
+    /// <summary>A slot whose world span is too big to rasterise at the viewport
+    /// zoom must NOT rebake on every settled pass.
+    /// <para><c>BakeSlot</c> stores <c>_cacheZoom[slot] = zc</c>, and
+    /// <c>zc</c> is the CLAMPED scale:
+    /// <c>min(zoom, CacheMaxPx/spanX, CacheMaxPx/spanY)</c>. The drift term in
+    /// <c>BlitOrBake</c> then compares the VIEWPORT zoom against that stored
+    /// value. When a cap is the binding term, <c>zc &lt; zoom</c> permanently,
+    /// every bake re-stores the same clamped <c>zc</c>, and the drift ratio stays
+    /// above <c>ZoomTolerance</c> forever — so <c>needBake</c> is permanently
+    /// true and the slot rebakes on every limiter-eligible pass. That is the
+    /// exact chaining <c>BakeMinIntervalMs</c> exists to prevent, and it is
+    /// invisible in the smaller fixtures: measured there,
+    /// <c>spanX = spanY = 50</c> against <c>CacheMaxPx = 2048</c> gives caps of
+    /// 40.96 against a zoom of 4.72, so the clamp never binds and the drift
+    /// ratio is exactly 0. The span has to exceed roughly
+    /// <c>CacheMaxPx / zoom</c> (about 433 mm at that zoom) to expose it.</para>
+    /// <para>Asserted as a bake COUNT over several limiter-eligible passes with
+    /// nothing pending: bake once, then hold. A surface assertion cannot see
+    /// this at all — a rebaked raster of an unchanged program looks identical to
+    /// the one it replaced.</summary></summary>
+    [AvaloniaFact]
+    public async Task A_span_wider_than_the_raster_cap_does_not_rebake_on_a_settled_zoom()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+
+        // 600 mm square per carriage: at the fitted zoom the world-to-pixel
+        // scale is ~4.7 px/mm, so a 600 mm span wants ~2830 px on a raster
+        // capped at 2048 — the cap binds and the clamped scale is strictly
+        // below the viewport zoom.
+        var sb = new StringBuilder("G21\nG90\n");
+        void Block(char a, char b)
+        {
+            for (var i = 0; i < 900; i++)
+            {
+                var t = i / 899d;
+                var u = i % 12 / 11d;
+                var second = 600 * ((i / 12) % 2 == 0 ? u : 1 - u);
+                sb.AppendLine($"G1 {a}{600 * t:F3} {b}{second:F3} F600");
+            }
+        }
+        Block('X', 'Y');
+        Block('Z', 'A');
+        source.Load(sb.ToString());
+        await SettleGeometry(vm);
+        Assert.Equal(2, vm.Planes.Count);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // Get both slots rastered, and the queue empty, so what follows is a
+        // settled state with nothing owed.
+        await DrainRebakeQueue(view);
+        var fitted = view.BakeCountsForTest.ToArray();
+        Assert.Equal([1, 1], fitted);
+
+        // Now zoom in until the world is wider ON SCREEN than the raster cap.
+        // The cap cannot bind at the fitted zoom however big the program is: fit
+        // scales inversely with the span, so a 600 mm world at a fitted zoom of
+        // ~0.39 px/mm still wants only ~234 px against a 2048 px cap. The clamp
+        // binds on the product span x zoom, i.e. on ZOOM.
+        for (var i = 0; i < 12; i++)
+        {
+            view.ZoomBy(1.6);
+            for (var p = 0; p < 4; p++)
+                await Pump();
+        }
+        await DrainRebakeQueue(view);
+        var zoomed = view.BakeCountsForTest.ToArray();
+        Assert.True(zoomed.Sum() > fitted.Sum(), "the zoom must have provoked at least one rebake");
+
+        // Settle at the deep zoom: wait for the counts to hold still across two
+        // consecutive windows, bounded so a permanently-rebaking slot fails the
+        // assertion below instead of hanging here.
+        int[] settled = zoomed;
+        for (var round = 0; round < 8; round++)
+        {
+            await Task.Delay(560);
+            foreach (var c in window.GetVisualDescendants().Where(c => c.GetType().Name == "PlaneCanvas"))
+                c.InvalidateVisual();
+            for (var i = 0; i < 8; i++)
+                await Pump();
+            var now = view.BakeCountsForTest.ToArray();
+            if (now.SequenceEqual(settled))
+            {
+                settled = now;
+                break;
+            }
+            settled = now;
+        }
+
+        // Five more limiter windows at that settled zoom, nothing changed.
+        // Before the fix the counts climb every round.
+        for (var round = 0; round < 5; round++)
+        {
+            await Task.Delay(560);
+            foreach (var c in window.GetVisualDescendants().Where(c => c.GetType().Name == "PlaneCanvas"))
+                c.InvalidateVisual();
+            for (var i = 0; i < 8; i++)
+                await Pump();
+        }
+
+        Assert.Equal(settled, view.BakeCountsForTest.ToArray());
+    }
+
     /// <summary>A run-state flip must repaint EVERY slot, not the one that
     /// happens to be first.
     /// <para><c>ChromeFlags.RunState</c> is the one flag the raster BAKE reads,

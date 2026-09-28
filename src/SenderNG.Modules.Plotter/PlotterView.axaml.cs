@@ -1332,7 +1332,28 @@ public partial class PlotterView : UserControl
             }
 
             _cache[slot] = bmp;
-            _cacheZoom[slot] = zc;
+            // The VIEWPORT zoom, not zc. These are the same number until a cap
+            // binds, and that is exactly when they must not be confused:
+            //
+            //   zc  = the scale the raster was PHYSICALLY drawn at
+            //   zoom = the scale the user is LOOKING at
+            //
+            // The blit maps the raster's pixel rect onto the slot's screen rect
+            // regardless of zc, so zc never affects how the result is displayed
+            // — it only bounds raster memory. Storing zc here made the drift
+            // check in BlitOrBake compare the viewport zoom against a clamped
+            // physical scale, two quantities that are equal by accident. Once
+            // CacheMaxPx bound (a zoom deep enough that the world is wider on
+            // screen than 2048 px) zc < zoom permanently, every bake re-stored
+            // the same clamped value, the ratio stayed above ZoomTolerance
+            // forever, and needBake was permanently true: the slot rebaked once
+            // per limiter window, forever, with nothing changed. That is the
+            // chaining BakeMinIntervalMs exists to prevent — the limiter was
+            // rationing the damage to one bake per window instead of preventing
+            // it. A program does not have to be large to hit this; the fit zoom
+            // scales inversely with the span, so only ZOOM brings the product
+            // span x zoom past the cap.
+            _cacheZoom[slot] = zoom;
             _cacheGeoVersion[slot] = Vm.GeometryVersion;
             // Per slot, or slot 0's bake closed slot 1's recolor window as a side
             // effect and nothing repainted the second carriage.
