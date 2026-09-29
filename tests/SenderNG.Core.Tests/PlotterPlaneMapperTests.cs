@@ -217,4 +217,176 @@ public class PlotterPlaneMapperTests
             new PlotterPlaneGeometry { WorldAxes = [0, 1] }, [0, 1], bounds, out var fp));
         Assert.Equal((0.0, 0.0, 0.0, 40.0), fp);
     }
+
+    /// <summary>The job envelope belongs to the JOB, not to a carriage, so the
+    /// planes are UNIONED: min of the minima, max of the maxima. The worked
+    /// example is the foam preset's own axis split — plane 0 is machine axes
+    /// [0,1] (X,Y) and plane 1 is [2,3] (Z,A) — and it is the case the whole
+    /// change exists for.</summary>
+    [Fact]
+    public void TryJobExtent_unions_every_plane_through_its_own_mapping()
+    {
+        // Plane 0 travels X 0..100, Y 0..30. Plane 1 travels Z 10..50, A 0..20.
+        var bounds = new[]
+        {
+            new[] { 0.0, 100.0 }, new[] { 0.0, 30.0 },
+            new[] { 10.0, 50.0 }, new[] { 0.0, 20.0 },
+        };
+        var geometries = new PlotterPlaneGeometry?[]
+        {
+            new() { WorldAxes = [0, 1] },
+            new() { WorldAxes = [0, 1] },
+        };
+        Assert.True(PlotterPlaneMapper.TryJobExtent(
+            geometries, [[0, 1], [2, 3]], bounds, out var job));
+        // X is 0..100 from plane 0 and 10..50 from plane 1; Y is 0..30 and
+        // 0..20. Both planes' tiles carry the union, so neither tile is
+        // 40x20 while the other is 100x30.
+        Assert.Equal((0.0, 0.0, 100.0, 30.0), job);
+    }
+
+    /// <summary>The no-op property, and the reason a mill frame cannot change:
+    /// one contributing plane's union IS that plane's own extent, byte for
+    /// byte. This is the guard the whole change rests on, so it is pinned
+    /// rather than argued.</summary>
+    [Fact]
+    public void TryJobExtent_with_one_plane_equals_that_plane_alone()
+    {
+        var bounds = new[] { new[] { 5.0, 100.0 }, new[] { -3.0, 40.0 } };
+        Assert.True(PlotterPlaneMapper.TryJobExtent(
+            [new PlotterPlaneGeometry { WorldAxes = [0, 1] }], [[0, 1]], bounds, out var job));
+        // Identical to the single-plane TryWorldFootprint result for the same
+        // inputs, origin unioning included.
+        Assert.Equal((0.0, -3.0, 100.0, 40.0), job);
+    }
+
+    [Fact]
+    public void TryJobExtent_skips_a_plane_that_feeds_no_world_Y()
+    {
+        var bounds = new[]
+        {
+            new[] { 0.0, 100.0 }, new[] { 0.0, 30.0 },
+            new[] { 10.0, 50.0 }, new[] { 0.0, 20.0 },
+        };
+        // Plane 1 maps to world X and world Z, so it has no world Y extent to
+        // give. It must not widen the envelope, and it must not throw.
+        var geometries = new PlotterPlaneGeometry?[]
+        {
+            new() { WorldAxes = [0, 1] },
+            new() { WorldAxes = [0, 2] },
+        };
+        Assert.True(PlotterPlaneMapper.TryJobExtent(
+            geometries, [[0, 1], [2, 3]], bounds, out var job));
+        Assert.Equal((0.0, 0.0, 100.0, 30.0), job);
+    }
+
+    /// <summary>The axis-mismatch drop: a foam preset needing four axes against
+    /// a three-axis program. The plane's indices run past the frame, so it is
+    /// skipped by the same guard that keeps the single-plane version from
+    /// indexing out of range.</summary>
+    [Fact]
+    public void TryJobExtent_skips_a_plane_whose_axes_run_past_the_frame()
+    {
+        var bounds = new[]
+        {
+            new[] { 0.0, 100.0 }, new[] { 0.0, 30.0 },
+            new[] { 10.0, 50.0 }, new[] { 0.0, 20.0 },
+        };
+        var geometries = new PlotterPlaneGeometry?[]
+        {
+            new() { WorldAxes = [0, 1] },
+            new() { WorldAxes = [0, 1] },
+        };
+        // [2, 9] against a four-axis frame: role 1's machine axis 9 is past it.
+        Assert.True(PlotterPlaneMapper.TryJobExtent(
+            geometries, [[0, 1], [2, 9]], bounds, out var job));
+        Assert.Equal((0.0, 0.0, 100.0, 30.0), job);
+    }
+
+    [Fact]
+    public void TryJobExtent_unions_the_origin_into_every_plane()
+    {
+        // Both planes strictly positive. The origin is still a corner of the
+        // extent, because that is where the axis arrows start and where the
+        // lattice has to reach to show it.
+        var bounds = new[]
+        {
+            new[] { 5.0, 100.0 }, new[] { 7.0, 40.0 },
+            new[] { 10.0, 50.0 }, new[] { 8.0, 30.0 },
+        };
+        var geometries = new PlotterPlaneGeometry?[]
+        {
+            new() { WorldAxes = [0, 1] },
+            new() { WorldAxes = [0, 1] },
+        };
+        Assert.True(PlotterPlaneMapper.TryJobExtent(
+            geometries, [[0, 1], [2, 3]], bounds, out var job));
+        Assert.Equal((0.0, 0.0, 100.0, 40.0), job);
+    }
+
+    [Fact]
+    public void TryJobExtent_keeps_a_negative_plane_below_the_origin()
+    {
+        // Plane 0 sits entirely below the origin, plane 1 above it. The union
+        // spans both and touches 0 on neither axis's outer side.
+        var bounds = new[]
+        {
+            new[] { -100.0, -50.0 }, new[] { -40.0, -10.0 },
+            new[] { 20.0, 60.0 }, new[] { 10.0, 30.0 },
+        };
+        var geometries = new PlotterPlaneGeometry?[]
+        {
+            new() { WorldAxes = [0, 1] },
+            new() { WorldAxes = [0, 1] },
+        };
+        Assert.True(PlotterPlaneMapper.TryJobExtent(
+            geometries, [[0, 1], [2, 3]], bounds, out var job));
+        Assert.Equal((-100.0, -40.0, 60.0, 30.0), job);
+    }
+
+    /// <summary>False means NO envelope, never a fabricated one — the same
+    /// contract as <c>TryWorldFootprint</c>, for the same reason: the caller
+    /// has extent-derived chrome to skip, and a magic 1 mm square would put
+    /// invented geometry on screen.</summary>
+    [Fact]
+    public void TryJobExtent_refuses_when_no_plane_can_be_read()
+    {
+        var bounds = new[] { new[] { 5.0, 100.0 }, new[] { 7.0, 40.0 } };
+        // A single plane that maps neither world X nor world Y.
+        Assert.False(PlotterPlaneMapper.TryJobExtent(
+            [new PlotterPlaneGeometry { WorldAxes = [1, 2] }], [[0, 1]], bounds, out _));
+        // No planes at all.
+        Assert.False(PlotterPlaneMapper.TryJobExtent([], [], bounds, out _));
+        // A null element is a stored mapping the caller failed to sanitise.
+        Assert.False(PlotterPlaneMapper.TryJobExtent(
+            new PlotterPlaneGeometry?[] { null }, [[0, 1]], bounds, out _));
+    }
+
+    /// <summary>Both lists are untrusted here and they need not agree: a
+    /// mismatch, a short frame and absent lists must all be answered, not
+    /// thrown on, because a settings file can produce all three.</summary>
+    [Fact]
+    public void TryJobExtent_survives_ragged_inputs()
+    {
+        var geometries = new PlotterPlaneGeometry?[]
+        {
+            new() { WorldAxes = [0, 1] },
+            new() { WorldAxes = [0, 1] },
+        };
+        // More geometries than axis indices: the extra plane is not consulted,
+        // because its roles are unknown.
+        Assert.True(PlotterPlaneMapper.TryJobExtent(
+            geometries, [[0, 1]], new[] { new[] { 5.0, 100.0 }, new[] { 7.0, 40.0 } },
+            out var job));
+        Assert.Equal((0.0, 0.0, 100.0, 40.0), job);
+        // An empty frame cannot locate any plane.
+        Assert.False(PlotterPlaneMapper.TryJobExtent(geometries, [[0, 1], [2, 3]], [], out _));
+        // Absent lists. The null-forgiving operator is the idiomatic way to say
+        // "a null reference reaches this parameter on purpose" to the compiler,
+        // so the untrusted-input contract can be pinned without paying three
+        // CS8625 warnings against the build's zero-warning contract.
+        Assert.False(PlotterPlaneMapper.TryJobExtent(null!, [[0, 1]], [], out _));
+        Assert.False(PlotterPlaneMapper.TryJobExtent(geometries, null!, [], out _));
+        Assert.False(PlotterPlaneMapper.TryJobExtent(geometries, [[0, 1], [2, 3]], null!, out _));
+    }
 }

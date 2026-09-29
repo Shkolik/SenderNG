@@ -140,4 +140,58 @@ public static class PlotterPlaneMapper
         footprint = (Math.Min(x.Min, 0), Math.Min(y.Min, 0), Math.Max(x.Max, 0), Math.Max(y.Max, 0));
         return true;
     }
+
+    /// <summary>The JOB's world XY extent: every readable plane contributes its
+    /// own world X and world Y span, and the planes are UNIONED — min of the
+    /// minima, max of the maxima. The envelope is a property of the job, not of
+    /// a carriage, so a foam job's two planes must not each bring their own
+    /// extent: the two tiles would be different sizes and the same envelope
+    /// rectangle would mean a different thing on each. Nex takes Min/Max for
+    /// the same reason (<c>NexPlotScene.BuildAutoChrome</c>).
+    /// <para>The origin is unioned in here, exactly as
+    /// <see cref="TryWorldFootprint"/> does, so the two cannot disagree about
+    /// what "the extent" includes and the origin cross stays in frame.
+    /// <para>A plane that cannot be read is skipped, never fatal: one that
+    /// feeds neither world X nor world Y has no extent to give, and one whose
+    /// axis index runs past the program frame is the axis-mismatch drop. A
+    /// plane that never MOVED needs no separate check either —
+    /// <c>PlotterViewModel.ComputeBounds</c> hands a motion-less axis [0, 0] and
+    /// unioning 0 with 0 widens nothing.
+    /// <para>False means no plane could be read, never a fabricated extent: the
+    /// caller has extent-derived chrome to skip and substitutes its own
+    /// fallback.</summary>
+    public static bool TryJobExtent(
+        IReadOnlyList<PlotterPlaneGeometry?> geometries,
+        IReadOnlyList<int[]> planeAxisIndices,
+        double[][] bounds,
+        out (double MinX, double MinY, double MaxX, double MaxY) extent)
+    {
+        extent = default;
+        if (geometries is null || planeAxisIndices is null || bounds is null)
+            return false;
+        // Seeded at 0, so the origin is unioned in by the same arithmetic that
+        // unions the planes — there is no second rule to keep in step.
+        var minX = 0.0;
+        var minY = 0.0;
+        var maxX = 0.0;
+        var maxY = 0.0;
+        var any = false;
+        var planes = Math.Min(geometries.Count, planeAxisIndices.Count);
+        for (var p = 0; p < planes; p++)
+        {
+            var indices = planeAxisIndices[p];
+            if (!TryWorldSpan(geometries[p], indices, bounds, 0, out var x)
+                || !TryWorldSpan(geometries[p], indices, bounds, 1, out var y))
+                continue;
+            minX = Math.Min(minX, x.Min);
+            minY = Math.Min(minY, y.Min);
+            maxX = Math.Max(maxX, x.Max);
+            maxY = Math.Max(maxY, y.Max);
+            any = true;
+        }
+        if (!any)
+            return false;
+        extent = (minX, minY, maxX, maxY);
+        return true;
+    }
 }
