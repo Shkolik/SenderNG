@@ -688,6 +688,148 @@ public class PlotterLiveRunHeadlessTests
             $"dragging plane 0 across the center must keep the profile visible beyond it, got {pastCenter} px right of x={centerX}");
     }
 
+    /// <summary>Rapids are RED, cuts are grey — the same split the Nex plotter
+    /// draws (<c>NexCarriagePlaneLayer.RapidColor</c> 0.9/0.12/0.12). The Skia
+    /// plotter used to paint rapids #c8c8c8 dashed, i.e. a paler grey than the
+    /// cuts, so a G0 read as "more toolpath" rather than "a move that cuts
+    /// nothing".
+    /// <para>Both halves are needed. "Red appears" alone is satisfied by a
+    /// red-tinted painter that floods the frame; "grey appears" alone is
+    /// satisfied by the pre-fix palette, which drew rapids a paler grey. The
+    /// control frame — the identical program with the G0s stripped — is what
+    /// pins the red to the rapid flag specifically.</para>
+    /// <para>Both plotters' rapids are red, so this is the same contract the
+    /// Nex layer test pins; this one holds the Skia side.</para>
+    /// <para>The fixture is the shared deterministic stub, not this file's
+    /// streamed <c>Setup</c>: the assertion is about pen colour, and a streamed
+    /// run would buy only timing flake.</para></summary>
+    [AvaloniaFact]
+    public async Task Rapids_paint_red_and_cuts_paint_grey()
+    {
+        // The rapid red, and specifically it. Getting this gate right took three
+        // tries, and each failure taught something about the frame.
+        //
+        // The panel's own chrome is warm and anti-aliases into the same
+        // neighbourhood: header text reads as browns (#9e5a33, #c7924f) and the
+        // in-flight amber button is #c07a20. A loose "reddish" probe counts all
+        // of them. Gating on both colour channels being LOW is not enough either
+        // — every one of those has a low blue.
+        //
+        // What separates them is that pure red has only ONE non-white channel,
+        // so anti-aliasing it toward white leaves g and b EQUAL. A brown or an
+        // amber has a real green in it, and no amount of blending erases that
+        // asymmetry: the g-b gap is 39 for #9e5a33, 67 for #c7924f, 90 for
+        // #c07a20, against 0 for the toolpath. A rapid stroke is only ~1px wide,
+        // so most of its pixels are partial coverage and read as pink
+        // (240,143,143) — which is why the gate must accept a HIGH g too, and
+        // why a "saturated red only" probe measures stroke coverage instead of
+        // colour.
+        static bool IsRapidRed(byte r, byte g, byte b) =>
+            r >= 130 && r > g + 15 && Math.Abs(g - b) <= 12;
+
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        // A real program ping-pongs: G0 across to a new rail, a run of G1s
+        // cutting it, G0 back. One G0 is NOT enough — it is a single short
+        // stroke, it anti-aliases down to a handful of pixels, and the test
+        // would be measuring stroke coverage rather than colour.
+        source.Load(PingPongProgram(24));
+        Assert.True(vm.HasGeometry, "the rapid/feed split needs a real path to paint");
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        // Origin chrome off: the world X arrow is a red line and would be
+        // indistinguishable from a rapid to the probe. It is a baked-raster
+        // flag, so this has to reach a rebake.
+        view.PushChromeFlags(ChromeFlags.Default with { Origin = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        await DrainRebakeQueue(view);
+
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        var red = PlotterPixels.Count(frame, IsRapidRed);
+        var grey = PlotterPixels.Count(frame, IsPathGrey);
+
+        Assert.True(red > 0, $"G0 rapids must paint red, found {red} red pixels");
+        Assert.True(grey > 100, $"G1 cuts must still paint grey, found {grey} path pixels");
+
+        // The control: the SAME program with the G0s stripped. If the red came
+        // from anything but the rapid flag, this frame would match the first.
+        var cutOnly = new StubProgramSource();
+        var cutVm = MakeVm(cutOnly, MachineTypes.Mill);
+        cutOnly.Load(PingPongProgram(24, withRapids: false));
+        var cutView = new PlotterView { DataContext = cutVm };
+        var cutWindow = new Window { Width = 920, Height = 560, Content = cutView };
+        cutWindow.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        cutView.PushChromeFlags(ChromeFlags.Default with { Origin = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        await DrainRebakeQueue(cutView);
+        var cutRed = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(cutWindow)), IsRapidRed);
+
+        // The control is a DIFFERENCE, not a zero, and that is deliberate. An
+        // exact-zero red count is unachievable in this frame for reasons that
+        // have nothing to do with rapids: the tool glyph is a legitimate
+        // #d02020 red, and the panel's own chrome contributes a stray dark red
+        // or two near the window edge. Chasing either one to zero means
+        // shrinking the probe until it stops seeing the toolpath at all. The
+        // 24 rails draw 24 cross-window rapid strokes, so the delta is two
+        // orders of magnitude above the chrome noise it has to survive.
+        Assert.True(red > cutRed * 4 + 200,
+            $"the rapids must be what puts red in the frame: {red} red pixels with G0 vs {cutRed} without");
+    }
+
+    /// <summary>Rapids are drawn THINNER than cuts. A rapid is not cutting, so
+    /// it should sit behind the geometry instead of competing with it — the
+    /// red says what a rapid is, the weight says it matters less.
+    /// <para>Asserted as a RELATION, not as the constant, because the
+    /// relation is the design intent and the number is a tuning choice: a
+    /// mutation that made rapids as heavy as cuts fails here, and so does one
+    /// that made them fainter than the wire mesh.
+    /// <para>Worth knowing before anyone widens a rapid for visibility: it does
+    /// not work. Measured on the 24-rail ping-pong fixture, red pixel count
+    /// moves only 19933 -&gt; 18309 -&gt; 16890 across widths 1.1 -&gt; 0.8 -&gt; 0.6,
+    /// because these are long cross-window strokes whose LENGTH, not width,
+    /// dominates the area. A rapid at 0.6px is as visible as one at 1.1px, so
+    /// there is nothing to buy by making it heavy — and the heaviness costs the
+    /// read it was meant to fix.</para></summary>
+    [Fact]
+    public void Rapid_pen_is_thinner_than_the_feed_pen()
+    {
+        Assert.True(PlotterPens.RapidW < PlotterPens.FeedW,
+            $"a rapid is not cutting — its pen must be lighter than a cut's ({PlotterPens.RapidW} vs {PlotterPens.FeedW})");
+        Assert.True(PlotterPens.RapidW >= PlotterPens.WireW,
+            $"a rapid is real motion, not a coupling wire — it must stay at least as heavy ({PlotterPens.RapidW} vs {PlotterPens.WireW})");
+    }
+
+    /// <summary>A cutting program shaped like a real one: a run of G1s along a
+    /// rail, then a G0 across to the next rail. <paramref name="withRapids"/>
+    /// off strips the G0s but keeps the identical cut path, so the control frame
+    /// differs from the subject frame in exactly one thing — whether the
+    /// cross-rail moves are rapid or feed. That is the whole test: if the red
+    /// came from anywhere but the rapid flag, the stripped frame would be red
+    /// too.</summary>
+    private static string PingPongProgram(int rails, bool withRapids = true)
+    {
+        var sb = new StringBuilder("G21\r\nG90\r\n");
+        var y = 10d;
+        for (var r = 0; r < rails; r++)
+        {
+            var target = 10 + 80d * r / Math.Max(1, rails - 1);
+            if (withRapids)
+                sb.AppendLine($"G0 X{target:F3} Y{y:F3}");
+            for (var i = 0; i < 12; i++)
+                sb.AppendLine($"G1 X{10 + 70d * i / 11d:F3} Y{10 + 40d * r / Math.Max(1, rails - 1):F3} F240");
+            y = 10 + 40d * r / Math.Max(1, rails - 1);
+        }
+        return sb.ToString();
+    }
+
     /// <summary>The run-state toggle collapses every row to Idle, so
     /// <c>RowStateFor</c> stops reaching for the row state at all and
     /// <c>BakePens.For</c> falls through to <c>_ =&gt; rapid ? Rapid : Feed</c>

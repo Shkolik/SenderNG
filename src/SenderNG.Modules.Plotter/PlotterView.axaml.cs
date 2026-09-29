@@ -65,8 +65,9 @@ public static class PlotterProjection
 /// <summary>Shared pens/brushes for the flat and isometric canvases (frontier
 /// coloring is row-state driven: done green, error red, in-flight amber).
 /// The path is grey by default (the user's palette request — blue was too
-/// dark against the grid); the idle grey and in-flight amber cut at the base
-/// width so a dense toolpath reads as lines, while the done/error frontiers
+/// dark against the grid), with G0 rapids in the Nex plotter's red; the idle
+/// grey and in-flight amber cut at the base width so a dense toolpath reads as
+/// lines, while the done/error frontiers
 /// are 1.5x heavier so the cut frontier stands out inside the grey. Brushes + widths
 /// are exposed separately so the cached-raster bake can re-create pens scaled
 /// to the cache's world→pixel scale (Avalonia's CTM scales stroke width).</summary>
@@ -74,7 +75,16 @@ internal static class PlotterPens
 {
     public static readonly IBrush FeedBrush = new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80));
     public const double FeedW = 1.1;
-    public static readonly IBrush RapidBrush = new SolidColorBrush(Color.FromRgb(0xc8, 0xc8, 0xc8));
+    // Rapids are RED, the same 0.9/0.12/0.12 the Nex plotter draws
+    // (NexCarriagePlaneLayer.RapidColor), so a G0 reads as "a move that cuts
+    // nothing" instead of a paler grey stripe. The dash is gone with the grey:
+    // it existed to make an almost-invisible #c8c8c8 stroke read as a stroke at
+    // all, and on red it only chews the line into dots.
+    // Thinner than the feed pen on purpose — a rapid is not cutting, so it
+    // should sit behind the geometry rather than compete with it. Nex draws
+    // both at one thickness because its LineNode width is node-global and
+    // cannot vary per segment; that is a Nex limitation, not a target to copy.
+    public static readonly IBrush RapidBrush = new SolidColorBrush(Color.FromRgb(0xe6, 0x1f, 0x1f));
     public const double RapidW = 0.8;
     public static readonly IBrush DoneBrush = new SolidColorBrush(Color.FromRgb(0x1b, 0x9e, 0x3e));
     public const double DoneW = 1.65;
@@ -101,7 +111,7 @@ internal static class PlotterPens
     public static readonly IBrush EmptyBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
 
     public static readonly IPen Feed = new Pen(FeedBrush, FeedW);
-    public static readonly IPen Rapid = new Pen(RapidBrush, RapidW, dashStyle: DashStyle.Dash);
+    public static readonly IPen Rapid = new Pen(RapidBrush, RapidW);
     public static readonly IPen Done = new Pen(DoneBrush, DoneW);
     public static readonly IPen Error = new Pen(ErrorBrush, ErrorW);
     public static readonly IPen InFlight = new Pen(InFlightBrush, InFlightW);
@@ -124,7 +134,7 @@ internal sealed class BakePens
     public BakePens(double scale)
     {
         Feed = new Pen(PlotterPens.FeedBrush, PlotterPens.FeedW / scale);
-        Rapid = new Pen(PlotterPens.RapidBrush, PlotterPens.RapidW / scale, dashStyle: DashStyle.Dash);
+        Rapid = new Pen(PlotterPens.RapidBrush, PlotterPens.RapidW / scale);
         Done = new Pen(PlotterPens.DoneBrush, PlotterPens.DoneW / scale);
         Error = new Pen(PlotterPens.ErrorBrush, PlotterPens.ErrorW / scale);
         InFlight = new Pen(PlotterPens.InFlightBrush, PlotterPens.InFlightW / scale);
