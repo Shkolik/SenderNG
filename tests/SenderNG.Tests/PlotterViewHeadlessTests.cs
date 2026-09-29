@@ -268,10 +268,21 @@ public class PlotterViewHeadlessTests
         var bottom = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsPathGrey, yFilter: y => y >= 280);
         Assert.True(top > 30, $"plane 1 must draw in the iso top-left, found {top} path pixels");
         Assert.True(bottom > 30, $"plane 2 must draw in the iso bottom-right, found {bottom} path pixels");
-        // And the semi-transparent coupling mesh must be present (its blend is
-        // a light blue-grey, distinct from the pure-grey path).
-        var wire = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsWireBlend);
-        Assert.True(wire > 20, $"the loft coupling mesh must draw, found {wire} wire pixels");
+        // And the coupling mesh must be present. This is measured with
+        // Chrome.Grid OFF, and that is not incidental bookkeeping: the wire
+        // FLOOR's antialiased edges run through the same near-white blue-grey
+        // the 15% mesh blends to, so with the grid on this probe would score
+        // floor pixels and could not fail if the mesh stopped drawing. The
+        // grid-off frame leaves the mesh as the only thing in the band.
+        // Measured: 14096 mesh pixels here, 108 for the same probe on a mill
+        // iso frame (same chrome, no mesh because Loft is false). The 2000
+        // floor is ~18x the control and ~7x under the signal.
+        view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var mesh = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsLoftMeshBlend);
+        Assert.True(mesh > 2000,
+            $"the loft coupling mesh must draw, found {mesh} mesh pixels");
     }
 
     /// <summary>Regression guard for the tab-switch freeze: the view used to
@@ -1939,7 +1950,13 @@ public class PlotterViewHeadlessTests
             await Pump();
 
         var on = PlotterPixels.Snapshot(CaptureFrame(window));
-        var floor = CountSurface(on, IsWireBlend);
+        // Measured with the 15% coupling mesh in place: 6952 floor pixels here,
+        // 381 with Chrome.Grid off. The 300 floor is the original threshold and
+        // stays — it is ~23x under the signal and ~1.3x over the grid-off
+        // residue, and this test is about the floor's GEOMETRY, not its weight.
+        // The floor's own pen is unchanged by the mesh's alpha; see
+        // PlotterPens.WireFloorBrush for why it stays opaque.
+        var floor = CountSurface(on, IsWireFloorBlend);
         Assert.True(floor > 300,
             $"the loft wire floor must paint, found {floor} wire pixels");
 
@@ -1964,7 +1981,7 @@ public class PlotterViewHeadlessTests
             for (var x = 1; x < on.Width - 1; x++)
             {
                 var p = PlotterPixels.At(on, x, y);
-                if (!IsWireBlend(p.R, p.G, p.B))
+                if (!IsWireFloorBlend(p.R, p.G, p.B))
                     continue;
                 row++;
                 if (first < 0)
@@ -2032,7 +2049,7 @@ public class PlotterViewHeadlessTests
             for (var x = 1; x < on.Width - 1; x++)
             {
                 var p = PlotterPixels.At(on, x, y);
-                if (!IsWireBlend(p.R, p.G, p.B))
+                if (!IsWireFloorBlend(p.R, p.G, p.B))
                     continue;
                 if (x < left - 2 || x > right + 2 || y < top - 2 || y > bottom + 2)
                     stray++;
@@ -2043,7 +2060,7 @@ public class PlotterViewHeadlessTests
         view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
         for (var i = 0; i < 8; i++)
             await Pump();
-        var off = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsWireBlend);
+        var off = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsWireFloorBlend);
         Assert.True(off < floor / 2,
             $"the loft wire floor must be gated by Chrome.Grid: {off} wire pixels with it off vs {floor} with it on");
     }
@@ -3177,9 +3194,44 @@ public class PlotterViewHeadlessTests
     private static bool IsPathGrey(byte r, byte g, byte b) =>
         Math.Abs(r - g) <= 14 && Math.Abs(g - b) <= 14 && r is >= 95 and <= 175;
 
-    /// <summary>The semi-transparent loft wire over white blends to a light
-    /// blue-grey (~#cbcbd6) — distinctly bluer than the grey path.</summary>
-    private static bool IsWireBlend(byte r, byte g, byte b) =>
+    /// <summary>The foam loft's COUPLING MESH, at 15% alpha over white: the
+    /// stroke is #6a6a8a, so a fully covered pixel blends to (233, 233, 238) —
+    /// a 5-level blue lean on an almost-white field.
+    ///
+    /// <para>The lean is the whole probe, and it is this tight ON PURPOSE. The
+    /// mesh has no toggle of its own (<c>DrawCoupling</c> reads no
+    /// <c>Chrome</c> flag), so it is measured with <c>Chrome.Grid</c> OFF,
+    /// which removes the wire floor. That matters because the floor's
+    /// ANTIALIASED EDGE pixels are the same near-white blue-grey as the mesh —
+    /// a #c8c8da stroke fading into white passes straight through (233,233,238)
+    /// — so with the grid on, this probe also scores the floor (measured: 471
+    /// extra pixels on the wing program). With the grid off, the only thing
+    /// left in this band is the mesh.
+    ///
+    /// <para>Specificity is measured, not assumed: the same probe on a MILL iso
+    /// frame — same chrome, same window, no coupling mesh because
+    /// <c>Loft</c> is false — scores 108. The mesh scores 14096. Rejected by the
+    /// clauses above: the white background (r = 255, above the ceiling), the
+    /// grey toolpath and #888888 origin cross (neutral, so <c>b &gt; r</c>
+    /// fails), the teal envelope (g far above r), the axis colours, the
+    /// run-state greens.</para></summary>
+    private static bool IsLoftMeshBlend(byte r, byte g, byte b) =>
+        b > r && b - r <= 5 && r > 228 && r < 253 && Math.Abs(r - g) <= 2;
+
+    /// <summary>The loft wire FLOOR (<c>PlotterPens.WireFloorBrush</c> = an
+    /// OPAQUE #c8c8da), so its core pixels are that colour outright rather than
+    /// a blend, and the antialiased edges fan out around it.
+    ///
+    /// <para>This used to be one probe — <c>IsWireBlend</c> — shared by the
+    /// coupling mesh and the floor, which was a mistake the 35% mesh hid: the
+    /// mesh blended to (203, 203, 214) against the floor's (200, 200, 218),
+    /// three levels apart, so the probe could not tell them apart and
+    /// <c>Foam_iso_renders_the_four_axis_loft</c>'s "the coupling mesh must
+    /// draw" assertion was reading ~59% floor pixels (7067 total, 4155 of them
+    /// the floor). It could not have failed if the mesh stopped drawing. The
+    /// two elements now have their own probes — <see cref="IsLoftMeshBlend"/>
+    /// for the mesh, this one for the floor.</para></summary>
+    private static bool IsWireFloorBlend(byte r, byte g, byte b) =>
         b > r + 8 && b > 190 && g >= 180 && Math.Abs(r - g) <= 16;
 
     /// <summary>The run-state "done" green, <c>PlotterPens.DoneBrush</c> =

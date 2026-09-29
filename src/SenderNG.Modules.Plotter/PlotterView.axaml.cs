@@ -96,8 +96,12 @@ internal static class PlotterPens
     public const double OriginW = 1;
     public static readonly IBrush ToolBrush = new SolidColorBrush(Color.FromRgb(0xd0, 0x20, 0x20));
     public const double ToolW = 1.6;
-    // Semi-transparent loft wires — the foam iso's coupling mesh.
-    public static readonly IBrush WireBrush = new SolidColorBrush(Color.FromArgb(0x59, 0x6a, 0x6a, 0x8a));
+    // Semi-transparent loft wires — the foam iso's coupling mesh. 15% alpha
+    // (0x26) at the user's request: the mesh says the two carriages are
+    // coupled, it is not a surface to read, and at 35% it competed with the
+    // toolpath and the tiles for attention. The FLOOR beside it is a different
+    // question and stays opaque — see the WireFloor comment for why.
+    public static readonly IBrush WireBrush = new SolidColorBrush(Color.FromArgb(0x26, 0x6a, 0x6a, 0x8a));
     public const double WireW = 0.7;
     // The wire FLOOR's own pen (PlotterView.IsoCanvas.DrawWireFloor): OPAQUE,
     // and already the light blue-grey the coupling wire only *blends* to over
@@ -106,6 +110,12 @@ internal static class PlotterPens
     // floor reads as a dotted grid of bright knots on a near-invisible mesh —
     // the user called it "faint". Opaque, every line renders at the one
     // intended strength and the mesh reads as a mesh.
+    //
+    // The floor is also the ONLY loft element whose colour is authoritative:
+    // the coupling mesh blends to (233,233,238) over white, a 5-level lean,
+    // which a test cannot separate from the floor's own antialiased edge
+    // pixels. So a probe for the mesh has to be told which element it is
+    // looking at, not just what colour it is — see IsLoftMeshBlend.
     public static readonly IBrush WireFloorBrush = new SolidColorBrush(Color.FromRgb(0xc8, 0xc8, 0xda));
     public const double WireFloorW = 0.9;
     public static readonly IBrush EmptyBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
