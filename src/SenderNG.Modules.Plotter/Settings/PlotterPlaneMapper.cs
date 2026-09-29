@@ -151,10 +151,17 @@ public static class PlotterPlaneMapper
     /// <para>The origin is unioned in here, exactly as
     /// <see cref="TryWorldFootprint"/> does, so the two cannot disagree about
     /// what "the extent" includes and the origin cross stays in frame.
-    /// <para>A plane that cannot be read is skipped, never fatal: one that
-    /// feeds neither world X nor world Y has no extent to give, and one whose
-    /// axis index runs past the program frame is the axis-mismatch drop. A
-    /// plane that never MOVED needs no separate check either —
+    /// <para>A plane that cannot be read is skipped, never fatal. The rule is
+    /// ALL-OR-NOTHING: a plane contributes only if it supplies BOTH world X and
+    /// world Y, so an X-only plane has its X contribution discarded along with
+    /// the Y it never had. That is <see cref="TryWorldFootprint"/>'s shape kept
+    /// deliberately — the two methods read the same planes, so letting one accept
+    /// a half-plane would let them disagree about the extent. The cost is a
+    /// future preset pairing a world X-only plane with a world Y-only one
+    /// under-sizes the envelope rather than widening it, and that is the failure
+    /// to suspect if an envelope ever comes out too small. A plane whose axis
+    /// index runs past the program frame is the axis-mismatch drop, skipped the
+    /// same way. A plane that never MOVED needs no separate check either —
     /// <c>PlotterViewModel.ComputeBounds</c> hands a motion-less axis [0, 0] and
     /// unioning 0 with 0 widens nothing.
     /// <para>False means no plane could be read, never a fabricated extent: the

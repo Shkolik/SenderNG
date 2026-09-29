@@ -247,17 +247,22 @@ public class PlotterPlaneMapperTests
 
     /// <summary>The no-op property, and the reason a mill frame cannot change:
     /// one contributing plane's union IS that plane's own extent, byte for
-    /// byte. This is the guard the whole change rests on, so it is pinned
-    /// rather than argued.</summary>
+    /// byte. This is the guard the whole change rests on, so it is derived here
+    /// from <see cref="PlotterPlaneMapper.TryWorldFootprint"/> rather than pinned
+    /// as a literal — a literal would only restate today's answer, and a later
+    /// change to the origin unioning would quietly break the property with this
+    /// test still green. The Y minimum is negative on purpose: that is the case
+    /// where the origin unioning has something to do, so a copy that skipped the
+    /// union would differ from the footprint instead of coinciding with it.</summary>
     [Fact]
     public void TryJobExtent_with_one_plane_equals_that_plane_alone()
     {
         var bounds = new[] { new[] { 5.0, 100.0 }, new[] { -3.0, 40.0 } };
+        Assert.True(PlotterPlaneMapper.TryWorldFootprint(
+            new PlotterPlaneGeometry { WorldAxes = [0, 1] }, [0, 1], bounds, out var fp));
         Assert.True(PlotterPlaneMapper.TryJobExtent(
             [new PlotterPlaneGeometry { WorldAxes = [0, 1] }], [[0, 1]], bounds, out var job));
-        // Identical to the single-plane TryWorldFootprint result for the same
-        // inputs, origin unioning included.
-        Assert.Equal((0.0, -3.0, 100.0, 40.0), job);
+        Assert.Equal(fp, job);
     }
 
     [Fact]
