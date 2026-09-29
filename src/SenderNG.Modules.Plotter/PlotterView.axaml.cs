@@ -349,30 +349,58 @@ public partial class PlotterView : UserControl
             // A canvas that is never in the visual tree, so nothing the export
             // does can reach the live one. Typed as the base because the ternary
             // of two unrelated sealed subclasses has no common type.
+            // Where the live canvas actually sits INSIDE the view: the view also
+            // carries a 24px header and a 1px border, so its plot is smaller and
+            // offset. The file is 2x the whole view, and the scene has to land
+            // in the same place inside it — the export inherits a transform that
+            // was fitted to the PLOT, so painting that transform into the view's
+            // full height put the scene 13 logical px low: half of the 26px the
+            // plot is shorter than the view. Small, and invisible next to a
+            // crop, but it means the file is not quite the view.
+            var live = _canvases.OfType<PlotCanvas>().FirstOrDefault();
+            var plotOffset = live is null
+                ? default
+                : live.TranslatePoint(default, this) ?? default;
+            var plotSize = live?.Bounds.Size ?? size;
+
             PlotCanvas canvas = _vm.Isometric ? new IsoCanvas(_vm) : new PlaneCanvas(_vm);
-            canvas.Measure(size);
-            canvas.Arrange(new Rect(size));
+            canvas.Measure(plotSize);
+            canvas.Arrange(new Rect(plotSize));
             // The RETAINED flags, through the same accessor ApplyChrome reads.
             // Reading `_overlaySettings?.Flags` directly here looked equivalent
             // and was not: it drops `_chromeFlags`, so a canvas whose flags came
             // from a push (the overlay's own flips, which land via Changed)
             // would export with a different chrome than the user is looking at.
             canvas.Chrome = DebugStoredChromeFlags!.Value;
-            var live = _canvases.OfType<PlotCanvas>().FirstOrDefault();
             if (live is not null)
-                canvas.AdoptTransformFrom(live, new Rect(size));
+                canvas.AdoptTransformFrom(live, new Rect(plotSize));
             LastExportCanvasForTest = canvas;
 
+            // 96 DPI, NOT 96*scale. RenderTargetBitmap applies its DPI vector as
+            // a device scale on top of PixelSize, so asking for 192 here scaled
+            // the scene a SECOND time on top of the explicit Scale(scale,scale)
+            // below — the export came out at 4x, overflowed the 1840x1120
+            // surface, and was cropped to its bottom-right corner. The chrome
+            // hid the tell: it is emitted in screen coordinates, so the extra
+            // scale moved it without distorting it, and it still lined up.
+            // Only the toolpath, which multiplies its own zoom in, showed the
+            // 4x. The export scales explicitly and paints in device pixels, so
+            // the surface wants plain 96 and no implicit scale at all.
             var bitmap = new RenderTargetBitmap(
-                new PixelSize(width, height), new Vector(96 * scale, 96 * scale));
+                new PixelSize(width, height), new Vector(96, 96));
             using (var ctx = bitmap.CreateDrawingContext())
             {
                 ctx.FillRectangle(Brushes.White, new Rect(0, 0, width, height));
-                // The whole scene at 2x. Chrome, frontier and glyph already emit
-                // screen coordinates, so this alone scales them; the toolpath's
-                // world coordinates are mapped by the paint itself.
-                using (ctx.PushTransform(Matrix.CreateScale(scale, scale)))
-                    canvas.PaintScene(ctx, new Rect(size), PaintMode.Export);
+                // The whole scene at 2x, translated by the plot's offset in the
+                // view so it lands where the view draws it. The translate is
+                // INSIDE the scale, so it is not itself doubled: 2x of a 25px
+                // offset is 50px in the file, which is what makes the file a
+                // snapshot of the view rather than of the view's plot area
+                // stretched to fill it.
+                using (ctx.PushTransform(
+                    Matrix.CreateTranslation(plotOffset.X, plotOffset.Y) *
+                    Matrix.CreateScale(scale, scale)))
+                    canvas.PaintScene(ctx, new Rect(plotSize), PaintMode.Export);
             }
             // Opened here rather than handed to bitmap.Save(path) on purpose.
             // Avalonia's string overload swallows I/O failures: pointed at a

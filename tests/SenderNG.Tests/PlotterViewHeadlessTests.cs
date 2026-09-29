@@ -2673,18 +2673,34 @@ public class PlotterViewHeadlessTests
     /// not move when the view does. Excludes the header band and the 1px frame
     /// the same way <see cref="CountSurface"/> does.</summary>
     private static (int Left, int Top, int Right, int Bottom, double Cx, double Cy, double Width)
-        PathBounds(WriteableBitmap bmp) => PathBounds(PlotterPixels.Snapshot(bmp));
+        PathBounds(WriteableBitmap bmp, int minY = 25) =>
+        PathBounds(PlotterPixels.Snapshot(bmp), minY);
 
     /// <summary>Same measurement for a PNG that came off disk, so an export can
-    /// be compared against the view it was taken from.</summary>
+    /// be compared against the view it was taken from.
+    /// <para><paramref name="minY"/> is 25 for a screen capture, which skips the
+    /// 24px header band, but 1 for an export: the saved image has no header, and
+    /// reusing 25 there would silently ignore the top 12 logical pixels of the
+    /// scene — which is exactly the band a vertical offset moves content into or
+    /// out of, so the very error being measured would hide from the measurement.</para></summary>
+    /// <para>The scan starts ONE pixel in from each edge, and honours
+    /// <paramref name="minY"/>. The inset is not cosmetic: the view's own
+    /// <c>&lt;Border BorderBrush="#aaa" BorderThickness="1"&gt;</c> is
+    /// #AAAAAA = 170, squarely inside this probe's 95..175 band, so the
+    /// outermost column of a WINDOW capture is chrome and read as toolpath.
+    /// It spans the full height, so it alone pinned the measured left edge at
+    /// x=0 and made the on-screen path look 5px wider and shifted — which is
+    /// how a correct export ended up "proven" misplaced. An export has no such
+    /// border, so the same probe that caught the bug on one side is the reason
+    /// the two sides were not comparable.</para></summary>
     private static (int Left, int Top, int Right, int Bottom, double Cx, double Cy, double Width)
-        PathBounds(PlotterPixels.Frame frame)
+        PathBounds(PlotterPixels.Frame frame, int minY = 25)
     {
         var left = frame.Width;
         var top = frame.Height;
         var right = -1;
         var bottom = -1;
-        for (var y = 25; y < frame.Height - 1; y++)
+        for (var y = minY; y < frame.Height - 1; y++)
             for (var x = 1; x < frame.Width - 1; x++)
             {
                 var p = PlotterPixels.At(frame, x, y);
@@ -2698,6 +2714,57 @@ public class PlotterViewHeadlessTests
         if (right < 0)
             return (0, 0, -1, -1, 0, 0, 0);
         return (left, top, right, bottom, (left + right) / 2d, (top + bottom) / 2d, right - left);
+    }
+
+    /// <summary>Bounding box of everything that is not the background, ignoring
+    /// WHICH colour it is.
+    /// <para>This is the probe that can compare a screen capture with an export
+    /// at all. <see cref="IsPathGrey"/> only admits neutral greys in 95..175, so
+    /// it sees the toolpath on one side and, on the other, a different subset
+    /// again — the screen's toolpath arrives through the bake raster, whose
+    /// anti-aliased fringe and job rectangle sit inside the band, while the
+    /// export draws clean vectors. The two boxes then disagree by tens of
+    /// millimetres on content that is in fact identical, and a test built on it
+    /// measures the renderer, not the bug.</para>
+    /// <para>What a crop actually does is leave BACKGROUND where content should
+    /// be, so asking where the ink is answers the question directly: a scene
+    /// scaled past the surface leaves a blank band along the top and left, and
+    /// that band's size is the error, whatever colour the content turned out
+    /// to be.</para></summary>
+    private static (int Left, int Top, int Right, int Bottom, int Width, int Height)
+        InkBounds(PlotterPixels.Frame frame, int minY = 0, int inset = 0) =>
+        InkBounds(frame, new Rect(inset, minY,
+            frame.Width - inset * 2, frame.Height - minY - inset));
+
+    /// <summary>The same measurement restricted to <paramref name="region"/>, so
+    /// a window capture can be measured over the plot alone and compared with a
+    /// file that has no chrome around it.
+    /// <para>Coordinates stay in IMAGE space, not region-relative: the edges are
+    /// compared against the export's own, which has no region to subtract.</para></summary>
+    private static (int Left, int Top, int Right, int Bottom, int Width, int Height)
+        InkBounds(PlotterPixels.Frame frame, Rect region)
+    {
+        var left = frame.Width;
+        var top = frame.Height;
+        var right = -1;
+        var bottom = -1;
+        var x0 = (int)Math.Max(0, Math.Floor(region.Left));
+        var y0 = (int)Math.Max(0, Math.Floor(region.Top));
+        var x1 = (int)Math.Min(frame.Width, Math.Ceiling(region.Right));
+        var y1 = (int)Math.Min(frame.Height, Math.Ceiling(region.Bottom));
+        for (var y = y0; y < y1; y++)
+            for (var x = x0; x < x1; x++)
+            {
+                var p = PlotterPixels.At(frame, x, y);
+                if (p.R > 250 && p.G > 250 && p.B > 250)
+                    continue;
+                if (x < left) left = x;
+                if (x > right) right = x;
+                if (y < top) top = y;
+                if (y > bottom) bottom = y;
+            }
+        Assert.True(right >= 0, "the image has no ink at all to measure");
+        return (left, top, right, bottom, right - left, bottom - top);
     }
 
     /// <summary>A dialog service that returns a fixed save path, so the export
@@ -2752,6 +2819,7 @@ public class PlotterViewHeadlessTests
             await Pump();
         return (view, window, dialogs, file);
     }
+
 
     [AvaloniaFact]
     public async Task Export_writes_a_2x_image_with_chrome_and_leaves_the_view_alone()
@@ -2824,11 +2892,21 @@ public class PlotterViewHeadlessTests
             // 2x it has a solid core that passes, so the count roughly doubles
             // rather than quadruples (measured: 4542 -> 8911). Pinning the
             // ratio to 4x would be pinning Skia's anti-aliasing, not our
-            // contract. Width is the honest measure of the scale, and the
-            // generous lower bound is only there to catch a 1x export dressed
-            // up as a 2x one.
-            Assert.True(exportedGrey > onScreenGrey * 1.5,
-                $"a 2x export must draw a bigger path than the {onScreenGrey}px on screen, got {exportedGrey}px");
+            // contract. Width, asserted below, is the honest measure of the
+            // scale.
+            //
+            // The COUNT is still worth one assertion, but only as "the export
+            // drew a comparable amount of path", not as a ratio to 2x. The old
+            // bound here was `> onScreenGrey * 1.5` and it only passed because
+            // the export was wrongly 4x: the surplus ink that cropped the scene
+            // was exactly what carried the count over the line. Correcting the
+            // DPI dropped the true ratio to 1.36x and the bound failed on a
+            // correct export — a test inverted by the fix it was meant to
+            // police. Comparing the two ink boxes is the same claim without
+            // the anti-aliasing coupling; the width ratio below is what pins
+            // the scale.
+            Assert.True(exportedGrey > onScreenGrey * 0.75,
+                $"a 2x export must draw a comparable path to the {onScreenGrey}px on screen, got {exportedGrey}px");
             // Same relative placement: the path's centre in the file must sit
             // where the view put it. A missing world->screen map sends the
             // centre off toward the origin corner instead.
@@ -2839,6 +2917,98 @@ public class PlotterViewHeadlessTests
             var expectedCx = screenPath.Cx * 2;
             Assert.True(Math.Abs(exportedPath.Cx - expectedCx) < screenPath.Width,
                 $"the exported path must keep the view's horizontal placement: centre {exportedPath.Cx:F1}, expected near {expectedCx:F1}");
+        }
+        finally
+        {
+            window.Close();
+            File.Delete(file);
+        }
+    }
+
+    /// <summary>The export is a 2x snapshot of the VIEW: the whole scene, at
+    /// twice the size, not a cropped corner of it. This is the test the user's
+    /// report turns on.
+    /// <para>It asserts the contract in INK, not in toolpath pixels, because
+    /// that is what "shows only part of the scene" means and it is the one
+    /// thing both renderers agree on. The view's toolpath reaches the screen
+    /// through the bake raster while the export draws clean vectors, so a
+    /// colour-specific probe measures two different sets of pixels and reports
+    /// a disagreement of tens of millimetres on identical content. Ink does not
+    /// care which renderer produced it.</para>
+    /// <para>The scale assertion is 2x against the ON-SCREEN ink box, and the
+    /// margins are asserted separately and tightly. A scene drawn at 4x — the
+    /// failure this pins, where the export's own DPI scale doubled the explicit
+    /// export scale — overflows the surface and leaves a blank band down the
+    /// left and across the top while still hitting the far edges, so a
+    /// width-ratio check alone passes it; the blank bands are the tell.</para></summary>
+    [AvaloniaFact]
+    public async Task Export_frames_the_scene_where_the_view_frames_it()
+    {
+        var (view, window, _, file) = await ShowMillForExport(600);
+        try
+        {
+            // Chrome OFF, on BOTH sides. Grid, origin cross and job rectangle
+            // are all ink that the view draws and are deliberately absent from a
+            // comparison about the toolpath: they extend the on-screen box
+            // vertically past anything the export draws, so a like-for-like
+            // scale check reads 0.77x on a scene that is in fact perfect. The
+            // export inherits these flags (ExportPngAsync hands the canvas the
+            // same retained ChromeFlags), so one call turns them off on both.
+            view.PushChromeFlags(new ChromeFlags(false, false, false, false));
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            // Hide the overlay: the zoom panel and the save button are view
+            // CHROME, drawn over the canvas, and the export deliberately has
+            // none of them ("the PNG has no buttons in it" — PlotterView.axaml).
+            // An ink probe cannot tell a 16x16 button from a toolpath — both are
+            // just not-white — so leaving them on measures a scene the file was
+            // never meant to contain, and the 2x check fails on a good export.
+            // The other capture tests in this file hide it for the same reason.
+            view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
+            for (var i = 0; i < 2; i++)
+                await Pump();
+
+            // Measured over the live canvas rectangle, which is exactly the
+            // region the export's PaintScene covers. That also drops the 24px
+            // #e8e8e8 header and the 1px #aaa border, neither of which the
+            // file carries, without either being special-cased.
+            var live = Assert.Single(view.CanvasesForTest);
+            var origin = live.TranslatePoint(new Point(0, 0), view) ?? new Point(0, 0);
+            var plot = new Rect(
+                origin.X, origin.Y, live.Bounds.Width, live.Bounds.Height);
+            var onScreen = InkBounds(PlotterPixels.Snapshot(CaptureFrame(window)), plot);
+            Assert.True(onScreen.Width > 100,
+                $"the on-screen scene must be visible to compare against, got {onScreen.Width}px wide");
+
+            await view.ExportPngAsync();
+            var frame = PlotterPixels.SnapshotPng(file);
+            var exported = InkBounds(frame);
+
+            // 2x on BOTH axes, to within a pixel of rounding. The tolerance is
+            // TIGHT on purpose: the bug being pinned is a whole extra factor of
+            // two, which no jitter in a fit can hide.
+            var wr = exported.Width / (double)onScreen.Width;
+            Assert.True(wr is > 1.9 and < 2.1,
+                $"the export must show the scene at 2x the view's width: {exported.Width}px vs {onScreen.Width}px is {wr:F3}x");
+            var hr = exported.Height / (double)onScreen.Height;
+            Assert.True(hr is > 1.9 and < 2.1,
+                $"the export must show the scene at 2x the view's height: {exported.Height}px vs {onScreen.Height}px is {hr:F3}x");
+
+            // Same box, same frame. Both are now measured in PLOT coordinates —
+            // the screen over the live canvas, the file over its whole surface —
+            // so the header offset that separated them is gone and each edge
+            // lands exactly where 2x the view put it, with no constant to
+            // subtract and no header height being asserted by accident.
+            const int tol = 8; // a hairline's anti-aliased edge, either end of a stroke
+            Assert.True(Math.Abs(exported.Left - onScreen.Left * 2) <= tol,
+                $"the export's left edge must match the view's: {exported.Left}px, expected {onScreen.Left * 2}px (on-screen {onScreen.Left}px at 2x)");
+            Assert.True(Math.Abs(exported.Top - onScreen.Top * 2) <= tol,
+                $"the export's top edge must match the view's: {exported.Top}px, expected {onScreen.Top * 2}px");
+            Assert.True(Math.Abs(exported.Right - onScreen.Right * 2) <= tol,
+                $"the export's right edge must match the view's: {exported.Right}px, expected {onScreen.Right * 2}px");
+            Assert.True(Math.Abs(exported.Bottom - onScreen.Bottom * 2) <= tol,
+                $"the export's bottom edge must match the view's: {exported.Bottom}px, expected {onScreen.Bottom * 2}px");
         }
         finally
         {
