@@ -102,50 +102,43 @@ public class PlotterSettingsViewModelTests : IDisposable
     }
 
     [Fact]
-    public void A_mill_plane_offers_every_permutation_of_three_world_axes()
+    public void A_mill_plane_offers_one_world_axis_choice_per_slot()
     {
         var vm = Build();
-        Assert.Equal(6, vm.PlaneRows[0].Permutations.Count);
+        Assert.Equal(3, vm.PlaneRows[0].Slots.Count);
+        Assert.Equal(["X", "Y", "Z"], vm.PlaneRows[0].Slots[0].Choices);
+        Assert.Equal([0, 1, 2], vm.PlaneRows[0].Slots.Select(s => s.Axis));
     }
 
     [Fact]
-    public void A_foam_plane_offers_every_permutation_of_two_world_axes()
+    public void A_foam_plane_offers_one_world_axis_choice_per_slot()
     {
         var vm = Build(MachineTypes.Foam);
-        Assert.Equal(2, vm.PlaneRows[0].Permutations.Count);
-        Assert.Equal("X→X, Y→Y", vm.PlaneRows[0].Permutations[0]);
-        Assert.Equal("X→Y, Y→X", vm.PlaneRows[0].Permutations[1]);
+        Assert.Equal(2, vm.PlaneRows[0].Slots.Count);
+        Assert.Equal(["X", "Y", "Z"], vm.PlaneRows[0].Slots[0].Choices);
+        Assert.Equal([0, 1], vm.PlaneRows[0].Slots.Select(s => s.Axis));
     }
 
     [Fact]
-    public void The_selected_permutation_round_trips()
+    public void Selecting_a_slot_axis_round_trips()
     {
         var vm = Build(MachineTypes.Foam);
-        vm.PlaneRows[1].SelectedPermutationIndex = 1;
+        // Slot 0 takes Y; slot 1 keeps Z, its pick is distinct so nothing moves.
+        vm.PlaneRows[1].Slots[0].Axis = 1;
         Assert.Equal([1, 0], vm.Model.Planes[1].WorldAxes);
 
         var reread = new PlotterSettingsViewModel(new SettingsService(_dir), null);
         Assert.Equal([1, 0], reread.Model.Planes[1].WorldAxes);
+        Assert.Equal([1, 0], reread.PlaneRows[1].Slots.Select(s => s.Axis));
     }
 
     [Fact]
-    public void An_origin_offset_round_trips()
+    public void A_stored_mapping_reads_into_the_slot_rows()
     {
-        var vm = Build();
-        vm.PlaneRows[0].Origins[2].Value = 12.5;
-        Assert.Equal(12.5, vm.Model.Planes[0].Origin[2]);
-
-        var reread = new PlotterSettingsViewModel(new SettingsService(_dir), null);
-        Assert.Equal(12.5, reread.Model.Planes[0].Origin[2]);
-    }
-
-    [Fact]
-    public void A_stored_permutation_is_selected_in_the_combo()
-    {
-        // A stored [1, 0] must SHOW as index 1. The plan's original
-        // `List<int[]>.IndexOf` compares arrays by REFERENCE, so it returned -1
-        // and the combo silently displayed index 0 — a saved non-identity
-        // mapping read back as identity in the UI.
+        // A stored [1, 0] must SHOW as slot 0 = Y, slot 1 = X. The old combined
+        // combo indexed permutations, and `List<int[]>.IndexOf` compared the
+        // arrays by REFERENCE, so a saved non-identity mapping displayed as
+        // identity in the UI; the per-slot rows read the stored indices directly.
         var settings = new SettingsService(_dir);
         var profile = settings.CreateProfile("p1", MachineTypes.Foam);
         PlotterConfig.Save(profile, new PlotterSettings
@@ -161,7 +154,32 @@ public class PlotterSettingsViewModelTests : IDisposable
         settings.Activate(profile.Id);
 
         var vm = new PlotterSettingsViewModel(settings, null);
-        Assert.Equal(1, vm.PlaneRows[1].SelectedPermutationIndex);
+        Assert.Equal([1, 0], vm.PlaneRows[1].Slots.Select(s => s.Axis));
+    }
+
+    [Fact]
+    public void A_duplicate_slot_pick_nudges_the_other_slot_onto_the_free_axis()
+    {
+        // Slot 1 (currently Y) is given X — slot 0's axis. The user's pick
+        // sticks and slot 0 is moved to the free axis (Y), mirroring the Nex
+        // editor's constraint that each carriage feeds a different world axis.
+        var vm = Build(MachineTypes.Foam);
+        vm.PlaneRows[0].Slots[1].Axis = 0;
+        Assert.Equal([1, 0], vm.PlaneRows[0].Slots.Select(s => s.Axis));
+
+        var reread = new PlotterSettingsViewModel(new SettingsService(_dir), null);
+        Assert.Equal([1, 0], reread.Model.Planes[0].WorldAxes);
+    }
+
+    [Fact]
+    public void An_origin_offset_round_trips()
+    {
+        var vm = Build();
+        vm.PlaneRows[0].Origins[2].Value = 12.5;
+        Assert.Equal(12.5, vm.Model.Planes[0].Origin[2]);
+
+        var reread = new PlotterSettingsViewModel(new SettingsService(_dir), null);
+        Assert.Equal(12.5, reread.Model.Planes[0].Origin[2]);
     }
 
     [Fact]

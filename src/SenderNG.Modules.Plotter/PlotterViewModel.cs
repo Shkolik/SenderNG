@@ -176,8 +176,8 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
     /// button. Nothing has changed, so nothing bumps.</para>
     /// <para>The copy must be a SNAPSHOT, not a reference into
     /// <paramref name="planes"/>: the settings leaf edits its geometry objects
-    /// IN PLACE (<c>PlotterSettingsViewModel.ApplyPermutation</c> swaps the
-    /// array on the stored object, <c>ApplyOrigin</c> writes into the stored
+    /// IN PLACE (<c>PlotterSettingsViewModel.ApplyRow</c> replaces the stored
+    /// plane's <c>WorldAxes</c> array, <c>ApplyOrigin</c> writes into the stored
     /// array), so aliasing them would make a later in-place edit read as
     /// "already applied" here and never reach the view.</para></summary>
     public void SetPlaneGeometries(IReadOnlyList<PlotterPlaneGeometry> planes)

@@ -180,13 +180,11 @@ public sealed class PlotterSettingsViewModel : ViewModelBase, IDisposable
         Changed?.Invoke();
     }
 
-    /// <summary>Writes plane <paramref name="index"/>'s permutation and
+    /// <summary>Writes plane <paramref name="index"/>'s world-axis mapping and
     /// persists it.</summary>
-    internal void ApplyPermutation(int index, int permutationIndex)
+    internal void ApplyRow(PlotterPlaneRow row)
     {
-        var permutations = Permutations(Model.Planes[index].WorldAxes.Length);
-        var axes = permutations[permutationIndex];
-        Model.Planes[index].WorldAxes = [.. axes];
+        Model.Planes[row.PlaneIndex].WorldAxes = row.WorldAxes;
         Persist();
     }
 
@@ -202,65 +200,30 @@ public sealed class PlotterSettingsViewModel : ViewModelBase, IDisposable
         Persist();
     }
 
-    /// <summary>Every permutation of the plane's <paramref name="roles"/> world
-    /// axes, in the machine's own axis letters. The display strings are built
-    /// from the conventional letters rather than the locale, so they need no
-    /// translation and always match the rest of the UI.</summary>
-    internal static IReadOnlyList<int[]> Permutations(int roles) =>
-        Permute(Enumerable.Range(0, roles).ToArray())
-            .Select(p => p)
+    /// <summary>The machine's letters for the world axes, e.g. X/Y/Z.</summary>
+    internal static string[] WorldAxisLetters() =>
+        Enumerable.Range(0, PlotterPlaneMapper.WorldAxisCount)
+            .Select(a => MachineTypeCatalog.Resolve(MachineTypes.Mill)
+                .ConventionalLetter(a).ToString())
             .ToArray();
 
-    /// <summary>The index of <paramref name="want"/> among all permutations of
-    /// its own length, compared BY VALUE. Do not use <c>List&lt;int[]&gt;.IndexOf</c>:
-    /// it compares the arrays by reference, so a stored mapping never matches the
-    /// freshly generated ones and the row silently falls back to index 0.</summary>
-    internal static int IndexOfPermutation(int[] want) =>
-        Permutations(want.Length)
-            .Select((p, i) => (p, i))
-            .FirstOrDefault(t => t.p.SequenceEqual(want)).i;
-
-    private static IEnumerable<int[]> Permute(int[] items)
-    {
-        if (items.Length <= 1)
-        {
-            yield return [.. items];
-            yield break;
-        }
-        for (var i = 0; i < items.Length; i++)
-        {
-            var rest = items.Where((_, j) => j != i).ToArray();
-            foreach (var tail in Permute(rest))
-                yield return [items[i], .. tail];
-        }
-    }
-
-    /// <summary>"X→X, Y→Y" for one permutation.</summary>
-    internal static string Describe(int[] worldAxes) =>
-        string.Join(", ", worldAxes.Select((w, slot) =>
-            $"{Letter(slot)}→{Letter(w)}"));
-
-    private static string Letter(int worldAxis) =>
-        MachineTypeCatalog.Resolve(MachineTypes.Mill).ConventionalLetter(worldAxis).ToString();
-
-    /// <summary>One carriage plane's editable mapping.</summary>
+    /// <summary>One carriage plane's editable mapping: a world-axis combo per
+    /// slot and the three world-axis origin offsets.</summary>
     public sealed class PlotterPlaneRow : ViewModelBase
     {
         private readonly PlotterSettingsViewModel _owner;
         private readonly int _index;
-        private int _selectedPermutationIndex;
+        private bool _resolving;
 
         internal PlotterPlaneRow(PlotterSettingsViewModel owner, int index)
         {
             _owner = owner;
             _index = index;
-            // Value equality, deliberately. `List<int[]>.IndexOf` compares the
-            // int[] elements by REFERENCE, so passing a fresh `[.. axes]` always
-            // missed and `Math.Max(-1, 0)` pinned every row to the first entry —
-            // a saved [1, 0] displayed as "X→X, Y→Y".
-            _selectedPermutationIndex = Math.Max(
-                PlotterSettingsViewModel.IndexOfPermutation(
-                    owner.Model.Planes[index].WorldAxes), 0);
+            var mapping = owner.Model.Planes[index].WorldAxes;
+            Slots = new ObservableCollection<PlotterSlotRow>(
+                Enumerable.Range(0, mapping.Length)
+                    .Select(s => new PlotterSlotRow(
+                        this, s, Math.Clamp(mapping[s], 0, PlotterPlaneMapper.WorldAxisCount - 1))));
             Origins = new ObservableCollection<PlotterOriginRow>(
                 Enumerable.Range(0, PlotterPlaneMapper.WorldAxisCount)
                     .Select(a => new PlotterOriginRow(owner, index, a)));
@@ -272,31 +235,68 @@ public sealed class PlotterSettingsViewModel : ViewModelBase, IDisposable
 
         public string WorldAxesLabel => _owner.WorldAxesLabel;
         public string OriginLabel => _owner.OriginLabel;
+        public int PlaneIndex => _index;
 
-        /// <summary>Every permutation of this plane's world axes, as display
-        /// strings for the combo box.</summary>
-        public IReadOnlyList<string> Permutations =>
-            PlotterSettingsViewModel.Permutations(_owner.Model.Planes[_index].WorldAxes.Length)
-                .Select(PlotterSettingsViewModel.Describe)
-                .ToArray();
+        /// <summary>One world-axis row per carriage slot, in slot order. A slot
+        /// picks which world axis that carriage feeds; the choices stay
+        /// distinct (<see cref="OnAxisChanged"/>), mirroring the Nex module's
+        /// axis editor.</summary>
+        public ObservableCollection<PlotterSlotRow> Slots { get; }
 
-        public int SelectedPermutationIndex
-        {
-            get => _selectedPermutationIndex;
-            set
-            {
-                if (_selectedPermutationIndex == value)
-                    return;
-                _selectedPermutationIndex = value;
-                _owner.ApplyPermutation(_index, value);
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(Permutations));
-            }
-        }
+        /// <summary>The current mapping as the plane geometry stores it.</summary>
+        internal int[] WorldAxes => [.. Slots.Select(s => s.Axis)];
 
         /// <summary>The three world-axis origin offsets. The iso view is the
         /// only consumer; the flat panes ignore them.</summary>
         public ObservableCollection<PlotterOriginRow> Origins { get; }
+
+        internal void OnAxisChanged(int slotIndex)
+        {
+            EnforceDistinct(slotIndex);
+        }
+
+        /// <summary>Every slot must feed a different world axis, the same
+        /// constraint the machine catalog has. The slot the user just changed
+        /// keeps its pick — moving it would discard the edit — and a sibling
+        /// that now shares its axis is moved onto a free one. Re-entered from
+        /// the Axis setter it guards itself with <see cref="_resolving"/>, so
+        /// the nudge does not cascade into another persist: the LAST call
+        /// persists once, with every slot settled.</summary>
+        private void EnforceDistinct(int changedSlot)
+        {
+            if (_resolving)
+                return;
+            _resolving = true;
+            try
+            {
+                var used = new bool[PlotterPlaneMapper.WorldAxisCount];
+                used[Slots[changedSlot].Axis] = true;
+                for (var i = 0; i < Slots.Count; i++)
+                {
+                    if (i == changedSlot)
+                        continue;
+                    if (used[Slots[i].Axis])
+                        MoveOntoFree(i, used);
+                    used[Slots[i].Axis] = true;
+                }
+            }
+            finally
+            {
+                _resolving = false;
+            }
+            _owner.ApplyRow(this);
+        }
+
+        private void MoveOntoFree(int slot, bool[] used)
+        {
+            for (var a = 0; a < PlotterPlaneMapper.WorldAxisCount; a++)
+            {
+                if (used[a] || Slots.Any(s => s.Axis == a))
+                    continue;
+                Slots[slot].Axis = a; // re-enters OnAxisChanged (guarded)
+                return;
+            }
+        }
 
         internal void RaiseLabelChanged()
         {
@@ -306,6 +306,40 @@ public sealed class PlotterSettingsViewModel : ViewModelBase, IDisposable
             foreach (var origin in Origins)
                 origin.RaiseLabelChanged();
         }
+    }
+
+    /// <summary>One slot's world-axis selection: which world axis the carriage
+    /// feeds. 0 = X, 1 = Y, 2 = Z — the same indices the plane geometry's
+    /// <c>WorldAxes</c> array stores.</summary>
+    public sealed class PlotterSlotRow : ViewModelBase
+    {
+        private readonly PlotterPlaneRow _row;
+        private int _axis;
+
+        internal PlotterSlotRow(PlotterPlaneRow row, int slotIndex, int axis)
+        {
+            _row = row;
+            SlotIndex = slotIndex;
+            _axis = axis;
+        }
+
+        public int SlotIndex { get; }
+
+        public int Axis
+        {
+            get => _axis;
+            set
+            {
+                if (SetField(ref _axis, Math.Clamp(
+                        value, 0, PlotterPlaneMapper.WorldAxisCount - 1)))
+                    _row.OnAxisChanged(SlotIndex);
+            }
+        }
+
+        /// <summary>The world-axis letters, e.g. X/Y/Z — the ComboBox choices.
+        /// Built from the conventional letters so they need no translation and
+        /// always match the origin rows' labels.</summary>
+        public string[] Choices => PlotterSettingsViewModel.WorldAxisLetters();
     }
 
     /// <summary>One world axis's origin offset, in millimetres.</summary>
