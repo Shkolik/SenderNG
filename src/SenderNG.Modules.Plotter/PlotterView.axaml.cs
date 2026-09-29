@@ -2122,8 +2122,8 @@ public partial class PlotterView : UserControl
             // envelope's corner and under the axis shafts, and the first draft
             // of this plan drew Origin second, so the new chrome painted over
             // it. Reordering recovered 0 of the missing pixels, because a cross
-            // blended against amber is still tinted whatever order it is in. The
-            // fix that works is the 2 px stroke in
+            // blended against the envelope is still tinted whatever order it is
+            // in. The fix that works is the 2 px stroke in
             // PlotterFlatChrome.DrawOrigin. Keeping the cross on top is still
             // correct (nothing painted after it before this task), so leave the
             // order alone.
@@ -2546,13 +2546,13 @@ public partial class PlotterView : UserControl
             }
         }
 
-        /// <summary>The iso box: the four amber connectors joining matching
+        /// <summary>The iso box: the four teal connectors joining matching
         /// envelope corners of the two flat tiles — top-left to top-left,
         /// top-right to top-right, bottom-left to bottom-left, bottom-right to
         /// bottom-right — the round-4 request ("connect each corner of one
         /// rectangle with corresponding corner of another with line (forming
         /// iso box)", ruled part of the job envelope). It is the envelope's own
-        /// amber, gated by <c>Chrome.Envelope</c>, so it vanishes with the tile
+        /// teal, gated by <c>Chrome.Envelope</c>, so it vanishes with the tile
         /// frames it attaches to. The corners are the same convention
         /// <c>PlotterFlatChrome.DrawEnvelope</c> uses: TL = (MinX, MaxY),
         /// TR = (MaxX, MaxY), BR = (MaxX, MinY), BL = (MinX, MinY), each
@@ -2612,7 +2612,7 @@ public partial class PlotterView : UserControl
                 // (axes, envelope, cross last). The round-4 box ("connect each
                 // corner of one rectangle with corresponding corner of another
                 // with line (forming iso box)", ruling "part of job envelope")
-                // is the four amber connectors in
+                // is the four teal connectors in
                 // <see cref="DrawConnectors"/>.
                 if (!PlaneDrawable(slot))
                     return;

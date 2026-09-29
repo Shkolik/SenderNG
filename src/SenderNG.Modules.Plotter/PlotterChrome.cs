@@ -220,8 +220,23 @@ public static class PlotterChromePens
     // arrows, not a colour change that would make the Y arrow something other
     // than the green Nex draws. See PlotterViewHeadlessTests.
 
-    /// <summary>#c07a20 — amber: out of both bands.</summary>
+    /// <summary>#00b2e6 at 50% alpha — teal, Nex's <c>JobEnvelopeColor</c>
+    /// (0, 0.7, 0.9), which is drawn OPAQUE there. The alpha is a deliberate
+    /// departure from Nex parity and not an oversight: the envelope is a frame
+    /// measured AROUND the toolpath (see <c>PlotterFlatChrome.DrawEnvelope</c>,
+    /// which passes a null brush on purpose), so half-transparent keeps it
+    /// legible without competing with the path it exists to measure. Nex can
+    /// afford full opacity because it draws last over its own wireframe; this
+    /// plotter's envelope is also the gate for the foam tile frames and the iso
+    /// box, so the same stroke is a carrier for three subjects and a heavier one
+    /// would flatten the hierarchy.
+    ///
+    /// <para>Out of both detector bands, as its neighbours are: teal's
+    /// separation between r and g is 178 at full opacity, and the headless
+    /// probes' grey band is <c>|r - g| &lt;= 14</c>, so no amount of blending can
+    /// pull it in. The test-side detector exploits that same ratio for the
+    /// inverse reason — see <c>IsEnvelopeTeal</c>.</para></summary>
     public static readonly IPen Envelope =
-        new Pen(new SolidColorBrush(Color.FromRgb(0xc0, 0x7a, 0x20)), 1.5)
+        new Pen(new SolidColorBrush(Color.FromArgb(0x80, 0x00, 0xb2, 0xe6)), 1.5)
         { LineCap = PenLineCap.Round };
 }

@@ -45,7 +45,7 @@ public static class PlotterFlatChrome
     /// <summary>The origin cross's pen. Deliberately a 2 px stroke rather than
     /// the view's 1 px <c>PlotterPens.Origin</c> — see <see cref="DrawOrigin"/>
     /// for why a 1 px stroke gets tinted by the new chrome. Shared with the iso
-    /// loft, which draws its origin cross over the same amber frame corner.</summary>
+    /// loft, which draws its origin cross over the same teal frame corner.</summary>
     public static readonly IPen OriginPen = new Pen(PlotterPens.OriginBrush, 2);
 
     /// <summary>The world XY grid, face-on. A grid line is a world-space
@@ -74,15 +74,18 @@ public static class PlotterFlatChrome
 
     /// <summary>The machine-origin cross, 6 px each way. The stroke is 2 px,
     /// not the view's original 1 px <c>PlotterPens.Origin</c>: G-code starts at
-    /// the machine origin, so the cross sits on the job envelope's amber corner
+    /// the machine origin, so the cross sits on the job envelope's teal corner
     /// with the red tool glyph on the same point. A 1 px stroke at a fractional
     /// coordinate is never opaque — every pixel is a blend with the paint
-    /// beneath — so over amber it yields #CB5448, and
-    /// <c>Foam_2d_renders_toscale_tiles_and_origin_crosses</c> greyscale probe
-    /// drops from 10 neutral pixels to 3 and fails. Draw order cannot fix a
-    /// blend; 2 px gives the stroke full coverage, so the cross keeps painting
-    /// neutral #888888 over any background. The cross is therefore fatter than
-    /// it was before this task — a deliberate, reviewed trade, not an accident.
+    /// beneath — so over the envelope it picks up that stroke's colour, and
+    /// <c>Foam_2d_renders_toscale_tiles_and_origin_crosses</c>'s greyscale probe
+    /// then stops seeing a neutral cross and fails. (The envelope is now
+    /// translucent, so the tinted result is about (68, 157, 183) rather than the
+    /// amber-era (203, 84, 72); the defect is the same one either way, a blend
+    /// instead of a neutral.) Draw order cannot fix a blend; 2 px gives the
+    /// stroke full coverage, so the cross keeps painting neutral #888888 over
+    /// any background. The cross is therefore fatter than it was before this
+    /// task — a deliberate, reviewed trade, not an accident.
     /// Do not "restore" it to <c>PlotterPens.Origin</c>.</summary>
     public static void DrawOrigin(DrawingContext ctx, PlaneMap map, double zoom, Vector pan)
     {

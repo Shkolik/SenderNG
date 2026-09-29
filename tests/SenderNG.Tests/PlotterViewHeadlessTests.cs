@@ -160,14 +160,14 @@ public class PlotterViewHeadlessTests
             await Pump();
 
         // Fresh load: everything idle (blue), nothing green.
-        Assert.Equal(0, PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen));
+        Assert.Equal(0, PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsRunStateGreen));
 
         // Ack the first half of the rows — exactly the live-run tick.
         source.AckRows(1, 301);
         for (var i = 0; i < 8; i++)
             await Pump();
 
-        var green = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
+        var green = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsRunStateGreen);
         Assert.True(green > 200,
             $"acked segments must turn green from RowsChanged alone, found {green} green pixels");
 
@@ -175,7 +175,7 @@ public class PlotterViewHeadlessTests
         source.AckRows(301, 601);
         for (var i = 0; i < 8; i++)
             await Pump();
-        var greenAll = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
+        var greenAll = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsRunStateGreen);
         Assert.True(greenAll > green,
             $"green frontier must advance, was {green}, now {greenAll}");
     }
@@ -290,7 +290,7 @@ public class PlotterViewHeadlessTests
         window.Show();
         for (var i = 0; i < 8; i++)
             await Pump();
-        Assert.Equal(0, PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen));
+        Assert.Equal(0, PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsRunStateGreen));
 
         // Switch tabs: the view leaves the visual tree (the TabControl keeps
         // hidden tab content detached) and comes back.
@@ -305,7 +305,7 @@ public class PlotterViewHeadlessTests
         source.AckRows(1, 301);
         for (var i = 0; i < 8; i++)
             await Pump();
-        var green = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
+        var green = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsRunStateGreen);
         Assert.True(green > 200,
             $"live updates must survive a tab switch, found {green} green pixels");
     }
@@ -528,7 +528,7 @@ public class PlotterViewHeadlessTests
         // The iso lattice uses the SAME two pens as the flat one
         // (PlotterChromePens.GridMajor/Minor, #c0c0c0 / #e0e0e0) and nothing
         // else in the iso view lands in this band: the cross is #888888 (r=136,
-        // below the 180 floor), the box #c07a20 and the arrows #2f6fb0 are both
+        // below the 180 floor), the teal box and the arrows #2f6fb0 are both
         // far from neutral. So the same predicate isolates the grid in both
         // views, and the comparison is the on/off RATIO rather than a floor.
         view.PushChromeFlags(ChromeFlags.Default);
@@ -815,12 +815,12 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 8; i++)
             await Pump();
         await DrainRebakeQueue(view);
-        var offEmpty = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
+        var offEmpty = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsRunStateGreen);
         view.PushChromeFlags(ChromeFlags.Default);
         for (var i = 0; i < 8; i++)
             await Pump();
         await DrainRebakeQueue(view);
-        var carriage1 = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
+        var carriage1 = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsRunStateGreen);
         Assert.True(offEmpty == 0, $"run-state off must paint no green at all, found {offEmpty}");
         Assert.True(carriage1 > 400,
             $"carriage 1's own rows must paint green with the toggle on, found {carriage1} green pixels");
@@ -843,7 +843,7 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 8; i++)
             await Pump();
         await DrainRebakeQueue(view);
-        var both = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
+        var both = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsRunStateGreen);
         Assert.True(both > carriage1 + 400,
             $"carriage 2 must repaint with the toggle: {both} green pixels with both carriages against {carriage1} with carriage 1 alone");
     }
@@ -1005,7 +1005,7 @@ public class PlotterViewHeadlessTests
     /// bake limiter and slot 1 stayed stale, so a whole-surface total would be
     /// satisfied by slot 0 alone.</summary>
     private static int GreenInCarriage(PlotterPixels.Frame frame, int slot) =>
-        PlotterPixels.Count(frame, IsDoneGreen,
+        PlotterPixels.Count(frame, IsRunStateGreen,
             xFilter: x => x > 0 && x < frame.Width - 1 && (slot == 0 ? x < frame.Width / 2 : x >= frame.Width / 2),
             yFilter: y => y > 24 && y < frame.Height - 1 && (slot == 0 ? y < frame.Height / 2 : y >= frame.Height / 2));
 
@@ -1431,28 +1431,47 @@ public class PlotterViewHeadlessTests
         window.Show();
         await Pump();
 
-        // The overlay is hidden for the measurement: these two assertions are
-        // about the CANVAS painters, and the chrome's own glyphs antialias into
-        // the same amber the envelope uses, so a visible toolbar would show up
-        // as eight "envelope" pixels after the envelope was switched off. The
-        // chrome has its own tests; this one stays about the drawing.
+        // The overlay is hidden for the measurement: these assertions are
+        // about the CANVAS painters, and the toolbar's own glyphs sit on the
+        // same surface, so a visible overlay would put chrome in the frame
+        // that this test is not counting. (Its glyphs are grey — #777/#444/
+        // #222 — and so do not match the teal probe; the hiding is about
+        // keeping the count to the envelope alone, not about a colour clash.)
+        // The chrome has its own tests; this one stays about the drawing.
         view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
         for (var i = 0; i < 8; i++)
             await Pump();
 
-        var drawn = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsEnvelopeAmber);
-        Assert.True(drawn > 100, $"the job rectangle must paint, found {drawn} amber pixels");
+        var drawn = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsEnvelopeTeal);
+        Assert.True(drawn > 100, $"the job rectangle must paint, found {drawn} teal pixels");
 
         view.PushChromeFlags(ChromeFlags.Default with { Envelope = false });
         for (var i = 0; i < 8; i++)
             await Pump();
-        var left = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsEnvelopeAmber);
+        var left = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsEnvelopeTeal);
         Assert.Equal(0, left);
     }
 
-    /// <summary>The #c07a20 envelope, allowing for the antialiased edge pixels.</summary>
-    private static bool IsEnvelopeAmber(byte r, byte g, byte b) =>
-        r is >= 150 and <= 215 && g is >= 85 and <= 165 && b < 90 && r > g + 40;
+    /// <summary>The teal envelope (<c>PlotterChromePens.Envelope</c> =
+    /// <c>#00b2e6</c> at 50% alpha, Nex's <c>0, 0.7, 0.9</c>), allowing for
+    /// the antialiased edge pixels AND for alpha blending against whatever the
+    /// stroke crosses.
+    ///
+    /// <para>The two channels are tested as RATIOS, not as absolute values, and
+    /// that is forced by the translucency. At 50% over white the stroke is
+    /// (128, 216, 242) and over the grey toolpath it is (67, 156, 182), so a
+    /// `b &gt; 190` test — the kind that works for the opaque wire — misses every
+    /// envelope pixel that crosses the path. The <c>g &gt; r + 40</c> gap instead
+    /// survives blending: teal's r-to-g separation is 178 at full opacity and
+    /// 178*alpha wherever it lands, so it never approaches the grey band's
+    /// <c>|r - g| &lt;= 14</c>. <c>b &gt; g</c> then separates it from the greys
+    /// and the two greens, which have b below g.</para>
+    ///
+    /// <para>Checked against every other detector in this file: the axis
+    /// colours (X/Y/Z), the grey path, the blended wire, the run-state green
+    /// and the light chrome all fail at least one clause.</para></summary>
+    private static bool IsEnvelopeTeal(byte r, byte g, byte b) =>
+        g > r + 40 && b > g;
 
     [AvaloniaFact]
     public async Task Axes_draw_the_world_X_and_Y_arrows()
@@ -1589,7 +1608,7 @@ public class PlotterViewHeadlessTests
     /// <para>The discriminator is a coincidence, not a pixel count. The lattice
     /// spans the same XY footprint as the box's bottom face and is drawn at the
     /// same Z, so its LOWEST row is the same projected point as the box's lowest
-    /// amber row. Float it up to Z = 0 and the two separate by the height of the
+    /// teal row. Float it up to Z = 0 and the two separate by the height of the
     /// whole Z span. Counting is not the fragile part here; <c>IsChromeLight</c>
     /// also matches the toolpath's antialiased halo, and the halo reaches the
     /// floor here, so a raw "lowest light row" would match even with the bug.
@@ -1618,7 +1637,7 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 8; i++)
             await Pump();
 
-        // Both renders keep the envelope ON, so the amber reference is present
+        // Both renders keep the envelope ON, so the teal reference is present
         // in the frame the lattice is measured against.
         var withGrid = PlotterPixels.Snapshot(CaptureFrame(window));
         view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
@@ -1626,9 +1645,9 @@ public class PlotterViewHeadlessTests
             await Pump();
         var withoutGrid = PlotterPixels.Snapshot(CaptureFrame(window));
 
-        var boxBottom = LowestRow(withGrid, IsEnvelopeAmber);
+        var boxBottom = LowestRow(withGrid, IsEnvelopeTeal);
         var latticeBottom = LowestRowThatIs(withGrid, IsChromeLight, withoutGrid);
-        Assert.True(boxBottom > 0, $"the iso job box must paint, no amber found in {withGrid.Width}x{withGrid.Height}");
+        Assert.True(boxBottom > 0, $"the iso job box must paint, no teal found in {withGrid.Width}x{withGrid.Height}");
         Assert.True(latticeBottom > 0, "the lattice must paint: nothing was light in one render and not the other");
 
         // Same plane, same footprint, same projection: the same point, so this is
@@ -1641,7 +1660,7 @@ public class PlotterViewHeadlessTests
     /// <summary>Lowest row (largest y) holding a matching pixel, or -1. Skips the
     /// 24 px header and the 1 px frame for the reason
     /// <see cref="PathBounds"/> records: the header's subpixel text fringes leak
-    /// amber and blue pixels that have nothing to do with the canvas.</summary>
+    /// teal and blue pixels that have nothing to do with the canvas.</summary>
     private static int LowestRow(PlotterPixels.Frame frame, Func<byte, byte, byte, bool> match)
     {
         for (var y = frame.Height - 2; y >= 25; y--)
@@ -1701,10 +1720,14 @@ public class PlotterViewHeadlessTests
             await Pump();
 
         var frame = PlotterPixels.Snapshot(CaptureFrame(window));
-        // 4084 amber pixels with DrawEnvelope, 0 without it: a 40x margin, and
-        // the mutation (not a flag state) is what proves the floor bites.
-        var box = CountSurface(frame, IsEnvelopeAmber);
-        Assert.True(box > 100, $"the iso job box must paint, found {box} amber pixels");
+        // 5294 teal pixels with DrawEnvelope, 12 without it: a 40x margin, and
+        // the mutation (not a flag state) is what proves the floor bites. The
+        // residual 12 is NOT a small leak of the box — all twelve sit on row 3,
+        // in the header's antialiased TEXT fringes, which this probe also
+        // matches; see CountSurface's note on header contamination. The box's
+        // own count is the two orders of magnitude between the two readings.
+        var box = CountSurface(frame, IsEnvelopeTeal);
+        Assert.True(box > 100, $"the iso job box must paint, found {box} teal pixels");
         // 106 blue pixels with the arrows, 0 without them. The floor is 40, not
         // 100: the job box is drawn after the arrows and its 1.5px edges bury
         // the two shafts, so 106 is the whole visible budget in this state and a
@@ -1783,11 +1806,11 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 8; i++)
             await Pump();
         // Hidden for the same reason as in the envelope test above: the chrome
-        // is a different subject, and its glyph edges land in the amber band
+        // is a different subject, and its glyph edges land in the teal band
         // this test asserts is empty.
         //
         // The overlay is hidden, not just ignored: what was measured putting
-        // amber there was 8 px of it, and NO blue contamination was found at
+        // teal there was 8 px of it, and NO blue contamination was found at
         // all. The blue assertion below is kept as a guard, not as a report of
         // something that was ever observed.
         view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
@@ -1805,9 +1828,9 @@ public class PlotterViewHeadlessTests
         // (see the box test). Asserted together here because both are the job
         // envelope and share its gate; the box's own geometry is tested
         // separately.
-        var tiles = CountSurface(withChrome, IsEnvelopeAmber);
+        var tiles = CountSurface(withChrome, IsEnvelopeTeal);
         Assert.True(tiles > 60,
-            $"the loft must draw one flat envelope rectangle per tile, found {tiles} amber pixels");
+            $"the loft must draw one flat envelope rectangle per tile, found {tiles} teal pixels");
 
         // The loft draws the FLAT pane's WORLD-AXIS arrows — red X, green Y,
         // one pair per tile — NOT the projected arrows the mill iso draws. The
@@ -1815,7 +1838,7 @@ public class PlotterViewHeadlessTests
         // colour that proves no PROJECTED chrome exists is blue (a face-on
         // tile has no Z direction to point; PlotterFlatChrome.DrawAxes draws no
         // Z). The envelope is turned OFF for the measurement, exactly like the
-        // flat-pane axis test above: the amber frames run along the two shafts
+        // flat-pane axis test above: the teal frames run along the two shafts
         // at the origin corner and would bury them.
         view.PushChromeFlags(ChromeFlags.Default with { Envelope = false });
         for (var i = 0; i < 8; i++)
@@ -1830,7 +1853,7 @@ public class PlotterViewHeadlessTests
         // envelope, and their absence must be total — zero, not a reduction.
         // This assertion doubles as the box connectors' gate: they share the
         // envelope gate and vanish with the frames.
-        Assert.True(CountSurface(axesFrame, IsEnvelopeAmber) == 0,
+        Assert.True(CountSurface(axesFrame, IsEnvelopeTeal) == 0,
             "the tile envelope rectangles (and their box connectors) must be gated by Chrome.Envelope");
 
         // The cross is grey (#888888, 2 px, the shared OriginPen) so it lands
@@ -1908,7 +1931,7 @@ public class PlotterViewHeadlessTests
             .IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
-        // The overlay's glyph edges land in the amber neighbourhood and its
+        // The overlay's glyph edges land in the teal neighbourhood and its
         // opaque buttons hide the canvas beneath them; the sibling loft tests
         // hide it for the same reason.
         view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
@@ -1973,7 +1996,7 @@ public class PlotterViewHeadlessTests
             for (var x = 1; x < on.Width - 1; x++)
             {
                 var p = PlotterPixels.At(on, x, y);
-                if (!IsEnvelopeAmber(p.R, p.G, p.B))
+                if (!IsEnvelopeTeal(p.R, p.G, p.B))
                     continue;
                 if (x < left) left = x;
                 if (x > right) right = x;
@@ -1991,7 +2014,7 @@ public class PlotterViewHeadlessTests
         // line drawn to the full composition width is therefore always too
         // long: the composition is tile0 + gap + tile1, while the band never
         // exceeds max(tile0, tile1), so a correct line is a fraction of the
-        // full width and a full-width line is measurably longer. The amber
+        // full width and a full-width line is measurably longer. The teal
         // bbox above measures that full width in pixels, so this comparison
         // needs no re-derivation of the layout to be meaningful.
         //
@@ -2025,19 +2048,19 @@ public class PlotterViewHeadlessTests
             $"the loft wire floor must be gated by Chrome.Grid: {off} wire pixels with it off vs {floor} with it on");
     }
 
-    /// <summary>The iso box: four amber connectors joining MATCHING corners of
+    /// <summary>The iso box: four teal connectors joining MATCHING corners of
     /// the two flat tile envelopes — TL→TL, TR→TR, BL→BL, BR→BR — the round-4
     /// task-4 request ("connect each corner of one rectangle with corresponding
     /// corner of another with line (forming iso box)"), ruled part of the job
     /// envelope and gated by the same <c>Chrome.Envelope</c> as the frames it
     /// attaches to.
-    /// <para>Frames and connectors are one amber, one gate, so a test that
+    /// <para>Frames and connectors are one teal, one gate, so a test that
     /// measured "the frame's bounding box" out of the combined render would
     /// measure the box too and derive every corner midpoint off its own line.
     /// They are separated by SHAPE instead, which is the real difference: the
     /// frames are axis-aligned rectangles whose edges are long straight runs,
     /// while the connectors are 45° diagonals that belong to no long horizontal
-    /// or vertical run. An amber pixel with a long axis-aligned run through it
+    /// or vertical run. A teal pixel with a long axis-aligned run through it
     /// is frame; the rest is box. The midpoints come from the frame pixels
     /// alone, so a connector drawn between MISMATCHED corners cannot pass
     /// through them — each probe point is the midpoint of a segment's own
@@ -2069,48 +2092,48 @@ public class PlotterViewHeadlessTests
             await Pump();
 
         var frame = PlotterPixels.Snapshot(CaptureFrame(window));
-        // The frames and connectors are one amber, one gate, so a test that
+        // The frames and connectors are one teal, one gate, so a test that
         // measured "the frame's bounding box" out of the combined render would
         // measure the box too and derive every corner midpoint off its own line.
         // They are separated by SHAPE instead, which is the real difference: the
         // frames are axis-aligned rectangles whose edges are long straight runs,
         // while the connectors are 45° diagonals that belong to no long
-        // horizontal or vertical run. An amber pixel on a long axis-aligned run
+        // horizontal or vertical run. A teal pixel on a long axis-aligned run
         // is frame; the rest is box.
         const int Run = 20;
         const int Dilate = 6;
-        bool Amber(int x, int y)
+        bool Teal(int x, int y)
         {
             var p = PlotterPixels.At(frame, x, y);
-            return IsEnvelopeAmber(p.R, p.G, p.B);
+            return IsEnvelopeTeal(p.R, p.G, p.B);
         }
         bool OnFrame(int x, int y)
         {
-            if (!Amber(x, y))
+            if (!Teal(x, y))
                 return false;
             var left = x - Run / 2;
             var right = x + Run / 2;
-            if (left >= 1 && right < frame.Width - 1 && Amber(left, y) && Amber(right, y))
+            if (left >= 1 && right < frame.Width - 1 && Teal(left, y) && Teal(right, y))
                 return true;
             var top = y - Run / 2;
             var bottom = y + Run / 2;
-            return top >= 25 && bottom < frame.Height - 1 && Amber(x, top) && Amber(x, bottom);
+            return top >= 25 && bottom < frame.Height - 1 && Teal(x, top) && Teal(x, bottom);
         }
 
         var isFrame = new bool[frame.Width * frame.Height];
-        var boxAmber = 0;
+        var boxTeal = 0;
         for (var y = 25; y < frame.Height - 1; y++)
             for (var x = 1; x < frame.Width - 1; x++)
             {
-                if (!Amber(x, y))
+                if (!Teal(x, y))
                     continue;
                 if (OnFrame(x, y))
                     isFrame[y * frame.Width + x] = true;
                 else
-                    boxAmber++;
+                    boxTeal++;
             }
-        Assert.True(boxAmber > 40,
-            $"the iso box must paint diagonal connectors between the tiles, found {boxAmber} off-frame amber px");
+        Assert.True(boxTeal > 40,
+            $"the iso box must paint diagonal connectors between the tiles, found {boxTeal} off-frame teal px");
 
         // The two frames are DISJOINT rectangles, and neither is separable by a
         // midline: tile 0's frame is wider than half the canvas, so it straddles
@@ -2200,12 +2223,12 @@ public class PlotterViewHeadlessTests
             (mxBr, myBr, "bottom-right"),
         })
         {
-            // Counted as BOX amber only, so a midpoint that happens to graze a
+            // Counted as BOX teal only, so a midpoint that happens to graze a
             // frame edge passes on the connector rather than on the frame.
             var near = 0;
             for (var y = my - 6; y <= my + 6; y++)
                 for (var x = mx - 6; x <= mx + 6; x++)
-                    if (!OnFrame(x, y) && Amber(x, y))
+                    if (!OnFrame(x, y) && Teal(x, y))
                         near++;
             Assert.True(near > 1,
                 $"the iso box must connect the {what} corners, found {near} connector px at their midpoint ({mx},{my})");
@@ -2630,9 +2653,16 @@ public class PlotterViewHeadlessTests
     /// 24 px header band and inside the 1 px frame. Every whole-frame count
     /// here is a trap: the header is #e8e8e8 (21.6k pixels INSIDE the light
     /// grid band), the frame is #aaa (inside the grey path band), and the
-    /// header's subpixel-antialiased TEXT fringes leak 22 amber and 74 blue
-    /// pixels per frame that have nothing to do with the canvas. Measured, not
-    /// assumed: a whole-frame amber count reads 22 with the envelope OFF.</summary>
+    /// header's subpixel-antialiased TEXT fringes leak into several bands.
+    /// Measured, not assumed, and the teal figure is the important one: a
+    /// whole-frame <c>IsEnvelopeTeal</c> count reads 431 with the envelope OFF,
+    /// against 22 for the old amber probe. Teal's r channel is 0, so dark
+    /// antialiased glyph fringes satisfy <c>g &gt; r + 40 &amp;&amp; b &gt; g</c> far
+    /// more readily than a mid-r hue can; the band-ratio form of the probe
+    /// trades a little header sensitivity for the ability to follow the stroke
+    /// across every background (see <c>IsEnvelopeTeal</c>). The <c>y &gt; 24</c>
+    /// filter is what keeps those 431 out of every surface count, which is why
+    /// the filter is not optional.</summary>
     private static int CountSurface(PlotterPixels.Frame frame, Func<byte, byte, byte, bool> match) =>
         PlotterPixels.Count(frame, match,
             xFilter: x => x > 0 && x < frame.Width - 1,
@@ -2983,7 +3013,7 @@ public class PlotterViewHeadlessTests
         b > r + 8 && b > 190 && g >= 180 && Math.Abs(r - g) <= 16;
 
     /// <summary>The run-state "done" green, <c>PlotterPens.DoneBrush</c> =
-    /// #1b9e3e. The <c>b > r + 15</c> is what makes this a probe for THAT colour
+    /// #1b9e3e. The <c>b &gt; r + 15</c> is what makes this a probe for THAT colour
     /// rather than for green in general. The world Y axis arrow is green too
     /// (#33cc33), it is drawn unconditionally in the flat panes and the iso view
     /// alike, and "any green" therefore read ~20 arrow pixels as a finished run
@@ -2992,4 +3022,26 @@ public class PlotterViewHeadlessTests
     /// (b - r = 0), and the arrow is the one that is always there.</summary>
     private static bool IsDoneGreen(byte r, byte g, byte b) =>
         g > 100 && r < 90 && b < 110 && b > r + 15;
+
+    /// <summary><c>IsDoneGreen</c> hardened against a CHROME stroke drawn over
+    /// the Y axis arrow, which is the one place the two greens meet.
+    ///
+    /// <para>The recoloured envelope (teal <c>#00b2e6</c> at 50% alpha) crosses
+    /// the arrow, and the blend FORGES the done-green signature: teal's r is 0,
+    /// so covering the arrow's #33cc33 at a few tenths of alpha yields about
+    /// (33, 195, 106) — a <c>b - r</c> of 73, well past the 35 that identifies
+    /// the real brush, and it passes every clause of <c>IsDoneGreen</c>. Amber
+    /// could not do this, because its r = 192 held the blend's r above 90; the
+    /// old colour masked the problem rather than the probe avoiding it.
+    ///
+    /// <para>So the discriminator is tightened to what actually distinguishes
+    /// the real brush: its b - r is about 35, not 73. Requiring
+    /// <c>b &lt; r + 60</c> keeps the real done green (any antialiased edge is
+    /// nearer the background, which shrinks the gap rather than growing it) and
+    /// rejects the teal-over-arrow blend, which is the only producer of a
+    /// large positive gap here. Chrome over chrome cannot fabricate this: the
+    /// axis colours are opaque, so a covered arrow pixel is the arrow's own
+    /// (50, 204, 50) with b - r = 0.</para></summary>
+    private static bool IsRunStateGreen(byte r, byte g, byte b) =>
+        IsDoneGreen(r, g, b) && b < r + 60;
 }
