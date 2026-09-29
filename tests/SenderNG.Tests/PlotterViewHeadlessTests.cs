@@ -219,6 +219,35 @@ public class PlotterViewHeadlessTests
             $"the path must stay visible after zoom+pan, found {grey} path pixels (blank raster edge?)");
     }
 
+    /// <summary>The view model owns the per-plane data the union is read from,
+    /// so it owns the loop that assembles it: the machine type knows how many
+    /// planes exist and which flattened axis indices back each, and
+    /// <c>GeometryFor</c> sanitises the stored mapping. Written here, once,
+    /// because the two renderer canvases must not each resolve the same inputs
+    /// differently.
+    /// <para>The program is the spec's worked example in real data: foam plane 0
+    /// (X,Y) spans 0..100 by 0..30 and plane 1 (Z,A) spans 10..50 by 0..20, so
+    /// the job envelope is 0..100 by 0..30 — not 40x20 for the second tile.</summary>
+    [AvaloniaFact]
+    public async Task The_job_envelope_is_the_union_of_both_planes()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        // One move in each carriage, to different extents.
+        source.Load("G21\r\nG1 X100 Y30 Z50 A20 F600");
+        for (var i = 0; i < 6; i++)
+            await Pump();
+        Assert.True(vm.PlaneCount > 1, "the foam preset must have two carriage planes");
+        Assert.True(vm.TryJobEnvelope(out var job));
+        // Plane 0 alone is 0..100 by 0..30; plane 1 alone is 0..50 by 0..20.
+        // The envelope is the union, so it is the LARGER of each axis and is
+        // what both tiles are sized from.
+        Assert.Equal(0.0, job.MinX, 6);
+        Assert.Equal(0.0, job.MinY, 6);
+        Assert.Equal(100.0, job.MaxX, 6);
+        Assert.Equal(30.0, job.MaxY, 6);
+    }
+
     /// <summary>The foam iso (M7 layout: 2D quadrants + semi-transparent loft
     /// wires, not the old stacked projection) must render a 4-axis program end
     /// to end: both carriage tracks in their diagonal quadrants plus the

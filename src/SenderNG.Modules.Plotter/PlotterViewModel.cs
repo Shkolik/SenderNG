@@ -166,6 +166,32 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         return PlotterPlaneMapper.For(stored, roles);
     }
 
+    /// <summary>The JOB's world XY envelope: every plane's extent, read through
+    /// its own mapping and UNIONED. Both foam carriage planes work inside the
+    /// same envelope, so the two tiles must measure the same rectangle — see
+    /// <see cref="PlotterPlaneMapper.TryJobExtent"/>, which does the arithmetic
+    /// and owns the rules about which planes may contribute.
+    /// <para>The per-plane inputs are resolved HERE, in one place, because the
+    /// machine type owns the plane/axis split and the stored mappings are
+    /// untrusted input: <see cref="GeometryFor"/> degrades a missing or
+    /// malformed mapping to identity per plane, so a settings file can neither
+    /// widen the envelope nor narrow it to nothing.
+    /// <para>False means no plane could be read, never a fabricated envelope;
+    /// the caller substitutes its own fallback, as it did before this
+    /// existed.</summary>
+    public bool TryJobEnvelope(out (double MinX, double MinY, double MaxX, double MaxY) envelope)
+    {
+        var planes = PlaneCount;
+        var geometries = new PlotterPlaneGeometry?[planes];
+        var indices = new int[planes][];
+        for (var p = 0; p < planes; p++)
+        {
+            geometries[p] = GeometryFor(p);
+            indices[p] = PlaneAxisIndices(p);
+        }
+        return PlotterPlaneMapper.TryJobExtent(geometries, indices, Bounds, out envelope);
+    }
+
     /// <summary>Replaces the mapping set and repaints. The App Settings leaf and the
     /// plot view share this one list, so a change in either is visible in both.
     /// <para>A set that already matches what is applied is a NO-OP. The module
