@@ -226,8 +226,13 @@ public class PlotterViewHeadlessTests
     /// because the two renderer canvases must not each resolve the same inputs
     /// differently.
     /// <para>The program is the spec's worked example in real data: foam plane 0
-    /// (X,Y) spans 0..100 by 0..30 and plane 1 (Z,A) spans 10..50 by 0..20, so
-    /// the job envelope is 0..100 by 0..30 — not 40x20 for the second tile.</summary>
+    /// (X,Y) spans 0..100 by 0..30 and plane 1 (Z,A) spans 0..50 by 0..20 — Z
+    /// runs from the program's own start at 0, not from an offset — so the job
+    /// envelope is 0..100 by 0..30, not the second tile's own 50x20.
+    /// <para>Note what this example cannot decide: plane 1's extent lies wholly
+    /// inside plane 0's, so a loop that read only the first plane would produce
+    /// the same numbers and this test would still pass. The companion test below
+    /// is the one that fails when the loop is short-circuited.</summary>
     [AvaloniaFact]
     public async Task The_job_envelope_is_the_union_of_both_planes()
     {
@@ -246,6 +251,35 @@ public class PlotterViewHeadlessTests
         Assert.Equal(0.0, job.MinY, 6);
         Assert.Equal(100.0, job.MaxX, 6);
         Assert.Equal(30.0, job.MaxY, 6);
+    }
+
+    /// <summary>The case the spec's worked example CANNOT be, and the reason it
+    /// exists: there, plane 1's extent sits wholly inside plane 0's, so the
+    /// union and plane 0 alone come out identical and a loop that stopped after
+    /// the first plane would still pass. This program INVERTS the dominance —
+    /// carriage 1 (X,Y) spans 0..30 by 0..10, carriage 2 (Z,A) spans 0..100 by
+    /// 0..60 — so the envelope can only read 0..100 by 0..60 if plane 1 was
+    /// genuinely folded in; a plane-0-only loop reports 30 by 10.
+    /// <para>What this layer owns is the LOOP, not the arithmetic: the union
+    /// itself is <see cref="PlotterPlaneMapper.TryJobExtent"/>'s and is covered
+    /// by its own unit cases, so a second assertion on the first program would
+    /// only re-test Task 1. This is the only assertion that can catch the view
+    /// model resolving one plane's inputs and calling it a job envelope.</summary>
+    [AvaloniaFact]
+    public async Task A_second_plane_wider_than_the_first_widens_the_job_envelope()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        // Dominance reversed relative to the worked example: the SECOND
+        // carriage is the large one, so the first cannot answer for the job.
+        source.Load("G21\r\nG1 X30 Y10 Z100 A60 F600");
+        for (var i = 0; i < 6; i++)
+            await Pump();
+        Assert.True(vm.TryJobEnvelope(out var job));
+        Assert.Equal(0.0, job.MinX, 6);
+        Assert.Equal(0.0, job.MinY, 6);
+        Assert.Equal(100.0, job.MaxX, 6);
+        Assert.Equal(60.0, job.MaxY, 6);
     }
 
     /// <summary>The foam iso (M7 layout: 2D quadrants + semi-transparent loft
