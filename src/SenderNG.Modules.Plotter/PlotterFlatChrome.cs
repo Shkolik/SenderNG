@@ -44,9 +44,9 @@ public static class PlotterFlatChrome
 {
     /// <summary>The origin cross's pen. Deliberately a 2 px stroke rather than
     /// the view's 1 px <c>PlotterPens.Origin</c> — see <see cref="DrawOrigin"/>
-    /// for why a 1 px stroke gets tinted by the new chrome. Private to this
-    /// painter: no other call site wants it.</summary>
-    private static readonly IPen OriginPen = new Pen(PlotterPens.OriginBrush, 2);
+    /// for why a 1 px stroke gets tinted by the new chrome. Shared with the iso
+    /// loft, which draws its origin cross over the same amber frame corner.</summary>
+    public static readonly IPen OriginPen = new Pen(PlotterPens.OriginBrush, 2);
 
     /// <summary>The world XY grid, face-on. A grid line is a world-space
     /// constant, so it is a straight screen segment — no projection and no

@@ -89,6 +89,15 @@ internal static class PlotterPens
     // Semi-transparent loft wires — the foam iso's coupling mesh.
     public static readonly IBrush WireBrush = new SolidColorBrush(Color.FromArgb(0x59, 0x6a, 0x6a, 0x8a));
     public const double WireW = 0.7;
+    // The wire FLOOR's own pen (PlotterView.IsoCanvas.DrawWireFloor): OPAQUE,
+    // and already the light blue-grey the coupling wire only *blends* to over
+    // white. A translucent pen makes the floor's own crossings darker than its
+    // lines (the same colour composites twice where two wires cross), so the
+    // floor reads as a dotted grid of bright knots on a near-invisible mesh —
+    // the user called it "faint". Opaque, every line renders at the one
+    // intended strength and the mesh reads as a mesh.
+    public static readonly IBrush WireFloorBrush = new SolidColorBrush(Color.FromRgb(0xc8, 0xc8, 0xda));
+    public const double WireFloorW = 0.9;
     public static readonly IBrush EmptyBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
 
     public static readonly IPen Feed = new Pen(FeedBrush, FeedW);
@@ -99,6 +108,7 @@ internal static class PlotterPens
     public static readonly IPen Origin = new Pen(OriginBrush, OriginW);
     public static readonly IPen Tool = new Pen(ToolBrush, ToolW);
     public static readonly IPen Wire = new Pen(WireBrush, WireW);
+    public static readonly IPen WireFloor = new Pen(WireFloorBrush, WireFloorW);
 }
 
 /// <summary>Pen set scaled for one raster bake: the bake draws in world
@@ -376,9 +386,17 @@ public partial class PlotterView : UserControl
     /// <summary>Rebuilds the canvas set: one isometric canvas when the toggle
     /// is on (stretched over the whole panel), otherwise ONE canvas — the two
     /// foam planes draw in diagonal quadrants of the same surface (plane 1
-    /// top-left, plane 2 bottom-right), single-plane machines just fill it.</summary>
+    /// top-left, plane 2 bottom-right), single-plane machines just fill it.
+    /// <para>The rebuild also ARMS the new canvas with the live canvas's
+    /// transform. The attach handler runs this on every re-attach, and the tab
+    /// host reparents its cached view (it does NOT keep it) whenever a settings
+    /// save re-raises the module list — so without the adoption every chrome
+    /// toggle or settings save snapped the user's zoom back to the fitted
+    /// view. A fresh canvas starts un-fitted (NaN), and the first paint fits
+    /// it to the real panel only when no fitted canvas is being replaced.</para></summary>
     private void RebuildCanvases()
     {
+        var previous = _canvases.OfType<PlotCanvas>().FirstOrDefault();
         PlanesGrid.Children.Clear();
         // No definitions = one star cell: the single canvas (or the iso view)
         // stretches over the WHOLE panel (the old two-column layout leaked
@@ -392,20 +410,39 @@ public partial class PlotterView : UserControl
         if (_vm.Isometric)
         {
             var iso = new IsoCanvas(_vm);
+            AdoptTransformFrom(previous, iso);
             PlanesGrid.Children.Add(iso);
             _canvases.Add(iso);
             iso.ZoomChanged = UpdateZoomReadout;
             // A fresh PlotCanvas starts at ChromeFlags.Default, so the rebuild
             // has to hand it the flags the user already chose — see ApplyChrome.
             ApplyChrome();
+            UpdateZoomReadout();
             return;
         }
 
         var canvas = new PlaneCanvas(_vm);
+        AdoptTransformFrom(previous, canvas);
         PlanesGrid.Children.Add(canvas);
         _canvases.Add(canvas);
         canvas.ZoomChanged = UpdateZoomReadout;
         ApplyChrome();
+        UpdateZoomReadout();
+    }
+
+    /// <summary>Hands <paramref name="target"/> the transform of
+    /// <paramref name="source"/> when the source was fitted at least once. The
+    /// adoption is skipped while the source is still un-fitted (NaN), so the
+    /// very first build fits itself to the real panel instead; once a fitted
+    /// canvas exists the area passed in is never consulted
+    /// (<see cref="AdoptTransformFrom(PlotCanvas, Rect)"/>'s size only feeds
+    /// the NaN branch), which is why the same call is safe with this control's
+    /// possibly-degenerate pre-layout bounds.</summary>
+    private void AdoptTransformFrom(PlotCanvas? source, PlotCanvas? target)
+    {
+        if (source is null || target is null || double.IsNaN(source.SlotTransformForTest(0).Zoom))
+            return;
+        target.AdoptTransformFrom(source, new Rect(Bounds.Size));
     }
 
     /// <summary>The shared settings model — the SAME instance the App Settings
@@ -1246,6 +1283,13 @@ public partial class PlotterView : UserControl
                 else
                     SetSlotTransform(slot, zoom, live.SlotPan(slot));
             }
+            // The readout's 100% baseline rides with the zoom it measures:
+            // without this copy a rebuilt canvas keeps the user's zoom but
+            // starts at FittedZoom 0, and UpdateZoomReadout hides at that
+            // guard even though the view is off 1:1 (see
+            // Reattaching_the_view_preserves_the_zoom_readout).
+            if (live.FittedZoom > 0)
+                FittedZoom = live.FittedZoom;
         }
 
         /// <summary>Paint the plot. <see cref="PaintMode.Screen"/> owns the view's
@@ -2044,7 +2088,7 @@ public partial class PlotterView : UserControl
             // whole-canvas clip was there to let it, and the surface lets it
             // the same way; tightening the lattice to the quadrant was the bug
             // that sliced it with a hard edge at the canvas midline.
-            if (Chrome.Grid)
+            if (Chrome.Grid && !Foam)
                 PlotterFlatChrome.DrawGrid(ctx, m, bounds, _zoom, _pan);
         }
 
@@ -2371,22 +2415,151 @@ public partial class PlotterView : UserControl
         /// cannot drift apart. The painter sets NO clip (see
         /// <c>PlotterIsoChrome.DrawGrid</c>): a clip here would eat every draw
         /// after it on the PNG export, and the surface trims the overhang
-        /// anyway. The loft draws no lattice: its panes are not a projection at
-        /// all (see <see cref="DrawSlotChrome"/>).</summary>
+        /// anyway.
+        /// <para>The LOFT does not share that floor: its two panes are FLAT
+        /// true-scale tiles, and a projected lattice over them is a
+        /// foreshortened grid whose mm are not the tiles' mm. The loft's floor
+        /// is the crosshatch wire mesh <see cref="DrawWireFloor"/> draws
+        /// instead — the coupling wire's own ladder, plus the world-X-parallel
+        /// horizontal family, both bounded by the band between the two tiles
+        /// (see also <see cref="DrawSlotChrome"/>).</para></summary>
         protected override void DrawSlotGridUnder(DrawingContext ctx, int slot)
         {
             var zoom = _zoom;
             var pan = _pan;
             if (double.IsNaN(zoom))
                 return;
-            if (Loft)
+            if (!Chrome.Grid)
                 return;
-            if (!Chrome.Grid
-                || !PlotterPlaneMapper.TryWorldFootprint(
-                    Vm.GeometryFor(0), Vm.PlaneAxisIndices(0), Vm.Bounds, out var footprint))
+            if (Loft)
+            {
+                if (slot > 0 || !PlaneDrawable(0) || !PlaneDrawable(1))
+                    return;
+                DrawWireFloor(ctx, zoom, pan);
+                return;
+            }
+            if (!PlotterPlaneMapper.TryWorldFootprint(
+                Vm.GeometryFor(0), Vm.PlaneAxisIndices(0), Vm.Bounds, out var footprint))
                 return;
             var (floorZ, _) = JobZRange();
             PlotterIsoChrome.DrawGrid(ctx, footprint, floorZ, zoom, pan);
+        }
+
+        /// <summary>The loft's grid floor: TWO families of semi-transparent
+        /// wires, both UNDER the toolpath, gated by <c>Chrome.Grid</c>, drawn
+        /// once (slot 0).
+        /// <para>The first family is the coupling wire's geometry drawn as a
+        /// family (see <see cref="DrawCoupling"/>): one wire per step along the
+        /// tiles' shared primary axis, each joining the two tiles at the same
+        /// tile-local coordinate on the machine-origin row. The user asked for
+        /// the foam grid to be a floor CONNECTING the two tiles' bottom edges,
+        /// and explicitly not a line offset along Y/X and not a projected
+        /// lattice: every wire lands on (xi, 0) on BOTH tiles, so the wires
+        /// share the tiles' mm and read as parallel lines receding diagonally.</para>
+        /// <para>The second family is the missing half the user sketched in red
+        /// on <c>plot_iso_grid.png</c> ("all these lines are parallel to world
+        /// X axis, you misinterpreted my screenshot" — the round-4 correction):
+        /// whole-composition lines strictly parallel to the world X axis —
+        /// horizontal on screen, because the composition is the true-scale
+        /// tiles and its X IS the shared world X — at successive levels, each
+        /// spanning the floor at that level. Two families, not one, is
+        /// the round-4 choice ("Both families"): the ladder along the shared
+        /// axis AND the horizontal world-X-parallel grid, a crosshatch floor
+        /// under the two tiles. The floor is the band BETWEEN the two tiles,
+        /// not the composition's box, so both families are bounded by the
+        /// tiles' lower edges and the two lower-corner connectors.</para></summary>
+        private void DrawWireFloor(DrawingContext ctx, double zoom, Vector pan)
+        {
+            var m0 = _maps[0];
+            var m1 = _maps[1];
+            var indices0 = Vm.PlaneAxisIndices(0);
+            var indices1 = Vm.PlaneAxisIndices(1);
+            // A wire may only run where BOTH tiles cover its primary-axis
+            // coordinate, so the family stops at the shorter of the two
+            // travels. The user's cadence is a uniform step from the origin
+            // (0, 10, 20, ...), which AxisTicks gives as a nice ~8-division
+            // step of the common span.
+            var maxXi = Math.Min(Vm.Bounds[indices0[0]][1], Vm.Bounds[indices1[0]][1]);
+            var (start, step, count) = PlotterChrome.AxisTicks(0, maxXi, 8);
+            for (var i = 0; i < count; i++)
+            {
+                var xi = start + step * i;
+                if (xi < 0)
+                    continue;
+                var a = WorldToScreen(m0.Wx(xi), m0.Wy(0), zoom, pan);
+                var b = WorldToScreen(m1.Wx(xi), m1.Wy(0), zoom, pan);
+                ctx.DrawLine(PlotterPens.WireFloor, a, b);
+            }
+            // The crosshatch's other half: lines parallel to the world X axis,
+            // one per level across the floor.
+            //
+            // The floor is NOT the composition's bounding box. The two tiles
+            // fill OPPOSITE quadrants of it — plane 0 top-left, plane 1
+            // bottom-right — so most of that box is empty, and the floor is the
+            // skewed BAND between them. That band is closed by exactly four
+            // edges: the two tiles' LOWER edges and the two connectors joining
+            // their lower corners, which is a parallelogram (a skewed
+            // rectangle). So a line at a level runs from the BL connector to
+            // the BR connector at that level, and the levels themselves only
+            // exist between the two lower edges.
+            //
+            // Generating over the box instead (the round-5 bug) drew every
+            // line at the FULL composition width, so each one overhung the
+            // floor on both sides, and invented levels for rows where no tile
+            // exists at all. Both are visible as wire floating past the
+            // envelope; see The_foam_loft_connects_the_tiles_with_a_grid_wire_floor.
+            var (minX0, minY0, maxX0, maxY0) = PlaneBounds(0);
+            var (minX1, minY1, maxX1, maxY1) = PlaneBounds(1);
+            // Composition-space lower corners, so the span is interpolated in
+            // the same coordinates the lines are drawn in.
+            var bl = (Left: m0.Wx(minX0), Right: m1.Wx(minX1));
+            var br = (Left: m0.Wx(maxX0), Right: m1.Wx(maxX1));
+            var loY = Math.Min(m0.Wy(minY0), m1.Wy(minY1));
+            var hiY = Math.Max(m0.Wy(minY0), m1.Wy(minY1));
+            var (levelStart, levelStep, levelCount) = PlotterChrome.AxisTicks(loY, hiY, 8);
+            for (var i = 0; i < levelCount; i++)
+            {
+                var level = levelStart + levelStep * i;
+                if (level < loY || level > hiY)
+                    continue;
+                // Both connectors run corner to corner between the same two
+                // lower edges, so they are parallel and one ratio — how far
+                // down the band this level is — places both of them.
+                var t = hiY == loY ? 0 : (hiY - level) / (hiY - loY);
+                var left = bl.Left + (bl.Right - bl.Left) * t;
+                var right = br.Left + (br.Right - br.Left) * t;
+                if (right <= left)
+                    continue;
+                ctx.DrawLine(PlotterPens.WireFloor,
+                    WorldToScreen(left, level, zoom, pan),
+                    WorldToScreen(right, level, zoom, pan));
+            }
+        }
+
+        /// <summary>The iso box: the four amber connectors joining matching
+        /// envelope corners of the two flat tiles — top-left to top-left,
+        /// top-right to top-right, bottom-left to bottom-left, bottom-right to
+        /// bottom-right — the round-4 request ("connect each corner of one
+        /// rectangle with corresponding corner of another with line (forming
+        /// iso box)", ruled part of the job envelope). It is the envelope's own
+        /// amber, gated by <c>Chrome.Envelope</c>, so it vanishes with the tile
+        /// frames it attaches to. The corners are the same convention
+        /// <c>PlotterFlatChrome.DrawEnvelope</c> uses: TL = (MinX, MaxY),
+        /// TR = (MaxX, MaxY), BR = (MaxX, MinY), BL = (MinX, MinY), each
+        /// through its own tile's map — matching corners, not the diagonal
+        /// pairing.</summary>
+        private void DrawConnectors(DrawingContext ctx, double zoom, Vector pan)
+        {
+            var (minX0, minY0, maxX0, maxY0) = PlaneBounds(0);
+            var (minX1, minY1, maxX1, maxY1) = PlaneBounds(1);
+            var m0 = _maps[0];
+            var m1 = _maps[1];
+            Point C0(double x, double y) => WorldToScreen(m0.Wx(x), m0.Wy(y), zoom, pan);
+            Point C1(double x, double y) => WorldToScreen(m1.Wx(x), m1.Wy(y), zoom, pan);
+            ctx.DrawLine(PlotterChromePens.Envelope, C0(minX0, maxY0), C1(minX1, maxY1));
+            ctx.DrawLine(PlotterChromePens.Envelope, C0(maxX0, maxY0), C1(maxX1, maxY1));
+            ctx.DrawLine(PlotterChromePens.Envelope, C0(minX0, minY0), C1(minX1, minY1));
+            ctx.DrawLine(PlotterChromePens.Envelope, C0(maxX0, minY0), C1(maxX1, minY1));
         }
 
         /// <summary>The iso view's chrome: the origin cross, the three world
@@ -2413,25 +2586,49 @@ public partial class PlotterView : UserControl
             {
                 // The loft's two panes are NOT a projection: they are FLAT
                 // true-scale tiles sharing one composition, drawn in each
-                // plane's own role order. A projected lattice over them would be
-                // a foreshortened 30-degree grid whose mm are NOT the tiles' mm —
-                // a wrong measurement, not a style question — and the
-                // extent-derived chrome for exactly these two tiles is already
-                // drawn by the flat view, which lays out the same diagonal
-                // composition through the flat painter. So the loft keeps what
-                // it has always drawn here: one machine-origin cross per
-                // carriage plane, through that plane's own map. Adding the
-                // lattice to these panes is a flat-painter question (it also has
-                // to settle the role-vs-world feed difference the two canvases
-                // still have), not this task's.
+                // plane's own role order. A projected lattice or job box over
+                // them would be a foreshortened figure whose mm are NOT the
+                // tiles' mm — a wrong measurement, not a style question. The
+                // grid is the floor of connecting wires see
+                // <see cref="DrawWireFloor"/>. The loft keeps what it has
+                // always drawn here, plus the flat tile frame that makes the
+                // floor's "bottom edge" visible: the flat view's per-tile
+                // world-axis arrows and machine-origin cross, and one flat
+                // envelope rectangle per tile, all through that plane's own
+                // map. The round-4 user feedback pinned the arrows: "origin
+                // axis arrows missing in Iso mode (but present in 2d ...)" —
+                // same as 2D, so they ARE the flat painter's arrows, gated by
+                // <c>Chrome.Origin</c>, and drawn in the flat painter's order
+                // (axes, envelope, cross last). The round-4 box ("connect each
+                // corner of one rectangle with corresponding corner of another
+                // with line (forming iso box)", ruling "part of job envelope")
+                // is the four amber connectors in
+                // <see cref="DrawConnectors"/>.
                 if (!PlaneDrawable(slot))
                     return;
+                var bounds = PlaneBounds(slot);
+                if (Chrome.Origin)
+                    PlotterFlatChrome.DrawAxes(ctx, _maps[slot], bounds, zoom, pan,
+                        new Rect(Bounds.Size));
+                // The tile frame comes over the arrows and the origin cross
+                // over the frame — the same precedence the flat panes use. The
+                // frame's two edges pass exactly through the origin corner (its
+                // left/bottom edges meet at the origin), so a frame drawn over
+                // the cross would wash the cross's arms out; the cross must
+                // read over the frame.
+                if (Chrome.Envelope)
+                    PlotterFlatChrome.DrawEnvelope(ctx, _maps[slot], bounds, zoom, pan);
+                // The box pairs the two tiles, so it is drawn once (slot 0)
+                // and only when both tiles exist.
+                if (slot == 0 && Chrome.Envelope && PlaneDrawable(1))
+                    DrawConnectors(ctx, zoom, pan);
                 if (Chrome.Origin)
                 {
                     var m = _maps[slot];
                     var o = WorldToScreen(m.Wx(0), m.Wy(0), zoom, pan);
-                    ctx.DrawLine(PlotterPens.Origin, new Point(o.X - 6, o.Y), new Point(o.X + 6, o.Y));
-                    ctx.DrawLine(PlotterPens.Origin, new Point(o.X, o.Y - 6), new Point(o.X, o.Y + 6));
+                    var pen = PlotterFlatChrome.OriginPen;
+                    ctx.DrawLine(pen, new Point(o.X - 6, o.Y), new Point(o.X + 6, o.Y));
+                    ctx.DrawLine(pen, new Point(o.X, o.Y - 6), new Point(o.X, o.Y + 6));
                 }
                 return;
             }

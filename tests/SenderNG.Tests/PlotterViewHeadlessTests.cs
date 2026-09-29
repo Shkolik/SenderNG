@@ -1692,6 +1692,13 @@ public class PlotterViewHeadlessTests
         window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
+        // The iso canvas now keeps the flat transform across the mode switch (a
+        // toggle is not a refit), so these chrome-painting measurements run from
+        // an explicit fit — the Fit button's seam — rather than the fit that the
+        // pre-adoption rebuild happened to land on.
+        view.Reframe();
+        for (var i = 0; i < 8; i++)
+            await Pump();
 
         var frame = PlotterPixels.Snapshot(CaptureFrame(window));
         // 4084 amber pixels with DrawEnvelope, 0 without it: a 40x margin, and
@@ -1734,12 +1741,20 @@ public class PlotterViewHeadlessTests
     /// <summary>Records the loft decision, because it is a decision and not an
     /// omission. The foam loft's two panes are FLAT true-scale tiles sharing one
     /// composition, drawn in each plane's role order — NOT a projection — so the
-    /// projected lattice, the projected job box and the projected arrows are
-    /// deliberately not drawn there: over true-scale tiles a foreshortened
-    /// 30-degree grid is a wrong measurement, not a style, and the flat view
-    /// already draws the chrome for exactly these two tiles. What the loft keeps
-    /// is the one machine-origin cross per carriage plane it has always drawn,
-    /// and that cross is gated by <c>Chrome.Origin</c> like every other cross.
+    /// projected job box and the projected arrows are deliberately not drawn
+    /// there: over true-scale tiles a foreshortened 30-degree box or arrow is a
+    /// wrong measurement, not a style. The grid is the wire floor that joins the
+    /// two tiles' bottom edges plus the world-X-parallel horizontal family (see
+    /// <c>The_foam_loft_connects_the_tiles_with_a_grid_wire_floor</c>), and the
+    /// flat view's per-tile lattices are gone entirely (see
+    /// <c>The_flat_foam_view_draws_no_tile_lattice</c>). What the loft does keep
+    /// per carriage plane is the FLAT view's own chrome — the world-axis
+    /// arrows, the machine-origin cross, and the flat tile frame that makes the
+    /// floor's "bottom edge" visible — gated the same way the flat view gates
+    /// them: <c>Chrome.Origin</c> and <c>Chrome.Envelope</c>. The arrows are
+    /// the round-4 fix ("Origin axis arrows missing in Iso mode but present in
+    /// 2d"); the iso box corner connectors are the round-4 task 4, part of the
+    /// job envelope.
     /// <para>The mill side is covered by the two tests above; this one pins the
     /// other half, with the toolpath asserted present so "no chrome" cannot be
     /// satisfied by a canvas that failed to draw anything.</para></summary>
@@ -1779,29 +1794,56 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 8; i++)
             await Pump();
 
-        // Both carriages still draw, so the surface is live.
-        var withCross = PlotterPixels.Snapshot(CaptureFrame(window));
-        Assert.True(CountSurface(withCross, IsPathGrey) > 100,
-            $"the loft must still draw its toolpath, found {CountSurface(withCross, IsPathGrey)} path pixels");
-        Assert.Equal(0, CountSurface(withCross, IsEnvelopeAmber));
-        // The loft draws NO axis arrows, and the two colours that would prove it
-        // are red and green. This used to assert zero BLUE, which was the arrow
-        // colour when there was one colour — with the palette per-axis it would
-        // have gone on passing while the X and Y arrows appeared over the foam
-        // tiles, which is the whole thing this assertion is here to prevent.
-        Assert.Equal(0, CountSurface(withCross, IsAxisRed));
-        Assert.Equal(0, CountSurface(withCross, IsAxisGreen));
-        Assert.Equal(0, CountSurface(withCross, IsAxisBlue));
+        // Both carriages still draw, so the surface is live; the grey count
+        // WITH chrome is the toggle probe below.
+        var withChrome = PlotterPixels.Snapshot(CaptureFrame(window));
+        Assert.True(CountSurface(withChrome, IsPathGrey) > 100,
+            $"the loft must still draw its toolpath, found {CountSurface(withChrome, IsPathGrey)} path pixels");
+        var greyOn = CountSurface(withChrome, IsPathGrey);
+        // The envelope is NOT the zero the old loft drew: it is the two FLAT
+        // tile rectangles AND the four iso-box corner connectors between them
+        // (see the box test). Asserted together here because both are the job
+        // envelope and share its gate; the box's own geometry is tested
+        // separately.
+        var tiles = CountSurface(withChrome, IsEnvelopeAmber);
+        Assert.True(tiles > 60,
+            $"the loft must draw one flat envelope rectangle per tile, found {tiles} amber pixels");
 
-        // The cross is grey (#888888, 1 px) so it lands in the path's own band:
-        // it is isolated by the toggle, not by colour. Removing it must take
-        // pixels out of that band, which is what makes this non-vacuous.
-        view.PushChromeFlags(ChromeFlags.Default with { Origin = false });
+        // The loft draws the FLAT pane's WORLD-AXIS arrows — red X, green Y,
+        // one pair per tile — NOT the projected arrows the mill iso draws. The
+        // arrows are the round-4 regression fix, so they must paint; the one
+        // colour that proves no PROJECTED chrome exists is blue (a face-on
+        // tile has no Z direction to point; PlotterFlatChrome.DrawAxes draws no
+        // Z). The envelope is turned OFF for the measurement, exactly like the
+        // flat-pane axis test above: the amber frames run along the two shafts
+        // at the origin corner and would bury them.
+        view.PushChromeFlags(ChromeFlags.Default with { Envelope = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var axesFrame = PlotterPixels.Snapshot(CaptureFrame(window));
+        var axisRed = CountSurface(axesFrame, IsAxisRed);
+        Assert.True(axisRed > 50, $"the loft X arrows must paint RED per tile, found {axisRed} red pixels");
+        var axisGreen = CountSurface(axesFrame, IsAxisGreen);
+        Assert.True(axisGreen > 30, $"the loft Y arrows must paint GREEN per tile, found {axisGreen} green pixels");
+        Assert.Equal(0, CountSurface(axesFrame, IsAxisBlue));
+        // The tile frames are gated by Chrome.Envelope like every other
+        // envelope, and their absence must be total — zero, not a reduction.
+        // This assertion doubles as the box connectors' gate: they share the
+        // envelope gate and vanish with the frames.
+        Assert.True(CountSurface(axesFrame, IsEnvelopeAmber) == 0,
+            "the tile envelope rectangles (and their box connectors) must be gated by Chrome.Envelope");
+
+        // The cross is grey (#888888, 2 px, the shared OriginPen) so it lands
+        // in the path's own band: it is isolated by the toggle, not by colour.
+        // Turning Origin off removes the cross (and the arrows) from the band's
+        // budget — the arrows are red/green and never in it — so the remaining
+        // grey must drop. This is what makes the gate non-vacuous.
+        view.PushChromeFlags(ChromeFlags.Default with { Origin = false, Envelope = false });
         for (var i = 0; i < 8; i++)
             await Pump();
         var withoutCross = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsPathGrey);
-        Assert.True(withoutCross < CountSurface(withCross, IsPathGrey),
-            $"the origin cross must be gated by Chrome.Origin, found {CountSurface(withCross, IsPathGrey)} with it and {withoutCross} without");
+        Assert.True(withoutCross < greyOn,
+            $"the origin cross must be gated by Chrome.Origin, found {greyOn} grey pixels with it and {withoutCross} without");
     }
 
     /// <summary>A foam program whose plane 0 (X,Y) Y-extent dwarfs plane 1's
@@ -1823,19 +1865,370 @@ public class PlotterViewHeadlessTests
         return sb.ToString();
     }
 
-    /// <summary>The foam lattice must not be sliced at the canvas midline.
-    /// The flat pane lays its two tiles out on the diagonal (plane 0 top-left,
-    /// plane 1 bottom-right), but the shared transform fits the WHOLE
-    /// composition into the control, so a tile that is taller than its
-    /// neighbour — the normal XY-vs-XZ case — reaches into the quadrant its
-    /// slot viewport excludes. Clipping the lattice to that quadrant drew a hard
-    /// horizontal edge through plane 0's grid while the same tile's envelope and
-    /// cross, which take no clip, carried on past it, and nothing tested it.
-    /// <para>This asserts the lattice is PRESENT in the region the per-quadrant
-    /// clip cut off, measured against the same region with the grid toggled off
-    /// so the toolpath's own light halo cannot stand in for it.</para></summary>
+    /// <summary>The foam loft's grid is a FLOOR joining the two flat tiles'
+    /// bottom edges — NOT the big projected lattice that used to sit under the
+    /// composition. It has TWO families (the round-4 "Both families" choice);
+    /// see <c>IsoCanvas.DrawWireFloor</c>: one wire per step along the shared
+    /// primary axis, each from (xi, 0) on plane 0's tile to (xi, 0) on plane
+    /// 1's tile (the coupling wire's own geometry drawn as a family), PLUS one
+    /// horizontal line per level, strictly parallel to the world X axis. Because
+    /// the composition is true-scale and its X is the shared world X, those
+    /// lines are horizontal on screen — the red sketch on
+    /// <c>plot_iso_grid.png</c>.
+    /// <para>The horizontal family is bounded by the FLOOR, not by the
+    /// composition's box: the two tiles fill opposite quadrants of that box, so
+    /// the floor is the skewed band between them (closed by the two tiles' lower
+    /// edges and the two lower-corner connectors), and each line runs from the
+    /// BL connector to the BR connector at its own level. The longest-span check
+    /// below is what pins that.
+    /// Three things are pinned here: the wires paint and are gated by
+    /// <c>Chrome.Grid</c>, and every wire lands WITHIN the composition box —
+    /// the old projected floor spilled far left of and above the composition,
+    /// and a floor that strays outside the two tiles' own rectangle is that
+    /// positioning regression coming back.</summary>
     [AvaloniaFact]
-    public async Task Foam_lattice_is_not_cut_at_the_canvas_midline()
+    public async Task The_foam_loft_connects_the_tiles_with_a_grid_wire_floor()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        source.Load("G21\r\nG1 X100 Y20 Z20 A100 F600");
+        Assert.True(vm.PlaneCount > 1);
+        vm.SetPlaneGeometries([
+            PlotterPlaneMapper.Identity(2),
+            PlotterPlaneMapper.Identity(2),
+        ]);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        window.GetVisualDescendants().OfType<CheckBox>()
+            .Single(c => c.Name == "IsoToggle")
+            .IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        // The overlay's glyph edges land in the amber neighbourhood and its
+        // opaque buttons hide the canvas beneath them; the sibling loft tests
+        // hide it for the same reason.
+        view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var on = PlotterPixels.Snapshot(CaptureFrame(window));
+        var floor = CountSurface(on, IsWireBlend);
+        Assert.True(floor > 300,
+            $"the loft wire floor must paint, found {floor} wire pixels");
+
+        // The count above only says the floor is there. "BOTH families" is the
+        // part a count cannot see, and it is the part round 4 was raised over:
+        // the ladder alone is a diagonal mesh that reads as hatching, not as a
+        // grid. The second family is the giveaway — each of its lines is
+        // horizontal on screen and spans the whole width of the floor at its
+        // level, so it puts a wide stretch of wire pixels in a single row. The
+        // ladder is a steep diagonal and contributes only a couple of pixels
+        // per row it crosses. A row carrying a wide count is therefore the
+        // horizontal family, and counting those rows pins the family rather
+        // than the floor's existence.
+        var wideRows = 0;
+        var widest = 0;
+        var widestSpan = 0;
+        for (var y = 25; y < on.Height - 1; y++)
+        {
+            var row = 0;
+            var first = -1;
+            var last = -1;
+            for (var x = 1; x < on.Width - 1; x++)
+            {
+                var p = PlotterPixels.At(on, x, y);
+                if (!IsWireBlend(p.R, p.G, p.B))
+                    continue;
+                row++;
+                if (first < 0)
+                    first = x;
+                last = x;
+            }
+            if (row > widest)
+                widest = row;
+            // SPAN, not longest run: the toolpath is drawn over the floor, so a
+            // horizontal wire is punched full of grey gaps where the path
+            // crosses it, and a longest-run measure reads those interruptions
+            // as short lines. First-to-last is the line's true length.
+            if (row > 200 && last - first > widestSpan)
+                widestSpan = last - first;
+            if (row > 200)
+                wideRows++;
+        }
+        Assert.True(wideRows >= 4,
+            $"the horizontal world-X-parallel family must span the composition, found {wideRows} full-width rows (widest {widest}px)");
+
+        // The wires connect the tiles' bottom edges, so every wire pixel must
+        // sit inside the union of the two tile rectangles — and those
+        // rectangles are the flat envelope frames, measured as pixels rather
+        // than re-derived. The OLD projected floor spilled outside that box
+        // (left of the top-left tile and above the composition), so a stray
+        // wire pixel beyond the tiles is the positioning bug coming back.
+        int left = on.Width, top = on.Height, right = -1, bottom = -1;
+        for (var y = 25; y < on.Height - 1; y++)
+            for (var x = 1; x < on.Width - 1; x++)
+            {
+                var p = PlotterPixels.At(on, x, y);
+                if (!IsEnvelopeAmber(p.R, p.G, p.B))
+                    continue;
+                if (x < left) left = x;
+                if (x > right) right = x;
+                if (y < top) top = y;
+                if (y > bottom) bottom = y;
+            }
+        Assert.True(right > left && bottom > top,
+            "the tile envelope frames must paint for the confinement check to mean anything");
+
+        // The horizontal family's lines must be no longer than the floor they
+        // sit on. The two tiles fill OPPOSITE quadrants of the composition, so
+        // the floor is the skewed band between them — bounded by the two tiles'
+        // LOWER edges and by the two connectors joining their lower corners —
+        // and the widest the band can ever be is the WIDER of the two tiles. A
+        // line drawn to the full composition width is therefore always too
+        // long: the composition is tile0 + gap + tile1, while the band never
+        // exceeds max(tile0, tile1), so a correct line is a fraction of the
+        // full width and a full-width line is measurably longer. The amber
+        // bbox above measures that full width in pixels, so this comparison
+        // needs no re-derivation of the layout to be meaningful.
+        //
+        // The fraction is well clear of both answers: with two similar tiles
+        // the band is about half the composition, and it only climbs toward
+        // the full width in the degenerate case where one tile is tiny, so 0.9
+        // separates "clipped to the band" from "spans the composition" with
+        // room on both sides.
+        var compositionW = right - left;
+        Assert.True(widestSpan < compositionW * 0.9,
+            $"a horizontal wire must stop at the floor's edge, not overhang it: longest span {widestSpan}px vs composition width {compositionW}px");
+
+        var stray = 0;
+        for (var y = 25; y < on.Height - 1; y++)
+            for (var x = 1; x < on.Width - 1; x++)
+            {
+                var p = PlotterPixels.At(on, x, y);
+                if (!IsWireBlend(p.R, p.G, p.B))
+                    continue;
+                if (x < left - 2 || x > right + 2 || y < top - 2 || y > bottom + 2)
+                    stray++;
+            }
+        Assert.True(stray <= 20,
+            $"every wire must join the tiles' bottom edges inside their box, found {stray} wire pixels outside it");
+
+        view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var off = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsWireBlend);
+        Assert.True(off < floor / 2,
+            $"the loft wire floor must be gated by Chrome.Grid: {off} wire pixels with it off vs {floor} with it on");
+    }
+
+    /// <summary>The iso box: four amber connectors joining MATCHING corners of
+    /// the two flat tile envelopes — TL→TL, TR→TR, BL→BL, BR→BR — the round-4
+    /// task-4 request ("connect each corner of one rectangle with corresponding
+    /// corner of another with line (forming iso box)"), ruled part of the job
+    /// envelope and gated by the same <c>Chrome.Envelope</c> as the frames it
+    /// attaches to.
+    /// <para>Frames and connectors are one amber, one gate, so a test that
+    /// measured "the frame's bounding box" out of the combined render would
+    /// measure the box too and derive every corner midpoint off its own line.
+    /// They are separated by SHAPE instead, which is the real difference: the
+    /// frames are axis-aligned rectangles whose edges are long straight runs,
+    /// while the connectors are 45° diagonals that belong to no long horizontal
+    /// or vertical run. An amber pixel with a long axis-aligned run through it
+    /// is frame; the rest is box. The midpoints come from the frame pixels
+    /// alone, so a connector drawn between MISMATCHED corners cannot pass
+    /// through them — each probe point is the midpoint of a segment's own
+    /// endpoints, and the diagonal pairing puts its midpoints elsewhere.</para>
+    [AvaloniaFact]
+    public async Task The_foam_loft_connects_the_envelope_corners_into_an_iso_box()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        source.Load("G21\r\nG1 X100 Y20 Z20 A100 F600");
+        Assert.True(vm.PlaneCount > 1);
+        vm.SetPlaneGeometries([
+            PlotterPlaneMapper.Identity(2),
+            PlotterPlaneMapper.Identity(2),
+        ]);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        window.GetVisualDescendants().OfType<CheckBox>()
+            .Single(c => c.Name == "IsoToggle")
+            .IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        // The frames and connectors are one amber, one gate, so a test that
+        // measured "the frame's bounding box" out of the combined render would
+        // measure the box too and derive every corner midpoint off its own line.
+        // They are separated by SHAPE instead, which is the real difference: the
+        // frames are axis-aligned rectangles whose edges are long straight runs,
+        // while the connectors are 45° diagonals that belong to no long
+        // horizontal or vertical run. An amber pixel on a long axis-aligned run
+        // is frame; the rest is box.
+        const int Run = 20;
+        const int Dilate = 6;
+        bool Amber(int x, int y)
+        {
+            var p = PlotterPixels.At(frame, x, y);
+            return IsEnvelopeAmber(p.R, p.G, p.B);
+        }
+        bool OnFrame(int x, int y)
+        {
+            if (!Amber(x, y))
+                return false;
+            var left = x - Run / 2;
+            var right = x + Run / 2;
+            if (left >= 1 && right < frame.Width - 1 && Amber(left, y) && Amber(right, y))
+                return true;
+            var top = y - Run / 2;
+            var bottom = y + Run / 2;
+            return top >= 25 && bottom < frame.Height - 1 && Amber(x, top) && Amber(x, bottom);
+        }
+
+        var isFrame = new bool[frame.Width * frame.Height];
+        var boxAmber = 0;
+        for (var y = 25; y < frame.Height - 1; y++)
+            for (var x = 1; x < frame.Width - 1; x++)
+            {
+                if (!Amber(x, y))
+                    continue;
+                if (OnFrame(x, y))
+                    isFrame[y * frame.Width + x] = true;
+                else
+                    boxAmber++;
+            }
+        Assert.True(boxAmber > 40,
+            $"the iso box must paint diagonal connectors between the tiles, found {boxAmber} off-frame amber px");
+
+        // The two frames are DISJOINT rectangles, and neither is separable by a
+        // midline: tile 0's frame is wider than half the canvas, so it straddles
+        // the midpoint and any left/right split cuts its own right edge into the
+        // other tile's box. They are therefore grouped by connectivity, which is
+        // what "the two tiles' rectangles" means: two blobs.
+        // <para>The grouping mask is DILATED first, because a connector leaves
+        // each frame corner and its antialiased foot eats the corner pixels
+        // themselves — the corner is the one place a rectangle's own two edges
+        // must touch, and they no longer do, so the raw mask fragments one frame
+        // into its four edges. One dilation of 6 px bridges that ~10 px nick and
+        // cannot bridge the ~30 px gap between the two tiles (6 + 6 = 12 < 30).
+        // Each group's extents are then read from the UNDILATED pixels, which
+        // the nick does not shrink: every edge still reaches the corner it
+        // (each edge still reaches the corner it owns, so the union is the true
+        // rectangle).
+        var grown = new bool[frame.Width * frame.Height];
+        for (var y = 25; y < frame.Height - 1; y++)
+            for (var x = 1; x < frame.Width - 1; x++)
+            {
+                if (!isFrame[y * frame.Width + x])
+                    continue;
+                for (var dy = -Dilate; dy <= Dilate; dy++)
+                    for (var dx = -Dilate; dx <= Dilate; dx++)
+                        grown[(y + dy) * frame.Width + (x + dx)] = true;
+            }
+        var seen = new bool[frame.Width * frame.Height];
+        var blobs = new List<(int L, int T, int R, int B)>();
+        for (var y0 = 25; y0 < frame.Height - 1; y0++)
+            for (var x0 = 1; x0 < frame.Width - 1; x0++)
+            {
+                if (!grown[y0 * frame.Width + x0] || seen[y0 * frame.Width + x0])
+                    continue;
+                var stack = new Stack<(int X, int Y)>();
+                stack.Push((x0, y0));
+                seen[y0 * frame.Width + x0] = true;
+                var l = int.MaxValue;
+                var t = int.MaxValue;
+                var r = -1;
+                var b = -1;
+                var n = 0;
+                while (stack.Count > 0)
+                {
+                    var (x, y) = stack.Pop();
+                    // Counted and bounded on the ORIGINAL pixels only, so the
+                    // dilation widens connectivity without widening the
+                    // rectangle the probes below are derived from.
+                    if (isFrame[y * frame.Width + x])
+                    {
+                        n++;
+                        if (x < l) l = x;
+                        if (x > r) r = x;
+                        if (y < t) t = y;
+                        if (y > b) b = y;
+                    }
+                    for (var dy = -1; dy <= 1; dy++)
+                        for (var dx = -1; dx <= 1; dx++)
+                        {
+                            var nx = x + dx;
+                            var ny = y + dy;
+                            if (nx < 1 || nx >= frame.Width - 1 || ny < 25 || ny >= frame.Height - 1)
+                                continue;
+                            if (!grown[ny * frame.Width + nx] || seen[ny * frame.Width + nx])
+                                continue;
+                            seen[ny * frame.Width + nx] = true;
+                            stack.Push((nx, ny));
+                        }
+                }
+                if (n > 100)
+                    blobs.Add((l, t, r, b));
+            }
+        Assert.True(blobs.Count == 2,
+            $"the loft must draw exactly two rectangular tile frames, found {blobs.Count} blobs of that size");
+        var (f0, f1) = blobs[0].L <= blobs[1].L ? (blobs[0], blobs[1]) : (blobs[1], blobs[0]);
+        Assert.True(f0.R < f1.L || f1.R < f0.L || f0.B < f1.T || f1.B < f0.T,
+            "the two tile frames must be disjoint rectangles for their corners to pair up");
+
+        var (mxTl, myTl) = Mid((f0.L, f0.T), (f1.L, f1.T));
+        var (mxTr, myTr) = Mid((f0.R, f0.T), (f1.R, f1.T));
+        var (mxBl, myBl) = Mid((f0.L, f0.B), (f1.L, f1.B));
+        var (mxBr, myBr) = Mid((f0.R, f0.B), (f1.R, f1.B));
+        foreach (var (mx, my, what) in new[]
+        {
+            (mxTl, myTl, "top-left"),
+            (mxTr, myTr, "top-right"),
+            (mxBl, myBl, "bottom-left"),
+            (mxBr, myBr, "bottom-right"),
+        })
+        {
+            // Counted as BOX amber only, so a midpoint that happens to graze a
+            // frame edge passes on the connector rather than on the frame.
+            var near = 0;
+            for (var y = my - 6; y <= my + 6; y++)
+                for (var x = mx - 6; x <= mx + 6; x++)
+                    if (!OnFrame(x, y) && Amber(x, y))
+                        near++;
+            Assert.True(near > 1,
+                $"the iso box must connect the {what} corners, found {near} connector px at their midpoint ({mx},{my})");
+        }
+
+        static (int, int) Mid((int X, int Y) a, (int X, int Y) b) =>
+            ((a.X + b.X) / 2, (a.Y + b.Y) / 2);
+    }
+
+    /// <summary>The foam grid is a floor of the work envelope and lives in the
+    /// iso loft; the FLAT foam view's two tiles no longer draw per-tile
+    /// lattices — those read as two side panes, and the floor is the only grid
+    /// foam gets now. So <c>Chrome.Grid</c> must have nothing to take away in
+    /// the flat foam view: the grid-OFF render differs from the grid-ON only by
+    /// the rebake's antialiasing jitter, never by a lattice.
+    /// <para>Kept here too is the reason the old test existed: the chrome
+    /// (axes, envelope, cross) takes a canvas-wide clip, not a per-quadrant
+    /// one, so the arrows reach past the canvas midline into the quadrant no
+    /// slot viewport covers. A per-quadrant clip still fails — removing the
+    /// clip was the point of the original test and the chrome keeps that
+    /// behaviour while the lattice goes away.</para></summary>
+    [AvaloniaFact]
+    public async Task The_flat_foam_view_draws_no_tile_lattice()
     {
         var source = new StubProgramSource();
         var vm = MakeVm(source, MachineTypes.Foam);
@@ -1848,48 +2241,30 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 8; i++)
             await Pump();
 
+        var on = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
+        view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var off = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
+
+        Assert.True(on > 300,
+            $"the flat foam chrome must still paint, found {on} light pixels");
+        Assert.True(off >= on - 300,
+            $"no tile lattice may come from Chrome.Grid in the flat foam view: {on} light pixels with it on, {off} with it off");
+
         // Below the canvas midline AND left of it: exactly the bottom-left
         // quadrant, which is not slot 0's viewport (top-left) and not slot 1's
-        // either (bottom-right). Under the per-quadrant clip NO lattice could
-        // reach it, from either plane.
+        // either (bottom-right). The axe shafts take the same canvas-wide clip
+        // as always, so they still reach it. Red and green, because those are the
+        // two arrows a face-on foam tile draws.
         static int BelowMidlineLeft(PlotterPixels.Frame f, Func<byte, byte, byte, bool> match) =>
             PlotterPixels.Count(f, match,
                 xFilter: x => x > 0 && x < f.Width / 2,
                 yFilter: y => y > f.Height / 2 && y < f.Height - 1);
-
-        var on = BelowMidlineLeft(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
-
-        view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
-        for (var i = 0; i < 8; i++)
-            await Pump();
-        var off = BelowMidlineLeft(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
-
-        // The lattice has to ADD pixels there, not merely sit near zero: the
-        // measured pair is 3788 on against 446 off, and under the per-quadrant
-        // clip it collapses to 553 against 424 — a delta of 129, well under this
-        // floor. So the margin is roughly 25x over the clipped reading and the
-        // test cannot pass on the toolpath's own halo.
-        Assert.True(on - off > 500,
-            $"plane 0's lattice must reach past the canvas midline: {on} light pixels with the grid on, {off} with it off");
-
-        // The axis arrows share that clip, so the bottom-left quadrant must
-        // carry blue too: 40 blue pixels with the canvas-wide clip and 0 under
-        // the per-quadrant one. Threshold 20 sits between the two, so it
-        // discriminates the clip rather than the stroke's antialiasing.
-        // Red and green, because those are the two arrows a face-on foam tile
-        // draws. Counting blue here measured nothing: the flat panes have no Z
-        // arrow, so a blue count in this region was 0 whether the clip was
-        // canvas-wide or per-quadrant, and the assertion could not have
-        // distinguished them at all.
         var arrowFrame = PlotterPixels.Snapshot(CaptureFrame(window));
-        var arrows = PlotterPixels.Count(arrowFrame, IsAxisRed,
-            xFilter: x => x > 0 && x < window.Width / 2,
-            yFilter: y => y > window.Height / 2 && y < window.Height - 1)
-            + PlotterPixels.Count(arrowFrame, IsAxisGreen,
-            xFilter: x => x > 0 && x < window.Width / 2,
-            yFilter: y => y > window.Height / 2 && y < window.Height - 1);
+        var arrows = BelowMidlineLeft(arrowFrame, IsAxisRed) + BelowMidlineLeft(arrowFrame, IsAxisGreen);
         Assert.True(arrows > 20,
-            $"the world axis arrows must reach past the canvas midline too, found {arrows} arrow pixels");
+            $"the world axis arrows must reach past the canvas midline, found {arrows} arrow pixels");
     }
 
     /// <summary>The grid is a FLOOR, so it paints BENEATH the toolpath: a grid
@@ -2053,8 +2428,14 @@ public class PlotterViewHeadlessTests
             .IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
+        // Same explicit fit baseline as the job-box test: the mode switch keeps
+        // the flat transform now, and this test measures the chrome, not the
+        // inheritance.
+        view.Reframe();
+        for (var i = 0; i < 8; i++)
+            await Pump();
 
-        var arrowsOn = PlotterPixels.Snapshot(CaptureFrame(window));
+        var arrowsOn = PlotterPixels.Snapshot(CaptureFrame(window));;
         Assert.True(CountSurface(arrowsOn, IsAxisRed) > 5, "control: the X axis must paint at the defaults");
         Assert.True(CountSurface(arrowsOn, IsAxisGreen) > 5, "control: the Y axis must paint at the defaults");
         Assert.True(CountSurface(arrowsOn, IsAxisBlue) > 10, "control: the Z axis must paint at the defaults");
@@ -2103,6 +2484,145 @@ public class PlotterViewHeadlessTests
             await Pump();
 
         Assert.Equal(versionBefore, vm.GeometryVersion);
+        Assert.Equal(zoomBefore, view.CompositionForTest[0].Zoom);
+    }
+
+    /// <summary>A settings save re-raises the tab host's module list, and the
+    /// host reparents the CACHED plot view into a fresh container — the view
+    /// detaches and re-attaches, and the attach handler rebuilds the canvas
+    /// set. A rebuilt canvas starts un-fitted (NaN zoom), so without the
+    /// rebuild preserving the live transform every settings change (any chrome
+    /// toggle) snaps the user's zoom back to the fitted view. This is the
+    /// SECOND path to that reset: the first was the SetPlaneGeometries
+    /// GeometryVersion bump, now fixed — hence the guard test above that no
+    /// geometry version changes, and this test proving the view still keeps its
+    /// zoom through the attach/rebuild.
+    /// <para>The host here is a plain ContentControl reparenting the view,
+    /// which fires the same <c>AttachedToVisualTree</c> the real tab host does
+    /// when it re-binds its cached views.</para></summary>
+    [AvaloniaFact]
+    public async Task Reattaching_the_view_preserves_the_zoom()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var host = new ContentControl { Content = view };
+        var window = new Window { Width = 920, Height = 560, Content = host };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        view.ZoomBy(2.0);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var zoomBefore = view.CompositionForTest[0].Zoom;
+
+        // Detach, then re-attach — the tab host's reparenting of a cached view.
+        host.Content = null;
+        await Pump();
+        host.Content = view;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        Assert.Equal(zoomBefore, view.CompositionForTest[0].Zoom);
+    }
+
+    /// <summary>The rebuild hands the fresh canvas the live one's ZOOM, but
+    /// <c>FittedZoom</c> — the "100%" baseline the readout divides by — lived
+    /// only in the canvas that was just discarded. A re-attached canvas then
+    /// carried the user's zoom with a 0 baseline, and the next time anything
+    /// re-ran the readout (the very next wheel notch) it hid at the
+    /// "never fitted" guard even though the zoom itself survived. The same
+    /// rebuild <see cref="Reattaching_the_view_preserves_the_zoom"/> drives;
+    /// this one asserts the readout rides through it and past it.</summary>
+    [AvaloniaFact]
+    public async Task Reattaching_the_view_preserves_the_zoom_readout()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var readout = view.FindControl<TextBlock>("ZoomPctText")!;
+        var host = new ContentControl { Content = view };
+        var window = new Window { Width = 920, Height = 560, Content = host };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // A zoom visibly off the fit, so the readout has something to say.
+        view.ZoomTo(view.FittedZoom * 1.25);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.True(readout.IsVisible, "off the fit the readout must show before the re-attach");
+        Assert.Contains("125", readout.Text);
+
+        // Detach, then re-attach — the tab host's reparenting of a cached view.
+        host.Content = null;
+        await Pump();
+        host.Content = view;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // The rebuilt canvas must read its 100% baseline back from the old one.
+        // The regression was a 0 baseline on a fitted canvas, so this is the
+        // precise property that changed.
+        Assert.True(view.FittedZoom > 0,
+            "the rebuilt canvas must inherit the previous fit as its readout baseline");
+
+        // Drive the readout through a USER path after the rebuild — the moment
+        // the regression bit. The wheel re-runs the readout, and a 0 baseline
+        // hides it there even though the zoom survived the rebuild intact.
+        window.MouseWheel(new Point(460, 280), new Vector(0, 1), RawInputModifiers.None);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.True(readout.IsVisible,
+            "a wheel notch after the rebuild must still report a percentage, not hide at a zero baseline");
+        Assert.NotEqual(string.Empty, readout.Text);
+    }
+
+    /// <summary>Toggling the iso view rebuilds the canvas set, and until the
+    /// rebuild adopted the live transform the fresh isometric canvas started
+    /// un-fitted and the view snapped back to the fit — the flat zoom was
+    /// thrown away. The iso and flat canvases share the same zoom semantics
+    /// (px per world mm), so the user's chosen level must survive the switch in
+    /// both directions.</summary>
+    [AvaloniaFact]
+    public async Task Toggling_iso_preserves_the_zoom()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        view.ZoomBy(2.0);
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var zoomBefore = view.CompositionForTest[0].Zoom;
+
+        var toggle = window.GetVisualDescendants().OfType<CheckBox>()
+            .Single(c => c.Name == "IsoToggle");
+        toggle.IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.True(vm.Isometric);
+
+        Assert.Equal(zoomBefore, view.CompositionForTest[0].Zoom);
+
+        toggle.IsChecked = false;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.False(vm.Isometric);
         Assert.Equal(zoomBefore, view.CompositionForTest[0].Zoom);
     }
 
