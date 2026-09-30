@@ -37,17 +37,14 @@ using Point3 = CNC.Core.Point3D;
 namespace SenderNG.Modules.Plotter;
 
 /// <summary>The 2D chrome painters for the flat panes: the world XY lattice
-/// face-on, the machine-origin cross, the world axis arrows, and the job
-/// rectangle. Every value arrives already in world coordinates — the caller
-/// ran the plane's mapping, so nothing here knows about carriage planes.</summary>
+/// face-on, the world axis arrows, and the job rectangle. Every value arrives
+/// already in world coordinates — the caller ran the plane's mapping, so
+/// nothing here knows about carriage planes.
+/// <para>No second mark at the origin: the arrows leave it along each axis, so
+/// they already say where it is, and a second mark on the same corner said it
+/// again. That is also how Nex reads its own "Show origin" toggle.</para></summary>
 public static class PlotterFlatChrome
 {
-    /// <summary>The origin cross's pen. Deliberately a 2 px stroke rather than
-    /// the view's 1 px <c>PlotterPens.Origin</c> — see <see cref="DrawOrigin"/>
-    /// for why a 1 px stroke gets tinted by the new chrome. Shared with the iso
-    /// loft, which draws its origin cross over the same teal frame corner.</summary>
-    public static readonly IPen OriginPen = new Pen(PlotterPens.OriginBrush, 2);
-
     /// <summary>The world XY grid, face-on. A grid line is a world-space
     /// constant, so it is a straight screen segment — no projection and no
     /// per-tile stepping.
@@ -56,7 +53,7 @@ public static class PlotterFlatChrome
     /// <c>PushTransform</c>, so the grid must stay clip-free and let the target
     /// surface trim the overhang (the control's render clip on screen, the
     /// bitmap's own bounds in the PNG export). The caller never tightens the
-    /// lattice to one plane's quadrant anyway: see <c>PlaneCanvas</c> for why
+    /// lattice to one plane's half anyway: see <c>PlaneCanvas</c> for why
     /// that boundary is wrong.</para></summary>
     public static void DrawGrid(
         DrawingContext ctx, PlaneMap map,
@@ -70,28 +67,6 @@ public static class PlotterFlatChrome
             var pen = line.Major ? PlotterChromePens.GridMajor : PlotterChromePens.GridMinor;
             ctx.DrawLine(pen, Screen(map, line.A, zoom, pan), Screen(map, line.B, zoom, pan));
         }
-    }
-
-    /// <summary>The machine-origin cross, 6 px each way. The stroke is 2 px,
-    /// not the view's original 1 px <c>PlotterPens.Origin</c>: G-code starts at
-    /// the machine origin, so the cross sits on the job envelope's teal corner
-    /// with the red tool glyph on the same point. A 1 px stroke at a fractional
-    /// coordinate is never opaque — every pixel is a blend with the paint
-    /// beneath — so over the envelope it picks up that stroke's colour, and
-    /// <c>Foam_2d_renders_toscale_tiles_and_origin_crosses</c>'s greyscale probe
-    /// then stops seeing a neutral cross and fails. (The envelope is now
-    /// translucent, so the tinted result is about (68, 157, 183) rather than the
-    /// amber-era (203, 84, 72); the defect is the same one either way, a blend
-    /// instead of a neutral.) Draw order cannot fix a blend; 2 px gives the
-    /// stroke full coverage, so the cross keeps painting neutral #888888 over
-    /// any background. The cross is therefore fatter than it was before this
-    /// task — a deliberate, reviewed trade, not an accident.
-    /// Do not "restore" it to <c>PlotterPens.Origin</c>.</summary>
-    public static void DrawOrigin(DrawingContext ctx, PlaneMap map, double zoom, Vector pan)
-    {
-        var o = Screen(map, new Point3(0, 0, 0), zoom, pan);
-        ctx.DrawLine(OriginPen, new Point(o.X - 6, o.Y), new Point(o.X + 6, o.Y));
-        ctx.DrawLine(OriginPen, new Point(o.X, o.Y - 6), new Point(o.X, o.Y + 6));
     }
 
     /// <summary>The world X and Y axis arrows, leaving the pane's world origin

@@ -92,8 +92,6 @@ internal static class PlotterPens
     public const double ErrorW = 1.65;
     public static readonly IBrush InFlightBrush = new SolidColorBrush(Color.FromRgb(0xe0, 0x96, 0x20));
     public const double InFlightW = 1.1;
-    public static readonly IBrush OriginBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
-    public const double OriginW = 1;
     public static readonly IBrush ToolBrush = new SolidColorBrush(Color.FromRgb(0xd0, 0x20, 0x20));
     public const double ToolW = 1.6;
     // Semi-transparent loft wires — the foam iso's coupling mesh. 15% alpha
@@ -125,7 +123,6 @@ internal static class PlotterPens
     public static readonly IPen Done = new Pen(DoneBrush, DoneW);
     public static readonly IPen Error = new Pen(ErrorBrush, ErrorW);
     public static readonly IPen InFlight = new Pen(InFlightBrush, InFlightW);
-    public static readonly IPen Origin = new Pen(OriginBrush, OriginW);
     public static readonly IPen Tool = new Pen(ToolBrush, ToolW);
     public static readonly IPen Wire = new Pen(WireBrush, WireW);
     public static readonly IPen WireFloor = new Pen(WireFloorBrush, WireFloorW);
@@ -1231,7 +1228,7 @@ public partial class PlotterView : UserControl
 
         /// <summary>Draw the slot's chrome overlay in world coordinates (per
         /// frame, crisp vectors — it must not blur under the baked raster): the
-        /// machine-origin cross, the world axis arrows and the job rectangle,
+        /// world axis arrows and the job rectangle,
         /// each gated on <see cref="Chrome"/>. The world lattice is NOT chrome —
         /// it draws beneath the path in <see cref="DrawSlotGridUnder"/>.</summary>
         protected abstract void DrawSlotChrome(DrawingContext ctx, int slot);
@@ -1464,7 +1461,7 @@ public partial class PlotterView : UserControl
                 }
                 DrawSlotFrontier(ctx, slot);
             }
-            // The chrome overlay (origin crosses, axis arrows, job rectangles)
+            // The chrome overlay (axis arrows, job rectangles)
             // is a crisp shared overlay drawn last so it never sits under a
             // raster edge.
             for (var slot = 0; slot < SlotCount; slot++)
@@ -2074,7 +2071,7 @@ public partial class PlotterView : UserControl
         /// mm in plane 1 (the ZA band is no longer stretched to fill its own
         /// half) — and both tiles measure the ONE job envelope rectangle,
         /// the origin already unioned into it by
-        /// <see cref="PlotterPlaneMapper.TryJobExtent"/>, so the origin cross
+        /// <see cref="PlotterPlaneMapper.TryJobExtent"/>, so the origin
         /// always sits in-frame. Tiles are STACKED (plane 0 in the top half,
         /// plane 1 in the bottom), sharing one column, with the 8 mm gap as the
         /// white band between them.
@@ -2243,19 +2240,10 @@ public partial class PlotterView : UserControl
                 PlotterFlatChrome.DrawAxes(ctx, m, bounds, _zoom, _pan, clip);
             if (Chrome.Envelope)
                 PlotterFlatChrome.DrawEnvelope(ctx, m, bounds, _zoom, _pan);
-            // The origin cross paints LAST, on top of everything. This order is
-            // right but it is NOT what makes the cross visible: G-code starts at
-            // the machine origin, so the cross sits exactly on the job
-            // envelope's corner and under the axis shafts, and the first draft
-            // of this plan drew Origin second, so the new chrome painted over
-            // it. Reordering recovered 0 of the missing pixels, because a cross
-            // blended against the envelope is still tinted whatever order it is
-            // in. The fix that works is the 2 px stroke in
-            // PlotterFlatChrome.DrawOrigin. Keeping the cross on top is still
-            // correct (nothing painted after it before this task), so leave the
-            // order alone.
-            if (Chrome.Origin)
-                PlotterFlatChrome.DrawOrigin(ctx, m, _zoom, _pan);
+            // No origin cross after this: it painted LAST, on top of everything,
+            // and the comment explaining that order recorded that reordering it
+            // was tried and did not help. Both are moot — the axis arrows above
+            // already leave the origin, so there is nothing here to overpaint.
         }
 
         protected override void DrawToolGlyph(DrawingContext ctx, Rect area, double[]? pos)
@@ -2418,7 +2406,7 @@ public partial class PlotterView : UserControl
         /// mm in plane 1 (the ZA band is no longer stretched to fill its
         /// quadrant) — and both tiles measure the ONE job envelope rectangle,
         /// the origin already unioned into it by
-        /// <see cref="PlotterPlaneMapper.TryJobExtent"/>, so the origin cross
+        /// <see cref="PlotterPlaneMapper.TryJobExtent"/>, so the origin
         /// always sits in-frame. Tiles sit diagonally (plane 0 top-left, plane 1
         /// bottom-right). Mill: the identity map over projected
         /// coordinates.</summary>
@@ -2734,7 +2722,7 @@ public partial class PlotterView : UserControl
             ctx.DrawLine(PlotterChromePens.Envelope, C0(maxX, minY), C1(maxX, minY));
         }
 
-        /// <summary>The iso view's chrome: the origin cross, the three world
+        /// <summary>The iso view's chrome: the three world
         /// axis arrows and the job box, drawn last over the projected
         /// composition. The world lattice is a floor now, drawn beneath the
         /// toolpath by <see cref="DrawSlotGridUnder"/>.
@@ -2765,7 +2753,7 @@ public partial class PlotterView : UserControl
                 // <see cref="DrawWireFloor"/>. The loft keeps what it has
                 // always drawn here, plus the flat tile frame that makes the
                 // floor's "bottom edge" visible: the flat view's per-tile
-                // world-axis arrows and machine-origin cross, and one flat
+                // world-axis arrows, and one flat
                 // envelope rectangle per tile. The rectangle is the JOB
                 // envelope's — both tiles carry the same one, which is what
                 // makes them congruent — drawn through THAT plane's own map, so
@@ -2775,7 +2763,7 @@ public partial class PlotterView : UserControl
                 // Iso mode (but present in 2d ...)" — same as 2D, so they ARE
                 // the flat painter's arrows, gated by
                 // <c>Chrome.Origin</c>, and drawn in the flat painter's order
-                // (axes, envelope, cross last). The round-4 box ("connect each
+                // (axes, then envelope). The round-4 box ("connect each
                 // corner of one rectangle with corresponding corner of another
                 // with line (forming iso box)", ruling "part of job envelope")
                 // is the four teal connectors in
@@ -2786,26 +2774,12 @@ public partial class PlotterView : UserControl
                 if (Chrome.Origin)
                     PlotterFlatChrome.DrawAxes(ctx, _maps[slot], bounds, zoom, pan,
                         new Rect(Bounds.Size));
-                // The tile frame comes over the arrows and the origin cross
-                // over the frame — the same precedence the flat panes use. The
-                // frame's two edges pass exactly through the origin corner (its
-                // left/bottom edges meet at the origin), so a frame drawn over
-                // the cross would wash the cross's arms out; the cross must
-                // read over the frame.
                 if (Chrome.Envelope)
                     PlotterFlatChrome.DrawEnvelope(ctx, _maps[slot], bounds, zoom, pan);
                 // The box pairs the two tiles, so it is drawn once (slot 0)
                 // and only when both tiles exist.
                 if (slot == 0 && Chrome.Envelope && PlaneDrawable(1))
                     DrawConnectors(ctx, zoom, pan);
-                if (Chrome.Origin)
-                {
-                    var m = _maps[slot];
-                    var o = WorldToScreen(m.Wx(0), m.Wy(0), zoom, pan);
-                    var pen = PlotterFlatChrome.OriginPen;
-                    ctx.DrawLine(pen, new Point(o.X - 6, o.Y), new Point(o.X + 6, o.Y));
-                    ctx.DrawLine(pen, new Point(o.X, o.Y - 6), new Point(o.X, o.Y + 6));
-                }
                 return;
             }
 
@@ -2835,11 +2809,6 @@ public partial class PlotterView : UserControl
             // of one frame — so the two cannot drift apart.
             var (floorZ, ceilingZ) = JobZRange();
 
-            // The cross is the machine ORIGIN, not the extent, so it paints
-            // even where there is no footprint — and at the pre-existing 1 px
-            // PlotterPens.Origin, unlike the flat panes' deliberate 2 px.
-            if (Chrome.Origin)
-                PlotterIsoChrome.DrawOrigin(ctx, zoom, pan);
             if (!hasFootprint)
                 return;
 
@@ -2847,8 +2816,10 @@ public partial class PlotterView : UserControl
             // enough to name the direction, short enough to stay off the path.
             var reach = Math.Max(Math.Max(footprint.MaxX - footprint.MinX,
                 footprint.MaxY - footprint.MinY), 1e-6) * 0.25;
-            // The arrows are the axes the origin cross points to — Chrome.Origin
-            // gates BOTH, matching Nex's ShowOrigin → SetAxesVisible.
+            // The arrows leave the world origin, so Chrome.Origin gates them —
+            // not because it draws a mark there, but because the origin is
+            // what they measure from. Same mapping as Nex's ShowOrigin →
+            // SetAxesVisible.
             if (Chrome.Origin)
                 PlotterIsoChrome.DrawAxes(ctx, zoom, pan, clip, reach);
             if (Chrome.Envelope)

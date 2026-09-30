@@ -154,7 +154,7 @@ public static class PlotterPlaneMapper
     /// the same reason (<c>NexPlotScene.BuildAutoChrome</c>).
     /// <para>The origin is unioned in here, exactly as
     /// <see cref="TryWorldFootprint"/> does, so the two cannot disagree about
-    /// what "the extent" includes and the origin cross stays in frame.
+    /// what "the extent" includes and the origin stays in frame.
     /// <para>A plane that cannot be read is skipped, never fatal. The rule is
     /// ALL-OR-NOTHING: a plane contributes only if it supplies BOTH world X and
     /// world Y, so an X-only plane has its X contribution discarded along with

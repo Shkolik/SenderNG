@@ -37,9 +37,10 @@ using Point3 = CNC.Core.Point3D;
 namespace SenderNG.Modules.Plotter;
 
 /// <summary>One plane's placement in the shared world composition. ONE scale
-/// (Sx = Sy = 1 → true machine proportions). Tiles sit diagonally — plane 0
-/// top-left at the world origin, plane 1 bottom-right beyond it — so the whole
-/// composition pans and zooms as one canvas.</summary>
+/// (Sx = Sy = 1 → true machine proportions). In the flat view the tiles are
+/// STACKED — plane 0 in the top half, plane 1 in the bottom, sharing one
+/// column — so the whole composition pans and zooms as one canvas; the iso
+/// view keeps its own diagonal placement in its own canvas.</summary>
 public readonly record struct PlaneMap(
     double MinX, double SpanX, double MinY, double SpanY,
     double BiasX, double BiasY, double Sx, double Sy, double Ox, double Oy)

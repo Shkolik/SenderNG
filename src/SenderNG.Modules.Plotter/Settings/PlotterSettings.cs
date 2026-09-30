@@ -54,8 +54,10 @@ public sealed class PlotterSettings
     /// <summary>World XY grid, on the iso floor and face-on in the flat panes.</summary>
     public bool ShowGrid { get; set; } = true;
 
-    /// <summary>Machine-origin cross. Iso only — the flat tiles are true-scale
-    /// in a shared composition and a per-tile offset would break it.</summary>
+    /// <summary>The world axis arrows, which leave the machine origin along
+    /// each axis. This is what marks the origin: there is no separate
+    /// crosshair, because a second mark on the same corner said the same
+    /// thing twice. Same mapping as Nex's ShowOrigin → SetAxesVisible.</summary>
     public bool ShowOrigin { get; set; } = true;
 
     /// <summary>The job's rectangle in the flat panes / box in iso.</summary>

@@ -1864,7 +1864,7 @@ public class PlotterViewHeadlessTests
     /// flat view's per-tile lattices are gone entirely (see
     /// <c>The_flat_foam_view_draws_no_tile_lattice</c>). What the loft does keep
     /// per carriage plane is the FLAT view's own chrome — the world-axis
-    /// arrows, the machine-origin cross, and the flat tile frame that makes the
+    /// arrows and the flat tile frame that makes the
     /// floor's "bottom edge" visible — gated the same way the flat view gates
     /// them: <c>Chrome.Origin</c> and <c>Chrome.Envelope</c>. The arrows are
     /// the round-4 fix ("Origin axis arrows missing in Iso mode but present in
@@ -1874,7 +1874,7 @@ public class PlotterViewHeadlessTests
     /// other half, with the toolpath asserted present so "no chrome" cannot be
     /// satisfied by a canvas that failed to draw anything.</para></summary>
     [AvaloniaFact]
-    public async Task The_foam_loft_keeps_one_origin_cross_and_no_projected_chrome()
+    public async Task The_foam_loft_keeps_no_projected_chrome()
     {
         var source = new StubProgramSource();
         var vm = MakeVm(source, MachineTypes.Foam);
@@ -1909,12 +1909,11 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 8; i++)
             await Pump();
 
-        // Both carriages still draw, so the surface is live; the grey count
-        // WITH chrome is the toggle probe below.
+        // Both carriages still draw, so the surface is live; the teal and grey
+        // counts below are read off this one capture.
         var withChrome = PlotterPixels.Snapshot(CaptureFrame(window));
         Assert.True(CountSurface(withChrome, IsPathGrey) > 100,
             $"the loft must still draw its toolpath, found {CountSurface(withChrome, IsPathGrey)} path pixels");
-        var greyOn = CountSurface(withChrome, IsPathGrey);
         // The envelope is NOT the zero the old loft drew: it is the two FLAT
         // tile rectangles AND the four iso-box corner connectors between them
         // (see the box test). Asserted together here because both are the job
@@ -1947,18 +1946,6 @@ public class PlotterViewHeadlessTests
         // envelope gate and vanish with the frames.
         Assert.True(CountSurface(axesFrame, IsEnvelopeTeal) == 0,
             "the tile envelope rectangles (and their box connectors) must be gated by Chrome.Envelope");
-
-        // The cross is grey (#888888, 2 px, the shared OriginPen) so it lands
-        // in the path's own band: it is isolated by the toggle, not by colour.
-        // Turning Origin off removes the cross (and the arrows) from the band's
-        // budget — the arrows are red/green and never in it — so the remaining
-        // grey must drop. This is what makes the gate non-vacuous.
-        view.PushChromeFlags(ChromeFlags.Default with { Origin = false, Envelope = false });
-        for (var i = 0; i < 8; i++)
-            await Pump();
-        var withoutCross = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsPathGrey);
-        Assert.True(withoutCross < greyOn,
-            $"the origin cross must be gated by Chrome.Origin, found {greyOn} grey pixels with it and {withoutCross} without");
     }
 
     /// <summary>A foam program whose plane 0 (X,Y) Y-extent dwarfs plane 1's
@@ -2931,6 +2918,105 @@ public class PlotterViewHeadlessTests
         Assert.Equal(0, CountSurface(arrowsOff, IsAxisBlue));
     }
 
+    /// <summary>No machine-origin cross anywhere. The world axis arrows leave
+    /// that same origin, so a cross was a second mark on one corner saying what
+    /// the arrows had already said — and, unlike the arrows, it claimed the
+    /// corner regardless of whether the arrows were on.
+    /// <para>Probed by differencing, because a neutral-pixel count alone cannot
+    /// tell the cross from the feed path: the G-code starts AT the machine
+    /// origin, so the toolpath runs through the probe box in every capture. With
+    /// <c>Chrome.Origin</c> on and off and everything else fixed, the path (and
+    /// the arrows' own antialiasing) appear in BOTH counts and cancel, leaving
+    /// only what the flag itself added.</para>
+    /// <para>Measured on this composition, 17x17 box at the origin, 6 runs
+    /// identical to the pixel at each site. With the cross: flat 68/32
+    /// (delta +36), iso 39/23 (delta +16). Without it: flat 24/32 (delta -8),
+    /// iso 14/23 (delta -9) — the sign flips, because the arrows now paint over
+    /// the path and OCCLUDE neutral pixels rather than add any. So the test
+    /// asserts the delta stays at or below zero: the origin flag must never ADD
+    /// neutral ink at the origin. The gap is 24 px (flat) and 25 px (iso) and
+    /// has zero variance, so zero is not a knife edge. A cross returns the
+    /// delta to +36/+16 and fails by 36 and 16 px.</para></summary>
+    [AvaloniaFact]
+    public async Task The_plotter_draws_no_origin_cross()
+    {
+        // The program STARTS at the machine origin, so the toolpath is present
+        // in the probe rect in every capture. That is the hard case on purpose.
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load("G21\r\nG1 X100 Y50 Z20 F600");
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // A neutral, not-white pixel. Both the cross (#888888) and the feed
+        // path (#808080, antialiased) are neutral, so this predicate alone
+        // cannot tell them apart — see the differencing below.
+        static bool OriginInk(byte r, byte g, byte b) =>
+            Math.Abs(r - g) <= 8 && Math.Abs(g - b) <= 8 && r < 250;
+
+        // The cross spans 6 px each way, so a 17x17 box centred on the origin
+        // holds all of it plus a pixel of slack for the window-chrome offset.
+        const int Half = 8;
+        async Task<(int On, int Off)> Probe(Point origin, int coy)
+        {
+            var cx = (int)Math.Round(origin.X, MidpointRounding.AwayFromZero) + 1;
+            var cy = (int)Math.Round(origin.Y, MidpointRounding.AwayFromZero) + coy;
+            int Count(PlotterPixels.Frame f) => PlotterPixels.CountRect(f, OriginInk,
+                cx - Half, cy - Half, cx + Half, cy + Half);
+            view.PushChromeFlags(ChromeFlags.Default with { Grid = false, Envelope = false });
+            for (var i = 0; i < 8; i++)
+                await Pump();
+            var on = Count(PlotterPixels.Snapshot(CaptureFrame(window)));
+            view.PushChromeFlags(ChromeFlags.Default with { Grid = false, Envelope = false, Origin = false });
+            for (var i = 0; i < 8; i++)
+                await Pump();
+            var off = Count(PlotterPixels.Snapshot(CaptureFrame(window)));
+            return (on, off);
+        }
+
+        // The flat/mill origin corner: world (0,0) through the pane's own map,
+        // which for a mill is the identity, so it is the shared ToScreen.
+        var (zoom, pan) = view.CompositionForTest[0];
+        var flatFrame = PlotterPixels.Snapshot(CaptureFrame(window));
+        var flat = await Probe(PlotterChrome.ToScreen(0, 0, zoom, pan), FirstBrightRowLocal(flatFrame));
+
+        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.Reframe();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        // The iso origin: the same world origin, through PlotterProjection.
+        var (izoom, ipan) = view.CompositionForTest[0];
+        var proj = PlotterProjection.Project(0, 0, 0);
+        var isoFrame0 = PlotterPixels.Snapshot(CaptureFrame(window));
+        var iso = await Probe(PlotterChrome.ToScreen(proj.X, proj.Y, izoom, ipan), FirstBrightRowLocal(isoFrame0));
+
+        // The origin flag must never ADD neutral ink here; see the summary for
+        // the measured bands. Zero is the sign boundary, not a tuned number.
+        Assert.True(flat.On - flat.Off <= 0 && iso.On - iso.Off <= 0,
+            $"FLAT: {flat.On}/{flat.Off} (delta {flat.On - flat.Off}); ISO: {iso.On}/{iso.Off} (delta {iso.On - iso.Off})");
+    }
+
+    private static int FirstBrightRowLocal(PlotterPixels.Frame frame)
+    {
+        for (var y = 0; y < 60 && y < frame.Height; y++)
+        {
+            var bright = PlotterPixels.Count(frame, (byte r, byte g, byte b) => r > 245 && g > 245 && b > 245,
+                xFilter: x => x >= 200 && x < 720 && (x - 200) % 8 == 0,
+                yFilter: yy => yy == y);
+            if (bright >= 60)
+                return y;
+        }
+        return -1;
+    }
+
     /// <summary>The four visibility toggles go through the shared settings
     /// model, and the module re-applies the WHOLE settings section on any one
     /// of them — plane mappings included. The geometry has not changed, so the
@@ -3530,7 +3616,7 @@ public class PlotterViewHeadlessTests
         var (view, window, _, file) = await ShowMillForExport(600);
         try
         {
-            // Chrome OFF, on BOTH sides. Grid, origin cross and job rectangle
+            // Chrome OFF, on BOTH sides. Grid, axis arrows and job rectangle
             // are all ink that the view draws and are deliberately absent from a
             // comparison about the toolpath: they extend the on-screen box
             // vertically past anything the export draws, so a like-for-like
@@ -3783,7 +3869,7 @@ public class PlotterViewHeadlessTests
     /// envelope, which shrank the fit zoom and with it the mesh; see
     /// <see cref="Foam_iso_renders_the_four_axis_loft"/>.) Rejected by the
     /// clauses above: the white background (r = 255, above the ceiling), the
-    /// grey toolpath and #888888 origin cross (neutral, so <c>b &gt; r</c>
+    /// grey toolpath (neutral, so <c>b &gt; r</c>
     /// fails), the teal envelope (g far above r), the axis colours, the
     /// run-state greens.</para></summary>
     private static bool IsLoftMeshBlend(byte r, byte g, byte b) =>

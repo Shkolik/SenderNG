@@ -37,7 +37,7 @@ using Point3 = CNC.Core.Point3D;
 namespace SenderNG.Modules.Plotter;
 
 /// <summary>The 3D chrome painters for the iso view: the world XY floor lattice
-/// under the projection, the machine-origin cross, the three world axis arrows
+/// under the projection, the three world axis arrows
 /// and the job box. World coordinates in, projected screen lines out.
 /// <para>One transform only. Every point these painters draw goes through
 /// <see cref="Projected"/>, which projects and then hands off to
@@ -79,25 +79,17 @@ public static class PlotterIsoChrome
         }
     }
 
-    /// <summary>The machine origin, projected — the same 6 px cross this view
-    /// drew before the chrome existed, on the pre-existing 1 px
-    /// <c>PlotterPens.Origin</c>. The flat panes' cross is 2 px
-    /// (<c>PlotterFlatChrome</c>); that difference is deliberate and recorded,
-    /// not a defect to close here.</summary>
-    public static void DrawOrigin(DrawingContext ctx, double zoom, Vector pan)
-    {
-        var o = Projected(new Point3(0, 0, 0), zoom, pan);
-        ctx.DrawLine(PlotterPens.Origin, new Point(o.X - 6, o.Y), new Point(o.X + 6, o.Y));
-        ctx.DrawLine(PlotterPens.Origin, new Point(o.X, o.Y - 6), new Point(o.X, o.Y + 6));
-    }
-
     /// <summary>The three world axis arrows leaving the origin, each
     /// <paramref name="reach"/> long along its own world axis, and each in ITS OWN
     /// colour: X red, Y green, Z blue, the scheme
     /// <c>NexPlotScene.AxisColor</c> uses. One blue pen for all three said
     /// nothing about which arrow was which, which is the one job these arrows
     /// have. The header carries the letters; the arrows carry the directions.
-    /// Not toggleable — neither are the flat pane's.</summary>
+    /// <para>Toggleable, via <c>ChromeFlags.Origin</c>, and because the arrows
+    /// start at the world origin that is the flag that gates them — the same
+    /// "Show origin" → <c>SetAxesVisible</c> mapping Nex uses. The machine
+    /// origin itself needs no second mark; see
+    /// <c>PlotterFlatChrome</c>.</para></summary>
     public static void DrawAxes(
         DrawingContext ctx, double zoom, Vector pan, Rect viewport, double reach)
     {

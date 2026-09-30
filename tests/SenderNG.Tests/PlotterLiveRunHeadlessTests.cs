@@ -558,11 +558,11 @@ public class PlotterLiveRunHeadlessTests
 
     /// <summary>The foam 2D canvas composes both planes as TRUE-SCALE tiles
     /// stacked in one column (plane 0 in the top half, plane 1 in the bottom)
-    /// with an empty gap between them, and draws a machine-origin cross at each
-    /// tile's origin corner — even though the origin cross sits at a tile corner
-    /// that a per-half clip would cut off.</summary>
+    /// with an empty gap between them. No machine-origin cross is asserted:
+    /// the axis arrows leave that same origin, so a second mark on the corner
+    /// said nothing the arrows had not.</summary>
     [AvaloniaFact]
-    public async Task Foam_2d_renders_toscale_tiles_and_origin_crosses()
+    public async Task Foam_2d_renders_toscale_tiles()
     {
         var (_, _, prog2, plotter2, window2) = Setup(MachineTypes.Foam, 4, WingVaryingProgram(400));
         for (var i = 0; i < 8; i++)
@@ -588,38 +588,16 @@ public class PlotterLiveRunHeadlessTests
         var pan = (Avalonia.Vector)GF(planeCanvas, "_pan")!;
 
         // The baked path renders the feed-grey (0x80) stroke AA-washed against
-        // white; at ~0.5px stroke most hits fall in the 140..225 range. The
-        // machine-origin cross (0x88, 1px) similarly AA-washes to 120..190 and
-        // its center is covered by the red tool glyph at the default position.
+        // white; at ~0.5px stroke most hits fall in the 140..225 range.
         bool LineGrey(byte r, byte g, byte b) =>
             Math.Abs(r - g) <= 14 && Math.Abs(g - b) <= 14 && r is >= 100 and <= 220;
-        bool CrossGrey(byte r, byte g, byte b) =>
-            Math.Abs(r - g) <= 10 && Math.Abs(g - b) <= 10 && r is >= 115 and <= 195;
 
-        // Project each plane's world tile + machine-origin cross to screen from
-        // the LIVE transform and per-plane maps, so the probes land exactly.
+        // Project each plane's world tile to screen from the LIVE transform, so
+        // the probes land exactly.
         var swb = pcType.GetMethod("SlotWorldBounds", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
         var w0 = ((double MinX, double MinY, double MaxX, double MaxY))swb.Invoke(planeCanvas, new object[] { 0 })!;
         var w1 = ((double MinX, double MinY, double MaxX, double MaxY))swb.Invoke(planeCanvas, new object[] { 1 })!;
-        var maps = (System.Collections.IList?)pcType.GetField("_maps", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(planeCanvas)!;
-        double[] MapProps(object m)
-        {
-            var t = m.GetType();
-            return new[] {
-            (double)t.GetProperty("MinX")!.GetValue(m)!, (double)t.GetProperty("SpanX")!.GetValue(m)!,
-            (double)t.GetProperty("MinY")!.GetValue(m)!, (double)t.GetProperty("SpanY")!.GetValue(m)!,
-            (double)t.GetProperty("Sx")!.GetValue(m)!, (double)t.GetProperty("Sy")!.GetValue(m)!,
-            (double)t.GetProperty("Ox")!.GetValue(m)!, (double)t.GetProperty("Oy")!.GetValue(m)! };
-        }
-        var mp0 = MapProps(maps[0]!);
-        var mp1 = MapProps(maps[1]!);
-        //   cross0: Wx(0) = 0 - t0.MinX,       Wy(0) = Oy - t0.MinY
-        //   cross1: Wx(0) = Ox - t1.MinX,       Wy(0) = -t1.MinY
         (double Sx0, double Sy0) P(double wx, double wy) => (zoom * wx + pan.X, -zoom * wy + pan.Y);
-        var bx0 = (int)Math.Round(P(-mp0[0], mp0[7] - mp0[2]).Sx0);
-        var by0 = (int)Math.Round(P(-mp0[0], mp0[7] - mp0[2]).Sy0);
-        var bx1 = (int)Math.Round(P(mp1[6] - mp1[0], -mp1[2]).Sx0);
-        var by1 = (int)Math.Round(P(mp1[6] - mp1[0], -mp1[2]).Sy0);
         var stl0 = P(w0.MinX, w0.MaxY);
         var sbr0 = P(w0.MaxX, w0.MinY);
         var stl1 = P(w1.MinX, w1.MaxY);
@@ -640,21 +618,14 @@ public class PlotterLiveRunHeadlessTests
         int band = CountRectHalfOpen(frame, LineGrey, b0_, b1_, c0_, c1_);
         var (g0_, g1_, i0_, i1_) = W((int)Math.Round(sbr0.Sx0) + 2, (int)Math.Round(stl1.Sx0) - 2, (int)Math.Round(stl0.Sy0), (int)Math.Round(sbr1.Sy0));
         int gapPixels = CountRectHalfOpen(frame, LineGrey, g0_, g1_, i0_, i1_);
-        var (j0_, j1_, k0_, k1_) = W(bx0 - 10, bx0 + 10, by0 - 10, by0 + 12);
-        int cross1 = CountRectHalfOpen(frame, CrossGrey, j0_, j1_, k0_, k1_);
-        var (m0_, m1_, n0_, n1_) = W(bx1 - 10, bx1 + 10, by1 - 10, by1 + 12);
-        int cross2 = CountRectHalfOpen(frame, CrossGrey, m0_, m1_, n0_, n1_);
 
         Assert.True(coy >= 20 && coy <= 32, $"canvas chrome offset must be sane, got y={coy}");
         Assert.True(streak > 150, "plane0 must draw as a true-scale band in the top tile");
         Assert.True(band > 150, "plane1 must draw as a true-scale band in the bottom tile");
         Assert.True(gapPixels < 20, "the tile gap must stay empty (no full-width stretched layout)");
-        Assert.True(cross1 > 4, "plane0 machine-origin cross must be drawn");
-        Assert.True(cross2 > 4, "plane1 machine-origin cross must be drawn");
 
-        // The iso canvas composes the same way; its plane1 loft + cross must
-        // render too (checked via the same predicates against its own window
-        // offset).
+        // The iso canvas composes the same way; its plane1 loft must render
+        // too (checked via the same predicate against its own window offset).
         window2.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
@@ -669,30 +640,9 @@ public class PlotterLiveRunHeadlessTests
             CountRectHalfOpen(f, m, 1 + x0, 1 + x1, icoy + y0, icoy + y1);
         var isoStreak = Rect(isoFrame, LineGrey, 12, 252, 196, 272);
         var isoBand = Rect(isoFrame, LineGrey, 268, 900, 300, 352);
-        // plane1's origin cross is DERIVED from the iso canvas's own live
-        // layout, not a window-relative box. That box was where the cross sat
-        // while plane 1's tile was a thin 279x25 mm strip in a 392x70 mm
-        // composition; both tiles are the one 279x37 mm job envelope now, in a
-        // 566x82 mm composition, so the cross sits somewhere else entirely and
-        // the hard-coded box reads 0. Derived, the probe survives either
-        // layout — the same reason the 2D half above projects its own.
-        var ict = isoCanvas.GetType();
-        var izoom = (double)GF(isoCanvas, "_zoom")!;
-        var ipan = (Avalonia.Vector)GF(isoCanvas, "_pan")!;
-        var imaps = (System.Collections.IList?)ict.GetField("_maps",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-            .GetValue(isoCanvas)!;
-        var imp1 = MapProps(imaps[1]!);
-        //   cross1: Wx(0) = Ox - MinX,  Wy(0) = -MinY.  A foam tile's map has
-        //   BiasX/BiasY 0 and Sx/Sy 1, so Wx/Wy take the offset form.
-        var icx = (int)Math.Round(izoom * (imp1[6] - imp1[0]) + ipan.X);
-        var icy = (int)Math.Round(izoom * imp1[2] + ipan.Y);
-        var (q0_, q1_, p0_, p1_) = W(icx - 10, icx + 10, icy - 10, icy + 12);
-        var isoCross2 = CountRectHalfOpen(isoFrame, CrossGrey, q0_, q1_, p0_, p1_);
         Assert.True(icoy >= 20 && icoy <= 32, $"iso canvas chrome offset must be sane, got y={icoy}");
         Assert.True(isoStreak > 150, "iso plane0 must draw its small tile top-left");
         Assert.True(isoBand > 150, "iso plane1 must draw its loft across the bottom tile");
-        Assert.True(isoCross2 > 4, "iso plane1 machine-origin cross must be drawn");
     }
 
     /// <summary>The half viewports place each foam plane's tile, but the
