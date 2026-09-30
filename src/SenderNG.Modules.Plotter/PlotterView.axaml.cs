@@ -2543,22 +2543,23 @@ public partial class PlotterView : UserControl
         {
             var m0 = _maps[0];
             var m1 = _maps[1];
-            var indices0 = Vm.PlaneAxisIndices(0);
-            var indices1 = Vm.PlaneAxisIndices(1);
-            // A wire may only run where BOTH tiles cover its primary-axis
-            // coordinate, so the family stops at the shorter of the two
-            // travels. The user's cadence is a uniform step from the origin
-            // (0, 10, 20, ...), which AxisTicks gives as a nice ~8-division
-            // step of the common span.
-            var maxXi = Math.Min(Vm.Bounds[indices0[0]][1], Vm.Bounds[indices1[0]][1]);
-            var (start, step, count) = PlotterChrome.AxisTicks(0, maxXi, 8);
-            for (var i = 0; i < count; i++)
+            // The JOB's bounds, read once — both tiles measure the same
+            // rectangle now — but through BOTH maps, because the two tiles sit
+            // in opposite quadrants and it is the maps that separate them.
+            var (minX, minY, maxX, maxY) = PlaneBounds();
+            // The ladder: one wire per step of the shared envelope X, each from
+            // plane 0's lower edge to plane 1's lower edge at that xi. Both
+            // tiles measure the one unioned envelope, so the family spans the
+            // WHOLE extent — the cap it used to carry (the shorter of the two
+            // planes' travels) assumed per-plane tiles whose far edges stopped
+            // short, and it stopped the last wire short of the BR connector.
+            // The outer wires ARE the two lower-corner connectors — the same
+            // endpoints through the same maps — so closing on the extent makes
+            // the floor's edges part of the floor.
+            foreach (var xi in TickValues(minX, maxX, 8))
             {
-                var xi = start + step * i;
-                if (xi < 0)
-                    continue;
-                var a = WorldToScreen(m0.Wx(xi), m0.Wy(0), zoom, pan);
-                var b = WorldToScreen(m1.Wx(xi), m1.Wy(0), zoom, pan);
+                var a = WorldToScreen(m0.Wx(xi), m0.Wy(minY), zoom, pan);
+                var b = WorldToScreen(m1.Wx(xi), m1.Wy(minY), zoom, pan);
                 ctx.DrawLine(PlotterPens.WireFloor, a, b);
             }
             // The crosshatch's other half: lines parallel to the world X axis,
@@ -2574,17 +2575,17 @@ public partial class PlotterView : UserControl
             // the BR connector at that level, and the levels themselves only
             // exist between the two lower edges. Those two lower edges are now
             // at the SAME world y, because both tiles measure the one job
-            // envelope — the band is the gap between them, not a diagonal.
+            // envelope — the band is the gap between their maps, not a
+            // diagonal. TickValues appends the band's two edges to the nice
+            // grid, so the outer levels ARE the tiles' own lower edges — the
+            // floor closes on its boundary instead of stopping short of it.
             //
             // Generating over the box instead (the round-5 bug) drew every
             // line at the FULL composition width, so each one overhung the
             // floor on both sides, and invented levels for rows where no tile
             // exists at all. Both are visible as wire floating past the
             // envelope; see The_foam_loft_connects_the_tiles_with_a_grid_wire_floor.
-            // The JOB's bounds, read once — both tiles measure the same
-            // rectangle now — but through BOTH maps, because the two tiles sit
-            // in opposite quadrants and it is the maps that separate them.
-            var (minX, minY, maxX, maxY) = PlaneBounds();
+            //
             // Composition-space lower corners, so the span is interpolated in
             // the same coordinates the lines are drawn in.
             var bl = (Left: m0.Wx(minX), Right: m1.Wx(minX));
@@ -2595,12 +2596,8 @@ public partial class PlotterView : UserControl
             // height and draw no floor lines at all.
             var loY = Math.Min(m0.Wy(minY), m1.Wy(minY));
             var hiY = Math.Max(m0.Wy(minY), m1.Wy(minY));
-            var (levelStart, levelStep, levelCount) = PlotterChrome.AxisTicks(loY, hiY, 8);
-            for (var i = 0; i < levelCount; i++)
+            foreach (var level in TickValues(loY, hiY, 8))
             {
-                var level = levelStart + levelStep * i;
-                if (level < loY || level > hiY)
-                    continue;
                 // Both connectors run corner to corner between the same two
                 // lower edges, so they are parallel and one ratio — how far
                 // down the band this level is — places both of them. They are
@@ -2617,6 +2614,42 @@ public partial class PlotterView : UserControl
                 ctx.DrawLine(PlotterPens.WireFloor,
                     WorldToScreen(left, level, zoom, pan),
                     WorldToScreen(right, level, zoom, pan));
+            }
+
+            // The floor's two families are tick grids, and a grid's boundary is
+            // part of it: the outer wires must land on the two lower-corner
+            // connectors and the outer levels on the tiles' own lower edges.
+            // AxisTicks starts on a nice step from <paramref name="min"/> and
+            // never runs past <paramref name="max"/>, so on a band whose length
+            // is not a whole multiple of the step the far end is simply not a
+            // tick and the floor would stop short of its own edge. Appending
+            // the two ends (and collapsing them if the step already landed
+            // there) is what closes the floor.
+            IEnumerable<double> TickValues(double min, double max, int target)
+            {
+                List<double> values = [];
+                var (start, step, count) = PlotterChrome.AxisTicks(min, max, target);
+                for (var i = 0; i < count; i++)
+                {
+                    var v = start + step * i;
+                    if (v < min || v > max)
+                        continue;
+                    values.Add(v);
+                }
+                if (values.Count == 0)
+                {
+                    values.Add(min);
+                    if (max > min)
+                        values.Add(max);
+                }
+                else
+                {
+                    if (values[0] > min + step * 1e-9)
+                        values.Insert(0, min);
+                    if (values[^1] < max - step * 1e-9)
+                        values.Add(max);
+                }
+                return values;
             }
         }
 

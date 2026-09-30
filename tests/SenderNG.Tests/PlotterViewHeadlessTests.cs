@@ -2027,18 +2027,20 @@ public class PlotterViewHeadlessTests
             await Pump();
 
         var on = PlotterPixels.Snapshot(CaptureFrame(window));
-        // Measured with the 15% coupling mesh in place: 4699 floor pixels here,
-        // 0 with Chrome.Grid off. Re-measured after the job envelope was
-        // unioned — the two tiles are now the same 100x100 mm rectangle instead
-        // of 100x20 and 20x100, so the composition, the fit zoom and every count
-        // on this frame moved, and the old 6952/381 pair no longer describes it.
-        // The grid-off control is now an exact ZERO, not a residue, so the
-        // margin is one-sided: the 300 floor is ~15.7x under the signal and the
-        // grid toggle is 4699 against 0, which is what makes `floor` a floor
-        // measurement rather than a chrome count. Threshold unchanged, and it
-        // is still the original 300 — this test is about the floor's GEOMETRY,
-        // not its weight. The floor's own pen is unchanged by the mesh's alpha;
-        // see PlotterPens.WireFloorBrush for why it stays opaque.
+        // Measured with the wire floor closed on its own edges (the ladder
+        // spans the whole envelope now and the band's two edges are drawn):
+        // 4574 floor pixels here, 0 with Chrome.Grid off. Re-measured after
+        // the job envelope was unioned — the two tiles are now the same
+        // 100x100 mm rectangle instead of 100x20 and 20x100, so the
+        // composition, the fit zoom and every count on this frame moved, and
+        // the old 6952/381 pair no longer describes it. The grid-off control
+        // is an exact ZERO, not a residue, so the margin is one-sided: the
+        // 300 floor is ~15.2x under the signal and the grid toggle is 4574
+        // against 0, which is what makes `floor` a floor measurement rather
+        // than a chrome count. Threshold unchanged, and it is still the
+        // original 300 — this test is about the floor's GEOMETRY, not its
+        // weight. The floor's own pen is unchanged by the mesh's alpha; see
+        // PlotterPens.WireFloorBrush for why it stays opaque.
         var floor = CountSurface(on, IsWireFloorBlend);
         Assert.True(floor > 300,
             $"the loft wire floor must paint, found {floor} wire pixels");
@@ -2122,9 +2124,11 @@ public class PlotterViewHeadlessTests
         // FIXED rather than a range: both tiles are now the one job envelope
         // rectangle, so the band is always about half the composition and can no
         // longer climb toward the full width in a lopsided program. Measured
-        // here: longest span 242 px against a 530 px composition, 0.46. 0.9
-        // therefore separates "clipped to the band" from "spans the composition"
-        // with room on both sides, and the threshold is unchanged.
+        // here: longest span 241 px against a 511 px composition, 0.47 — and
+        // the widest line is the floor's own boundary, the level that closes on
+        // tile 0's lower edge. 0.9 therefore separates "clipped to the band"
+        // from "spans the composition" with room on both sides, and the
+        // threshold is unchanged.
         var compositionW = right - left;
         Assert.True(widestSpan < compositionW * 0.9,
             $"a horizontal wire must stop at the floor's edge, not overhang it: longest span {widestSpan}px vs composition width {compositionW}px");
@@ -2148,6 +2152,85 @@ public class PlotterViewHeadlessTests
         var off = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsWireFloorBlend);
         Assert.True(off < floor / 2,
             $"the loft wire floor must be gated by Chrome.Grid: {off} wire pixels with it off vs {floor} with it on");
+    }
+
+    /// <summary>The wire floor is a floor, so its boundary is part of it: the
+    /// ladder family's outer wires are the two tiles' lower-corner connectors
+    /// and the level family's outer lines are the tiles' own lower edges. The
+    /// two tile frames pin WHERE those edges are, and the probes run with
+    /// <c>Chrome.Envelope</c> off so the teal connectors cannot fake the wire
+    /// pixels: a wire pixel on tile 0's bottom row means the level family drew
+    /// its edge line, and a wire pixel at the BR connector's midpoint means the
+    /// ladder drew its outer wire — the BR connector IS the ladder's MaxX wire,
+    /// the same two endpoints through the same two maps.</summary>
+    [AvaloniaFact]
+    public async Task The_foam_loft_wire_floor_draws_its_own_boundary_lines()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        source.Load("G21\r\nG1 X100 Y20 Z20 A100 F600");
+        Assert.True(vm.PlaneCount > 1);
+        vm.SetPlaneGeometries([
+            PlotterPlaneMapper.Identity(2),
+            PlotterPlaneMapper.Identity(2),
+        ]);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        window.GetVisualDescendants().OfType<CheckBox>()
+            .Single(c => c.Name == "IsoToggle")
+            .IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var withEnv = PlotterPixels.Snapshot(CaptureFrame(window));
+        var blobs = TealFrameRectangles(withEnv);
+        Assert.True(blobs.Count == 2,
+            "the two tile frames must be present to locate the floor's edges");
+        var (f0, f1) = blobs[0].L <= blobs[1].L ? (blobs[0], blobs[1]) : (blobs[1], blobs[0]);
+
+        // Hide the envelope so the tile frames and the iso-box connectors
+        // cannot supply the pixels these probes demand: only the wire floor may
+        // answer.
+        view.PushChromeFlags(ChromeFlags.Default with { Envelope = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var noEnv = PlotterPixels.Snapshot(CaptureFrame(window));
+
+        // Tile 0's lower edge is where the level family's band ends: its map
+        // rides SpanY+gap above the shared origin. The toolpath only kisses
+        // that row at the start point, so a majority of the row must be wire
+        // for the edge line to be there at all.
+        var edgeRow = 0;
+        for (var x = f0.L; x <= f0.R; x++)
+        {
+            var p = PlotterPixels.At(noEnv, x, f0.B);
+            if (IsWireFloorBlend(p.R, p.G, p.B))
+                edgeRow++;
+        }
+        Assert.True(edgeRow * 2 > f0.R - f0.L,
+            $"the level family must draw its edge line on tile 0's lower edge, found {edgeRow} wire pixels of {f0.R - f0.L} spanned");
+
+        // The ladder's outer wire at the envelope's MaxX is the BR connector
+        // itself — the same two endpoints through the same two maps — so its
+        // midpoint must carry a wire pixel.
+        var (mx, my) = ((f0.R + f1.R) / 2, (f0.B + f1.B) / 2);
+        var atBr = 0;
+        for (var dy = -2; dy <= 2; dy++)
+            for (var dx = -2; dx <= 2; dx++)
+            {
+                var p = PlotterPixels.At(noEnv, mx + dx, my + dy);
+                if (IsWireFloorBlend(p.R, p.G, p.B))
+                    atBr++;
+            }
+        Assert.True(atBr > 0,
+            $"the ladder must draw its outer wire on the BR connector, found {atBr} wire pixels near its midpoint");
     }
 
     /// <summary>The iso box: four teal connectors joining MATCHING corners of
