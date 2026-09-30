@@ -239,11 +239,11 @@ public class PlotterLiveRunHeadlessTests
             $"the tool glyph must travel with the run, moved {span:F1} px from ({first.X:F0},{first.Y:F0}) to ({last.X:F0},{last.Y:F0})");
     }
 
-    /// <summary>Foam live run in the 2D view: both quadrants must recolor in
-    /// real time (the wing's ZA plane is NOT empty) and the coupling-wire glyph
-    /// must follow the run without a 2Dâ†”iso switch.</summary>
+    /// <summary>Foam live run in the 2D view: both halves must recolor in
+    /// real time (the wing's ZA plane is NOT empty) and the per-carriage tool
+    /// dots must follow the run without a 2D→iso switch.</summary>
     [AvaloniaFact]
-    public async Task Foam_2d_live_run_updates_both_quadrants_and_wire()
+    public async Task Foam_2d_live_run_updates_both_halves_and_both_dots()
     {
         var (demo, service, program, plotter, window) = Setup(MachineTypes.Foam, 4, WingProgram(400));
         for (var i = 0; i < 6; i++)
@@ -275,8 +275,8 @@ public class PlotterLiveRunHeadlessTests
 
         Assert.True(frames.Count >= 8, $"expected many mid-run frames, got {frames.Count}");
 
-        // Both quadrants recolor: green must appear above AND below the middle
-        // of the final frame (plane 1 is the bottom-right quadrant), and the
+        // Both halves recolor: green must appear above AND below the middle
+        // of the final frame (plane 1 is the top half), and the
         // mid-run frames must already show real-time green.
         var mid = frames[frames.Count / 2].Bitmap;
         var final = frames[^1].Bitmap;
@@ -284,22 +284,25 @@ public class PlotterLiveRunHeadlessTests
         var finalFrame = PlotterPixels.Snapshot(final);
         var greenTop = PlotterPixels.Count(finalFrame, IsDoneGreen, yFilter: y => y < finalFrame.Height / 2);
         var greenBottom = PlotterPixels.Count(finalFrame, IsDoneGreen, yFilter: y => y >= finalFrame.Height / 2);
-        Assert.True(greenTop > 100, $"plane 1 (top-left) must recolor, found {greenTop} green pixels");
-        Assert.True(greenBottom > 100, $"plane 2 (bottom-right) must recolor, found {greenBottom} green pixels");
+        Assert.True(greenTop > 100, $"plane 1 (top half) must recolor, found {greenTop} green pixels");
+        Assert.True(greenBottom > 100, $"plane 2 (bottom half) must recolor, found {greenBottom} green pixels");
         Assert.True(PlotterPixels.Count(midFrame, IsDoneGreen) > 50,
             $"foam 2D must recolor in real time mid-run, found {PlotterPixels.Count(midFrame, IsDoneGreen)} green pixels");
 
-        // The wire glyph (red) must be visible mid-run and travel to the end.
+        // The tool dots (red) must be visible mid-run and travel to the end.
         // Sample it at a done-fraction anchor (the first captured frame past
-        // ~15% of the run) rather than by frame index â€” frame cadence depends
+        // ~15% of the run) rather than by frame index — frame cadence depends
         // on load, but the done counter advances deterministically with the run.
+        // Two dots now, so the centroid is the midpoint BETWEEN the carriages:
+        // it still moves with the run, which is all this probe claims. The
+        // per-dot placement is the sibling test's job.
         var anchor = frames.FirstOrDefault(f => f.Done > plotter.TotalCount / 6);
         var midGlyph = Glyph(anchor.Bitmap);
         var finalGlyph = Glyph(final);
-        Assert.True(midGlyph.Count > 10, $"the foam wire glyph must be visible mid-run ({midGlyph.Count} red pixels)");
+        Assert.True(midGlyph.Count > 10, $"the foam tool dots must be visible mid-run ({midGlyph.Count} red pixels)");
         var span = Math.Sqrt(Math.Pow(finalGlyph.X - midGlyph.X, 2) + Math.Pow(finalGlyph.Y - midGlyph.Y, 2));
         Assert.True(span > 15,
-            $"the wire glyph must travel with the run, moved {span:F1} px");
+            $"the tool dots must travel with the run, moved {span:F1} px");
     }
 
     /// <summary>The foam 2D glyph is ONE DOT PER CARRIAGE, and it never draws
@@ -553,11 +556,11 @@ public class PlotterLiveRunHeadlessTests
         return sb.ToString();
     }
 
-    /// <summary>The foam 2D canvas composes both planes as TRUE-SCALE diagonal
-    /// tiles (plane 0 top-left, plane 1 bottom-right) with an empty gap between
-    /// them, and draws a machine-origin cross at each tile's origin corner —
-    /// even though the origin cross sits at a tile corner that a per-quadrant
-    /// clip would cut off.</summary>
+    /// <summary>The foam 2D canvas composes both planes as TRUE-SCALE tiles
+    /// stacked in one column (plane 0 in the top half, plane 1 in the bottom)
+    /// with an empty gap between them, and draws a machine-origin cross at each
+    /// tile's origin corner — even though the origin cross sits at a tile corner
+    /// that a per-half clip would cut off.</summary>
     [AvaloniaFact]
     public async Task Foam_2d_renders_toscale_tiles_and_origin_crosses()
     {
@@ -643,8 +646,8 @@ public class PlotterLiveRunHeadlessTests
         int cross2 = CountRectHalfOpen(frame, CrossGrey, m0_, m1_, n0_, n1_);
 
         Assert.True(coy >= 20 && coy <= 32, $"canvas chrome offset must be sane, got y={coy}");
-        Assert.True(streak > 150, "plane0 must draw as a true-scale band in the top-left tile");
-        Assert.True(band > 150, "plane1 must draw as a true-scale band in the bottom-right tile");
+        Assert.True(streak > 150, "plane0 must draw as a true-scale band in the top tile");
+        Assert.True(band > 150, "plane1 must draw as a true-scale band in the bottom tile");
         Assert.True(gapPixels < 20, "the tile gap must stay empty (no full-width stretched layout)");
         Assert.True(cross1 > 4, "plane0 machine-origin cross must be drawn");
         Assert.True(cross2 > 4, "plane1 machine-origin cross must be drawn");
@@ -705,7 +708,7 @@ public class PlotterLiveRunHeadlessTests
     /// guillotined the tile in half, and under the correct full-width half it
     /// cuts nothing at all.</para></summary>
     [AvaloniaFact]
-    public async Task Foam_2d_pan_keeps_profiles_beyond_their_quadrant()
+    public async Task Foam_2d_pan_keeps_profiles_beyond_their_half()
     {
         var (_, _, prog2, plotter2, window2) = Setup(MachineTypes.Foam, 4, WingVaryingProgram(400));
         for (var i = 0; i < 8; i++)

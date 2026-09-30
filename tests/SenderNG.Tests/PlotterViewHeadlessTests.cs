@@ -458,7 +458,7 @@ public class PlotterViewHeadlessTests
             await Pump();
 
         var before = view.CompositionForTest;
-        // One canvas carries the whole diagonal composition (both foam tiles).
+        // One canvas carries the whole stacked composition (both foam tiles).
         Assert.Single(before);
         Assert.Equal([0, 1], view.DrawableSlotsForTest.ToArray());
         // The fit must have run: an unfitted (NaN) zoom would satisfy the
@@ -666,10 +666,12 @@ public class PlotterViewHeadlessTests
     /// under a plane when one of THAT plane's own axes moves, so a source row
     /// can be acked into one slot and never touch the other.
     /// <para>That disjointness is what lets the test below attribute a pixel
-    /// count to a SLOT instead of splitting the frame: the two tiles are laid
-    /// out on the diagonal around the canvas midpoint, so a tile regularly
-    /// straddles the midline and any half-frame probe would be measuring the
-    /// wrong slot half the time.</para></summary>
+    /// count to a SLOT instead of splitting the frame: the two tiles used to be
+    /// laid out on the diagonal around the canvas midpoint, so a tile regularly
+    /// straddled the midline and any half-frame probe would be measuring the
+    /// wrong slot half the time. They are stacked in halves now, which is what
+    /// <c>GreenInCarriage</c> counts; the disjointness argument stands on its
+    /// own and this test still proves it the attribute-a-whole-bake way.</para></summary>
     /// <summary>Mirror of <c>PlotCanvas.OverlayCap</c> (private there). Spelled
     /// out here rather than reflected so a change to the cap has to be made
     /// deliberately in both places: the overflow test sizes its program against
@@ -1081,15 +1083,20 @@ public class PlotterViewHeadlessTests
         Assert.True(GreenInCarriage(frame, 1) > 400, $"carriage 2 must be rebaked, found {GreenInCarriage(frame, 1)} green pixels");
     }
 
-    /// <summary>Green pixels inside ONE carriage's diagonal tile of the foam
-    /// composition — slot 0 is the top-left quadrant, slot 1 the bottom-right
-    /// (<c>PlaneCanvas.SlotViewport</c>). The two are counted separately
-    /// because the defect this exists for is ASYMMETRIC: slot 0 always won the
-    /// bake limiter and slot 1 stayed stale, so a whole-surface total would be
-    /// satisfied by slot 0 alone.</summary>
+    /// <summary>Green pixels inside ONE carriage's half of the foam
+    /// composition — slot 0 is the top half, slot 1 the bottom one
+    /// (<c>PlaneCanvas.SlotViewport</c>), each full width. The two are counted
+    /// separately because the defect this exists for is ASYMMETRIC: slot 0
+    /// always won the bake limiter and slot 1 stayed stale, so a whole-surface
+    /// total would be satisfied by slot 0 alone.
+    /// <para>The probe was a QUADRANT, so it also split on the vertical midline
+    /// and counted a quarter of each carriage. That was never wrong — a quadrant
+    /// inside a half is still inside a half, so the callers' thresholds hold
+    /// either way — but the composition is one tile wide now, so the x split
+    /// measures a line the layout no longer has.</para></summary>
     private static int GreenInCarriage(PlotterPixels.Frame frame, int slot) =>
         PlotterPixels.Count(frame, IsRunStateGreen,
-            xFilter: x => x > 0 && x < frame.Width - 1 && (slot == 0 ? x < frame.Width / 2 : x >= frame.Width / 2),
+            xFilter: x => x > 0 && x < frame.Width - 1,
             yFilter: y => y > 24 && y < frame.Height - 1 && (slot == 0 ? y < frame.Height / 2 : y >= frame.Height / 2));
 
     /// <summary>Raises a named button's Click the way the user does. Avalonia has
@@ -2685,11 +2692,11 @@ public class PlotterViewHeadlessTests
     /// the flat foam view: the grid-OFF render differs from the grid-ON only by
     /// the rebake's antialiasing jitter, never by a lattice.
     /// <para>Kept here too is the reason the old test existed: the chrome
-    /// (axes, envelope, cross) takes a canvas-wide clip, not a per-quadrant
+    /// (axes, envelope, cross) takes a canvas-wide clip, not a per-half
     /// one. The clip is unchanged — <c>DrawSlotChrome</c> still hands the
     /// painters the whole canvas — but with both foam tiles measuring the one
     /// job envelope each tile's chrome now lands wholly inside its own
-    /// quadrant, so there is no overhang left for a pixel probe to find. The
+    /// half, so there is no overhang left for a pixel probe to find. The
     /// tail of the method records the measurement; the two assertions above
     /// are what this test still guards.</para></summary>
     [AvaloniaFact]
@@ -2727,18 +2734,18 @@ public class PlotterViewHeadlessTests
         // its arrows ran along a line well BELOW the canvas midline.
         //
         // Both tiles now measure the one job envelope, so the composition is
-        // 2*span + 8 mm and the 8 mm gap straddles its middle — which the fit
-        // always lands on the canvas midline, because the composition is
-        // centred. Tile 0's origin is therefore a half-gap ABOVE that midline
-        // with its arrows pointing up and right into tile 0's own quadrant,
-        // and tile 1's out of the bottom-right. Measured on
+        // span + (span + 8 mm) and the 8 mm gap straddles its middle — which
+        // the fit always lands on the canvas split, because the composition is
+        // centred. Tile 0's origin is therefore a half-gap ABOVE that split
+        // with its arrows pointing up and right into tile 0's own half, and
+        // tile 1's into the bottom half. Measured on
         // <see cref="TallPlaneProgram"/>: 3 red and 0 green arrow pixels
         // strictly below the midline, against 15 red / 18 green in the
         // top-left and 18 red / 14 green in the bottom-right — the three
         // below are antialiasing along the midline itself.
         //
         // No arrow can cross a midline any more, so this probe cannot tell a
-        // canvas-wide clip from a per-quadrant one, and re-pinning its
+        // canvas-wide clip from a per-half one, and re-pinning its
         // threshold would only record a number with nothing behind it.
     }
 

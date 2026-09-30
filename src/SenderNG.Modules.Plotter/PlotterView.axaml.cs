@@ -938,9 +938,11 @@ public partial class PlotterView : UserControl
         /// the last ack — runs end without an explicit signal).</summary>
         private const int RunActiveWindowMs = 3000;
 
-        /// <summary>Gap between the two diagonal foam tiles, in machine units —
+        /// <summary>Gap between the two flat foam tiles, in machine units —
         /// keeps the to-scale panes visually separated in the shared world
-        /// (both panes share one unit = one mm).</summary>
+        /// (both panes share one unit = one mm). It is VERTICAL in the flat
+        /// view, the white band between the halves; the iso view still spends it
+        /// as a diagonal offset.</summary>
         protected const double FoamTileGap = 8;
 
         /// <summary>Fitting margin kept on every side of the composed foam
@@ -1420,8 +1422,8 @@ public partial class PlotterView : UserControl
             // The slot viewports are the planes' HOME positions, not bounds:
             // the true-scale composition shares ONE transform, so panning /
             // zooming moves a plane's raster across the screen-center line and
-            // it must NOT be trimmed at its quadrant edge (M9). The framework
-            // already clips the drawing to the control bounds.
+            // it must NOT be trimmed at its own viewport's edge (M9). The
+            // framework already clips the drawing to the control bounds.
             //
             // NOT inside the screen branch above. Two pieces of derived state
             // the paint reads are built elsewhere, and BOTH are missing on the
@@ -1528,7 +1530,7 @@ public partial class PlotterView : UserControl
         }
 
         /// <summary>Status notice for the empty/degenerate cases (centered —
-        /// the single canvas may host several quadrants).</summary>
+        /// the single canvas may host several slot viewports).</summary>
         protected void DrawEmpty(DrawingContext context, Rect area)
         {
             ResetTransforms(); // re-fit when geometry arrives
@@ -1979,7 +1981,7 @@ public partial class PlotterView : UserControl
         private double _zoom = double.NaN;
         private Vector _pan;
 
-        // Foam: the shared world extent the two diagonal tiles are sized from
+        // Foam: the shared world extent the two stacked tiles are sized from
         // (true machine units — both panes share ONE scale so proportions are
         // real) and the per-plane raw→world maps.
         private double _compoW = 1, _compoH = 1;
@@ -2069,12 +2071,13 @@ public partial class PlotterView : UserControl
 
         /// <summary>Builds the shared composition. Foam: each plane becomes a
         /// TRUE-SCALE tile in the shared world — one mm in plane 0 equals one
-        /// mm in plane 1 (the ZA band is no longer stretched to fill its
-        /// quadrant) — and both tiles measure the ONE job envelope rectangle,
+        /// mm in plane 1 (the ZA band is no longer stretched to fill its own
+        /// half) — and both tiles measure the ONE job envelope rectangle,
         /// the origin already unioned into it by
         /// <see cref="PlotterPlaneMapper.TryJobExtent"/>, so the origin cross
-        /// always sits in-frame. Tiles sit diagonally (plane 0 top-left, plane 1
-        /// bottom-right) exactly like the old quadrants.
+        /// always sits in-frame. Tiles are STACKED (plane 0 in the top half,
+        /// plane 1 in the bottom), sharing one column, with the 8 mm gap as the
+        /// white band between them.
         /// Single-plane: the identity map (raw coordinates ARE the world).</summary>
         protected override void EnsureLayout(Rect area)
         {
@@ -2132,7 +2135,10 @@ public partial class PlotterView : UserControl
             EnsureLayout(area);
             if (Foam)
             {
-                // Fit the whole diagonal 2-tile composition into the canvas.
+                // Fit the whole stacked 2-tile composition into the canvas. The
+                // width term is now ONE tile rather than two, so a wide job
+                // fits LARGER than it used to — and a square job is unchanged,
+                // because its height term is what binds either way.
                 _zoom = Math.Min((area.Width - FoamFitMargin) / _compoW, (area.Height - FoamFitMargin) / _compoH);
                 _pan = new Vector(area.Center.X - _zoom * _compoW / 2, area.Center.Y + _zoom * _compoH / 2);
             }
@@ -2199,12 +2205,12 @@ public partial class PlotterView : UserControl
             // overhang: the control's render clip on screen, the bitmap's own
             // bounds in the export.
             //
-            // A foam tile does NOT overhang its quadrant, and did not need to be
-            // told so. The composition is 2*span + FoamTileGap, so the 8 mm gap
-            // straddles its middle and the fit lands that middle on the canvas
-            // midline; a tile's chrome therefore lands wholly inside its own
-            // quadrant, and a per-quadrant clip would be observationally
-            // equivalent TODAY. It is not forbidden either: what still needs the
+            // A foam tile does NOT overhang its own half, and did not need to be
+            // told so. The composition is span + (span + FoamTileGap), so the
+            // 8 mm gap straddles its middle and the fit lands that middle on the
+            // canvas split; a tile's chrome therefore lands wholly inside its own
+            // half, and a per-half clip would be observationally equivalent
+            // TODAY. It is not forbidden either: what still needs the
             // canvas-wide rule is PAN and ZOOM (see the bake comment above — a
             // plane's raster moves across the screen-center line), and the
             // export above. Do not read the current equivalence as permission to
@@ -2227,8 +2233,8 @@ public partial class PlotterView : UserControl
             // export, and the slot viewports are the planes' HOME positions
             // rather than their bounds — the shared transform pans and zooms a
             // plane's raster across the screen-center line (M9), and a
-            // per-quadrant clip would slice the arrows there. Foam no longer
-            // overhangs at rest, so a per-quadrant clip is equivalent while the
+            // per-half clip would slice the arrows there. Foam no longer
+            // overhangs at rest, so a per-half clip is equivalent while the
             // view sits still; it is the pan that rules it out, not the tile
             // layout. A non-foam slot's viewport is the whole control, so for a
             // mill nothing here changes.
