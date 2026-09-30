@@ -119,8 +119,12 @@ public static class PlotterPlaneMapper
 
     /// <summary>The world XY footprint the iso lattice, the iso axis arrows and
     /// the iso job box are all measured against: world X and world Y read
-    /// through the plane's mapping, each UNIONED with the machine origin so the
-    /// lattice reaches the origin the arrows start from.
+    /// through ONE plane's mapping, each UNIONED with the machine origin so the
+    /// lattice reaches the origin the arrows start from. That one-plane scope
+    /// is deliberate and is the mill path; the multi-plane counterpart, for the
+    /// foam tiles' own envelope, is <see cref="TryJobExtent"/>. Reach for that
+    /// one whenever the two carriage planes must agree on a rectangle, and for
+    /// this one whenever a single drawn plane's chrome must.
     /// <para>False means no footprint, never a default one. A plane that feeds
     /// neither world X nor world Y has no extent to measure, and a magic 1 mm
     /// square standing in for it would put a lattice and a job box on screen that

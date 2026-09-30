@@ -1927,19 +1927,20 @@ public partial class PlotterView : UserControl
     /// <summary>Flat canvas: single-plane machines fill the whole surface
     /// with their raw coordinates; foam machines draw both carriage planes as
     /// TRUE-SCALE diagonal tiles of the same canvas — plane 1 top-left, plane
-    /// 2 bottom-right, one shared mm scale (no quadrant stretching), each
-    /// tile's bounds unioned with the machine origin so its cross stays
-    /// in-frame. ONE fit/pan/zoom drives the whole composition, so panning
-    /// or zooming never separates the two panes.</summary>
+    /// 2 bottom-right, one shared mm scale (no quadrant stretching), both tiles
+    /// measuring the ONE job envelope so they are the same rectangle (its
+    /// origin is already unioned in, so each cross stays in-frame). ONE
+    /// fit/pan/zoom drives the whole composition, so panning or zooming never
+    /// separates the two panes.</summary>
     private sealed class PlaneCanvas : PlotCanvas
     {
         // ONE transform for the whole composed canvas.
         private double _zoom = double.NaN;
         private Vector _pan;
 
-        // Foam: the diagonal tiles' shared world extents (true machine units —
-        // both panes share ONE scale so proportions are real) and the per-plane
-        // raw→world maps.
+        // Foam: the shared world extent the two diagonal tiles are sized from
+        // (true machine units — both panes share ONE scale so proportions are
+        // real) and the per-plane raw→world maps.
         private double _compoW = 1, _compoH = 1;
         private readonly PlaneMap[] _maps = new PlaneMap[2];
 
@@ -1996,39 +1997,40 @@ public partial class PlotterView : UserControl
         private (int X, int Y) PaneFeeds(int slot) =>
             PlotterPlaneMapper.Feeds(Vm.GeometryFor(slot));
 
-        private (double MinX, double MinY, double MaxX, double MaxY) PlaneBounds(int slot)
-        {
-            if (!PlaneDrawable(slot))
-                return (0, 0, 1, 1);
-            var indices = Vm.PlaneAxisIndices(slot);
-            var (sx, sy) = PaneFeeds(slot);
-            var minX = Vm.Bounds[indices[sx]][0];
-            var spanX = Math.Max(Vm.Bounds[indices[sx]][1] - minX, 1e-6);
-            var minY = Vm.Bounds[indices[sy]][0];
-            var spanY = Math.Max(Vm.Bounds[indices[sy]][1] - minY, 1e-6);
-            return (minX, minY, minX + spanX, minY + spanY);
-        }
+        /// <summary>The JOB's world XY extent — every plane's own, unioned. The
+        /// envelope belongs to the job, not to a carriage, so both foam planes
+        /// measure the SAME rectangle and the two tiles are the same size; the
+        /// per-plane extent that used to be read here made the two tiles
+        /// different sizes and gave the same envelope rectangle a different
+        /// meaning on each. False means no plane could be read, and the 1 mm
+        /// square is the pre-existing fallback kept verbatim so a plane with no
+        /// extent still has a face to draw its chrome on.</summary>
+        private (double MinX, double MinY, double MaxX, double MaxY) PlaneBounds() =>
+            Vm.TryJobEnvelope(out var extent) ? extent : (0, 0, 1, 1);
 
         /// <summary>Builds the shared composition. Foam: each plane becomes a
         /// TRUE-SCALE tile in the shared world — one mm in plane 0 equals one
         /// mm in plane 1 (the ZA band is no longer stretched to fill its
-        /// quadrant), and each tile's bounds are UNIONED with the machine origin
-        /// so the origin cross always sits in-frame. Tiles sit diagonally (plane
-        /// 0 top-left, plane 1 bottom-right) exactly like the old quadrants.
+        /// quadrant) — and both tiles measure the ONE job envelope rectangle,
+        /// the origin already unioned into it by
+        /// <see cref="PlotterPlaneMapper.TryJobExtent"/>, so the origin cross
+        /// always sits in-frame. Tiles sit diagonally (plane 0 top-left, plane 1
+        /// bottom-right) exactly like the old quadrants.
         /// Single-plane: the identity map (raw coordinates ARE the world).</summary>
         protected override void EnsureLayout(Rect area)
         {
             if (Foam)
             {
-                var t0 = PlaneTile(0);
-                var t1 = PlaneTile(1);
-                // Screen Y flips world Y, so plane 0 (top-left) rides the HIGH
-                // world y and plane 1 (bottom-right) the LOW world y — the
-                // diagonal matches the normalized layout the user is used to.
-                _maps[0] = new PlaneMap(t0.MinX, t0.SpanX, t0.MinY, t0.SpanY, 0, 0, 1, 1, 0, t1.SpanY + FoamTileGap);
-                _maps[1] = new PlaneMap(t1.MinX, t1.SpanX, t1.MinY, t1.SpanY, 0, 0, 1, 1, t0.SpanX + FoamTileGap, 0);
-                _compoW = t0.SpanX + FoamTileGap + t1.SpanX;
-                _compoH = t0.SpanY + FoamTileGap + t1.SpanY;
+                // Both slots get the SAME tile: the job envelope's rectangle,
+                // placed diagonally. Screen Y flips world Y, so plane 0
+                // (top-left) rides the HIGH world y and plane 1 (bottom-right)
+                // the LOW one — the diagonal matches the normalized layout the
+                // user is used to.
+                var t = PlaneTile();
+                _maps[0] = new PlaneMap(t.MinX, t.SpanX, t.MinY, t.SpanY, 0, 0, 1, 1, 0, t.SpanY + FoamTileGap);
+                _maps[1] = new PlaneMap(t.MinX, t.SpanX, t.MinY, t.SpanY, 0, 0, 1, 1, t.SpanX + FoamTileGap, 0);
+                _compoW = 2 * t.SpanX + FoamTileGap;
+                _compoH = 2 * t.SpanY + FoamTileGap;
             }
             else
             {
@@ -2037,17 +2039,14 @@ public partial class PlotterView : UserControl
             }
         }
 
-        /// <summary>One plane's true tile in machine units — its fitted bounds
-        /// unioned with the machine origin, so the fit always keeps the origin
-        /// cross on the visible composition.</summary>
-        private (double MinX, double MinY, double SpanX, double SpanY) PlaneTile(int slot)
+        /// <summary>One tile in machine units, for BOTH slots: the job
+        /// envelope's extent as a span. The origin is already unioned in by
+        /// <see cref="PlotterPlaneMapper.TryJobExtent"/>, so this no longer
+        /// re-unions it — that is what made the tiles per-plane.</summary>
+        private (double MinX, double MinY, double SpanX, double SpanY) PlaneTile()
         {
-            var (minX, minY, maxX, maxY) = PlaneBounds(slot);
-            var minX0 = Math.Min(minX, 0);
-            var maxX0 = Math.Max(maxX, 0);
-            var minY0 = Math.Min(minY, 0);
-            var maxY0 = Math.Max(maxY, 0);
-            return (minX0, minY0, Math.Max(maxX0 - minX0, 1e-6), Math.Max(maxY0 - minY0, 1e-6));
+            var (minX, minY, maxX, maxY) = PlaneBounds();
+            return (minX, minY, Math.Max(maxX - minX, 1e-6), Math.Max(maxY - minY, 1e-6));
         }
 
         protected override (double MinX, double MinY, double MaxX, double MaxY) SlotWorldBounds(int slot)
@@ -2057,7 +2056,7 @@ public partial class PlotterView : UserControl
                 var m = _maps[slot];
                 return (m.Ox, m.Oy, m.Ox + m.SpanX, m.Oy + m.SpanY);
             }
-            return PlaneBounds(0);
+            return PlaneBounds();
         }
 
         protected override void FitSlot(int slot, Rect viewport)
@@ -2072,7 +2071,7 @@ public partial class PlotterView : UserControl
             }
             else
             {
-                var (minX, minY, maxX, maxY) = PlaneBounds(0);
+                var (minX, minY, maxX, maxY) = PlaneBounds();
                 var spanX = Math.Max(maxX - minX, 1e-6);
                 var spanY = Math.Max(maxY - minY, 1e-6);
                 _zoom = Math.Min((area.Width - 24) / spanX, (area.Height - 24) / spanY);
@@ -2124,7 +2123,7 @@ public partial class PlotterView : UserControl
             if (!PlaneDrawable(slot))
                 return;
             var m = _maps[Foam ? slot : 0];
-            var bounds = PlaneBounds(slot);
+            var bounds = PlaneBounds();
             // The lattice sets NO clip here, and that is deliberate: on the PNG export
             // a PushClip that precedes the toolpath's PushTransform silently
             // eats every draw after it, so the grid — the one chrome that must
@@ -2145,7 +2144,7 @@ public partial class PlotterView : UserControl
             if (!PlaneDrawable(slot))
                 return;
             var m = _maps[Foam ? slot : 0];
-            var bounds = PlaneBounds(slot);
+            var bounds = PlaneBounds();
             // The axes take the same whole-canvas clip as the box below, per the
             // foam-quadrant reasoning noted above — a non-foam slot's viewport is
             // the whole control, so for a mill nothing here changes.
@@ -2227,7 +2226,7 @@ public partial class PlotterView : UserControl
     /// Isometric canvas. Mill: the classic Z-up iso projection of the whole
     /// toolpath in one slot. Foam: the user's preferred "2D + loft" — the two
     /// carriage planes draw FLAT as TRUE-SCALE diagonal tiles (one shared mm
-    /// scale, origin cross unioned into each tile's bounds), driven by a
+    /// scale, both tiles the one job envelope's rectangle), driven by a
     /// single fit/pan/zoom, with a semi-transparent coupling wire between the
     /// two carriages per segment — the two panes resolve into one pane with a
     /// diagonal offset, instead of the confusing stacked loft.
@@ -2275,17 +2274,16 @@ public partial class PlotterView : UserControl
             Loft && slot < Vm.Planes.Count && Vm.Planes[slot].Count > 0
             && Vm.Bounds.Length > Vm.PlaneAxisIndices(slot)[^1];
 
-        private (double MinX, double MinY, double MaxX, double MaxY) PlaneBounds(int slot)
-        {
-            if (!PlaneDrawable(slot))
-                return (0, 0, 1, 1);
-            var indices = Vm.PlaneAxisIndices(slot);
-            var minX = Vm.Bounds[indices[0]][0];
-            var spanX = Math.Max(Vm.Bounds[indices[0]][1] - minX, 1e-6);
-            var minY = Vm.Bounds[indices[1]][0];
-            var spanY = Math.Max(Vm.Bounds[indices[1]][1] - minY, 1e-6);
-            return (minX, minY, minX + spanX, minY + spanY);
-        }
+        /// <summary>The JOB's world XY extent — every plane's own, unioned. The
+        /// envelope belongs to the job, not to a carriage, so both loft planes
+        /// measure the SAME rectangle and the two tiles are the same size; the
+        /// per-plane extent that used to be read here made the two tiles
+        /// different sizes and gave the same envelope rectangle a different
+        /// meaning on each. False means no plane could be read, and the 1 mm
+        /// square is the pre-existing fallback kept verbatim so a plane with no
+        /// extent still has a face to draw its chrome on.</summary>
+        private (double MinX, double MinY, double MaxX, double MaxY) PlaneBounds() =>
+            Vm.TryJobEnvelope(out var extent) ? extent : (0, 0, 1, 1);
 
         private (double MinX, double MinY, double MaxX, double MaxY) ProjectedBounds()
         {
@@ -2319,23 +2317,26 @@ public partial class PlotterView : UserControl
         /// <summary>Builds the shared composition. Loft: each plane becomes a
         /// TRUE-SCALE tile in the shared world — one mm in plane 0 equals one
         /// mm in plane 1 (the ZA band is no longer stretched to fill its
-        /// quadrant), each tile's bounds UNIONED with the machine origin so the
-        /// origin cross always sits in-frame. Tiles sit diagonally (plane 0
-        /// top-left, plane 1 bottom-right). Mill: the identity map over
-        /// projected coordinates.</summary>
+        /// quadrant) — and both tiles measure the ONE job envelope rectangle,
+        /// the origin already unioned into it by
+        /// <see cref="PlotterPlaneMapper.TryJobExtent"/>, so the origin cross
+        /// always sits in-frame. Tiles sit diagonally (plane 0 top-left, plane 1
+        /// bottom-right). Mill: the identity map over projected
+        /// coordinates.</summary>
         protected override void EnsureLayout(Rect area)
         {
             if (Loft)
             {
-                var t0 = PlaneTile(0);
-                var t1 = PlaneTile(1);
-                // Screen Y flips world Y, so plane 0 (top-left) rides the HIGH
-                // world y and plane 1 (bottom-right) the LOW world y — the
-                // diagonal matches the normalized layout the user is used to.
-                _maps[0] = new PlaneMap(t0.MinX, t0.SpanX, t0.MinY, t0.SpanY, 0, 0, 1, 1, 0, t1.SpanY + FoamTileGap);
-                _maps[1] = new PlaneMap(t1.MinX, t1.SpanX, t1.MinY, t1.SpanY, 0, 0, 1, 1, t0.SpanX + FoamTileGap, 0);
-                _compoW = t0.SpanX + FoamTileGap + t1.SpanX;
-                _compoH = t0.SpanY + FoamTileGap + t1.SpanY;
+                // Both slots get the SAME tile: the job envelope's rectangle,
+                // placed diagonally. Screen Y flips world Y, so plane 0
+                // (top-left) rides the HIGH world y and plane 1 (bottom-right)
+                // the LOW one — the diagonal matches the normalized layout the
+                // user is used to.
+                var t = PlaneTile();
+                _maps[0] = new PlaneMap(t.MinX, t.SpanX, t.MinY, t.SpanY, 0, 0, 1, 1, 0, t.SpanY + FoamTileGap);
+                _maps[1] = new PlaneMap(t.MinX, t.SpanX, t.MinY, t.SpanY, 0, 0, 1, 1, t.SpanX + FoamTileGap, 0);
+                _compoW = 2 * t.SpanX + FoamTileGap;
+                _compoH = 2 * t.SpanY + FoamTileGap;
             }
             else
             {
@@ -2344,17 +2345,14 @@ public partial class PlotterView : UserControl
             }
         }
 
-        /// <summary>One plane's true tile in machine units — its fitted bounds
-        /// unioned with the machine origin, so the fit always keeps the origin
-        /// cross on the visible composition.</summary>
-        private (double MinX, double MinY, double SpanX, double SpanY) PlaneTile(int slot)
+        /// <summary>One tile in machine units, for BOTH slots: the job
+        /// envelope's extent as a span. The origin is already unioned in by
+        /// <see cref="PlotterPlaneMapper.TryJobExtent"/>, so this no longer
+        /// re-unions it — that is what made the tiles per-plane.</summary>
+        private (double MinX, double MinY, double SpanX, double SpanY) PlaneTile()
         {
-            var (minX, minY, maxX, maxY) = PlaneBounds(slot);
-            var minX0 = Math.Min(minX, 0);
-            var maxX0 = Math.Max(maxX, 0);
-            var minY0 = Math.Min(minY, 0);
-            var maxY0 = Math.Max(maxY, 0);
-            return (minX0, minY0, Math.Max(maxX0 - minX0, 1e-6), Math.Max(maxY0 - minY0, 1e-6));
+            var (minX, minY, maxX, maxY) = PlaneBounds();
+            return (minX, minY, Math.Max(maxX - minX, 1e-6), Math.Max(maxY - minY, 1e-6));
         }
 
         protected override (double MinX, double MinY, double MaxX, double MaxY) SlotWorldBounds(int slot)
@@ -2549,21 +2547,29 @@ public partial class PlotterView : UserControl
             // their lower corners, which is a parallelogram (a skewed
             // rectangle). So a line at a level runs from the BL connector to
             // the BR connector at that level, and the levels themselves only
-            // exist between the two lower edges.
+            // exist between the two lower edges. Those two lower edges are now
+            // at the SAME world y, because both tiles measure the one job
+            // envelope — the band is the gap between them, not a diagonal.
             //
             // Generating over the box instead (the round-5 bug) drew every
             // line at the FULL composition width, so each one overhung the
             // floor on both sides, and invented levels for rows where no tile
             // exists at all. Both are visible as wire floating past the
             // envelope; see The_foam_loft_connects_the_tiles_with_a_grid_wire_floor.
-            var (minX0, minY0, maxX0, maxY0) = PlaneBounds(0);
-            var (minX1, minY1, maxX1, maxY1) = PlaneBounds(1);
+            // The JOB's bounds, read once — both tiles measure the same
+            // rectangle now — but through BOTH maps, because the two tiles sit
+            // in opposite quadrants and it is the maps that separate them.
+            var (minX, minY, maxX, maxY) = PlaneBounds();
             // Composition-space lower corners, so the span is interpolated in
             // the same coordinates the lines are drawn in.
-            var bl = (Left: m0.Wx(minX0), Right: m1.Wx(minX1));
-            var br = (Left: m0.Wx(maxX0), Right: m1.Wx(maxX1));
-            var loY = Math.Min(m0.Wy(minY0), m1.Wy(minY1));
-            var hiY = Math.Max(m0.Wy(minY0), m1.Wy(minY1));
+            var bl = (Left: m0.Wx(minX), Right: m1.Wx(minX));
+            var br = (Left: m0.Wx(maxX), Right: m1.Wx(maxX));
+            // The two lower edges are at the SAME world y now, because the tiles
+            // match — so this band comes entirely from the two MAPS disagreeing,
+            // and flattening it to one value would collapse the band to zero
+            // height and draw no floor lines at all.
+            var loY = Math.Min(m0.Wy(minY), m1.Wy(minY));
+            var hiY = Math.Max(m0.Wy(minY), m1.Wy(minY));
             var (levelStart, levelStep, levelCount) = PlotterChrome.AxisTicks(loY, hiY, 8);
             for (var i = 0; i < levelCount; i++)
             {
@@ -2572,7 +2578,12 @@ public partial class PlotterView : UserControl
                     continue;
                 // Both connectors run corner to corner between the same two
                 // lower edges, so they are parallel and one ratio — how far
-                // down the band this level is — places both of them.
+                // down the band this level is — places both of them. They are
+                // parallel only BECAUSE the tiles now match: with per-plane
+                // extents the two connectors had different lengths and the
+                // single `t` would put the level in the wrong place on one of
+                // them, so this line is where a return to per-plane tiles
+                // would show up.
                 var t = hiY == loY ? 0 : (hiY - level) / (hiY - loY);
                 var left = bl.Left + (bl.Right - bl.Left) * t;
                 var right = br.Left + (br.Right - br.Left) * t;
@@ -2595,19 +2606,25 @@ public partial class PlotterView : UserControl
         /// <c>PlotterFlatChrome.DrawEnvelope</c> uses: TL = (MinX, MaxY),
         /// TR = (MaxX, MaxY), BR = (MaxX, MinY), BL = (MinX, MinY), each
         /// through its own tile's map — matching corners, not the diagonal
-        /// pairing.</summary>
+        /// pairing.
+        /// <para>Both tiles are the SAME rectangle now, so the four connectors
+        /// are the iso box's four parallel edges of one length — the "rectangle
+        /// to rectangle" reading the request asked for. Under per-plane extents
+        /// they were unequal in pairs and read as a skewed wedge, which is the
+        /// regression to suspect if the tiles ever stop matching.</summary>
         private void DrawConnectors(DrawingContext ctx, double zoom, Vector pan)
         {
-            var (minX0, minY0, maxX0, maxY0) = PlaneBounds(0);
-            var (minX1, minY1, maxX1, maxY1) = PlaneBounds(1);
+            // The JOB's bounds, read once; the two tiles still join corner to
+            // corner through their own maps, which is what makes the iso box.
+            var (minX, minY, maxX, maxY) = PlaneBounds();
             var m0 = _maps[0];
             var m1 = _maps[1];
             Point C0(double x, double y) => WorldToScreen(m0.Wx(x), m0.Wy(y), zoom, pan);
             Point C1(double x, double y) => WorldToScreen(m1.Wx(x), m1.Wy(y), zoom, pan);
-            ctx.DrawLine(PlotterChromePens.Envelope, C0(minX0, maxY0), C1(minX1, maxY1));
-            ctx.DrawLine(PlotterChromePens.Envelope, C0(maxX0, maxY0), C1(maxX1, maxY1));
-            ctx.DrawLine(PlotterChromePens.Envelope, C0(minX0, minY0), C1(minX1, minY1));
-            ctx.DrawLine(PlotterChromePens.Envelope, C0(maxX0, minY0), C1(maxX1, minY1));
+            ctx.DrawLine(PlotterChromePens.Envelope, C0(minX, maxY), C1(minX, maxY));
+            ctx.DrawLine(PlotterChromePens.Envelope, C0(maxX, maxY), C1(maxX, maxY));
+            ctx.DrawLine(PlotterChromePens.Envelope, C0(minX, minY), C1(minX, minY));
+            ctx.DrawLine(PlotterChromePens.Envelope, C0(maxX, minY), C1(maxX, minY));
         }
 
         /// <summary>The iso view's chrome: the origin cross, the three world
@@ -2642,10 +2659,14 @@ public partial class PlotterView : UserControl
                 // always drawn here, plus the flat tile frame that makes the
                 // floor's "bottom edge" visible: the flat view's per-tile
                 // world-axis arrows and machine-origin cross, and one flat
-                // envelope rectangle per tile, all through that plane's own
-                // map. The round-4 user feedback pinned the arrows: "origin
-                // axis arrows missing in Iso mode (but present in 2d ...)" —
-                // same as 2D, so they ARE the flat painter's arrows, gated by
+                // envelope rectangle per tile. The rectangle is the JOB
+                // envelope's — both tiles carry the same one, which is what
+                // makes them congruent — drawn through THAT plane's own map, so
+                // it still lands correctly on its own tile: the map is per
+                // plane, only the extents are shared. The round-4 user
+                // feedback pinned the arrows: "origin axis arrows missing in
+                // Iso mode (but present in 2d ...)" — same as 2D, so they ARE
+                // the flat painter's arrows, gated by
                 // <c>Chrome.Origin</c>, and drawn in the flat painter's order
                 // (axes, envelope, cross last). The round-4 box ("connect each
                 // corner of one rectangle with corresponding corner of another
@@ -2654,7 +2675,7 @@ public partial class PlotterView : UserControl
                 // <see cref="DrawConnectors"/>.
                 if (!PlaneDrawable(slot))
                     return;
-                var bounds = PlaneBounds(slot);
+                var bounds = PlaneBounds();
                 if (Chrome.Origin)
                     PlotterFlatChrome.DrawAxes(ctx, _maps[slot], bounds, zoom, pan,
                         new Rect(Bounds.Size));

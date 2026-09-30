@@ -626,7 +626,26 @@ public class PlotterLiveRunHeadlessTests
             CountRectHalfOpen(f, m, 1 + x0, 1 + x1, icoy + y0, icoy + y1);
         var isoStreak = Rect(isoFrame, LineGrey, 12, 252, 196, 272);
         var isoBand = Rect(isoFrame, LineGrey, 268, 900, 300, 352);
-        var isoCross2 = Rect(isoFrame, CrossGrey, 262, 282, 337, 359);
+        // plane1's origin cross is DERIVED from the iso canvas's own live
+        // layout, not a window-relative box. That box was where the cross sat
+        // while plane 1's tile was a thin 279x25 mm strip in a 392x70 mm
+        // composition; both tiles are the one 279x37 mm job envelope now, in a
+        // 566x82 mm composition, so the cross sits somewhere else entirely and
+        // the hard-coded box reads 0. Derived, the probe survives either
+        // layout — the same reason the 2D half above projects its own.
+        var ict = isoCanvas.GetType();
+        var izoom = (double)GF(isoCanvas, "_zoom")!;
+        var ipan = (Avalonia.Vector)GF(isoCanvas, "_pan")!;
+        var imaps = (System.Collections.IList?)ict.GetField("_maps",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(isoCanvas)!;
+        var imp1 = MapProps(imaps[1]!);
+        //   cross1: Wx(0) = Ox - MinX,  Wy(0) = -MinY.  A foam tile's map has
+        //   BiasX/BiasY 0 and Sx/Sy 1, so Wx/Wy take the offset form.
+        var icx = (int)Math.Round(izoom * (imp1[6] - imp1[0]) + ipan.X);
+        var icy = (int)Math.Round(izoom * imp1[2] + ipan.Y);
+        var (q0_, q1_, p0_, p1_) = W(icx - 10, icx + 10, icy - 10, icy + 12);
+        var isoCross2 = CountRectHalfOpen(isoFrame, CrossGrey, q0_, q1_, p0_, p1_);
         Assert.True(icoy >= 20 && icoy <= 32, $"iso canvas chrome offset must be sane, got y={icoy}");
         Assert.True(isoStreak > 150, "iso plane0 must draw its small tile top-left");
         Assert.True(isoBand > 150, "iso plane1 must draw its loft across the bottom tile");
@@ -663,8 +682,31 @@ public class PlotterLiveRunHeadlessTests
         var centerX = (int)Math.Round(area.Center.X);
         Assert.True(right0 < centerX, $"plane 0 must start fully inside its quadrant, right={right0} center={centerX}");
 
+        // The pan is sized from plane 0's PROFILE, not from its tile. The two
+        // used to be near enough the same thing — plane 0's tile was 105 mm
+        // wide around a 100 mm profile — so panning the tile's right edge past
+        // the centre line carried the profile across it. Both tiles now measure
+        // the one job envelope, whose X span is plane 1's Z span (0..279 mm)
+        // rather than plane 0's 100 mm chord, so the tile is 279 mm wide around
+        // that same 100 mm profile: the profile fills the left 36% of its tile
+        // and 174 mm of empty envelope trails it. Panning to the tile's edge
+        // therefore leaves the profile short of the centre line, which is what
+        // made the probe below read 0.
+        var maps = (System.Collections.IList?)t.GetField("_maps",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(planeCanvas)!;
+        var mt0 = maps[0]!.GetType();
+        var mapOx = (double)mt0.GetProperty("Ox")!.GetValue(maps[0]!)!;
+        var mapMinX = (double)mt0.GetProperty("MinX")!.GetValue(maps[0]!)!;
+        var idx0 = plotter2.PlaneAxisIndices(0);
+        var profileMaxX = plotter2.Bounds[idx0[0]][1];
+        // A foam tile's map has BiasX 0 and Sx 1, so Wx(x) = Ox + x - MinX.
+        var profileRight = (int)Math.Round(zoom * (mapOx + profileMaxX - mapMinX) + pan.X);
+        Assert.True(profileRight < centerX,
+            $"plane 0's profile must start left of the centre line, right={profileRight} center={centerX}");
+
         // Pan plane 0 right so its right half crosses the canvas center line.
-        var dx = centerX + 120 - right0;
+        var dx = centerX + 120 - profileRight;
         var panField = t.GetField("_pan", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
         panField.SetValue(planeCanvas, new Avalonia.Vector(pan.X + dx, pan.Y));
         planeCanvas.InvalidateVisual();
@@ -679,10 +721,11 @@ public class PlotterLiveRunHeadlessTests
         bool LineGrey(byte r, byte g, byte b) =>
             Math.Abs(r - g) <= 14 && Math.Abs(g - b) <= 14 && r is >= 100 and <= 220;
 
-        var rightMoved = (int)Math.Round(zoom * w0.MaxX + pan.X + dx);
-        // Probe the vertical strip just right of the canvas center, still inside
-        // plane 0's own tile (the ~8mm gap keeps plane 1 some pixels further).
-        var (sx0, sx1, sy0, sy1) = (cox + centerX + 6, cox + rightMoved - 6, coy + top0 + 6, coy + bottom0 - 6);
+        var profileRightMoved = profileRight + dx;
+        // Probe the vertical strip just right of the canvas center, spanning
+        // the profile's own right half and inside its tile's row band (the
+        // ~8mm gap keeps plane 1 some pixels further).
+        var (sx0, sx1, sy0, sy1) = (cox + centerX + 6, cox + profileRightMoved - 6, coy + top0 + 6, coy + bottom0 - 6);
         var pastCenter = CountRectHalfOpen(frame, LineGrey, sx0, Math.Max(sx0 + 1, sx1), sy0, Math.Max(sy0 + 1, sy1));
         Assert.True(pastCenter > 30,
             $"dragging plane 0 across the center must keep the profile visible beyond it, got {pastCenter} px right of x={centerX}");

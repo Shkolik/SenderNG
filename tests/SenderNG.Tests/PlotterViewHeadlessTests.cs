@@ -1946,10 +1946,15 @@ public class PlotterViewHeadlessTests
     /// <summary>A foam program whose plane 0 (X,Y) Y-extent dwarfs plane 1's
     /// (X,Z): Y climbs 0..60 while Z only plunges 0..2, and X sweeps, so both
     /// planes are drawable. That is the normal foam XY-vs-XZ case, and the one
-    /// that matters here — plane 0's Y extent exceeds plane 1's by far more
-    /// than the 8 mm <c>FoamTileGap</c>, so plane 0's tile reaches past the
-    /// canvas midline into the bottom-left quadrant that its own slot viewport
-    /// stops at.</summary>
+    /// that matters here — the two planes' own extents differ by far more than
+    /// the 8 mm <c>FoamTileGap</c>, which is what makes them TRANSPOSED rather
+    /// than equal, so neither plane's own extent describes the job's. The
+    /// envelope is 0..55 by 0..60: plane 0's extent, widened to the origin.
+    /// <para>It used to matter for a second reason — plane 0's Y extent
+    /// overhung the canvas midline into the bottom-left quadrant, which is what
+    /// the flat view's arrow probe used to measure. Both tiles now measure the
+    /// one envelope, so the gap straddles the midline instead and nothing
+    /// overhangs; see <see cref="The_flat_foam_view_draws_no_tile_lattice"/>.</summary>
     private static string TallPlaneProgram()
     {
         var sb = new StringBuilder("G21\nG90\n");
@@ -2172,119 +2177,8 @@ public class PlotterViewHeadlessTests
             await Pump();
 
         var frame = PlotterPixels.Snapshot(CaptureFrame(window));
-        // The frames and connectors are one teal, one gate, so a test that
-        // measured "the frame's bounding box" out of the combined render would
-        // measure the box too and derive every corner midpoint off its own line.
-        // They are separated by SHAPE instead, which is the real difference: the
-        // frames are axis-aligned rectangles whose edges are long straight runs,
-        // while the connectors are 45° diagonals that belong to no long
-        // horizontal or vertical run. A teal pixel on a long axis-aligned run
-        // is frame; the rest is box.
-        const int Run = 20;
-        const int Dilate = 6;
-        bool Teal(int x, int y)
-        {
-            var p = PlotterPixels.At(frame, x, y);
-            return IsEnvelopeTeal(p.R, p.G, p.B);
-        }
-        bool OnFrame(int x, int y)
-        {
-            if (!Teal(x, y))
-                return false;
-            var left = x - Run / 2;
-            var right = x + Run / 2;
-            if (left >= 1 && right < frame.Width - 1 && Teal(left, y) && Teal(right, y))
-                return true;
-            var top = y - Run / 2;
-            var bottom = y + Run / 2;
-            return top >= 25 && bottom < frame.Height - 1 && Teal(x, top) && Teal(x, bottom);
-        }
-
-        var isFrame = new bool[frame.Width * frame.Height];
-        var boxTeal = 0;
-        for (var y = 25; y < frame.Height - 1; y++)
-            for (var x = 1; x < frame.Width - 1; x++)
-            {
-                if (!Teal(x, y))
-                    continue;
-                if (OnFrame(x, y))
-                    isFrame[y * frame.Width + x] = true;
-                else
-                    boxTeal++;
-            }
-        Assert.True(boxTeal > 40,
-            $"the iso box must paint diagonal connectors between the tiles, found {boxTeal} off-frame teal px");
-
-        // The two frames are DISJOINT rectangles, and neither is separable by a
-        // midline: tile 0's frame is wider than half the canvas, so it straddles
-        // the midpoint and any left/right split cuts its own right edge into the
-        // other tile's box. They are therefore grouped by connectivity, which is
-        // what "the two tiles' rectangles" means: two blobs.
-        // <para>The grouping mask is DILATED first, because a connector leaves
-        // each frame corner and its antialiased foot eats the corner pixels
-        // themselves — the corner is the one place a rectangle's own two edges
-        // must touch, and they no longer do, so the raw mask fragments one frame
-        // into its four edges. One dilation of 6 px bridges that ~10 px nick and
-        // cannot bridge the ~30 px gap between the two tiles (6 + 6 = 12 < 30).
-        // Each group's extents are then read from the UNDILATED pixels, which
-        // the nick does not shrink: every edge still reaches the corner it
-        // (each edge still reaches the corner it owns, so the union is the true
-        // rectangle).
-        var grown = new bool[frame.Width * frame.Height];
-        for (var y = 25; y < frame.Height - 1; y++)
-            for (var x = 1; x < frame.Width - 1; x++)
-            {
-                if (!isFrame[y * frame.Width + x])
-                    continue;
-                for (var dy = -Dilate; dy <= Dilate; dy++)
-                    for (var dx = -Dilate; dx <= Dilate; dx++)
-                        grown[(y + dy) * frame.Width + (x + dx)] = true;
-            }
-        var seen = new bool[frame.Width * frame.Height];
-        var blobs = new List<(int L, int T, int R, int B)>();
-        for (var y0 = 25; y0 < frame.Height - 1; y0++)
-            for (var x0 = 1; x0 < frame.Width - 1; x0++)
-            {
-                if (!grown[y0 * frame.Width + x0] || seen[y0 * frame.Width + x0])
-                    continue;
-                var stack = new Stack<(int X, int Y)>();
-                stack.Push((x0, y0));
-                seen[y0 * frame.Width + x0] = true;
-                var l = int.MaxValue;
-                var t = int.MaxValue;
-                var r = -1;
-                var b = -1;
-                var n = 0;
-                while (stack.Count > 0)
-                {
-                    var (x, y) = stack.Pop();
-                    // Counted and bounded on the ORIGINAL pixels only, so the
-                    // dilation widens connectivity without widening the
-                    // rectangle the probes below are derived from.
-                    if (isFrame[y * frame.Width + x])
-                    {
-                        n++;
-                        if (x < l) l = x;
-                        if (x > r) r = x;
-                        if (y < t) t = y;
-                        if (y > b) b = y;
-                    }
-                    for (var dy = -1; dy <= 1; dy++)
-                        for (var dx = -1; dx <= 1; dx++)
-                        {
-                            var nx = x + dx;
-                            var ny = y + dy;
-                            if (nx < 1 || nx >= frame.Width - 1 || ny < 25 || ny >= frame.Height - 1)
-                                continue;
-                            if (!grown[ny * frame.Width + nx] || seen[ny * frame.Width + nx])
-                                continue;
-                            seen[ny * frame.Width + nx] = true;
-                            stack.Push((nx, ny));
-                        }
-                }
-                if (n > 100)
-                    blobs.Add((l, t, r, b));
-            }
+        var (Teal, OnFrame) = TealFrameProbes(frame);
+        var blobs = TealFrameRectangles(frame);
         Assert.True(blobs.Count == 2,
             $"the loft must draw exactly two rectangular tile frames, found {blobs.Count} blobs of that size");
         var (f0, f1) = blobs[0].L <= blobs[1].L ? (blobs[0], blobs[1]) : (blobs[1], blobs[0]);
@@ -2318,6 +2212,73 @@ public class PlotterViewHeadlessTests
             ((a.X + b.X) / 2, (a.Y + b.Y) / 2);
     }
 
+    /// <summary>Both foam tiles are the SAME rectangle, carrying the job
+    /// envelope's extents — the one behavioural assertion in this area, since
+    /// every other foam test describes shape and shape survives the change.
+    /// <para>The program is deliberately lopsided: plane 0 (X,Y) travels
+    /// 0..100 by 0..20 and plane 1 (Z,A) travels 0..20 by 0..100, so the two
+    /// planes' own tiles are 100x20 and 20x100 — TRANSPOSED, and therefore not
+    /// congruent. The job envelope is 0..100 by 0..100, so both tiles must be
+    /// square and the same size. On the old per-plane extents this fails twice
+    /// over: measured, the frames came out 399 px and 80 px wide — a 5x
+    /// difference, and neither square.
+    /// <para>This is the test that would have caught the per-plane reading. The
+    /// blob grouping and its 6 px dilation are inherited from the iso-box test
+    /// and are re-used unchanged, so the two tests measure tiles the same
+    /// way.</summary>
+    [AvaloniaFact]
+    public async Task The_foam_tiles_are_both_the_job_envelope_rectangle()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        source.Load("G21\r\nG1 X100 Y20 Z20 A100 F600");
+        for (var i = 0; i < 6; i++)
+            await Pump();
+        Assert.True(vm.PlaneCount > 1);
+        // The union that both tiles are sized from, and the reason both frames
+        // must come out square: plane 0 gives X 0..100 / Y 0..20, plane 1 gives
+        // X 0..20 / Y 0..100, and the envelope takes the larger of each.
+        Assert.True(vm.TryJobEnvelope(out var job));
+        Assert.Equal(100.0, job.MaxX - job.MinX, 6);
+        Assert.Equal(100.0, job.MaxY - job.MinY, 6);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        window.GetVisualDescendants().OfType<CheckBox>()
+            .Single(c => c.Name == "IsoToggle")
+            .IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var blobs = TealFrameRectangles(PlotterPixels.Snapshot(CaptureFrame(window)));
+        Assert.Equal(2, blobs.Count);
+        var (f0, f1) = blobs[0].L <= blobs[1].L ? (blobs[0], blobs[1]) : (blobs[1], blobs[0]);
+        // 2 px of slack for the antialiased corner nick the dilation bridges;
+        // measured, the two frames come out 246x246 each, so the slack is not
+        // carrying this test.
+        const int Slack = 2;
+        var w0 = f0.R - f0.L;
+        var h0 = f0.B - f0.T;
+        var w1 = f1.R - f1.L;
+        var h1 = f1.B - f1.T;
+        Assert.True(Math.Abs(w0 - w1) <= Slack,
+            $"both tiles must be the same WIDTH, found {w0} and {w1} px");
+        Assert.True(Math.Abs(h0 - h1) <= Slack,
+            $"both tiles must be the same HEIGHT, found {h0} and {h1} px");
+        // The envelope here is square, so each tile is too. This is the check
+        // that ties the frames to the union rather than merely to each other.
+        Assert.True(Math.Abs(w0 - h0) <= Slack,
+            $"the envelope is 100x100, so each tile must be square, found {w0}x{h0} px");
+        Assert.True(Math.Abs(w1 - h1) <= Slack,
+            $"the envelope is 100x100, so each tile must be square, found {w1}x{h1} px");
+    }
+
     /// <summary>The foam grid is a floor of the work envelope and lives in the
     /// iso loft; the FLAT foam view's two tiles no longer draw per-tile
     /// lattices — those read as two side panes, and the floor is the only grid
@@ -2326,10 +2287,12 @@ public class PlotterViewHeadlessTests
     /// the rebake's antialiasing jitter, never by a lattice.
     /// <para>Kept here too is the reason the old test existed: the chrome
     /// (axes, envelope, cross) takes a canvas-wide clip, not a per-quadrant
-    /// one, so the arrows reach past the canvas midline into the quadrant no
-    /// slot viewport covers. A per-quadrant clip still fails — removing the
-    /// clip was the point of the original test and the chrome keeps that
-    /// behaviour while the lattice goes away.</para></summary>
+    /// one. The clip is unchanged — <c>DrawSlotChrome</c> still hands the
+    /// painters the whole canvas — but with both foam tiles measuring the one
+    /// job envelope each tile's chrome now lands wholly inside its own
+    /// quadrant, so there is no overhang left for a pixel probe to find. The
+    /// tail of the method records the measurement; the two assertions above
+    /// are what this test still guards.</para></summary>
     [AvaloniaFact]
     public async Task The_flat_foam_view_draws_no_tile_lattice()
     {
@@ -2355,19 +2318,29 @@ public class PlotterViewHeadlessTests
         Assert.True(off >= on - 300,
             $"no tile lattice may come from Chrome.Grid in the flat foam view: {on} light pixels with it on, {off} with it off");
 
-        // Below the canvas midline AND left of it: exactly the bottom-left
-        // quadrant, which is not slot 0's viewport (top-left) and not slot 1's
-        // either (bottom-right). The axe shafts take the same canvas-wide clip
-        // as always, so they still reach it. Red and green, because those are the
-        // two arrows a face-on foam tile draws.
-        static int BelowMidlineLeft(PlotterPixels.Frame f, Func<byte, byte, byte, bool> match) =>
-            PlotterPixels.Count(f, match,
-                xFilter: x => x > 0 && x < f.Width / 2,
-                yFilter: y => y > f.Height / 2 && y < f.Height - 1);
-        var arrowFrame = PlotterPixels.Snapshot(CaptureFrame(window));
-        var arrows = BelowMidlineLeft(arrowFrame, IsAxisRed) + BelowMidlineLeft(arrowFrame, IsAxisGreen);
-        Assert.True(arrows > 20,
-            $"the world axis arrows must reach past the canvas midline, found {arrows} arrow pixels");
+        // The arrow-overhang probe that used to stand here is GONE, and the
+        // measurement is why. It counted world-axis arrow pixels in the
+        // bottom-left quadrant — the one no slot viewport covers — as proof
+        // that the chrome is clipped to the whole canvas and not to a
+        // quadrant. That overhang was incidental to the OLD per-plane tiles:
+        // plane 0's tile was 55x60 mm while plane 1's was a degenerate 2 mm
+        // strip, so plane 0's origin corner sat far down the composition and
+        // its arrows ran along a line well BELOW the canvas midline.
+        //
+        // Both tiles now measure the one job envelope, so the composition is
+        // 2*span + 8 mm and the 8 mm gap straddles its middle — which the fit
+        // always lands on the canvas midline, because the composition is
+        // centred. Tile 0's origin is therefore a half-gap ABOVE that midline
+        // with its arrows pointing up and right into tile 0's own quadrant,
+        // and tile 1's out of the bottom-right. Measured on
+        // <see cref="TallPlaneProgram"/>: 3 red and 0 green arrow pixels
+        // strictly below the midline, against 15 red / 18 green in the
+        // top-left and 18 red / 14 green in the bottom-right — the three
+        // below are antialiasing along the midline itself.
+        //
+        // No arrow can cross a midline any more, so this probe cannot tell a
+        // canvas-wide clip from a per-quadrant one, and re-pinning its
+        // threshold would only record a number with nothing behind it.
     }
 
     /// <summary>The grid is a FLOOR, so it paints BENEATH the toolpath: a grid
@@ -2747,6 +2720,130 @@ public class PlotterViewHeadlessTests
         PlotterPixels.Count(frame, match,
             xFilter: x => x > 0 && x < frame.Width - 1,
             yFilter: y => y > 24 && y < frame.Height - 1);
+
+    /// <summary>The per-pixel predicates <see cref="TealFrameRectangles"/>
+    /// is built on, handed back so a caller measuring a CONNECTOR can tell one
+    /// from a frame edge that happens to graze the same spot.</summary>
+    private static (Func<int, int, bool> Teal, Func<int, int, bool> OnFrame)
+        TealFrameProbes(PlotterPixels.Frame frame)
+    {
+        const int Run = 20;
+        bool Teal(int x, int y)
+        {
+            var p = PlotterPixels.At(frame, x, y);
+            return IsEnvelopeTeal(p.R, p.G, p.B);
+        }
+        bool OnFrame(int x, int y)
+        {
+            if (!Teal(x, y))
+                return false;
+            var left = x - Run / 2;
+            var right = x + Run / 2;
+            if (left >= 1 && right < frame.Width - 1 && Teal(left, y) && Teal(right, y))
+                return true;
+            var top = y - Run / 2;
+            var bottom = y + Run / 2;
+            return top >= 25 && bottom < frame.Height - 1 && Teal(x, top) && Teal(x, bottom);
+        }
+        return (Teal, OnFrame);
+    }
+
+    /// <summary>The axis-aligned teal rectangles in <paramref name="frame"/>,
+    /// as (Left, Top, Right, Bottom) — the tile frames, smallest ignored.
+    /// <para>The frames and the box connectors are one teal and one gate, so a
+    /// measurement over the combined render would measure the box too. They are
+    /// separated by SHAPE instead, which is the real difference: the frames are
+    /// axis-aligned rectangles whose edges are long straight runs, while the
+    /// connectors are diagonals that belong to no long horizontal or vertical
+    /// run.
+    /// <para>The two frames are DISJOINT rectangles, and neither is separable by
+    /// a midline: tile 0's frame is wider than half the canvas, so it straddles
+    /// the midpoint and any left/right split cuts its own right edge into the
+    /// other tile's box. They are therefore grouped by connectivity, which is
+    /// what "the two tiles' rectangles" means.
+    /// <para>The grouping mask is DILATED, because a connector leaves each
+    /// frame corner and its antialiased foot eats the corner pixels themselves —
+    /// the corner is the one place a rectangle's own two edges must touch, and
+    /// they no longer do, so the raw mask fragments one frame into its four
+    /// edges. One dilation of 6 px bridges that ~10 px nick and cannot bridge
+    /// the gap between the two tiles (6 + 6 = 12 px). The gap is measured, not
+    /// assumed: with both tiles sized from the one job envelope it is 19 px
+    /// here, on a 920x560 window, so the two frames stay two blobs — the
+    /// number to re-read if the window or the program ever shrinks it. Each
+    /// group's extents are read from the UNDILATED pixels, which the nick does
+    /// not shrink: every edge still reaches the corner it owns, so the union is
+    /// the true rectangle. Blobs under 100 pixels are dropped as speckle.</summary>
+    private static List<(int L, int T, int R, int B)> TealFrameRectangles(
+        PlotterPixels.Frame frame)
+    {
+        const int Dilate = 6;
+        const int MinPixels = 100;
+        var (Teal, OnFrame) = TealFrameProbes(frame);
+
+        var isFrame = new bool[frame.Width * frame.Height];
+        for (var y = 25; y < frame.Height - 1; y++)
+            for (var x = 1; x < frame.Width - 1; x++)
+                if (Teal(x, y) && OnFrame(x, y))
+                    isFrame[y * frame.Width + x] = true;
+
+        var grown = new bool[frame.Width * frame.Height];
+        for (var y = 25; y < frame.Height - 1; y++)
+            for (var x = 1; x < frame.Width - 1; x++)
+            {
+                if (!isFrame[y * frame.Width + x])
+                    continue;
+                for (var dy = -Dilate; dy <= Dilate; dy++)
+                    for (var dx = -Dilate; dx <= Dilate; dx++)
+                        grown[(y + dy) * frame.Width + (x + dx)] = true;
+            }
+
+        var seen = new bool[frame.Width * frame.Height];
+        var blobs = new List<(int L, int T, int R, int B)>();
+        for (var y0 = 25; y0 < frame.Height - 1; y0++)
+            for (var x0 = 1; x0 < frame.Width - 1; x0++)
+            {
+                if (!grown[y0 * frame.Width + x0] || seen[y0 * frame.Width + x0])
+                    continue;
+                var stack = new Stack<(int X, int Y)>();
+                stack.Push((x0, y0));
+                seen[y0 * frame.Width + x0] = true;
+                var l = int.MaxValue;
+                var t = int.MaxValue;
+                var r = -1;
+                var b = -1;
+                var n = 0;
+                while (stack.Count > 0)
+                {
+                    var (x, y) = stack.Pop();
+                    // Counted and bounded on the ORIGINAL pixels only, so the
+                    // dilation widens connectivity without widening the
+                    // rectangle the caller reads.
+                    if (isFrame[y * frame.Width + x])
+                    {
+                        n++;
+                        if (x < l) l = x;
+                        if (x > r) r = x;
+                        if (y < t) t = y;
+                        if (y > b) b = y;
+                    }
+                    for (var dy = -1; dy <= 1; dy++)
+                        for (var dx = -1; dx <= 1; dx++)
+                        {
+                            var nx = x + dx;
+                            var ny = y + dy;
+                            if (nx < 1 || nx >= frame.Width - 1 || ny < 25 || ny >= frame.Height - 1)
+                                continue;
+                            if (!grown[ny * frame.Width + nx] || seen[ny * frame.Width + nx])
+                                continue;
+                            seen[ny * frame.Width + nx] = true;
+                            stack.Push((nx, ny));
+                        }
+                }
+                if (n > MinPixels)
+                    blobs.Add((l, t, r, b));
+            }
+        return blobs;
+    }
 
     /// <summary>The drawn path's on-screen bounding box: the one measurement
     /// that can say where a zoom anchored, because the path's WORLD bounds do
