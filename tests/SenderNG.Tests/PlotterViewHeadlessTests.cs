@@ -610,9 +610,9 @@ public class PlotterViewHeadlessTests
 
         // The iso lattice uses the SAME two pens as the flat one
         // (PlotterChromePens.GridMajor/Minor, #c0c0c0 / #e0e0e0) and nothing
-        // else in the iso view lands in this band: the cross is #888888 (r=136,
-        // below the 180 floor), the teal box and the arrows #2f6fb0 are both
-        // far from neutral. So the same predicate isolates the grid in both
+        // else in the iso view lands in this band: the teal box and the axis
+        // arrows (#d93333 red, #33cc33 green, #3359e6 blue) are both far from
+        // neutral. So the same predicate isolates the grid in both
         // views, and the comparison is the on/off RATIO rather than a floor.
         view.PushChromeFlags(ChromeFlags.Default);
         for (var i = 0; i < 8; i++)
@@ -2679,7 +2679,7 @@ public class PlotterViewHeadlessTests
     /// the flat foam view: the grid-OFF render differs from the grid-ON only by
     /// the rebake's antialiasing jitter, never by a lattice.
     /// <para>Kept here too is the reason the old test existed: the chrome
-    /// (axes, envelope, cross) takes a canvas-wide clip, not a per-half
+    /// (axes, envelope) takes a canvas-wide clip, not a per-half
     /// one. The clip is unchanged — <c>DrawSlotChrome</c> still hands the
     /// painters the whole canvas — but with both foam tiles measuring the one
     /// job envelope each tile's chrome now lands wholly inside its own
@@ -2839,12 +2839,14 @@ public class PlotterViewHeadlessTests
             $"the iso lattice must not paint over the toolpath: {replaced} pixels were path with the grid off and light with it on");
     }
 
-    /// <summary>The origin toggle gates the world AXES, not just the origin
-    /// cross. Nex maps <c>ShowOrigin</c> to axis visibility
-    /// (<c>NexPlotScene.SetView → SetAxesVisible</c>); this view drew the
-    /// arrows unconditionally, so toggling Origin hid only the small + cross
-    /// under the shaft bases and the X/Y/Z arrows — the cross the user can
-    /// actually see — never moved.</summary>
+    /// <summary>The origin toggle gates the world AXES. Nex maps
+    /// <c>ShowOrigin</c> to axis visibility
+    /// (<c>NexPlotScene.SetView → SetAxesVisible</c>); this view used to draw the
+    /// arrows unconditionally, so toggling Origin hid only the small machine-origin
+    /// cross that used to sit under the shaft bases while the X/Y/Z arrows — the
+    /// thing the user can actually see — never moved. Both are gone now: the cross
+    /// was deleted (see <see cref="The_plotter_draws_no_origin_cross"/>) and the
+    /// arrows are gated, which is what this test pins.</summary>
     [AvaloniaFact]
     public async Task The_origin_toggle_hides_the_world_axis_arrows_in_the_flat_pane()
     {
@@ -2918,25 +2920,43 @@ public class PlotterViewHeadlessTests
         Assert.Equal(0, CountSurface(arrowsOff, IsAxisBlue));
     }
 
-    /// <summary>No machine-origin cross anywhere. The world axis arrows leave
-    /// that same origin, so a cross was a second mark on one corner saying what
-    /// the arrows had already said — and, unlike the arrows, it claimed the
-    /// corner regardless of whether the arrows were on.
+    /// <summary>No machine-origin cross where <c>Chrome.Origin</c> would have
+    /// drawn one: the shared flat/mill origin, and the projected iso origin. The
+    /// arrows leave that same origin, so a cross was a second mark on one corner
+    /// saying what the arrows had already said.
+    /// <para>What this guards, precisely: a cross that is <b>gated on
+    /// <c>Chrome.Origin</c></b>, i.e. the thing that was actually there. The
+    /// probe differences two captures that differ only in that flag, so anything
+    /// drawn in BOTH cancels. It therefore cannot catch a cross drawn
+    /// unconditionally — that would sit in both counts, the delta would be 0, and
+    /// this test would pass. It cannot catch a cross drawn at some fourth site
+    /// either; the foam loft's per-tile chrome is a separate test,
+    /// <see cref="The_foam_loft_draws_no_origin_cross"/>, because it is a
+    /// different composition with its own measured bands. What it does catch is
+    /// the realistic regression: someone reinstating a flag-gated cross.
     /// <para>Probed by differencing, because a neutral-pixel count alone cannot
     /// tell the cross from the feed path: the G-code starts AT the machine
     /// origin, so the toolpath runs through the probe box in every capture. With
     /// <c>Chrome.Origin</c> on and off and everything else fixed, the path (and
     /// the arrows' own antialiasing) appear in BOTH counts and cancel, leaving
     /// only what the flag itself added.</para>
-    /// <para>Measured on this composition, 17x17 box at the origin, 6 runs
-    /// identical to the pixel at each site. With the cross: flat 68/32
-    /// (delta +36), iso 39/23 (delta +16). Without it: flat 24/32 (delta -8),
-    /// iso 14/23 (delta -9) — the sign flips, because the arrows now paint over
-    /// the path and OCCLUDE neutral pixels rather than add any. So the test
-    /// asserts the delta stays at or below zero: the origin flag must never ADD
-    /// neutral ink at the origin. The gap is 24 px (flat) and 25 px (iso) and
-    /// has zero variance, so zero is not a knife edge. A cross returns the
-    /// delta to +36/+16 and fails by 36 and 16 px.</para></summary>
+    /// <para>Measured on this composition, 17x17 box at the origin, <b>20
+    /// consecutive runs, every one of them identical</b>: flat 24/32 (delta -8),
+    /// iso 14/23 (delta -9). With the cross present the same two sites read 68/32
+    /// (+36) and 39/23 (+16), 3/3 identical. So the sign flips across the
+    /// deletion, because the arrows now paint OVER the toolpath and OCCLUDE
+    /// neutral pixels rather than add neutral ink of their own; there is no
+    /// small positive noise floor here to tune against.
+    /// <para>The assert is therefore the sign boundary itself, zero: the origin
+    /// flag must never ADD neutral ink at the origin. The margin on the passing
+    /// side is <b>8 px flat and 9 px iso</b> - that is the distance from the
+    /// measured deltas to the boundary, and it is the number that has to survive
+    /// review. The margin on the failing side is 36 px and 16 px, the cross's own
+    /// contribution. 20 runs is a small sample and this project has a history of
+    /// rebake jitter, so zero is defended by the size of both margins rather than
+    /// by a proof that the delta can never move: 8 px would have to be eaten
+    /// before the test noticed, and the cross would have to lose 16 of its 36 px
+    /// before the test missed it.</para></summary>
     [AvaloniaFact]
     public async Task The_plotter_draws_no_origin_cross()
     {
@@ -2959,8 +2979,12 @@ public class PlotterViewHeadlessTests
         static bool OriginInk(byte r, byte g, byte b) =>
             Math.Abs(r - g) <= 8 && Math.Abs(g - b) <= 8 && r < 250;
 
-        // The cross spans 6 px each way, so a 17x17 box centred on the origin
-        // holds all of it plus a pixel of slack for the window-chrome offset.
+        // The cross spanned 6 px each way, so a 17x17 box (Half = 8) centred on
+        // the origin holds all of it, plus slack for the 2 px stroke width and
+        // for rounding the centre to a pixel — which also puts the centre a
+        // pixel right of and below true, since the probe adds the window-chrome
+        // offsets (+1 in x, +coy in y) explicitly rather than leaving room for
+        // them inside the box.
         const int Half = 8;
         async Task<(int On, int Off)> Probe(Point origin, int coy)
         {
@@ -2983,7 +3007,9 @@ public class PlotterViewHeadlessTests
         // which for a mill is the identity, so it is the shared ToScreen.
         var (zoom, pan) = view.CompositionForTest[0];
         var flatFrame = PlotterPixels.Snapshot(CaptureFrame(window));
-        var flat = await Probe(PlotterChrome.ToScreen(0, 0, zoom, pan), FirstBrightRowLocal(flatFrame));
+        var flatCoy = FirstBrightRowLocal(flatFrame);
+        Assert.InRange(flatCoy, 20, 32);
+        var flat = await Probe(PlotterChrome.ToScreen(0, 0, zoom, pan), flatCoy);
 
         window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
         for (var i = 0; i < 8; i++)
@@ -2996,7 +3022,9 @@ public class PlotterViewHeadlessTests
         var (izoom, ipan) = view.CompositionForTest[0];
         var proj = PlotterProjection.Project(0, 0, 0);
         var isoFrame0 = PlotterPixels.Snapshot(CaptureFrame(window));
-        var iso = await Probe(PlotterChrome.ToScreen(proj.X, proj.Y, izoom, ipan), FirstBrightRowLocal(isoFrame0));
+        var isoCoy = FirstBrightRowLocal(isoFrame0);
+        Assert.InRange(isoCoy, 20, 32);
+        var iso = await Probe(PlotterChrome.ToScreen(proj.X, proj.Y, izoom, ipan), isoCoy);
 
         // The origin flag must never ADD neutral ink here; see the summary for
         // the measured bands. Zero is the sign boundary, not a tuned number.
@@ -3004,6 +3032,127 @@ public class PlotterViewHeadlessTests
             $"FLAT: {flat.On}/{flat.Off} (delta {flat.On - flat.Off}); ISO: {iso.On}/{iso.Off} (delta {iso.On - iso.Off})");
     }
 
+    /// <summary>The foam loft's per-tile iso chrome draws no machine-origin
+    /// cross either. This is a THIRD site and it needed its own test, because it
+    /// is a different composition with different geometry: in <c>Loft</c> mode
+    /// <c>IsoCanvas.DrawSlotChrome</c> draws each plane as a FLAT true-scale
+    /// tile in a shared composition, and the cross that used to sit there was an
+    /// inline copy drawn per slot through that slot's own map — not the shared
+    /// flat painter the other two sites used. A cross reinstated there is gated
+    /// on <c>Chrome.Origin</c> exactly as before, and nothing else in the suite
+    /// would notice.
+    /// <para>Same predicate and same differencing as
+    /// <see cref="The_plotter_draws_no_origin_cross"/>: the G-code starts at the
+    /// origin so the path is in the box in both captures and cancels. Both slots
+    /// are probed, because the deleted cross was drawn once per slot at two
+    /// different corners.
+    /// <para>Bands measured for THIS composition rather than assumed equal to
+    /// the other two sites, 10 consecutive runs, every one identical to the
+    /// pixel: without the cross, slot 0 21/33 (delta -12) and slot 1 7/8 (delta
+    /// -1). With the deleted inline cross restored and measured the same way,
+    /// 6 runs: slot 0 69/33 (delta +36) and slot 1 55/8 (delta +47).
+    /// <para>That makes this site the harder one to probe, and the numbers say
+    /// why: slot 1's box holds only 8 neutral pixels with the flag off, so the
+    /// arrows' occlusion of the path is worth just 1 px there. Slot 1 therefore
+    /// CANNOT use the other test's zero boundary - that would leave a 1 px
+    /// passing margin, which is a knife edge on a composition this project has
+    /// already shown to be rebake-jitter-prone. So the threshold is 12, the
+    /// midpoint of the tightest window (slot 0: -12 to +36), which leaves every
+    /// slot at least 13 px of margin on BOTH sides: passing 24/13 px for slot
+    /// 0/1, failing 24/35 px. Slot 1's +47 is the strongest signal of any site
+    /// measured here, so nothing about the looser number costs detection.</para></summary>
+    [AvaloniaFact]
+    public async Task The_foam_loft_draws_no_origin_cross()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        // Four axes, so both foam carriages carry motion and Loft is live. The
+        // F600 is load-bearing (same reason as the loft chrome test).
+        source.Load("G21\r\nG1 X100 Y20 Z20 A100 F600");
+        Assert.Equal(2, vm.PlaneCount);
+        Assert.True(vm.Planes[0].Count > 0);
+        Assert.True(vm.Planes[1].Count > 0);
+        vm.SetPlaneGeometries([
+            PlotterPlaneMapper.Identity(2),
+            PlotterPlaneMapper.Identity(2),
+        ]);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.Reframe();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        static bool OriginInk(byte r, byte g, byte b) =>
+            Math.Abs(r - g) <= 8 && Math.Abs(g - b) <= 8 && r < 250;
+        const int Half = 8;
+
+        async Task<(int On, int Off)> Probe(Point origin, int coy)
+        {
+            var cx = (int)Math.Round(origin.X, MidpointRounding.AwayFromZero) + 1;
+            var cy = (int)Math.Round(origin.Y, MidpointRounding.AwayFromZero) + coy;
+            int Count(PlotterPixels.Frame f) => PlotterPixels.CountRect(f, OriginInk,
+                cx - Half, cy - Half, cx + Half, cy + Half);
+            view.PushChromeFlags(ChromeFlags.Default with { Grid = false, Envelope = false });
+            for (var i = 0; i < 8; i++)
+                await Pump();
+            var on = Count(PlotterPixels.Snapshot(CaptureFrame(window)));
+            view.PushChromeFlags(ChromeFlags.Default with { Grid = false, Envelope = false, Origin = false });
+            for (var i = 0; i < 8; i++)
+                await Pump();
+            var off = Count(PlotterPixels.Snapshot(CaptureFrame(window)));
+            return (on, off);
+        }
+
+        // The two tile origins, computed the way the deleted cross computed
+        // them: through each slot's own PlaneMap, then the ONE shared
+        // world-to-screen. IsoCanvas declares its own _maps, so reflection on the
+        // canvas's own type finds the right array.
+        var isoCanvas = window.GetVisualDescendants().Single(c => c.GetType().Name == "IsoCanvas");
+        var maps = (System.Array)isoCanvas.GetType()
+            .GetField("_maps", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(isoCanvas)!;
+        var (zoom, pan) = view.CompositionForTest[0];
+
+        var frame0 = PlotterPixels.Snapshot(CaptureFrame(window));
+        var coy = FirstBrightRowLocal(frame0);
+        Assert.InRange(coy, 20, 32);
+
+        var deltas = new List<(int Slot, int On, int Off, int Delta)>();
+        for (var slot = 0; slot < 2; slot++)
+        {
+            var map = (PlaneMap)maps.GetValue(slot)!;
+            var origin = PlotterChrome.ToScreen(map.Wx(0), map.Wy(0), zoom, pan);
+            // A box that fell off the canvas would sample nothing and read a
+            // vacuous 0, so the site is proved to be inside the frame first.
+            Assert.InRange(origin.X, Half + 1, frame0.Width - Half - 2);
+            Assert.InRange(origin.Y, Half + coy, frame0.Height - Half - 2);
+            var (on, off) = await Probe(origin, coy);
+            deltas.Add((slot, on, off, on - off));
+        }
+
+        // 12 is this composition's own midpoint of the tightest measured window
+        // (slot 0: -12 with the cross gone, +36 with it back). Zero would leave
+        // slot 1 a 1 px passing margin; 12 leaves every slot >=13 px both ways.
+        const int LoftMaxDelta = 12;
+        Assert.True(deltas.All(d => d.Delta <= LoftMaxDelta),
+            "no slot may gain neutral ink when the origin flag is set: " +
+            string.Join("; ", deltas.Select(d => $"slot{d.Slot} {d.On}/{d.Off} (delta {d.Delta})")));
+    }
+
+    /// <summary>The canvas top: the first row that is fully bright across the
+    /// middle columns, because the canvas background is white and the window
+    /// chrome above it is not. Returns <b>-1 if no such row is found</b>, which
+    /// is a detection failure and not an offset — every caller must range-check
+    /// it before adding it to a probe y, or a failed detection silently shifts
+    /// the probe box one pixel up and the counts become meaningless. Mirrors
+    /// <c>PlotterLiveRunHeadlessTests.FirstBrightRow</c>.</summary>
     private static int FirstBrightRowLocal(PlotterPixels.Frame frame)
     {
         for (var y = 0; y < 60 && y < frame.Height; y++)

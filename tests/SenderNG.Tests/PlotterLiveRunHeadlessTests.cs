@@ -578,7 +578,7 @@ public class PlotterLiveRunHeadlessTests
             await Pump();
         var frame = PlotterPixels.Snapshot(CaptureFrame(window2));
 
-        // Introspect the live layout transform + maps so the probes are
+        // Introspect the live layout transform so the probes are
         // computed from the real canvas geometry, not window-relative guesses.
         var pcType = planeCanvas.GetType();
         static object? GF(object o, string n) =>

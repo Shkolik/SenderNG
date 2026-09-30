@@ -1963,7 +1963,7 @@ public partial class PlotterView : UserControl
     /// plane 2 in the bottom half, one above the other and sharing one column,
     /// with one shared mm scale (no stretching) and both tiles measuring the ONE
     /// job envelope so they are the same rectangle (its origin is already
-    /// unioned in, so each cross stays in-frame). ONE fit/pan/zoom drives the
+    /// unioned in, so each tile's origin stays in-frame). ONE fit/pan/zoom drives the
     /// whole composition, so panning or zooming never separates the two panes.
     /// <para>The pair used to be pushed to opposite SIDES as well as opposite
     /// halves, which is what read as a diagonal and as a near-copy of the iso
