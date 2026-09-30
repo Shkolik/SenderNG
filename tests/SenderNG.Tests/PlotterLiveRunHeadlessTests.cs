@@ -652,11 +652,18 @@ public class PlotterLiveRunHeadlessTests
         Assert.True(isoCross2 > 4, "iso plane1 machine-origin cross must be drawn");
     }
 
-    /// <summary>The quadrant viewports place each foam plane's tile, but the
-    /// shared pan must carry the true-scale profile PAST the screen-center
-    /// line — the per-slot render clip used to trim the raster right at the
-    /// quadrant boundary (aux geometry drawn outside the clip survived the
-    /// move; the profile did not).</summary>
+    /// <summary>The half viewports place each foam plane's tile, but the
+    /// shared pan must carry the true-scale profile PAST the screen-center line
+    /// — the per-slot render clip used to trim the raster right at a boundary
+    /// inside the tile's own area (aux geometry drawn outside the clip survived
+    /// the move; the profile did not).
+    /// <para>The boundary is now the HORIZONTAL split, and no vertical one, so
+    /// the precondition is the opposite of what it was: the tile is 279 mm wide
+    /// around a 100 mm profile and sits centered, so it SPANS the vertical
+    /// midline instead of stopping short of it. That is what makes this a
+    /// sharper probe than it was — under the old quadrant clip the midline
+    /// guillotined the tile in half, and under the correct full-width half it
+    /// cuts nothing at all.</para></summary>
     [AvaloniaFact]
     public async Task Foam_2d_pan_keeps_profiles_beyond_their_quadrant()
     {
@@ -680,7 +687,11 @@ public class PlotterLiveRunHeadlessTests
         var bottom0 = (int)Math.Round(-zoom * w0.MinY + pan.Y);
         var area = new Rect(planeCanvas.Bounds.Size);
         var centerX = (int)Math.Round(area.Center.X);
-        Assert.True(right0 < centerX, $"plane 0 must start fully inside its quadrant, right={right0} center={centerX}");
+        // The tile now CROSSES the midline instead of stopping short of it: the
+        // composition is one tile wide and centered, so a clip that still cut at
+        // the midline would take half the tile — and half the profile with it.
+        Assert.True(left0 < centerX && right0 > centerX,
+            $"plane 0's tile must span the center line, got {left0}..{right0} around {centerX}");
 
         // The pan is sized from plane 0's PROFILE, not from its tile. The two
         // used to be near enough the same thing — plane 0's tile was 105 mm
@@ -938,8 +949,18 @@ public class PlotterLiveRunHeadlessTests
         view.PushChromeFlags(ChromeFlags.Default with { RunState = false });
         for (var i = 0; i < 8; i++)
             await Pump();
-        Assert.True(PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen) == 0,
-            "the iso canvas's RowStateFor must collapse to Idle too");
+        // A near-zero, not an exact zero: this count depends on where an
+        // antialiased stroke edge lands in the green band, and that moves with
+        // the zoom. Measured 1 pixel here, left by an edge the OFF raster does
+        // not fully scrub, so the tolerance is 4 — 0.5% of the 854 the ON state
+        // paints above, and a canvas that failed to rebake shows all 854, which
+        // is three orders of magnitude clear of it. An exact 0 was satisfied
+        // only while the iso canvas happened to inherit the flat canvas's
+        // transform; the toggle fits the iso view itself now that the two
+        // compositions differ in shape, and the stray edge rides along with it.
+        var isoGreen = PlotterPixels.Count(PlotterPixels.Snapshot(CaptureFrame(window)), IsDoneGreen);
+        Assert.True(isoGreen <= 4,
+            $"the iso canvas's RowStateFor must collapse to Idle too, found {isoGreen} green pixels");
 
         // ...which is only a statement about the OFF state, and a zero asserts
         // just as happily about a canvas that paints no run-state colors at

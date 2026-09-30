@@ -433,15 +433,22 @@ public partial class PlotterView : UserControl
 
     /// <summary>Rebuilds the canvas set: one isometric canvas when the toggle
     /// is on (stretched over the whole panel), otherwise ONE canvas — the two
-    /// foam planes draw in diagonal quadrants of the same surface (plane 1
-    /// top-left, plane 2 bottom-right), single-plane machines just fill it.
+    /// foam planes draw STACKED in the top and bottom halves of the same
+    /// surface, single-plane machines just fill it.
     /// <para>The rebuild also ARMS the new canvas with the live canvas's
     /// transform. The attach handler runs this on every re-attach, and the tab
     /// host reparents its cached view (it does NOT keep it) whenever a settings
     /// save re-raises the module list — so without the adoption every chrome
     /// toggle or settings save snapped the user's zoom back to the fitted
     /// view. A fresh canvas starts un-fitted (NaN), and the first paint fits
-    /// it to the real panel only when no fitted canvas is being replaced.</para></summary>
+    /// it to the real panel only when no fitted canvas is being replaced.
+    /// <para>The iso toggle adopts too, and that is a product decision rather
+    /// than an oversight: the two canvases share the same zoom semantics (px
+    /// per world mm), so a chosen level survives the switch in both directions
+    /// rather than each view snapping to its own fit. It also means the iso view
+    /// is drawn at whatever the FLAT view is showing, which is why the loft
+    /// tests re-measure whenever the flat composition changes shape — the
+    /// absolute zoom, not the iso fit, is what they render at.</para></summary>
     private void RebuildCanvases()
     {
         var previous = _canvases.OfType<PlotCanvas>().FirstOrDefault();
@@ -479,16 +486,31 @@ public partial class PlotterView : UserControl
     }
 
     /// <summary>Hands <paramref name="target"/> the transform of
-    /// <paramref name="source"/> when the source was fitted at least once. The
-    /// adoption is skipped while the source is still un-fitted (NaN), so the
-    /// very first build fits itself to the real panel instead; once a fitted
-    /// canvas exists the area passed in is never consulted
-    /// (<see cref="AdoptTransformFrom(PlotCanvas, Rect)"/>'s size only feeds
-    /// the NaN branch), which is why the same call is safe with this control's
-    /// possibly-degenerate pre-layout bounds.</summary>
+    /// <paramref name="source"/> when the source is fitted AND the user has
+    /// zoomed away from that fit. The adoption is skipped while the source is
+    /// still un-fitted (NaN), so the very first build fits itself to the real
+    /// panel instead; once a fitted canvas exists the area passed in is never
+    /// consulted (<see cref="AdoptTransformFrom(PlotCanvas, Rect)"/>'s size only
+    /// feeds the NaN branch), which is why the same call is safe with this
+    /// control's possibly-degenerate pre-layout bounds.
+    /// <para>Skipping the AT-FIT case is what keeps the adoption from being
+    /// wrong rather than merely redundant. A canvas sitting on its own fit is
+    /// not showing a level the user chose, and its fit is a fact about THAT
+    /// canvas's composition — the two canvases measure different boxes, so
+    /// handing one's fit to the other lands the new view at a zoom that does not
+    /// fit it. The wing program makes that visible: the flat composition was
+    /// 566 mm wide and fitted 1.58 px/mm, so the iso fit agreed with it and the
+    /// inheritance was invisible; stacked, the same composition is 279 mm wide
+    /// and fits 3.21, and an iso view drawn at 3.21 renders a 1817 px loft in an
+    /// 896 px canvas. A zoom the user DID set still crosses unchanged, which is
+    /// the property <c>Toggling_iso_preserves_the_zoom</c> pins.</para></summary>
     private void AdoptTransformFrom(PlotCanvas? source, PlotCanvas? target)
     {
         if (source is null || target is null || double.IsNaN(source.SlotTransformForTest(0).Zoom))
+            return;
+        var fitted = source.FittedZoom;
+        var zoom = source.SlotTransformForTest(0).Zoom;
+        if (!double.IsNaN(fitted) && fitted > 0 && Math.Abs(zoom - fitted) <= fitted * 1e-9)
             return;
         target.AdoptTransformFrom(source, new Rect(Bounds.Size));
     }
@@ -1934,12 +1956,19 @@ public partial class PlotterView : UserControl
 
     /// <summary>Flat canvas: single-plane machines fill the whole surface
     /// with their raw coordinates; foam machines draw both carriage planes as
-    /// TRUE-SCALE diagonal tiles of the same canvas — plane 1 top-left, plane
-    /// 2 bottom-right, one shared mm scale (no quadrant stretching), both tiles
-    /// measuring the ONE job envelope so they are the same rectangle (its
-    /// origin is already unioned in, so each cross stays in-frame). ONE
-    /// fit/pan/zoom drives the whole composition, so panning or zooming never
-    /// separates the two panes.</summary>
+    /// TRUE-SCALE STACKED tiles of the same canvas — plane 1 in the top half,
+    /// plane 2 in the bottom half, one above the other and sharing one column,
+    /// with one shared mm scale (no stretching) and both tiles measuring the ONE
+    /// job envelope so they are the same rectangle (its origin is already
+    /// unioned in, so each cross stays in-frame). ONE fit/pan/zoom drives the
+    /// whole composition, so panning or zooming never separates the two panes.
+    /// <para>The pair used to be pushed to opposite SIDES as well as opposite
+    /// halves, which is what read as a diagonal and as a near-copy of the iso
+    /// view. The vertical relationship was already stacked; only the horizontal
+    /// offset made it look like a corner-to-corner pair.</para>
+    /// <para>A foam machine with only ONE drawable carriage is not a split
+    /// screen: that tile takes the whole canvas, centered, which is the
+    /// single-plane layout this class starts from.</para></summary>
     private sealed class PlaneCanvas : PlotCanvas
     {
         // ONE transform for the whole composed canvas.
@@ -1958,23 +1987,30 @@ public partial class PlotterView : UserControl
 
         protected override int SlotCount => Foam ? 2 : 1;
 
-        /// <summary>Diagonal quadrant layout: slot 0 top-left, slot 1
-        /// bottom-right, slot 2 top-right, slot 3 bottom-left, cycling — both
-        /// foam planes stay visible while the shared transform pans/zooms.</summary>
+        /// <summary>Split-screen layout: slot 0 the TOP half, slot 1 the BOTTOM
+        /// one, split by a horizontal line. The composition is centered and the
+        /// 8 mm gap straddles the middle, so each tile lies wholly inside its own
+        /// half and this clip never shaves one. It is also what
+        /// <c>SlotUnder</c> hit-tests, so a drag or wheel in the top half
+        /// anchors on plane 0 and in the bottom half on plane 1.
+        /// <para>ONE drawable plane is a different shape, not a half: that slot
+        /// takes the WHOLE canvas, which is the mill view's own layout. The other
+        /// gets an empty rect so <c>SlotUnder</c> cannot land on it.</para>
+        /// <para>This used to be a four-slot cycle (top-left, bottom-right,
+        /// top-right, bottom-left), but <c>SlotCount</c> is 2, so the third and
+        /// fourth entries were unreachable — the quadrant pair was all that ever
+        /// resolved, and the horizontal midline guillotined both tiles on a
+        /// height-bound fit.</para></summary>
         protected override Rect SlotViewport(int slot, Rect area)
         {
             if (!Foam)
                 return area;
-            var halfW = area.Width / 2;
+            if (TilesInLayout < 2)
+                return PlaneDrawable(slot) ? area : new Rect(0, 0, 0, 0);
             var halfH = area.Height / 2;
-            var (col, row) = (slot % 4) switch
-            {
-                0 => (0, 0), // top-left
-                1 => (1, 1), // bottom-right
-                2 => (1, 0), // top-right
-                _ => (0, 1), // bottom-left
-            };
-            return new Rect(area.X + col * halfW, area.Y + row * halfH, halfW, halfH);
+            return slot == 0
+                ? new Rect(area.X, area.Y, area.Width, halfH)
+                : new Rect(area.X, area.Y + halfH, area.Width, halfH);
         }
 
         protected override double SlotZoom(int slot) => _zoom;
@@ -1997,6 +2033,17 @@ public partial class PlotterView : UserControl
             var (sx, sy) = PaneFeeds(slot);
             return sx >= 0 && sy >= 0;
         }
+
+        /// <summary>How many tiles the flat composition holds: one per DRAWABLE
+        /// plane, not one per configured one. A foam program whose plane 1 feeds
+        /// X and Z has a carriage that moves but nothing to draw, and it must
+        /// not be left reserving half a screen — so that case composes a SINGLE
+        /// centered tile, which is the mill view's own layout.
+        /// <para><see cref="SlotViewport"/> reads the same number, and the two
+        /// must agree: a centered single tile under a half-height clip would be
+        /// cut in half, which is a worse defect than the empty half it replaces.</para></summary>
+        private int TilesInLayout =>
+            (PlaneDrawable(0) ? 1 : 0) + (PlaneDrawable(1) ? 1 : 0);
 
         /// <summary>The plane slots feeding world X and world Y. This is the ONLY
         /// place the flat view turns a plane mapping into slots — bounds, the baked
@@ -2030,15 +2077,23 @@ public partial class PlotterView : UserControl
             if (Foam)
             {
                 // Both slots get the SAME tile: the job envelope's rectangle,
-                // placed diagonally. Screen Y flips world Y, so plane 0
-                // (top-left) rides the HIGH world y and plane 1 (bottom-right)
-                // the LOW one — the diagonal matches the normalized layout the
-                // user is used to.
+                // STACKED — plane 0 in the top half, plane 1 in the bottom one.
+                // Screen Y flips world Y, so the top is the HIGH world y, which
+                // is the half plane 0 already occupied when the pair was offset
+                // to opposite sides: that vertical relationship was right, and
+                // only the X offset made it read as a diagonal. So the tiles
+                // stay the same rectangle, the offsets drop to Ox = 0, and the
+                // composition goes from 2x-wide to 2x-tall.
                 var t = PlaneTile();
-                _maps[0] = new PlaneMap(t.MinX, t.SpanX, t.MinY, t.SpanY, 0, 0, 1, 1, 0, t.SpanY + FoamTileGap);
-                _maps[1] = new PlaneMap(t.MinX, t.SpanX, t.MinY, t.SpanY, 0, 0, 1, 1, t.SpanX + FoamTileGap, 0);
-                _compoW = 2 * t.SpanX + FoamTileGap;
-                _compoH = 2 * t.SpanY + FoamTileGap;
+                // The 1 floor is the degenerate no-plane case: nothing draws, but
+                // the composition is still read for the fit, and n = 0 would
+                // make compoH negative and the fitted zoom negative with it.
+                var n = Math.Max(TilesInLayout, 1);
+                _maps[0] = new PlaneMap(t.MinX, t.SpanX, t.MinY, t.SpanY, 0, 0, 1, 1, 0,
+                    (n - 1) * (t.SpanY + FoamTileGap));
+                _maps[1] = new PlaneMap(t.MinX, t.SpanX, t.MinY, t.SpanY, 0, 0, 1, 1, 0, 0);
+                _compoW = t.SpanX;
+                _compoH = n * t.SpanY + (n - 1) * FoamTileGap;
             }
             else
             {

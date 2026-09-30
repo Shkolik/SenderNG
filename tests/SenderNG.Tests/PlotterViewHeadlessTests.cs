@@ -2304,6 +2304,213 @@ public class PlotterViewHeadlessTests
             $"the lattice must draw the floor's right edge, found {right} light pixels of {spanY} spanned");
     }
 
+    /// <summary>The foam 2D view STACKS its two carriage tiles: plane 0 in the
+    /// top half, plane 1 in the bottom, one above the other.
+    /// <para>The pair used to sit on a DIAGONAL — and the diagnostic for that is
+    /// horizontal, not vertical. It already rendered one tile above the other
+    /// (plane 0 rode the high world y, plane 1 the low one); what made it read
+    /// as a diagonal was the pair being pushed to OPPOSITE SIDES of the
+    /// composition, so the two frames were offset left against right. Testing
+    /// only "top tile's bottom row is above the bottom tile's top row" would have
+    /// passed against the old layout, which is why the left and right edges are
+    /// asserted equal here: a stacked pair shares one column.</para>
+    /// <para>Read with <c>TealFrameRectangles</c> and ordered by row, so this is
+    /// measured rather than eyeballed.</para></summary>
+    [AvaloniaFact]
+    public async Task The_flat_foam_view_stacks_the_two_tiles_one_above_the_other()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        source.Load("G21\r\nG1 X100 Y20 Z20 A100 F600");
+        for (var i = 0; i < 6; i++)
+            await Pump();
+        Assert.True(vm.PlaneCount > 1);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        var blobs = TealFrameRectangles(frame);
+        Assert.True(blobs.Count == 2,
+            $"the two tiles' envelope frames must both be present, found {blobs.Count}");
+        var (top, bottom) = blobs[0].T <= blobs[1].T ? (blobs[0], blobs[1]) : (blobs[1], blobs[0]);
+        Assert.True(top.B < bottom.T,
+            $"the tiles must be stacked, not diagonal: the top tile ends at row {top.B} and the bottom one starts at {bottom.T}");
+        // The discriminator: a stacked pair is ONE column of tiles, so both
+        // frames carry the same left and right edges. On the old layout these
+        // differ by the 8 mm gap scaled to ~20 px, the whole diagonal.
+        Assert.True(Math.Abs(top.L - bottom.L) <= 2,
+            $"the tiles must share one column, not sit on a diagonal: left edges {top.L} and {bottom.L}");
+        Assert.True(Math.Abs(top.R - bottom.R) <= 2,
+            $"the tiles must share one column, not sit on a diagonal: right edges {top.R} and {bottom.R}");
+        Assert.True(top.T > 1 && bottom.B < frame.Height - 1,
+            "the tiles must sit inside the canvas, not be clipped away");
+    }
+
+    /// <summary>The halves are separated by white space, so the two envelope
+    /// rectangles never touch. The gap is the 8 mm tile gap at the fitted zoom,
+    /// not an arbitrary pixel count — and the band between the tiles must carry
+    /// no teal at all, which is the user's actual requirement ("when the
+    /// envelope is turned on they don't touch each other").</summary>
+    [AvaloniaFact]
+    public async Task The_flat_foam_view_leaves_white_space_between_the_tiles()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        source.Load("G21\r\nG1 X100 Y20 Z20 A100 F600");
+        for (var i = 0; i < 6; i++)
+            await Pump();
+        Assert.True(vm.PlaneCount > 1);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        var blobs = TealFrameRectangles(frame);
+        Assert.True(blobs.Count == 2, $"expected two tile frames, found {blobs.Count}");
+        var (top, bottom) = blobs[0].T <= blobs[1].T ? (blobs[0], blobs[1]) : (blobs[1], blobs[0]);
+
+        // No teal anywhere between the two frames. The extents come from the
+        // UNDILATED pixels, so this band is the true gap, not a dilated one.
+        var tealInGap = 0;
+        for (var y = top.B + 1; y < bottom.T; y++)
+            for (var x = 1; x < frame.Width - 1; x++)
+            {
+                var p = PlotterPixels.At(frame, x, y);
+                if (IsEnvelopeTeal(p.R, p.G, p.B)) tealInGap++;
+            }
+        Assert.True(tealInGap == 0,
+            $"the envelopes must not touch: {tealInGap} teal pixels in the {bottom.T - top.B - 1}px band between them");
+
+        // The gap IS the 8 mm tile gap at the fitted zoom, and both numbers are
+        // measured rather than assumed. The envelope here is 100x100, so the
+        // composition is 100 x 208 and the fit takes the SMALLER of
+        // (920-24)/100 = 8.96 and (536-24)/208 = 2.46 — the 24 being
+        // FoamFitMargin — which is the same 2.46 px/mm the diagonal composition
+        // measured, because for a SQUARE job the height term still binds. The
+        // gap therefore lands at 8 x 2.46 = 19.7 px, the same ~20 px the
+        // diagonal gap measured, so TealFrameRectangles' 6 px dilation still
+        // cannot bridge it (6 + 6 = 12 < 19.7) and the two frames stay two
+        // blobs. A WIDE job raises the zoom, and the gap with it — the formula,
+        // not the pixel count, is the claim here.
+        var gap = bottom.T - top.B - 1;
+        var want = 8 * view.FittedZoom;
+        Assert.True(Math.Abs(gap - want) <= 3,
+            $"the gap must be the 8mm tile gap at the fitted zoom: measured {gap}px, expected about {want:F1}px");
+    }
+
+    /// <summary>Each tile lies wholly inside its own half, so the per-slot clip
+    /// is never shaving one, and the two halves are equal. This is what makes
+    /// <c>SlotUnder</c>'s hit-testing correct: a drag or wheel in the top half
+    /// anchors on plane 0, in the bottom half on plane 1.
+    /// <para>The horizontal half is the one that can catch a stale clip. The
+    /// tiles are centered and the fit is height-bound, so each is 246 px wide in
+    /// a 920 px canvas and crosses the midline; a per-QUADRANT clip — the layout
+    /// being replaced — would guillotine both at the midline and read a right
+    /// edge at 459 instead of 583. Asserting they cross it is what proves the
+    /// clip now spans the full width.</para></summary>
+    [AvaloniaFact]
+    public async Task The_flat_foam_view_gives_each_tile_its_own_half()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        source.Load("G21\r\nG1 X100 Y20 Z20 A100 F600");
+        for (var i = 0; i < 6; i++)
+            await Pump();
+        Assert.True(vm.PlaneCount > 1);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        var blobs = TealFrameRectangles(frame);
+        Assert.True(blobs.Count == 2, $"expected two tile frames, found {blobs.Count}");
+        var (top, bottom) = blobs[0].T <= blobs[1].T ? (blobs[0], blobs[1]) : (blobs[1], blobs[0]);
+
+        // The canvas starts below the 25 px header, so the split is measured
+        // from the header's bottom edge, not from row 0.
+        var split = 25 + (frame.Height - 25) / 2;
+        Assert.True(top.B < split,
+            $"the top tile must fit in the top half: it ends at row {top.B}, the split is {split}");
+        Assert.True(bottom.T >= split,
+            $"the bottom tile must fit in the bottom half: it starts at row {bottom.T}, the split is {split}");
+        // Each tile must CROSS the midline, or the clip that should span the full
+        // width is still cutting it in half.
+        Assert.True(top.R > frame.Width / 2 && top.L < frame.Width / 2,
+            $"the top half must be full width: the tile spans columns {top.L} to {top.R}, the midline is {frame.Width / 2}");
+        Assert.True(bottom.R > frame.Width / 2 && bottom.L < frame.Width / 2,
+            $"the bottom half must be full width: the tile spans columns {bottom.L} to {bottom.R}, the midline is {frame.Width / 2}");
+    }
+
+    /// <summary>One drawable plane is a different SHAPE, not a half: it takes
+    /// the whole canvas, centered — the mill view's own layout. A foam program
+    /// whose plane 1 feeds X and Z has a carriage that moves but nothing to
+    /// draw, and it must not be left reserving half a screen.
+    /// <para>The mapping, not an empty plane, is what removes it — plane 1 does
+    /// carry motion, asserted below — so this cannot pass vacuously. And it is
+    /// the reason <c>SlotViewport</c> has to move with the composition: a
+    /// centered single tile under a half-height clip is cut in half.</para>
+    /// <para>Centered is the discriminator. In the diagonal layout the lone tile
+    /// sits in the top-LEFT quadrant, so its middle is a third of the way down
+    /// the canvas, not halfway.</para></summary>
+    [AvaloniaFact]
+    public async Task A_single_drawable_plane_is_centered_in_the_flat_view()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Foam);
+        source.Load("G21\r\nG1 X100 Y100 Z20 A100 F600");
+        vm.SetPlaneGeometries([
+            PlotterPlaneMapper.Identity(2),
+            new PlotterPlaneGeometry { WorldAxes = [0, 2] },
+        ]);
+        // The second carriage HAS motion — it is the mapping that removes it.
+        Assert.True(vm.Planes[1].Count > 0);
+        Assert.True(vm.PlaneCount > 1);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        Assert.Equal([0], view.DrawableSlotsForTest.ToArray());
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        var blobs = TealFrameRectangles(frame);
+        Assert.True(blobs.Count == 1, $"expected one tile frame, found {blobs.Count}");
+        var f = blobs[0];
+        // The canvas starts below the 25 px header, so the middle of the CANVAS
+        // is not the middle of the window.
+        var canvasMid = (25 + frame.Height) / 2;
+        var tileMid = (f.T + f.B) / 2;
+        Assert.True(Math.Abs(tileMid - canvasMid) <= 6,
+            $"the single tile must be centered in the canvas: its middle is row {tileMid}, the canvas's is {canvasMid}");
+        // And it must own the whole canvas, not a half: a tile clipped to the
+        // top half reports a bottom row above the split.
+        Assert.True(f.B > canvasMid - 8,
+            $"the single tile must not be clipped to a half: it ends at row {f.B}, the split is {canvasMid}");
+    }
+
     /// <summary>The iso box: four teal connectors joining MATCHING corners of
     /// the two flat tile envelopes — TL→TL, TR→TR, BL→BL, BR→BR — the round-4
     /// task-4 request ("connect each corner of one rectangle with corresponding
