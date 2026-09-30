@@ -337,9 +337,18 @@ public class PlotterViewHeadlessTests
         // the 15% mesh blends to, so with the grid on this probe would score
         // floor pixels and could not fail if the mesh stopped drawing. The
         // grid-off frame leaves the mesh as the only thing in the band.
-        // Measured: 14096 mesh pixels here, 108 for the same probe on a mill
-        // iso frame (same chrome, no mesh because Loft is false). The 2000
-        // floor is ~18x the control and ~7x under the signal.
+        // Measured with Chrome.Grid off, as the assertion below does: 3678 mesh
+        // pixels here, and 120 for the same probe on a mill iso frame
+        // (SpiralProgram(600), same window and chrome, no mesh because Loft is
+        // false). Re-measured after the job envelope was unioned: the two tiles
+        // are now the one 279x27 mm envelope, so the composition went from
+        // 105+8+279 = 392 mm wide to 2*279+8 = 566 and the fit zoom fell from
+        // 896/392 = 2.29 to 896/566 = 1.58 px/mm — this render is not the one
+        // the old 14096 was taken on. The 2000 floor is ~17x the control, but
+        // the signal is now only ~1.8x OVER the floor, so the union has left
+        // much less headroom above it than there was: 2000 is kept because the
+        // measurement and its control are recorded here, not because the
+        // signal is far above it.
         view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
         for (var i = 0; i < 8; i++)
             await Pump();
@@ -2018,12 +2027,18 @@ public class PlotterViewHeadlessTests
             await Pump();
 
         var on = PlotterPixels.Snapshot(CaptureFrame(window));
-        // Measured with the 15% coupling mesh in place: 6952 floor pixels here,
-        // 381 with Chrome.Grid off. The 300 floor is the original threshold and
-        // stays — it is ~23x under the signal and ~1.3x over the grid-off
-        // residue, and this test is about the floor's GEOMETRY, not its weight.
-        // The floor's own pen is unchanged by the mesh's alpha; see
-        // PlotterPens.WireFloorBrush for why it stays opaque.
+        // Measured with the 15% coupling mesh in place: 4699 floor pixels here,
+        // 0 with Chrome.Grid off. Re-measured after the job envelope was
+        // unioned — the two tiles are now the same 100x100 mm rectangle instead
+        // of 100x20 and 20x100, so the composition, the fit zoom and every count
+        // on this frame moved, and the old 6952/381 pair no longer describes it.
+        // The grid-off control is now an exact ZERO, not a residue, so the
+        // margin is one-sided: the 300 floor is ~15.7x under the signal and the
+        // grid toggle is 4699 against 0, which is what makes `floor` a floor
+        // measurement rather than a chrome count. Threshold unchanged, and it
+        // is still the original 300 — this test is about the floor's GEOMETRY,
+        // not its weight. The floor's own pen is unchanged by the mesh's alpha;
+        // see PlotterPens.WireFloorBrush for why it stays opaque.
         var floor = CountSurface(on, IsWireFloorBlend);
         Assert.True(floor > 300,
             $"the loft wire floor must paint, found {floor} wire pixels");
@@ -2095,19 +2110,21 @@ public class PlotterViewHeadlessTests
         // sit on. The two tiles fill OPPOSITE quadrants of the composition, so
         // the floor is the skewed band between them — bounded by the two tiles'
         // LOWER edges and by the two connectors joining their lower corners —
-        // and the widest the band can ever be is the WIDER of the two tiles. A
-        // line drawn to the full composition width is therefore always too
-        // long: the composition is tile0 + gap + tile1, while the band never
-        // exceeds max(tile0, tile1), so a correct line is a fraction of the
-        // full width and a full-width line is measurably longer. The teal
-        // bbox above measures that full width in pixels, so this comparison
-        // needs no re-derivation of the layout to be meaningful.
+        // and the widest the band can ever be is one tile. A line drawn to the
+        // full composition width is therefore always too long: the composition
+        // is tile + gap + tile, while the band never exceeds one tile, so a
+        // correct line is a fraction of the full width and a full-width line is
+        // measurably longer. The teal bbox above measures that full width in
+        // pixels, so this comparison needs no re-derivation of the layout to be
+        // meaningful.
         //
-        // The fraction is well clear of both answers: with two similar tiles
-        // the band is about half the composition, and it only climbs toward
-        // the full width in the degenerate case where one tile is tiny, so 0.9
-        // separates "clipped to the band" from "spans the composition" with
-        // room on both sides.
+        // The fraction is well clear of both answers, and the union made it
+        // FIXED rather than a range: both tiles are now the one job envelope
+        // rectangle, so the band is always about half the composition and can no
+        // longer climb toward the full width in a lopsided program. Measured
+        // here: longest span 242 px against a 530 px composition, 0.46. 0.9
+        // therefore separates "clipped to the band" from "spans the composition"
+        // with room on both sides, and the threshold is unchanged.
         var compositionW = right - left;
         Assert.True(widestSpan < compositionW * 0.9,
             $"a horizontal wire must stop at the floor's edge, not overhang it: longest span {widestSpan}px vs composition width {compositionW}px");
@@ -2225,7 +2242,13 @@ public class PlotterViewHeadlessTests
     /// <para>This is the test that would have caught the per-plane reading. The
     /// blob grouping and its 6 px dilation are inherited from the iso-box test
     /// and are re-used unchanged, so the two tests measure tiles the same
-    /// way.</summary>
+    /// way.
+    /// <para>Congruence alone is not the whole of it, and the last assertion is
+    /// why: a tile sized from HALF the envelope is still congruent with its
+    /// partner and still square here, so the two live-run probes (both
+    /// one-sided) could not see it. The measured magnitude, 246 px for the
+    /// 100 mm envelope at this window's fit, is what the spec asks for — the
+    /// size matches the union SCALED BY THE FIT, not merely the other tile.</para></summary>
     [AvaloniaFact]
     public async Task The_foam_tiles_are_both_the_job_envelope_rectangle()
     {
@@ -2277,6 +2300,21 @@ public class PlotterViewHeadlessTests
             $"the envelope is 100x100, so each tile must be square, found {w0}x{h0} px");
         Assert.True(Math.Abs(w1 - h1) <= Slack,
             $"the envelope is 100x100, so each tile must be square, found {w1}x{h1} px");
+        // The MAGNITUDE, which the three checks above cannot see: congruence and
+        // squareness are both satisfied by a tile sized from HALF the envelope,
+        // and the spec asks for the size to match the union scaled by the fit,
+        // not merely to be consistent. Measured 246 px here for the 100 mm
+        // envelope, i.e. this window's fit at 2.46 px/mm: the composition is
+        // 2*100+8 = 208 mm square, the iso canvas is 920x536 inside the
+        // 920x560 window declared above, and the fit takes the SMALLER of
+        // (920-24)/208 = 4.31 and (536-24)/208 = 2.46 — the 24 being
+        // FoamFitMargin, which is why the number is 2.46 and not the
+        // margin-less 536/208 = 2.58. A tile sized from half the envelope would
+        // land near 123 px and fail this. The range is wide on purpose
+        // (200..290, about +-18% of 246) because it only has to exclude a halved
+        // tile, not re-pin the fit: the exact value is this comment's job, and
+        // the square and congruence assertions above are what hold it still.
+        Assert.InRange(w0, 200, 290);
     }
 
     /// <summary>The foam grid is a floor of the work envelope and lives in the
@@ -3364,13 +3402,18 @@ public class PlotterViewHeadlessTests
     /// which removes the wire floor. That matters because the floor's
     /// ANTIALIASED EDGE pixels are the same near-white blue-grey as the mesh —
     /// a #c8c8da stroke fading into white passes straight through (233,233,238)
-    /// — so with the grid on, this probe also scores the floor (measured: 471
-    /// extra pixels on the wing program). With the grid off, the only thing
-    /// left in this band is the mesh.
+    /// — so with the grid on, this probe also scores the floor (measured: 1730
+    /// extra pixels on the wing program, 5408 with the grid on against 3678
+    /// with it off). With the grid off, the only thing left in this band is the
+    /// mesh.
     ///
-    /// <para>Specificity is measured, not assumed: the same probe on a MILL iso
-    /// frame — same chrome, same window, no coupling mesh because
-    /// <c>Loft</c> is false — scores 108. The mesh scores 14096. Rejected by the
+    /// <para>Specificity is measured, not assumed: the same probe, in the same
+    /// grid-off state and on a MILL iso frame — same chrome, same window, no
+    /// coupling mesh because <c>Loft</c> is false — scores 120, so the wing's
+    /// 3678 sits ~30x above that control. (Both counts are re-measured: they
+    /// were 14096 and 108 before the two foam tiles were sized from the one job
+    /// envelope, which shrank the fit zoom and with it the mesh; see
+    /// <see cref="Foam_iso_renders_the_four_axis_loft"/>.) Rejected by the
     /// clauses above: the white background (r = 255, above the ceiling), the
     /// grey toolpath and #888888 origin cross (neutral, so <c>b &gt; r</c>
     /// fails), the teal envelope (g far above r), the axis colours, the

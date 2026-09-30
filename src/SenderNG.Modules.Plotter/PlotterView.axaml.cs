@@ -1168,8 +1168,16 @@ public partial class PlotterView : UserControl
         /// <see cref="SlotWorldBounds"/>.</summary>
         protected abstract void FitSlot(int slot, Rect viewport);
 
-        /// <summary>World bounding box of the slot's content (the cache's
-        /// coverage and the fit's span source).</summary>
+        /// <summary>World bounding box the slot's render cache covers and the
+        /// fit takes its span from.
+        /// <para>For a mill that is still the slot's own content. For foam it is
+        /// the JOB ENVELOPE, not the plane's own travel — the smaller carriage's
+        /// cache covers the union rectangle too, so a lopsided foam program
+        /// renders more of the smaller plane than it used to. That is the cost of
+        /// shared envelopes and is correct coverage, not a leak; the growth is
+        /// bounded by the <see cref="CacheMaxPx"/> clamp in <see cref="BakeSlot"/>,
+        /// which is what stops a deeply zoomed envelope from allocating
+        /// gigabytes.</para></summary>
         protected abstract (double MinX, double MinY, double MaxX, double MaxY) SlotWorldBounds(int slot);
 
         /// <summary>Segments of the slot in WORLD coordinates.</summary>
@@ -2130,11 +2138,20 @@ public partial class PlotterView : UserControl
             // draw BEFORE the path — cannot clip and stays clip-free (see
             // PlotterFlatChrome.DrawGrid). The target surface trims the
             // overhang: the control's render clip on screen, the bitmap's own
-            // bounds in the export. A foam slot's world area does reach past
-            // its quadrant into the other tile's half of the canvas — the old
-            // whole-canvas clip was there to let it, and the surface lets it
-            // the same way; tightening the lattice to the quadrant was the bug
-            // that sliced it with a hard edge at the canvas midline.
+            // bounds in the export.
+            //
+            // A foam tile does NOT overhang its quadrant, and did not need to be
+            // told so. The composition is 2*span + FoamTileGap, so the 8 mm gap
+            // straddles its middle and the fit lands that middle on the canvas
+            // midline; a tile's chrome therefore lands wholly inside its own
+            // quadrant, and a per-quadrant clip would be observationally
+            // equivalent TODAY. It is not forbidden either: what still needs the
+            // canvas-wide rule is PAN and ZOOM (see the bake comment above — a
+            // plane's raster moves across the screen-center line), and the
+            // export above. Do not read the current equivalence as permission to
+            // tighten the clip, and do not tighten it either; the old comment
+            // here justified the canvas-wide clip by a foam overhang that the
+            // unioned tiles removed.
             if (Chrome.Grid && !Foam)
                 PlotterFlatChrome.DrawGrid(ctx, m, bounds, _zoom, _pan);
         }
@@ -2145,9 +2162,17 @@ public partial class PlotterView : UserControl
                 return;
             var m = _maps[Foam ? slot : 0];
             var bounds = PlaneBounds();
-            // The axes take the same whole-canvas clip as the box below, per the
-            // foam-quadrant reasoning noted above — a non-foam slot's viewport is
-            // the whole control, so for a mill nothing here changes.
+            // The axes take the same whole-canvas clip as the box below, and for
+            // the same two reasons the lattice above gives: a clip that precedes
+            // the toolpath's PushTransform eats every later draw on the PNG
+            // export, and the slot viewports are the planes' HOME positions
+            // rather than their bounds — the shared transform pans and zooms a
+            // plane's raster across the screen-center line (M9), and a
+            // per-quadrant clip would slice the arrows there. Foam no longer
+            // overhangs at rest, so a per-quadrant clip is equivalent while the
+            // view sits still; it is the pan that rules it out, not the tile
+            // layout. A non-foam slot's viewport is the whole control, so for a
+            // mill nothing here changes.
             var clip = new Rect(Bounds.Size);
             if (Chrome.Origin)
                 PlotterFlatChrome.DrawAxes(ctx, m, bounds, _zoom, _pan, clip);
