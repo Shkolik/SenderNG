@@ -136,6 +136,58 @@ public class PlotterChromeTests
     }
 
     [Fact]
+    public void AxisTicksWithEdges_closes_the_band_at_both_ends()
+    {
+        // 108 on a 10 step: AxisTicks alone stops at 100, so the far edge is not
+        // a tick and a floor built from it is open there.
+        var ticks = PlotterChrome.AxisTicksWithEdges(0, 108, 8);
+        Assert.Equal(0, ticks[0]);
+        Assert.Equal(108, ticks[^1]);
+        Assert.All(ticks, t => Assert.InRange(t, 0, 108));
+        // Ascending, no duplicates: the floor's families are drawn in this order
+        // and the major rhythm is read off the index.
+        Assert.Equal(ticks.OrderBy(t => t).ToArray(), ticks);
+        Assert.Equal(ticks.Distinct().Count(), ticks.Count);
+    }
+
+    [Fact]
+    public void AxisTicksWithEdges_leaves_a_band_that_already_lands_on_its_ends_alone()
+    {
+        var ticks = PlotterChrome.AxisTicksWithEdges(0, 100, 10);
+        Assert.Equal(11, ticks.Count);
+        Assert.Equal(0, ticks[0]);
+        Assert.Equal(100, ticks[^1]);
+    }
+
+    [Fact]
+    public void AxisTicksWithEdges_closes_a_band_whose_min_is_not_on_the_step()
+    {
+        var ticks = PlotterChrome.AxisTicksWithEdges(-37, 12, 10);
+        Assert.Equal(-37, ticks[0]);
+        Assert.Equal(12, ticks[^1]);
+    }
+
+    [Fact]
+    public void AxisTicksWithEdges_on_a_degenerate_band_is_the_single_point()
+    {
+        Assert.Equal([5.0], PlotterChrome.AxisTicksWithEdges(5, 5, 10));
+        Assert.Equal([5.0], PlotterChrome.AxisTicksWithEdges(5, 1, 10));
+        Assert.Equal([0.0], PlotterChrome.AxisTicksWithEdges(0, 0, 1));
+    }
+
+    [Fact]
+    public void FloorLines_closes_on_the_footprints_four_edges()
+    {
+        var lines = PlotterChrome.FloorLines(new Point3(0, 0, 0), new Point3(108, 108, 0), 8);
+        var verticals = lines.Where(l => l.A.X == l.B.X).Select(l => l.A.X).ToList();
+        var horizontals = lines.Where(l => l.A.Y == l.B.Y).Select(l => l.A.Y).ToList();
+        Assert.Equal(0, verticals[0]);
+        Assert.Equal(108, verticals[^1]);
+        Assert.Equal(0, horizontals[0]);
+        Assert.Equal(108, horizontals[^1]);
+    }
+
+    [Fact]
     public void A_zero_extent_floor_draws_nothing()
     {
         Assert.Empty(PlotterChrome.FloorLines(new Point3(0, 0, 0), new Point3(0, 0, 0), 5));

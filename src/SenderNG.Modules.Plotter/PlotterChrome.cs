@@ -106,6 +106,47 @@ public static class PlotterChrome
         return (start, step, Math.Max(count, 0));
     }
 
+    /// <summary>Tick positions covering <c>[min,max]</c> — the same nice-step
+    /// grid <see cref="AxisTicks"/> returns, PLUS the band's own two ends.
+    /// <para>AxisTicks starts on the first multiple of the step at or above min
+    /// and stops at the last one at or below max, so both ends are ticks only
+    /// when the step happens to DIVIDE the band: on a 108 mm span with a 10 mm
+    /// step the last tick is 100 and the far edge simply is not one. A floor
+    /// built from that grid is OPEN at its boundary — the mill pane lost all
+    /// four edges of the job envelope this way, and the foam loft's wire floor
+    /// two of its four. Appending the two ends, and collapsing them when the
+    /// step already landed there, is what closes the floor; see
+    /// <see cref="FloorLines"/> and the foam loft's
+    /// <c>PlotterView.IsoCanvas.DrawWireFloor</c>.
+    /// <para>Widening <see cref="AxisTicks"/> itself instead was ruled out: it
+    /// is the general nice-tick helper, its own unit tests pin the
+    /// start/step/count contract, and the floor families' major promotion is
+    /// read off the run of positions this returns.</para></summary>
+    public static IReadOnlyList<double> AxisTicksWithEdges(double min, double max, int target)
+    {
+        var (start, step, count) = AxisTicks(min, max, target);
+        var values = new List<double>(count + 2);
+        for (var i = 0; i < count; i++)
+        {
+            var v = start + step * i;
+            if (v < min || v > max)
+                continue;
+            values.Add(v);
+        }
+        if (values.Count == 0)
+        {
+            values.Add(min);
+            if (max > min)
+                values.Add(max);
+            return values;
+        }
+        if (values[0] > min + step * 1e-9)
+            values.Insert(0, min);
+        if (values[^1] < max - step * 1e-9)
+            values.Add(max);
+        return values;
+    }
+
     /// <summary>The twelve edges of the axis-aligned box between two corners.</summary>
     public static (Point3 A, Point3 B)[] BoxEdges(Point3 a, Point3 b)
     {
@@ -127,24 +168,26 @@ public static class PlotterChrome
     /// <summary>The XY floor lattice: X-direction lines then Y-direction lines,
     /// with every fifth line of each family flagged major. Per-family promotion
     /// avoids a seam where a combined counter would break the rhythm at the
-    /// join between the two families.</summary>
+    /// join between the two families.
+    /// <para>Each family comes from <see cref="AxisTicksWithEdges"/>, so the
+    /// lattice CLOSES on the footprint: the outermost line of each family is the
+    /// footprint's own edge, which is what makes the floor's four boundary edges
+    /// part of the floor instead of gaps around it.</para></summary>
     public static (Point3 A, Point3 B, bool Major)[] FloorLines(Point3 min, Point3 max, int target)
     {
         if (!(max.X > min.X) || !(max.Y > min.Y))
             return [];
 
         var lines = new List<(Point3 A, Point3 B, bool Major)>();
-        var (xStart, xStep, xCount) = AxisTicks(min.X, max.X, target);
-        for (var i = 0; i < xCount; i++)
+        var xs = AxisTicksWithEdges(min.X, max.X, target);
+        for (var i = 0; i < xs.Count; i++)
         {
-            var x = xStart + xStep * i;
-            lines.Add((new Point3(x, min.Y, min.Z), new Point3(x, max.Y, min.Z), i % 5 == 0));
+            lines.Add((new Point3(xs[i], min.Y, min.Z), new Point3(xs[i], max.Y, min.Z), i % 5 == 0));
         }
-        var (yStart, yStep, yCount) = AxisTicks(min.Y, max.Y, target);
-        for (var i = 0; i < yCount; i++)
+        var ys = AxisTicksWithEdges(min.Y, max.Y, target);
+        for (var i = 0; i < ys.Count; i++)
         {
-            var y = yStart + yStep * i;
-            lines.Add((new Point3(min.X, y, min.Z), new Point3(max.X, y, min.Z), i % 5 == 0));
+            lines.Add((new Point3(min.X, ys[i], min.Z), new Point3(max.X, ys[i], min.Z), i % 5 == 0));
         }
         return lines.ToArray();
     }

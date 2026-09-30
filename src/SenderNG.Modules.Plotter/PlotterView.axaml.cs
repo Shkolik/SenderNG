@@ -2556,7 +2556,7 @@ public partial class PlotterView : UserControl
             // The outer wires ARE the two lower-corner connectors — the same
             // endpoints through the same maps — so closing on the extent makes
             // the floor's edges part of the floor.
-            foreach (var xi in TickValues(minX, maxX, 8))
+            foreach (var xi in PlotterChrome.AxisTicksWithEdges(minX, maxX, 8))
             {
                 var a = WorldToScreen(m0.Wx(xi), m0.Wy(minY), zoom, pan);
                 var b = WorldToScreen(m1.Wx(xi), m1.Wy(minY), zoom, pan);
@@ -2576,8 +2576,8 @@ public partial class PlotterView : UserControl
             // exist between the two lower edges. Those two lower edges are now
             // at the SAME world y, because both tiles measure the one job
             // envelope — the band is the gap between their maps, not a
-            // diagonal. TickValues appends the band's two edges to the nice
-            // grid, so the outer levels ARE the tiles' own lower edges — the
+            // diagonal. AxisTicksWithEdges appends the band's two edges to the
+            // nice grid, so the outer levels ARE the tiles' own lower edges — the
             // floor closes on its boundary instead of stopping short of it.
             //
             // Generating over the box instead (the round-5 bug) drew every
@@ -2596,7 +2596,7 @@ public partial class PlotterView : UserControl
             // height and draw no floor lines at all.
             var loY = Math.Min(m0.Wy(minY), m1.Wy(minY));
             var hiY = Math.Max(m0.Wy(minY), m1.Wy(minY));
-            foreach (var level in TickValues(loY, hiY, 8))
+            foreach (var level in PlotterChrome.AxisTicksWithEdges(loY, hiY, 8))
             {
                 // Both connectors run corner to corner between the same two
                 // lower edges, so they are parallel and one ratio — how far
@@ -2619,38 +2619,13 @@ public partial class PlotterView : UserControl
             // The floor's two families are tick grids, and a grid's boundary is
             // part of it: the outer wires must land on the two lower-corner
             // connectors and the outer levels on the tiles' own lower edges.
-            // AxisTicks starts on a nice step from <paramref name="min"/> and
-            // never runs past <paramref name="max"/>, so on a band whose length
-            // is not a whole multiple of the step the far end is simply not a
-            // tick and the floor would stop short of its own edge. Appending
-            // the two ends (and collapsing them if the step already landed
-            // there) is what closes the floor.
-            IEnumerable<double> TickValues(double min, double max, int target)
-            {
-                List<double> values = [];
-                var (start, step, count) = PlotterChrome.AxisTicks(min, max, target);
-                for (var i = 0; i < count; i++)
-                {
-                    var v = start + step * i;
-                    if (v < min || v > max)
-                        continue;
-                    values.Add(v);
-                }
-                if (values.Count == 0)
-                {
-                    values.Add(min);
-                    if (max > min)
-                        values.Add(max);
-                }
-                else
-                {
-                    if (values[0] > min + step * 1e-9)
-                        values.Insert(0, min);
-                    if (values[^1] < max - step * 1e-9)
-                        values.Add(max);
-                }
-                return values;
-            }
+            // Both families therefore come from PlotterChrome.AxisTicksWithEdges
+            // — the same helper the mill pane's lattice and the iso lattice are
+            // built from, so one rule closes every floor in the app rather than
+            // one rule per painter. AxisTicks on its own starts on a nice step
+            // from min and never runs past max, so on a band whose length is not
+            // a whole multiple of the step the far end is simply not a tick and
+            // the floor stops short of its own edge.
         }
 
         /// <summary>The iso box: the four teal connectors joining matching

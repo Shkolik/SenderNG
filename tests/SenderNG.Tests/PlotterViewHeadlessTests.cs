@@ -1665,11 +1665,13 @@ public class PlotterViewHeadlessTests
         // IsChromeLight also matches the toolpath's own antialiased halo, and
         // that halo's raster drifts with the 500 ms bake rate limiter: the same
         // predicate read 1249 / 1345 / 1540 light pixels with no painter at all
-        // across three runs. A floor under ~1.5k would therefore be a test that
-        // cannot fail. The lattice itself measured 11104 and 13949, so 5000 sits
-        // 3.6x clear of the worst blank-canvas reading and under half of the
-        // smallest painted one — and removing the DrawGrid call drops it to 1540,
-        // so this floor discriminates the painter.
+        // across three runs, and 1686 with the floor closed and its edges drawn.
+        // A floor under ~1.5k would therefore be a test that cannot fail. The
+        // lattice itself measured 11104 and 13949 while it straddled the
+        // footprint, and 11631 now that the floor's four edge lines are part of
+        // it — so 5000 sits ~3x clear of the worst blank-canvas reading and well
+        // under half of the painted one — and removing the DrawGrid call drops
+        // it to that blank reading, so this floor discriminates the painter.
         var grid = CountSurface(frame, IsChromeLight);
         Assert.True(grid > 5000, $"the iso grid must paint, found {grid} light pixels");
 
@@ -2231,6 +2233,75 @@ public class PlotterViewHeadlessTests
             }
         Assert.True(atBr > 0,
             $"the ladder must draw its outer wire on the BR connector, found {atBr} wire pixels near its midpoint");
+    }
+
+    /// <summary>The mill pane's grid FLOOR closes on all four edges of the job
+    /// envelope, the same way the foam loft's wire floor now closes on its own.
+    /// <para>The teal job rectangle pins WHERE those edges are, and the probes
+    /// run with <c>Chrome.Envelope</c> off so the frame cannot fake the light
+    /// pixels: only the lattice may answer. Each edge is scored over its whole
+    /// span and must be a majority, which the toolpath cannot supply on its own
+    /// — it touches the border at a few points, not along it.</para></summary>
+    [AvaloniaFact]
+    public async Task The_mill_grid_floor_draws_all_four_of_its_edges()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load(SpiralProgram(600));
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        view.FindControl<Grid>("OverlayHost")!.IsVisible = false;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var withEnv = PlotterPixels.Snapshot(CaptureFrame(window));
+        var f = TealFrameRectangles(withEnv).Single();
+        var spanX = f.R - f.L;
+        var spanY = f.B - f.T;
+
+        view.PushChromeFlags(ChromeFlags.Default with { Envelope = false });
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        var noEnv = PlotterPixels.Snapshot(CaptureFrame(window));
+
+        int AlongRow(int y)
+        {
+            var n = 0;
+            for (var x = f.L; x <= f.R; x++)
+            {
+                var p = PlotterPixels.At(noEnv, x, y);
+                if (IsChromeLight(p.R, p.G, p.B)) n++;
+            }
+            return n;
+        }
+        int AlongColumn(int x)
+        {
+            var n = 0;
+            for (var y = f.T; y <= f.B; y++)
+            {
+                var p = PlotterPixels.At(noEnv, x, y);
+                if (IsChromeLight(p.R, p.G, p.B)) n++;
+            }
+            return n;
+        }
+
+        var top = AlongRow(f.T);
+        var bottom = AlongRow(f.B);
+        var left = AlongColumn(f.L);
+        var right = AlongColumn(f.R);
+        Assert.True(top * 2 > spanX,
+            $"the lattice must draw the floor's top edge, found {top} light pixels of {spanX} spanned");
+        Assert.True(bottom * 2 > spanX,
+            $"the lattice must draw the floor's bottom edge, found {bottom} light pixels of {spanX} spanned");
+        Assert.True(left * 2 > spanY,
+            $"the lattice must draw the floor's left edge, found {left} light pixels of {spanY} spanned");
+        Assert.True(right * 2 > spanY,
+            $"the lattice must draw the floor's right edge, found {right} light pixels of {spanY} spanned");
     }
 
     /// <summary>The iso box: four teal connectors joining MATCHING corners of
