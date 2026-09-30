@@ -2936,10 +2936,11 @@ public class PlotterViewHeadlessTests
     /// the realistic regression: someone reinstating a flag-gated cross.
     /// <para>Probed by differencing, because a neutral-pixel count alone cannot
     /// tell the cross from the feed path: the G-code starts AT the machine
-    /// origin, so the toolpath runs through the probe box in every capture. With
-    /// <c>Chrome.Origin</c> on and off and everything else fixed, the path (and
-    /// the arrows' own antialiasing) appear in BOTH counts and cancel, leaving
-    /// only what the flag itself added.</para>
+    /// origin, so the toolpath runs through the probe box in every capture, and
+    /// with <c>Chrome.Origin</c> on and off and everything else fixed that path
+    /// appears in BOTH counts and cancels, leaving what the flag itself
+    /// contributed. A plain neutral count cannot separate the cross from the feed
+    /// path, because the path is neutral too.</para>
     /// <para>Measured on this composition, 17x17 box at the origin, <b>20
     /// consecutive runs, every one of them identical</b>: flat 24/32 (delta -8),
     /// iso 14/23 (delta -9). With the cross present the same two sites read 68/32
@@ -2981,10 +2982,10 @@ public class PlotterViewHeadlessTests
 
         // The cross spanned 6 px each way, so a 17x17 box (Half = 8) centred on
         // the origin holds all of it, plus slack for the 2 px stroke width and
-        // for rounding the centre to a pixel — which also puts the centre a
-        // pixel right of and below true, since the probe adds the window-chrome
-        // offsets (+1 in x, +coy in y) explicitly rather than leaving room for
-        // them inside the box.
+        // for rounding the centre to a whole pixel. The +1 and +coy below are
+        // exact compensations for the canvas origin, not slack: they put the box
+        // where it belongs. Only the rounding displaces the centre, by at most
+        // 0.5 px, which is immaterial here (the red side still measured +36).
         const int Half = 8;
         async Task<(int On, int Off)> Probe(Point origin, int coy)
         {
@@ -3010,6 +3011,13 @@ public class PlotterViewHeadlessTests
         var flatCoy = FirstBrightRowLocal(flatFrame);
         Assert.InRange(flatCoy, 20, 32);
         var flat = await Probe(PlotterChrome.ToScreen(0, 0, zoom, pan), flatCoy);
+        // CountRect CLAMPS out-of-frame bounds, so a box displaced off-canvas
+        // silently counts nothing, both counts come out 0, the delta is 0, and
+        // the delta assert below would pass on an empty box. Requiring the
+        // flag-off count to be non-zero turns that into a failure. Measured
+        // flag-off values are 32 (flat), 23 (iso), 33 and 8 (loft slots) — all
+        // far from zero, so this costs no detection power.
+        Assert.True(flat.Off > 0, $"the flat probe box must contain the toolpath, counted {flat.On}/{flat.Off}");
 
         window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
         for (var i = 0; i < 8; i++)
@@ -3025,6 +3033,8 @@ public class PlotterViewHeadlessTests
         var isoCoy = FirstBrightRowLocal(isoFrame0);
         Assert.InRange(isoCoy, 20, 32);
         var iso = await Probe(PlotterChrome.ToScreen(proj.X, proj.Y, izoom, ipan), isoCoy);
+        // Same non-empty requirement as the flat site, for the same reason.
+        Assert.True(iso.Off > 0, $"the iso probe box must contain the toolpath, counted {iso.On}/{iso.Off}");
 
         // The origin flag must never ADD neutral ink here; see the summary for
         // the measured bands. Zero is the sign boundary, not a tuned number.
@@ -3149,9 +3159,11 @@ public class PlotterViewHeadlessTests
     /// <summary>The canvas top: the first row that is fully bright across the
     /// middle columns, because the canvas background is white and the window
     /// chrome above it is not. Returns <b>-1 if no such row is found</b>, which
-    /// is a detection failure and not an offset — every caller must range-check
-    /// it before adding it to a probe y, or a failed detection silently shifts
-    /// the probe box one pixel up and the counts become meaningless. Mirrors
+    /// is a detection failure and not an offset — a caller that used it blind
+    /// would subtract ~26 px from the probe y (the sentinel itself plus a real
+    /// <c>coy</c> of about 25) and land the box high in the window chrome, where
+    /// it would count nothing and read a vacuous zero. Every caller must
+    /// range-check it before use. Mirrors
     /// <c>PlotterLiveRunHeadlessTests.FirstBrightRow</c>.</summary>
     private static int FirstBrightRowLocal(PlotterPixels.Frame frame)
     {
