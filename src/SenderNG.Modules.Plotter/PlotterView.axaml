@@ -51,7 +51,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <DockPanel>
             <Border x:Name="HeaderHost" DockPanel.Dock="Top" Background="#e8e8e8" Height="24">
                 <DockPanel Margin="6,0">
-                    <CheckBox x:Name="IsoToggle" DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center" />
+                    <!-- [2D] / [Iso] are the same decision the Nex view offers as
+                         [XY]/[3D], so they are the same control: bare ToggleButtons
+                         whose look comes entirely from FluentTheme. No Classes, no
+                         CornerRadius, no Background - those would be a Skia-specific
+                         style and the two rows would stop matching. The 3px corner
+                         radius they therefore get is the price of that parity. -->
+                    <StackPanel Orientation="Horizontal" Spacing="4"
+                                DockPanel.Dock="Right" VerticalAlignment="Center">
+                        <ToggleButton x:Name="FlatViewButton" Content="2D"
+                                      FontSize="11" Padding="8,1" />
+                        <ToggleButton x:Name="IsoViewButton" Content="Iso"
+                                      FontSize="11" Padding="8,1" />
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock x:Name="HeaderLetters" FontSize="11" FontWeight="SemiBold" Foreground="#333" />
                         <TextBlock x:Name="ProgressText" FontSize="11" Foreground="#666" Margin="12,0,0,0" />

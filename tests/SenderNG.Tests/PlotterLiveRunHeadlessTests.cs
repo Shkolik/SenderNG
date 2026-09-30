@@ -45,6 +45,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -462,7 +463,7 @@ public class PlotterLiveRunHeadlessTests
         var (demo, service, program, plotter, window) = Setup(MachineTypes.Foam, 4, WingProgram(400));
         for (var i = 0; i < 6; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        window.GetVisualDescendants().OfType<ToggleButton>().Single(c => c.Name == "IsoViewButton").IsChecked = true;
         for (var i = 0; i < 6; i++)
             await Pump();
 
@@ -503,7 +504,7 @@ public class PlotterLiveRunHeadlessTests
         var wrap = (StateDrivenWrapper)service;
         for (var i = 0; i < 6; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        window.GetVisualDescendants().OfType<ToggleButton>().Single(c => c.Name == "IsoViewButton").IsChecked = true;
         for (var i = 0; i < 6; i++)
             await Pump();
         wrap.Emit(new CNC.Core.Services.MachineState { Status = "Check", Positions = new double[] { 15, 35, 10, 8 } });
@@ -626,7 +627,7 @@ public class PlotterLiveRunHeadlessTests
 
         // The iso canvas composes the same way; its plane1 loft must render
         // too (checked via the same predicate against its own window offset).
-        window2.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        window2.GetVisualDescendants().OfType<ToggleButton>().Single(c => c.Name == "IsoViewButton").IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
         await Task.Delay(600);
@@ -936,7 +937,7 @@ public class PlotterLiveRunHeadlessTests
         // The iso canvas is a REBUILD, and a fresh PlotCanvas starts at
         // ChromeFlags.Default — so the flag has to be pushed again or the iso
         // copy of RowStateFor is measured with the toggle on.
-        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        window.GetVisualDescendants().OfType<ToggleButton>().Single(c => c.Name == "IsoViewButton").IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
         view.PushChromeFlags(ChromeFlags.Default with { RunState = false });

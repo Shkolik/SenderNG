@@ -34,6 +34,7 @@ using System.ComponentModel;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -202,12 +203,13 @@ public partial class PlotterView : UserControl
         _dialogs = dialogs;
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
-        // Avalonia has no Checked/Unchecked CLR events — observe IsChecked.
-        IsoToggle.PropertyChanged += (_, e) =>
-        {
-            if (e.Property.Name == nameof(CheckBox.IsChecked) && !_suppressIso)
-                OnIsoToggled(IsoToggle.IsChecked == true);
-        };
+        // Avalonia has no Checked/Unchecked CLR events — observe IsChecked on
+        // both view buttons. Click handlers would not do: Click does not fire on
+        // a programmatic IsChecked, and the headless tests drive this control
+        // that way, so the button would light up while the view model never heard
+        // about it.
+        FlatViewButton.PropertyChanged += OnViewButtonPropertyChanged;
+        IsoViewButton.PropertyChanged += OnViewButtonPropertyChanged;
         // Tab switches detach the view from the visual tree; the PropertyChanged
         // subscription must survive a return trip (the old code unsubscribed on
         // detach and never re-subscribed — after ONE tab switch the plot froze
@@ -239,13 +241,56 @@ public partial class PlotterView : UserControl
             return;
         if (_attached)
             _vm.PropertyChanged += OnVmPropertyChanged;
-        _suppressIso = true;
-        IsoToggle.IsChecked = _vm.Isometric;
-        IsoToggle.Content = _vm.IsometricLabel;
-        _suppressIso = false;
+        UpdateViewButtons();
         _lastGeometryVersion = _vm.GeometryVersion;
         RebuildCanvases();
         UpdateHeader();
+    }
+
+    private void OnViewButtonPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property.Name != nameof(ToggleButton.IsChecked) || _suppressIso)
+            return;
+
+        // sender is the button that changed. Pattern-matched rather than cast:
+        // the handler signature types it object?, so a bare cast is CS8600, and
+        // this project is 0-warning by contract. Same idiom as
+        // ProbeView.ProfileMenu_Click.
+        if (sender is not ToggleButton button)
+            return;
+
+        var iso = button == IsoViewButton;
+
+        if (button.IsChecked != true)
+        {
+            // Unchecking the only checked button, which is what a second click on
+            // it does: ToggleButton unchecks itself. A pair always has one
+            // selected, so re-apply the view model's state instead of writing it
+            // - the button stays lit and the view does not change.
+            UpdateViewButtons();
+            return;
+        }
+
+        // Checking one clears the other. Deciding from sender rather than from
+        // the pair's combined state is deliberate: the view opens with [2D]
+        // checked, so a caller setting IsoViewButton.IsChecked makes both true
+        // at once, and a combined-state rule would read that as "already
+        // agreeing" and discard the selection.
+        _suppressIso = true;
+        (iso ? FlatViewButton : IsoViewButton).IsChecked = false;
+        _suppressIso = false;
+
+        OnIsoToggled(iso);
+    }
+
+    private void UpdateViewButtons()
+    {
+        if (_vm is null)
+            return;
+        _suppressIso = true;
+        FlatViewButton.IsChecked = !_vm.Isometric;
+        IsoViewButton.IsChecked = _vm.Isometric;
+        _suppressIso = false;
     }
 
     private void OnIsoToggled(bool value)

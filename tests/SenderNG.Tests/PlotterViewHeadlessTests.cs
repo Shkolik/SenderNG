@@ -118,11 +118,10 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 6; i++)
             await Pump();
 
-// Flip the iso toggle exactly like the user does. Named, not
-          // Single(): the plot overlay's own chrome toggles used to be
-          // checkboxes too (they are ToggleButtons now), so a bare Single()
-          // here is a coin flip on how many controls the view hosts.
-        var toggle = window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle");
+        // Flip to iso exactly like the user does. Both the type filter and the
+        // name are load-bearing: the view's own chrome toggles are ToggleButtons
+        // too, so the name is what picks ours out of the six.
+        var toggle = window.GetVisualDescendants().OfType<ToggleButton>().Single(c => c.Name == "IsoViewButton");
         toggle.IsChecked = true;
         for (var i = 0; i < 6; i++)
             await Pump();
@@ -139,6 +138,61 @@ public class PlotterViewHeadlessTests
         var right = PlotterPixels.Count(frame, IsPathGrey, xFilter: x => x > frame.Width * 0.6);
         Assert.True(right > 20,
             $"iso toolpath does not fill the panel: {right} path pixels in the right 40% (stale grid columns?)");
+    }
+
+    /// <summary>[2D] and [Iso] are alternatives, not independent switches: exactly
+    /// one is checked at all times. That is what a CheckBox could not express, and
+    /// it is what makes the pair read as one choice rather than two.
+    /// <para>The active button stays lit when clicked again, because ToggleButton
+    /// unchecks itself on the second click, and a view with neither selected is not
+    /// a state the plot can be in.</para></summary>
+    [AvaloniaFact]
+    public async Task The_view_buttons_keep_exactly_one_checked()
+    {
+        var source = new StubProgramSource();
+        var vm = MakeVm(source, MachineTypes.Mill);
+        source.Load("G21\r\nG1 X100 Y50 Z20 F600");
+        Assert.True(vm.HasGeometry);
+
+        var view = new PlotterView { DataContext = vm };
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        ToggleButton B(string name) =>
+            window.GetVisualDescendants().OfType<ToggleButton>().Single(c => c.Name == name);
+
+        // The view opens flat.
+        Assert.False(vm.Isometric);
+        Assert.True(B("FlatViewButton").IsChecked == true);
+        Assert.True(B("IsoViewButton").IsChecked == false);
+
+        // Selecting iso clears flat. Both are momentarily true when a caller
+        // sets IsChecked directly, which is why the handler reads sender rather
+        // than comparing the two.
+        B("IsoViewButton").IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.True(vm.Isometric);
+        Assert.False(B("FlatViewButton").IsChecked == true);
+        Assert.True(B("IsoViewButton").IsChecked == true);
+
+        // Selecting flat clears iso.
+        B("FlatViewButton").IsChecked = true;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.False(vm.Isometric);
+        Assert.True(B("FlatViewButton").IsChecked == true);
+        Assert.False(B("IsoViewButton").IsChecked == true);
+
+        // Unchecking the active button leaves it checked.
+        B("FlatViewButton").IsChecked = false;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+        Assert.False(vm.Isometric);
+        Assert.True(B("FlatViewButton").IsChecked == true);
+        Assert.False(B("IsoViewButton").IsChecked == true);
     }
 
     /// <summary>Regression guard for the stale-colors report: acked segments
@@ -315,7 +369,7 @@ public class PlotterViewHeadlessTests
         window.Show();
         for (var i = 0; i < 6; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        window.GetVisualDescendants().OfType<ToggleButton>().Single(c => c.Name == "IsoViewButton").IsChecked = true;
         for (var i = 0; i < 6; i++)
             await Pump();
         Assert.True(vm.Isometric);
@@ -603,7 +657,7 @@ public class PlotterViewHeadlessTests
         view.PushChromeFlags(ChromeFlags.Default with { Grid = false });
         for (var i = 0; i < 8; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        window.GetVisualDescendants().OfType<ToggleButton>().Single(c => c.Name == "IsoViewButton").IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
         var isoOff = CountSurface(PlotterPixels.Snapshot(CaptureFrame(window)), IsChromeLight);
@@ -1662,8 +1716,8 @@ public class PlotterViewHeadlessTests
         // 8 pumps, not one: a toggle-then-count on a single pump is the latent
         // flake Task 5 found, and the iso toggle has more to settle than the flat
         // chrome's flags do.
-        window.GetVisualDescendants().OfType<CheckBox>()
-            .Single(c => c.Name == "IsoToggle")
+        window.GetVisualDescendants().OfType<ToggleButton>()
+            .Single(c => c.Name == "IsoViewButton")
             .IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
@@ -1723,8 +1777,8 @@ public class PlotterViewHeadlessTests
         window.Show();
         for (var i = 0; i < 8; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>()
-            .Single(c => c.Name == "IsoToggle")
+        window.GetVisualDescendants().OfType<ToggleButton>()
+            .Single(c => c.Name == "IsoViewButton")
             .IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
@@ -1800,7 +1854,7 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 8; i++)
             await Pump();
 
-        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        window.GetVisualDescendants().OfType<ToggleButton>().Single(c => c.Name == "IsoViewButton").IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
         // The iso canvas now keeps the flat transform across the mode switch (a
@@ -1894,7 +1948,7 @@ public class PlotterViewHeadlessTests
         window.Show();
         for (var i = 0; i < 8; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        window.GetVisualDescendants().OfType<ToggleButton>().Single(c => c.Name == "IsoViewButton").IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
         // Hidden for the same reason as in the envelope test above: the chrome
@@ -2010,8 +2064,8 @@ public class PlotterViewHeadlessTests
         window.Show();
         for (var i = 0; i < 8; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>()
-            .Single(c => c.Name == "IsoToggle")
+        window.GetVisualDescendants().OfType<ToggleButton>()
+            .Single(c => c.Name == "IsoViewButton")
             .IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
@@ -2176,8 +2230,8 @@ public class PlotterViewHeadlessTests
         window.Show();
         for (var i = 0; i < 8; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>()
-            .Single(c => c.Name == "IsoToggle")
+        window.GetVisualDescendants().OfType<ToggleButton>()
+            .Single(c => c.Name == "IsoViewButton")
             .IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
@@ -2539,8 +2593,8 @@ public class PlotterViewHeadlessTests
         window.Show();
         for (var i = 0; i < 8; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>()
-            .Single(c => c.Name == "IsoToggle")
+        window.GetVisualDescendants().OfType<ToggleButton>()
+            .Single(c => c.Name == "IsoViewButton")
             .IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
@@ -2625,8 +2679,8 @@ public class PlotterViewHeadlessTests
         window.Show();
         for (var i = 0; i < 8; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>()
-            .Single(c => c.Name == "IsoToggle")
+        window.GetVisualDescendants().OfType<ToggleButton>()
+            .Single(c => c.Name == "IsoViewButton")
             .IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
@@ -2807,8 +2861,8 @@ public class PlotterViewHeadlessTests
         window.Show();
         for (var i = 0; i < 8; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>()
-            .Single(c => c.Name == "IsoToggle")
+        window.GetVisualDescendants().OfType<ToggleButton>()
+            .Single(c => c.Name == "IsoViewButton")
             .IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
@@ -2894,8 +2948,8 @@ public class PlotterViewHeadlessTests
         window.Show();
         for (var i = 0; i < 8; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>()
-            .Single(c => c.Name == "IsoToggle")
+        window.GetVisualDescendants().OfType<ToggleButton>()
+            .Single(c => c.Name == "IsoViewButton")
             .IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
@@ -3019,7 +3073,7 @@ public class PlotterViewHeadlessTests
         // far from zero, so this costs no detection power.
         Assert.True(flat.Off > 0, $"the flat probe box must contain the toolpath, counted {flat.On}/{flat.Off}");
 
-        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        window.GetVisualDescendants().OfType<ToggleButton>().Single(c => c.Name == "IsoViewButton").IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
         view.Reframe();
@@ -3092,7 +3146,7 @@ public class PlotterViewHeadlessTests
         window.Show();
         for (var i = 0; i < 8; i++)
             await Pump();
-        window.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Name == "IsoToggle").IsChecked = true;
+        window.GetVisualDescendants().OfType<ToggleButton>().Single(c => c.Name == "IsoViewButton").IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
         view.Reframe();
@@ -3339,8 +3393,8 @@ public class PlotterViewHeadlessTests
             await Pump();
         var zoomBefore = view.CompositionForTest[0].Zoom;
 
-        var toggle = window.GetVisualDescendants().OfType<CheckBox>()
-            .Single(c => c.Name == "IsoToggle");
+        var toggle = window.GetVisualDescendants().OfType<ToggleButton>()
+            .Single(c => c.Name == "IsoViewButton");
         toggle.IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
@@ -3348,7 +3402,15 @@ public class PlotterViewHeadlessTests
 
         Assert.Equal(zoomBefore, view.CompositionForTest[0].Zoom);
 
-        toggle.IsChecked = false;
+        // Back to flat by checking the OTHER button. The old
+        // "toggle.IsChecked = false" no longer switches views: the [2D]/[Iso]
+        // pair is mutually exclusive with one always checked, so unchecking the
+        // selected button is a no-op (see
+        // The_view_buttons_keep_exactly_one_checked) and the view would stay in
+        // iso. The zoom assertion below is the point of the test, so the trip
+        // back has to actually happen.
+        window.GetVisualDescendants().OfType<ToggleButton>()
+            .Single(c => c.Name == "FlatViewButton").IsChecked = true;
         for (var i = 0; i < 8; i++)
             await Pump();
         Assert.False(vm.Isometric);
