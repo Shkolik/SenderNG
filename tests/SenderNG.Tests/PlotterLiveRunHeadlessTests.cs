@@ -302,6 +302,46 @@ public class PlotterLiveRunHeadlessTests
             $"the wire glyph must travel with the run, moved {span:F1} px");
     }
 
+    /// <summary>The foam 2D glyph is ONE DOT PER CARRIAGE, and it never draws
+    /// across the split. The two halves are separate views of separate
+    /// carriages, so a line joining the two points is noise — and it is the only
+    /// thing that ever put red pixels in the white space between the tiles.
+    /// <para>No teal-blob reader is needed: the composition is CENTERED and the
+    /// 8 mm gap straddles the split, so the middle of the canvas IS the gap. The
+    /// band asserted empty here is narrower than the gap, so the assert cannot
+    /// fail on a tight fit. "zero red at the split" is the discriminator — the
+    /// old coupling wire crossed it end to end.</para></summary>
+    [AvaloniaFact]
+    public async Task The_flat_foam_glyph_is_two_dots_that_never_cross_the_split()
+    {
+        var (_, _, program, plotter, window) = Setup(MachineTypes.Foam, 4, WingProgram(400));
+        for (var i = 0; i < 6; i++)
+            await Pump();
+        Assert.Equal(2, plotter.Planes.Count);
+        Assert.False(plotter.Isometric);
+
+        var run = program.RunAsync();
+        var start = Environment.TickCount64;
+        while (!run.IsCompleted && Environment.TickCount64 - start < 8000)
+            await Pump();
+        await run;
+        for (var i = 0; i < 8; i++)
+            await Pump();
+
+        var frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        // The canvas starts below the 25 px header, so the split is measured
+        // from the header's bottom edge, not from row 0.
+        var split = (25 + frame.Height) / 2;
+        var inTop = PlotterPixels.Count(frame, IsToolRed, yFilter: y => y < split - 8);
+        var inBottom = PlotterPixels.Count(frame, IsToolRed, yFilter: y => y > split + 8);
+        var atSplit = PlotterPixels.Count(frame, IsToolRed,
+            yFilter: y => y >= split - 6 && y <= split + 6);
+        Assert.True(inTop > 0 && inBottom > 0,
+            $"each carriage must have its own dot: {inTop} red pixels above the split, {inBottom} below");
+        Assert.True(atSplit == 0,
+            $"the glyph must not cross the white space between the tiles: {atSplit} red pixels at the split");
+    }
+
     /// <summary>The tool glyph must follow the ACKED segment end when check mode
     /// is active ($C: grbl verifies blocks but never moves â€” the reported
     /// machine position stays frozen while the send frontier advances).</summary>

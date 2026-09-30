@@ -1514,8 +1514,12 @@ public partial class PlotterView : UserControl
         /// mode the live machine position wins (the controller really moves);
         /// in check mode it never does, so the position comes from the last
         /// acked segment end. The fallback covers the pre-first-ack /
-        /// pre-first-report window in either direction.</summary>
-        private double[]? ToolGlyphPosition()
+        /// pre-first-report window in either direction.
+        /// <para>Protected rather than private because the flat foam glyph reads
+        /// it per carriage: one dot per slot means one position lookup per
+        /// slot, and <c>PlaneCanvas</c> is a sibling nested class rather than a
+        /// subclass of this region.</para></summary>
+        protected double[]? ToolGlyphPosition()
         {
             var live = Vm.LivePosition;
             if (Vm.CheckMode)
@@ -2254,31 +2258,16 @@ public partial class PlotterView : UserControl
                 return;
             if (Foam)
             {
-                // Foam: the wire glyph spans the two carriage quadrants; each
-                // carriage point maps through its own plane's axis indices into
-                // the shared composition.
-                if (!PlaneDrawable(0))
-                    return;
-                var idx0 = Vm.PlaneAxisIndices(0);
-                var (x0, y0) = PaneFeeds(0);
-                if (pos.Length <= idx0[^1])
-                    return;
-                var m0 = _maps[0];
-                var p0 = WorldToScreen(m0.Wx(pos[idx0[x0]]), m0.Wy(pos[idx0[y0]]), _zoom, _pan);
-                if (!PlaneDrawable(1))
-                {
-                    ctx.DrawEllipse(PlotterPens.ToolBrush, PlotterPens.Tool, p0, 4, 4);
-                    return;
-                }
-                var idx1 = Vm.PlaneAxisIndices(1);
-                var (x1, y1) = PaneFeeds(1);
-                if (pos.Length <= idx1[^1])
-                    return;
-                var m1 = _maps[1];
-                var p1 = WorldToScreen(m1.Wx(pos[idx1[x1]]), m1.Wy(pos[idx1[y1]]), _zoom, _pan);
-                ctx.DrawLine(PlotterPens.Tool, p0, p1);
-                ctx.DrawEllipse(PlotterPens.ToolBrush, null, p0, 3, 3);
-                ctx.DrawEllipse(PlotterPens.ToolBrush, null, p1, 3, 3);
+                // Foam: ONE DOT PER CARRIAGE, each through its own plane's axis
+                // indices and its own map. The wire this used to draw joined the
+                // two points corner to corner, which in the split-screen layout
+                // means a line straight across the white space between the two
+                // halves — the two tiles are separate views of separate
+                // carriages, so the coupling is not this view's story to tell.
+                // The iso loft still draws its own connecting wire; that is a
+                // different canvas and a different reading.
+                DrawFoamGlyphDot(ctx, 0);
+                DrawFoamGlyphDot(ctx, 1);
             }
             else
             {
@@ -2292,6 +2281,30 @@ public partial class PlotterView : UserControl
                 var p = WorldToScreen(m.Wx(pos[indices[sx]]), m.Wy(pos[indices[sy]]), _zoom, _pan);
                 ctx.DrawEllipse(PlotterPens.ToolBrush, PlotterPens.Tool, p, 4, 4);
             }
+        }
+
+        /// <summary>One carriage's tool dot in the flat foam view, or nothing for
+        /// a plane with no 2D extent. The shape is the mill glyph's, so the two
+        /// views draw the same mark for the same machine.
+        /// <para>Called per slot rather than once for the pair, which also fixes
+        /// a carriage that is alone: the foam glyph used to return early when
+        /// plane 0 had nothing to draw, so a plane-1-only program got no glyph at
+        /// all.</para></summary>
+        private void DrawFoamGlyphDot(DrawingContext ctx, int slot)
+        {
+            if (!PlaneDrawable(slot))
+                return;
+            var indices = Vm.PlaneAxisIndices(slot);
+            if (indices.Length < 2)
+                return;
+            var (sx, sy) = PaneFeeds(slot);
+            var pos = ToolGlyphPosition();
+            if (pos is null || pos.Length <= indices[^1])
+                return;
+            var m = _maps[slot];
+            ctx.DrawEllipse(PlotterPens.ToolBrush, PlotterPens.Tool,
+                WorldToScreen(m.Wx(pos[indices[sx]]), m.Wy(pos[indices[sy]]), _zoom, _pan),
+                4, 4);
         }
 
         /// <summary>Tile count of the flat composition (2 for foam, 1 otherwise).</summary>
