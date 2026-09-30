@@ -277,10 +277,6 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
     /// the two-carriage loft). View state, not persisted.</summary>
     public bool Isometric { get; set; }
 
-    /// <summary>Localized label for the view's isometric toggle.</summary>
-    public string IsometricLabel =>
-        _localization.Resolve("module.plotter.isometric", "Iso");
-
     /// <summary>Live tool position (work frame — the same frame the toolpath is
     /// built in) for the glyph overlay; null until the controller reports state.</summary>
     public double[]? LivePosition { get; private set; }

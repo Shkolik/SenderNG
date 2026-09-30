@@ -111,7 +111,7 @@ public class PlotterViewHeadlessTests
         Assert.True(vm.HasGeometry);
 
         var view = new PlotterView { DataContext = vm };
-        // The iso rebuild is driven by the CheckBox toggle (like the user), so
+        // The iso rebuild is driven by the ToggleButton pair (like the user), so
         // host the view in a window to reach the real control.
         var window = new Window { Width = 920, Height = 560, Content = view };
         window.Show();

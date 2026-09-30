@@ -102,7 +102,6 @@ public class PlotterModule : IModule, ILocalizedModule, IPluginInfo, IModuleSett
             ["module.plotter.axisMismatch"] = "Machine needs {0} axes; program has {1}. Unrenderable planes are hidden.",
             ["module.plotter.buildFailed"] = "Program could not be plotted.",
             ["module.plotter.building"] = "Plotting…",
-            ["module.plotter.isometric"] = "Iso",
             ["module.plotter.settings.view"] = "View",
             ["module.plotter.settings.showGrid"] = "Show grid",
             ["module.plotter.settings.showOrigin"] = "Show origin",

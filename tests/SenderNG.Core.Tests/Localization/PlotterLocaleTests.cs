@@ -4,7 +4,7 @@
  * Drift guard for the Skia plotter's own locale files: en and ru must carry the
  * same keys, every key the view chrome resolves must exist in both, none may be
  * blank, the one formatted key must keep its placeholder, and the orphaned
- * `module.plotter.loft` must stay deleted.
+ * `module.plotter.loft` and `module.plotter.isometric` must stay deleted.
  *
  * Three corrections to the plan's version of this file, each verified against the
  * files rather than assumed:
@@ -129,6 +129,17 @@ public class PlotterLocaleTests
         // either has to be a deliberate edit to this test too.
         Assert.DoesNotContain("module.plotter.loft", Keys("en.json"));
         Assert.DoesNotContain("module.plotter.loft", Keys("ru.json"));
+    }
+
+    /// <summary>The iso label moved into the [2D]/[Iso] ToggleButtons as a
+    /// literal when the checkbox was replaced, which left this key with no
+    /// reader. Asserted gone so a re-add has to be a deliberate edit here too,
+    /// exactly as the loft key was.</summary>
+    [Fact]
+    public void The_orphaned_isometric_key_is_gone()
+    {
+        Assert.DoesNotContain("module.plotter.isometric", Keys("en.json"));
+        Assert.DoesNotContain("module.plotter.isometric", Keys("ru.json"));
     }
 
     /// <summary>A BOM here is a startup failure, not a style note: the app parses
