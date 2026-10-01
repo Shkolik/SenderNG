@@ -343,12 +343,33 @@ public class Excellon2GCode
         return gcode;
     }
 
+    /// <summary>Upper bound on the G81 positions used to interpolate one slot.
+    /// A PCB slot needs tens of positions; this exists only so a malformed tool
+    /// diameter cannot make the interpolation loop unbounded (audit §1.8).</summary>
+    internal const int MaxSlotPositions = 10000;
+
+    /// <summary>Number of G81 positions used to interpolate a slot of length
+    /// <paramref name="dist"/> drilled with a tool of diameter
+    /// <paramref name="tsize"/> (one position per third of a tool diameter).
+    /// Never returns anything outside [2, <see cref="MaxSlotPositions"/>], so the
+    /// caller's loop is always finite. Clamping does not shorten the slot: the
+    /// caller divides the length by (positions - 1), so a coarser pitch still
+    /// spans start to end.</summary>
+    internal static int SlotPositions(double dist, double tsize)
+    {
+        double step = tsize / 3d;
+        double count = step > 0d && double.IsFinite(dist) ? Math.Round(dist / step + 0.5d, 0) : 2d;
+        if (!double.IsFinite(count) || count < 2d)
+            return 2;
+        return count > MaxSlotPositions ? MaxSlotPositions : (int)count;
+    }
+
     private void OutputSlot(StringBuilder sb, ConverterParameters parameters, ExcellonCommand cmd, double tsize)
     {
         double x = cmd.End.X - cmd.Start.X;
         double y = cmd.End.Y - cmd.Start.Y;
         double dist = Math.Sqrt(x * x + y * y);
-        int holes = (int)Math.Round(dist / (tsize / 3d) + 0.5d, 0);
+        int holes = SlotPositions(dist, tsize);
         double factor = dist / (holes - 1);
         x = x / dist * factor;
         y = y / dist * factor;

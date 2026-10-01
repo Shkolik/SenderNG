@@ -23,6 +23,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- SlotPositions stays internal so it does not become part of the plugin's
+         public contract, but ConverterTests asserts its bounds directly:
+         reaching it through Convert() would hang the test run. -->
+    <InternalsVisibleTo Include="SenderNG.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\SenderNG.Modules.Common\SenderNG.Modules.Common.csproj" />
   </ItemGroup>
 

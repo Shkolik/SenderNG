@@ -159,6 +159,59 @@ public class ConverterTests
         Assert.Contains("G81X3R1", output); // only changed words are emitted
     }
 
+    // ---- Excellon: slot interpolation bound (audit §1.8) ----
+
+    [Fact]
+    public void Excellon_slot_positions_for_a_zero_diameter_tool_stays_small()
+    {
+        // A T..C0.0 header entry makes the old expression Infinity, whose (int)
+        // cast is int.MinValue, and the caller's loop then runs ~2^31 times.
+        Assert.InRange(Excellon2GCode.SlotPositions(1.0, 0d), 2, 10000);
+    }
+
+    [Fact]
+    public void Excellon_slot_positions_for_a_negative_diameter_tool_stays_small()
+    {
+        Assert.InRange(Excellon2GCode.SlotPositions(1.0, -2.4d), 2, 10000);
+    }
+
+    [Fact]
+    public void Excellon_slot_positions_are_clamped_for_an_absurdly_small_tool()
+    {
+        // A positive but tiny tool would overflow the (int) cast the same way.
+        Assert.InRange(Excellon2GCode.SlotPositions(1.0, 1e-300d), 2, 10000);
+    }
+
+    [Fact]
+    public void Excellon_slot_positions_are_unchanged_for_a_normal_slot()
+    {
+        // 1 mm of travel with a 2.4 mm tool: 1 / 0.8 = 1.25 → 1, floored to 2.
+        Assert.Equal(2, Excellon2GCode.SlotPositions(1.0, 2.4d));
+        // 10 mm of travel with a 2.4 mm tool: 10 / 0.8 = 12.5 → 13.
+        Assert.Equal(13, Excellon2GCode.SlotPositions(10.0, 2.4d));
+    }
+
+    [Fact]
+    public void Excellon_zero_diameter_tool_does_not_hang_the_converter()
+    {
+        const string drl =
+            "M48\n" +
+            "METRIC\n" +
+            "T01C0.0\n" +
+            "%\n" +
+            "T01\n" +
+            "X2.0Y2.0G85X3.0Y2.0\n" +
+            "M95\n";
+
+        var output = new Excellon2GCode().Convert(drl, Defaults());
+
+        Assert.NotNull(output);
+        // The slot is still emitted (clamping shortens the pitch, it does not
+        // truncate the slot) and the position count is bounded.
+        Assert.Contains("(Slot 2;2 - 3;2)", output);
+        Assert.InRange(CountOccurrences(output, "G81"), 1, 10000);
+    }
+
     // ---- Excellon: modal coordinates (audit §1.7) ----
 
     private static int CountOccurrences(string haystack, string needle)
