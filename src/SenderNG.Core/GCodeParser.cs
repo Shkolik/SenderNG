@@ -3683,7 +3683,11 @@ namespace CNC.GCode
 
         public new string ToString()
         {
-            return base.ToString() + "O" + O + FlowControl.ToString().ToLower() + Expression;
+            // Invariant on purpose: this text is re-parsed as G-code, and under a
+            // tr-TR locale the culture-sensitive ToLower() writes the dotless
+            // "ı" for every I in the statement (ENDIF -> "endıf"), producing a
+            // file the parser cannot read back (audit §1.16).
+            return base.ToString() + "O" + O + FlowControl.ToString().ToLowerInvariant() + Expression;
         }
     }
 }

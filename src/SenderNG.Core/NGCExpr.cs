@@ -1117,7 +1117,11 @@ namespace CNC.Core
             while (end < line.Length && line[end] != '[')
                 end++;
 
-            string stmnt = line.Substring(pos, end - pos).ToUpper();
+            // Invariant on purpose: this is the read half of the same round-trip
+            // as GCFlowControl.ToString(), and under a tr-TR locale the
+            // culture-sensitive ToUpper() turns a typed "O0IF" into "İF", which
+            // Enum.TryParse cannot match (audit §1.16).
+            string stmnt = line.Substring(pos, end - pos).ToUpperInvariant();
 
             if (!Enum.TryParse(stmnt, out flowControl))
                 LastError = OpStatus.ExpressionSyntaxError;
