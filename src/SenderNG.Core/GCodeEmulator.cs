@@ -383,9 +383,15 @@ namespace CNC.Core
 
                             var origin = action.End; 
 
-                            // Calculate number of passes
+                            // Calculate number of passes.
+                            // J * p^(1/R) does not necessarily cross K for every accepted
+                            // block - an R large enough to approach J asymptotically never
+                            // does - and the condition below is the only exit, so cap it
+                            // rather than spin on the load path forever.
+                            const uint MaxThreadingPasses = 10000;
 
-                            while (thread.CalculateDOC(++passes) < thread.Depth);
+                            while (passes < MaxThreadingPasses && thread.CalculateDOC(++passes) < thread.Depth)
+                                ;
 
                             passes += thread.SpringPasses + 1; // TODO: skip rendering of spring passes?
 

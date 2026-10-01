@@ -1753,6 +1753,10 @@ namespace CNC.GCode
                                 throw new GCodeException(LibStrings.FindResource("ParserNoJ"));
                             else if (gcValues.J < 0d)
                                 throw new GCodeException(LibStrings.FindResource("ParserNegJ"));
+                            else if (gcValues.J == 0d)
+                                // J * p^(1/R) is then 0 for every pass, so the emulator's
+                                // pass counter (GCodeEmulator.cs) can never reach K.
+                                throw new GCodeException(LibStrings.FindResource("ParserZeroJ"));
 
                             if (!wordFlags.HasFlag(WordFlags.K))
                                 throw new GCodeException(LibStrings.FindResource("ParserNoK"));

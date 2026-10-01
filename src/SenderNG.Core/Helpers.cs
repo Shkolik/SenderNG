@@ -80,6 +80,7 @@ namespace CNC.Core
             ["ParserNoI"] = "I word missing",
             ["ParserNoJ"] = "J word missing",
             ["ParserNegJ"] = "J word negative",
+            ["ParserZeroJ"] = "J word must be greater than 0",
             ["ParserNoK"] = "K word missing",
             ["ParserNegK"] = "K word negative",
             ["ParserKlesseqJ"] = "K word must be greater than J word",
