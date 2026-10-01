@@ -2757,7 +2757,7 @@ namespace CNC.GCode
                 if (arcResolution > 1d)
                     numPoints = (int)arcResolution;
                 else
-                    numPoints = (int)Math.Floor(Math.Abs(0.5d * Math.PI * 2d * r) / Math.Sqrt(arcResolution * (2.0f * r - arcResolution)));
+                    numPoints = ChordSegments(Math.PI * 2d, r, arcResolution);
 
                 while(passes-- > 0)
                     pts.AddRange(generatePointsAlongArcBDring(plane, start, start, startAngle, Math.PI * 2d, numPoints, delta_linear / arc_travel * 2d * Math.PI / numPoints, false));
@@ -2768,11 +2768,44 @@ namespace CNC.GCode
             if (arcResolution > 1d)
                 numPoints = (int)Math.Max(8d, sweep * arcResolution / (Math.PI * 2d));
             else
-                numPoints = (int)Math.Floor(Math.Abs(0.5d * sweep * r) / Math.Sqrt(arcResolution * (2.0f * r - arcResolution)));
+                numPoints = ChordSegments(sweep, r, arcResolution);
 
             pts.AddRange(generatePointsAlongArcBDring(plane, start, end, startAngle, sweep, numPoints, delta_linear / numPoints, true));
 
             return pts;
+        }
+
+        /*
+         * Segments needed to hold a chord tolerance of arcResolution over `angle`
+         * radians of a circle of radius r.
+         *
+         * The count comes from dividing by sqrt(a * (2r - a)), which only has a
+         * real, non-zero value while the tolerance is strictly under twice the
+         * radius. Outside that window it produced two bad values, both reachable
+         * at the default 0.1 tolerance with no user input (audit §1.14):
+         * a*(2r-a) < 0 made sqrt NaN, and (int)NaN is 0, so the sampling loop
+         * never ran and the arc collapsed to one straight chord; at exactly
+         * a*(2r-a) == 0 the division was by zero, and (int)Infinity is
+         * int.MaxValue, so the loop ran ~2.1e9 times appending points. A
+         * tolerance that coarse cannot be met by tessellating harder anyway, so
+         * both fall back to the 8-segment floor the points-per-circle branch
+         * above already uses.
+         */
+        private const int MinChordSegments = 8;
+
+        private static int ChordSegments(double angle, double r, double arcResolution)
+        {
+            // `!(x > 0d)` also catches NaN, which is what a NaN tolerance or a
+            // negative one produces here.
+            double divisor = Math.Sqrt(arcResolution * (2d * r - arcResolution));
+            if (!(divisor > 0d))
+                return MinChordSegments;
+
+            double count = Math.Floor(Math.Abs(0.5d * angle * r) / divisor);
+            if (!double.IsFinite(count) || count > int.MaxValue)
+                return int.MaxValue;
+
+            return (int)count;
         }
 
         /*
@@ -2827,6 +2860,15 @@ namespace CNC.GCode
             Point bez_target = new Point(start[0], start[1]);
             List<Point3D> segments = new List<Point3D>();
 
+            // The arcs-to-lines dialog documents a value above 1 as
+            // points-per-circle, which is an arc reading: here arcResolution is
+            // the smallest acceptable step in the Bézier parameter t, and t only
+            // spans 0..1, so a large value has no meaning to preserve and falls
+            // back to the engine's fixed 0.002 step. Resolved once up front
+            // rather than on every pass of the sampling loop, which used to
+            // rewrite the caller's parameter mid-run (audit §1.14).
+            double minStep = arcResolution > 1d ? 0.002d : arcResolution;
+
             double t = 0d, step = 0.1d;
 
             while (t < 1d)
@@ -2842,10 +2884,7 @@ namespace CNC.GCode
                 double new_pos0 = eval_bezier(start[0], first.X, second.X, end[0], new_t),
                        new_pos1 = eval_bezier(start[1], first.Y, second.Y, end[1], new_t);
 
-                if (arcResolution > 1d) // TODO: fix!
-                    arcResolution = 0.002d;
-
-                while (new_t - t >= arcResolution)
+                while (new_t - t >= minStep)
                 {
 
                     //            if (new_t - t < (BEZIER_MIN_STEP))

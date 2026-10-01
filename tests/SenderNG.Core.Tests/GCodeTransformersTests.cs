@@ -287,6 +287,95 @@ public class GCodeTransformersTests
             $"fine {G1Lines(fine).Length} vs coarse {G1Lines(coarse).Length}");
     }
 
+    // The chord-tolerance count divides by sqrt(a * (2r - a)), which is only real
+    // while a < 2r. Both failure modes below are reachable at the default 0.1
+    // tolerance with no user input, from a small-radius arc (audit §1.14).
+
+    [Theory]
+    [InlineData(0.04d)]   // a*(2r-a) < 0 -> sqrt NaN -> (int)NaN == 0
+    [InlineData(0.02d)]
+    [InlineData(0.01d)]
+    public void ArcsToLines_arc_smaller_than_half_the_tolerance_is_still_tessellated(double r)
+    {
+        // Pre-fix this collapsed to a single "G1X0Y0Z0" - a straight chord
+        // across the arc, silently cutting the wrong geometry.
+        var g1 = G1Lines(ArcsToLines($"G0 X{r} Y0\nG2 X0 Y0 I{-r / 2} J0 F100\n"));
+
+        Assert.True(g1.Length > 1, $"r={r} produced {g1.Length} line(s): {string.Join(" ", g1)}");
+    }
+
+    [Fact]
+    public void ArcsToLines_arc_exactly_half_the_tolerance_terminates()
+    {
+        // a*(2r-a) == 0 exactly: pre-fix the divisor was 0, the count came out
+        // Infinity, and (int)Infinity is int.MaxValue - the sampler loop then ran
+        // ~2.1e9 times appending points and wedged the process. Only a completion
+        // check is safe here; running it pre-fix does not return.
+        var task = Task.Run(() => ArcsToLines("G0 X0.05 Y0\nG2 X0 Y0 I-0.025 J0 F100\n"));
+
+        Assert.True(task.Wait(TimeSpan.FromSeconds(30)), "arc sampling did not terminate");
+        Assert.True(G1Lines(task.Result).Length > 1);
+    }
+
+    [Theory]
+    [InlineData(0.1d)]
+    [InlineData(0.3d)]
+    [InlineData(0.5d)]
+    [InlineData(0.9d)]
+    public void ArcsToLines_a_coarser_typed_tolerance_does_not_swallow_small_arcs(double tolerance)
+    {
+        // Raising the tolerance is a reasonable thing to type for speed, and a
+        // 0.2-radius arc survives a 0.5 tolerance only if the count is guarded.
+        var g1 = G1Lines(ArcsToLines("G0 X0.2 Y0\nG2 X0 Y0 I-0.1 J0 F100\n", tolerance));
+
+        Assert.True(g1.Length > 1, $"tol={tolerance} produced {g1.Length} line(s): {string.Join(" ", g1)}");
+    }
+
+    [Theory]
+    [InlineData(-1d)]
+    [InlineData(0d)]
+    [InlineData(0.0001d)]
+    public void ArcsToLines_a_tolerance_below_the_floor_is_clamped_not_mishandled(double tolerance)
+    {
+        // ArcsToLines already floors the tolerance at 0.001 (GCodeTransformers.cs:92),
+        // so a nonsense value cannot reach the sampler's sqrt. Pinned here because
+        // that floor is the only thing standing between a typed-in 0 and the
+        // degenerate divisor, and it is easy to lose.
+        var g1 = G1Lines(ArcsToLines("G0 X0.2 Y0\nG2 X0 Y0 I-0.1 J0 F100\n", tolerance));
+
+        Assert.True(g1.Length > 1, $"tol={tolerance} produced {g1.Length} line(s): {string.Join(" ", g1)}");
+    }
+
+    // The spline side of the same parameter. Pre-fix it rewrote the caller's
+    // arcResolution on every pass of the sampling loop, which is where the
+    // "mutated inside the loop" defect lived; the resolved value must be the one
+    // the whole run uses.
+
+    [Theory]
+    [InlineData(1.5d)]
+    [InlineData(20d)]
+    public void ArcsToLines_spline_large_tolerance_matches_the_zero_002_fallback(double tolerance)
+    {
+        // A value above 1 has no points-per-circle reading for a spline, so it
+        // must land on the same output as passing the 0.002 fallback directly.
+        Assert.Equal(G1Lines(ArcsToLines(SplineProgram, 0.002d)),
+                     G1Lines(ArcsToLines(SplineProgram, tolerance)));
+    }
+
+    [Fact]
+    public void ArcsToLines_spline_respects_a_tolerance_within_range()
+    {
+        // Below 1 the value is a real parameter step, so it must still bite:
+        // a finer tolerance has to yield at least as many points as a coarser one.
+        var coarse = G1Lines(ArcsToLines(SplineProgram, 0.5d));
+        var fine = G1Lines(ArcsToLines(SplineProgram, 0.1d));
+
+        Assert.True(fine.Length >= coarse.Length,
+            $"fine {fine.Length} vs coarse {coarse.Length}");
+    }
+
+    private const string SplineProgram = "G0 X0 Y0\nG5 X10 Y0 I2 J5 P8 Q5 F100\n";
+
     [Fact]
     public void ArcsToLines_keeps_feed_before_first_segment()
     {
@@ -464,3 +553,4 @@ public class GCodeTransformersTests
         Assert.Equal(before, GCodeParser.TokensToGCode([.. program.Tokens]));
     }
 }
+
