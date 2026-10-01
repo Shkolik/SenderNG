@@ -12,6 +12,14 @@
     <PackageReference Include="System.Reactive" Version="6.0.1" />
   </ItemGroup>
 
+  <!-- Same rationale as the Excellon module: GCodeLimitsCalculator reads the ambient
+       GrblInfo.AxisLetters, so its sub-3-axis behaviour can only be reached by mutating
+       that static. The overload taking the letters as an argument lets the tests drive a
+       2-axis board in isolation without touching global state. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="SenderNG.Core.Tests" />
+  </ItemGroup>
+
   <!-- Locale data is a UI responsibility: the App (host) owns the JSON files in
        its output Locale directory and passes a stream into LocalizationService.
        Core owns only the localization *mechanism* (see Localization/LocalizationService.cs). -->

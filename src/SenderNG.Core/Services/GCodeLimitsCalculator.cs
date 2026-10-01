@@ -47,7 +47,12 @@ public sealed record AxisLimits(char Letter, double Min, double Max);
 /// </summary>
 public static class GCodeLimitsCalculator
 {
-    public static IReadOnlyList<AxisLimits>? Compute(string? gcodeText)
+    public static IReadOnlyList<AxisLimits>? Compute(string? gcodeText) =>
+        Compute(gcodeText, GrblInfo.AxisLetters);
+
+    /// <summary>Core of <see cref="Compute(string)"/> with the axis letters supplied by the caller so
+    /// sub-3-axis machines can be exercised without mutating the ambient GrblInfo state.</summary>
+    internal static IReadOnlyList<AxisLimits>? Compute(string? gcodeText, string axisLetters)
     {
         if (string.IsNullOrWhiteSpace(gcodeText))
             return null;
@@ -68,11 +73,16 @@ public static class GCodeLimitsCalculator
             }
         }
 
-        return Compute(parser.Tokens);
+        return Compute(parser.Tokens, axisLetters);
     }
 
     /// <summary>Program limits for an already-parsed token stream (single-parse path: <see cref="GCodeProgram"/>).</summary>
-    public static IReadOnlyList<AxisLimits>? Compute(IReadOnlyList<GCodeToken> tokens)
+    public static IReadOnlyList<AxisLimits>? Compute(IReadOnlyList<GCodeToken> tokens) =>
+        Compute(tokens, GrblInfo.AxisLetters);
+
+    /// <summary>Core of <see cref="Compute"/> with the axis letters supplied by the caller so
+    /// sub-3-axis machines can be exercised without mutating the ambient GrblInfo state.</summary>
+    internal static IReadOnlyList<AxisLimits>? Compute(IReadOnlyList<GCodeToken> tokens, string axisLetters)
     {
         if (tokens.Count == 0)
             return null;
@@ -81,7 +91,7 @@ public static class GCodeLimitsCalculator
         // Per-axis bounding box across all machine axes (not just XYZ):
         // foam/multiaxis programs move A/B/C alongside XYZ and those limits
         // must be reported too.
-        var count = GrblInfo.AxisLetters.Length;
+        var count = axisLetters.Length;
         var min = Enumerable.Repeat(double.MaxValue, count).ToArray();
         var max = Enumerable.Repeat(double.MinValue, count).ToArray();
         var present = AxisFlags.None;
@@ -124,18 +134,23 @@ public static class GCodeLimitsCalculator
 
         return Enumerable.Range(0, count)
             .Where(i => ((AxisFlags)(1 << i) & present) != 0)
-            .Select(i => new AxisLimits(GrblInfo.AxisLetters[i], min[i], max[i]))
+            .Select(i => new AxisLimits(axisLetters[i], min[i], max[i]))
             .ToList();
     }
 
     private static void AddBoundingBox(GcodeBoundingBox bbox, double[] min, double[] max, ref AxisFlags present)
     {
-        // Arcs/splines run on the selected plane (XYZ) — fold their box in.
-        for (var i = 0; i < 3; i++)
+        // Arcs/splines run on the selected plane (XYZ) — fold their box in, but
+        // only for axes this board actually has: the arrays are sized from the
+        // board's own AxisLetters, which can be shorter than three on a 2-axis
+        // machine (audit §1.10). The present bits are raised inside the loop so
+        // they describe the axes that really got a value, as the linear path above
+        // already does with its `i >= count` skip.
+        for (var i = 0; i < 3 && i < min.Length; i++)
         {
             min[i] = Math.Min(min[i], bbox.Min[i]);
             max[i] = Math.Max(max[i], bbox.Max[i]);
+            present |= (AxisFlags)(1 << i);
         }
-        present |= AxisFlags.X | AxisFlags.Y | AxisFlags.Z;
     }
 }

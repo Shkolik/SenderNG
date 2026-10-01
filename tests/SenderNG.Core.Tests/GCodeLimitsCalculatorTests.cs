@@ -60,6 +60,53 @@ public class GCodeLimitsCalculatorTests
     }
 
     [Fact]
+    public void Compute_arc_on_a_two_axis_board_reports_XY_without_throwing()
+    {
+        // Audit §1.10: a board reporting [AXS:2:XY] gives count == 2, so the arc/spline
+        // bounding box used to write min[2]/max[2] on a length-2 array.
+        var limits = GCodeLimitsCalculator.Compute("G1 F100 X0 Y0\r\nG2 X10 Y0 I5 J0\r\n", "XY");
+
+        Assert.NotNull(limits);
+        Assert.Equal(['X', 'Y'], limits.Select(l => l.Letter));
+        Assert.Equal(10.0, limits[0].Max);
+    }
+
+    [Fact]
+    public void Compute_spline_on_a_two_axis_board_reports_XY_without_throwing()
+    {
+        var limits = GCodeLimitsCalculator.Compute("G1 F100 X0 Y0 Z0\r\nG1 X1 Y0\r\nG2 X1 Y1 X2 Y0 X3 Y1\r\n", "XY");
+
+        Assert.NotNull(limits);
+        Assert.Equal(['X', 'Y'], limits.Select(l => l.Letter));
+    }
+
+    [Fact]
+    public void Compute_drops_moves_on_axes_the_board_does_not_have()
+    {
+        // A 2-axis board has no Z, so the Z move must not appear in the report.
+        // The arc path must agree with the linear path, which has always skipped
+        // indices past the letter count.
+        var limits = GCodeLimitsCalculator.Compute("G1 F100 X0 Y0 Z-5\r\nG1 X5 Y5 Z5\r\n", "XY");
+
+        Assert.NotNull(limits);
+        Assert.Equal(['X', 'Y'], limits.Select(l => l.Letter));
+        Assert.Equal(5.0, limits[0].Max);
+        Assert.Equal(5.0, limits[1].Max);
+    }
+
+    [Fact]
+    public void Compute_labels_axes_from_the_boards_own_letter_list()
+    {
+        // Axis indices are a fixed X0..W8 space; AxisIndexToLetter labels index i
+        // with the i-th character of the remap, so a non-default board must label
+        // its own way rather than falling back to the default nine.
+        var limits = GCodeLimitsCalculator.Compute("G1 F100 X0 Y0\r\nG1 X5 Y5\r\n", "PQR");
+
+        Assert.NotNull(limits);
+        Assert.Equal(['P', 'Q'], limits.Select(l => l.Letter));
+    }
+
+    [Fact]
     public void Compute_end_points_only_like_ioSender()
     {
         // Bounding box accumulates move END points (ioSender semantics), not segment starts.
