@@ -72,7 +72,7 @@ public class G76ThreadingTests
     /// approach J asymptotically, so it never crosses K either.
     /// </summary>
     [Fact]
-    public void Extreme_depth_degression_does_not_spin_the_pass_counter()
+    public async Task Extreme_depth_degression_does_not_spin_the_pass_counter()
     {
         var program = GCodeProgram.Parse("G18 G76 P1 I1 J1 K2 R1000000000 Z-10\n");
         Assert.False(program.HasErrors);
@@ -80,9 +80,11 @@ public class G76ThreadingTests
         var tokens = program.Tokens.ToList();
         var expansion = Task.Run(() => new GCodeEmulator(true).Execute(tokens).Count());
 
-        Assert.True(expansion.Wait(TimeSpan.FromSeconds(30)),
+        var finished = await Task.WhenAny(expansion, Task.Delay(TimeSpan.FromSeconds(30)));
+        Assert.True(ReferenceEquals(finished, expansion),
             "G76 expansion never returned: the pass-count loop has no upper bound");
-        Assert.InRange(expansion.Result, 1, 200_000);
+
+        Assert.InRange(await expansion, 1, 200_000);
     }
 
     /// <summary>
