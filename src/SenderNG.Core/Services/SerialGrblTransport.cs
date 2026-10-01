@@ -33,7 +33,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.IO.Ports;
-using System.Text;
 using System.Threading;
 using CNC.Core.Abstractions;
 
@@ -45,17 +44,19 @@ namespace CNC.Core.Services;
 /// <c>ReadLine</c>, so a quiet serial line never raises a
 /// <c>TimeoutException</c> from System.IO.Ports (the old 1s <c>ReadTimeout</c>
 /// threw one on every poll gap — a first-chance exception the debugger reports
-/// as a flood even though it was caught). Lines are accumulated across polls
-/// until a <c>'\n'</c> terminator; each poll cycle sleeps 10 ms.
+/// as a flood even though it was caught). Lines are accumulated by
+/// <see cref="SerialLineBuffer"/> across polls until a <c>'\n'</c> terminator;
+/// each poll cycle sleeps 10 ms. The buffer also resyncs framing: a run past
+/// <see cref="SerialLineBuffer.MaxLineLength"/> with no terminator is dropped
+/// up to the next <c>'\n'</c> rather than stalling the read path.
 /// </summary>
 public sealed class SerialGrblTransport : IGrblTransport, IPortPresenceCheck
 {
-    private const int MaxLineLength = 4096;
     private const int PollDelayMs = 10;
     private const int DefaultBaudRate = 115200;
 
     private SerialPort? _port;
-    private readonly StringBuilder _line = new();
+    private readonly SerialLineBuffer _line = new();
 
     public bool IsOpen => _port is { IsOpen: true };
 
@@ -164,13 +165,16 @@ public sealed class SerialGrblTransport : IGrblTransport, IPortPresenceCheck
         {
             while (!ct.IsCancellationRequested)
             {
-                if (port.BytesToRead > 0 && _line.Length < MaxLineLength)
+                // Read whenever bytes are available and let the buffer decide
+                // what is framing garbage: gating the read on the buffer's own
+                // length is what wedged this path permanently.
+                if (port.BytesToRead > 0)
                     _line.Append(port.ReadExisting());
 
                 // Drain complete lines from the buffer even when no new bytes
                 // arrived: a burst reply (e.g. $I) lands in one ReadExisting
                 // chunk with several '\n'-terminated lines.
-                if (TryTakeLine(out var line))
+                if (_line.TryTakeLine(out var line))
                     return line;
 
                 await Task.Delay(PollDelayMs, ct).ConfigureAwait(false);
@@ -215,22 +219,6 @@ public sealed class SerialGrblTransport : IGrblTransport, IPortPresenceCheck
         {
             return false; // enumeration hiccup → treat as gone (safe default)
         }
-    }
-
-    /// <summary>Extract the first complete '\n'-terminated line, keeping any remainder buffered.</summary>
-    private bool TryTakeLine(out string line)
-    {
-        line = string.Empty;
-        var s = _line.ToString();
-        var idx = s.IndexOf('\n');
-        if (idx < 0)
-            return false;
-
-        line = s[..idx].TrimEnd('\r');
-        _line.Clear();
-        if (idx + 1 < s.Length)
-            _line.Append(s[(idx + 1)..]); // more data arrived with the terminator
-        return true;
     }
 
     public void Dispose() => Close();
