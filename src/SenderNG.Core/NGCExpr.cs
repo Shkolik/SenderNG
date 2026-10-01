@@ -205,8 +205,10 @@ namespace CNC.Core
             BadComment
         };
 
-        private static List<NgcRoParam> ro_param = new List<NgcRoParam>();
-        private static readonly object ro_paramSync = new object();
+        // Per instance: the table entries hold callbacks bound to this parser's
+        // machine, so a shared static table would dispatch every later parser's
+        // read-only parameter reads through whichever machine was bound first.
+        private readonly List<NgcRoParam> ro_param = new List<NgcRoParam>();
         private Machine machine;
         private Dictionary<string, double> paramNamed = new Dictionary<string, double>();
         private Dictionary<int, double> paramNumbered = new Dictionary<int, double>();
@@ -215,36 +217,27 @@ namespace CNC.Core
         {
             this.machine = machine;
 
-            // ro_param is static (read-only parameter table) - populate once, not per instance.
-            // Guard is thread-safe: parallel test/parse threads may construct parsers concurrently.
-            if (ro_param.Count == 0)
-                lock (ro_paramSync)
-                {
-                    if (ro_param.Count == 0)
-                    {
-                ro_param.Add(new NgcRoParam(5061, 5069, probe_coord));          // LinuxCNC
-                ro_param.Add(new NgcRoParam(5070, 5070, probe_result));         // LinuxCNC
-                ro_param.Add(new NgcRoParam(5161, 5169, g28_home));
-                ro_param.Add(new NgcRoParam(5181, 5189, g30_home));
-                ro_param.Add(new NgcRoParam(5191, 5199, scaling_factors));      // Mach3
-                ro_param.Add(new NgcRoParam(5210, 5210, g92_offset_applied));   // LinuxCNC
-                ro_param.Add(new NgcRoParam(5211, 5219, g92_offset));
-                ro_param.Add(new NgcRoParam(5220, 5220, coord_system));
-                ro_param.Add(new NgcRoParam(5221, 5230, coord_system_offset));
-                ro_param.Add(new NgcRoParam(5241, 5250, coord_system_offset));
-                ro_param.Add(new NgcRoParam(5261, 5270, coord_system_offset));
-                ro_param.Add(new NgcRoParam(5281, 5290, coord_system_offset));
-                ro_param.Add(new NgcRoParam(5301, 5310, coord_system_offset));
-                ro_param.Add(new NgcRoParam(5321, 5230, coord_system_offset));
-                ro_param.Add(new NgcRoParam(5341, 5350, coord_system_offset));
-                ro_param.Add(new NgcRoParam(5361, 5370, coord_system_offset));
-                ro_param.Add(new NgcRoParam(5381, 5390, coord_system_offset));
-                ro_param.Add(new NgcRoParam(5399, 5399, m66_result));           // LinuxCNC
-                ro_param.Add(new NgcRoParam(5400, 5400, tool_number));          // LinuxCNC
-                ro_param.Add(new NgcRoParam(5401, 5409, tool_offset));          // LinuxCNC
-                ro_param.Add(new NgcRoParam(5420, 5428, work_position));        // LinuxCNC
-                    }
-                }
+            ro_param.Add(new NgcRoParam(5061, 5069, probe_coord));          // LinuxCNC
+            ro_param.Add(new NgcRoParam(5070, 5070, probe_result));         // LinuxCNC
+            ro_param.Add(new NgcRoParam(5161, 5169, g28_home));
+            ro_param.Add(new NgcRoParam(5181, 5189, g30_home));
+            ro_param.Add(new NgcRoParam(5191, 5199, scaling_factors));      // Mach3
+            ro_param.Add(new NgcRoParam(5210, 5210, g92_offset_applied));   // LinuxCNC
+            ro_param.Add(new NgcRoParam(5211, 5219, g92_offset));
+            ro_param.Add(new NgcRoParam(5220, 5220, coord_system));
+            ro_param.Add(new NgcRoParam(5221, 5230, coord_system_offset));
+            ro_param.Add(new NgcRoParam(5241, 5250, coord_system_offset));
+            ro_param.Add(new NgcRoParam(5261, 5270, coord_system_offset));
+            ro_param.Add(new NgcRoParam(5281, 5290, coord_system_offset));
+            ro_param.Add(new NgcRoParam(5301, 5310, coord_system_offset));
+            ro_param.Add(new NgcRoParam(5321, 5330, coord_system_offset));
+            ro_param.Add(new NgcRoParam(5341, 5350, coord_system_offset));
+            ro_param.Add(new NgcRoParam(5361, 5370, coord_system_offset));
+            ro_param.Add(new NgcRoParam(5381, 5390, coord_system_offset));
+            ro_param.Add(new NgcRoParam(5399, 5399, m66_result));           // LinuxCNC
+            ro_param.Add(new NgcRoParam(5400, 5400, tool_number));          // LinuxCNC
+            ro_param.Add(new NgcRoParam(5401, 5409, tool_offset));          // LinuxCNC
+            ro_param.Add(new NgcRoParam(5420, 5428, work_position));        // LinuxCNC
         }
 
         public bool WasExpression { get; private set; }
