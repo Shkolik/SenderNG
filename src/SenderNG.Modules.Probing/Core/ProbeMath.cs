@@ -101,7 +101,13 @@ public static class ProbeMath
         return new Pos(x, y, z);
     }
 
-    /// <summary>Center of the probed span(s). Probe order: X- then X+ then Y- then Y+ (or a subset).</summary>
+    /// <summary>Center of the probed span(s). Probe order: X- then X+ then Y- then Y+ (or a subset).
+    /// <paramref name="probes"/> must hold at least two positions per probed axis — four for
+    /// the two-axis modes, two for a single-axis mode, none when neither axis is probed.
+    /// A short array throws <see cref="ArgumentException"/> rather than being indexed:
+    /// probing fewer positions than the mode implies used to raise
+    /// <see cref="IndexOutOfRangeException"/>, and with three positions it did not even
+    /// throw — it silently averaged the wrong pair (audit §1.9).</summary>
     public static (Pos Center, double XDistance, double YDistance) ComputeCenter(
         Center center, Pos start, Pos[] probes, double probeDiameter, double sizeX, double sizeY)
     {
@@ -113,6 +119,12 @@ public static class ProbeMath
             Center.YInside or Center.YOutside => (false, true),
             _ => (sizeY > 0d, sizeX > 0d),
         };
+
+        int required = (probeX ? 2 : 0) + (probeY ? 2 : 0);
+        if (probes.Length < required)
+            throw new ArgumentException(
+                $"ComputeCenter needs at least {required} probe position(s) for {center} but got {probes.Length}.",
+                nameof(probes));
 
         var centerX = probeX ? probes[0].X + (probes[1].X - probes[0].X) / 2d : 0d;
         var centerY = probeY ? probes[^1].Y + (probes[^2].Y - probes[^1].Y) / 2d : 0d;

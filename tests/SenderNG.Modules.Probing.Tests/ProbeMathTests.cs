@@ -140,6 +140,63 @@ public class ProbeMathTests
     }
 
     [Fact]
+    public void Center_reports_the_probe_count_it_needs_instead_of_indexing_past_the_array()
+    {
+        // The only production caller (ProbeViewModel) already checks the count,
+        // so this is not reachable in the app — but ComputeCenter is public, and
+        // an unguarded index here reports "Index out of range" with no hint about
+        // which array was short (audit §1.9).
+        var ex = Assert.Throws<ArgumentException>(() =>
+            ProbeMath.ComputeCenter(Center.Inside, new Pos(0, 0, 5), Array.Empty<Pos>(), 2d, 40, 30));
+
+        Assert.Contains("4", ex.Message);
+        Assert.Contains("0", ex.Message);
+    }
+
+    [Fact]
+    public void Center_reports_the_short_count_for_a_single_axis_mode()
+    {
+        var probes = new[] { new Pos(-24, 0, 2) };
+
+        var ex = Assert.Throws<ArgumentException>(() =>
+            ProbeMath.ComputeCenter(Center.XInside, new Pos(0, 0, 5), probes, 2d, 0, 40));
+
+        Assert.Contains("2", ex.Message);
+        Assert.Contains("1", ex.Message);
+    }
+
+    [Fact]
+    public void Center_reports_the_short_count_for_a_partial_legacy_run()
+    {
+        // Three touches where the legacy two-axis mode needs four: the old code
+        // read probes[^2] happily and silently averaged the wrong pair.
+        var probes = new[]
+        {
+            new Pos(-24, 0, 2),
+            new Pos(24, 0, 2),
+            new Pos(0, -19, 2),
+        };
+
+        Assert.Throws<ArgumentException>(() =>
+            ProbeMath.ComputeCenter(Center.Inside, new Pos(0, 0, 5), probes, 2d, 40, 30));
+    }
+
+    [Fact]
+    public void Center_needs_no_probes_when_neither_axis_is_probed()
+    {
+        // Both sizes zero means nothing is probed, so an empty array is legal
+        // and must not be rejected. Unprobed axes report 0; only Z is carried
+        // over from start (existing behaviour, pinned here).
+        var (center, xd, yd) = ProbeMath.ComputeCenter(Center.None, new Pos(1, 2, 5), Array.Empty<Pos>(), 2d, 0, 0);
+
+        Assert.Equal(0, center.X);
+        Assert.Equal(0, center.Y);
+        Assert.Equal(5, center.Z);
+        Assert.Equal(0, xd);
+        Assert.Equal(0, yd);
+    }
+
+    [Fact]
     public void Center_YOutside_computes_midpoint_on_the_Y_pair_only()
     {
         var probes = new[]
