@@ -155,8 +155,8 @@ public static class ProbeMath
     public static double ComputeRotationRadians(Edge edge, Pos p1, Pos p2) =>
         Math.Atan(ComputeRotationAngle(edge, p1, p2));
 
-    /// <summary>Degrees for display.</summary>
-    public static double ToDegrees(double radians) => Math.Round(Math.Atan(radians) * 180d / Math.PI, 3);
+    /// <summary>Degrees for display. The argument is radians, not a slope.</summary>
+    public static double ToDegrees(double radians) => Math.Round(radians * 180d / Math.PI, 3);
 
     /// <summary>
     /// The controller command that writes <paramref name="pos"/> into the work

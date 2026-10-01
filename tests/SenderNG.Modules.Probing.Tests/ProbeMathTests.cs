@@ -225,4 +225,48 @@ public class ProbeMathTests
         Assert.Equal(25.5d, corner.X, 6);
         Assert.Equal(50d, corner.Y, 6);
     }
+
+    // Regression: ToDegrees is handed a value that ComputeRotationRadians has
+    // already run through Atan, so applying Atan again read every tilt too
+    // small (45 deg reported as 38.15, 30 deg as 27.61) in the "Probed angle"
+    // readout at ProbeViewModel.cs:1294.
+    [Theory]
+    [InlineData(45d)]
+    [InlineData(30d)]
+    [InlineData(10d)]
+    [InlineData(1.5d)]
+    [InlineData(-22.5d)]
+    [InlineData(0d)]
+    public void ToDegrees_converts_radians_to_degrees(double degrees)
+    {
+        Assert.Equal(degrees, ProbeMath.ToDegrees(degrees * Math.PI / 180d), 3);
+    }
+
+    [Fact]
+    public void Probed_angle_readout_matches_the_slope_that_was_probed()
+    {
+        // The real call site: ComputeRotationRadians(Edge.AB, ...) of a
+        // 10-unit rise over a 10-unit run is 45 degrees.
+        var radians = ProbeMath.ComputeRotationRadians(Edge.AB, new Pos(10, 20, 2), new Pos(20, 30, 2));
+
+        Assert.Equal(45d, ProbeMath.ToDegrees(radians), 3);
+    }
+
+    [Fact]
+    public void Probed_angle_readout_is_accurate_across_the_small_tilts_probing_measures()
+    {
+        // 1-3 degrees is the realistic probing band, where the double Atan was
+        // small but still a real reading error. The readout must match the true
+        // tilt to floating-point precision, not merely to plausible-looking
+        // three decimal places (the old code was 6e-4 out at 2 degrees).
+        foreach (var trueDegrees in new[] { 1d, 1.5d, 2d, 2.5d, 3d })
+        {
+            var slope = Math.Tan(trueDegrees * Math.PI / 180d);
+            // 100 units of run with 100*tan(theta) of rise, so the AB slope is
+            // exactly tan(theta) and the true tilt is trueDegrees.
+            var radians = ProbeMath.ComputeRotationRadians(Edge.AB, new Pos(0, 0, 0), new Pos(100, 100 * slope, 0));
+
+            Assert.Equal(trueDegrees, ProbeMath.ToDegrees(radians), 9);
+        }
+    }
 }
