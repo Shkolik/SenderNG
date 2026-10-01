@@ -164,23 +164,22 @@ namespace CNC.Core
         }
         public static double[] ParseList(string s)
         {
+            // NumberStyles.Float plus surrounding whitespace. The old set allowed
+            // only a sign and a decimal point, so exponent notation ("1.5e-3")
+            // and any padding (" 1.5") failed and the element silently became
+            // 0.0d - a real number read as zero, with no error (audit §1.15).
+            const NumberStyles Real = NumberStyles.AllowLeadingSign
+                                    | NumberStyles.AllowDecimalPoint
+                                    | NumberStyles.AllowExponent
+                                    | NumberStyles.AllowLeadingWhite
+                                    | NumberStyles.AllowTrailingWhite;
+
             string[] v = s.Split(',');
             double[] values = new double[v.Length];
             for (int i = 0; i < v.Length; i++)
-                if (!double.TryParse(v[i], NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out values[i]))
+                if (!double.TryParse(v[i], Real, CultureInfo.InvariantCulture, out values[i]))
                     values[i] = 0.0d;
             return values;
-        }
-        public static double Parse(string value)
-        {
-            double result = double.NaN;
-            if (value != null)
-            {
-                value = value.Trim();
-                if (value.Length == 0 || !double.TryParse(value, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out result))
-                    result = double.NaN;
-            }
-            return result;
         }
     }
 
