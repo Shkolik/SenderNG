@@ -97,9 +97,15 @@ public sealed class ProbeRunner
             if (line == "pause")
                 continue;
 
+            // Arm the idle gate BEFORE the move. Subscribing after the send would
+            // replay the pre-move "Idle" (every service exposes a BehaviorSubject),
+            // so the gate would be satisfied before the axis had even started and
+            // the next line would go out while the machine was still travelling.
+            var idleTask = WaitForIdleAsync(cancellationToken);
+
             await _grbl.SendAsync(line);
 
-            if (!await WaitForIdleAsync(cancellationToken))
+            if (!await idleTask)
                 return new ProbeRunResult { Success = false, Error = "Machine did not return to Idle (alarm or timeout)" };
 
             // A G38.x move just completed: capture the probe touch position.
@@ -125,15 +131,24 @@ public sealed class ProbeRunner
     private async Task<bool> WaitForIdleAsync(CancellationToken cancellationToken)
     {
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // The subscribe-time replay of the last state is dropped: it predates the
+        // move we just sent, so an "Idle" in it proves nothing.
+        var replay = true;
         using var sub = _grbl.State.Subscribe(s =>
         {
+            if (replay)
+            {
+                replay = false;
+                return;
+            }
             if (s is null)
                 return;
             var status = s.Status ?? string.Empty;
-            if (status.Contains("idle", StringComparison.OrdinalIgnoreCase))
-                tcs.TrySetResult(true);
-            else if (status.Contains("alarm", StringComparison.OrdinalIgnoreCase))
+            if (status.Contains("alarm", StringComparison.OrdinalIgnoreCase))
                 tcs.TrySetResult(false);
+            else if (status.Contains("idle", StringComparison.OrdinalIgnoreCase))
+                tcs.TrySetResult(true);
         });
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

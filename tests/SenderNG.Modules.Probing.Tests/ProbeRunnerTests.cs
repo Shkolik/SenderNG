@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Reactive.Subjects;
 using CNC.Core.Services;
 using SenderNG.Core.Modules.Probing;
 using Xunit;
@@ -115,5 +116,109 @@ public class ProbeRunnerTests
         Assert.True(result.Success);
         Assert.Equal(2, result.Positions.Count); // X probe then Y probe
         Assert.True(result.Positions[0][2] == 2d); // probing depth
+    }
+
+    // The demo applies a move synchronously inside SendAsync, so its Run/Idle
+    // reports are already over by the time the caller looks. A real controller
+    // accepts the line and returns while the axis is still travelling, and only
+    // reports Run then Idle on later polls. AsyncGrblService models that, which is
+    // the only way to reach the stale-replay race at all.
+
+    [Fact]
+    public async Task Probe_position_comes_from_the_post_move_report_not_a_stale_Idle()
+    {
+        var grbl = new AsyncGrblService();
+        var runner = new ProbeRunner(grbl);
+
+        var result = await runner.ExecuteAsync(["G38.3F100Z-10"], TestContext.Current.CancellationToken);
+
+        Assert.True(result.Success);
+        var pos = Assert.Single(result.Positions);
+        Assert.Equal(-10, pos[2], 3);
+    }
+
+    [Fact]
+    public async Task The_next_line_is_not_sent_until_the_machine_reports_Idle_again()
+    {
+        var grbl = new AsyncGrblService();
+        var runner = new ProbeRunner(grbl);
+
+        await runner.ExecuteAsync(["G38.3F100Z-10", "G0Z5"], TestContext.Current.CancellationToken);
+
+        // The retract must be sent after the probe move came back to Idle, never
+        // while the axis is still travelling towards the touch point.
+        var probe = grbl.Events.IndexOf("idle");
+        var retract = grbl.Events.IndexOf("send:G0Z5");
+        Assert.True(probe >= 0, grbl.Log);
+        Assert.True(retract > probe, $"retract sent at {retract}, first Idle at {probe}: {grbl.Log}");
+    }
+
+    [Fact]
+    public async Task A_line_that_does_not_move_an_axis_still_completes()
+    {
+        // Requiring an observed Run (as the stepper wizard's gate does) would make
+        // this line wait out the 120s move timeout and fail the run.
+        var grbl = new AsyncGrblService();
+        var runner = new ProbeRunner(grbl);
+
+        var result = await runner.ExecuteAsync(["G91F100", "G38.3F100Z-10"], TestContext.Current.CancellationToken);
+
+        Assert.True(result.Success, result.Error);
+        Assert.Single(result.Positions);
+    }
+
+    private sealed class AsyncGrblService : CNC.Core.Abstractions.IGrblService
+    {
+        private readonly BehaviorSubject<MachineState> _subject = new(new MachineState());
+        private readonly List<string> _events = [];
+        private readonly object _gate = new();
+
+        public List<string> Events { get { lock (_gate) return [.. _events]; } }
+        public string Log => string.Join(" | ", Events);
+
+        public IObservable<MachineState> State => _subject;
+        public bool IsConnected => true;
+
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public void SendRealtime(byte code) { }
+
+        public Task SendAsync(string line)
+        {
+            Record("send:" + line);
+            // Fire and forget: the controller has accepted the line but has not
+            // started moving yet, so the caller's await completes with the machine
+            // still reporting the previous Idle.
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(15);
+                var s = _subject.Value;
+                s.Status = "Run";
+                _subject.OnNext(s);
+                Record("run");
+
+                await Task.Delay(15);
+                foreach (System.Text.RegularExpressions.Match m in
+                         System.Text.RegularExpressions.Regex.Matches(line.ToUpperInvariant(), @"([XYZ])(-?[\d.]+)"))
+                {
+                    s.Positions["XYZ".IndexOf(m.Groups[1].Value[0])] =
+                        double.Parse(m.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture);
+                }
+                if (line.Contains("G38", StringComparison.OrdinalIgnoreCase))
+                {
+                    s.ProbeSuccess = true;
+                    s.ProbePosition = (double[])s.Positions.Clone();
+                }
+                s.Status = "Idle";
+                _subject.OnNext(s);
+                Record("idle");
+            });
+            return Task.CompletedTask;
+        }
+
+        private void Record(string e)
+        {
+            lock (_gate) _events.Add(e);
+        }
     }
 }
