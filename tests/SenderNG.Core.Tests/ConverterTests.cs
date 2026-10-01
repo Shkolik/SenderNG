@@ -159,6 +159,150 @@ public class ConverterTests
         Assert.Contains("G81X3R1", output); // only changed words are emitted
     }
 
+    // ---- Excellon: modal coordinates (audit §1.7) ----
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        int n = 0, at = 0;
+        while ((at = haystack.IndexOf(needle, at, StringComparison.Ordinal)) >= 0)
+        {
+            n++;
+            at += needle.Length;
+        }
+        return n;
+    }
+
+    [Fact]
+    public void Excellon_x_only_line_carries_over_the_previous_y()
+    {
+        const string drl =
+            "M48\n" +
+            "METRIC\n" +
+            "T01C2.4\n" +
+            "%\n" +
+            "T01\n" +
+            "X1.5Y1.5\n" +
+            "X2.0\n" +
+            "M95\n";
+
+        var output = new Excellon2GCode().Convert(drl, Defaults());
+
+        Assert.NotNull(output);
+        // The second line has no Y, so the hole lands at the previous Y. The g-code
+        // emitter is modal too, so the unchanged Y is simply omitted — a broken
+        // carry-over would instead emit "G81X2Y0R1" and fail this.
+        Assert.Contains("G81X1.5Y1.5Z-1.8R1", output);
+        Assert.Contains("G81X2R1", output);
+    }
+
+    [Fact]
+    public void Excellon_y_only_line_carries_over_the_previous_x()
+    {
+        const string drl =
+            "M48\n" +
+            "METRIC\n" +
+            "T01C2.4\n" +
+            "%\n" +
+            "T01\n" +
+            "X1.5Y1.5\n" +
+            "Y2.0\n" +
+            "M95\n";
+
+        var output = new Excellon2GCode().Convert(drl, Defaults());
+
+        Assert.NotNull(output);
+        // A Y-only line used to be a silent no-op and lost the hole entirely. A
+        // dropped carry-over would emit "G81X0Y2R1" and fail this.
+        Assert.Contains("G81X1.5Y1.5Z-1.8R1", output);
+        Assert.Contains("G81Y2R1", output);
+    }
+
+    [Fact]
+    public void Excellon_modal_run_of_x_only_lines_keeps_every_hole()
+    {
+        const string drl =
+            "M48\n" +
+            "METRIC\n" +
+            "T01C2.4\n" +
+            "%\n" +
+            "T01\n" +
+            "X1.0Y1.0\n" +
+            "X2.0\n" +
+            "X3.0\n" +
+            "Y4.0\n" +
+            "M95\n";
+
+        var output = new Excellon2GCode().Convert(drl, Defaults());
+
+        Assert.NotNull(output);
+        // Before the fix this produced exactly one G81: the X-only and Y-only
+        // lines were dropped, so three holes vanished from the program.
+        Assert.Contains("G81X1Y1Z-1.8R1", output);
+        Assert.Contains("G81X2R1", output);   // Y carried over from (1,1)
+        Assert.Contains("G81X3R1", output);   // Y still carried over
+        Assert.Contains("G81Y4R1", output);   // Y-only line, X carried over
+        Assert.Equal(4, CountOccurrences(output, "G81"));
+    }
+
+    [Fact]
+    public void Excellon_slot_end_inherits_the_start_axis_it_omits()
+    {
+        const string drl =
+            "M48\n" +
+            "METRIC\n" +
+            "T01C2.4\n" +
+            "%\n" +
+            "T01\n" +
+            "X2.0Y2.0G85X3.0\n" +
+            "M95\n";
+
+        var output = new Excellon2GCode().Convert(drl, Defaults());
+
+        Assert.NotNull(output);
+        // G85 with no end Y means the slot runs along X at the start's Y.
+        Assert.Contains("(Slot 2;2 - 3;2)", output);
+    }
+
+    [Fact]
+    public void Excellon_unparseable_line_is_reported_in_the_output()
+    {
+        const string drl =
+            "M48\n" +
+            "METRIC\n" +
+            "T01C2.4\n" +
+            "%\n" +
+            "T01\n" +
+            "X1.5Y1.5\n" +
+            "XbadYbad\n" +
+            "M95\n";
+
+        var output = new Excellon2GCode().Convert(drl, Defaults());
+
+        Assert.NotNull(output);
+        // Silent loss is the bug; the bad line must now say so.
+        Assert.Contains("skipped", output, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Excellon_clean_file_reports_no_skipped_lines()
+    {
+        const string drl =
+            "M48\n" +
+            "METRIC\n" +
+            "T01C2.4\n" +
+            "%\n" +
+            "T01\n" +
+            "X1.5Y1.5\n" +
+            "X2.0\n" +
+            "M95\n";
+
+        var output = new Excellon2GCode().Convert(drl, Defaults());
+
+        Assert.NotNull(output);
+        // Output parity for clean files must not change.
+        Assert.DoesNotContain("skipped", output, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void Excellon_inch_converts_to_mm()
     {

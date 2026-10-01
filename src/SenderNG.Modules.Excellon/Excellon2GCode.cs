@@ -80,6 +80,14 @@ public class Excellon2GCode
     private readonly List<ExcellonCommand> _commands = [];
     private Point3D _lastPos;
 
+    // Modal Excellon position, in output units (mm). Coordinates are modal, so
+    // a line may carry only X or only Y and the other axis carries over.
+    private double _curX, _curY;
+
+    // Input lines that were dropped; reported in the output so a corrupt file
+    // cannot silently lose holes (audit §1.7).
+    private int _skippedLines;
+
     public string FileType => "Excellon files";
 
     public string? FileTypeKey => "converter.excellon.fileType";
@@ -102,6 +110,8 @@ public class Excellon2GCode
         _isMetric = true;
         _isHeader = null;
         _lastPos = default;
+        _curX = _curY = 0d;
+        _skippedLines = 0;
 
         bool leadingZeros = false;
         double scaleFactor = 0d;
@@ -180,24 +190,49 @@ public class Excellon2GCode
                             break;
 
                         case 'X':
+                        case 'Y':
                             if (_isDrillMode)
                             {
                                 int g85pos = s.IndexOf("G85");
                                 string args = g85pos >= 0 ? s.Substring(0, g85pos) : s;
-                                int ypos = args.IndexOf('Y');
-                                double factor = scaleFactor == 0d ? (leadingZeros ? (ypos == 8 ? 1000d : 10000d) : 1.0) : scaleFactor;
+                                string? xWord = AxisWord(args, 'X');
+                                string? yWord = AxisWord(args, 'Y');
+                                if (xWord is null && yWord is null)
+                                    throw new FormatException(s);
+
+                                // Faithful port of the original text-position scale
+                                // heuristic: a 7-character X field meant a 3-decimal
+                                // fixed format, anything else 4 decimals.
+                                double factor = scaleFactor != 0d ? scaleFactor
+                                    : leadingZeros ? (xWord is { Length: 7 } ? 1000d : 10000d)
+                                    : 1.0;
+                                double units = _isMetric ? 1d : 25.4d;
+
+                                // Parse whichever axis is present; the absent one keeps
+                                // the previous hole's coordinate (Excellon is modal).
+                                if (xWord is not null)
+                                    _curX = ParseD(xWord) / factor / units;
+                                if (yWord is not null)
+                                    _curY = ParseD(yWord) / factor / units;
+
                                 var cmd = new ExcellonCommand();
                                 cmd.Command = g85pos >= 0 ? "Slot" : "Drill";
                                 cmd.Tool = tool.Id;
-                                cmd.Start.X = ParseD(args.Substring(1, ypos - 1)) / factor / (_isMetric ? 1d : 25.4d);
-                                cmd.Start.Y = ParseD(args.Substring(ypos + 1)) / factor / (_isMetric ? 1d : 25.4d);
+                                cmd.Start.X = _curX;
+                                cmd.Start.Y = _curY;
                                 if (g85pos >= 0)
                                 {
                                     _isDrillMode = false;
-                                    args = s.Substring(g85pos + 3);
-                                    ypos = args.IndexOf('Y');
-                                    cmd.End.X = ParseD(args.Substring(1, ypos - 1)) / (_isMetric ? 1d : 25.4d);
-                                    cmd.End.Y = ParseD(args.Substring(ypos + 1)) / (_isMetric ? 1d : 25.4d);
+                                    string end = s.Substring(g85pos + 3);
+                                    string? endX = AxisWord(end, 'X');
+                                    string? endY = AxisWord(end, 'Y');
+                                    // Verbatim quirk: the original divided the start by
+                                    // `factor` but the G85 end only by the unit scale. An
+                                    // omitted end axis carries the start's value.
+                                    cmd.End.X = endX is not null ? ParseD(endX) / units : _curX;
+                                    cmd.End.Y = endY is not null ? ParseD(endY) / units : _curY;
+                                    _curX = cmd.End.X;
+                                    _curY = cmd.End.Y;
                                 }
                                 _commands.Add(cmd);
                             }
@@ -211,7 +246,11 @@ public class Excellon2GCode
             }
             catch (Exception)
             {
-                // Bad line — skip, like ioSender.
+                // Bad line — skip, like ioSender, but count it: a silently dropped
+                // line means a silently missing hole (audit §1.7). Blank lines and
+                // `;` comments are not input, so they are not counted.
+                if (!string.IsNullOrWhiteSpace(s) && !s.StartsWith(';'))
+                    _skippedLines++;
             }
             s = reader.ReadLine();
         }
@@ -219,6 +258,8 @@ public class Excellon2GCode
         var sb = new StringBuilder();
 
         sb.AppendLine("(Translated by Excellon to GCode converter)");
+        if (_skippedLines > 0)
+            sb.AppendLine(string.Format("(WARNING: {0} input line(s) could not be parsed and were skipped - holes may be missing)", _skippedLines));
         sb.AppendLine("G90G17G21G50");
 
         if (parameters.ScaleX != 1d || parameters.ScaleY != 1d)
@@ -335,6 +376,22 @@ public class Excellon2GCode
 
         if (p.Length > 0)
             sb.AppendLine("G81" + p + "R" + Inv(parameters.ZSafe));
+    }
+
+    /// <summary>The number text of the <c>&lt;axis&gt;&lt;number&gt;</c> word in a
+    /// coordinate segment, or null when the axis is absent or has no digits —
+    /// in which case the caller carries over the modal coordinate.</summary>
+    private static string? AxisWord(string segment, char axis)
+    {
+        int at = segment.IndexOf(axis);
+        if (at < 0)
+            return null;
+        int end = at + 1;
+        if (end < segment.Length && (segment[end] == '-' || segment[end] == '+'))
+            end++;
+        while (end < segment.Length && (char.IsAsciiDigit(segment[end]) || segment[end] == '.'))
+            end++;
+        return end > at + 1 ? segment[(at + 1)..end] : null;
     }
 
     private static double ParseD(string s) => double.Parse(s, CultureInfo.InvariantCulture);
