@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Globalization;
+using System.IO;
 using System.Xml;
 
 namespace SenderNG.Core.Modules.Probing;
@@ -107,6 +108,13 @@ public class HeightMap
     /// <summary>Bilinear interpolation of the probed surface at (x, y), plus Z offset.</summary>
     public double InterpolateZ(double x, double y)
     {
+        // Nothing has been probed: MaxHeight is still its double.MinValue
+        // initialiser, and answering with that would emit ~-1.8e308 as a Z
+        // word. Degrade to the flat offset plane instead, as the unprobed-cell
+        // paths below already do.
+        if (MaxHeight == double.MinValue)
+            return ZOffset;
+
         if (x > Max.X || x < Min.X || y > Max.Y || y < Min.Y)
             return MaxHeight;
 
@@ -150,6 +158,8 @@ public class HeightMap
     public static HeightMap Load(string path)
     {
         var map = new HeightMap();
+        var foundHeightMap = false;
+
         using var r = XmlReader.Create(path);
         while (r.Read())
         {
@@ -164,18 +174,39 @@ public class HeightMap
                     map.SizeX = int.Parse(r["SizeX"]!, CultureInfo.InvariantCulture);
                     map.SizeY = int.Parse(r["SizeY"]!, CultureInfo.InvariantCulture);
                     map.ZOffset = Parse(r["ZOffset"]);
+                    if (map.SizeX < 2 || map.SizeY < 2)
+                        throw new InvalidDataException($"Height map grid is too small (minimum 2x2 points): {map.SizeX}x{map.SizeY}.");
+                    if (map.Min.X == map.Max.X || map.Min.Y == map.Max.Y)
+                        throw new InvalidDataException("Height map area must have non-zero width and height.");
                     map.Points = new double?[map.SizeX, map.SizeY];
+                    foundHeightMap = true;
                     break;
                 case "point":
                     var x = int.Parse(r["X"]!, CultureInfo.InvariantCulture);
                     var y = int.Parse(r["Y"]!, CultureInfo.InvariantCulture);
-                    var height = Parse(r.ReadInnerXml());
+                    if (x < 0 || x >= map.SizeX || y < 0 || y >= map.SizeY)
+                        throw new InvalidDataException($"Height map point ({x},{y}) is outside the {map.SizeX}x{map.SizeY} grid.");
+                    if (r.IsEmptyElement)
+                        break;
+                    // ReadInnerXml() leaves the reader on the node *after*
+                    // </point>, so the loop's Read() would skip one node and
+                    // silently drop every second point in minified
+                    // (whitespace-free) .map files. Step onto the text node
+                    // ourselves and let the loop do the advancing.
+                    r.Read();
+                    var height = Parse(r.Value);
                     map.Points[x, y] = height;
                     map.MaxHeight = Math.Max(map.MaxHeight, height);
                     map.MinHeight = Math.Min(map.MinHeight, height);
                     break;
             }
         }
+
+        if (!foundHeightMap)
+            throw new InvalidDataException("Height map file does not contain a <heightmap> element.");
+        if (map.MaxHeight == double.MinValue)
+            throw new InvalidDataException("Height map does not contain any probed points.");
+
         return map;
     }
 
