@@ -305,16 +305,19 @@ public class GCodeTransformersTests
     }
 
     [Fact]
-    public void ArcsToLines_arc_exactly_half_the_tolerance_terminates()
+    public async Task Arcs_to_lines_arc_exactly_half_the_tolerance_terminates()
     {
         // a*(2r-a) == 0 exactly: pre-fix the divisor was 0, the count came out
         // Infinity, and (int)Infinity is int.MaxValue - the sampler loop then ran
-        // ~2.1e9 times appending points and wedged the process. Only a completion
-        // check is safe here; running it pre-fix does not return.
+        // ~2.1e9 times appending points and wedged the process. Only a timeout
+        // check is safe here; running it pre-fix does not return. WaitAsync
+        // rather than Wait/Result so the overrun surfaces as a TimeoutException
+        // and the analyzer does not flag a blocking call in a test (xUnit1031).
         var task = Task.Run(() => ArcsToLines("G0 X0.05 Y0\nG2 X0 Y0 I-0.025 J0 F100\n"));
 
-        Assert.True(task.Wait(TimeSpan.FromSeconds(30)), "arc sampling did not terminate");
-        Assert.True(G1Lines(task.Result).Length > 1);
+        var result = await task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.True(G1Lines(result).Length > 1);
     }
 
     [Theory]

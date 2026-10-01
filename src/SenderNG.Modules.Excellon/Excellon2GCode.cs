@@ -54,6 +54,15 @@ namespace SenderNG.Modules.Excellon;
 /// Quirks kept verbatim for output parity: junk lines are skipped silently
 /// (per-line try/catch) and a file without any X commands still yields the
 /// preamble.
+/// <para>
+/// One deliberate divergence from ioSender: a G85 slot's END coordinate is
+/// divided by the format factor as well as the unit scale, which the original
+/// omitted. That omission put every slot end out by the whole format factor
+/// (1000x on a 3-decimal file) and inflated the interpolated hole count to
+/// match. Output now differs from ioSender for files that declare a decimal
+/// format AND contain a slot. It is a wrong-coordinate fix, not a behaviour
+/// change worth preserving - do not restore parity here (audit §1.17).
+/// </para>
 /// </summary>
 public class Excellon2GCode
 {
@@ -226,11 +235,19 @@ public class Excellon2GCode
                                     string end = s.Substring(g85pos + 3);
                                     string? endX = AxisWord(end, 'X');
                                     string? endY = AxisWord(end, 'Y');
-                                    // Verbatim quirk: the original divided the start by
-                                    // `factor` but the G85 end only by the unit scale. An
-                                    // omitted end axis carries the start's value.
-                                    cmd.End.X = endX is not null ? ParseD(endX) / units : _curX;
-                                    cmd.End.Y = endY is not null ? ParseD(endY) / units : _curY;
+                                    // The end is a coordinate in the same declared
+                                    // format as the start, so it takes the same factor
+                                    // and unit scale. The original divided only the
+                                    // start, which put every G85 end out by the whole
+                                    // format factor - 1000x on a 3-decimal file - and
+                                    // inflated the interpolated hole count to match
+                                    // (audit §1.17). Deliberately NOT kept for parity
+                                    // with ioSender: this one is a coordinate error
+                                    // that drives the machine off the board.
+                                    // An omitted end axis carries the start's value,
+                                    // which is already scaled.
+                                    cmd.End.X = endX is not null ? ParseD(endX) / factor / units : _curX;
+                                    cmd.End.Y = endY is not null ? ParseD(endY) / factor / units : _curY;
                                     _curX = cmd.End.X;
                                     _curY = cmd.End.Y;
                                 }
