@@ -60,6 +60,10 @@ public class NGCExprTests
                 coordinateSystems.Add(row);
             }
         }
+
+        // SelectedTool has a protected setter, so a test picks the active tool
+        // the way Reset() does.
+        internal void Select(Tool tool) => SelectedTool = tool;
     }
 
     /// <summary>
@@ -126,5 +130,44 @@ public class NGCExprTests
         // must read 0 rather than aliasing a neighbouring block.
         Assert.Equal(0d, expr.GetNumberedParameter(5231));
         Assert.Equal(0d, expr.GetNumberedParameter(5240));
+    }
+
+    // #<selected_tool> parses the controller's tool code. Every ToolTableEntry
+    // carries an int Id, so through the normal load path the code is always a
+    // bare integer — but Tool.Code is a plain settable string and a macro
+    // expression can read it at any time. A code the parse cannot read must
+    // report "no tool" (-1), not throw out of the expression evaluator.
+
+    [Fact]
+    public void Selected_tool_reads_the_number_of_a_numeric_tool_code()
+    {
+        var machine = new SeededMachine();
+        machine.Select(new Tool("7"));
+
+        Assert.Equal(7d, new NGCExpr(machine).GetNamedParameter(NGCExpr.NamedParam.selected_tool));
+    }
+
+    [Fact]
+    public void Selected_tool_is_minus_one_when_no_tool_is_selected()
+    {
+        Assert.Equal(-1d, new NGCExpr(new SeededMachine()).GetNamedParameter(NGCExpr.NamedParam.selected_tool));
+    }
+
+    [Fact]
+    public void Selected_tool_reports_minus_one_for_a_code_that_is_not_a_number()
+    {
+        var machine = new SeededMachine();
+        machine.Select(new Tool("1.5mm"));   // grblHAL-style named tool
+
+        Assert.Equal(-1d, new NGCExpr(machine).GetNamedParameter(NGCExpr.NamedParam.selected_tool));
+    }
+
+    [Fact]
+    public void Selected_tool_reports_minus_one_for_an_empty_code()
+    {
+        var machine = new SeededMachine();
+        machine.Select(new Tool(string.Empty));
+
+        Assert.Equal(-1d, new NGCExpr(machine).GetNamedParameter(NGCExpr.NamedParam.selected_tool));
     }
 }

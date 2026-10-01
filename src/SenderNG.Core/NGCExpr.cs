@@ -1447,7 +1447,14 @@ namespace CNC.Core
                     break;
 
                 case NamedParam.selected_tool:
-                    value = machine.SelectedTool == null ? -1d : double.Parse(machine.SelectedTool.Code);
+                    // Tool.Code is a free-form string, so a code the number
+                    // parse cannot read (a grblHAL tool name, or empty) must
+                    // read as "no tool" rather than throw FormatException out of
+                    // the middle of a macro expression.
+                    value = -1d;
+                    if (machine.SelectedTool != null &&
+                        double.TryParse(machine.SelectedTool.Code, NumberStyles.Float, CultureInfo.InvariantCulture, out double toolNo))
+                        value = toolNo;
                     break;
 
                 case NamedParam.current_pocket:

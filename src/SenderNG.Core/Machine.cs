@@ -42,7 +42,6 @@ using System.Linq;
 using CNC.GCode;
 using CNC.Core.Services;
 // portable: removed Media3D
-using System.Globalization;
 
 namespace CNC.Core
 {
@@ -113,11 +112,18 @@ namespace CNC.Core
             MotionMode = GrblParserState.MotionMode;
             IJKMode = GrblParserState.IJKMode;
             IsScaled = GrblParserState.IsActive("G51") != null;
-            string? val = GrblParserState.IsActive("F");
-            Feedrate = val == null ? 0d : double.Parse(val, CultureInfo.InvariantCulture);
-            val = GrblParserState.IsActive("S");
-            _rpm = val == null ? 0d : double.Parse(val, CultureInfo.InvariantCulture);
-            _tool = GrblParserState.Tool == GrblConstants.NO_TOOL ? 0 : int.Parse(GrblParserState.Tool);
+
+            // F, S and T have always been zero here, and did not get there by
+            // parsing anything: GrblParserState.IsActive is a stub that always
+            // returns null, and GrblParserState.Tool is never assigned, so it
+            // only ever holds GrblConstants.NO_TOOL. The double.Parse/int.Parse
+            // that used to sit behind those checks were unreachable, so they
+            // have been dropped rather than guarded. Whoever fills in the parser
+            // state has to read the F, S and T words here for the first time.
+            Feedrate = 0d;
+            _rpm = 0d;
+            _tool = 0;
+
             SelectedTool = null;
             RetractOldZ = GrblParserState.IsActive("G99") == null;
             SpindleRpmMode = GrblParserState.IsActive("G96") == null;
