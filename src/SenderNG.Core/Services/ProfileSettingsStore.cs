@@ -62,12 +62,25 @@ public static class GlobalSettingsStore
 {
     public static bool Exists(string dir) => File.Exists(ProfileSettingsPaths.GlobalPath(dir));
 
+    /// <summary>Reads <c>global.json</c>, falling back to defaults when the
+    /// file is corrupt, truncated or unreadable. Never throws for bad file
+    /// content — this is on the startup path (audit §1.6).</summary>
     public static GlobalSettings Load(string dir)
     {
         var path = ProfileSettingsPaths.GlobalPath(dir);
         if (!File.Exists(path))
             return new GlobalSettings();
-        return JsonSerializer.Deserialize<GlobalSettings>(File.ReadAllText(path)) ?? new GlobalSettings();
+        try
+        {
+            return JsonSerializer.Deserialize<GlobalSettings>(File.ReadAllText(path)) ?? new GlobalSettings();
+        }
+        catch (Exception ex) when (ex is JsonException or IOException)
+        {
+            // Corrupt/truncated JSON, or a locked/unreadable file. The other
+            // settings loaders fall back the same way; throwing here would take
+            // down startup (HostSetup reads Language via SettingsService.Global).
+        }
+        return new GlobalSettings();
     }
 
     public static void Save(string dir, GlobalSettings settings)
@@ -87,12 +100,24 @@ public static class ProfilesStore
     public static bool Exists(string dir, string id) =>
         File.Exists(ProfileSettingsPaths.ProfilePath(dir, id));
 
+    /// <summary>Loads one profile, or null when it is absent, corrupt,
+    /// truncated or unreadable. Being a <c>Try</c> method it must not throw
+    /// for bad file content (audit §1.6).</summary>
     public static MachineProfile? TryLoad(string dir, string id)
     {
         var path = ProfileSettingsPaths.ProfilePath(dir, id);
         if (!File.Exists(path))
             return null;
-        return JsonSerializer.Deserialize<MachineProfile>(File.ReadAllText(path));
+        try
+        {
+            return JsonSerializer.Deserialize<MachineProfile>(File.ReadAllText(path));
+        }
+        catch (Exception ex) when (ex is JsonException or IOException)
+        {
+            // Null is this method's "not loadable" answer; callers fall back to
+            // a default profile (SettingsService.Load does `?? new MachineProfile()`).
+        }
+        return null;
     }
 
     public static void Save(string dir, MachineProfile profile)
