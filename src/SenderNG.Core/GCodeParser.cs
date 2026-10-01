@@ -2676,9 +2676,7 @@ namespace CNC.GCode
 
             double h_x2_div_d = 4d * R * R - x * x - y * y;
             if (h_x2_div_d < 0d)
-            {
-                Console.Write(LibStrings.FindResource("ParserRadiusErr"));
-            }
+                throw new GCodeException(LibStrings.FindResource("ParserRadiusErr"));
 
             h_x2_div_d = (-Math.Sqrt(h_x2_div_d)) / Math.Sqrt(x * x + y * y);
 
@@ -2709,6 +2707,13 @@ namespace CNC.GCode
                 center[0] = offsetX;
                 center[1] = offsetY;
             }
+
+            // A start that coincides with the end divides by sqrt(0) below, and the
+            // offsets then evaluate 0 * Infinity to NaN with a perfectly positive
+            // discriminant — the check above cannot see it, so the centre itself has
+            // to be validated (audit §1.11).
+            if (!double.IsFinite(center[0]) || !double.IsFinite(center[1]))
+                throw new GCodeException(LibStrings.FindResource("ParserRadiusErr"));
 
             return center;
         }
