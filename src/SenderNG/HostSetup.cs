@@ -55,8 +55,14 @@ public static class HostSetup
 
         // SettingsService reports any settings file it could not load; route that
         // to the status bar. Registered as a factory because StatusSink is
-        // registered further down (:83) — resolution is lazy, so order is fine.
+        // registered further down — resolution is lazy, so order is fine.
+        // `services: sp` is load-bearing too: the parameterless registration this
+        // replaced let MS DI inject the provider into that parameter on its own,
+        // and DeleteProfile resolves IProfileCompanionSuffixes through it to strip
+        // a deleted profile's per-module companion files. A factory that omits it
+        // leaves it null and silently stops that cleanup.
         builder.Services.AddSingleton(sp => new SettingsService(
+            services: sp,
             onFallback: f => sp.GetRequiredService<StatusSink>().Set(DescribeSettingsFallback(f))));
         builder.Services.AddSingleton<SenderNG.Core.Services.HotkeyService>();
         // Shared active-profile graph: one instance for every consumer (VMs, services).
@@ -221,9 +227,12 @@ public static class HostSetup
             (SettingsFallbackReason.Unreadable, false) => "app.msg.settingsUnreadableKept",
             // The explicit discard keeps this switch exhaustive at compile time.
             // Throwing is deliberate over a neutral catch-all: a reason nobody wrote
-            // a sentence for must not reach the user as vague text, and the loaders
-            // can only ever pass the two members above, so this arm is unreachable
-            // rather than merely unknown.
+            // a sentence for must not reach the user as vague text. Unreachable today
+            // because every SettingsFallback is built at ProfileSettingsStore.cs:197,
+            // :201, :297 and :301, each with reason taken from the same expression,
+            // `ex is JsonException ? Corrupt : Unreadable` — so only those two members
+            // can arrive. If a third reason is ever added this arm is where the
+            // developer finds out a sentence is still missing.
             _ => throw new ArgumentOutOfRangeException(
                 nameof(fallback), fallback.Reason, "No settings-fallback message for this reason"),
         };
