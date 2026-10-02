@@ -485,4 +485,110 @@ public class GrblSettingsViewModelTests
         Assert.Equal(GrblSettingValidationError.None,
             MakeItem(GrblSettingType.Bitfield, "abc", format: "0,1,2").Validate());
     }
+
+    // $ES wire format:
+    // [SETTING:<id>|<groupId>|<name>|<unit>|<datatype>|<format>|<min>|<max>|<reboot>|<allowNull>]
+    private const string IntBounded = "[SETTING:0|35|Rapid rate|mm/min|5|#0|1|100|0|0]";
+    private const string FloatBounded = "[SETTING:1|35|Feed rate|mm/min|6|#0.0|0.001|10000|0|0]";
+    private const string MinOnly = "[SETTING:0|35|Step pulse time|us|5|#0|1||0|0]";
+    private const string MaxOnly = "[SETTING:1|35|Feed rate|mm/min|6|#0.0||10000|0|0]";
+
+    private static GrblSettingsViewModel CreateTypedVm(FakeGrbl grbl, params string[] detailLines) =>
+        CreateVm(new StubProvider
+        {
+            ValueLines = ["$0=10", "$1=25"],
+            DetailLines = detailLines,
+        }, grbl);
+
+    [Fact]
+    public async Task An_invalid_value_blocks_the_whole_save_and_sends_nothing()
+    {
+        var grbl = new FakeGrbl();
+        var vm = CreateTypedVm(grbl, IntBounded, FloatBounded);
+        await vm.LoadAsync();
+
+        // $0 is VALID and sorts first; $1 is invalid. A single-pass implementation would
+        // already have written $0 by the time it reached $1 - this is the test that
+        // distinguishes the two designs.
+        Find(vm.Groups, 0).Value = "50";
+        Find(vm.Groups, 1).Value = "1e";
+
+        await vm.SaveAsync();
+
+        Assert.Empty(grbl.Sent);
+    }
+
+    [Fact]
+    public async Task A_blocked_save_leaves_every_setting_dirty_and_accepts_nothing()
+    {
+        var grbl = new FakeGrbl();
+        var vm = CreateTypedVm(grbl, IntBounded, FloatBounded);
+        await vm.LoadAsync();
+
+        Find(vm.Groups, 0).Value = "50";
+        Find(vm.Groups, 1).Value = "1e";
+
+        await vm.SaveAsync();
+
+        Assert.True(Find(vm.Groups, 0).IsDirty);
+        Assert.True(Find(vm.Groups, 1).IsDirty);
+    }
+
+    [Fact]
+    public async Task The_status_names_each_rejected_setting_and_its_reason()
+    {
+        var grbl = new FakeGrbl();
+        var vm = CreateTypedVm(grbl, IntBounded, FloatBounded);
+        await vm.LoadAsync();
+
+        Find(vm.Groups, 1).Value = "1e";
+        await vm.SaveAsync();
+
+        Assert.Contains("$1", vm.Status);
+        Assert.Contains("must be a number", vm.Status);
+    }
+
+    [Theory]
+    [InlineData(0, "0", "must be at least 1")]         // $0 has Min only
+    [InlineData(1, "20000", "must be at most 10000")]  // $1 has Max only
+    public async Task A_half_bounded_setting_reports_only_the_bound_it_has(int id, string text, string expected)
+    {
+        var grbl = new FakeGrbl();
+        var vm = CreateTypedVm(grbl, MinOnly, MaxOnly);
+        await vm.LoadAsync();
+
+        Find(vm.Groups, id).Value = text;
+        await vm.SaveAsync();
+
+        Assert.Empty(grbl.Sent);
+        Assert.Contains(expected, vm.Status);
+    }
+
+    [Fact]
+    public async Task A_valid_save_still_writes_only_dirty_settings()
+    {
+        var grbl = new FakeGrbl();
+        var vm = CreateTypedVm(grbl, IntBounded);
+        await vm.LoadAsync();
+
+        Find(vm.Groups, 0).Value = "50";
+        await vm.SaveAsync();
+
+        Assert.Equal(["$0=50"], grbl.Sent);
+        Assert.False(Find(vm.Groups, 0).IsDirty);
+    }
+
+    [Fact]
+    public async Task A_non_finite_float_is_blocked_with_the_numeric_reason()
+    {
+        var grbl = new FakeGrbl();
+        var vm = CreateTypedVm(grbl, FloatBounded);
+        await vm.LoadAsync();
+
+        Find(vm.Groups, 1).Value = "NaN";
+        await vm.SaveAsync();
+
+        Assert.Empty(grbl.Sent);
+        Assert.Contains("must be a number", vm.Status);
+    }
 }

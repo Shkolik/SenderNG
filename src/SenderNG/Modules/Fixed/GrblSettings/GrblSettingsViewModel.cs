@@ -573,6 +573,23 @@ public sealed class GrblSettingsViewModel : ViewModelBase
                 return;
             }
 
+            // Validate the whole dirty set before writing any of it. Checking inside the
+            // send loop would be too late: items are ordered by id, so a valid setting
+            // sorted ahead of a bad one would already be on the controller - and
+            // Accept()ed - by the time the bad value was reached.
+            var invalid = dirty
+                .Where(static i => i.Validate() is not GrblSettingValidationError.None)
+                .ToList();
+            if (invalid.Count > 0)
+            {
+                Status = LocText.Format(
+                    "module.grbl-settings.notSaved",
+                    "Not saved — invalid value: {0}",
+                    string.Join(", ", invalid.Select(DescribeInvalid)));
+                SelectFirstInvalid(invalid[0]);
+                return;
+            }
+
             foreach (var item in dirty)
             {
                 await _grbl.SendAsync($"${item.Id}={item.Value}");
@@ -589,6 +606,30 @@ public sealed class GrblSettingsViewModel : ViewModelBase
             Status = LocText.Format("module.grbl-settings.saveFailed", "Save failed: {0}", ex.Message);
         }
     }
+
+    /// <summary>One rejected setting as "$1 (must be a number)", ready for the status line.</summary>
+    private static string DescribeInvalid(GrblSettingItem item)
+    {
+        var reason = item.Validate() switch
+        {
+            GrblSettingValidationError.OutOfRange when item.Min is not null && item.Max is not null =>
+                LocText.Format("module.grbl-settings.reason.outOfRange", "must be between {0} and {1}",
+                    GrblSettingItem.FormatBound(item.Min), GrblSettingItem.FormatBound(item.Max)),
+            GrblSettingValidationError.OutOfRange when item.Min is not null =>
+                LocText.Format("module.grbl-settings.reason.minOnly", "must be at least {0}",
+                    GrblSettingItem.FormatBound(item.Min)),
+            GrblSettingValidationError.OutOfRange =>
+                LocText.Format("module.grbl-settings.reason.maxOnly", "must be at most {0}",
+                    GrblSettingItem.FormatBound(item.Max)),
+            GrblSettingValidationError.MalformedIp =>
+                LocText.Resolve("module.grbl-settings.reason.invalidIp", "must be a dotted-quad address"),
+            _ => LocText.Resolve("module.grbl-settings.reason.notNumber", "must be a number"),
+        };
+        return $"{item.Key} ({reason})";
+    }
+
+    /// <summary>Select the first rejected setting so the detail pane opens on it.</summary>
+    private void SelectFirstInvalid(GrblSettingItem item) => SelectedNode = item;
 
     /// <summary>
     /// Lazily fetch the long description for a setting whose metadata came from the
