@@ -98,7 +98,10 @@ public class MainViewModelDisposeTests
 
         vm.Dispose();
         var baseline = notifications();
-        settings.Save(settings.Load());
+        // Activate, not Save: only Activate raises ProfileSwitched as well as
+        // Changed, so this covers BOTH detaches. Save would exercise only the
+        // Changed one and leave the ProfileSwitched detach untested.
+        settings.Activate(settings.Load().Id);   // raises Changed + ProfileSwitched
 
         Assert.Equal(baseline, notifications());
     }
