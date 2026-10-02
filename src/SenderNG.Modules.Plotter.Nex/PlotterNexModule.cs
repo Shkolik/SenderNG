@@ -122,12 +122,19 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IPluginD
         // (see SharedSettingsVm); it is rebuilt fresh on profile switch.
     }
 
-    public object CreateViewModel(IServiceProvider serviceProvider) =>
-        new PlotterNexViewModel(
+    public object CreateViewModel(IServiceProvider serviceProvider)
+    {
+        // The host realizes module view models on the UI thread — capture the
+        // dispatcher for the VM's event marshaling (headless constructions of
+        // PlotterNexViewModel never initialize it and stay inline; see
+        // PlotterNexUi).
+        PlotterNexUi.Initialize();
+        return new PlotterNexViewModel(
             serviceProvider.GetRequiredService<ILoadedProgramSource>(),
             serviceProvider.GetRequiredService<IGrblService>(),
             serviceProvider.GetRequiredService<SettingsService>(),
             serviceProvider.GetRequiredService<LocalizationService>());
+    }
 
     // Settings fields must work before the module's own view is opened (App Settings dialog).
     public void AttachServices(IServiceProvider services) =>
