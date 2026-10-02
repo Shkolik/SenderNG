@@ -299,8 +299,8 @@ public class SettingsFallbackTests
     [Fact]
     public void Loading_without_a_callback_still_works()
     {
-        // The parameter is optional so the 123 existing `new SettingsService(...)`
-        // and every direct loader call keep compiling. This pins that - both
+        // The parameter is optional so the 124 existing `new SettingsService(...)`
+        // (1 in src, 123 in tests) and every direct loader call keep compiling. This pins that - both
         // loaders are given a CORRUPT file, so each one-argument call below is
         // proven to survive the fallback path, not just the absent-file path.
         var dir = NewDir();
