@@ -156,9 +156,11 @@ public class SettingsFallbackMessageTests
         string locale, string damageWord, string unchangedWord, string permissionWord)
     {
         // The regression pin: a locked or permission-denied file has fine bytes.
-        // "damaged" sends the user hunting for corruption that does not exist, and
-        // Unreadable usually arrives with Quarantined == false, so this was the
-        // likely case rather than the edge one.
+        // "damaged" sends the user hunting for corruption that does not exist. A
+        // directory squatting the settings path demonstrates Unreadable arriving
+        // with Quarantined == false (see SettingsFallbackTests); how often that
+        // pair occurs in the wild is not measured, and the four-cell split does
+        // not depend on it.
         var message = Notice(SettingsFallbackReason.Unreadable, false, locale);
 
         Assert.Contains(fileName, message);
