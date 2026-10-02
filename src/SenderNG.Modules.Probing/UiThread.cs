@@ -41,16 +41,20 @@ namespace SenderNG.Modules.Probing;
 /// but ViewModels touch Avalonia-owned objects (brushes, bound collections)
 /// which must be updated on the UI thread.
 /// <para>
-/// The dispatcher is captured at app startup via <see cref="Initialize"/>;
-/// headless/unit-test hosts never initialize it, so callbacks run inline on
-/// the calling thread - keeping synchronous test assertions deterministic.
+/// The dispatcher is captured via <see cref="Initialize"/>, called by
+/// <see cref="ProbingModule.AttachServices"/> - the plugin hook the host runs
+/// on the UI thread before it resolves the view model. The startup call in
+/// <c>App.axaml.cs</c> initializes the host's own <c>SenderNG.UiThread</c>, a
+/// different type. Headless/unit-test hosts never initialize this clone, so
+/// callbacks run inline on the calling thread - keeping synchronous test
+/// assertions deterministic.
 /// </para>
 /// </summary>
 public static class UiThread
 {
     private static Dispatcher? _uiDispatcher;
 
-    /// <summary>Bind to the app's UI dispatcher. Call once from the UI thread (App startup).</summary>
+    /// <summary>Bind to the Avalonia UI dispatcher. Call once from the UI thread.</summary>
     public static void Initialize() => _uiDispatcher = Dispatcher.UIThread;
 
     /// <summary>Test seam: clears the captured dispatcher so each test starts
