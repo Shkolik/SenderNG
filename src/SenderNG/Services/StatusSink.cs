@@ -42,11 +42,46 @@ namespace SenderNG.Services;
 /// the main window's status bar. The reporter (created by the host's
 /// IErrorReporterFactory before MainViewModel exists) cannot hold the view
 /// model, so MainViewModel registers its Status setter here at construction.
+/// <para>
+/// Messages reported before MainViewModel attaches are buffered and replayed on attach.
+/// </para>
 /// </summary>
 public sealed class StatusSink
 {
-    /// <summary>Set by MainViewModel so Status(text) reaches the status bar.</summary>
-    public Action<string>? Sink { get; set; }
+    private Action<string>? _sink;
+    private string? _pending;
 
-    public void Set(string message) => Sink?.Invoke(message);
+    /// <summary>Set by MainViewModel so Status(text) reaches the status bar.</summary>
+    public Action<string>? Sink
+    {
+        get => _sink;
+        set
+        {
+            _sink = value;
+            // A message reported before the UI existed is replayed here rather
+            // than lost. Last-message-wins: a burst of early diagnostics should
+            // not greet the user with a queue of stale lines.
+            if (value is not null && _pending is not null)
+            {
+                var pending = _pending;
+                // _sink is assigned above, so a sink that re-enters Set takes the
+                // pass-through branch and never writes _pending: the buffered
+                // message cannot replay twice. Clearing the slot before invoking
+                // keeps that true even if the assignment above ever moves.
+                _pending = null;
+                value(pending);
+            }
+        }
+    }
+
+    public void Set(string message)
+    {
+        var sink = _sink;
+        if (sink is null)
+        {
+            _pending = message;
+            return;
+        }
+        sink(message);
+    }
 }

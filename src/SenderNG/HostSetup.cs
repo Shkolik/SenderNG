@@ -36,6 +36,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Localization;
 using SenderNG.Services;
 using SenderNG.ViewModels;
 using SenderNG.Core.Modules;
@@ -52,7 +53,17 @@ public static class HostSetup
     {
         var builder = Host.CreateApplicationBuilder(args);
 
-        builder.Services.AddSingleton<SettingsService>();
+        // SettingsService reports any settings file it could not load; route that
+        // to the status bar. Registered as a factory because StatusSink is
+        // registered further down — resolution is lazy, so order is fine.
+        // `services: sp` is load-bearing too: the parameterless registration this
+        // replaced let MS DI inject the provider into that parameter on its own,
+        // and DeleteProfile resolves IProfileCompanionSuffixes through it to strip
+        // a deleted profile's per-module companion files. A factory that omits it
+        // leaves it null and silently stops that cleanup.
+        builder.Services.AddSingleton(sp => new SettingsService(
+            services: sp,
+            onFallback: f => sp.GetRequiredService<StatusSink>().Set(DescribeSettingsFallback(f))));
         builder.Services.AddSingleton<SenderNG.Core.Services.HotkeyService>();
         // Shared active-profile graph: one instance for every consumer (VMs, services).
         builder.Services.AddSingleton(sp => sp.GetRequiredService<SettingsService>().Load());
@@ -194,6 +205,38 @@ public static class HostSetup
             if (string.Equals(args[i], "--locale", StringComparison.OrdinalIgnoreCase))
                 return args[i + 1];
         return "en";
+    }
+
+    /// <summary>
+    /// Composes the one user-facing string for a settings file that could not be
+    /// loaded. Lives here, not in Core, because the app.msg.* resources are the
+    /// host's (audit §1.6). One key per (reason x Quarantined) cell: the two axes
+    /// are independent facts, and collapsing either one makes the message untrue —
+    /// an unreadable file is not a damaged one, and a file that was not moved is
+    /// not preserved.
+    /// </summary>
+    private static string DescribeSettingsFallback(SettingsFallback fallback)
+    {
+        var name = Path.GetFileName(fallback.Path);
+        var moved = fallback.Quarantined;
+        var key = (fallback.Reason, moved) switch
+        {
+            (SettingsFallbackReason.Corrupt, true) => "app.msg.settingsCorruptMoved",
+            (SettingsFallbackReason.Corrupt, false) => "app.msg.settingsCorruptKept",
+            (SettingsFallbackReason.Unreadable, true) => "app.msg.settingsUnreadableMoved",
+            (SettingsFallbackReason.Unreadable, false) => "app.msg.settingsUnreadableKept",
+            // The explicit discard keeps this switch exhaustive at compile time.
+            // Throwing is deliberate over a neutral catch-all: a reason nobody wrote
+            // a sentence for must not reach the user as vague text. Unreachable today
+            // because every SettingsFallback is built at ProfileSettingsStore.cs:197,
+            // :201, :297 and :301, each with reason taken from the same expression,
+            // `ex is JsonException ? Corrupt : Unreadable` — so only those two members
+            // can arrive. If a third reason is ever added this arm is where the
+            // developer finds out a sentence is still missing.
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(fallback), fallback.Reason, "No settings-fallback message for this reason"),
+        };
+        return LocText.Format(key, $"Settings file {name} could not be used; defaults were loaded instead", name);
     }
 
     private static void RegisterModule(IServiceCollection services, IModule module)
