@@ -125,6 +125,8 @@ public class MainViewModel : ViewModelBase, IDisposable
     private bool _isRunning;
     private bool _disposed;
     private readonly Func<WorkParameters?>? _workParametersProvider;
+    private readonly StatusSink? _statusSink;
+    private readonly Action<string>? _statusSinkHandler;
 
     public MainViewModel(
         IGrblService grbl,
@@ -154,7 +156,11 @@ public class MainViewModel : ViewModelBase, IDisposable
         // IErrorReporter.Status(text) → status bar (plugins report, the host
         // surfaces — see ModuleErrorReporter).
         if (statusSink is not null)
-            statusSink.Sink = message => UiThread.Post(() => Status = message);
+        {
+            _statusSink = statusSink;
+            _statusSinkHandler = message => UiThread.Post(() => Status = message);
+            statusSink.Sink = _statusSinkHandler;
+        }
         _localization = services.GetService<SenderNG.Core.Localization.LocalizationService>();
         if (_localization is not null)
             _localization.Changed += OnLocaleChanged;
@@ -1359,7 +1365,13 @@ public class MainViewModel : ViewModelBase, IDisposable
         _settingsService.Changed -= OnSettingsChanged;
         _settingsService.ProfileSwitched -= OnProfileSwitched;
         Modules.CollectionChanged -= OnModulesChanged;
-        _grbl.ConnectionChanged -= _connectionChangedHandler;
+        // Nulling the field stops the Grbl setter re-homing the handler onto the
+        // next controller: without it a swap after teardown re-subscribes.
+        if (_connectionChangedHandler is not null)
+        {
+            _grbl.ConnectionChanged -= _connectionChangedHandler;
+            _connectionChangedHandler = null;
+        }
 
         if (_program is not null)
         {
@@ -1379,6 +1391,12 @@ public class MainViewModel : ViewModelBase, IDisposable
         // model must keep its provider.
         if (CNC.Core.Machine.WorkParametersProvider == _workParametersProvider)
             CNC.Core.Machine.WorkParametersProvider = null;
+
+        // Same ownership rule for the status sink. ReferenceEquals, not the
+        // delegate == the provider uses: lambdas are never equal to each other,
+        // so the identity of the instance we installed is the only reliable test.
+        if (_statusSink is not null && ReferenceEquals(_statusSink.Sink, _statusSinkHandler))
+            _statusSink.Sink = null;
     }
 
     private void OnModulesChanged(object? sender, NotifyCollectionChangedEventArgs e)
