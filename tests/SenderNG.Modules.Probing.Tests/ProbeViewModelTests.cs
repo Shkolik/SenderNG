@@ -33,6 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Reflection;
+using Avalonia.Headless.XUnit;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -795,7 +796,7 @@ public class ProbeViewModelTests : IDisposable
         Assert.True(fields2["module.probing.center"].Get());
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Enabled_tools_toggle_applies_to_the_open_view_model()
     {
         // The probe panel is open when the user edits App Settings: the toggle
