@@ -34,6 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -118,7 +119,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     private WorkParameters? _latestWorkParameters;
     private int _signalAxisCount = -1;
     private CNC.Core.Signals _signalOptionalSignals = CNC.Core.Signals.Off;
-    private ProgramViewModel? _program;
+    private readonly ProgramViewModel? _program;
     private readonly SenderNG.Core.Localization.LocalizationService? _localization;
     private readonly System.Diagnostics.Stopwatch _runStopwatch = new();
     private bool _isRunning;
@@ -237,16 +238,9 @@ public class MainViewModel : ViewModelBase, IDisposable
         _program = _services.GetService<ProgramViewModel>();
         if (_program is not null)
         {
-            _program.ProgramRows.CollectionChanged += (_, _) => RaiseProgramCommands();
-            _program.RowsChanged += () => OnPropertyChanged(nameof(StatusBarBlocks));
-            _program.PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName == nameof(ProgramViewModel.RunMessage) && _program.RunMessage is { } m)
-                    Status = m;
-                // Session transitions (start / pause / finish) re-gate the cycle bar.
-                if (e.PropertyName is nameof(ProgramViewModel.IsRunning) or nameof(ProgramViewModel.IsPaused))
-                    RaiseProgramCommands();
-            };
+            _program.ProgramRows.CollectionChanged += OnProgramRowsCollectionChanged;
+            _program.RowsChanged += OnProgramRowsChanged;
+            _program.PropertyChanged += OnProgramPropertyChanged;
         }
 
         // State indicator: subscribe to grbl State and expose MachineState + StateBrush (RUN green #c8e8c8, IDLE yellow #ffe8a0, ALARM red #e04545, Height 28)
@@ -1396,6 +1390,21 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private bool IsMachineState(string value) =>
         _machineState.Contains(value, StringComparison.OrdinalIgnoreCase);
+
+    private void OnProgramRowsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        => RaiseProgramCommands();
+
+    private void OnProgramRowsChanged()
+        => OnPropertyChanged(nameof(StatusBarBlocks));
+
+    private void OnProgramPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ProgramViewModel.RunMessage) && _program?.RunMessage is { } m)
+            Status = m;
+        // Session transitions (start / pause / finish) re-gate the cycle bar.
+        if (e.PropertyName is nameof(ProgramViewModel.IsRunning) or nameof(ProgramViewModel.IsPaused))
+            RaiseProgramCommands();
+    }
 
     // Session/program state transitions re-gate the whole cycle bar; the
     // machine-state fallback for the no-program path re-raises from
