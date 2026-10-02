@@ -52,6 +52,11 @@ public class ProbeViewModelTests : IDisposable
 
     public ProbeViewModelTests()
     {
+        // AttachServices now captures a process-wide dispatcher; without this
+        // reset the tests that follow it would queue onto a dispatcher nobody
+        // pumps, making the suite order-dependent. See the same hazard recorded
+        // for PlotterUi in tests/SenderNG.Tests/PlotterTestStubs.cs:125-139.
+        UiThread.ResetForTests();
         _dir = Path.Combine(Path.GetTempPath(), "senderng-tests-" + Guid.NewGuid().ToString("N"));
         _settings = new SettingsService(_dir);
     }
@@ -61,6 +66,25 @@ public class ProbeViewModelTests : IDisposable
         var demo = new DemoGrblService(_settings.Load());
         await demo.ConnectAsync("demo");
         return demo;
+    }
+
+    [Fact]
+    public void AttachServices_initializes_the_marshaller()
+    {
+        var module = new ProbingModule();
+        var sp = new ServiceCollection()
+            .AddSingleton(_settings)
+            .BuildServiceProvider();
+        try
+        {
+            Assert.False(UiThread.IsInitialized);
+            module.AttachServices(sp);
+            Assert.True(UiThread.IsInitialized);
+        }
+        finally
+        {
+            UiThread.ResetForTests();
+        }
     }
 
     [Fact]

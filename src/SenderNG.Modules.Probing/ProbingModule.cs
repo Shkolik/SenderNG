@@ -40,6 +40,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Modules;
 using SenderNG.Core.Modules.Probing;
 using SenderNG.Core.Services;
+using SenderNG.Modules.Probing;
 
 namespace SenderNG.Modules.Plugins;
 
@@ -162,6 +163,10 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule,
 
     public void AttachServices(IServiceProvider services)
     {
+        // ProbeViewModel is constructed here, not in CreateViewModel, and its
+        // constructor subscribes SettingsService.Changed -> UiThread.Post, so the
+        // dispatcher must be captured before the view model is resolved.
+        UiThread.Initialize();
         _settingsService = services.GetService<SettingsService>();
         var vm = services.GetService<ProbeViewModel>();
         if (vm is not null)

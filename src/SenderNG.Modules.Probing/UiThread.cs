@@ -53,6 +53,15 @@ public static class UiThread
     /// <summary>Bind to the app's UI dispatcher. Call once from the UI thread (App startup).</summary>
     public static void Initialize() => _uiDispatcher = Dispatcher.UIThread;
 
+    /// <summary>Test seam: clears the captured dispatcher so each test starts
+    /// uninitialised, matching the headless contract in
+    /// <c>docs/nex-check-mode-ui-starvation.md</c> §6.</summary>
+    internal static void ResetForTests() => _uiDispatcher = null;
+
+    /// <summary>Whether <see cref="Initialize"/> has run. Lets tests pin the
+    /// module wiring without reflecting on the private static.</summary>
+    internal static bool IsInitialized => _uiDispatcher is not null;
+
     /// <summary>
     /// Runs <paramref name="action"/> on the UI thread, or inline when already
     /// there (or when no dispatcher was initialized, e.g. unit tests).
