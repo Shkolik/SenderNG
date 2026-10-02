@@ -505,15 +505,12 @@ public sealed class GrblSettingsViewModel : ViewModelBase
             return;
         }
 
-        foreach (var root in Groups)
+        if (FindVisible(id) is { } found)
         {
-            if (FindPath(root, id) is { } found)
-            {
-                foreach (var group in found.Path)
-                    group.IsExpanded = true;
-                SelectedNode = found.Item; // re-selecting also updates SelectedSetting
-                return;
-            }
+            foreach (var group in found.Path)
+                group.IsExpanded = true;
+            SelectedNode = found.Item; // re-selecting also updates SelectedSetting
+            return;
         }
 
         ClearSelection();
@@ -628,8 +625,30 @@ public sealed class GrblSettingsViewModel : ViewModelBase
         return $"{item.Key} ({reason})";
     }
 
-    /// <summary>Select the first rejected setting so the detail pane opens on it.</summary>
-    private void SelectFirstInvalid(GrblSettingItem item) => SelectedNode = item;
+    /// <summary>
+    /// Land the operator on the first rejected setting: clear a search filter that
+    /// would hide it, expand its group chain, then select it.
+    /// </summary>
+    private void SelectFirstInvalid(GrblSettingItem item)
+    {
+        if (FindVisible(item.Id) is null)
+            Search = string.Empty; // re-runs ApplyFilter, revealing every group
+
+        if (FindVisible(item.Id) is { } found)
+            foreach (var group in found.Path)
+                group.IsExpanded = true;
+
+        SelectedNode = item;
+    }
+
+    /// <summary>Locate a setting id under the currently visible (filtered) tree roots.</summary>
+    private (GrblSettingItem Item, List<GrblSettingGroupItem> Path)? FindVisible(int id)
+    {
+        foreach (var root in Groups)
+            if (FindPath(root, id) is { } found)
+                return found;
+        return null;
+    }
 
     /// <summary>
     /// Lazily fetch the long description for a setting whose metadata came from the

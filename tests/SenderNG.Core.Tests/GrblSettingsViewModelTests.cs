@@ -591,4 +591,68 @@ public class GrblSettingsViewModelTests
         Assert.Empty(grbl.Sent);
         Assert.Contains("must be a number", vm.Status);
     }
+
+    private static IEnumerable<GrblSettingGroupItem> FlattenGroups(GrblSettingGroupItem root)
+    {
+        yield return root;
+        foreach (var child in root.Children.OfType<GrblSettingGroupItem>())
+            foreach (var deeper in FlattenGroups(child))
+                yield return deeper;
+    }
+
+    [Fact]
+    public async Task A_blocked_save_selects_the_first_invalid_setting()
+    {
+        var grbl = new FakeGrbl();
+        var vm = CreateTypedVm(grbl, IntBounded, FloatBounded);
+        await vm.LoadAsync();
+
+        Find(vm.Groups, 1).Value = "1e";
+        await vm.SaveAsync();
+
+        Assert.Equal(1, vm.SelectedSetting?.Id);
+    }
+
+    [Fact]
+    public async Task A_blocked_save_expands_the_group_containing_the_selected_setting()
+    {
+        var grbl = new FakeGrbl();
+        var vm = CreateTypedVm(grbl, IntBounded);
+        await vm.LoadAsync();
+
+        // $0 sits under a collapsed group; find it and close it.
+        var item = Find(vm.Groups, 0);
+        var group = vm.Groups.OfType<GrblSettingGroupItem>()
+            .SelectMany(FlattenGroups)
+            .First(g => g.Children.Contains(item));
+        group.IsExpanded = false;
+
+        item.Value = "1e";
+        await vm.SaveAsync();
+
+        Assert.True(group.IsExpanded);
+    }
+
+    [Fact]
+    public async Task A_blocked_save_clears_a_search_filter_that_hides_the_invalid_setting()
+    {
+        var grbl = new FakeGrbl();
+        var vm = CreateTypedVm(grbl, IntBounded);
+        await vm.LoadAsync();
+
+        // Capture the item BEFORE filtering. ApplyFilter clones the groups (and Find
+        // uses .Single, which throws on absence), while the leaf GrblSettingItem
+        // instances stay original — so a reference held across the filter is still the
+        // very instance SaveAsync sees as dirty.
+        var item = Find(vm.Groups, 0);
+
+        vm.Search = "nothing-matches-this";
+        Assert.DoesNotContain(vm.Groups, g => g is GrblSettingItem);
+
+        item.Value = "1e";
+        await vm.SaveAsync();
+
+        Assert.Equal("", vm.Search);
+        Assert.Equal(0, vm.SelectedSetting?.Id);
+    }
 }
