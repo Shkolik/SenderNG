@@ -76,12 +76,18 @@ public class SettingsFallbackTests
     public void Corrupt_global_is_quarantined_and_reported()
     {
         var dir = NewDir();
-        var path = WriteGlobal(dir, "{ \"activeProfileId\": \"mill\"");
+        // PascalCase, matching what GlobalSettingsStore.Save writes and what
+        // GlobalSettings.ActiveProfileId actually binds. A camelCase key could
+        // never bind (the loader is case-sensitive), which would make the
+        // DefaultId assertion below pass even if the file parsed cleanly.
+        var payload = "{ \"ActiveProfileId\": \"mill\"";
+        var path = WriteGlobal(dir, payload);
         var seen = Capture(out var onFallback);
 
         var global = GlobalSettingsStore.Load(dir, onFallback);
 
-        // Fallback behaviour is unchanged: defaults, no throw.
+        // Fallback behaviour is unchanged: defaults, no throw. This is a real
+        // assertion - a clean parse would have yielded "mill" here.
         Assert.Equal(MachineProfile.DefaultId, global.ActiveProfileId);
 
         var fallback = Assert.Single(seen);
@@ -93,7 +99,7 @@ public class SettingsFallbackTests
         // gone so the next Save writes a clean one.
         Assert.False(File.Exists(path));
         Assert.True(File.Exists(path + ".corrupt"));
-        Assert.Equal("{ \"activeProfileId\": \"mill\"", File.ReadAllText(path + ".corrupt"));
+        Assert.Equal(payload, File.ReadAllText(path + ".corrupt"));
     }
 
     [Fact]
@@ -141,10 +147,14 @@ public class SettingsFallbackTests
     public void Quarantine_path_never_reuses_a_taken_name()
     {
         var dir = NewDir();
+        // One taken name is a file and one is a DIRECTORY, so both halves of the
+        // File.Exists || Directory.Exists test are covered. The directory case is
+        // load-bearing: without that half, a directory sitting at global.json.corrupt
+        // would turn a successful quarantine into Quarantined=false.
         var taken = Path.Combine(dir, "g.json.corrupt");
         File.WriteAllText(taken, "earlier");
         var taken1 = Path.Combine(dir, "g.json.corrupt.1");
-        File.WriteAllText(taken1, "earlier still");
+        Directory.CreateDirectory(taken1);
 
         var free = ProfileSettingsStore.QuarantinePath(Path.Combine(dir, "g.json"));
 
@@ -154,7 +164,9 @@ public class SettingsFallbackTests
     [Fact]
     public void Unreadable_file_is_reported_as_unreadable_not_corrupt()
     {
-        // An IOException means the bytes may be fine and the problem is access.
+        // UnauthorizedAccessException is deliberately NOT an IOException, which is
+        // exactly why the old filter let it escape and crash startup. The bytes may
+        // be fine; the problem is access, so the reason is Unreadable.
         var dir = NewDir();
         WriteGlobal(dir, "{ \"activeProfileId\": \"mill\"");
         var seen = Capture(out var onFallback);
@@ -172,6 +184,13 @@ public class SettingsFallbackTests
         var fallback = Assert.Single(seen);
         Assert.Equal(SettingsFallbackReason.Unreadable, fallback.Reason);
         Assert.IsType<UnauthorizedAccessException>(fallback.Error);
+
+        // There is nothing worth preserving and nothing to move (File.Move cannot
+        // move a directory), so the original stays put and Quarantined is false.
+        // Task 2 branches on this flag to pick the user-facing wording, so the one
+        // production path that reaches it must be pinned here.
+        Assert.False(fallback.Quarantined);
+        Assert.True(Directory.Exists(path));
     }
 
     [Fact]
@@ -193,8 +212,45 @@ public class SettingsFallbackTests
 
         Assert.NotNull(global);
         var fallback = Assert.Single(seen);
+        // The read DID succeed (FileShare.Read lets other readers in), so this is
+        // still the corrupt-JSON path. If a future change let the handle block the
+        // read too, the reason would flip to Unreadable and this would catch it.
+        Assert.Equal(SettingsFallbackReason.Corrupt, fallback.Reason);
         Assert.False(fallback.Quarantined);   // caller can say the file is still there
         Assert.True(File.Exists(ProfileSettingsPaths.GlobalPath(dir)));
+    }
+
+    [Fact]
+    public void A_throwing_callback_does_not_escape_Load()
+    {
+        // The host callback resolves a service, formats a message and touches the
+        // status bar. If any of that throws it must not escape into the HostSetup
+        // startup path - that is the same crash class this mechanism exists to
+        // close, arriving through the notification instead of the file.
+        var dir = NewDir();
+        WriteGlobal(dir, "{ broken");
+        var invoked = 0;
+        Action<SettingsFallback> boom = _ => { invoked++; throw new InvalidOperationException("callback blew up"); };
+
+        var global = GlobalSettingsStore.Load(dir, boom);
+
+        Assert.Equal(1, invoked);
+        Assert.NotNull(global);
+        Assert.Equal(MachineProfile.DefaultId, global.ActiveProfileId);
+    }
+
+    [Fact]
+    public void A_throwing_callback_does_not_escape_TryLoad()
+    {
+        var dir = NewDir();
+        WriteProfile(dir, "mill", "not json at all");
+        var invoked = 0;
+        Action<SettingsFallback> boom = _ => { invoked++; throw new InvalidOperationException("callback blew up"); };
+
+        var profile = ProfilesStore.TryLoad(dir, "mill", boom);
+
+        Assert.Equal(1, invoked);
+        Assert.Null(profile);   // unchanged Try contract, no throw
     }
 
     [Fact]
@@ -222,16 +278,19 @@ public class SettingsFallbackTests
 
         Assert.NotNull(global);
         Assert.Empty(seen);
-        Assert.False(Directory.Exists(ProfileSettingsPaths.GlobalPath(dir)));
+        Assert.False(File.Exists(ProfileSettingsPaths.GlobalPath(dir)));
     }
 
     [Fact]
     public void Loading_without_a_callback_still_works()
     {
-        // The parameter is optional so the 29 existing `new SettingsService(...)`
-        // and every direct loader call keep compiling. This pins that.
+        // The parameter is optional so the 123 existing `new SettingsService(...)`
+        // and every direct loader call keep compiling. This pins that - both
+        // loaders are given a CORRUPT file, so each one-argument call below is
+        // proven to survive the fallback path, not just the absent-file path.
         var dir = NewDir();
         WriteGlobal(dir, "{ broken");
+        WriteProfile(dir, "mill", "not json at all");
 
         Assert.NotNull(GlobalSettingsStore.Load(dir));
         Assert.Null(ProfilesStore.TryLoad(dir, "mill"));

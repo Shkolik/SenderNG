@@ -92,8 +92,10 @@ public static class ProfileSettingsStore
     /// Returns the first free quarantine path for <paramref name="path"/>:
     /// <c>&lt;path&gt;.corrupt</c>, then <c>&lt;path&gt;.corrupt.1</c>, <c>.2</c>, …
     /// Never returns a name that already exists, so an earlier bad file the user
-    /// may still want is not overwritten. Pure path arithmetic — this does not
-    /// touch the filesystem.
+    /// may still want is not overwritten. Both files and directories count as
+    /// taken, since <c>File.Move</c> would fail on a directory destination.
+    /// This creates, moves and deletes nothing — it only reads directory
+    /// entries to find a free name.
     /// </summary>
     public static string QuarantinePath(string path)
     {
@@ -118,6 +120,11 @@ public static class GlobalSettingsStore
     /// <paramref name="onFallback"/>, because the next Save overwrites
     /// <c>global.json</c> in place and would otherwise destroy the only copy.
     /// </summary>
+    /// <param name="dir">Directory holding <c>global.json</c>.</param>
+    /// <param name="onFallback">Receives the structured report. Optional, so
+    /// existing callers keep compiling. A callback that throws is contained
+    /// here — reporting must never turn a recoverable fallback back into the
+    /// startup crash this finding is about (see <see cref="Report"/>).</param>
     public static GlobalSettings Load(string dir, Action<SettingsFallback>? onFallback = null)
     {
         var path = ProfileSettingsPaths.GlobalPath(dir);
@@ -141,9 +148,37 @@ public static class GlobalSettingsStore
             var reason = ex is JsonException
                 ? SettingsFallbackReason.Corrupt
                 : SettingsFallbackReason.Unreadable;
-            onFallback?.Invoke(Quarantine(path, reason, ex));
+            Report(onFallback, Quarantine(path, reason, ex));
         }
         return new GlobalSettings();
+    }
+
+    /// <summary>
+    /// Invokes <paramref name="onFallback"/>, containing any failure it raises.
+    /// The host callback resolves a service, formats a message and writes to the
+    /// status bar, so it is arbitrary code running inside what is otherwise a
+    /// never-throw loader on the <c>HostSetup</c> startup path. An exception
+    /// escaping here would be the same crash audit §1.6 exists to close, arriving
+    /// through the notification instead of the file.
+    ///
+    /// The catch is deliberately broad — this is the outermost boundary of a
+    /// best-effort notification, and the alternative is an exception escaping
+    /// during startup. It is not silent: <see cref="System.Diagnostics.Debug"/>
+    /// output and the swallowed-exception comment keep the failure visible to a
+    /// developer, because there is no logging framework in Core to route it to
+    /// and no return channel left to report it on.
+    /// </summary>
+    private static void Report(Action<SettingsFallback>? onFallback, SettingsFallback report)
+    {
+        try
+        {
+            onFallback?.Invoke(report);
+        }
+        catch (Exception)
+        {
+            // Swallowed on purpose: a broken callback must not take down startup.
+            System.Diagnostics.Debug.WriteLine("settings-fallback reporting failed: " + report);
+        }
     }
 
     /// <summary>
@@ -189,6 +224,12 @@ public static class ProfilesStore
     /// for bad file content (audit §1.6). A file that exists but cannot be loaded
     /// is moved aside to <c>&lt;name&gt;.corrupt</c> and reported through
     /// <paramref name="onFallback"/>.</summary>
+    /// <param name="dir">Directory holding the <c>profiles</c> subdirectory.</param>
+    /// <param name="id">Profile id; sanitized into the file stem.</param>
+    /// <param name="onFallback">Receives the structured report. Optional, so
+    /// existing callers keep compiling. A callback that throws is contained
+    /// here — reporting must never turn a recoverable fallback back into the
+    /// startup crash this finding is about (see <see cref="Report"/>).</param>
     public static MachineProfile? TryLoad(string dir, string id, Action<SettingsFallback>? onFallback = null)
     {
         var path = ProfileSettingsPaths.ProfilePath(dir, id);
@@ -207,9 +248,37 @@ public static class ProfilesStore
             var reason = ex is JsonException
                 ? SettingsFallbackReason.Corrupt
                 : SettingsFallbackReason.Unreadable;
-            onFallback?.Invoke(Quarantine(path, reason, ex));
+            Report(onFallback, Quarantine(path, reason, ex));
         }
         return null;
+    }
+
+    /// <summary>
+    /// Invokes <paramref name="onFallback"/>, containing any failure it raises.
+    /// The host callback resolves a service, formats a message and writes to the
+    /// status bar, so it is arbitrary code running inside what is otherwise a
+    /// never-throw loader on the <c>HostSetup</c> startup path. An exception
+    /// escaping here would be the same crash audit §1.6 exists to close, arriving
+    /// through the notification instead of the file.
+    ///
+    /// The catch is deliberately broad — this is the outermost boundary of a
+    /// best-effort notification, and the alternative is an exception escaping
+    /// during startup. It is not silent: <see cref="System.Diagnostics.Debug"/>
+    /// output and the swallowed-exception comment keep the failure visible to a
+    /// developer, because there is no logging framework in Core to route it to
+    /// and no return channel left to report it on.
+    /// </summary>
+    private static void Report(Action<SettingsFallback>? onFallback, SettingsFallback report)
+    {
+        try
+        {
+            onFallback?.Invoke(report);
+        }
+        catch (Exception)
+        {
+            // Swallowed on purpose: a broken callback must not take down startup.
+            System.Diagnostics.Debug.WriteLine("settings-fallback reporting failed: " + report);
+        }
     }
 
     /// <summary>
