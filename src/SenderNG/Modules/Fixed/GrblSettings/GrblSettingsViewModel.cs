@@ -110,6 +110,15 @@ public sealed class GrblSettingBit : ViewModelBase
     }
 }
 
+/// <summary>Why <see cref="GrblSettingItem.Validate"/> rejects a setting's text.</summary>
+internal enum GrblSettingValidationError
+{
+    None,
+    NotNumeric,
+    OutOfRange,
+    MalformedIp,
+}
+
 /// <summary>
 /// A single setting row. The editor rendered by the view is chosen via the
 /// <c>IsBool</c>/<c>IsRadio</c>/<c>IsBits</c>/<c>ShowTextBox</c> flags, which mirror the
@@ -140,14 +149,12 @@ public sealed class GrblSettingItem : ViewModelBase
     public bool HasRange => Min is not null || Max is not null;
     public bool HasDescription => !string.IsNullOrWhiteSpace(Description);
 
-    public string? Range
-    {
-        get
-        {
-            static string Fmt(double? v) => v?.ToString("0.######", CultureInfo.InvariantCulture) ?? "-";
-            return HasRange ? $"Range: {Fmt(Min)} .. {Fmt(Max)}" : null;
-        }
-    }
+    /// <summary>Invariant bound formatting, shared by <see cref="Range"/> and save-time messages.</summary>
+    internal static string FormatBound(double? value) =>
+        value?.ToString("0.######", CultureInfo.InvariantCulture) ?? "-";
+
+    public string? Range =>
+        HasRange ? $"Range: {FormatBound(Min)} .. {FormatBound(Max)}" : null;
 
     public ObservableCollection<GrblSettingBit> Bits { get; } = new();
 
@@ -182,6 +189,72 @@ public sealed class GrblSettingItem : ViewModelBase
 
     /// <summary>Apply a text/numeric editor change.</summary>
     public void ApplyText(string text) => Value = text;
+
+    /// <summary>
+    /// Reject text a controller write cannot carry: a partial numeric keystroke
+    /// ("-", "1e"), a non-finite float, or a value outside Min/Max. Free-form types
+    /// (Text, Password) and the non-text editors always pass. Never throws.
+    /// </summary>
+    internal GrblSettingValidationError Validate()
+    {
+        switch (Type)
+        {
+            case GrblSettingType.Integer:
+                return ValidateInteger();
+
+            case GrblSettingType.Float:
+                return ValidateFloat();
+
+            // A bit type whose Format yields no options has an empty Bits collection, so
+            // IsBits is false and ShowTextBox is true: it renders as a text box holding a
+            // raw integer mask, so validate it as one rather than waving it through. The
+            // when-clause is needed on each label: a bare case label always matches.
+            case GrblSettingType.Bitfield when !IsBits:
+            case GrblSettingType.XBitfield when !IsBits:
+            case GrblSettingType.AxisMask when !IsBits:
+                return ValidateInteger();
+
+            case GrblSettingType.Ip4:
+                return IsDottedQuad(Value)
+                    ? GrblSettingValidationError.None
+                    : GrblSettingValidationError.MalformedIp;
+
+            default:
+                return GrblSettingValidationError.None;
+        }
+    }
+
+    private GrblSettingValidationError ValidateInteger()
+    {
+        if (!int.TryParse(Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
+            return GrblSettingValidationError.NotNumeric;
+        return InRange(n) ? GrblSettingValidationError.None : GrblSettingValidationError.OutOfRange;
+    }
+
+    private GrblSettingValidationError ValidateFloat()
+    {
+        // Since .NET Core 3.0 "NaN"/"Infinity" parse successfully, and every comparison
+        // against NaN is false - so a bounds check alone would wave them through.
+        if (!double.TryParse(Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+            || !double.IsFinite(d))
+            return GrblSettingValidationError.NotNumeric;
+        return InRange(d) ? GrblSettingValidationError.None : GrblSettingValidationError.OutOfRange;
+    }
+
+    private bool InRange(double parsed) =>
+        (Min is not { } lo || parsed >= lo) && (Max is not { } hi || parsed <= hi);
+
+    private static bool IsDottedQuad(string text)
+    {
+        var parts = text.Split('.');
+        if (parts.Length != 4)
+            return false;
+        foreach (var part in parts)
+            if (!int.TryParse(part.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var o)
+                || o is < 0 or > 255)
+                return false;
+        return true;
+    }
 
     // Editor selection flags (the view binds IsVisible to these).
     public bool IsBool => Type == GrblSettingType.Bool;

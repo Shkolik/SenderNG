@@ -92,6 +92,15 @@ public class GrblSettingsViewModelTests
     private static GrblSettingItem Find(IEnumerable<object> nodes, int id) =>
         AllSettings(nodes).Single(s => s.Id == id);
 
+    /// <summary>A standalone setting for exercising Validate() without a loaded tree.</summary>
+    private static GrblSettingItem MakeItem(GrblSettingType type, string value,
+        double? min = null, double? max = null, string format = "") =>
+        new(new GrblSetting
+        {
+            Id = 900, Name = "Synthetic", DataType = type, Value = value,
+            Min = min, Max = max, Format = format,
+        }, numAxes: 3);
+
     [Fact]
     public async Task Load_builds_the_tree_from_the_catalog_fallback()
     {
@@ -385,5 +394,95 @@ public class GrblSettingsViewModelTests
         var reloaded = CreateVm(new StubProvider { ValueLines = ["$0=10"] });
         await reloaded.LoadAsync();
         Assert.Null(reloaded.SelectedSetting); // cleared, not left stale
+    }
+
+    [Theory]
+    [InlineData("-")]
+    [InlineData("1e")]
+    [InlineData("abc")]
+    [InlineData("")]
+    [InlineData("1.5")]
+    public void Integer_rejects_partial_keystrokes_and_non_numbers(string text) =>
+        Assert.Equal(GrblSettingValidationError.NotNumeric,
+            MakeItem(GrblSettingType.Integer, text).Validate());
+
+    [Theory]
+    [InlineData("42")]
+    [InlineData(" 42 ")]
+    [InlineData("-7")]
+    public void Integer_accepts_whitespace_padded_and_signed_integers(string text) =>
+        Assert.Equal(GrblSettingValidationError.None,
+            MakeItem(GrblSettingType.Integer, text).Validate());
+
+    [Theory]
+    [InlineData("0", false)]
+    [InlineData("101", false)]
+    [InlineData("1", true)]
+    [InlineData("100", true)]
+    public void Numeric_range_rejects_out_of_bounds_and_accepts_the_boundaries(string text, bool valid)
+    {
+        var error = MakeItem(GrblSettingType.Integer, text, min: 1, max: 100).Validate();
+        Assert.Equal(valid ? GrblSettingValidationError.None : GrblSettingValidationError.OutOfRange, error);
+    }
+
+    [Theory]
+    [InlineData("-")]
+    [InlineData("1e")]
+    [InlineData("abc")]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public void Float_rejects_partial_keystrokes_and_non_finite_values(string text) =>
+        Assert.Equal(GrblSettingValidationError.NotNumeric,
+            MakeItem(GrblSettingType.Float, text).Validate());
+
+    [Theory]
+    [InlineData("0.5")]
+    [InlineData("250.000")]
+    [InlineData("1e3")]
+    public void Float_accepts_decimals_and_exponent_forms(string text) =>
+        Assert.Equal(GrblSettingValidationError.None,
+            MakeItem(GrblSettingType.Float, text, min: 0.001, max: 10000).Validate());
+
+    [Theory]
+    [InlineData("192.168.1.1", true)]
+    [InlineData("0.0.0.0", true)]
+    [InlineData("255.255.255.255", true)]
+    [InlineData(" 10.0.0.1 ", true)]
+    [InlineData("192.168.1.256", false)]
+    [InlineData("1.2.3.4.5", false)]
+    [InlineData("192.", false)]
+    [InlineData("", false)]
+    public void Ip4_requires_four_octets_in_range(string text, bool valid)
+    {
+        var error = MakeItem(GrblSettingType.Ip4, text).Validate();
+        Assert.Equal(valid ? GrblSettingValidationError.None : GrblSettingValidationError.MalformedIp, error);
+    }
+
+    [Theory]
+    [InlineData(GrblSettingType.Text, "abc")]
+    [InlineData(GrblSettingType.Text, "")]
+    [InlineData(GrblSettingType.Text, "-")]
+    [InlineData(GrblSettingType.Text, "1e")]
+    [InlineData(GrblSettingType.Password, "")]
+    [InlineData(GrblSettingType.Password, "p@ss w0rd")]
+    [InlineData(GrblSettingType.Bool, "1")]
+    [InlineData(GrblSettingType.RadioButtons, "0")]
+    public void Free_form_and_non_text_types_are_never_rejected(GrblSettingType type, string text) =>
+        Assert.Equal(GrblSettingValidationError.None, MakeItem(type, text, format: "a,b,c").Validate());
+
+    [Fact]
+    public void A_bitfield_with_no_options_is_validated_as_an_integer_mask()
+    {
+        // Empty Format => SplitOptions returns [] => Bits empty => IsBits false, so the
+        // view renders it as a text box holding a raw integer mask.
+        Assert.Equal(GrblSettingValidationError.NotNumeric,
+            MakeItem(GrblSettingType.Bitfield, "abc", format: "").Validate());
+        Assert.Equal(GrblSettingValidationError.None,
+            MakeItem(GrblSettingType.Bitfield, "7", format: "").Validate());
+
+        // With options present it uses the checkbox editor and is never validated.
+        Assert.Equal(GrblSettingValidationError.None,
+            MakeItem(GrblSettingType.Bitfield, "abc", format: "0,1,2").Validate());
     }
 }
