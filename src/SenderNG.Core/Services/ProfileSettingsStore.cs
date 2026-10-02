@@ -57,6 +57,53 @@ public static class ProfileSettingsPaths
     public static string Sanitize(string id) => string.IsNullOrWhiteSpace(id) ? MachineProfile.DefaultId : id.Trim();
 }
 
+/// <summary>Why a settings file could not be loaded.</summary>
+public enum SettingsFallbackReason
+{
+    /// <summary>The bytes are bad: malformed, truncated or hand-edited JSON.</summary>
+    Corrupt,
+
+    /// <summary>The bytes may be fine, but the file could not be read - locked,
+    /// missing permission, or an I/O fault.</summary>
+    Unreadable,
+}
+
+/// <summary>
+/// A settings file that could not be loaded, so the caller fell back to defaults.
+/// Structured rather than a formatted string on purpose: the message is composed
+/// by the host, which owns the <c>app.msg.*</c> resources — Core emits no user-facing
+/// text (audit §1.6).
+/// </summary>
+/// <param name="Path">Full path of the file that could not be loaded.</param>
+/// <param name="Reason">Whether the content was bad or merely unreachable.</param>
+/// <param name="Error">The underlying exception, for logging or detail.</param>
+public sealed record SettingsFallback(string Path, SettingsFallbackReason Reason, Exception? Error)
+{
+    /// <summary>True when the original was moved aside to <c>&lt;path&gt;.corrupt</c>.
+    /// False when quarantine was attempted and failed, which means the file is
+    /// still sitting in place.</summary>
+    public bool Quarantined { get; init; }
+}
+
+/// <summary>File-level helpers shared by the settings stores.</summary>
+public static class ProfileSettingsStore
+{
+    /// <summary>
+    /// Returns the first free quarantine path for <paramref name="path"/>:
+    /// <c>&lt;path&gt;.corrupt</c>, then <c>&lt;path&gt;.corrupt.1</c>, <c>.2</c>, …
+    /// Never returns a name that already exists, so an earlier bad file the user
+    /// may still want is not overwritten. Pure path arithmetic — this does not
+    /// touch the filesystem.
+    /// </summary>
+    public static string QuarantinePath(string path)
+    {
+        var candidate = path + ".corrupt";
+        for (var n = 1; File.Exists(candidate) || Directory.Exists(candidate); n++)
+            candidate = $"{path}.corrupt.{n}";
+        return candidate;
+    }
+}
+
 /// <summary>Reads/writes <c>global.json</c> (app-level settings + profile registry).</summary>
 public static class GlobalSettingsStore
 {
@@ -64,23 +111,60 @@ public static class GlobalSettingsStore
 
     /// <summary>Reads <c>global.json</c>, falling back to defaults when the
     /// file is corrupt, truncated or unreadable. Never throws for bad file
-    /// content — this is on the startup path (audit §1.6).</summary>
-    public static GlobalSettings Load(string dir)
+    /// content — this is on the startup path (audit §1.6).
+    ///
+    /// A file that exists but cannot be loaded is moved aside to
+    /// <c>&lt;name&gt;.corrupt</c> and reported through
+    /// <paramref name="onFallback"/>, because the next Save overwrites
+    /// <c>global.json</c> in place and would otherwise destroy the only copy.
+    /// </summary>
+    public static GlobalSettings Load(string dir, Action<SettingsFallback>? onFallback = null)
     {
         var path = ProfileSettingsPaths.GlobalPath(dir);
-        if (!File.Exists(path))
+        // A directory at the settings path is NOT a fresh install: File.Exists is
+        // false for one, so testing only the file would silently serve defaults
+        // forever and then throw on the next Save. Read it, let it fail as
+        // Unreadable, and let the caller hear about it.
+        if (!File.Exists(path) && !Directory.Exists(path))
             return new GlobalSettings();
         try
         {
             return JsonSerializer.Deserialize<GlobalSettings>(File.ReadAllText(path)) ?? new GlobalSettings();
         }
-        catch (Exception ex) when (ex is JsonException or IOException)
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {
             // Corrupt/truncated JSON, or a locked/unreadable file. The other
             // settings loaders fall back the same way; throwing here would take
             // down startup (HostSetup reads Language via SettingsService.Global).
+            // UnauthorizedAccessException is not an IOException, so without it in
+            // this filter a permission problem still crashed startup.
+            var reason = ex is JsonException
+                ? SettingsFallbackReason.Corrupt
+                : SettingsFallbackReason.Unreadable;
+            onFallback?.Invoke(Quarantine(path, reason, ex));
         }
         return new GlobalSettings();
+    }
+
+    /// <summary>
+    /// Moves <paramref name="path"/> aside so the next Save cannot destroy it, and
+    /// returns the report. Best-effort: if the move fails (read-only directory,
+    /// name collision that cannot be resolved) the file is left in place and
+    /// <see cref="SettingsFallback.Quarantined"/> is false, which lets the caller
+    /// tell the user the original still exists. Never throws — a failure to
+    /// preserve a file must not become the startup crash this finding is about.
+    /// </summary>
+    private static SettingsFallback Quarantine(string path, SettingsFallbackReason reason, Exception error)
+    {
+        try
+        {
+            File.Move(path, ProfileSettingsStore.QuarantinePath(path));
+            return new SettingsFallback(path, reason, error) { Quarantined = true };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new SettingsFallback(path, reason, error) { Quarantined = false };
+        }
     }
 
     public static void Save(string dir, GlobalSettings settings)
@@ -102,22 +186,51 @@ public static class ProfilesStore
 
     /// <summary>Loads one profile, or null when it is absent, corrupt,
     /// truncated or unreadable. Being a <c>Try</c> method it must not throw
-    /// for bad file content (audit §1.6).</summary>
-    public static MachineProfile? TryLoad(string dir, string id)
+    /// for bad file content (audit §1.6). A file that exists but cannot be loaded
+    /// is moved aside to <c>&lt;name&gt;.corrupt</c> and reported through
+    /// <paramref name="onFallback"/>.</summary>
+    public static MachineProfile? TryLoad(string dir, string id, Action<SettingsFallback>? onFallback = null)
     {
         var path = ProfileSettingsPaths.ProfilePath(dir, id);
-        if (!File.Exists(path))
+        // Same rule as GlobalSettingsStore.Load: a directory squatting on the
+        // profile path is unreadable, not absent.
+        if (!File.Exists(path) && !Directory.Exists(path))
             return null;
         try
         {
             return JsonSerializer.Deserialize<MachineProfile>(File.ReadAllText(path));
         }
-        catch (Exception ex) when (ex is JsonException or IOException)
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {
             // Null is this method's "not loadable" answer; callers fall back to
             // a default profile (SettingsService.Load does `?? new MachineProfile()`).
+            var reason = ex is JsonException
+                ? SettingsFallbackReason.Corrupt
+                : SettingsFallbackReason.Unreadable;
+            onFallback?.Invoke(Quarantine(path, reason, ex));
         }
         return null;
+    }
+
+    /// <summary>
+    /// Moves <paramref name="path"/> aside so the next Save cannot destroy it, and
+    /// returns the report. Best-effort: if the move fails (read-only directory,
+    /// name collision that cannot be resolved) the file is left in place and
+    /// <see cref="SettingsFallback.Quarantined"/> is false, which lets the caller
+    /// tell the user the original still exists. Never throws — a failure to
+    /// preserve a file must not become the startup crash this finding is about.
+    /// </summary>
+    private static SettingsFallback Quarantine(string path, SettingsFallbackReason reason, Exception error)
+    {
+        try
+        {
+            File.Move(path, ProfileSettingsStore.QuarantinePath(path));
+            return new SettingsFallback(path, reason, error) { Quarantined = true };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new SettingsFallback(path, reason, error) { Quarantined = false };
+        }
     }
 
     public static void Save(string dir, MachineProfile profile)
