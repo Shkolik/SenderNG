@@ -123,6 +123,8 @@ public class MainViewModel : ViewModelBase, IDisposable
     private readonly SenderNG.Core.Localization.LocalizationService? _localization;
     private readonly System.Diagnostics.Stopwatch _runStopwatch = new();
     private bool _isRunning;
+    private bool _disposed;
+    private readonly Func<WorkParameters?>? _workParametersProvider;
 
     public MainViewModel(
         IGrblService grbl,
@@ -262,7 +264,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         // probe data instead of an empty table. The snapshot is immutable by
         // convention, so the closure always sees a consistent value.
         _workParametersSubscription = _grbl.WorkParametersChanges.Subscribe(wp => UiThread.Post(() => _latestWorkParameters = wp));
-        CNC.Core.Machine.WorkParametersProvider = () => _latestWorkParameters;
+        _workParametersProvider = () => _latestWorkParameters;
+        CNC.Core.Machine.WorkParametersProvider = _workParametersProvider;
 
         // Connection state drives the "NOT CONNECTED" indicator and status bar.
         _connectionChangedHandler = OnConnectionChanged;
@@ -1345,10 +1348,37 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        // Idempotent: the app may tear down twice, and every step below is only
+        // safe to skip after the first pass has run.
+        if (_disposed)
+            return;
+        _disposed = true;
+
         if (_localization is not null)
             _localization.Changed -= OnLocaleChanged;
         _settingsService.Changed -= OnSettingsChanged;
         _settingsService.ProfileSwitched -= OnProfileSwitched;
+        Modules.CollectionChanged -= OnModulesChanged;
+        _grbl.ConnectionChanged -= _connectionChangedHandler;
+
+        if (_program is not null)
+        {
+            _program.ProgramRows.CollectionChanged -= OnProgramRowsCollectionChanged;
+            _program.RowsChanged -= OnProgramRowsChanged;
+            _program.PropertyChanged -= OnProgramPropertyChanged;
+        }
+
+        _stateSubscription?.Dispose();
+        _stateSubscription = null;
+        _linesSubscription?.Dispose();
+        _linesSubscription = null;
+        _workParametersSubscription?.Dispose();
+        _workParametersSubscription = null;
+
+        // Only release the static if this instance still owns it; a newer view
+        // model must keep its provider.
+        if (CNC.Core.Machine.WorkParametersProvider == _workParametersProvider)
+            CNC.Core.Machine.WorkParametersProvider = null;
     }
 
     private void OnModulesChanged(object? sender, NotifyCollectionChangedEventArgs e)
