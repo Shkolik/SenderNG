@@ -73,6 +73,21 @@ public class SettingsFallbackTests
     }
 
     [Fact]
+    public void SettingsService_reports_a_fallback_it_loads()
+    {
+        // SettingsService is the only production caller of the loaders, so this
+        // is the seam that makes the notice reach the host at all.
+        var dir = NewDir();
+        WriteGlobal(dir, "{ broken");
+        var seen = Capture(out var onFallback);
+
+        var service = new SettingsService(dir, services: null, onFallback);
+        service.Load();
+
+        Assert.Contains(seen, f => f.Reason == SettingsFallbackReason.Corrupt);
+    }
+
+    [Fact]
     public void Corrupt_global_is_quarantined_and_reported()
     {
         var dir = NewDir();

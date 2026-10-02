@@ -55,6 +55,7 @@ public class SettingsService
 {
     private readonly string _dir;
     private readonly IServiceProvider? _services;
+    private readonly Action<SettingsFallback>? _onFallback;
     private MachineProfile? _current;
     private GlobalSettings? _global;
 
@@ -71,10 +72,15 @@ public class SettingsService
     /// supplies module companion providers (<see cref="IProfileCompanionSuffixes"/>)
     /// whose per-profile files <see cref="DeleteProfile"/> removes alongside the
     /// profile file.</summary>
-    public SettingsService(string? dir = null, IServiceProvider? services = null)
+    /// <param name="onFallback">Invoked when a settings file exists but cannot be
+    /// loaded. The host passes a callback that shows the user a notice; Core
+    /// itself stays silent and free of user-facing text (audit §1.6).</param>
+    public SettingsService(string? dir = null, IServiceProvider? services = null,
+                           Action<SettingsFallback>? onFallback = null)
     {
         _dir = dir ?? DefaultDir();
         _services = services;
+        _onFallback = onFallback;
     }
 
     /// <summary>Writable directory used by this service (companion files live here too).</summary>
@@ -96,7 +102,7 @@ public class SettingsService
         // exists, or on a fresh directory).
         SettingsMigrator.MigrateIfNeeded(_dir);
 
-        _global = GlobalSettingsStore.Load(_dir);
+        _global = GlobalSettingsStore.Load(_dir, _onFallback);
         var profileIds = ProfilesStore.Ids(_dir).ToArray();
 
         if (profileIds.Length == 0)
@@ -119,7 +125,7 @@ public class SettingsService
                 _global.ActiveProfileId = activeId;
                 GlobalSettingsStore.Save(_dir, _global);
             }
-            _current = ProfilesStore.TryLoad(_dir, activeId) ?? new MachineProfile();
+            _current = ProfilesStore.TryLoad(_dir, activeId, _onFallback) ?? new MachineProfile();
         }
 
         return _current;
@@ -138,7 +144,7 @@ public class SettingsService
             if (_global is null)
             {
                 Load();
-                _global = GlobalSettingsStore.Load(_dir);
+                _global = GlobalSettingsStore.Load(_dir, _onFallback);
             }
             return _global;
         }
@@ -170,7 +176,7 @@ public class SettingsService
         var ordered = _global is null
             ? ids
             : _global.Profiles.Keys.Where(ids.Contains).Concat(ids.Where(id => !_global.Profiles.ContainsKey(id))).ToList();
-        return ordered.Select(id => ProfilesStore.TryLoad(_dir, id)).OfType<MachineProfile>().ToList();
+        return ordered.Select(id => ProfilesStore.TryLoad(_dir, id, _onFallback)).OfType<MachineProfile>().ToList();
     }
 
     /// <summary>
@@ -194,9 +200,9 @@ public class SettingsService
                 MachineTypeId = machineTypeId,
                 DemoAxes = MachineTypeCatalog.Resolve(machineTypeId).DefaultDemoAxes,
             }
-            : Clone(ProfilesStore.TryLoad(_dir, copyFromId), id, name);
+            : Clone(ProfilesStore.TryLoad(_dir, copyFromId, _onFallback), id, name);
         ProfilesStore.Save(_dir, profile);
-        _global ??= GlobalSettingsStore.Load(_dir);
+        _global ??= GlobalSettingsStore.Load(_dir, _onFallback);
         _global.Profiles[profile.Id] = profile.Name;
         GlobalSettingsStore.Save(_dir, _global);
         return profile;
@@ -205,11 +211,11 @@ public class SettingsService
     /// <summary>Display-name rename: id and file untouched, registry updated, active graph re-raised.</summary>
     public void RenameProfile(string id, string name)
     {
-        var profile = ProfilesStore.TryLoad(_dir, id)
+        var profile = ProfilesStore.TryLoad(_dir, id, _onFallback)
             ?? throw new ArgumentException($"Unknown profile '{id}'", nameof(id));
         profile.Name = name;
         ProfilesStore.Save(_dir, profile);
-        _global ??= GlobalSettingsStore.Load(_dir);
+        _global ??= GlobalSettingsStore.Load(_dir, _onFallback);
         _global.Profiles[id] = name;
         GlobalSettingsStore.Save(_dir, _global);
         if (_current?.Id == id)
@@ -236,7 +242,7 @@ public class SettingsService
                 catch { /* best-effort */ }
             }
         }
-        _global ??= GlobalSettingsStore.Load(_dir);
+        _global ??= GlobalSettingsStore.Load(_dir, _onFallback);
         _global.Profiles.Remove(id);
         GlobalSettingsStore.Save(_dir, _global);
         return true;
@@ -249,10 +255,10 @@ public class SettingsService
     /// </summary>
     public MachineProfile Activate(string profileId)
     {
-        var profile = ProfilesStore.TryLoad(_dir, profileId)
+        var profile = ProfilesStore.TryLoad(_dir, profileId, _onFallback)
             ?? throw new ArgumentException($"Unknown profile '{profileId}'", nameof(profileId));
         _current = profile;
-        _global ??= GlobalSettingsStore.Load(_dir);
+        _global ??= GlobalSettingsStore.Load(_dir, _onFallback);
         _global.ActiveProfileId = profileId;
         GlobalSettingsStore.Save(_dir, _global);
         Changed?.Invoke();
@@ -263,7 +269,7 @@ public class SettingsService
     /// <summary>Changes a profile's machine type (confirmed + guarded by the UI).</summary>
     public void SetProfileMachineType(string id, string machineTypeId)
     {
-        var profile = ProfilesStore.TryLoad(_dir, id)
+        var profile = ProfilesStore.TryLoad(_dir, id, _onFallback)
             ?? throw new ArgumentException($"Unknown profile '{id}'", nameof(id));
         profile.MachineTypeId = machineTypeId;
         ProfilesStore.Save(_dir, profile);
