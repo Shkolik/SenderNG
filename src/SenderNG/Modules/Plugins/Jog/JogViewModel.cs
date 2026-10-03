@@ -438,7 +438,7 @@ public class JogViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Status = LocText.Format("module.jog.sendFailed", "Jog failed: {0}", ex.Message);
+            Status = LocText.Format("module.jog.sendFailed", "{0} failed: {1}", tag, ex.Message);
         }
     }
 

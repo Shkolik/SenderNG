@@ -35,10 +35,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Reactive.Subjects;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Core.Localization;
 using SenderNG.Modules.Plugins;
 
 namespace SenderNG.Core.Tests;
 
+[Collection("LocalizationState")]
 public class JogViewModelTests
 {
     internal static SettingsService MakeSettings(string mode = "Mill")
@@ -424,6 +426,29 @@ public class JogViewModelTests
         Assert.NotNull(vm.Status);
         Assert.Contains("transport write failed", vm.Status!);
         Assert.DoesNotContain("sent", vm.Status);
+    }
+
+    [Fact]
+    public void Step_jog_failure_formats_against_the_loaded_locale_catalog()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = TestLocalization.Locale;
+            var sent = new List<string>();
+            var vm = new JogViewModel(new RecordingGrbl(sent,
+                sendFault: new IOException("transport write failed")), MakeSettings());
+
+            vm.JogCommand.Execute("X+");
+
+            Assert.NotNull(vm.Status);
+            Assert.DoesNotContain("{0}", vm.Status!);
+            Assert.Contains("transport write failed", vm.Status!);
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
     }
 
     [Fact]

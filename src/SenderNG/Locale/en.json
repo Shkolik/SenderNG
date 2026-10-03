@@ -68,7 +68,6 @@
     "module.jog.speed2": "Speed 2",
     "module.jog.speed3": "Speed 3",
     "module.jog.diagonal": "Diagonal jogging",
-    "module.jog.sent": "{0} sent",
     "module.jog.sendFailed": "{0} failed: {1}",
     "module.jog.continuousStarted": "Continuous jog started",
     "module.program.compressComments": "Compress: comments",
