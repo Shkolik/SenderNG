@@ -52,7 +52,8 @@ public class JogViewModelTests
     }
 
     internal sealed class RecordingGrbl(List<string> sent, int numAxes = 4,
-        ControllerCapabilities? capabilities = null) : IGrblService
+        ControllerCapabilities? capabilities = null, Exception? sendFault = null,
+        TaskCompletionSource? gate = null) : IGrblService
     {
         private readonly BehaviorSubject<MachineState> _subject = new(new MachineState(numAxes));
         public bool IsConnected { get; set; } = true;
@@ -61,11 +62,12 @@ public class JogViewModelTests
         public Task ConnectAsync(string port) => Task.CompletedTask;
         public void Disconnect() { }
         public void SendRealtime(byte code) => sent.Add($"RT:{code:X2}");
-        
-public Task SendAsync(string line)
+        public Task SendAsync(string line)
         {
             sent.Add(line);
-            return Task.CompletedTask;
+            if (sendFault is not null)
+                return Task.FromException(sendFault);
+            return gate?.Task ?? Task.CompletedTask;
         }
         public void Push(MachineState state) => _subject.OnNext(state);
     }
@@ -408,6 +410,98 @@ public Task SendAsync(string line)
         vm.JogTogether("X+");
 
         Assert.Equal(["$J=G91 X1 F1000"], sent);
+    }
+
+    [Fact]
+    public void Step_jog_reports_failure_when_the_send_faults()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            sendFault: new IOException("transport write failed")), MakeSettings());
+
+        vm.JogCommand.Execute("X+");
+
+        Assert.NotNull(vm.Status);
+        Assert.Contains("transport write failed", vm.Status!);
+        Assert.DoesNotContain("sent", vm.Status);
+    }
+
+    [Fact]
+    public void Faulted_continuous_start_leaves_no_tag_so_a_retry_is_accepted()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] },
+            sendFault: new IOException("transport write failed")), MakeSettings());
+        vm.IsDistance3 = true;
+
+        vm.StartContinuousJog("X-");
+
+        Assert.NotNull(vm.Status);
+        Assert.Contains("transport write failed", vm.Status!);
+        Assert.False(vm.ContinuousActive);
+
+        var sentBeforeRetry = sent.Count;
+        vm.StartContinuousJog("X-");
+        Assert.Equal(sentBeforeRetry + 1, sent.Count);
+    }
+
+    [Fact]
+    public void Continuous_start_is_refused_while_a_previous_start_is_in_flight()
+    {
+        var sent = new List<string>();
+        var gate = new TaskCompletionSource();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] },
+            gate: gate), MakeSettings());
+        vm.IsDistance3 = true;
+
+        vm.StartContinuousJog("X-");
+        vm.StartContinuousJog("X-");          // auto-repeat while in flight
+
+        Assert.Single(sent);                  // guard refused the second start
+        Assert.False(vm.ContinuousActive);    // tag is not set until the send lands
+
+        gate.SetResult();                      // TCS continuations run inline, so this is deterministic
+        Assert.True(vm.ContinuousActive);      // now it is committed
+        Assert.Equal(["$J=G91 X-200 F1000"], sent);
+        Assert.DoesNotContain("failed", vm.Status);
+    }
+
+    [Fact]
+    public void Release_during_the_start_send_cancels_instead_of_leaving_the_jog_stuck()
+    {
+        var sent = new List<string>();
+        var gate = new TaskCompletionSource();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] },
+            gate: gate), MakeSettings());
+        vm.IsDistance3 = true;
+
+        vm.StartContinuousJog("X-");
+        vm.StopContinuousJog();              // release arrived before the send landed
+        Assert.False(vm.ContinuousActive);
+
+        gate.SetResult();
+
+        Assert.False(vm.ContinuousActive);   // NOT stuck on
+        Assert.Contains("RT:85", sent);      // jog cancel went out
+    }
+
+    [Fact]
+    public void Continuous_start_reports_success_status()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] }), MakeSettings());
+        vm.IsDistance3 = true;
+
+        vm.StartContinuousJog("X-");
+
+        Assert.Equal(["$J=G91 X-200 F1000"], sent);
+        Assert.NotNull(vm.Status);
+        Assert.Contains("Continuous jog started", vm.Status!);
+        Assert.DoesNotContain("failed", vm.Status);
     }
 }
 

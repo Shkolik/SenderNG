@@ -228,6 +228,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <TextBlock IsVisible="{Binding Plane2HiddenHintVisible}" Text="{loc:Loc module.jog.planeHidden}"
                    Width="150" TextWrapping="Wrap" FontSize="10" Foreground="#888" VerticalAlignment="Center" Margin="0,0,8,0" />
 
+        <TextBlock Text="{Binding Status}" Foreground="#777" FontSize="11" TextWrapping="Wrap" />
     </StackPanel>
     </ScrollViewer>
 </UserControl>

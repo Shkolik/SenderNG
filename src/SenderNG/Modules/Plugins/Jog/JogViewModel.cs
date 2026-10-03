@@ -39,6 +39,7 @@ using System.Globalization;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Commands;
+using SenderNG.Localization;
 using SenderNG.ViewModels;
 
 namespace SenderNG.Modules.Plugins;
@@ -243,6 +244,17 @@ public class JogViewModel : ViewModelBase
     public DelegateCommand StopCommand { get; }
 
     private string? _continuousTag;   // tag held down, e.g. "X-" / "X-,Y+|Z-,A+"
+
+    private string? _status = string.Empty;
+    public string? Status
+    {
+        get => _status;
+        private set => SetField(ref _status, value);
+    }
+
+    private bool _continuousStarting;
+    private bool _continuousCancelRequested;
+
     public bool IsContinuousStep => SelectedDistance == JogConfig.ContinuousDistance;
     public bool ContinuousActive => _continuousTag is not null;
 
@@ -255,26 +267,53 @@ public class JogViewModel : ViewModelBase
         _grbl.IsConnected && _grbl.Capabilities.MaxTravel.Any(t => t > 0);
 
     public void StartContinuousJog(string? tag, bool allGantries = false)
+        => _ = StartContinuousJogAsync(tag, allGantries);
+
+    private async Task StartContinuousJogAsync(string? tag, bool allGantries)
     {
         var mergeBoth = allGantries || Together;   // explicit hotkey flag or the engaged padlock
         if (!IsContinuousStep || string.IsNullOrWhiteSpace(tag) || _continuousTag is not null
-            || !_grbl.IsConnected || !ContinuousTravelKnown(tag, mergeBoth))
-            return;                                   // step mode, empty tag, held, disconnected, or no travel yet
+            || _continuousStarting || !_grbl.IsConnected || !ContinuousTravelKnown(tag, mergeBoth))
+            return;                                   // step mode, empty tag, held, in flight, or no travel
+
+        _continuousStarting = true;
+        _continuousCancelRequested = false;
         try
         {
-            _grbl.SendAsync(BuildContinuousJogCommand(tag, mergeBoth));
-            _continuousTag = tag;
+            await _grbl.SendAsync(BuildContinuousJogCommand(tag, mergeBoth));
+            if (_continuousCancelRequested)
+            {
+                CancelJog();                          // release beat the send: cancel, do not commit
+            }
+            else
+            {
+                _continuousTag = tag;
+                Status = LocText.Resolve("module.jog.continuousStarted", "Continuous jog started");
+            }
         }
         catch (InvalidOperationException)
         {
             // Not connected: DemoGrblService throws synchronously; leave no stale tag.
+        }
+        catch (Exception ex)
+        {
+            Status = LocText.Format("module.jog.sendFailed", "{0} failed: {1}", tag, ex.Message);
+        }
+        finally
+        {
+            _continuousStarting = false;
+            _continuousCancelRequested = false;
         }
     }
 
     public void StopContinuousJog()
     {
         if (_continuousTag is null)
+        {
+            if (_continuousStarting)
+                _continuousCancelRequested = true;    // release arrived before the start landed
             return;
+        }
         CancelJog();
     }
 
@@ -393,7 +432,14 @@ public class JogViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(tag) || _continuousTag is not null   // no step jog while holding
             || !_grbl.IsConnected)                                          // wait till connected
             return;
-        await _grbl.SendAsync($"$J=G91 {BuildJogWords(tag, _ => SelectedDistance, allGantries)} F{Fmt(SelectedSpeed)}");
+        try
+        {
+            await _grbl.SendAsync($"$J=G91 {BuildJogWords(tag, _ => SelectedDistance, allGantries)} F{Fmt(SelectedSpeed)}");
+        }
+        catch (Exception ex)
+        {
+            Status = LocText.Format("module.jog.sendFailed", "Jog failed: {0}", ex.Message);
+        }
     }
 
     /// <summary>Step jog of BOTH gantries (the "Together" merge) regardless of
