@@ -31,9 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-using System.IO;
 using System.Reactive.Subjects;
-using CNC.Core;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,19 +42,35 @@ namespace SenderNG.Core.Tests;
 
 public class MainViewModelSendTests
 {
-    // Succeeds only on synchronous throws, so the discarded task faulted
-    // asynchronously - the exact case the pre-fix try/catch could not see.
+    // The faulted-task outcome never throws at the call site: it returns an
+    // already-faulted task, so only an await exposes the failure.
     private sealed class FaultingGrbl : IGrblService
     {
+        private readonly Exception? _sendFault;
+        private readonly bool _throwSynchronously;
+
         private readonly BehaviorSubject<MachineState> _state = new(new MachineState(3));
+
+        public FaultingGrbl() : this(new IOException("transport write failed")) { }
+
+        public FaultingGrbl(Exception? sendFault, bool throwSynchronously = false)
+        {
+            _sendFault = sendFault;
+            _throwSynchronously = throwSynchronously;
+        }
 
         public bool IsConnected => true;
         public IObservable<MachineState> State => _state;
         public Task ConnectAsync(string port) => Task.CompletedTask;
         public void Disconnect() { }
 
-        public Task SendAsync(string line) =>
-            Task.FromException(new IOException("transport write failed"));
+        public Task SendAsync(string line)
+        {
+            if (_sendFault is { } fault && _throwSynchronously)
+                throw fault;
+
+            return _sendFault is null ? Task.CompletedTask : Task.FromException(_sendFault);
+        }
 
         public void SendRealtime(byte code) { }
     }
@@ -86,7 +100,7 @@ public class MainViewModelSendTests
         vm.HomeCommand.Execute(null);
 
         Assert.NotNull(vm.Status);
-        Assert.Contains("failed", vm.Status!);
+        Assert.Contains("transport write failed", vm.Status);
         Assert.DoesNotContain("sent", vm.Status);
     }
 
@@ -99,7 +113,7 @@ public class MainViewModelSendTests
         vm.UnlockCommand.Execute(null);
 
         Assert.NotNull(vm.Status);
-        Assert.Contains("failed", vm.Status!);
+        Assert.Contains("transport write failed", vm.Status);
         Assert.DoesNotContain("sent", vm.Status);
     }
 
@@ -112,7 +126,35 @@ public class MainViewModelSendTests
         vm.CheckCommand.Execute(null);
 
         Assert.NotNull(vm.Status);
-        Assert.Contains("failed", vm.Status!);
+        Assert.Contains("transport write failed", vm.Status);
+        Assert.DoesNotContain("sent", vm.Status);
+    }
+
+    [Fact]
+    public void Home_reports_sent_when_the_send_succeeds()
+    {
+        var settings = MakeSettings();
+        var vm = NewViewModel(new FaultingGrbl(sendFault: null), settings);
+
+        vm.HomeCommand.Execute(null);
+
+        Assert.NotNull(vm.Status);
+        Assert.Contains("sent", vm.Status);
+        Assert.DoesNotContain("failed", vm.Status);
+    }
+
+    [Fact]
+    public void Home_reports_failure_and_never_sent_when_the_send_throws_synchronously()
+    {
+        var settings = MakeSettings();
+        var vm = NewViewModel(
+            new FaultingGrbl(new InvalidOperationException("Not connected."), throwSynchronously: true),
+            settings);
+
+        vm.HomeCommand.Execute(null);
+
+        Assert.NotNull(vm.Status);
+        Assert.Contains("Not connected.", vm.Status);
         Assert.DoesNotContain("sent", vm.Status);
     }
 }
