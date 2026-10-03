@@ -219,17 +219,22 @@ public class DroViewModelTests
                 Path.Combine(Path.GetTempPath(), "senderng-dro-" + Guid.NewGuid().ToString("N"))));
             replacement.RegisterAction(
                 new CommandHotkeyAction("dro.zero.x", "Zero X", null, () => { }), "Ctrl+Shift+Y");
+
+            // Swap away and back. The round trip is what makes the duplication
+            // reachable: AppHotkeys.Current is reference-guarded, so a service can
+            // only gain a second subscription by being handed out a second time.
             var beforeSwap = tips;
             AppHotkeys.Current = replacement;
-            Assert.True(tips > beforeSwap, "sanity: the replacement raised AppHotkeys.Changed");
+            AppHotkeys.Current = first;
+            Assert.True(tips > beforeSwap, "sanity: the round trip raised AppHotkeys.Changed");
             tips = 0;
 
-            replacement.ClearGesture("dro.zero.x");
-            Assert.Equal(1, tips);   // two before the fix
-
-            tips = 0;
             first.ClearGesture("dro.zero.x");
-            Assert.Equal(0, tips);   // one before the fix
+            Assert.Equal(1, tips);   // two before the fix: the round trip stacked a copy
+
+            tips = 0;
+            replacement.ClearGesture("dro.zero.x");
+            Assert.Equal(0, tips);   // one before the fix: the replaced service was never released
         }
         finally
         {
