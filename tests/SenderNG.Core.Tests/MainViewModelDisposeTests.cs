@@ -267,12 +267,19 @@ public class MainViewModelDisposeTests
         var (settings, _, _, vm) = MakeHost();
 
         // Reflection, because there is no public path to this setter: Grbl's setter
-        // is private and is only reached through the private SwapInner, which in
-        // turn runs only from the connect-dialog flow (MainViewModel.cs:980-986,
-        // :1012, :1679). Reaching it here is the point -- the audit records this
-        // trigger as unreachable in the app, so the test pins the invariant rather
-        // than a shipped path. Swap twice, since SetField only runs the setter body
-        // when the reference actually changes.
+        // is private and is reached only through the private SwapInner
+        // (MainViewModel.cs:979). SwapInner is called from three places --
+        // SwitchToSerial (:999), ActivateDemoAsync (:1011) and ConnectNetworkAsync
+        // (:1678) -- and SwitchToSerial itself runs from ConnectWithDialogAsync's
+        // serial branch (:1659) as well as from Disconnect (:1236), so this is not
+        // connect-dialog-only. The reason the setter is unreachable in the app is
+        // the proxy: production registers IGrblService as a GrblServiceProxy
+        // (HostSetup.cs:118-119), so SwapInner always takes the proxy.Inner = target
+        // branch (:983) and never reaches Grbl = target (:985). Reaching the setter
+        // here is therefore the point -- the audit records this trigger as
+        // unreachable in the app, so the test pins the invariant rather than a
+        // shipped path. Swap twice, since SetField only runs the setter body when
+        // the reference actually changes.
         var property = typeof(MainViewModel).GetProperty(
             nameof(MainViewModel.Grbl), BindingFlags.Instance | BindingFlags.Public);
         var profile = settings.Load();
@@ -283,6 +290,21 @@ public class MainViewModelDisposeTests
         var notifications = CountNotifications(vm, nameof(MainViewModel.StatusBarJogStep));
         settings.Activate(profile.Id);
         Assert.True(notifications() > 0, "sanity: the view model reacts before Dispose");
+
+        // The detach above would also pass if the constructor subscription
+        // (MainViewModel.cs:286) were deleted outright, because
+        // OnProfileSwitched calls OnSettingsChanged by itself (:353). The plan's
+        // acceptance criterion is "exactly one" Changed registration, and nothing
+        // else in the suite drives StatusBarJogStep through a Changed raise, so pin
+        // the count instead of its sign. One Activate raises Changed once per
+        // registration plus ProfileSwitched once, and UiThread.Post runs inline
+        // under test (UiThread.cs:61-69), so the tally is deterministic: 4 against
+        // the unfixed code (constructor + two swaps), 2 here, 1 if the constructor
+        // subscription is removed.
+        Assert.True(
+            notifications() >= 2,
+            $"expected >= 2 StatusBarJogStep notifications from one Activate (the " +
+            $"constructor subscription plus the profile-switch path), got {notifications()}");
 
         vm.Dispose();
         var baseline = notifications();

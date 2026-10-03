@@ -213,8 +213,13 @@ public class DroViewModelTests
             first.ClearGesture("dro.zero.x");
             Assert.Equal(1, tips);   // sanity: the handler is live
 
-            // A second service over a SEPARATE settings store, so RegisterAction's
-            // Persist() cannot reach the still-subscribed `first`.
+            // A second service over a SEPARATE settings store: belt-and-braces
+            // isolation, so the two services' gesture maps stay independent and the
+            // only thing linking `replacement` to `first` is AppHotkeys.Current --
+            // which is the mechanism under test. (It is not there to stop a
+            // Persist() from reaching `first`: RegisterAction never calls Persist()
+            // and never raises Changed -- only SetGesture, ResetOne and ResetAll
+            // do (HotkeyService.cs:118, :129, :138).)
             var replacement = new HotkeyService(new SettingsService(
                 Path.Combine(Path.GetTempPath(), "senderng-dro-" + Guid.NewGuid().ToString("N"))));
             replacement.RegisterAction(
