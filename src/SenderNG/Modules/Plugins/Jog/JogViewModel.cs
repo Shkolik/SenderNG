@@ -84,7 +84,12 @@ public class JogViewModel : ViewModelBase
         // classic grbl 1.1, the mega5x 1.2i fork and grblHAL: it decelerates, flushes
         // remaining jog blocks and returns to IDLE. A feed hold ('!') would leave the
         // machine in HOLD needing a cycle start — wrong for the jog panel.
-        StopCommand = new DelegateCommand(_ => CancelJog());
+        StopCommand = new DelegateCommand(_ =>
+        {
+            if (_continuousStarting)
+                _continuousCancelRequested = true;
+            CancelJog();
+        });
 
         _grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
         _grbl.ConnectionChanged += OnConnectionChanged;
@@ -257,6 +262,7 @@ public class JogViewModel : ViewModelBase
 
     public bool IsContinuousStep => SelectedDistance == JogConfig.ContinuousDistance;
     public bool ContinuousActive => _continuousTag is not null;
+    public bool ContinuousStarting => _continuousStarting;
 
     /// <summary>Continuous jog needs the board's per-axis max travel ($130+), which only
     /// exists after the connect handshake's $$ fetch. Gates the Continuous toggle
@@ -435,6 +441,7 @@ public class JogViewModel : ViewModelBase
         try
         {
             await _grbl.SendAsync($"$J=G91 {BuildJogWords(tag, _ => SelectedDistance, allGantries)} F{Fmt(SelectedSpeed)}");
+            Status = string.Empty;
         }
         catch (Exception ex)
         {

@@ -80,7 +80,7 @@ public partial class JogView : UserControl
         if (button?.CommandParameter is not string tag || Vm is not { IsContinuousStep: true })
             return;                       // step mode, Stop button, or non-jog control: untouched
         Vm!.StartContinuousJog(tag);
-        if (Vm.ContinuousActive && _heldPointer is null)
+        if ((Vm.ContinuousActive || Vm.ContinuousStarting) && _heldPointer is null)
             _heldPointer = e.Pointer;     // the pointer that owns the hold
         e.Pointer.Capture(this);          // release/capture-lost always reach us
         e.Handled = true;                 // suppresses the Button's Click command
@@ -90,10 +90,10 @@ public partial class JogView : UserControl
     {
         // Scope to the pointer that actually holds the jog: a second finger (or a
         // stylus touch) lifting must NOT stop a hold owned by another pointer.
-        if (e.Pointer != _heldPointer || Vm is not { ContinuousActive: true })
+        if (e.Pointer != _heldPointer)
             return;
         _heldPointer = null;
-        Vm.StopContinuousJog();
+        Vm?.StopContinuousJog();
         e.Pointer.Capture(null);
         e.Handled = true;
     }

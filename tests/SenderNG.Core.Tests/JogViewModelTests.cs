@@ -62,13 +62,14 @@ public class JogViewModelTests
         public ControllerCapabilities Capabilities => capabilities ?? ControllerCapabilities.Unknown;
         public IObservable<MachineState> State => _subject;
         public Task ConnectAsync(string port) => Task.CompletedTask;
+        public Exception? SendFault { get; set; } = sendFault;
         public void Disconnect() { }
         public void SendRealtime(byte code) => sent.Add($"RT:{code:X2}");
         public Task SendAsync(string line)
         {
             sent.Add(line);
-            if (sendFault is not null)
-                return Task.FromException(sendFault);
+            if (SendFault is not null)
+                return Task.FromException(SendFault);
             return gate?.Task ?? Task.CompletedTask;
         }
         public void Push(MachineState state) => _subject.OnNext(state);
@@ -452,6 +453,23 @@ public class JogViewModelTests
     }
 
     [Fact]
+    public void Successful_step_jog_clears_a_stale_failure_status()
+    {
+        var sent = new List<string>();
+        var grbl = new RecordingGrbl(sent, sendFault: new IOException("transport write failed"));
+        var vm = new JogViewModel(grbl, MakeSettings());
+
+        vm.JogCommand.Execute("X+");
+        Assert.Contains("transport write failed", vm.Status!);
+
+        grbl.SendFault = null;
+        vm.JogCommand.Execute("Y+");
+
+        Assert.NotNull(vm.Status);
+        Assert.DoesNotContain("transport write failed", vm.Status!);
+    }
+
+    [Fact]
     public void Faulted_continuous_start_leaves_no_tag_so_a_retry_is_accepted()
     {
         var sent = new List<string>();
@@ -511,6 +529,26 @@ public class JogViewModelTests
 
         Assert.False(vm.ContinuousActive);   // NOT stuck on
         Assert.Contains("RT:85", sent);      // jog cancel went out
+    }
+
+    [Fact]
+    public void Stop_during_the_start_send_prevents_the_jog_from_committing()
+    {
+        var sent = new List<string>();
+        var gate = new TaskCompletionSource();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] },
+            gate: gate), MakeSettings());
+        vm.IsDistance3 = true;
+
+        vm.StartContinuousJog("X-");
+        vm.StopCommand.Execute(null);
+        Assert.Contains("RT:85", sent);
+
+        gate.SetResult();
+
+        Assert.False(vm.ContinuousActive);
+        Assert.Contains("RT:85", sent);
     }
 
     [Fact]
