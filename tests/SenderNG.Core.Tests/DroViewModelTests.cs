@@ -188,6 +188,56 @@ public class DroViewModelTests
     }
 
     [Fact]
+    public void Replacing_the_hotkey_service_refreshes_once_and_releases_the_previous_one()
+    {
+        var previousHotkeys = AppHotkeys.Current;
+        try
+        {
+            var settings = new SettingsService(
+                Path.Combine(Path.GetTempPath(), "senderng-dro-" + Guid.NewGuid().ToString("N")));
+            var first = new HotkeyService(settings);
+            first.RegisterAction(
+                new CommandHotkeyAction("dro.zero.x", "Zero X", null, () => { }), "Ctrl+Shift+X");
+            AppHotkeys.Current = first;
+
+            var vm = new DroViewModel(
+                new BehaviorSubjectGrbl(new BehaviorSubject<MachineState>(new MachineState(3))));
+
+            var tips = 0;
+            vm.Axes[0].PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == "Tip")
+                    tips++;
+            };
+
+            first.ClearGesture("dro.zero.x");
+            Assert.Equal(1, tips);   // sanity: the handler is live
+
+            // A second service over a SEPARATE settings store, so RegisterAction's
+            // Persist() cannot reach the still-subscribed `first`.
+            var replacement = new HotkeyService(new SettingsService(
+                Path.Combine(Path.GetTempPath(), "senderng-dro-" + Guid.NewGuid().ToString("N"))));
+            replacement.RegisterAction(
+                new CommandHotkeyAction("dro.zero.x", "Zero X", null, () => { }), "Ctrl+Shift+Y");
+            var beforeSwap = tips;
+            AppHotkeys.Current = replacement;
+            Assert.True(tips > beforeSwap, "sanity: the replacement raised AppHotkeys.Changed");
+            tips = 0;
+
+            replacement.ClearGesture("dro.zero.x");
+            Assert.Equal(1, tips);   // two before the fix
+
+            tips = 0;
+            first.ClearGesture("dro.zero.x");
+            Assert.Equal(0, tips);   // one before the fix
+        }
+        finally
+        {
+            AppHotkeys.Current = previousHotkeys;
+        }
+    }
+
+    [Fact]
     public void Zero_cell_tip_has_no_brackets_for_axes_without_an_action()
     {
         var previousHotkeys = AppHotkeys.Current;

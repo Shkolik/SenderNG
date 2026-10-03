@@ -43,6 +43,7 @@ using System.Windows.Input;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Localization;
+using SenderNG.Core.Services;
 using SenderNG.Localization;
 using SenderNG.ViewModels;
 using SenderNG.Core.Commands;
@@ -83,6 +84,7 @@ public class DroViewModel : ViewModelBase
 
     private readonly IGrblService _grbl;
     private string _status = string.Empty;
+    private HotkeyService? _subscribedHotkeys;
 
     public ObservableCollection<AxisPosition> Axes { get; } = new();
 
@@ -98,8 +100,7 @@ public class DroViewModel : ViewModelBase
         if (LocalizationService.Current is { } loc)
             loc.Changed += OnLocaleChanged;
         AppHotkeys.Changed += OnAppHotkeysChanged;
-        if (AppHotkeys.Current is { } hotkeys)
-            hotkeys.Changed += OnHotkeysChanged;
+        SubscribeToHotkeys(AppHotkeys.Current);
     }
 
     public ICommand ZeroAxisCommand { get; }
@@ -159,13 +160,24 @@ public class DroViewModel : ViewModelBase
 
     private void OnLocaleChanged(object? sender, EventArgs e) => UiThread.Post(RefreshTips);
     private void OnHotkeysChanged(object? sender, EventArgs e) => UiThread.Post(RefreshTips);
+    /// <summary>Owns the single <see cref="HotkeyService.Changed"/> subscription, moving it
+    /// to <paramref name="service"/> and releasing the previous one. The reference check
+    /// makes the subscription idempotent, so no duplicate can accumulate.</summary>
+    private void SubscribeToHotkeys(HotkeyService? service)
+    {
+        if (ReferenceEquals(_subscribedHotkeys, service))
+            return;
+        if (_subscribedHotkeys is not null)
+            _subscribedHotkeys.Changed -= OnHotkeysChanged;
+        _subscribedHotkeys = service;
+        if (service is not null)
+            service.Changed += OnHotkeysChanged;
+    }
+
     private void OnAppHotkeysChanged(object? sender, EventArgs e)
     {
-        if (AppHotkeys.Current is { } hotkeys)
-        {
-            hotkeys.Changed += OnHotkeysChanged;
-            RefreshTips();
-        }
+        SubscribeToHotkeys(AppHotkeys.Current);
+        RefreshTips();
     }
 
     /// <summary>Pulls a $# re-read so the Work Parameters table reflects the
