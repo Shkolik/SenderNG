@@ -1,3 +1,36 @@
+/*
+
+Copyright (c) 2026 Andrew Shkolik
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+· Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+
+· Redistributions in binary form must reproduce the above copyright notice, this
+list of conditions and the following disclaimer in the documentation and/or
+other materials provided with the distribution.
+
+· Neither the name of the copyright holder nor the names of its contributors may
+be used to endorse or promote products derived from this software without
+specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
 using System.Reflection;
 using System.ComponentModel;
 using System.Reactive.Subjects;
@@ -295,12 +328,13 @@ public class MainViewModelDisposeTests
         // (MainViewModel.cs:286) were deleted outright, because
         // OnProfileSwitched calls OnSettingsChanged by itself (:353). The plan's
         // acceptance criterion is "exactly one" Changed registration, and nothing
-        // else in the suite drives StatusBarJogStep through a Changed raise, so pin
-        // the count instead of its sign. One Activate raises Changed once per
-        // registration plus ProfileSwitched once, and UiThread.Post runs inline
-        // under test (UiThread.cs:61-69), so the tally is deterministic: 4 against
-        // the unfixed code (constructor + two swaps), 2 here, 1 if the constructor
-        // subscription is removed.
+        // else in the suite counts StatusBarJogStep notifications -- so pin the
+        // count, not just its sign. MainViewModelStatusBarTests drives this
+        // property through a Changed raise, but only asserts its value.
+        // One Activate raises Changed once per registration plus ProfileSwitched
+        // once, and UiThread.Post runs inline under test (UiThread.cs:61-69), so
+        // the tally is deterministic: 4 against the unfixed code (constructor plus
+        // two swaps), 2 here, 1 if the constructor subscription is removed.
         Assert.True(
             notifications() >= 2,
             $"expected >= 2 StatusBarJogStep notifications from one Activate (the " +
