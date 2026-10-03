@@ -273,6 +273,7 @@ public class CuttingViewModelSpindleTests
         vm.SpindleCwCommand.Execute(null);
 
         Assert.Equal(["M3 S1500"], sent);
+        Assert.Contains("sent", vm.Status);
     }
 
     [Fact]
@@ -341,7 +342,7 @@ public class CuttingViewModelSpindleTests
     }
 
     [Fact]
-    public void Spindle_start_reports_failure_and_never_sent_when_the_send_faults()
+    public void Spindle_start_reports_failure_and_attempts_one_send_when_the_send_faults()
     {
         var sent = new List<string>();
         var vm = new CuttingViewModel(
