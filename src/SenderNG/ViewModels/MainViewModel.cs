@@ -226,11 +226,11 @@ public class MainViewModel : ViewModelBase, IDisposable
             _ => IsMachineState("Hold") || IsMachineState("Run") || SessionActive);
         RewindCommand = new DelegateCommand(_ => Rewind(), _ => HasProgram && !SessionActive);
         // Status bar buttons (ioSender semantics): Home -> $H, Unlock -> $X, Reset -> realtime 0x18.
-        HomeCommand = new DelegateCommand(_ => SendLine("$H", "Home"));
-        UnlockCommand = new DelegateCommand(_ => SendLine("$X", "Unlock"));
+        HomeCommand = new DelegateCommand(_ => _ = SendLineAsync("$H", "Home"));
+        UnlockCommand = new DelegateCommand(_ => _ = SendLineAsync("$X", "Unlock"));
         // Check toggles grbl check mode ($C): a dry run that verifies g-code and
         // simulates motion without moving the machine. Enabled only when connected.
-        CheckCommand = new DelegateCommand(_ => SendLine("$C", "Check mode toggle"), _ => IsConnected);
+        CheckCommand = new DelegateCommand(_ => _ = SendLineAsync("$C", "Check mode toggle"), _ => IsConnected);
         ResetCommand = new DelegateCommand(_ => SendRealtime(GrblRealtime.Reset, "Reset"));
         MdiHistoryPrevCommand = new DelegateCommand(_ => MdiHistoryPrev());
         MdiHistoryNextCommand = new DelegateCommand(_ => MdiHistoryNext());
@@ -1246,10 +1246,17 @@ public class MainViewModel : ViewModelBase, IDisposable
         catch (Exception ex) { Status = LocText.Format("app.msg.failed", "{0} failed: {1}", label, ex.Message); }
     }
 
-    private void SendLine(string line, string label)
+    private async Task SendLineAsync(string line, string label)
     {
-        try { Grbl.SendAsync(line); Status = LocText.Format("app.msg.sent", "{0} sent", label); }
-        catch (Exception ex) { Status = LocText.Format("app.msg.failed", "{0} failed: {1}", label, ex.Message); }
+        try
+        {
+            await Grbl.SendAsync(line);
+            Status = LocText.Format("app.msg.sent", "{0} sent", label);
+        }
+        catch (Exception ex)
+        {
+            Status = LocText.Format("app.msg.failed", "{0} failed: {1}", label, ex.Message);
+        }
     }
 
     /// <summary>
