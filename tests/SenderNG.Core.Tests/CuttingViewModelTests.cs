@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.IO;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using CNC.Core.Abstractions;
@@ -222,7 +223,7 @@ public class DemoGrblServiceCuttingTests
 
 public class CuttingViewModelSpindleTests
 {
-    private sealed class RecordingGrbl(List<string> sent) : IGrblService
+    private sealed class RecordingGrbl(List<string> sent, Exception? sendFault = null) : IGrblService
     {
         private readonly BehaviorSubject<MachineState> _subject = new(new MachineState(3));
         public bool IsConnected => true;
@@ -230,7 +231,13 @@ public class CuttingViewModelSpindleTests
         public Task ConnectAsync(string port) => Task.CompletedTask;
         public void Disconnect() { }
         public void SendRealtime(byte code) => sent.Add($"RT:{code:X2}");
-        public Task SendAsync(string line) { sent.Add(line); return Task.CompletedTask; }
+
+        public Task SendAsync(string line)
+        {
+            sent.Add(line);
+            return sendFault is null ? Task.CompletedTask : Task.FromException(sendFault);
+        }
+
         public void Push(MachineState state) => _subject.OnNext(state);
     }
 
@@ -331,5 +338,35 @@ public class CuttingViewModelSpindleTests
 
         grbl.Push(new MachineState(3) { Speed = 8000 });
         Assert.Equal(8000, vm.SpindleRpm);
+    }
+
+    [Fact]
+    public void Spindle_start_reports_failure_and_never_sent_when_the_send_faults()
+    {
+        var sent = new List<string>();
+        var vm = new CuttingViewModel(
+            new RecordingGrbl(sent, new IOException("transport write failed")));
+
+        vm.SpindleCwCommand.Execute(null);
+
+        Assert.NotNull(vm.Status);
+        Assert.Contains("transport write failed", vm.Status!);
+        Assert.DoesNotContain("sent", vm.Status);
+        Assert.Single(sent);
+        Assert.StartsWith("M3", sent[0]);
+    }
+
+    [Fact]
+    public void Spindle_off_reports_failure_when_the_send_faults()
+    {
+        var sent = new List<string>();
+        var vm = new CuttingViewModel(
+            new RecordingGrbl(sent, new IOException("transport write failed")));
+
+        vm.SpindleOffCommand.Execute(null);
+
+        Assert.NotNull(vm.Status);
+        Assert.Contains("transport write failed", vm.Status!);
+        Assert.DoesNotContain("sent", vm.Status);
     }
 }

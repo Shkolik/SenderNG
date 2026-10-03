@@ -272,6 +272,8 @@
     "module.cutting.spindleCwHint": "Шпиндель вкл, по часовой (M3)",
     "module.cutting.spindleCcwHint": "Шпиндель вкл, против часовой (M4)",
     "module.cutting.spindleOffHint": "Шпиндель выкл (M5)",
+    "module.cutting.sent": "Отправлено: {0}",
+    "module.cutting.sendFailed": "{0} не выполнено: {1}",
     "module.macro.namePlaceholder": "Имя макроса",
     "module.macro.codePlaceholder": "Строки G-кода, по одной в строке",
     "module.macro.newMacro": "Макрос {0}",

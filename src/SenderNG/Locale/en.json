@@ -183,6 +183,8 @@
     "module.cutting.spindleCwHint": "Spindle on, clockwise (M3)",
     "module.cutting.spindleCcwHint": "Spindle on, counter-clockwise (M4)",
     "module.cutting.spindleOffHint": "Spindle off (M5)",
+    "module.cutting.sent": "{0} sent",
+    "module.cutting.sendFailed": "{0} failed: {1}",
     "module.macro.namePlaceholder": "Macro name",
     "module.macro.codePlaceholder": "G-code lines, one per line",
     "module.macro.newMacro": "Macro {0}",

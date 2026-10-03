@@ -163,6 +163,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         ToolTip.Tip="{loc:Loc module.cutting.spindleOffHint}"
                         Margin="6,0,0,0" />
             </StackPanel>
+
+            <TextBlock Text="{Binding Status}" Foreground="#777" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
 
     </StackPanel>

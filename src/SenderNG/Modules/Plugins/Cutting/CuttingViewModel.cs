@@ -38,6 +38,7 @@ using System.Reactive.Linq;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Commands;
+using SenderNG.Localization;
 using SenderNG.ViewModels;
 
 namespace SenderNG.Modules.Plugins;
@@ -176,10 +177,10 @@ public class CuttingViewModel : ViewModelBase
         SpeedFineMinusCommand = new DelegateCommand(_ => Send(GrblRealtime.SpindleOvrFineMinus));
 
         // Off stops the spindle with a line command (ioSender: M5), never restarts it.
-        SpindleOffCommand = new DelegateCommand(_ => SendLine("M5"));
+        SpindleOffCommand = new DelegateCommand(_ => _ = SendLineAsync("M5"));
         // CW/CCW start the spindle with the entered RPM (ioSender: M3/M4 + S value).
-        SpindleCwCommand = new DelegateCommand(_ => StartSpindle("M3"), _ => !IsSpindleOn);
-        SpindleCcwCommand = new DelegateCommand(_ => StartSpindle("M4"), _ => !IsSpindleOn);
+        SpindleCwCommand = new DelegateCommand(_ => _ = StartSpindleAsync("M3"), _ => !IsSpindleOn);
+        SpindleCcwCommand = new DelegateCommand(_ => _ = StartSpindleAsync("M4"), _ => !IsSpindleOn);
 
         // Live values mirror the machine (FS:/Ov: report fields; demo simulation).
         grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
@@ -197,27 +198,37 @@ public class CuttingViewModel : ViewModelBase
         }
     }
 
-    private void StartSpindle(string mode)
+    private string? _status = string.Empty;
+    public string? Status
     {
+        get => _status;
+        private set => SetField(ref _status, value);
+    }
+
+    private async Task StartSpindleAsync(string mode)
+    {
+        var line = $"{mode} S{_commandedSpindleRpm}";
         try
         {
-            _ = _grbl.SendAsync($"{mode} S{_commandedSpindleRpm}");
+            await _grbl.SendAsync(line);
+            Status = LocText.Format("module.cutting.sent", "{0} sent", mode);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Spindle start failed: {ex.Message}");
+            Status = LocText.Format("module.cutting.sendFailed", "{0} failed: {1}", mode, ex.Message);
         }
     }
 
-    private void SendLine(string line)
+    private async Task SendLineAsync(string line)
     {
         try
         {
-            _ = _grbl.SendAsync(line);
+            await _grbl.SendAsync(line);
+            Status = LocText.Format("module.cutting.sent", "{0} sent", line);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Spindle command failed: {ex.Message}");
+            Status = LocText.Format("module.cutting.sendFailed", "{0} failed: {1}", line, ex.Message);
         }
     }
 
