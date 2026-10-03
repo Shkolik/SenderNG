@@ -280,7 +280,9 @@ public class MainViewModel : ViewModelBase, IDisposable
         // Seeded defaults: the app starts disconnected and makes that obvious.
         Status = LocText.Resolve("app.msg.chooseController", "Not connected — choose a controller via Connect (Serial, Network or Demo)");
 
-        // Status-bar values track live settings (jog step) and program state changes.
+        // Status-bar values track live settings (jog step) and program state changes;
+        // live-apply visibility/mode changes, since the AppSettings dialog saves and
+        // then raises Changed. Subscribed once, here: Dispose removes exactly one.
         _settingsService.Changed += OnSettingsChanged;
         // A machine swap invalidates the loaded program (different geometry ⇒
         // limits/jog semantics differ), so MainViewModel clears it on switch.
@@ -580,9 +582,6 @@ public class MainViewModel : ViewModelBase, IDisposable
                     previous.ConnectionChanged -= _connectionChangedHandler;
                     _grbl.ConnectionChanged += _connectionChangedHandler;
                 }
-
-                // Live-apply visibility/mode changes: AppSettings dialog saves -> Changed fires.
-                _settingsService.Changed += OnSettingsChanged;
             }
         }
     }

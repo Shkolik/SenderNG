@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.ComponentModel;
 using System.Reactive.Subjects;
 using CNC.Core.Abstractions;
@@ -254,6 +255,40 @@ public class MainViewModelDisposeTests
         sink.Set("reported after teardown");
 
         Assert.Null(sink.Sink);
+        Assert.Equal(baseline, notifications());
+    }
+
+    /// <summary>A non-proxy <c>Grbl</c> swap used to subscribe
+    /// <c>SettingsService.Changed</c> a second time. <c>Dispose</c> removes one
+    /// registration, so the survivor outlived the view model.</summary>
+    [Fact]
+    public void Dispose_releases_the_settings_subscription_after_a_grbl_swap()
+    {
+        var (settings, _, _, vm) = MakeHost();
+
+        // Reflection, because there is no public path to this setter: Grbl's setter
+        // is private and is only reached through the private SwapInner, which in
+        // turn runs only from the connect-dialog flow (MainViewModel.cs:980-986,
+        // :1012, :1679). Reaching it here is the point -- the audit records this
+        // trigger as unreachable in the app, so the test pins the invariant rather
+        // than a shipped path. Swap twice, since SetField only runs the setter body
+        // when the reference actually changes.
+        var property = typeof(MainViewModel).GetProperty(
+            nameof(MainViewModel.Grbl), BindingFlags.Instance | BindingFlags.Public);
+        var profile = settings.Load();
+        property!.SetValue(vm, new DemoGrblService(profile));
+        property.SetValue(vm, new DemoGrblService(profile));
+
+        // OnSettingsChanged raises this unconditionally (MainViewModel.cs:1416+).
+        var notifications = CountNotifications(vm, nameof(MainViewModel.StatusBarJogStep));
+        settings.Activate(profile.Id);
+        Assert.True(notifications() > 0, "sanity: the view model reacts before Dispose");
+
+        vm.Dispose();
+        var baseline = notifications();
+        settings.Activate(profile.Id);
+        settings.Activate(profile.Id);
+
         Assert.Equal(baseline, notifications());
     }
 
