@@ -847,6 +847,71 @@ public class ProbeViewModelTests : IDisposable
         Assert.Equal(Center.XInside, vm.ProbeCenter);
     }
 
+    // ------------------------------------------ offset send: success + failure
+
+    [Fact]
+    public async Task Edge_finder_run_writes_the_offset_and_reports_completion()
+    {
+        var demo = await ConnectDemoAsync();
+        var recording = new RecordingGrblService(demo);
+        var vm = new ProbeViewModel(recording, _settings);
+        vm.SelectedTool = ProbingType.EdgeFinderExternal;
+        vm.ProbeEdge = Edge.A;
+
+        await vm.StartAsync();
+
+        Assert.StartsWith("Probing completed: G10L2", vm.LastResult);
+        Assert.Contains(recording.Lines, l => l.StartsWith("G10L2", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Edge_finder_offset_send_failure_reports_failure_not_completion()
+    {
+        var demo = await ConnectDemoAsync();
+        var failing = new FaultingOffsetGrblService(demo);
+        var vm = new ProbeViewModel(failing, _settings);
+        vm.SelectedTool = ProbingType.EdgeFinderExternal;
+        vm.ProbeEdge = Edge.A;
+
+        await vm.StartAsync();
+
+        Assert.Contains(failing.Lines, l => l.StartsWith("G10L2", StringComparison.Ordinal));
+        Assert.Contains("transport write failed", vm.LastResult);
+        Assert.DoesNotContain("Probing completed", vm.LastResult);
+    }
+
+    [Fact]
+    public async Task Center_finder_run_writes_the_offset_and_reports_completion()
+    {
+        var demo = await ConnectDemoAsync();
+        var recording = new RecordingGrblService(demo);
+        var vm = new ProbeViewModel(recording, _settings);
+        vm.SelectedTool = ProbingType.CenterFinder;
+        vm.ProbeCenter = Center.XInside;
+
+        await vm.StartAsync();
+
+        Assert.StartsWith("Probing completed: ", vm.LastResult);
+        Assert.Contains("G10L2", vm.LastResult);
+        Assert.Contains(recording.Lines, l => l.StartsWith("G10L2", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Center_finder_offset_send_failure_reports_failure_not_completion()
+    {
+        var demo = await ConnectDemoAsync();
+        var failing = new FaultingOffsetGrblService(demo);
+        var vm = new ProbeViewModel(failing, _settings);
+        vm.SelectedTool = ProbingType.CenterFinder;
+        vm.ProbeCenter = Center.XInside;
+
+        await vm.StartAsync();
+
+        Assert.Contains(failing.Lines, l => l.StartsWith("G10L2", StringComparison.Ordinal));
+        Assert.Contains("transport write failed", vm.LastResult);
+        Assert.DoesNotContain("Probing completed", vm.LastResult);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_dir, recursive: true); } catch { }
@@ -908,5 +973,34 @@ public class ProbeViewModelTests : IDisposable
         public void SendRealtime(byte code) => _inner.SendRealtime(code);
         public Task SendAsync(string line) { Lines.Add(line); return _inner.SendAsync(line); }
         public Task RefreshWorkParametersAsync() { RefreshCalls++; return _inner.RefreshWorkParametersAsync(); }
+    }
+
+    /// <summary>Wraps an IGrblService, recording every sent line and failing the
+    /// G10 offset write with a faulted task (the send surfaces its exception to
+    /// the awaiter instead of throwing synchronously).</summary>
+    private sealed class FaultingOffsetGrblService : CNC.Core.Abstractions.IGrblService
+    {
+        private readonly IGrblService _inner;
+        public List<string> Lines { get; } = new();
+        public FaultingOffsetGrblService(IGrblService inner) => _inner = inner;
+        public bool IsConnected => _inner.IsConnected;
+        public event EventHandler? ConnectionChanged { add => _inner.ConnectionChanged += value; remove => _inner.ConnectionChanged -= value; }
+        public ControllerCapabilities Capabilities => _inner.Capabilities;
+        public WorkParameters WorkParameters => _inner.WorkParameters;
+        public IObservable<MachineState> State => _inner.State;
+        public IObservable<WorkParameters> WorkParametersChanges => _inner.WorkParametersChanges;
+        public Task ConnectAsync(string port) => _inner.ConnectAsync(port);
+        public void Disconnect() => _inner.Disconnect();
+        public void SendRealtime(byte code) => _inner.SendRealtime(code);
+
+        public Task SendAsync(string line)
+        {
+            Lines.Add(line);
+            return line.StartsWith("G10", StringComparison.Ordinal)
+                ? Task.FromException(new IOException("transport write failed"))
+                : _inner.SendAsync(line);
+        }
+
+        public Task RefreshWorkParametersAsync() => _inner.RefreshWorkParametersAsync();
     }
 }

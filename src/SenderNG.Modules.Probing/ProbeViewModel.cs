@@ -1123,10 +1123,10 @@ public class ProbeViewModel : ViewModelBase
                 contact = new Pos(contact.X, contact.Y, Pos.From(zResult.Positions[^1]).Z);
         }
 
-        ApplyEdgeOffset(contact, internalFinder);
+        await ApplyEdgeOffsetAsync(contact, internalFinder);
     }
 
-    private void ApplyEdgeOffset(Pos contact, bool internalFinder)
+    private async Task ApplyEdgeOffsetAsync(Pos contact, bool internalFinder)
     {
         // Touch-plate offset sign follows the edge (ioSender IsProbeEdgeNegativeX/Y).
         var negX = ProbeEdge is Edge.B or Edge.C or Edge.CB;
@@ -1157,8 +1157,15 @@ public class ProbeViewModel : ViewModelBase
             return;
         }
 
-        _ = _grbl.SendAsync(cmd);
-        LastResult = LocText.Format("module.probing.probingCompleted", "Probing completed: {0}", cmd);
+        try
+        {
+            await _grbl.SendAsync(cmd);
+            LastResult = LocText.Format("module.probing.probingCompleted", "Probing completed: {0}", cmd);
+        }
+        catch (Exception ex)
+        {
+            LastResult = LocText.Format("module.probing.failed", "Probing failed: {0}", ex.Message);
+        }
     }
 
     private async Task RunCenterFinderAsync(ProbeProgramBuilder builder, Pos start)
@@ -1200,12 +1207,12 @@ public class ProbeViewModel : ViewModelBase
             {
                 // Move to center, then write the offset.
                 await _grbl.SendAsync($"G53G0X{ProbeMath.Fmt(center.X)}Y{ProbeMath.Fmt(center.Y)}");
-                ApplyCenterOffset(center, xd, yd);
+                await ApplyCenterOffsetAsync(center, xd, yd);
             }
         }
     }
 
-    private void ApplyCenterOffset(Pos center, double xd, double yd)
+    private async Task ApplyCenterOffsetAsync(Pos center, double xd, double yd)
     {
         var singleAxis = ProbeCenter switch
         {
@@ -1232,12 +1239,19 @@ public class ProbeViewModel : ViewModelBase
                     : new Pos(center.X + ProbeOffsetX, center.Y + ProbeOffsetY, 0);
 
         var cmd = ProbeMath.OffsetCommand(CoordMode, CoordinateSystem, pos, axes);
-        if (!string.IsNullOrEmpty(cmd))
+        if (string.IsNullOrEmpty(cmd))
+            return;
+
+        try
         {
-            _ = _grbl.SendAsync(cmd);
+            await _grbl.SendAsync(cmd);
             LastResult = singleAxis != null
                 ? LocText.Format("module.probing.axisDistanceArrow", "Probing completed: {0} distance {1} -> {2}", singleAxis, ProbeMath.Fmt(singleAxis == "X" ? xd : yd), cmd)
                 : LocText.Format("module.probing.xDistanceArrow", "Probing completed: X distance {0}, Y distance {1} -> {2}", ProbeMath.Fmt(xd), ProbeMath.Fmt(yd), cmd);
+        }
+        catch (Exception ex)
+        {
+            LastResult = LocText.Format("module.probing.failed", "Probing failed: {0}", ex.Message);
         }
     }
 
