@@ -68,6 +68,22 @@ public class RealGrblHardwareTests
 
     private static string[] AvailablePorts => new SerialComPortService().GetPorts();
 
+    /// <summary>The port pinned by SENDERNG_HW_PORT, or a specific failure explaining
+    /// why the hardware test cannot run. There is no "warn and return" path: unset means
+    /// the test should not have been selected at all, and a port that is not enumerated
+    /// or is not physical (ghost / Bluetooth SPP) would block instead of answering.</summary>
+    private static string RequiredPort()
+    {
+        var port = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT")?.Trim();
+        if (string.IsNullOrWhiteSpace(port))
+            Assert.Fail("SENDERNG_HW_PORT is not set - HardwareFactAttribute should have skipped this test");
+        if (!AvailablePorts.Contains(port!, StringComparer.OrdinalIgnoreCase))
+            Assert.Fail($"SENDERNG_HW_PORT={port} is not enumerated (found: {string.Join(", ", AvailablePorts)})");
+        if (PhysicalPortsOnly([port!]).Length == 0)
+            Assert.Fail($"SENDERNG_HW_PORT={port} is not a physical port (ghost/Bluetooth SPP) - opening it would block");
+        return port!;
+    }
+
     private static string[] ResolveCandidates()
     {
         var fromEnv = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
@@ -1029,4 +1045,74 @@ public class RealGrblHardwareTests
     /// <summary>Match the Offsets view-model's cell formatting (0.### invariant).</summary>
     private static string Format(double value) =>
         value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
+    // ---- gate unit tests: these never open a port and are not hardware tests ----
+
+    [Fact]
+    public void Gate_hardware_fact_skips_while_the_port_env_var_is_unset()
+    {
+        var previous = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
+        try
+        {
+            Environment.SetEnvironmentVariable("SENDERNG_HW_PORT", null);
+            const string reason = "SENDERNG_HW_PORT not set - hardware test not requested";
+            Assert.Equal(reason, new HardwareFactAttribute().Skip);
+
+            Environment.SetEnvironmentVariable("SENDERNG_HW_PORT", "   ");
+            Assert.Equal(reason, new HardwareFactAttribute().Skip);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SENDERNG_HW_PORT", previous);
+        }
+    }
+
+    [Fact]
+    public void Gate_hardware_fact_runs_once_the_port_env_var_is_set()
+    {
+        var previous = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
+        try
+        {
+            Environment.SetEnvironmentVariable("SENDERNG_HW_PORT", "COM9");
+            Assert.Null(new HardwareFactAttribute().Skip);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SENDERNG_HW_PORT", previous);
+        }
+    }
+
+    [Fact]
+    public void Gate_required_port_fails_when_the_port_env_var_is_missing()
+    {
+        var previous = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
+        try
+        {
+            Environment.SetEnvironmentVariable("SENDERNG_HW_PORT", null);
+            var ex = Record.Exception(() => { RequiredPort(); });
+            Assert.NotNull(ex);
+            Assert.Contains("should have skipped this test", ex!.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SENDERNG_HW_PORT", previous);
+        }
+    }
+
+    [Fact]
+    public void Gate_required_port_fails_when_the_pinned_port_is_not_enumerated()
+    {
+        var previous = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
+        try
+        {
+            Environment.SetEnvironmentVariable("SENDERNG_HW_PORT", "__senderng_nonexistent_port__");
+            var ex = Record.Exception(() => { RequiredPort(); });
+            Assert.NotNull(ex);
+            Assert.Contains("is not enumerated", ex!.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SENDERNG_HW_PORT", previous);
+        }
+    }
 }
