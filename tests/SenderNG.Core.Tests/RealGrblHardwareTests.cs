@@ -639,9 +639,14 @@ public class RealGrblHardwareTests
             var gotIdle = await WaitUntil(
                 () => latest is { Status: "Idle" } && received.Count(l => l.StartsWith('<')) >= 2,
                 HandshakeTimeoutMs);
-            Console.WriteLine(gotIdle ? "OK  connected and Idle" : $"WARN never saw Idle (status='{latest?.Status}') — aborting probe");
-            if (!gotIdle)
-                return;
+            if (gotIdle)
+            {
+                Console.WriteLine("OK  connected and Idle");
+            }
+            else
+            {
+                Assert.Fail($"never reached Idle within {HandshakeTimeoutMs}ms (status='{latest?.Status}') — handshake did not complete");
+            }
 
             var settingsDir = Path.Combine(Path.GetTempPath(), "senderng-hw-" + Guid.NewGuid().ToString("N"));
             var hwSettings = new SettingsService(settingsDir);
@@ -658,19 +663,20 @@ public class RealGrblHardwareTests
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"WARN jog rejected ({ex.Message}) — cannot induce the abort alarm; skipping probe");
-                return;
+                Assert.Fail($"jog rejected ({ex.Message}) — cannot induce the abort alarm");
             }
             service.SendRealtime(0x18);
 
             var inAlarm = await WaitUntil(() => latest is { Status: "Alarm" }, 10_000);
             var alarmLines = received.Skip(before).Where(l => l.StartsWith("ALARM:") || l.StartsWith("[MSG:") || l.StartsWith('<')).Take(4).ToArray();
-            Console.WriteLine(
-                inAlarm
-                    ? $"OK  alarm induced on wire: {string.Join(" | ", alarmLines)}"
-                    : $"WARN no alarm after jog+reset (status='{latest?.Status}') — board boots Idle; skipping gating checks");
-            if (!inAlarm)
-                return;
+            if (inAlarm)
+            {
+                Console.WriteLine($"OK  alarm induced on wire: {string.Join(" | ", alarmLines)}");
+            }
+            else
+            {
+                Assert.Fail($"no ALARM:3 after jog + soft-reset (status='{latest?.Status}') — gating checks were never exercised");
+            }
 
             Assert.False(vm.IsReady, "editor must disable while the controller is in Alarm");
             await vm.SetAllAsync();
@@ -789,15 +795,13 @@ public class RealGrblHardwareTests
                 {
                     unlocked = false;
                 }
-                Console.WriteLine(
-                    unlocked
-                        ? "OK  unlocked ($X): IsReady=true"
-                        : "WARN $X not accepted (critical alarm / native-USB grblHAL) — skipping write/readback, caller must physically clear the cause");
-                if (!unlocked)
+                if (unlocked)
                 {
-                    // Still verify the capability checks, then hand back without
-                    // touching offsets on a board we can't write to.
-                    return;
+                    Console.WriteLine("OK  unlocked ($X): IsReady=true");
+                }
+                else
+                {
+                    Assert.Fail("$X unlock was rejected (critical alarm / native-USB grblHAL) — offsets write/readback and the clamp were never verified");
                 }
             }
             else
