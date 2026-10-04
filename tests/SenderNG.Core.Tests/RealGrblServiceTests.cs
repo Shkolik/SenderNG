@@ -174,7 +174,7 @@ public class RealGrblServiceTests
         // NOT suspend it (single sends don't either; the poll is the liveness
         // channel for the silence-based CommandTimeout).
         await WaitUntil(() => transport.WrittenRawBytes.Contains("?"), timeoutMs: 3000);
-        Assert.NotNull(transport.Sent.LastOrDefault(l => l == "G0 X10"));
+        Assert.Contains("G0 X10", transport.Sent);
     }
 
     [Fact]
