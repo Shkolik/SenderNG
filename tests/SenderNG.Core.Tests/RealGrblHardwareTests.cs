@@ -43,23 +43,25 @@ using CNC.Core.Services;
 namespace SenderNG.Core.Tests;
 
 /// <summary>
-/// Hardware smoke tests against a real grbl / grblHAL board (auto-detected serial
-/// port, e.g. the user's COM6 / COM7 grbl 1.2i board). These are not unit tests:
-/// they exercise the real serial transport, connect path, '?' status poll loop, a
-/// command exchange, and the connect-time $I handshake against actual hardware.
+/// Hardware smoke tests against a real grbl / grblHAL board. These are not unit
+/// tests: they exercise the real serial transport, connect path, '?' status poll
+/// loop, a command exchange, and the connect-time $I handshake against actual
+/// hardware.
 ///
-/// The board's COM number is not stable across boots / firmware flashes, so the test
-/// scans the enumerated ports and uses the first that answers the $I handshake as a
-/// grblHAL controller (override with the SENDERNG_HW_PORT env var to force a specific
-/// port). If no port identifies as a grbl / grblHAL controller the test skips with a
-/// warning line rather than failing — the project's CI / other machines have no board.
+/// All tests in this class are gated on the SENDERNG_HW_PORT env var via
+/// <see cref="HardwareFactAttribute"/>: with the variable unset they are reported
+/// as Skipped rather than Passed, and with it set they run against exactly that
+/// port — there is no auto-scan and no fallback port. If the pinned port is not
+/// enumerated, is not a physical device, or never answers the $I handshake the
+/// test fails with the specific reason instead of passing without verifying
+/// anything.
 ///
-/// Ghost ports are filtered out before scanning: Bluetooth SPP ports (a paired
-/// adapter with no peer) enumerate like real serial ports but can block the
-/// synchronous SerialPort.Open far longer than any handshake timeout. On Windows
-/// the candidate list keeps only ports backed by a physical device (PnP class
-/// "Ports"); elsewhere the unfiltered list is used and every discovery attempt is
-/// bounded by a deadline, so a wedged port is abandoned instead of hanging the suite.
+/// Ghost ports are filtered out before a port is opened: Bluetooth SPP ports (a
+/// paired adapter with no peer) enumerate like real serial ports but can block
+/// the synchronous SerialPort.Open far longer than any handshake timeout. On
+/// Windows the candidate list keeps only ports backed by a physical device (PnP
+/// class "Ports"); elsewhere every discovery attempt is bounded by a deadline, so
+/// a wedged port is abandoned instead of hanging the suite.
 ///
 /// Signals/limits remain untested on hardware as noted in p0-controller-plumbing-plan.
 /// </summary>

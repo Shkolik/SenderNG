@@ -34,18 +34,31 @@ it touches before finishing.
 ## Port discovery
 
 A controller's **COM number is not stable** across boots, firmware flashes, or USB re-enumeration
-(an unplug/replug can reassign the port). The harness therefore never hard-codes a port.
+(an unplug/replug can reassign the port). The harness therefore never hard-codes a port: exactly
+one port is used, the one named by `SENDERNG_HW_PORT`.
 
-- **Auto-scan (no env var):** the test enumerates all available serial ports and connects to the
-  **first** one that answers the connect-time `$I` handshake as a grbl/grblHAL controller.
-- **Pin a port:** set the env var `SENDERNG_HW_PORT=<port>`, e.g.
-  `SENDERNG_HW_PORT=COM9 dotnet test --filter RealGrblHardwareTests`. When set, only that port is
-  tried. This is how the interactive tests always run — they refuse to start without it.
-- **No board found:** a test prints a `WARNING: … skipped` line and returns without failing, so the
-  suite stays green on machines (CI) with no hardware.
+Every hardware test has three states and no fourth:
+
+- **Not requested** — `SENDERNG_HW_PORT` is unset or whitespace. `[HardwareFact]` skips the test at
+  discovery time, so it reports `Skipped` and never opens a port.
+- **Requested, unavailable** — the variable is set, but the port is not enumerated, is not a
+  physical device (ghost / Bluetooth SPP), or never answers the `$I` handshake. The test reports
+  `Failed` with that specific reason: asking for hardware and not getting it is red, not green.
+- **Requested, available** — the assertions run against exactly that port.
+
+There is no auto-scan and no fallback port. A test that nobody asked for is `Skipped`; a test that
+was asked for and could not verify what it was asked to check is `Failed`. That is why the suite
+stays green on machines (CI) with no hardware — those tests are skipped, not passed.
+
+To select only the hardware tests, filter on their category:
+
+```bash
+dotnet test tests/SenderNG.Core.Tests --filter "Category=Hardware"   # Skipped unless the env var is set
+dotnet test tests/SenderNG.Core.Tests --filter "Category!=Hardware"  # everything except them
+```
 
 > Historic COM references in earlier plans (e.g. COM6/COM7) are stale snapshots from old sessions —
-> always resolve the live port via `SENDERNG_HW_PORT` today.
+> the `COM6` fallback that used to exist in the offsets test is gone.
 
 ## The harness
 
@@ -61,17 +74,17 @@ They are opt-in via the `SENDERNG_HW_PORT` gate:
 ```bash
 # run all hardware tests against a specific board
 SENDERNG_HW_PORT=COM9 dotnet test tests/SenderNG.Core.Tests \
-  --filter "FullyQualifiedName~RealGrblHardwareTests"
+  --filter "Category=Hardware"
 ```
 
 ## Automated (no human) hardware tests
 
-These run unattended against whichever board is connected:
+These run unattended against the board named by `SENDERNG_HW_PORT`:
 
-- **`Connect_polls_live_status_and_exchanges_settings_on_hardware`** — auto-scans ports, `$I`
+- **`Connect_polls_live_status_and_exchanges_settings_on_hardware`** — `$I` on the pinned port,
   handshake, live `?` reports, raw console lines, `$$` round-trip.
-- **`Offsets_module_writes_and_reads_back_G54_through_G59`** — cleans up after itself; COM6 default
-  or any pinned port. Bet a board is already wired to nothing: offsets are safe to write + restore.
+- **`Offsets_module_writes_and_reads_back_G54_through_G59`** — cleans up after itself; pinned port
+  only. Bet a board is already wired to nothing: offsets are safe to write + restore.
 - **`Toggle_dtr_reset_on_connect_is_non_destructive_on_hardware`** — verifies the DTR-pulse
   connect path doesn't brick the connection (targets 8-bit Arduino bootloaders).
 
@@ -99,7 +112,7 @@ confirm alarm states, and swap boards between runs. Run one board at a time, **a
 ## Interactive session flow (how we actually run the 3-board sweep)
 
 1. Prompt the user which board to connect and wait — never assume a board is already connected.
-2. User plugs the board and tells you its COM port (or you scan).
+2. User plugs the board and tells you its COM port.
 3. Run the per-board verification with `SENDERNG_HW_PORT=<port>`.
 4. Report results, then prompt to swap to the next board and repeat.
 
