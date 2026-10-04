@@ -34,8 +34,12 @@ it touches before finishing.
 ## Port discovery
 
 A controller's **COM number is not stable** across boots, firmware flashes, or USB re-enumeration
-(an unplug/replug can reassign the port). The harness therefore never hard-codes a port: exactly
-one port is used, the one named by `SENDERNG_HW_PORT`.
+(an unplug/replug can reassign the port). The harness therefore never hard-codes a port, and the
+gate never scans ports to choose one: `SENDERNG_HW_PORT` names the single port a test starts
+against, with no fallback if it is absent or unusable. The one exception is the bounded reconnect
+re-discovery in `Detects_unplug_and_recovers_when_replugged_on_hardware`:
+USB re-enumeration can bring the board back on a different port, so after the re-plug that test
+re-finds it across physical ports until one answers `$I`.
 
 Every hardware test has three states and no fourth:
 
@@ -46,9 +50,10 @@ Every hardware test has three states and no fourth:
   `Failed` with that specific reason: asking for hardware and not getting it is red, not green.
 - **Requested, available** — the assertions run against exactly that port.
 
-There is no auto-scan and no fallback port. A test that nobody asked for is `Skipped`; a test that
-was asked for and could not verify what it was asked to check is `Failed`. That is why the suite
-stays green on machines (CI) with no hardware — those tests are skipped, not passed.
+Selecting a port never involves scanning and has no fallback; the unplug test's bounded reconnect
+re-discovery, described above, is the one exception. A test that nobody asked for is `Skipped`;
+a test that was asked for and could not verify what it was asked to check is `Failed`. That is why
+the suite stays green on machines (CI) with no hardware — those tests are skipped, not passed.
 
 To select only the hardware tests, filter on their category:
 
@@ -81,12 +86,15 @@ SENDERNG_HW_PORT=COM9 dotnet test tests/SenderNG.Core.Tests \
 
 These run unattended against the board named by `SENDERNG_HW_PORT`:
 
-- **`Connect_polls_live_status_and_exchanges_settings_on_hardware`** — `$I` on the pinned port,
-  handshake, live `?` reports, raw console lines, `$$` round-trip.
+- **`Connect_polls_live_status_and_exchanges_settings_on_hardware`** — `$I` handshake on the
+  pinned port, live `?` reports, raw console lines, `$$` round-trip.
 - **`Offsets_module_writes_and_reads_back_G54_through_G59`** — cleans up after itself; pinned port
   only. Bet a board is already wired to nothing: offsets are safe to write + restore.
 - **`Toggle_dtr_reset_on_connect_is_non_destructive_on_hardware`** — verifies the DTR-pulse
   connect path doesn't brick the connection (targets 8-bit Arduino bootloaders).
+- **`Streams_modal_program_with_ok_replies_on_hardware`** — streams a tiny no-motion modal program
+  (`G90\nG21`) through `GCodeProgramStreamer`, expecting per-line ok replies while the `?` poll
+  continues during the run.
 
 ## Interactive (human-in-the-loop) hardware tests
 

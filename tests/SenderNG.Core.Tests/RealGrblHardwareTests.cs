@@ -50,10 +50,14 @@ namespace SenderNG.Core.Tests;
 ///
 /// All tests in this class are gated on the SENDERNG_HW_PORT env var via
 /// <see cref="HardwareFactAttribute"/>: with the variable unset they are reported
-/// as Skipped rather than Passed, and with it set they run against exactly that
-/// port — there is no auto-scan and no fallback port. If the pinned port is not
-/// enumerated, is not a physical device, or never answers the $I handshake the
-/// test fails with the specific reason instead of passing without verifying
+/// as Skipped rather than Passed, and with it set each test starts against
+/// exactly that port — the gate never scans ports to choose one and has no
+/// fallback if it is absent or unusable. The one exception is bounded reconnect
+/// re-discovery in Detects_unplug_and_recovers_when_replugged_on_hardware: USB
+/// re-enumeration can bring the board back on a different port, so after the
+/// re-plug that test re-finds it across physical ports. If the pinned port is
+/// not enumerated, is not a physical device, or never answers the $I handshake
+/// the test fails with the specific reason instead of passing without verifying
 /// anything.
 ///
 /// Ghost ports are filtered out before a port is opened: Bluetooth SPP ports (a
