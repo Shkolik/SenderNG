@@ -228,6 +228,9 @@ public class RealGrblHardwareTests
                 gotStatus
                     ? $"OK  live status from {port}: '{latest?.Status}' WPos=({string.Join(",", latest!.Positions)})"
                     : "WARN no status report arrived within timeout (poll loop inactive?)");
+            Assert.True(gotStatus,
+                $"no status report arrived on {port} within {HandshakeTimeoutMs} ms - the '?' poll " +
+                "loop produced nothing, so there is no latest state to compare the axis count against");
 
             // 1b) The connect-time $I handshake must identify the controller and push
             // the discovered axis count into both the injected GrblInfoState and the
@@ -341,8 +344,6 @@ public class RealGrblHardwareTests
         finally
         {
             svc.Disconnect();
-            // Restore the global static so a hardware run can't leak into later tests.
-            
         }
     }
 
@@ -360,52 +361,52 @@ public class RealGrblHardwareTests
         var port = RequiredPort();
 
         
-        try
+        // 1) Open with the DTR pulse: must not throw and must leave the port open.
+        using (var dtrSvc = new RealGrblService { SerialResetMode = ConnectResetMode.ToggleDtr })
         {
-            // 1) Open with the DTR pulse: must not throw and must leave the port open.
-            using (var dtrSvc = new RealGrblService { SerialResetMode = ConnectResetMode.ToggleDtr })
-            {
-                await dtrSvc.ConnectAsync(port);
-                Console.WriteLine($"OK  Toggle-DTR connect completed without error on {port}; IsConnected={dtrSvc.IsConnected}");
-                dtrSvc.Disconnect();
-            }
+            await dtrSvc.ConnectAsync(port);
+            Console.WriteLine($"OK  Toggle-DTR connect completed without error on {port}; IsConnected={dtrSvc.IsConnected}");
+            dtrSvc.Disconnect();
+        }
 
-            // 2) A plain reconnect must eventually identify the board again, proving
-            //    the pulse did not brick the connection. Some grblHAL boards that don't
-            //    need DTR are slow to answer $I after the pulse, so retry up to 60s.
-            using var svc = new RealGrblService();
-            var recognized = false;
-            var deadline = DateTime.UtcNow.AddSeconds(60);
-            while (DateTime.UtcNow < deadline)
-            {
-                try
-                {
-                    await svc.ConnectAsync(port);
-                    if (svc.Capabilities.IsKnown)
-                    {
-                        recognized = true;
-                        break;
-                    }
-                    svc.Disconnect();
-                }
-                catch
-                {
-                    // driver / port not ready yet; retry shortly
-                }
-                await Task.Delay(1500);
-            }
-            Console.WriteLine(
-                recognized
-                    ? $"OK  plain reconnect after DTR pulse: grblHAL={svc.Capabilities.IsGrblHAL}, " +
-                      $"version='{svc.Capabilities.Version}', axes={svc.Capabilities.NumAxes}"
-                    : $"WARN board did not re-identify within 60s after the DTR pulse (board-specific)");
-            if (!recognized)
-                Console.WriteLine("INFO  treating slow-to-recover grblHAL board as acceptable (Toggle DTR targets Arduino bootloaders)");
-        }
-        finally
+        // 2) A plain reconnect must eventually identify the board again, proving
+        //    the pulse did not brick the connection. Some grblHAL boards that don't
+        //    need DTR are slow to answer $I after the pulse, so retry up to 60s.
+        using var svc = new RealGrblService();
+        var recognized = false;
+        Exception? lastConnectError = null;
+        var deadline = DateTime.UtcNow.AddSeconds(60);
+        while (DateTime.UtcNow < deadline)
         {
-            
+            try
+            {
+                await svc.ConnectAsync(port);
+                if (svc.Capabilities.IsKnown)
+                {
+                    recognized = true;
+                    break;
+                }
+                svc.Disconnect();
+            }
+            catch (Exception ex)
+            {
+                // driver / port not ready yet; retry shortly - remember why
+                lastConnectError = ex;
+            }
+            await Task.Delay(1500);
         }
+        Console.WriteLine(
+            recognized
+                ? $"OK  plain reconnect after DTR pulse: grblHAL={svc.Capabilities.IsGrblHAL}, " +
+                  $"version='{svc.Capabilities.Version}', axes={svc.Capabilities.NumAxes}"
+                : $"WARN board did not re-identify within 60s after the DTR pulse (board-specific)");
+        if (!recognized)
+            Console.WriteLine($"INFO  60s budget exhausted on {port}; Toggle DTR targets Arduino bootloaders (grblHAL boards may need a longer budget)");
+        Assert.True(recognized,
+            $"board did not re-identify within 60s after the DTR pulse on {port} - " +
+            "the pulse must not brick the connection. Last connect error: " +
+            (lastConnectError is null ? "(none - connect succeeded but $I never identified the board)" :
+                $"{lastConnectError.GetType().Name}: {lastConnectError.Message}"));
     }
 
     /// <summary>
@@ -539,8 +540,6 @@ public class RealGrblHardwareTests
         finally
         {
             svc.Disconnect();
-            // Restore the global static so a hardware run can't leak into later tests.
-            
         }
     }
 
@@ -612,7 +611,6 @@ public class RealGrblHardwareTests
         finally
         {
             service.Disconnect();
-            
         }
     }
 
@@ -705,7 +703,6 @@ public class RealGrblHardwareTests
         finally
         {
             service.Disconnect();
-            
         }
     }
 
@@ -907,7 +904,6 @@ public class RealGrblHardwareTests
         finally
         {
             service.Disconnect();
-            
         }
     }
 
