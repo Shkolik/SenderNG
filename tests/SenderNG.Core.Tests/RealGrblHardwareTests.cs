@@ -228,7 +228,7 @@ public class RealGrblHardwareTests
                 gotStatus
                     ? $"OK  live status from {port}: '{latest?.Status}' WPos=({string.Join(",", latest!.Positions)})"
                     : "WARN no status report arrived within timeout (poll loop inactive?)");
-            Assert.True(gotStatus,
+            Assert.True(latest != null,
                 $"no status report arrived on {port} within {HandshakeTimeoutMs} ms - the '?' poll " +
                 "loop produced nothing, so there is no latest state to compare the axis count against");
 
