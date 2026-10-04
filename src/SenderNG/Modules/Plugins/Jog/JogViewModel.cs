@@ -297,9 +297,10 @@ public class JogViewModel : ViewModelBase
                 Status = LocText.Resolve("module.jog.continuousStarted", "Continuous jog started");
             }
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException ex)
         {
             // Not connected: DemoGrblService throws synchronously; leave no stale tag.
+            Status = LocText.Format("module.jog.sendFailed", "{0} failed: {1}", tag, ex.Message);
         }
         catch (Exception ex)
         {

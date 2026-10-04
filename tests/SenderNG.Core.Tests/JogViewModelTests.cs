@@ -55,7 +55,7 @@ public class JogViewModelTests
 
     internal sealed class RecordingGrbl(List<string> sent, int numAxes = 4,
         ControllerCapabilities? capabilities = null, Exception? sendFault = null,
-        TaskCompletionSource? gate = null) : IGrblService
+        TaskCompletionSource? gate = null, bool throwSynchronously = false) : IGrblService
     {
         private readonly BehaviorSubject<MachineState> _subject = new(new MachineState(numAxes));
         public bool IsConnected { get; set; } = true;
@@ -69,7 +69,11 @@ public class JogViewModelTests
         {
             sent.Add(line);
             if (SendFault is not null)
+            {
+                if (throwSynchronously)
+                    throw SendFault;
                 return Task.FromException(SendFault);
+            }
             return gate?.Task ?? Task.CompletedTask;
         }
         public void Push(MachineState state) => _subject.OnNext(state);
@@ -490,6 +494,26 @@ public class JogViewModelTests
     }
 
     [Fact]
+    public void Continuous_start_that_throws_invalid_operation_reports_failure_and_leaves_no_tag()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] },
+            sendFault: new InvalidOperationException("Not connected."), throwSynchronously: true), MakeSettings());
+        vm.IsDistance3 = true;
+
+        vm.StartContinuousJog("X-");
+
+        Assert.False(vm.ContinuousActive);
+        Assert.NotNull(vm.Status);
+        Assert.Contains("Not connected.", vm.Status!);
+
+        var sentBeforeRetry = sent.Count;
+        vm.StartContinuousJog("X-");
+        Assert.Equal(sentBeforeRetry + 1, sent.Count);
+    }
+
+    [Fact]
     public void Continuous_start_is_refused_while_a_previous_start_is_in_flight()
     {
         var sent = new List<string>();
@@ -522,6 +546,7 @@ public class JogViewModelTests
         vm.IsDistance3 = true;
 
         vm.StartContinuousJog("X-");
+        Assert.False(vm.ContinuousActive);   // the tag must not commit until the send lands
         vm.StopContinuousJog();              // release arrived before the send landed
         Assert.False(vm.ContinuousActive);
 
@@ -542,6 +567,7 @@ public class JogViewModelTests
         vm.IsDistance3 = true;
 
         vm.StartContinuousJog("X-");
+        Assert.False(vm.ContinuousActive);   // the tag must not commit until the send lands
         vm.StopCommand.Execute(null);
         Assert.Contains("RT:85", sent);
 
