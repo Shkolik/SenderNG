@@ -40,13 +40,14 @@ namespace ReleaseManager.Tests;
 public class ProgramTests
 {
     [Fact]
-    public void ExitCodeFor_maps_exceptions_to_documented_codes()
+    public void Exception_exit_codes_match_what_Main_returns()
     {
-        Assert.Equal(1, Program.ExitCodeFor(new CliException("x")));
-        Assert.Equal(2, Program.ExitCodeFor(new BuildException("x")));
-        Assert.Equal(3, Program.ExitCodeFor(new StagingException("x")));
-        Assert.Equal(4, Program.ExitCodeFor(new UnsupportedPlatformException("x")));
-        Assert.Equal(130, Program.ExitCodeFor(new OperationCanceledException()));
-        Assert.Equal(1, Program.ExitCodeFor(new InvalidOperationException("x")));
+        // Main returns ex.ExitCode (Program.cs), so the values that matter are the
+        // ones the constructors set in Errors.cs — not a parallel switch table.
+        Assert.Equal(1, new CliException("x").ExitCode);
+        Assert.Equal(2, new BuildException("x").ExitCode);
+        Assert.Equal(3, new StagingException("x").ExitCode);
+        Assert.Equal(4, new UnsupportedPlatformException("win64").ExitCode);
+        Assert.Equal(1, new ReleaseManagerException("x").ExitCode);
     }
 }

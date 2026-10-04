@@ -118,15 +118,4 @@ internal static class Program
             return 1;
         }
     }
-
-    internal static int ExitCodeFor(Exception exception)
-        => exception switch
-        {
-            CliException => 1,
-            UnsupportedPlatformException => 4,
-            BuildException => 2,
-            StagingException => 3,
-            OperationCanceledException => 130,
-            _ => 1
-        };
 }
