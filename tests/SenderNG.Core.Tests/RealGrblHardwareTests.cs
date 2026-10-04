@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Management;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
@@ -84,17 +85,6 @@ public class RealGrblHardwareTests
         return port!;
     }
 
-    private static string[] ResolveCandidates()
-    {
-        var fromEnv = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
-        if (!string.IsNullOrWhiteSpace(fromEnv))
-            return [fromEnv.Trim()];
-
-        var ports = AvailablePorts;
-        var physical = PhysicalPortsOnly(ports);
-        return physical.Length > 0 ? physical : ports;
-    }
-
     /// <summary>
     /// Windows PnP filter: keeps only ports backed by a physical serial device.
     /// Ghost Bluetooth SPP ports — a paired adapter with no peer connected —
@@ -140,30 +130,21 @@ public class RealGrblHardwareTests
         }
     }
 
-    [Fact]
+    [HardwareFact]
+    [Trait("Category", "Hardware")]
     public async Task Connect_polls_live_status_and_exchanges_settings_on_hardware()
     {
-        var candidates = ResolveCandidates();
-        if (candidates.Length == 0)
-        {
-            Console.WriteLine("WARNING: hardware smoke test skipped — no serial ports enumerated");
-            return; // test "passes" as skipped-by-warning when no board present
-        }
+        var port = RequiredPort();
+        var attempt = TryIdentifyBoardBounded(port);
 
-        foreach (var port in candidates)
+        if (attempt.Service is { } svc && attempt.Received is { } received && attempt.Info is { } info)
         {
-            var attempt = TryIdentifyBoardBounded(port);
-            if (attempt.Service is { } svc && attempt.Received is { } received && attempt.Info is { } info)
-            {
-                await ExerciseBoard(port, svc, received, info);
-                return; // exercised the first real board found
-            }
-            Console.WriteLine($"INFO   '{port}' did not answer $I as grbl/grblHAL — trying next port");
+            await ExerciseBoard(port, svc, received, info);
         }
-
-        Console.WriteLine(
-            $"WARNING: hardware smoke test skipped — none of {string.Join(", ", candidates)} " +
-            $"answered the $I handshake as a grbl/grblHAL controller");
+        else
+        {
+            Assert.Fail($"'{port}' did not answer the $I handshake as a grbl/grblHAL controller");
+        }
     }
 
     /// <summary>Budget for one discovery attempt: the connect path legitimately
@@ -926,25 +907,15 @@ public class RealGrblHardwareTests
     /// so '?' replies interleave with command replies and must not corrupt the
     /// FIFO — for real.
     /// </summary>
-    [Fact]
+    [HardwareFact]
+    [Trait("Category", "Hardware")]
     public async Task Streams_modal_program_with_ok_replies_on_hardware()
     {
-        var candidates = ResolveCandidates();
-        if (candidates.Length == 0)
-        {
-            Console.WriteLine("WARNING: hardware streaming smoke skipped — no serial ports enumerated");
-            return;
-        }
+        var port = RequiredPort();
+        var attempt = TryIdentifyBoardBounded(port);
 
-        foreach (var port in candidates)
+        if (attempt.Service is { } svc && attempt.Received is { } received)
         {
-            var attempt = TryIdentifyBoardBounded(port);
-            if (attempt.Service is not { } svc || attempt.Received is not { } received)
-            {
-                Console.WriteLine($"INFO   '{port}' did not answer $I as grbl/grblHAL — trying next port");
-                continue;
-            }
-
             try
             {
                 // Modal-only setup lines: no motion, the machine is left exactly as found.
@@ -968,12 +939,11 @@ public class RealGrblHardwareTests
             {
                 svc.Disconnect();
             }
-            return;
         }
-
-        Console.WriteLine(
-            $"WARNING: hardware streaming smoke skipped — none of {string.Join(", ", candidates)} " +
-            "answered the $I handshake as a grbl/grblHAL controller");
+        else
+        {
+            Assert.Fail($"'{port}' did not answer the $I handshake as a grbl/grblHAL controller");
+        }
     }
 
     private static async Task<bool> WaitUntil(Func<bool> condition, int timeoutMs)
@@ -993,6 +963,26 @@ public class RealGrblHardwareTests
         value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
     // ---- gate unit tests: these never open a port and are not hardware tests ----
+
+    [Fact]
+    public void Gate_every_hardware_fact_is_categorised_for_filtering()
+    {
+        var hardwareFacts = typeof(RealGrblHardwareTests)
+            .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+            .Where(m => m.GetCustomAttributes(typeof(HardwareFactAttribute), inherit: false).Length > 0)
+            .ToArray();
+
+        Assert.Equal(8, hardwareFacts.Length);
+        foreach (var method in hardwareFacts)
+        {
+            var hasTrait = method.CustomAttributes
+                .Where(a => a.AttributeType == typeof(TraitAttribute))
+                .Any(a => a.ConstructorArguments.Count == 2 &&
+                          Equals(a.ConstructorArguments[0].Value, "Category") &&
+                          Equals(a.ConstructorArguments[1].Value, "Hardware"));
+            Assert.True(hasTrait, $"{method.Name} is gated by [HardwareFact] but has no Trait(Category=Hardware)");
+        }
+    }
 
     [Fact]
     public void Gate_hardware_fact_skips_while_the_port_env_var_is_unset()
