@@ -48,7 +48,7 @@ namespace SenderNG.Core.Tests;
 /// loop, a command exchange, and the connect-time $I handshake against actual
 /// hardware.
 ///
-/// All tests in this class are gated on the SENDERNG_HW_PORT env var via
+/// All hardware tests in this class are gated on the SENDERNG_HW_PORT env var via
 /// <see cref="HardwareFactAttribute"/>: with the variable unset they are reported
 /// as Skipped rather than Passed, and with it set each test starts against
 /// exactly that port — the gate never scans ports to choose one and has no
@@ -807,6 +807,8 @@ public class RealGrblHardwareTests
                 }
                 else
                 {
+                    // Still verify the capability checks, then hand back without
+                    // touching offsets on a board we can't write to.
                     Assert.Fail("$X unlock was rejected (critical alarm / native-USB grblHAL) — offsets write/readback and the clamp were never verified");
                 }
             }

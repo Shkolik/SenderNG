@@ -46,14 +46,16 @@ Every hardware test has three states and no fourth:
 - **Not requested** — `SENDERNG_HW_PORT` is unset or whitespace. `[HardwareFact]` skips the test at
   discovery time, so it reports `Skipped` and never opens a port.
 - **Requested, unavailable** — the variable is set, but the port is not enumerated, is not a
-  physical device (ghost / Bluetooth SPP), or never answers the `$I` handshake. The test reports
-  `Failed` with that specific reason: asking for hardware and not getting it is red, not green.
+  physical device (ghost / Bluetooth SPP), never answers the `$I` handshake, or a premise the test
+  itself asserts fails. The test reports `Failed` with that specific reason: asking for hardware and
+  not getting it is red, not green.
 - **Requested, available** — the assertions run against exactly that port.
 
 Selecting a port never involves scanning and has no fallback; the unplug test's bounded reconnect
 re-discovery, described above, is the one exception. A test that nobody asked for is `Skipped`;
-a test that was asked for and could not verify what it was asked to check is `Failed`. That is why
-the suite stays green on machines (CI) with no hardware — those tests are skipped, not passed.
+a test that was asked for and cannot open the port it was given, or that fails a premise it
+asserts, is `Failed`. That is why the suite stays green on machines (CI) with no hardware — those
+tests are skipped, not passed.
 
 To select only the hardware tests, filter on their category:
 
@@ -88,8 +90,8 @@ These run unattended against the board named by `SENDERNG_HW_PORT`:
 
 - **`Connect_polls_live_status_and_exchanges_settings_on_hardware`** — `$I` handshake on the
   pinned port, live `?` reports, raw console lines, `$$` round-trip.
-- **`Offsets_module_writes_and_reads_back_G54_through_G59`** — cleans up after itself; pinned port
-  only. Bet a board is already wired to nothing: offsets are safe to write + restore.
+- **`Offsets_module_writes_and_reads_back_G54_through_G59_on_hardware`** — cleans up after itself;
+  pinned port only. Bet a board is already wired to nothing: offsets are safe to write + restore.
 - **`Toggle_dtr_reset_on_connect_is_non_destructive_on_hardware`** — verifies the DTR-pulse
   connect path doesn't brick the connection (targets 8-bit Arduino bootloaders).
 - **`Streams_modal_program_with_ok_replies_on_hardware`** — streams a tiny no-motion modal program
