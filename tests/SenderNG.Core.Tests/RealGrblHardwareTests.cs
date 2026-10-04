@@ -283,21 +283,11 @@ public class RealGrblHardwareTests
     /// disconnect and flip to NOT CONNECTED; when the cable is re-plugged the same
     /// service must reconnect cleanly and exchange commands again.
     /// </summary>
-    [Fact]
+    [HardwareFact]
+    [Trait("Category", "Hardware")]
     public async Task Detects_unplug_and_recovers_when_replugged_on_hardware()
     {
-        var envPort = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
-        if (string.IsNullOrWhiteSpace(envPort))
-        {
-            Console.WriteLine("WARNING: interactive unplug/replug test skipped — set SENDERNG_HW_PORT to run it");
-            return;
-        }
-        var port = envPort.Trim();
-        if (!AvailablePorts.Contains(port, StringComparer.OrdinalIgnoreCase))
-        {
-            Console.WriteLine($"WARNING: interactive test skipped — '{port}' not enumerated");
-            return;
-        }
+        var port = RequiredPort();
 
         
         using var svc = new RealGrblService();
@@ -376,21 +366,11 @@ public class RealGrblHardwareTests
     /// intended for 8-bit Arduino bootloaders; most grblHAL boards don't need it and
     /// this test only asserts the board isn't left broken. Opt-in via SENDERNG_HW_PORT.
     /// </summary>
-    [Fact]
+    [HardwareFact]
+    [Trait("Category", "Hardware")]
     public async Task Toggle_dtr_reset_on_connect_is_non_destructive_on_hardware()
     {
-        var envPort = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
-        if (string.IsNullOrWhiteSpace(envPort))
-        {
-            Console.WriteLine("WARNING: Toggle-DTR test skipped — set SENDERNG_HW_PORT to run it");
-            return;
-        }
-        var port = envPort.Trim();
-        if (!AvailablePorts.Contains(port, StringComparer.OrdinalIgnoreCase))
-        {
-            Console.WriteLine($"WARNING: Toggle-DTR test skipped — '{port}' not enumerated");
-            return;
-        }
+        var port = RequiredPort();
 
         
         try
@@ -450,21 +430,11 @@ public class RealGrblHardwareTests
     /// alarm lock). Run it once per board: connect the board, run with
     /// SENDERNG_HW_PORT=&lt;port&gt;, then swap to the next board.
     /// </summary>
-    [Fact]
+    [HardwareFact]
+    [Trait("Category", "Hardware")]
     public async Task Triage_board_identity_unlock_reset_on_hardware()
     {
-        var envPort = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
-        if (string.IsNullOrWhiteSpace(envPort))
-        {
-            Console.WriteLine("WARNING: board triage test skipped — set SENDERNG_HW_PORT to run it");
-            return;
-        }
-        var port = envPort.Trim();
-        if (!AvailablePorts.Contains(port, StringComparer.OrdinalIgnoreCase))
-        {
-            Console.WriteLine($"WARNING: board triage test skipped — '{port}' not enumerated");
-            return;
-        }
+        var port = RequiredPort();
 
         
         var received = new ConcurrentQueue<string>();
@@ -680,15 +650,11 @@ public class RealGrblHardwareTests
     /// verifies the Offsets editor disables, both saves are refused, and <c>$X</c>
     /// restores the ability to save.
     /// </summary>
-    [Fact]
+    [HardwareFact]
+    [Trait("Category", "Hardware")]
     public async Task Alarm_gating_disables_offsets_saves_on_hardware()
     {
-        var port = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT")?.Trim();
-        if (string.IsNullOrWhiteSpace(port) || !AvailablePorts.Contains(port, StringComparer.OrdinalIgnoreCase))
-        {
-            Console.WriteLine("WARNING: alarm-gating probe skipped — set SENDERNG_HW_PORT to a connected board");
-            return;
-        }
+        var port = RequiredPort();
 
         
         var received = new ConcurrentQueue<string>();
@@ -771,20 +737,11 @@ public class RealGrblHardwareTests
     /// tool slots), and (e) offsets write/readback for every supported system,
     /// restored to the original values afterwards.
     /// </summary>
-    [Fact]
+    [HardwareFact]
+    [Trait("Category", "Hardware")]
     public async Task Offsets_alarm_tooltable_and_g59x_clamp_verified_on_hardware()
     {
-        var port = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT")?.Trim();
-        if (string.IsNullOrWhiteSpace(port))
-        {
-            Console.WriteLine("WARNING: per-board verification skipped — set SENDERNG_HW_PORT to run it");
-            return;
-        }
-        if (!AvailablePorts.Contains(port, StringComparer.OrdinalIgnoreCase))
-        {
-            Console.WriteLine($"WARNING: per-board verification skipped — '{port}' not enumerated");
-            return;
-        }
+        var port = RequiredPort();
 
         
         var received = new ConcurrentQueue<string>();
