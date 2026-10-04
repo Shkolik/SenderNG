@@ -557,22 +557,11 @@ public class RealGrblHardwareTests
         }
     }
 
-    [Fact]
+    [HardwareFact]
+    [Trait("Category", "Hardware")]
     public async Task Offsets_module_writes_and_reads_back_G54_through_G59_on_hardware()
     {
-        var port = Environment.GetEnvironmentVariable("SENDERNG_HW_PORT");
-        if (string.IsNullOrWhiteSpace(port))
-            port = AvailablePorts.FirstOrDefault(p => p.Equals("COM6", StringComparison.OrdinalIgnoreCase));
-        if (string.IsNullOrWhiteSpace(port))
-        {
-            Console.WriteLine("WARNING: offsets hardware test skipped — set SENDERNG_HW_PORT or connect a COM6 board");
-            return;
-        }
-        if (!AvailablePorts.Contains(port.Trim(), StringComparer.OrdinalIgnoreCase))
-        {
-            Console.WriteLine($"WARNING: offsets hardware test skipped — '{port}' not enumerated");
-            return;
-        }
+        var port = RequiredPort();
 
         
         using var service = new RealGrblService();
