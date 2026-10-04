@@ -327,6 +327,7 @@ public class JogViewModel : ViewModelBase
     private void CancelJog()
     {
         _continuousTag = null;
+        Status = string.Empty;                          // the run is over: drop any jog message
         try { _grbl.SendRealtime(GrblRealtime.JogCancel); }   // 0x85 — decelerate, flush, Idle
         catch (InvalidOperationException) { }                  // disconnected: nothing to cancel
     }

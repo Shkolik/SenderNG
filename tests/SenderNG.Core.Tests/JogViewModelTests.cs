@@ -592,6 +592,40 @@ public class JogViewModelTests
         Assert.Contains("Continuous jog started", vm.Status!);
         Assert.DoesNotContain("failed", vm.Status);
     }
+
+    [Fact]
+    public void Continuous_stop_clears_the_started_status()
+    {
+        // Regression: releasing the pad stopped the machine, but the status line
+        // kept reporting "Continuous jog started" from then on.
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] }), MakeSettings());
+        vm.IsDistance3 = true;
+
+        vm.StartContinuousJog("X-");
+        Assert.Contains("Continuous jog started", vm.Status!);
+
+        vm.StopContinuousJog();
+
+        Assert.Equal(string.Empty, vm.Status);
+    }
+
+    [Fact]
+    public void Stop_command_clears_a_stale_jog_status()
+    {
+        var sent = new List<string>();
+        var vm = new JogViewModel(new RecordingGrbl(sent,
+            capabilities: ControllerCapabilities.Unknown with { MaxTravel = [200, 300, 100, 50] }), MakeSettings());
+        vm.IsDistance3 = true;
+
+        vm.StartContinuousJog("X-");
+        Assert.Contains("Continuous jog started", vm.Status!);
+
+        vm.StopCommand.Execute(null);
+
+        Assert.Equal(string.Empty, vm.Status);
+    }
 }
 
 public class JogLinearAxesTests

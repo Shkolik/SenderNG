@@ -128,8 +128,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         </Style>
     </UserControl.Styles>
 
-    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="8,8,8,8">
-    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+    <!-- Status sits BELOW the pads in a fixed-height slot, outside the
+         horizontally-measured row: an empty slot occupies exactly the same
+         space as a filled one, and the row's width no longer depends on the
+         message, so status text can never shift the pads out from under the
+         pointer (which is what stopped a held continuous jog). -->
+    <DockPanel>
+    <Border x:Name="StatusSlot" DockPanel.Dock="Bottom" Height="32" MaxWidth="300" Margin="8,0,8,8">
+        <TextBlock x:Name="StatusText" Text="{Binding Status}" Foreground="#777" FontSize="11"
+                   TextWrapping="Wrap" VerticalAlignment="Top" />
+    </Border>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="8,0,8,0">
+    <StackPanel x:Name="JogRow" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
 
         <!-- Selectors stacked vertically with a small gap; no box outline -->
         <StackPanel Spacing="8" VerticalAlignment="Top">
@@ -228,7 +239,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <TextBlock IsVisible="{Binding Plane2HiddenHintVisible}" Text="{loc:Loc module.jog.planeHidden}"
                    Width="150" TextWrapping="Wrap" FontSize="10" Foreground="#888" VerticalAlignment="Center" Margin="0,0,8,0" />
 
-        <TextBlock Text="{Binding Status}" Foreground="#777" FontSize="11" TextWrapping="Wrap" />
     </StackPanel>
     </ScrollViewer>
+    </DockPanel>
 </UserControl>
