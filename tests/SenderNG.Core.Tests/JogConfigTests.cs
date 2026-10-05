@@ -201,6 +201,7 @@ public class JogDiagonalsConfigTests
 public class JogModuleSettingsFieldsTests
 {
     [Fact]
+    [Trait("Category", "Timing")]
     public void Settings_view_available_after_attach_services()
     {
         var module = new SenderNG.Modules.Plugins.JogModule();

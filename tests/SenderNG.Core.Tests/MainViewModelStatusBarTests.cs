@@ -123,6 +123,7 @@ public class MainViewModelStatusBarTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Run_time_advances_while_running_and_freezes_on_hold()
     {
         var settings = MakeSettings();

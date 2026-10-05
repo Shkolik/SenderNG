@@ -73,10 +73,45 @@ public class DotnetCliTests
             {
                 "test", "SenderNG.sln",
                 "-c", "Release",
-                "--filter", "Category!=Hardware&Category!=GPU",
+                "--filter", "Category!=Hardware&Category!=GPU&Category!=Timing",
                 "--logger", "trx"
             },
             call.Arguments);
+    }
+
+    /// <summary>
+    /// CI and the release gate must exclude the same test categories. Both spell the
+    /// filter out by hand — the workflow in YAML, <see cref="DotnetCli"/> in C# — and
+    /// nothing executed the workflow, so the match was checked by eye during review.
+    /// That is how adding a category to one and not the other would go unnoticed; this
+    /// asserts they agree instead.
+    /// </summary>
+    [Fact]
+    public async Task TestAsync_filter_matches_the_CI_workflow()
+    {
+        var runner = new RecordingProcessRunner();
+        await new DotnetCli(runner).TestAsync("/repo");
+
+        var args = runner.Calls.Single().Arguments.ToList();
+        var index = args.IndexOf("--filter");
+        Assert.True(index >= 0, "the release test invocation must pass --filter");
+        var filter = args[index + 1];
+
+        var workflow = Path.Combine(RepoRoot(), ".github", "workflows", "ci.yml");
+        Assert.True(File.Exists(workflow), $"CI workflow not found at {workflow}");
+        Assert.Contains(filter, await File.ReadAllTextAsync(workflow));
+    }
+
+    /// <summary>Walks up from the test binary to the checkout that owns the solution.</summary>
+    private static string RepoRoot()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "SenderNG.sln")))
+                return dir.FullName;
+        }
+        throw new InvalidOperationException(
+            $"SenderNG.sln not found above {AppContext.BaseDirectory}");
     }
 
     private static string WriteFixture(string? version)

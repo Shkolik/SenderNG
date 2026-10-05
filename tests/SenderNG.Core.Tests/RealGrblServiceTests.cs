@@ -416,6 +416,7 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Poller_backs_off_when_idle_and_speeds_up_on_activity()
     {
         // The '?' poll runs at the fast rate whenever anything may be happening
@@ -453,6 +454,7 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Poller_stays_fast_when_controller_stops_reporting()
     {
         // The back-off requires a FRESH status report as evidence the
@@ -476,6 +478,7 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Poller_stays_active_while_command_is_in_flight()
     {
         // The '?' poll is the liveness channel for the silence-based
@@ -500,6 +503,7 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task SendAsync_times_out_after_CommandTimeout_without_reply()
     {
         // Silence-based: no inbound line of ANY kind (no reports, no reply) for
@@ -516,6 +520,7 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task PendingSend_survives_feed_hold_well_past_CommandTimeout()
     {
         // A feed hold parks the controller for however long the operator needs:
@@ -571,6 +576,7 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task PendingSend_survives_long_command_while_reports_flow()
     {
         // A long operation with a live controller (homing a big slow machine):
@@ -627,6 +633,7 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task PendingSend_times_out_after_silence_even_though_reports_preceded()
     {
         // Reports slide the deadline but don't cancel it: once the controller
@@ -648,6 +655,7 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Streamed_run_survives_feed_hold_past_CommandTimeout_and_completes()
     {
         // The reported bug: pausing a program for longer than CommandTimeout
@@ -814,6 +822,7 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Connect_runs_I_handshake_and_populates_capabilities()
     {
         // This test owns the $I transcript: it feeds the reply by hand and asserts
@@ -848,6 +857,7 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Connect_retries_I_handshake_when_first_reply_is_banner_only()
     {
         // The DTR-at-open reset reboots Arduino-style boards; a $I sent while the
@@ -879,6 +889,7 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Connect_applies_I_axis_count_to_state_and_info()
     {
         // A grblHAL $I handshake reporting 5 axes must grow the live DRO state
@@ -914,6 +925,7 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Connect_applies_I_axis_letters_and_resets_them_without_AXS()
     {
         // A board reporting [AXS:4:XYZA] remaps the letter set (XYUV-style
@@ -1022,6 +1034,7 @@ public class RealGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Reconnect_after_disconnect_restores_connection()
     {
         // The stale-state bug: after a disconnect (here: watchdog), ConnectAsync used

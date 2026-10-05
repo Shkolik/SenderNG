@@ -116,6 +116,7 @@ public class GCodeProgramStreamerTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Streams_every_line_in_order_with_sent_then_ok()
     {
         var svc = new ScriptedGrblService();

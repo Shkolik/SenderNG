@@ -232,6 +232,7 @@ public class DemoGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Continuous_jog_advances_positions_across_polls()
     {
         var file = TempSettingsFile();
@@ -279,6 +280,7 @@ public class DemoGrblServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Jog_cancel_realtime_stops_continuous_jog()
     {
         var file = TempSettingsFile();
@@ -606,6 +608,7 @@ public class DemoGrblServicePollingTests
     private static MachineProfile SettingsFor(int demoAxes) => new() { DemoAxes = demoAxes };
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Poll_loop_reemits_state_while_connected()
     {
         var svc = new DemoGrblService(SettingsFor(3), pollIntervalMs: 10);

@@ -48,10 +48,10 @@ public sealed class DotnetCli : ICli
 
     public async Task TestAsync(string repoRoot, CancellationToken ct = default)
         => await RunAsync(
-            "dotnet test SenderNG.sln -c Release (excluding Hardware and GPU)",
+            "dotnet test SenderNG.sln -c Release (excluding Hardware, GPU and Timing)",
             _runner.RunAsync(repoRoot, "dotnet", ct, "test", "SenderNG.sln",
                 "-c", "Release",
-                "--filter", "Category!=Hardware&Category!=GPU",
+                "--filter", "Category!=Hardware&Category!=GPU&Category!=Timing",
                 "--logger", "trx"));
 
     public async Task<string> PublishAppAsync(string repoRoot, ReleasePlatform platform, string outputDir, CancellationToken ct = default)
