@@ -533,12 +533,16 @@ public class RealGrblServiceTests
         using var svc = new RealGrblService(transport)
         {
             PollIntervalMs = 50,
-            CommandTimeout = TimeSpan.FromMilliseconds(300),
+            // Pinned for the same reason as the long-command test: the idle back-off's
+            // 1500 ms period is longer than the window, so one idle tick starves the
+            // held wait and reads as a spurious timeout.
+            IdlePollIntervalMs = 50,
+            CommandTimeout = TimeSpan.FromSeconds(1),
         };
         await svc.ConnectAsync("fake");
 
-        // 18 polls at 50 ms ≈ 900 ms held — crossing ~3 windows of 300 ms.
-        const int holdPolls = 18;
+        // 40 polls at ≤50 ms ≈ 2 s held — twice the window, with a 20× margin.
+        const int holdPolls = 40;
         var polled = 0;
         var released = false;
         transport.OnStatusRequest = () =>
@@ -585,12 +589,20 @@ public class RealGrblServiceTests
         using var svc = new RealGrblService(transport)
         {
             PollIntervalMs = 50,
-            CommandTimeout = TimeSpan.FromMilliseconds(300),
+            // Pin the idle back-off. Its default period is 1500 ms — five times the
+            // window this test used to run against — so a single idle reclassification
+            // (or one starved timer tick) silences the poller for longer than the
+            // CommandTimeout and the wait times out. That is what failed on CI. The
+            // property under test is "reports slide the deadline", not "the back-off
+            // happens to stay out of the way", so it is pinned to the fast rate.
+            IdlePollIntervalMs = 50,
+            CommandTimeout = TimeSpan.FromSeconds(1),
         };
         await svc.ConnectAsync("fake");
 
-        // 18 polls at 50 ms ≈ 900 ms of reports, crossing ~3 windows of 300 ms.
-        const int reports = 18;
+        // 40 polls at ≤50 ms ≈ 2 s of reports: twice the window, and a 20× margin
+        // against a late tick.
+        const int reports = 40;
         var polled = 0;
         transport.OnStatusRequest = () =>
         {
@@ -646,7 +658,10 @@ public class RealGrblServiceTests
         using var svc = new RealGrblService(transport)
         {
             PollIntervalMs = 50,
-            CommandTimeout = TimeSpan.FromMilliseconds(300),
+            // Pinned: the idle back-off's 1500 ms period exceeds the window, so one idle
+            // tick would starve the held line's wait and read as "fail: timeout".
+            IdlePollIntervalMs = 50,
+            CommandTimeout = TimeSpan.FromSeconds(1),
         };
         await svc.ConnectAsync("fake");
 
@@ -655,7 +670,7 @@ public class RealGrblServiceTests
         // the test thread — seven 100 ms delays against a 100 ms window had no slack at
         // all, and a starved test thread would let the in-flight wait expire: the exact
         // "fail: timeout" this test exists to prevent.
-        const int holdPollsTarget = 18; // ~900 ms at 50 ms polls, ~3 windows at 300 ms
+        const int holdPollsTarget = 40; // ~2 s at ≤50 ms polls, twice the 1 s window
         var holding = 0;
         var holdPolls = 0;
         transport.OnStatusRequest = () =>
