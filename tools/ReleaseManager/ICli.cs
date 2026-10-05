@@ -39,8 +39,8 @@ namespace ReleaseManager;
 
 public interface ICli
 {
-    Task TestAsync(string repoRoot);
-    Task<string> PublishAppAsync(string repoRoot, ReleasePlatform platform, string outputDir);
-    Task<string> PublishPluginAsync(string repoRoot, string csprojPath, ReleasePlatform platform, string outputDir);
-    Task<string?> ReadVersionAsync(string repoRoot, string csprojPath);
+    Task TestAsync(string repoRoot, CancellationToken ct = default);
+    Task<string> PublishAppAsync(string repoRoot, ReleasePlatform platform, string outputDir, CancellationToken ct = default);
+    Task<string> PublishPluginAsync(string repoRoot, string csprojPath, ReleasePlatform platform, string outputDir, CancellationToken ct = default);
+    Task<string?> ReadVersionAsync(string repoRoot, string csprojPath, CancellationToken ct = default);
 }

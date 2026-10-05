@@ -120,6 +120,36 @@ public class ReleaseEngineTests
         Assert.False(Directory.Exists(stale));
     }
 
+    [Fact]
+    public async Task Release_forwards_the_caller_token_to_ICli()
+    {
+        var (repo, output, cli) = Setup();
+        cli.AppPublishDir = CompleteAppPublish();
+
+        using var cts = new CancellationTokenSource();
+        var engine = new ReleaseEngine(repo, cli, new SilentLog());
+        await engine.ReleaseAsync(new ReleaseOptions { OutputDir = output }, cts.Token);
+
+        Assert.Equal(cts.Token, cli.ReceivedToken);
+    }
+
+    [Fact]
+    public async Task Cancelled_token_aborts_the_release_before_any_work()
+    {
+        var (repo, output, cli) = Setup();
+        cli.AppPublishDir = CompleteAppPublish();
+        var platformRoot = Path.Combine(output, PlatformInfo.FolderName(PlatformInfo.Current));
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var engine = new ReleaseEngine(repo, cli, new SilentLog());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            engine.ReleaseAsync(new ReleaseOptions { OutputDir = output }, cts.Token));
+
+        Assert.False(Directory.Exists(platformRoot));
+    }
+
     private static (string repo, string output, FakeCli cli) Setup()
     {
         var repo = TempRepo.New();

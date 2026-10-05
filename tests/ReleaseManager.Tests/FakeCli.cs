@@ -44,14 +44,17 @@ public sealed class FakeCli : ICli
     public Dictionary<string, string> PluginVersions { get; } = [];
     public int TestCalls { get; private set; }
     public Dictionary<string, string> PluginPublishDirs { get; } = [];
+    public CancellationToken ReceivedToken { get; private set; }
 
-    public Task TestAsync(string repoRoot)
+    public Task TestAsync(string repoRoot, CancellationToken ct = default)
     {
         TestCalls++;
+        ReceivedToken = ct;
+        ct.ThrowIfCancellationRequested();
         return Task.CompletedTask;
     }
 
-    public Task<string> PublishAppAsync(string repoRoot, ReleasePlatform platform, string outputDir)
+    public Task<string> PublishAppAsync(string repoRoot, ReleasePlatform platform, string outputDir, CancellationToken ct = default)
     {
         Directory.CreateDirectory(outputDir);
         if (AppPublishDir is not null)
@@ -59,7 +62,7 @@ public sealed class FakeCli : ICli
         return Task.FromResult(outputDir);
     }
 
-    public Task<string> PublishPluginAsync(string repoRoot, string csprojPath, ReleasePlatform platform, string outputDir)
+    public Task<string> PublishPluginAsync(string repoRoot, string csprojPath, ReleasePlatform platform, string outputDir, CancellationToken ct = default)
     {
         var id = Path.GetFileNameWithoutExtension(csprojPath);
         if (PluginPublishDirs.TryGetValue(id, out var source))
@@ -75,7 +78,7 @@ public sealed class FakeCli : ICli
         return Task.FromResult(outputDir);
     }
 
-    public Task<string?> ReadVersionAsync(string repoRoot, string csprojPath)
+    public Task<string?> ReadVersionAsync(string repoRoot, string csprojPath, CancellationToken ct = default)
     {
         var id = Path.GetFileNameWithoutExtension(csprojPath);
         return Task.FromResult(id == "SenderNG" ? AppVersion

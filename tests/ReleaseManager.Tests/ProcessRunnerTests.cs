@@ -43,7 +43,7 @@ public class ProcessRunnerTests
     public async Task RunAsync_captures_stdout_and_exit_code()
     {
         var runner = new ProcessRunner();
-        var result = await runner.RunAsync(Directory.GetCurrentDirectory(), "dotnet", "--version");
+        var result = await runner.RunAsync(Directory.GetCurrentDirectory(), "dotnet", CancellationToken.None, "--version");
         Assert.True(result.Succeeded);
         Assert.NotEmpty(result.StdOut);
         Assert.StartsWith("9.", result.StdOut[0]);
@@ -53,8 +53,31 @@ public class ProcessRunnerTests
     public async Task RunAsync_captures_non_zero_exit_as_failure()
     {
         var runner = new ProcessRunner();
-        var result = await runner.RunAsync(Directory.GetCurrentDirectory(), "dotnet", "--no-such-flag-xyz");
+        var result = await runner.RunAsync(Directory.GetCurrentDirectory(), "dotnet", CancellationToken.None, "--no-such-flag-xyz");
         Assert.False(result.Succeeded);
         Assert.NotEqual(0, result.ExitCode);
     }
+
+    [Fact]
+    public async Task Cancelled_token_interrupts_the_run_and_the_child_is_reaped()
+    {
+        var runner = new ProcessRunner();
+        var (fileName, arguments) = LongRunningChild();
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+        var started = DateTime.UtcNow;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            runner.RunAsync(Directory.GetCurrentDirectory(), fileName, cts.Token, arguments));
+
+        var elapsed = DateTime.UtcNow - started;
+        Assert.True(elapsed < TimeSpan.FromSeconds(20),
+            $"cancellation took {elapsed}; the wait was not interrupted");
+        Assert.True(runner.LastProcessExited, "the child was still running when the exception surfaced");
+    }
+
+    private static (string fileName, string[] arguments) LongRunningChild()
+        => OperatingSystem.IsWindows()
+            ? ("cmd.exe", new[] { "/c", "ping", "-n", "30", "127.0.0.1" })
+            : ("sleep", new[] { "30" });
 }

@@ -95,7 +95,7 @@ internal static class Program
                 cts.Cancel();
             };
 
-            var report = await engine.ReleaseAsync(options);
+            var report = await engine.ReleaseAsync(options, cts.Token);
             Console.WriteLine();
             Console.WriteLine($"Release complete: {report.Platform}, app {report.AppVersion}");
             Console.WriteLine($"  plugins: {(report.PluginIds.Count == 0 ? "(none)" : string.Join(", ", report.PluginIds))}");

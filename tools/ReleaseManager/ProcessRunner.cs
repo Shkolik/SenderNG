@@ -41,7 +41,7 @@ namespace ReleaseManager;
 
 public interface IProcessRunner
 {
-    Task<ProcessResult> RunAsync(string workingDirectory, string fileName, params string[] arguments);
+    Task<ProcessResult> RunAsync(string workingDirectory, string fileName, CancellationToken ct, params string[] arguments);
 }
 
 public sealed record ProcessResult(int ExitCode, IReadOnlyList<string> StdOut, IReadOnlyList<string> StdErr)
@@ -51,7 +51,9 @@ public sealed record ProcessResult(int ExitCode, IReadOnlyList<string> StdOut, I
 
 public sealed class ProcessRunner : IProcessRunner
 {
-    public async Task<ProcessResult> RunAsync(string workingDirectory, string fileName, params string[] arguments)
+    internal bool LastProcessExited { get; private set; }
+
+    public async Task<ProcessResult> RunAsync(string workingDirectory, string fileName, CancellationToken ct, params string[] arguments)
     {
         var psi = new ProcessStartInfo
         {
@@ -69,7 +71,22 @@ public sealed class ProcessRunner : IProcessRunner
 
         var stdoutTask = process.StandardOutput.ReadToEndAsync();
         var stderrTask = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
+        try
+        {
+            await process.WaitForExitAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(entireProcessTree: true); }
+            catch { /* the process already exited */ }
+            process.WaitForExit();
+            LastProcessExited = process.HasExited;
+            try { await Task.WhenAll(stdoutTask, stderrTask); }
+            catch { /* pipes closed with the process */ }
+            throw;
+        }
+
+        LastProcessExited = process.HasExited;
         var stdout = await stdoutTask;
         var stderr = await stderrTask;
 

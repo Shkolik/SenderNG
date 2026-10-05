@@ -46,31 +46,31 @@ public sealed class DotnetCli : ICli
         _runner = runner;
     }
 
-    public async Task TestAsync(string repoRoot)
-        => await RunAsync("dotnet test SenderNG.sln", _runner.RunAsync(repoRoot, "dotnet", "test", "SenderNG.sln"));
+    public async Task TestAsync(string repoRoot, CancellationToken ct = default)
+        => await RunAsync("dotnet test SenderNG.sln", _runner.RunAsync(repoRoot, "dotnet", ct, "test", "SenderNG.sln"));
 
-    public async Task<string> PublishAppAsync(string repoRoot, ReleasePlatform platform, string outputDir)
+    public async Task<string> PublishAppAsync(string repoRoot, ReleasePlatform platform, string outputDir, CancellationToken ct = default)
     {
         await RunAsync(
             $"publish app for {PlatformInfo.Rid(platform)}",
-            _runner.RunAsync(repoRoot, "dotnet", "publish",
+            _runner.RunAsync(repoRoot, "dotnet", ct, "publish",
                 "src/SenderNG/SenderNG.csproj", "-c", "Release", "-r", PlatformInfo.Rid(platform),
                 "--self-contained", "true", "-o", outputDir));
         return outputDir;
     }
 
-    public async Task<string> PublishPluginAsync(string repoRoot, string csprojPath, ReleasePlatform platform, string outputDir)
+    public async Task<string> PublishPluginAsync(string repoRoot, string csprojPath, ReleasePlatform platform, string outputDir, CancellationToken ct = default)
     {
         await RunAsync(
             $"publish plugin {csprojPath}",
-            _runner.RunAsync(repoRoot, "dotnet", "publish",
+            _runner.RunAsync(repoRoot, "dotnet", ct, "publish",
                 csprojPath, "-c", "Release", "-r", PlatformInfo.Rid(platform), "-o", outputDir));
         return outputDir;
     }
 
-    public async Task<string?> ReadVersionAsync(string repoRoot, string csprojPath)
+    public async Task<string?> ReadVersionAsync(string repoRoot, string csprojPath, CancellationToken ct = default)
     {
-        var result = await _runner.RunAsync(repoRoot, "dotnet", "msbuild", csprojPath, "-getProperty:Version", "-nologo");
+        var result = await _runner.RunAsync(repoRoot, "dotnet", ct, "msbuild", csprojPath, "-getProperty:Version", "-nologo");
         if (!result.Succeeded)
             throw new BuildException($"Reading <Version> from {csprojPath} failed (exit {result.ExitCode}).");
         var version = result.StdOut.Select(line => line.Trim()).FirstOrDefault(line => !string.IsNullOrEmpty(line));

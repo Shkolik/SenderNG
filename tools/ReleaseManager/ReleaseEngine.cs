@@ -59,8 +59,9 @@ public sealed class ReleaseEngine
         _log = log;
     }
 
-    public async Task<EngineReport> ReleaseAsync(ReleaseOptions options)
+    public async Task<EngineReport> ReleaseAsync(ReleaseOptions options, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
         var platform = PlatformInfo.Current;
         var folder = PlatformInfo.FolderName(platform);
         var platformRoot = Path.Combine(options.OutputDir, folder);
@@ -69,24 +70,28 @@ public sealed class ReleaseEngine
         if (!options.SkipTests)
         {
             _log.Info("Running tests (--skip-tests to skip)...");
-            await _cli.TestAsync(_repoRoot);
+            await _cli.TestAsync(_repoRoot, ct);
         }
+
+        ct.ThrowIfCancellationRequested();
 
         var plugins = PluginLists.Resolve(_repoRoot, options, _log);
         var appVersion = options.VersionOverride
-            ?? await _cli.ReadVersionAsync(_repoRoot, Path.Combine(_repoRoot, AppCsproj))
+            ?? await _cli.ReadVersionAsync(_repoRoot, Path.Combine(_repoRoot, AppCsproj), ct)
             ?? throw new CliException($"No <Version> in {AppCsproj}; add one or pass --version.");
 
         var tmp = Path.Combine(Path.GetTempPath(), "ReleaseManager-" + Guid.NewGuid().ToString("N"));
         try
         {
             Directory.CreateDirectory(tmp);
+            ct.ThrowIfCancellationRequested();
             if (Directory.Exists(platformRoot))
                 Directory.Delete(platformRoot, recursive: true);
             Directory.CreateDirectory(platformRoot);
 
             _log.Info("Publishing app...");
-            var appPublish = await _cli.PublishAppAsync(_repoRoot, platform, Path.Combine(tmp, "app"));
+            ct.ThrowIfCancellationRequested();
+            var appPublish = await _cli.PublishAppAsync(_repoRoot, platform, Path.Combine(tmp, "app"), ct);
             var bundleDir = Path.Combine(platformRoot, "SenderNG");
             Curation.CopyBundle(appPublish, bundleDir, _log);
             Curation.StripModulesToSdk(Path.Combine(bundleDir, "Modules"));
@@ -99,7 +104,7 @@ public sealed class ReleaseEngine
                 foreach (var plugin in plugins)
                 {
                     _log.Info($"Staging plugin {plugin.Id}...");
-                    var publish = await _cli.PublishPluginAsync(_repoRoot, Path.Combine(_repoRoot, plugin.Project.Replace('/', Path.DirectorySeparatorChar)), platform, Path.Combine(tmp, "plugins", plugin.Id));
+                    var publish = await _cli.PublishPluginAsync(_repoRoot, Path.Combine(_repoRoot, plugin.Project.Replace('/', Path.DirectorySeparatorChar)), platform, Path.Combine(tmp, "plugins", plugin.Id), ct);
                     var projectDir = Path.GetDirectoryName(Path.Combine(_repoRoot, plugin.Project.Replace('/', Path.DirectorySeparatorChar)))!;
                     var dest = Path.Combine(pluginsRoot, plugin.Id);
                     Directory.CreateDirectory(dest);
@@ -122,7 +127,7 @@ public sealed class ReleaseEngine
                 foreach (var plugin in plugins)
                 {
                     var pluginVersion = plugin.Version
-                        ?? await _cli.ReadVersionAsync(_repoRoot, Path.Combine(_repoRoot, plugin.Project.Replace('/', Path.DirectorySeparatorChar)))
+                        ?? await _cli.ReadVersionAsync(_repoRoot, Path.Combine(_repoRoot, plugin.Project.Replace('/', Path.DirectorySeparatorChar)), ct)
                         ?? "1.0.0";
                     var pluginZip = Path.Combine(platformRoot, $"SenderNG-plugin-{plugin.Id}-{pluginVersion}-{PlatformInfo.ZipSuffix(platform)}.zip");
                     ReleasePackage.CreatePluginZip(Path.Combine(platformRoot, "plugins", plugin.Id), pluginZip);
