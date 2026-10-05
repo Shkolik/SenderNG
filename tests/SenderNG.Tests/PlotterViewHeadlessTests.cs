@@ -65,6 +65,12 @@ using static SenderNG.Tests.PlotterTestStubs;
 
 namespace SenderNG.Tests;
 
+// Asserts on RENDERED pixel content (PlotterPixels / CaptureFrame), which is what
+// Category=GPU exists for: the same class of assertion already excluded from CI by
+// b9419c6. It is reliable on Windows and not on the Linux runner (see
+// docs/test-stability.md §11), so it runs locally with
+//   dotnet test tests\SenderNG.Tests --filter "Category=GPU"
+[Trait("Category", "GPU")]
 public class PlotterViewHeadlessTests
 {
     /// <summary>A long, dense toolpath so a "is the path drawn at all" pixel
