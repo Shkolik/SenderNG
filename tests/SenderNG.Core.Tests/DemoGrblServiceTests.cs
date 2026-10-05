@@ -238,31 +238,33 @@ public class DemoGrblServiceTests
         try
         {
             using var svc = new DemoGrblService(SettingsFor(3), file, pollIntervalMs: 10);
-            JogSnap? snap = null;
-            using var sub = svc.State.Subscribe(s => snap = JogSnap.From(s));
+
+            // Capture the FIRST snapshot that shows the jog advancing, from inside
+            // the listener rather than from the test thread. The demo advances a
+            // fixed step per poll tick (`_jogFeed * _pollIntervalMs / 60000` =
+            // 0.1 mm at 600 mm/min and 10 ms), so the first snapshot at/after
+            // 0.2 mm is exactly 0.2 mm however long the test thread is descheduled.
+            //
+            // Polling a `snap` field from the test thread instead is what made this
+            // flaky: under full-suite load the loop could be starved for ~1 s while
+            // the poll timer kept ticking, so the first value it ever observed was
+            // already tens of ticks in (observed: 11.4 mm) and the bound below
+            // failed even though the service behaved correctly.
+            JogSnap? advanced = null;
+            using var sub = svc.State.Subscribe(s =>
+            {
+                var candidate = JogSnap.From(s);
+                if (candidate.WorkX >= 0.2) // ≥ 2 ticks
+                    Interlocked.CompareExchange(ref advanced, candidate, null);
+            });
 
             await svc.ConnectAsync("demo");
             await svc.SendAsync("$J=G91 X200 F600"); // travel-length jog → continuous
 
-            // Wait for a few poll ticks of advance, then freeze the simulator and
-            // assert on the captured pair. A fixed wall-clock delay is not
-            // deterministic under full-suite load: a starved test thread can
-            // overshoot by hundreds of ms and rack up >2 mm of poll progress
-            // (each 10 ms tick = 0.1 mm at 600 mm/min). Waiting for a small
-            // advance bounds the captured distance inside the (0, 2) window
-            // regardless of scheduling load.
-            JogSnap? advanced = null;
             var deadline = DateTime.UtcNow.AddSeconds(5);
-            while (DateTime.UtcNow < deadline)
-            {
-                var candidate = Volatile.Read(ref snap);
-                if (candidate is not null && candidate.WorkX >= 0.2) // ≥ 2 ticks
-                {
-                    advanced = candidate;
-                    break;
-                }
+            while (Volatile.Read(ref advanced) is null && DateTime.UtcNow < deadline)
                 await Task.Delay(5);
-            }
+
             svc.SendRealtime(GrblRealtime.JogCancel); // stop the simulator's motion
 
             Assert.NotNull(advanced);

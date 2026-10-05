@@ -37,7 +37,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Avalonia.Controls;
-using Avalonia.Threading;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using CNC.GCode;
@@ -140,10 +139,10 @@ public class ProbeViewModel : ViewModelBase
             // App Settings toggles apply to the open tab immediately.
             _enabledTools = ReadEnabledTools();
             // Push the new enabled flags into the existing tabs instead of
-            // rebuilding ToolTabs: a rebuild constructs a second set of
-            // tool panels while the first is still alive, and their
-            // RadioButtons re-register the same GroupNames with Avalonia's
-            // per-root RadioButtonGroupManager ("same key already added").
+            // rebuilding ToolTabs: a rebuild replaces the tab objects, and once
+            // a panel has been materialized its RadioButtons re-register the
+            // same GroupNames with Avalonia's per-root RadioButtonGroupManager
+            // ("same key already added").
             ApplyEnabledTools();
             OnPropertyChanged(nameof(ToolChoices));
             OnPropertyChanged(nameof(SelectedToolChoice));
@@ -491,7 +490,24 @@ public class ProbeViewModel : ViewModelBase
         new("module.probing.heightmap", "Height map", MakePanel<HeightMapPanel>(), HeightMapEnabled),
     };
 
-    private UserControl MakePanel<T>() where T : UserControl, new() => new T { DataContext = this };
+    /// <summary>
+    /// Defers the panel construction to the first <see cref="ProbeToolTab.View"/>
+    /// access instead of building it here.
+    /// </summary>
+    /// <remarks>
+    /// Avalonia controls are owned by the thread that creates them, and a view
+    /// model must stay constructible off the UI thread: the constructor runs in
+    /// unit tests and in the probe hotkey/dispatcher paths, none of which are on
+    /// the UI thread. Building the panels eagerly made every ProbeViewModel own
+    /// five UserControls, so a later property change (for example the
+    /// <see cref="LocalizationService.Changed"/> re-raise below) updated a
+    /// binding on a control owned by another thread and threw
+    /// <c>InvalidOperationException: The calling thread cannot access this
+    /// object because a different thread owns it</c>. The view is a UI-thread
+    /// object; let the UI thread create it.
+    /// </remarks>
+    private Func<UserControl> MakePanel<T>() where T : UserControl, new() =>
+        () => new T { DataContext = this };
 
     /// <summary>The rotation pivot combo stays usable unless the
     /// "Determine X0,Y0" extra (which forces the (0,0) pivot) is active.</summary>
@@ -1624,9 +1640,9 @@ public class ProbeViewModel : ViewModelBase
 }
 
 /// <summary>One tab of ProbeView's tool TabControl (see
-/// <see cref="ProbeViewModel.ToolTabs"/>): the localized header, the tool
-/// panel view, and whether the tool is enabled for the machine. The header
-/// re-resolves on <see cref="LocalizationService.Changed"/> so tab names
+/// <see cref="ProbeViewModel.ToolTabs"/>): the localized header, the lazily
+/// built tool panel view, and whether the tool is enabled for the machine. The
+/// header re-resolves on <see cref="LocalizationService.Changed"/> so tab names
 /// follow a live locale switch, same as the {loc:Loc} markup extension;
 /// <see cref="IsEnabled"/> is updated in place on profile switches so the
 /// panels are never recreated. (Design mode has no localization service: the
@@ -1635,21 +1651,22 @@ public sealed class ProbeToolTab : INotifyPropertyChanged
 {
     private readonly string _key;
     private readonly string _fallback;
-    private readonly UserControl _view;
+    private readonly Func<UserControl> _viewFactory;
+    private UserControl? _view;
     private string _name;
     private bool _isEnabled;
 
-    public ProbeToolTab(string key, string fallback, UserControl view, bool isEnabled)
+    public ProbeToolTab(string key, string fallback, Func<UserControl> viewFactory, bool isEnabled)
     {
         _key = key;
         _fallback = fallback;
         _name = LocText.Resolve(key, fallback);
-        _view = view;
+        _viewFactory = viewFactory;
         _isEnabled = isEnabled;
 
         var loc = LocalizationService.Current;
         if (loc is not null)
-            loc.Changed += (_, _) => Dispatcher.UIThread.Post(() => Name = LocText.Resolve(_key, _fallback));
+            loc.Changed += (_, _) => UiThread.Post(() => Name = LocText.Resolve(_key, _fallback));
     }
 
     /// <summary>The localized tab header; raises <see cref="PropertyChanged"/>
@@ -1666,7 +1683,9 @@ public sealed class ProbeToolTab : INotifyPropertyChanged
         }
     }
 
-    public UserControl View => _view;
+    /// <summary>The tool panel, built on first access by the thread that asks
+    /// for it — the UI thread, when the TabControl binds it.</summary>
+    public UserControl View => _view ??= _viewFactory();
 
     /// <summary>Whether the machine profile enables the tool. Set in place on
     /// profile switches (see <see cref="ProbeViewModel.ApplyEnabledTools"/>).</summary>

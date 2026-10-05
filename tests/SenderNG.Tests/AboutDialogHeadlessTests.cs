@@ -46,6 +46,7 @@ using Xunit;
 
 namespace SenderNG.Tests;
 
+[Collection("LocalizationState")]
 public class AboutDialogHeadlessTests
 {
     [AvaloniaFact]
@@ -84,6 +85,28 @@ public class AboutDialogHeadlessTests
         await Task.Yield();
     }
 
+    /// <summary>
+    /// Pumps until the visual tree yields a matching descendant. A fixed pump
+    /// count is a bet on how many dispatcher jobs a window needs to realise; that
+    /// bet loses under full-suite load, and the lookup below then returns null
+    /// (observed as "Assert.NotNull() Failure: Value is null" on the dependency
+    /// caption) even though the view renders it correctly.
+    /// </summary>
+    private static async Task<T> WaitForVisual<T>(
+        Avalonia.Visual root, Func<T, bool> match, string because, int attempts = 500)
+        where T : Avalonia.Visual
+    {
+        for (var i = 0; i < attempts; i++)
+        {
+            var found = root.GetVisualDescendants().OfType<T>().FirstOrDefault(match);
+            if (found is not null)
+                return found;
+            await Pump();
+        }
+        Assert.Fail($"timed out after {attempts} pumps waiting for {because}");
+        throw new InvalidOperationException("unreachable"); // Assert.Fail does not annotate
+    }
+
     [AvaloniaFact]
     public async Task Modules_tab_renders_two_lines_and_dependency_chips()
     {
@@ -106,14 +129,12 @@ public class AboutDialogHeadlessTests
             // Caption + chips render only when the plugin declared dependencies.
             const string depCaption = "Dependencies";
             const string chipText = "SixLabors.ImageSharp v.3.1.12 · Six Labors Split License";
-            var caption = tabControl.GetVisualDescendants()
-                .OfType<TextBlock>()
-                .FirstOrDefault(t => t.Text == depCaption);
+            var caption = await WaitForVisual<TextBlock>(tabControl, t => t.Text == depCaption,
+                "the dependency caption to render");
             Assert.NotNull(caption);
             // The chip strip rendered one dependency (TextBlock matching OneLine).
-            var chip = tabControl.GetVisualDescendants()
-                .OfType<TextBlock>()
-                .FirstOrDefault(t => t.Text == chipText);
+            var chip = await WaitForVisual<TextBlock>(tabControl, t => t.Text == chipText,
+                "the dependency chip to render");
             Assert.NotNull(chip);
             window.Close();
         }

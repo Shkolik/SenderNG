@@ -45,6 +45,7 @@ using Xunit;
 
 namespace SenderNG.Tests;
 
+[Collection("LocalizationState")]
 public class ShellLocalizationHeadlessTests
 {
     [AvaloniaFact]
@@ -57,13 +58,24 @@ public class ShellLocalizationHeadlessTests
             LocalizationService.Current = locale;
 
             var window = BuildMainWindow(locale);
-            for (var i = 0; i < 4; i++) await Pump();
+
+            // Static {loc:Loc} string (State-area Home button) and the VM-computed title.
+            // Wait for the shell to realise instead of assuming four pumps are enough:
+            // under full-suite load the window can still have no Home button at all
+            // after four, which surfaced as "Sequence contains no matching element"
+            // from the First() below. The assertions stay exact — only the time the
+            // test is prepared to wait for them changes.
+            Button? homeButton = null;
+            await WaitFor(
+                () => (homeButton = window.GetVisualDescendants().OfType<Button>()
+                    .FirstOrDefault(b => b.Content is string s && s == "Home")) is not null,
+                "the Home button to appear");
+            await WaitFor(
+                () => window.Title?.Contains("SenderNG", StringComparison.Ordinal) == true,
+                "the window title to be localized");
             var englishTitle = window.Title;
 
-            // A static {loc:Loc} string (State-area Home button) and the VM-computed title.
-            var homeButton = window.GetVisualDescendants().OfType<Button>()
-                .First(b => b.Content is string s && s == "Home");
-            Assert.Equal("Home", homeButton.Content);
+            Assert.Equal("Home", homeButton!.Content);
             Assert.Contains("SenderNG", englishTitle);
 
             if (locale.AvailableLocales.Contains("ru"))
@@ -71,8 +83,13 @@ public class ShellLocalizationHeadlessTests
                 try
                 {
                     locale.SetLocale("ru");
-                    for (var i = 0; i < 4; i++) await Pump();
-                    Assert.Equal("Домой", homeButton.Content);
+                    await WaitFor(
+                        () => homeButton!.Content is "Домой",
+                        "the Home button to follow the live locale switch");
+                    await WaitFor(
+                        () => window.Title != englishTitle,
+                        "the window title to follow the live locale switch");
+                    Assert.Equal("Домой", homeButton!.Content);
                     Assert.NotEqual(englishTitle, window.Title);
                 }
                 finally
@@ -115,5 +132,23 @@ public class ShellLocalizationHeadlessTests
         Dispatcher.UIThread.RunJobs();
         AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
         await Task.Yield();
+    }
+
+    /// <summary>
+    /// Pumps the dispatcher until <paramref name="condition"/> holds. A fixed pump
+    /// count is a bet on how many dispatcher jobs a window needs to realise its
+    /// visual tree and resolve its <c>{loc:Loc}</c> bindings; that bet loses under
+    /// full-suite load, so state that must eventually be reached is waited for
+    /// instead of assumed.
+    /// </summary>
+    private static async Task WaitFor(Func<bool> condition, string because, int attempts = 500)
+    {
+        for (var i = 0; i < attempts; i++)
+        {
+            if (condition())
+                return;
+            await Pump();
+        }
+        Assert.Fail($"timed out after {attempts} pumps waiting for {because}");
     }
 }
