@@ -28,7 +28,12 @@ jobs:
         run: dotnet test SenderNG.sln -c Release --filter "Category!=Hardware&Category!=GPU" --logger trx
 
       - name: Collect MSBuild node diagnostics
-        if: failure() && runner.os == 'Linux'
+        # always(), not failure(): the intermittent ubuntu-latest death arrives as
+        # "the runner has received a shutdown signal" followed by MSB4166, and a
+        # cancelled job skips failure()-conditioned steps — which is exactly how the
+        # first occurrence lost its cgroup/OOM evidence. Diagnostics only; this
+        # cannot mask a failure or retry anything.
+        if: always() && runner.os == 'Linux'
         shell: bash
         run: |
           set +e
