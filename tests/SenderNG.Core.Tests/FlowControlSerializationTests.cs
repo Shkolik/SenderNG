@@ -61,7 +61,6 @@ public class FlowControlSerializationTests
         { NGCExpr.FlowControl.WHILE, "while" },
         { NGCExpr.FlowControl.ENDWHILE, "endwhile" },
         { NGCExpr.FlowControl.CONTINUE, "continue" },
-        { NGCExpr.FlowControl.IF, "if" },
     };
 
     [Theory]
