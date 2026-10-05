@@ -65,12 +65,15 @@ using static SenderNG.Tests.PlotterTestStubs;
 
 namespace SenderNG.Tests;
 
-// Asserts on RENDERED pixel content (PlotterPixels / CaptureFrame), which is what
-// Category=GPU exists for: the same class of assertion already excluded from CI by
-// b9419c6. It is reliable on Windows and not on the Linux runner (see
-// docs/test-stability.md §11), so it runs locally with
-//   dotnet test tests\SenderNG.Tests --filter "Category=GPU"
-[Trait("Category", "GPU")]
+// Not Category=GPU. That tag is for a test that fails only under load or only on
+// Linux — not for asserting on pixels as such — and after the §11 fix nothing in
+// this class does. Measured over 173 full-assembly runs in WSL2, 132 of them
+// under four parallel workers, the only test in the class that ever failed was
+// A_burst_of_chrome_flips_does_not_chain_one_bake_per_slot — root-caused and
+// fixed 2026-10-05 (docs/test-stability.md §11), and 0 failures in 40 runs under
+// that same load afterwards. The class was also in the gate for every CI run that
+// reported 160 for SenderNG.Tests, all green.
+// PlotterLiveRunHeadlessTests keeps the tag: its Iso_* pair still flakes.
 public class PlotterViewHeadlessTests
 {
     /// <summary>A long, dense toolpath so a "is the path drawn at all" pixel
