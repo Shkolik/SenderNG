@@ -19,6 +19,7 @@ namespace SenderNG.Core.Tests.Rendering;
 /// once the build wave has pumped, run-state churn must NEVER replace the
 /// registered static geometry behind any node.
 /// </summary>
+[Trait("Category", "GPU")]
 public static class StaticGeometryStabilityTests
 {
     [Fact]

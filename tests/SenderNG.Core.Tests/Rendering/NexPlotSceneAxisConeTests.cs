@@ -44,6 +44,7 @@ using SenderNG.Modules.Plotter.Nex.Settings;
 
 namespace SenderNG.Core.Tests;
 
+[Trait("Category", "GPU")]
 public class NexPlotSceneAxisConeTests
 {
     [Theory]
