@@ -1132,7 +1132,22 @@ public class PlotterViewHeadlessTests
         for (var i = 0; i < 8; i++)
             await Pump();
         await DrainRebakeQueue(view);
+
+        // Wait for the repaint to land instead of trusting the eight pumps above:
+        // the bake is async, so on a slow runner the capture can still come back
+        // blank. ubuntu-latest failed exactly here — "carriage 1 must be rebaked,
+        // found 0 green pixels" — on the same commit that passed on Windows.
+        // Re-capture until both carriages carry green; the assertions stay exact,
+        // only the time the test is prepared to wait changes.
         var frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        for (var attempt = 0; attempt < 400; attempt++)
+        {
+            if (GreenInCarriage(frame, 0) > 400 && GreenInCarriage(frame, 1) > 400)
+                break;
+            await Pump();
+            frame = PlotterPixels.Snapshot(CaptureFrame(window));
+        }
+
         Assert.True(GreenInCarriage(frame, 0) > 400, $"carriage 1 must be rebaked, found {GreenInCarriage(frame, 0)} green pixels");
         Assert.True(GreenInCarriage(frame, 1) > 400, $"carriage 2 must be rebaked, found {GreenInCarriage(frame, 1)} green pixels");
     }
