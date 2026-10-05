@@ -90,7 +90,19 @@ public class NexCarriagePlaneLayerTests
         // the list between those two reads overflows the destination
         // ("Destination array was not long enough"). Mirrors the crash observed
         // loading a real mill file (kraft-st-adapter.nc).
-        var staging = new Geometry(Topology.Line, isDynamic: true);
+        //
+        // The writer's depth is capped deliberately. It used to append for the whole
+        // window with no ceiling, so the arrays behind these lists grew without limit
+        // while every snapshot copied them: measured on WSL as a single dotnet process
+        // at ~15 GB of anonymous RSS, and a global OOM kill that took the whole VM
+        // down. A 7 GB GitHub runner is smaller still, so the ubuntu leg died with
+        // "The operation was canceled." and no artifacts — the runner agent was
+        // OOM-killed before its post-steps could run. The race under test is
+        // "appended to while a snapshot copies it", which holds at any size, so the
+        // writer publishes a fresh geometry once the live one fills instead of growing
+        // one for ever.
+        const int cap = 200_000; // ~6 MB of vertices per buffer, at most two live
+        var slot = new Geometry[1] { new Geometry(Topology.Line, isDynamic: true) };
         using var stop = new CancellationTokenSource();
         var failures = 0;
         long snapshots = 0;
@@ -100,10 +112,19 @@ public class NexCarriagePlaneLayerTests
             var i = 0;
             while (!stop.IsCancellationRequested)
             {
+                var target = Volatile.Read(ref slot[0]);
                 for (var b = 0; b < 4096; b++)
                 {
-                    staging.Vertices.Add(new Vector4(i, i, i, 1f));
-                    staging.VertexColors.Add(new Vector4(0.5f, 0.5f, 0.5f, 1f));
+                    if (target.Vertices.Count >= cap)
+                    {
+                        // Hand the snapshot loop a fresh list rather than clearing this
+                        // one: clearing under a concurrent CopyTo would trip exactly the
+                        // ArgumentException this test asserts cannot escape.
+                        target = new Geometry(Topology.Line, isDynamic: true);
+                        Volatile.Write(ref slot[0], target);
+                    }
+                    target.Vertices.Add(new Vector4(i, i, i, 1f));
+                    target.VertexColors.Add(new Vector4(0.5f, 0.5f, 0.5f, 1f));
                     i++;
                 }
                 Thread.Yield();
@@ -118,7 +139,7 @@ public class NexCarriagePlaneLayerTests
             {
                 try
                 {
-                    var geo = NexCarriagePlaneLayer.BuildStatic(staging);
+                    var geo = NexCarriagePlaneLayer.BuildStatic(Volatile.Read(ref slot[0]));
                     // A torn snapshot must still satisfy the renderer's invariant:
                     // colors are indexed per vertex.
                     Assert.True(geo.VertexColors.Count >= geo.Vertices.Count);
