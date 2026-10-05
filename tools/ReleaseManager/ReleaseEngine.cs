@@ -103,6 +103,7 @@ public sealed class ReleaseEngine
                 Directory.CreateDirectory(pluginsRoot);
                 foreach (var plugin in plugins)
                 {
+                    ct.ThrowIfCancellationRequested();
                     _log.Info($"Staging plugin {plugin.Id}...");
                     var publish = await _cli.PublishPluginAsync(_repoRoot, Path.Combine(_repoRoot, plugin.Project.Replace('/', Path.DirectorySeparatorChar)), platform, Path.Combine(tmp, "plugins", plugin.Id), ct);
                     var projectDir = Path.GetDirectoryName(Path.Combine(_repoRoot, plugin.Project.Replace('/', Path.DirectorySeparatorChar)))!;
