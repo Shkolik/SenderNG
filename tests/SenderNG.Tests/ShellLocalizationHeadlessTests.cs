@@ -52,12 +52,14 @@ public class ShellLocalizationHeadlessTests
     public async Task Shell_localizes_live_on_locale_switch()
     {
         var prev = LocalizationService.Current;
+        Window window = null!;
+        SenderNG.ViewModels.MainViewModel vm = null!;
         try
         {
             var locale = HeadlessTestCatalog.Locale;
             LocalizationService.Current = locale;
 
-            var window = BuildMainWindow(locale);
+            (window, vm) = BuildMainWindow(locale);
 
             // Static {loc:Loc} string (State-area Home button) and the VM-computed title.
             // Wait for the shell to realise instead of assuming four pumps are enough:
@@ -103,11 +105,24 @@ public class ShellLocalizationHeadlessTests
         }
         finally
         {
+            // Disposing the view model is load-bearing, not tidiness: it is the only
+            // thing that removes its handler from the process-global
+            // LocalizationService.Changed (MainViewModel.Dispose, MainViewModel.cs:1370).
+            // A live-but-abandoned MainViewModel keeps reacting to every later
+            // SetLocale and pushes property changes into the bindings of the window it
+            // was attached to — from whatever thread called SetLocale. On CI that
+            // surfaced several tests later, in a different class, as
+            // "The calling thread cannot access this object because a different
+            // thread owns it" (AboutDialogModelTests, on a pool thread, driving a
+            // TabControl owned by the Avalonia dispatcher thread). Same hazard the
+            // LegacyStatics note in SenderNG.Core.Tests describes, and the same reason
+            // it must happen on the failure path too.
+            vm?.Dispose();
             LocalizationService.Current = prev;
         }
     }
 
-    private static Window BuildMainWindow(LocalizationService locale)
+    private static (Window Window, SenderNG.ViewModels.MainViewModel Vm) BuildMainWindow(LocalizationService locale)
     {
         var dir = Path.Combine(Path.GetTempPath(), "senderng-headless-" + Guid.NewGuid().ToString("N"));
         var settings = new SettingsService(dir);
@@ -121,9 +136,10 @@ public class ShellLocalizationHeadlessTests
         var vm = new SenderNG.ViewModels.MainViewModel(
             provider.GetRequiredService<DemoGrblService>(),
             settings,
-            provider);        var window = new MainWindow { DataContext = vm };
+            provider);
+        var window = new MainWindow { DataContext = vm };
         window.Show();
-        return window;
+        return (window, vm);
     }
 
     /// <summary>Drain the dispatcher so locale-change notifications and re-renders land.</summary>
