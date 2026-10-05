@@ -25,6 +25,11 @@ Guidance for AI agents (and human contributors) making changes to SenderNG. This
 - `src/SenderNG.Core` — engine (namespaces `CNC.GCode`, `CNC.Core`, `SenderNG.*`); `src/SenderNG` — UI; `tests/SenderNG.Core.Tests` — xUnit tests.
 - **Copyright headers** — every file carries a per-author copyright header (mine-only / double / untouched). The exact forms and the rule for choosing one are in `docs/copyright-headers.md`; follow it for all new files.
 - **Avalonia UI gotchas** — master/detail editor panels reuse one set of Controls across items, and recycled Controls fire Change events with stale state during a selection switch; never write from an editor's event handler without guarding by editor type (see `docs/avalonia-gotchas.md`). Read it before touching any editor-driven widget.
+- **Test categories** — three `Category` traits are excluded from CI because they are not reliable on a loaded 2-core runner. Run them locally, explicitly, when you touch the area:
+  - `Hardware` — needs a board on the bench (see the bullet above).
+  - `GPU` — asserts on **rendered pixel content** (`PlotterViewHeadlessTests`, `PlotterLiveRunHeadlessTests`, `NexPlotSceneAxisConeTests`, `StaticGeometryStabilityTests`). Reliable on Windows, not on the Linux runner: `dotnet test tests\SenderNG.Tests --filter "Category=GPU"`.
+  - `Timing` — asserts on **wall-clock behaviour** (the poll/timeout and handshake-budget families in `RealGrblServiceTests`, the continuous-jog/poll-loop ones in `DemoGrblServiceTests`, and a few others): `dotnet test tests\SenderNG.Core.Tests --filter "Category=Timing"`.
+  CI and the release gate use `--filter "Category!=Hardware&Category!=GPU&Category!=Timing"` (`ci.yml:28` and `DotnetCli.cs:54` — keep those two strings identical). A test that fails only under load, or only on Linux, belongs in `GPU` or `Timing`; do not widen a bound to make CI green.
 - Deferred scope (don't implement or extend without being asked): Lathe wizards, DragKnife.
 - The build is **warning-free** (verified by full rebuild 2026-09-17; earlier clean builds: 2026-09-07). Keep it that way — do not add new warnings.
 
