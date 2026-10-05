@@ -631,9 +631,20 @@ public class PlotterNexViewModelTests : IDisposable
         Assert.Empty(layer.RebuildCalls);
         Assert.InRange(layer.RunStateCalls.Count, 4000, PlotterNexViewModel.RunStateWindowCap);
 
-        // The remainder is picked up by the next pass, converging without a rescan.
-        vm.ApplyRunStateWindow();
-        Assert.Empty(layer.RebuildCalls);
+        // The remainder converges over further passes, and how many are needed
+        // depends on how much of the async build has landed by the time they run —
+        // so do not assume exactly two. On a loaded CI runner the second pass applied
+        // nothing at all because the tail rows were not mapped yet, and the equality
+        // below failed on 4095 (the first pass's cap-bounded total). What must hold is
+        // that every pass stays bounded (asserted above) and that the frontier
+        // converges without ever falling back to the O(n) full rescan.
+        var passes = 1;
+        while (layer.RunStateCalls.Count < 5000 && passes < 200)
+        {
+            vm.ApplyRunStateWindow();
+            passes++;
+            Assert.Empty(layer.RebuildCalls);
+        }
         Assert.Equal(5000, layer.RunStateCalls.Count);
     }
 
