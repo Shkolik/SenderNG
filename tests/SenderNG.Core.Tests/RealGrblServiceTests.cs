@@ -133,6 +133,15 @@ public sealed class FakeGrblTransport : IGrblTransport, IPortPresenceCheck
         lock (_writtenGate) _writtenRawBytes.Clear();
     }
 
+    /// <summary>Invoked on every realtime status request (<c>?</c>) the service
+    /// writes, from the poller thread.</summary>
+    /// <remarks>
+    /// Lets a test answer polls synchronously, so a scenario that depends on the
+    /// controller "keeps talking" is driven by the service's own poll cadence
+    /// instead of a delay loop on the test thread that load can starve.
+    /// </remarks>
+    public Action? OnStatusRequest { get; set; }
+
     public ConnectResetMode OpenedWithResetMode { get; private set; }
 
     public void Open(string target, int baudRate, ConnectResetMode resetMode = ConnectResetMode.None)
@@ -190,6 +199,8 @@ public sealed class FakeGrblTransport : IGrblTransport, IPortPresenceCheck
     public void WriteByte(byte b)
     {
         lock (_writtenGate) _writtenRawBytes.Add(((char)b).ToString());
+        if (b == 0x3F)
+            OnStatusRequest?.Invoke(); // '?' — realtime status request
     }
 
     public void Dispose() => Close();
@@ -538,10 +549,15 @@ public class RealGrblServiceTests
         // A long operation with a live controller (homing a big slow machine):
         // status reports keep sliding the silence window, so a reply that takes
         // many windows to arrive is fine as long as the controller keeps talking.
-        // The report cadence (70 ms) must stay comfortably inside the window: the
-        // test thread can be descheduled for a long time under full-suite load, so
-        // a 100 ms window with 30 ms slack flakes when a delay overshoots. Use a
-        // 300 ms window (230 ms slack) while still crossing ~3 windows.
+        //
+        // The whole scenario is driven from the poller thread by answering the
+        // service's own status requests, instead of a Task.Delay loop on the test
+        // thread. A delay loop bets that the gap between two iterations stays
+        // inside the window; under full-suite load the test thread can be starved
+        // well past it, and this test then failed with a spurious command timeout
+        // (observed: 2 s run, the only failure of a full-suite pass) while the
+        // service behaved correctly. Answering polls keeps the controller talking
+        // by construction — which is the property actually under test.
         var transport = new FakeGrblTransport { AutoReply = false };
         using var svc = new RealGrblService(transport)
         {
@@ -550,16 +566,29 @@ public class RealGrblServiceTests
         };
         await svc.ConnectAsync("fake");
 
-        var sendTask = svc.SendAsync("$H");
-        for (var i = 0; i < 12; i++)
+        // 18 polls at 50 ms ≈ 900 ms of reports, crossing ~3 windows of 300 ms.
+        const int reports = 18;
+        var polled = 0;
+        transport.OnStatusRequest = () =>
         {
-            await Task.Delay(70);
-            transport.Enqueue($"<Run|MPos:{i},0,0>"); // grbl keeps reporting while working
-        }
-        transport.Enqueue("<Idle|MPos:0,0,0>");
-        transport.Enqueue("ok");
+            var n = Interlocked.Increment(ref polled);
+            if (n > reports)
+                return;
+            transport.Enqueue($"<Run|MPos:{n},0,0>"); // grbl keeps reporting while working
+            if (n == reports)
+            {
+                // The reply lands from the poller thread too, so the hand-off from
+                // "still talking" to "finished" cannot be delayed by scheduling.
+                transport.Enqueue("<Idle|MPos:0,0,0>");
+                transport.Enqueue("ok");
+            }
+        };
+
+        var sendTask = svc.SendAsync("$H");
 
         await sendTask.WaitAsync(TimeSpan.FromSeconds(10)); // must NOT timeout
+        Assert.True(Volatile.Read(ref polled) >= reports,
+            $"expected the poller to drive {reports} reports, saw {polled}");
     }
 
     [Fact]
