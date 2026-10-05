@@ -69,6 +69,7 @@ public class VulkanCapabilityTests
     // behaviour, which is what makes the probe safe to call from the
     // scene-construction thread pool.
     [Fact]
+    [Trait("Category", "GPU")]
     public void Detect_is_stable_across_repeated_and_concurrent_calls()
     {
         var first = VulkanCapabilities.Detect();
@@ -84,6 +85,7 @@ public class VulkanCapabilityTests
     // that it never throws and only ever returns a defined value. The specific
     // value is machine-dependent, so it is reported rather than asserted.
     [Fact]
+    [Trait("Category", "GPU")]
     public void Detect_never_throws_and_returns_a_defined_capability()
     {
         var capability = VulkanCapabilities.Detect();
