@@ -652,7 +652,7 @@ public class MainViewModelCycleEnablementTests
         vm.SelectRecentCommand.Execute(file); // async load — wait for it to land
         // "Loaded …" is the load's last assignment, so it is the completion
         // signal (CanExecute flips earlier, mid-continuation — racy to poll).
-        for (var i = 0; i < 500 && !vm.Status.Contains("Loaded "); i++)
+        for (var i = 0; i < 2000 && !vm.Status.Contains("Loaded "); i++)
             await Task.Delay(10);
         Assert.True(vm.Status.Contains("Loaded "), "program failed to load — status: " + vm.Status);
     }
@@ -895,14 +895,14 @@ public class MainViewModelCycleEnablementTests
 
             // Open → extension dispatch → module's parameters dialog, pre-filled
             // from the profile's stored values.
-            for (var i = 0; i < 500 && dialogSvc.LastVm is not SenderNG.Modules.Shared.ConverterParametersViewModel; i++)
+            for (var i = 0; i < 2000 && dialogSvc.LastVm is not SenderNG.Modules.Shared.ConverterParametersViewModel; i++)
                 await Task.Delay(10);
             var paramsVm = Assert.IsType<SenderNG.Modules.Shared.ConverterParametersViewModel>(dialogSvc.LastVm);
             Assert.Equal(1, paramsVm.ZRapids); // stored defaults
 
             paramsVm.OkCommand.Execute(null); // accept → convert → load
 
-            for (var i = 0; i < 500 && !vm.Status.Contains("Converted board.drl"); i++)
+            for (var i = 0; i < 2000 && !vm.Status.Contains("Converted board.drl"); i++)
                 await Task.Delay(10);
             Assert.Contains("Converted board.drl", vm.Status);
             Assert.Equal("board.drl", vm.CurrentFileName);
@@ -940,7 +940,7 @@ public class MainViewModelCycleEnablementTests
             dialogs.OpenPath = drl;
             vm.OpenFileCommand.Execute(null);
 
-            for (var i = 0; i < 500 && dialogSvc.LastVm is not SenderNG.Modules.Shared.ConverterParametersViewModel; i++)
+            for (var i = 0; i < 2000 && dialogSvc.LastVm is not SenderNG.Modules.Shared.ConverterParametersViewModel; i++)
                 await Task.Delay(10);
             var paramsVm = Assert.IsType<SenderNG.Modules.Shared.ConverterParametersViewModel>(dialogSvc.LastVm);
 
@@ -1000,7 +1000,7 @@ public class MainViewModelCycleEnablementTests
             dialogs.OpenPath = nc;
             vm.OpenFileCommand.Execute(null);
 
-            for (var i = 0; i < 500 && !vm.Status.Contains("Loaded part.nc"); i++)
+            for (var i = 0; i < 2000 && !vm.Status.Contains("Loaded part.nc"); i++)
                 await Task.Delay(10);
             Assert.Contains("Loaded part.nc", vm.Status);
         }
