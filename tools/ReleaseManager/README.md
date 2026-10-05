@@ -9,9 +9,10 @@ Authoritative design: `docs/superpowers/specs/2026-09-18-releasemanager-design.m
 
 ## Requirements
 
-- .NET 9 SDK (≥ `9.0.316`, pinned by `global.json`)
-- NuGet feeds configured (HelixToolkit GitHub Packages token lives in the
-  user-level `NuGet.Config`)
+- .NET 9 SDK (≥ `9.0.100`, pinned by `global.json`)
+- NuGet feeds configured: the feed URLs come from the repo's tracked
+  `NuGet.config`; only the HelixToolkit GitHub Packages token lives in the
+  user-level `NuGet.Config`
 - Run from the **repo root** (`SenderNG.sln` must be in the current directory)
 
 ### Linux runtime prerequisites (target machine)
@@ -188,8 +189,8 @@ else it owns goes under `<plugin-id>/` (locale + closure). Host-owned assemblies
    sudo apt update
    sudo apt install -y dotnet-sdk-9.0 git
    ```
-   The pinned `9.0.316` rolls forward within `latestPatch`, so any `9.0.3xx`
-   SDK is fine. Verify with `dotnet --version`.
+   The pinned `9.0.100` rolls forward within `latestFeature`, so any
+   `9.0.100`-or-higher SDK on the 9.0 line is fine. Verify with `dotnet --version`.
 4. **Install the runtime X11 packages** (needed for the WSLg smoke test and by
    the bundle on any Ubuntu target — see "Linux runtime prerequisites"):
    ```

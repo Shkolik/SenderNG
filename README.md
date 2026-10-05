@@ -202,7 +202,9 @@ Tests **run by default**: pass `-SkipTests` and the script passes
 `--skip-tests` instead.
 
 The script does not install an SDK or touch NuGet credentials. `global.json`
-pins `9.0.316`, which the script expects to find at `~/.dotnet` inside WSL.
+pins `9.0.100` with `rollForward: latestFeature`; the preflight asks the
+resolver (`cd "$SRC" && dotnet --version`) for what satisfies that pin rather
+than looking for a literal directory.
 A path containing a space is rejected, because `wsl.exe` cannot pass one
 through as a single argument.
 
