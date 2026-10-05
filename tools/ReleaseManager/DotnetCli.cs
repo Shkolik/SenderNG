@@ -47,7 +47,12 @@ public sealed class DotnetCli : ICli
     }
 
     public async Task TestAsync(string repoRoot, CancellationToken ct = default)
-        => await RunAsync("dotnet test SenderNG.sln", _runner.RunAsync(repoRoot, "dotnet", ct, "test", "SenderNG.sln"));
+        => await RunAsync(
+            "dotnet test SenderNG.sln -c Release (excluding Hardware and GPU)",
+            _runner.RunAsync(repoRoot, "dotnet", ct, "test", "SenderNG.sln",
+                "-c", "Release",
+                "--filter", "Category!=Hardware&Category!=GPU",
+                "--logger", "trx"));
 
     public async Task<string> PublishAppAsync(string repoRoot, ReleasePlatform platform, string outputDir, CancellationToken ct = default)
     {

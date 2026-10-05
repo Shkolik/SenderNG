@@ -4,7 +4,7 @@ param(
     [string]$MirrorDir,
     [switch]$Plugins,
     [switch]$NoZip,
-    [switch]$RunTests,
+    [switch]$SkipTests,
     [switch]$DryRun
 )
 
@@ -45,7 +45,7 @@ function Get-LinuxBuildEnv {
         [string]$MirrorDirWsl = "",
         [switch]$IncludePlugins,
         [switch]$NoZip,
-        [switch]$RunTests,
+        [switch]$SkipTests,
         [switch]$DryRun
     )
 
@@ -57,7 +57,7 @@ function Get-LinuxBuildEnv {
         SENDENG_MIRROR_WSL      = $MirrorDirWsl
         SENDENG_INCLUDE_PLUGINS = (Flag ([bool]$IncludePlugins))
         SENDENG_NO_ZIP          = (Flag ([bool]$NoZip))
-        SENDENG_RUN_TESTS       = (Flag ([bool]$RunTests))
+        SENDENG_SKIP_TESTS      = (Flag ([bool]$SkipTests))
         SENDENG_LINUX_DRYRUN    = (Flag ([bool]$DryRun))
     }
 }
@@ -141,9 +141,9 @@ rsync -a \
 # be the mirror.
 cd "$MIRROR"
 
-ARGS=(--skip-tests)
-if [ "${SENDENG_RUN_TESTS:-0}" = "1" ]; then
-    ARGS=()
+ARGS=()
+if [ "${SENDENG_SKIP_TESTS:-0}" = "1" ]; then
+    ARGS=(--skip-tests)
 fi
 if [ "${SENDENG_INCLUDE_PLUGINS:-0}" = "1" ]; then
     ARGS+=(--include-plugins)
@@ -241,7 +241,7 @@ function Invoke-LinuxReleaseBuild {
     Write-Host ""
 
     $envVars = Get-LinuxBuildEnv -RepoRootWsl $repoWsl -OutRootWsl $outWsl -MirrorDirWsl $mirrorWsl `
-        -IncludePlugins:$Plugins -NoZip:$NoZip -RunTests:$RunTests -DryRun:$DryRun
+        -IncludePlugins:$Plugins -NoZip:$NoZip -SkipTests:$SkipTests -DryRun:$DryRun
 
     $wslArgs = @("-d", $Distro, "-e", "env")
     foreach ($k in $envVars.Keys) { $wslArgs += "$k=$($envVars[$k])" }

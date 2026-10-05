@@ -73,3 +73,15 @@ public static class TempRepo
         return path;
     }
 }
+
+public sealed class RecordingProcessRunner : IProcessRunner
+{
+    public List<(string WorkingDirectory, string FileName, string[] Arguments, CancellationToken Ct)> Calls { get; } = [];
+    public ProcessResult Result { get; set; } = new(0, [], []);
+
+    public Task<ProcessResult> RunAsync(string workingDirectory, string fileName, CancellationToken ct, params string[] arguments)
+    {
+        Calls.Add((workingDirectory, fileName, arguments, ct));
+        return Task.FromResult(Result);
+    }
+}

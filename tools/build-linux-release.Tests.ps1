@@ -59,22 +59,22 @@ Write-Host "`nGet-LinuxBuildEnv"
 # block containing $env.TEMP would resolve this OrderedDictionary instead of
 # the environment provider, and pass for the wrong reason.
 $envDefault = Get-LinuxBuildEnv -RepoRootWsl "/mnt/c/r" -OutRootWsl "/mnt/c/r/output" -MirrorDirWsl "" `
-        -IncludePlugins:$false -NoZip:$false -RunTests:$false -DryRun:$false
+        -IncludePlugins:$false -NoZip:$false -SkipTests:$false -DryRun:$false
 Assert-Equal $envDefault.SENDENG_REPO_WSL "/mnt/c/r" "repo path is passed through"
 Assert-Equal $envDefault.SENDENG_OUTROOT_WSL "/mnt/c/r/output" "output root is passed through"
 Assert-NotNull $envDefault.SENDENG_MIRROR_WSL "mirror key exists (guards the empty-string check below)"
 Assert-Equal $envDefault.SENDENG_MIRROR_WSL "" "empty mirror dir defers to the bash default"
 Assert-Equal $envDefault.SENDENG_INCLUDE_PLUGINS "0" "plugins default off"
 Assert-Equal $envDefault.SENDENG_NO_ZIP "0" "zip default on"
-Assert-Equal $envDefault.SENDENG_RUN_TESTS "0" "tests default to skipped"
+Assert-Equal $envDefault.SENDENG_SKIP_TESTS "0" "tests run by default"
 Assert-Equal $envDefault.SENDENG_LINUX_DRYRUN "0" "dry run defaults off"
 
 $envAll = Get-LinuxBuildEnv -RepoRootWsl "/mnt/c/r" -OutRootWsl "/mnt/c/r/output" -MirrorDirWsl "/home/andrew/m" `
-            -IncludePlugins -NoZip -RunTests -DryRun
+            -IncludePlugins -NoZip -SkipTests -DryRun
 Assert-Equal $envAll.SENDENG_MIRROR_WSL "/home/andrew/m" "explicit mirror dir is honoured"
 Assert-Equal $envAll.SENDENG_INCLUDE_PLUGINS "1" "-Plugins sets include-plugins"
 Assert-Equal $envAll.SENDENG_NO_ZIP "1" "-NoZip sets no-zip"
-Assert-Equal $envAll.SENDENG_RUN_TESTS "1" "-RunTests sets run-tests"
+Assert-Equal $envAll.SENDENG_SKIP_TESTS "1" "-SkipTests sets skip-tests"
 Assert-Equal $envAll.SENDENG_LINUX_DRYRUN "1" "-DryRun sets dry-run"
 
 Write-Host "`nNew-LinuxBuildBash"
@@ -99,6 +99,8 @@ Assert-Equal ($bash -notmatch 'rm -rf[^#\n]*win64') $true "no rm ever targets wi
 Assert-Equal ($bash -match [regex]::Escape('exit "$RC"')) $true "propagates the ReleaseManager exit code"
 Assert-Equal ($bash -match [regex]::Escape('DRY RUN: would replace')) $true "dry run reports the copy-back instead of performing it"
 Assert-Equal ($bash -match 'rm -rf "\$LINUX_OUT"') $true "a real run still wipes output/linux so the copy-back is fresh"
+Assert-Equal ($bash -match [regex]::Escape('ARGS=()')) $true "tests run by default in the payload"
+Assert-Equal ($bash -match [regex]::Escape('SENDENG_SKIP_TESTS')) $true "payload honours SENDENG_SKIP_TESTS"
 
 Write-Host "`nDry run against a scratch output root"
 $scratch = Join-Path $env:TEMP ("sendeng-linux-test-" + [guid]::NewGuid().ToString("N"))

@@ -57,6 +57,28 @@ public class DotnetCliTests
         Assert.Null(version);
     }
 
+    [Fact]
+    public async Task TestAsync_runs_the_canonical_filtered_release_invocation()
+    {
+        var runner = new RecordingProcessRunner();
+        var cli = new DotnetCli(runner);
+
+        await cli.TestAsync("/repo");
+
+        var call = Assert.Single(runner.Calls);
+        Assert.Equal("dotnet", call.FileName);
+        Assert.Equal("/repo", call.WorkingDirectory);
+        Assert.Equal(
+            new[]
+            {
+                "test", "SenderNG.sln",
+                "-c", "Release",
+                "--filter", "Category!=Hardware&Category!=GPU",
+                "--logger", "trx"
+            },
+            call.Arguments);
+    }
+
     private static string WriteFixture(string? version)
     {
         var dir = TempDir.New();

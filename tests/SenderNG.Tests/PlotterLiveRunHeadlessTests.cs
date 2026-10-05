@@ -65,6 +65,7 @@ using static SenderNG.Tests.PlotterTestStubs;
 
 namespace SenderNG.Tests;
 
+[Trait("Category", "GPU")]
 public class PlotterLiveRunHeadlessTests
 {
     /// <summary>A long square spiral so the tool glyph travels far across the
