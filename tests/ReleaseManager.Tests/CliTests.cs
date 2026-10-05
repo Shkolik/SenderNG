@@ -126,4 +126,49 @@ public class CliTests
         Assert.Equal(["hpgl"], options.PluginIds);
         Assert.True(options.NoZip);
     }
+
+    [Fact]
+    public void EnsureOutputUnderRepo_accepts_the_default_output_directory()
+    {
+        var repo = TempRepo.New();
+        Assert.Null(Record.Exception(() => Cli.EnsureOutputUnderRepo(repo, "output")));
+    }
+
+    [Fact]
+    public void EnsureOutputUnderRepo_accepts_a_subdirectory_of_output()
+    {
+        var repo = TempRepo.New();
+        Assert.Null(Record.Exception(() => Cli.EnsureOutputUnderRepo(repo, Path.Combine("output", "staging"))));
+    }
+
+    [Fact]
+    public void EnsureOutputUnderRepo_rejects_a_directory_outside_the_repo()
+    {
+        var repo = TempRepo.New();
+        var outside = TempDir.New();
+        Assert.Throws<CliException>(() => Cli.EnsureOutputUnderRepo(repo, outside));
+    }
+
+    [Fact]
+    public void EnsureOutputUnderRepo_rejects_a_sibling_whose_name_shares_the_prefix()
+    {
+        var repo = TempRepo.New();
+        Assert.Throws<CliException>(() => Cli.EnsureOutputUnderRepo(repo, "../output-evil"));
+    }
+
+    [Fact]
+    public void EnsureOutputUnderRepo_rejects_traversal_out_of_output()
+    {
+        var repo = TempRepo.New();
+        Assert.Throws<CliException>(() => Cli.EnsureOutputUnderRepo(repo, Path.Combine("output", "..", "..")));
+    }
+
+    [Fact]
+    public void EnsureOutputUnderRepo_compares_paths_ignoring_case_on_windows()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+        var repo = TempRepo.New();
+        Assert.Null(Record.Exception(() => Cli.EnsureOutputUnderRepo(repo, Path.Combine("OUTPUT", "nested"))));
+    }
 }

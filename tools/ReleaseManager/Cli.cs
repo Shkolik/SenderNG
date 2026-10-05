@@ -183,6 +183,28 @@ public static class Cli
             PluginIds: pluginIds);
     }
 
+    internal static void EnsureOutputUnderRepo(string repoRoot, string outputDir)
+    {
+        var allowed = Path.GetFullPath(Path.Combine(repoRoot, "output"));
+        var resolved = Path.GetFullPath(Path.Combine(repoRoot, outputDir));
+
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        var prefix = allowed[^1] == Path.DirectorySeparatorChar
+            ? allowed
+            : allowed + Path.DirectorySeparatorChar;
+
+        if (!string.Equals(resolved, allowed, comparison) &&
+            !resolved.StartsWith(prefix, comparison))
+        {
+            throw new CliException(
+                $"--out must resolve inside the repo's output/ directory. " +
+                $"'{resolved}' is outside '{allowed}'.");
+        }
+    }
+
     private static string RequireValue(string[] args, ref int i, string flag)
     {
         if (i + 1 >= args.Length)

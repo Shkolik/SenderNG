@@ -83,6 +83,7 @@ internal static class Program
                 options = Cli.InteractiveText(Console.In, Console.Out, prefill, platform, candidates);
             }
 
+            Cli.EnsureOutputUnderRepo(repoRoot, options.OutputDir);
             var log = new ConsoleLog(options.Verbose);
             var cli = new DotnetCli(new ProcessRunner());
             var engine = new ReleaseEngine(repoRoot, cli, log);
