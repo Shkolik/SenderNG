@@ -80,9 +80,10 @@ DRY="${SENDENG_LINUX_DRYRUN:-0}"
 fail() { echo "build-linux-release: $*" >&2; exit 1; }
 
 # --- 1. dotnet SDK resolution -------------------------------------------------
-# global.json pins 9.0.316 with rollForward latestPatch. It is already installed
-# at ~/.dotnet, but that directory is not on PATH by default, so `dotnet` would
-# otherwise resolve to /usr/bin/dotnet (9.0.121) and fail SDK resolution.
+# global.json declares the SDK floor and its rollForward policy, so `dotnet`
+# must see that file to resolve it. The installed SDK lives at ~/.dotnet, which
+# is not on PATH by default, so `dotnet` would otherwise resolve to
+# /usr/bin/dotnet and fail SDK resolution.
 export DOTNET_ROOT="$HOME/.dotnet"
 export PATH="$DOTNET_ROOT:$PATH"
 
@@ -98,10 +99,13 @@ PINNED="${PINNED%%$'\n'*}"
 # the tailored message below rather than a raw "command not found".
 command -v dotnet >/dev/null 2>&1 || fail "dotnet is not on PATH in this WSL distribution"
 AVAILABLE="$(dotnet --list-sdks | awk '{print $1}' | tr '\n' ' ')"
-# Same SIGPIPE concern: match in the shell instead of `... | grep -Fxq`. The
-# spaces around $AVAILABLE make this an exact element match, so a pin of
-# 9.0.31 cannot be satisfied by an installed 9.0.316.
-if ! [[ " $AVAILABLE " == *" $PINNED "* ]]; then
+# Ask the resolver instead of matching the pin literally: global.json's
+# rollForward policy is part of the answer, so an exact element match rejects
+# floors the SDK would happily satisfy. `cd "$SRC"` is required — the payload
+# starts in WSL's default cwd, so a bare `dotnet --version` would never see
+# global.json. The `if !` context keeps `set -e` from aborting on its
+# non-zero status.
+if ! RESOLVED="$(cd "$SRC" && dotnet --version 2>&1)"; then
     fail "global.json pins SDK $PINNED, which dotnet cannot resolve.
        installed: $AVAILABLE
        install it with:
@@ -110,7 +114,7 @@ if ! [[ " $AVAILABLE " == *" $PINNED "* ]]; then
 fi
 
 command -v rsync >/dev/null 2>&1 || fail "rsync is not installed in this WSL distribution"
-echo "==> dotnet SDK $PINNED resolved; rsync available"
+echo "==> dotnet SDK $PINNED resolved as $RESOLVED; rsync available"
 
 # --- 2. Mirror the source tree into WSL-native storage -----------------------
 # A real Linux build is required: ReleaseManager derives the platform from the
