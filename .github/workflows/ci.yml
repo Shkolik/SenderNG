@@ -32,7 +32,10 @@ jobs:
         run: dotnet build SenderNG.sln -c Release --nologo -t:Rebuild -warnaserror -m:1
 
       - name: Test
-        run: dotnet test SenderNG.sln -c Release --filter "Category!=Hardware&Category!=GPU&Category!=Timing" --logger trx -m:1
+        # --no-build: the Build step above already produced these Release bits, so the
+        # test step should not restore and rebuild nine projects while it runs — that is
+        # redundant work in the phase where the intermittent ubuntu death happens.
+        run: dotnet test SenderNG.sln -c Release --no-build --filter "Category!=Hardware&Category!=GPU&Category!=Timing" --logger trx -m:1
 
       - name: Collect MSBuild node diagnostics
         # always(), not failure(): the ubuntu-latest death is a crash inside MSBuild's
