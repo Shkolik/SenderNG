@@ -1,4 +1,4 @@
-/*
+﻿/*
  * PlotterLiveRunHeadlessTests.cs - FULL-CHAIN live-run repro for the plotter:
  * the real app pipeline (DemoGrblService -> ProgramViewModel streamer ->
  * PlotterViewModel state/row subscriptions -> rendered frames) must move the
