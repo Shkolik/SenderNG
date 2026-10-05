@@ -212,27 +212,60 @@ public class SettingsFallbackTests
     public void A_failing_quarantine_still_reports_and_does_not_throw()
     {
         // Best-effort guarantee: an unwritable settings directory must not turn
-        // a recoverable fallback back into a startup crash. We simulate the
-        // quarantine failing by holding global.json open without FILE_SHARE_DELETE:
-        // the read still succeeds, but the move fails with a sharing violation.
+        // a recoverable fallback back into a startup crash. The quarantine is a
+        // File.Move, so we make that move fail - one technique per platform:
+        //  - Windows: hold global.json open without FILE_SHARE_DELETE. The move
+        //    cannot rename a file with such a handle live, so it throws a sharing
+        //    violation. FileShare.Read keeps the read below working.
+        //  - Elsewhere: rename(2) ignores the .NET FileShare advisory locks, so
+        //    instead we strip the settings directory's write bits - the read-only
+        //    directory failure mode the production doc comment documents. rename
+        //    then fails with EACCES (UnauthorizedAccessException, caught by the
+        //    quarantine). Read bits stay on, so the read still succeeds and the
+        //    reason stays Corrupt rather than flipping to Unreadable.
         // (A directory at the .corrupt name would NOT do it - QuarantinePath skips
         // taken names, including directories, and would land on .corrupt.1.)
         var dir = NewDir();
         WriteGlobal(dir, "{ broken");
-        using var held = new FileStream(
-            ProfileSettingsPaths.GlobalPath(dir), FileMode.Open, FileAccess.Read, FileShare.Read);
 
-        var seen = Capture(out var onFallback);
-        var global = GlobalSettingsStore.Load(dir, onFallback);
+        FileStream? held = null;
+        UnixFileMode? originalMode = null;
+        if (OperatingSystem.IsWindows())
+        {
+            held = new FileStream(
+                ProfileSettingsPaths.GlobalPath(dir), FileMode.Open, FileAccess.Read, FileShare.Read);
+        }
+        else
+        {
+            var mode = File.GetUnixFileMode(dir);
+            originalMode = mode;
+            File.SetUnixFileMode(dir, mode & ~(UnixFileMode.UserWrite
+                | UnixFileMode.GroupWrite | UnixFileMode.OtherWrite));
+        }
 
-        Assert.NotNull(global);
-        var fallback = Assert.Single(seen);
-        // The read DID succeed (FileShare.Read lets other readers in), so this is
-        // still the corrupt-JSON path. If a future change let the handle block the
-        // read too, the reason would flip to Unreadable and this would catch it.
-        Assert.Equal(SettingsFallbackReason.Corrupt, fallback.Reason);
-        Assert.False(fallback.Quarantined);   // caller can say the file is still there
-        Assert.True(File.Exists(ProfileSettingsPaths.GlobalPath(dir)));
+        try
+        {
+            var seen = Capture(out var onFallback);
+            var global = GlobalSettingsStore.Load(dir, onFallback);
+
+            Assert.NotNull(global);
+            var fallback = Assert.Single(seen);
+            // The read DID succeed (FileShare.Read / the remaining read bits let
+            // it in), so this is still the corrupt-JSON path. If a future change
+            // let the injection block the read too, the reason would flip to
+            // Unreadable and this would catch it.
+            Assert.Equal(SettingsFallbackReason.Corrupt, fallback.Reason);
+            Assert.False(fallback.Quarantined);   // caller can say the file is still there
+            Assert.True(File.Exists(ProfileSettingsPaths.GlobalPath(dir)));
+        }
+        finally
+        {
+            // NewDir registers no cleanup, so leaving the directory read-only
+            // would strand it in temp; the open handle must not outlive the test.
+            held?.Dispose();
+            if (!OperatingSystem.IsWindows() && originalMode is { } mode)
+                File.SetUnixFileMode(dir, mode);
+        }
     }
 
     [Fact]
