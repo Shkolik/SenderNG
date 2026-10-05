@@ -521,26 +521,49 @@ public class RealGrblServiceTests
         // A feed hold parks the controller for however long the operator needs:
         // timing out a held command is nonsense. The wait must survive the whole
         // Hold and complete once the controller resumes and replies.
+        //
+        // Like PendingSend_survives_long_command_while_reports_flow, the scenario is
+        // driven from the poller thread by answering the service's status requests —
+        // which is also what a held controller really does: grbl keeps sending
+        // <Hold|...> while it is parked. Expressing the hold as ONE line followed by
+        // 700 ms of silence on the test thread bets that the line is processed inside
+        // the CommandTimeout window; on the loaded Windows CI runner it was not, and
+        // the wait timed out (observed on CI) instead of parking.
         var transport = new FakeGrblTransport { AutoReply = false };
         using var svc = new RealGrblService(transport)
         {
             PollIntervalMs = 50,
-            CommandTimeout = TimeSpan.FromMilliseconds(100),
+            CommandTimeout = TimeSpan.FromMilliseconds(300),
         };
         await svc.ConnectAsync("fake");
 
+        // 18 polls at 50 ms ≈ 900 ms held — crossing ~3 windows of 300 ms.
+        const int holdPolls = 18;
+        var polled = 0;
+        var released = false;
+        transport.OnStatusRequest = () =>
+        {
+            var n = Interlocked.Increment(ref polled);
+            if (n <= holdPolls)
+            {
+                transport.Enqueue("<Hold|MPos:10,0,0>"); // still held, and still talking
+                return;
+            }
+            if (released)
+                return;
+            released = true;
+            // Operator resumes (cycle start): grbl finishes the line and replies.
+            // Both lines land from the poller thread, so the hand-off from "held" to
+            // "replied" cannot be delayed by test-thread scheduling.
+            transport.Enqueue("<Run|MPos:10,0,0>");
+            transport.Enqueue("ok");
+        };
+
         var sendTask = svc.SendAsync("G1 X10");
-        await WaitUntil(() => transport.Sent.Contains("G1 X10"));
 
-        // Controller goes into feed hold and stays there way past the window.
-        transport.Enqueue("<Hold|MPos:10,0,0>");
-        await Task.Delay(700);
-        transport.Enqueue("<Hold|MPos:10,0,0>"); // still held
-
-        // Operator resumes (cycle start): grbl finishes the line and replies.
-        transport.Enqueue("<Run|MPos:10,0,0>");
-        transport.Enqueue("ok");
-        await sendTask.WaitAsync(TimeSpan.FromSeconds(2)); // must NOT timeout
+        await sendTask.WaitAsync(TimeSpan.FromSeconds(10)); // must NOT timeout
+        Assert.True(Volatile.Read(ref polled) > holdPolls,
+            $"the hold must have spanned the whole window, saw {polled} polls");
     }
 
     [Fact]
@@ -623,9 +646,33 @@ public class RealGrblServiceTests
         using var svc = new RealGrblService(transport)
         {
             PollIntervalMs = 50,
-            CommandTimeout = TimeSpan.FromMilliseconds(100),
+            CommandTimeout = TimeSpan.FromMilliseconds(300),
         };
         await svc.ConnectAsync("fake");
+
+        // A parked controller keeps answering status requests with <Hold|...>, so the
+        // hold below is driven from the poller thread rather than a Task.Delay loop on
+        // the test thread — seven 100 ms delays against a 100 ms window had no slack at
+        // all, and a starved test thread would let the in-flight wait expire: the exact
+        // "fail: timeout" this test exists to prevent.
+        const int holdPollsTarget = 18; // ~900 ms at 50 ms polls, ~3 windows at 300 ms
+        var holding = 0;
+        var holdPolls = 0;
+        transport.OnStatusRequest = () =>
+        {
+            if (Volatile.Read(ref holding) == 0)
+                return;
+            if (Interlocked.Increment(ref holdPolls) <= holdPollsTarget)
+            {
+                transport.Enqueue("<Hold|MPos:10,10,0>");
+                return;
+            }
+            // Resume (cycle start) from the same thread: line 2 finishes and the rest
+            // streams, with no scheduling gap between "held" and "replied".
+            Volatile.Write(ref holding, 0);
+            transport.Enqueue("<Run|MPos:10,10,0>");
+            transport.Enqueue("ok");
+        };
 
         var updates = new List<ProgramLineUpdate>();
         var program = GCodeProgram.Parse("G0 X1\nG0 X2\nG0 X3");
@@ -638,16 +685,9 @@ public class RealGrblServiceTests
         transport.Enqueue("ok");
         await WaitUntil(() => transport.Sent.Contains("G0 X2"), 15000);
 
-        // Feed hold mid-line: stay held for 7x the CommandTimeout window.
-        for (var i = 0; i < 7; i++)
-        {
-            transport.Enqueue("<Hold|MPos:10,10,0>");
-            await Task.Delay(100);
-        }
+        // Feed hold mid-line: the poller answers <Hold|...> until the budget is spent.
+        Volatile.Write(ref holding, 1);
 
-        // Resume (cycle start): line 2 finishes, the rest streams, run completes.
-        transport.Enqueue("<Run|MPos:10,10,0>");
-        transport.Enqueue("ok");
         await WaitUntil(() => transport.Sent.Contains("G0 X3"), 15000);
         transport.Enqueue("ok");
 
