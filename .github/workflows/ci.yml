@@ -10,13 +10,14 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest]
     env:
-      MSBUILDDEBUGPATH: ${{ github.workspace }}/msbuild-diag
-      # The intermittent ubuntu-latest death is a hard process crash (SIGABRT) inside
-      # MSBuild's out-of-proc node plumbing: "Child node \"2\" exited prematurely
-      # (MSB4166)" in CI, and locally NodeProviderOutOfProcBase.ConnectToPipeStream with
-      # "Fatal error. Internal CLR error. (0x80131506)". That mode writes no
-      # MSBuild_*.failure.txt, so msbuild-diag stays empty. -m:1 (below) keeps MSBuild in
-      # a single process, so no worker nodes and no named pipes are involved at all.
+      # The ubuntu-latest deaths were an OOM, not a build-tool defect: an unbounded
+      # snapshot-stress writer in NexCarriagePlaneLayerTests grew a dotnet process to
+      # ~15 GB of anonymous RSS, and the kernel reaped whichever process it found --
+      # an MSBuild node ("MSB4166: Child node \"2\" exited prematurely") or the runner
+      # agent itself ("The operation was canceled.", no artifacts, post-steps never
+      # ran). Fixed at the source by capping that writer; see docs/test-stability.md
+      # section 13. MSBUILDDISABLENODEREUSE and the -m:1 below stay as cheap memory
+      # hygiene for a 7 GB runner, not as a fix.
       MSBUILDDISABLENODEREUSE: "1"
     steps:
       - uses: actions/checkout@v4
@@ -33,40 +34,14 @@ jobs:
 
       - name: Test
         # --no-build: the Build step above already produced these Release bits, so the
-        # test step should not restore and rebuild nine projects while it runs — that is
-        # redundant work in the phase where the intermittent ubuntu death happens.
+        # test step should not restore and rebuild nine projects while it runs. That was
+        # redundant work in the phase where the OOM occurred, and it is a real cut in
+        # peak memory on a 7 GB runner.
         run: dotnet test SenderNG.sln -c Release --no-build --filter "Category!=Hardware&Category!=GPU&Category!=Timing" --logger trx -m:1
-
-      - name: Collect MSBuild node diagnostics
-        # always(), not failure(): the ubuntu-latest death is a crash inside MSBuild's
-        # node plumbing that cancels the job, and a cancelled job skips
-        # failure()-conditioned steps — which is how the first occurrence lost its
-        # cgroup/OOM evidence. The crash writes no MSBuild_*.failure.txt (confirmed in
-        # WSL: MSBUILDDEBUGPATH set, directory left empty), so expect the memory report
-        # and the temp-dir listing to be the useful part. Diagnostics only; this cannot
-        # mask a failure or retry anything.
-        if: always() && runner.os == 'Linux'
-        shell: bash
-        run: |
-          set +e
-          mkdir -p msbuild-diag
-          cp /tmp/MSBuildTemp*/MSBuild_*.failure.txt msbuild-diag/ 2>/dev/null
-          {
-            echo "=== date ==="; date -u
-            echo "=== free ==="; free -m
-            echo "=== cgroup v2 memory.events ==="; cat /sys/fs/cgroup/memory.events 2>/dev/null
-            echo "=== cgroup v1 memory.events ==="; cat /sys/fs/cgroup/memory/memory.events 2>/dev/null
-            echo "=== dmesg oom ==="; dmesg 2>/dev/null | grep -iE "killed process|out of memory|oom-kill" | tail -20
-            echo "=== failure files present ==="; ls -la /tmp/MSBuildTemp*/ 2>/dev/null
-            echo "=== failure file contents ==="; cat msbuild-diag/MSBuild_*.failure.txt 2>/dev/null
-          } > msbuild-diag/report.txt 2>&1
-          cat msbuild-diag/report.txt
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ matrix.os }}
-          path: |
-            **/TestResults/*.trx
-            msbuild-diag/**
+          path: '**/TestResults/*.trx'
