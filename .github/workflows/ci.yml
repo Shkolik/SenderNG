@@ -9,6 +9,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
+    env:
+      MSBUILDDEBUGPATH: ${{ github.workspace }}/msbuild-diag
     steps:
       - uses: actions/checkout@v4
 
@@ -25,9 +27,29 @@ jobs:
       - name: Test
         run: dotnet test SenderNG.sln -c Release --filter "Category!=Hardware&Category!=GPU" --logger trx
 
+      - name: Collect MSBuild node diagnostics
+        if: failure() && runner.os == 'Linux'
+        shell: bash
+        run: |
+          set +e
+          mkdir -p msbuild-diag
+          cp /tmp/MSBuildTemp*/MSBuild_*.failure.txt msbuild-diag/ 2>/dev/null
+          {
+            echo "=== date ==="; date -u
+            echo "=== free ==="; free -m
+            echo "=== cgroup v2 memory.events ==="; cat /sys/fs/cgroup/memory.events 2>/dev/null
+            echo "=== cgroup v1 memory.events ==="; cat /sys/fs/cgroup/memory/memory.events 2>/dev/null
+            echo "=== dmesg oom ==="; dmesg 2>/dev/null | grep -iE "killed process|out of memory|oom-kill" | tail -20
+            echo "=== failure files present ==="; ls -la /tmp/MSBuildTemp*/ 2>/dev/null
+            echo "=== failure file contents ==="; cat msbuild-diag/MSBuild_*.failure.txt 2>/dev/null
+          } > msbuild-diag/report.txt 2>&1
+          cat msbuild-diag/report.txt
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ matrix.os }}
-          path: "**/TestResults/*.trx"
+          path: |
+            **/TestResults/*.trx
+            msbuild-diag/**
