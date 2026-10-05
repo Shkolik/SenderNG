@@ -185,7 +185,7 @@ and publish, and drops the result in `output\linux` next to `output\win64`.
 | `-OutRoot` | `<repo>\output` | Linux output lands in `<OutRoot>\linux` |
 | `-MirrorDir` | `~/.cache/sendeng-linux-build` in WSL | where the source is mirrored; wiped each run |
 | `-Plugins` | off | add `--include-plugins` |
-| `-RunTests` | off | omit `--skip-tests` |
+| `-SkipTests` | off | pass `--skip-tests` |
 | `-NoZip` | off | add `--no-zip` |
 | `-DryRun` | off | resolve the SDK, mirror the tree, and report what *would* happen |
 
@@ -198,8 +198,8 @@ existing release in place untouched. It does still **wipe and rebuild the
 mirror**, exactly as a real run does — so do not start a `-DryRun` while a real
 build is using that mirror.
 
-Tests are **skipped by default**: the script passes `--skip-tests` unless you
-ask for `-RunTests`.
+Tests **run by default**: pass `-SkipTests` and the script passes
+`--skip-tests` instead.
 
 The script does not install an SDK or touch NuGet credentials. `global.json`
 pins `9.0.316`, which the script expects to find at `~/.dotnet` inside WSL.

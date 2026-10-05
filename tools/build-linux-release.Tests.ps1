@@ -99,7 +99,7 @@ Assert-Equal ($bash -notmatch 'rm -rf[^#\n]*win64') $true "no rm ever targets wi
 Assert-Equal ($bash -match [regex]::Escape('exit "$RC"')) $true "propagates the ReleaseManager exit code"
 Assert-Equal ($bash -match [regex]::Escape('DRY RUN: would replace')) $true "dry run reports the copy-back instead of performing it"
 Assert-Equal ($bash -match 'rm -rf "\$LINUX_OUT"') $true "a real run still wipes output/linux so the copy-back is fresh"
-Assert-Equal ($bash -match [regex]::Escape('ARGS=()')) $true "tests run by default in the payload"
+Assert-Equal ($bash -match '(?m)^ARGS=\(\)') $true "tests run by default in the payload"
 Assert-Equal ($bash -match [regex]::Escape('SENDENG_SKIP_TESTS')) $true "payload honours SENDENG_SKIP_TESTS"
 
 Write-Host "`nDry run against a scratch output root"
