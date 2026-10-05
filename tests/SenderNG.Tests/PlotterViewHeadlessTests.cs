@@ -1114,8 +1114,13 @@ public class PlotterViewHeadlessTests
         {
             // Alternate, or the RunState setter sees no change and asks for
             // nothing — the burst would be a no-op and the count would prove
-            // nothing.
-            view.PushChromeFlags(ChromeFlags.Default with { RunState = i % 2 == 0 });
+            // nothing. It starts OFF and lands ON: the read below counts the
+            // run-state colour, which the bake only paints while
+            // ChromeFlags.RunState is set, so landing OFF would assert green
+            // about a view deliberately showing none — and whether green showed
+            // at all would then hang on whether a queued bake landed before or
+            // after the ack, which is the flake this test is here to not have.
+            view.PushChromeFlags(ChromeFlags.Default with { RunState = i % 2 != 0 });
             for (var p = 0; p < 8; p++)
                 await Pump();
         }

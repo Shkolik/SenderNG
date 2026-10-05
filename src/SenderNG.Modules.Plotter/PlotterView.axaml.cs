@@ -1925,6 +1925,17 @@ public partial class PlotterView : UserControl
         /// of drawing tens of thousands of segments per frame.</summary>
         private void DrawSlotFrontier(DrawingContext ctx, int slot)
         {
+            // The bake resolves row states through RowStateFor, which collapses
+            // them to Idle while ChromeFlags.RunState is off — and the Chrome
+            // setter requests a rebake exactly because that state is baked in.
+            // This overlay resolves Vm.RowState directly, so it kept painting the
+            // incremental window green after the toggle had already scrubbed the
+            // raster: with a run in flight the frontier keeps advancing, and
+            // "Show run state" off looked half-applied for as long as rows kept
+            // landing. One gate for both paths, or OFF means something
+            // different depending on whether the colour is baked or drawn.
+            if (!Chrome.RunState)
+                return;
             var touched = Vm.TouchedRow;
             if (touched <= _bakedFrontierRow[slot])
                 return;
