@@ -11,6 +11,13 @@ jobs:
         os: [windows-latest, ubuntu-latest]
     env:
       MSBUILDDEBUGPATH: ${{ github.workspace }}/msbuild-diag
+      # The intermittent ubuntu-latest death is a hard process crash (SIGABRT) inside
+      # MSBuild's out-of-proc node plumbing: "Child node \"2\" exited prematurely
+      # (MSB4166)" in CI, and locally NodeProviderOutOfProcBase.ConnectToPipeStream with
+      # "Fatal error. Internal CLR error. (0x80131506)". That mode writes no
+      # MSBuild_*.failure.txt, so msbuild-diag stays empty. -m:1 (below) keeps MSBuild in
+      # a single process, so no worker nodes and no named pipes are involved at all.
+      MSBUILDDISABLENODEREUSE: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -22,17 +29,19 @@ jobs:
           NUGET_AUTH_TOKEN: ${{ secrets.PACKAGES_PAT }}
 
       - name: Build
-        run: dotnet build SenderNG.sln -c Release --nologo -t:Rebuild -warnaserror
+        run: dotnet build SenderNG.sln -c Release --nologo -t:Rebuild -warnaserror -m:1
 
       - name: Test
-        run: dotnet test SenderNG.sln -c Release --filter "Category!=Hardware&Category!=GPU&Category!=Timing" --logger trx
+        run: dotnet test SenderNG.sln -c Release --filter "Category!=Hardware&Category!=GPU&Category!=Timing" --logger trx -m:1
 
       - name: Collect MSBuild node diagnostics
-        # always(), not failure(): the intermittent ubuntu-latest death arrives as
-        # "the runner has received a shutdown signal" followed by MSB4166, and a
-        # cancelled job skips failure()-conditioned steps — which is exactly how the
-        # first occurrence lost its cgroup/OOM evidence. Diagnostics only; this
-        # cannot mask a failure or retry anything.
+        # always(), not failure(): the ubuntu-latest death is a crash inside MSBuild's
+        # node plumbing that cancels the job, and a cancelled job skips
+        # failure()-conditioned steps — which is how the first occurrence lost its
+        # cgroup/OOM evidence. The crash writes no MSBuild_*.failure.txt (confirmed in
+        # WSL: MSBUILDDEBUGPATH set, directory left empty), so expect the memory report
+        # and the temp-dir listing to be the useful part. Diagnostics only; this cannot
+        # mask a failure or retry anything.
         if: always() && runner.os == 'Linux'
         shell: bash
         run: |
