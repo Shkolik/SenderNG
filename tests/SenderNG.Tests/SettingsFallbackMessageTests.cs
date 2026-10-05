@@ -47,6 +47,7 @@ namespace SenderNG.Tests;
 /// locales. The bug class here is a message that states something untrue, so each
 /// assertion covers what the text must NOT say as well as what it must.
 /// </summary>
+[Collection("LocalizationState")]
 public class SettingsFallbackMessageTests
 {
     // These tests mutate LocalizationService.Current, which is process-global and

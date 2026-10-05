@@ -44,6 +44,7 @@ using Xunit;
 
 namespace SenderNG.Tests;
 
+[Collection("LocalizationState")]
 public class LocSourceTests
 {
     [AvaloniaFact]

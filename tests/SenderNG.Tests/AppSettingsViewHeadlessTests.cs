@@ -52,6 +52,7 @@ using Xunit;
 
 namespace SenderNG.Tests;
 
+[Collection("LocalizationState")]
 public class AppSettingsViewHeadlessTests
 {
     // A private instance (not HeadlessTestCatalog.Locale): SetLocale calls here must

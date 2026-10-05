@@ -40,6 +40,7 @@ using Xunit;
 
 namespace SenderNG.Tests;
 
+[Collection("LocalizationState")]
 public class AboutDialogModelTests
 {
     [Fact]

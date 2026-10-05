@@ -224,8 +224,13 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         IsConnected = true;
         ConnectionChanged?.Invoke(this, EventArgs.Empty);
 
-        _cts = new CancellationTokenSource();
-        _consumerTask = Task.Run(() => ConsumerLoopAsync(_cts.Token));
+        // Capture the session in a local before handing it to the pool: the
+        // lambda body would otherwise read the _cts field when it eventually
+        // runs, and after a fast reconnect that is the *next* session's token —
+        // the old reader would then police the new session.
+        var session = new CancellationTokenSource();
+        _cts = session;
+        _consumerTask = Task.Run(() => ConsumerLoopAsync(session));
 
         // The DTR-at-open reset reboots Arduino-style boards through their AVR
         // bootloader; writing ANY bytes during the bootloader window can stall the
@@ -423,15 +428,17 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
 
     private void CheckHealth()
     {
-        if (!IsConnected || _cts is null)
+        var session = _cts;
+        if (!IsConnected || session is null)
             return;
         if (_transport is IPortPresenceCheck present && !present.IsPortPresent())
-            HandleDisconnect();
+            HandleDisconnect(session);
     }
 
     private void PollTick()
     {
-        if (_pollerSuspended || !IsConnected || _cts?.IsCancellationRequested == true)
+        var session = _cts;
+        if (_pollerSuspended || !IsConnected || session?.IsCancellationRequested == true)
             return;
 
         // Idle back-off: keep the fast rate while anything may be in motion or
@@ -457,7 +464,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
             // A failed status write can be a transient adapter hiccup; only treat
             // it as a disconnect when the transport confirms the connection is gone.
             if (_transport is IPortPresenceCheck present && !present.IsPortPresent())
-                HandleDisconnect();
+                HandleDisconnect(session);
         }
     }
 
@@ -467,10 +474,27 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
     /// Flips the app to NOT CONNECTED and tears the session down; safe to call from
     /// the reader or timer threads, and idempotent via the <see cref="IsConnected"/> guard.
     /// </summary>
-    private void HandleDisconnect()
+    /// <param name="session">
+    /// The session the caller observed while reaching its verdict, or <c>null</c>
+    /// for a caller that is acting on current state (the user-facing
+    /// <see cref="Disconnect"/> path and ConnectAsync's stale-session reset).
+    /// </param>
+    /// <remarks>
+    /// The session guard closes a TOCTOU that surfaced as a flaky
+    /// <c>Reconnect_after_disconnect_restores_connection</c>: a health or poll
+    /// tick from the <em>previous</em> connection could pass its
+    /// <see cref="IsConnected"/> check and observe the port as absent, then be
+    /// descheduled; by the time it resumed, the operator had reconnected, and the
+    /// stale verdict tore the brand-new session down — <see cref="SendAsync"/>
+    /// then failed with "Not connected." only under load, never in isolation.
+    /// A verdict belongs to the session that produced it.
+    /// </remarks>
+    private void HandleDisconnect(CancellationTokenSource? session = null)
     {
         if (!IsConnected)
             return;
+        if (session is not null && !ReferenceEquals(_cts, session))
+            return; // stale observer: the session it judged is already gone
         Disconnect();
     }
 
@@ -1062,8 +1086,9 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         await AwaitWaiterAsync(waiter, timeout, cts.Token);
     }
 
-    private async Task ConsumerLoopAsync(CancellationToken ct)
+    private async Task ConsumerLoopAsync(CancellationTokenSource session)
     {
+        var ct = session.Token;
         // The consumer owns the port's read side unconditionally so the poller's
         // status reports are drained even when no command is pending. gbl processes
         // commands serially and answers in order, so the head waiter always matches
@@ -1084,7 +1109,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
                 // Transport signalled closure on its own — a dropped TCP socket or
                 // a failed serial read after unplug. That's a disconnect: flip the
                 // app state and tear down instead of silently ending the reader.
-                HandleDisconnect();
+                HandleDisconnect(session);
                 return;
             }
 

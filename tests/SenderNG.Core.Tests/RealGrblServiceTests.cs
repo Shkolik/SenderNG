@@ -67,7 +67,46 @@ public sealed class FakeGrblTransport : IGrblTransport, IPortPresenceCheck
     /// <summary>IPortPresenceCheck result: false simulates an unplugged controller.</summary>
     public bool PortPresent { get; set; } = true;
 
-    bool IPortPresenceCheck.IsPortPresent() => PortPresent;
+    /// <summary>Test hook: when set, the next presence check captures the verdict it
+    /// is about to return, signals <see cref="PresenceCheckEntered"/> and blocks
+    /// until <see cref="ReleasePresenceCheck"/> is set. That widens the window
+    /// between a watchdog observing the port and acting on the observation, so the
+    /// stale-observer reconnect race can be tested without relying on load.</summary>
+    public bool BlockNextPresenceCheck { get; set; }
+
+    /// <summary>Set once the blocked presence check has captured its verdict.</summary>
+    public ManualResetEventSlim PresenceCheckEntered { get; } = new(false);
+
+    /// <summary>Releases the blocked presence check.</summary>
+    public ManualResetEventSlim ReleasePresenceCheck { get; } = new(false);
+
+    /// <summary>When <see cref="AutoReply"/> is false, still answer the
+    /// connect-time handshake commands (<c>$I</c>, <c>$#</c>, <c>$G</c>) so
+    /// <c>ConnectAsync</c> finishes in one attempt.</summary>
+    /// <remarks>
+    /// Silencing <see cref="AutoReply"/> used to silence the connect chain too,
+    /// and a silent chain is expensive: the <c>$I</c> identification loop waits a
+    /// 1.5 s exchange timeout and then a 500 ms back-off, ten times over, before
+    /// anything the test actually cares about runs — ~20 s per test, and
+    /// <c>RealGrblServiceTests</c> held 17 such tests. The handshake is not what
+    /// those tests exercise, so it is answered by default; the four tests that do
+    /// exercise it (they feed the <c>$I</c> reply by hand and assert on it) set
+    /// this false and keep full control of the transcript.
+    /// </remarks>
+    public bool AutoReplyConnectHandshake { get; set; } = true;
+
+    bool IPortPresenceCheck.IsPortPresent()
+    {
+        if (BlockNextPresenceCheck)
+        {
+            BlockNextPresenceCheck = false;
+            var verdict = PortPresent;
+            PresenceCheckEntered.Set();
+            ReleasePresenceCheck.Wait(TimeSpan.FromSeconds(10));
+            return verdict;
+        }
+        return PortPresent;
+    }
 
     /// <summary>Lines the service wrote; includes a marker for raw realtime bytes.</summary>
     public IReadOnlyList<string> Sent
@@ -77,7 +116,22 @@ public sealed class FakeGrblTransport : IGrblTransport, IPortPresenceCheck
             lock (_writtenGate) return _writtenLines.ToArray();
         }
     }
-    public List<string> WrittenRawBytes { get; } = [];
+    /// <summary>Raw realtime bytes the service wrote. Snapshot accessor: the
+    /// poller writes from a background thread while tests enumerate, and handing
+    /// out the live list made that a "Collection was modified; enumeration
+    /// operation may not execute" race (seen in Poller_sends_status_request_bytes).</summary>
+    public IReadOnlyList<string> WrittenRawBytes
+    {
+        get { lock (_writtenGate) return _writtenRawBytes.ToArray(); }
+    }
+
+    private readonly List<string> _writtenRawBytes = [];
+
+    /// <summary>Discard the raw bytes recorded so far (thread-safe).</summary>
+    public void ClearWrittenRawBytes()
+    {
+        lock (_writtenGate) _writtenRawBytes.Clear();
+    }
 
     public ConnectResetMode OpenedWithResetMode { get; private set; }
 
@@ -114,7 +168,12 @@ public sealed class FakeGrblTransport : IGrblTransport, IPortPresenceCheck
         // minimal classic-grbl reply so the connect handshake completes in one
         // attempt (the real boards answer $I with [VER:]/[OPT:]/... + ok; the
         // service keeps retrying until it collects bracket info lines).
-        if (AutoReply)
+        // The connect-time commands keep their reply even when AutoReply is off:
+        // tests that silence command replies still need a fast, complete
+        // handshake, otherwise they pay the service's full identification budget
+        // before their own scenario starts (see AutoReplyConnectHandshake).
+        var connectHandshake = line is "$I" or "$#" or "$G";
+        if (AutoReply || (AutoReplyConnectHandshake && connectHandshake))
         {
             if (line == "$I")
             {
@@ -130,7 +189,7 @@ public sealed class FakeGrblTransport : IGrblTransport, IPortPresenceCheck
 
     public void WriteByte(byte b)
     {
-        WrittenRawBytes.Add(((char)b).ToString());
+        lock (_writtenGate) _writtenRawBytes.Add(((char)b).ToString());
     }
 
     public void Dispose() => Close();
@@ -418,7 +477,7 @@ public class RealGrblServiceTests
         using var svc = new RealGrblService(transport) { PollIntervalMs = 50 };
         await svc.ConnectAsync("fake");
 
-        transport.WrittenRawBytes.Clear(); // discard the initial connect-time poll tick
+        transport.ClearWrittenRawBytes(); // discard the initial connect-time poll tick
         var sendTask = svc.SendAsync("G1 X10");
         await Task.Delay(250); // give several poll ticks a chance to write '?'
         transport.Enqueue("ok");
@@ -673,7 +732,9 @@ public class RealGrblServiceTests
     [Fact]
     public async Task Connect_runs_I_handshake_and_populates_capabilities()
     {
-        var transport = new FakeGrblTransport { AutoReply = false };
+        // This test owns the $I transcript: it feeds the reply by hand and asserts
+        // on the retry count, so the fake must stay silent on connect.
+        var transport = new FakeGrblTransport { AutoReply = false, AutoReplyConnectHandshake = false };
         using var svc = new RealGrblService(transport);
 
         var connectTask = svc.ConnectAsync("fake");
@@ -685,7 +746,10 @@ public class RealGrblServiceTests
         transport.Enqueue("[VER:1.1h.20190825:]");
         transport.Enqueue("[OPT:V,15,128]");
         transport.Enqueue("ok");
-        await connectTask.WaitAsync(TimeSpan.FromSeconds(5));
+        // Budget matches the other handshake tests: full-suite CPU load can starve
+        // the reader/continuations well past a few seconds, and at 5 s this timed
+        // out under a loaded soak run even though the handshake itself was fine.
+        await connectTask.WaitAsync(TimeSpan.FromSeconds(20));
 
         Assert.Contains("$I", transport.Sent);
         Assert.True(await WaitUntilAsync(() => svc.Capabilities.IsKnown, 3000));
@@ -706,7 +770,8 @@ public class RealGrblServiceTests
         // UART is still initializing is dropped, so only the boot banner arrives.
         // The handshake must retry until actual $I reply lines ([VER:]/[OPT:]) are
         // collected instead of settling for banner-only capabilities.
-        var transport = new FakeGrblTransport { AutoReply = false };
+        // Owns the $I transcript (see the connect-handshake tests above).
+        var transport = new FakeGrblTransport { AutoReply = false, AutoReplyConnectHandshake = false };
         using var svc = new RealGrblService(transport);
 
         var connectTask = svc.ConnectAsync("fake");
@@ -719,7 +784,9 @@ public class RealGrblServiceTests
         transport.Enqueue("[VER:1.1h.20190825:]");
         transport.Enqueue("[OPT:V,15,128]");
         transport.Enqueue("ok");
-        await connectTask.WaitAsync(TimeSpan.FromSeconds(8));
+        // Budget matches the other handshake tests (see the note above): 8 s was
+        // still tight enough to time out under a loaded soak.
+        await connectTask.WaitAsync(TimeSpan.FromSeconds(20));
 
         Assert.True(svc.Capabilities.IsKnown);
         Assert.Equal("1.1h", svc.Capabilities.Version);
@@ -734,7 +801,7 @@ public class RealGrblServiceTests
         // (MachineState.NumAxes -> DRO/signals rows) and the injected
         // GrblInfoState that the parser/expressions read via the static facade.
         var info = new CNC.Core.GrblInfoState();
-        var transport = new FakeGrblTransport { AutoReply = false };
+        var transport = new FakeGrblTransport { AutoReply = false, AutoReplyConnectHandshake = false };
         using var svc = new RealGrblService(transport, info);
         MachineState? latest = null;
         svc.State.Subscribe(s => latest = s);
@@ -746,7 +813,10 @@ public class RealGrblServiceTests
         transport.Enqueue("[OPT:V,15,128]");
         transport.Enqueue("[AXS:5:XYZAB]");
         transport.Enqueue("ok");
-        await connectTask.WaitAsync(TimeSpan.FromSeconds(5));
+        // Same rationale as the other handshake tests: full-suite CPU load can
+        // starve the reader/continuations well past a few seconds, and at 5 s this
+        // timed out under a loaded soak while the handshake itself was fine.
+        await connectTask.WaitAsync(TimeSpan.FromSeconds(20));
 
         Assert.True(svc.Capabilities.IsKnown);
         Assert.Equal(5, svc.Capabilities.NumAxes);
@@ -768,7 +838,7 @@ public class RealGrblServiceTests
         // so switching boards never leaks the previous board's letter set. Each
         // service writes its own GrblInfoState instance; nothing ambient.
         var info1 = new CNC.Core.GrblInfoState();
-        var transport = new FakeGrblTransport { AutoReply = false };
+        var transport = new FakeGrblTransport { AutoReply = false, AutoReplyConnectHandshake = false };
         using var svc = new RealGrblService(transport, info1);
 
         // Handshake waits are safety nets: full-suite CPU load can starve the
@@ -788,7 +858,7 @@ public class RealGrblServiceTests
 
         // Second connect: classic grbl without [AXS:] -> conventional default.
         var info2 = new CNC.Core.GrblInfoState();
-        var transport2 = new FakeGrblTransport { AutoReply = false };
+        var transport2 = new FakeGrblTransport { AutoReply = false, AutoReplyConnectHandshake = false };
         using var svc2 = new RealGrblService(transport2, info2);
 
         var connect2 = svc2.ConnectAsync("fake");
@@ -884,6 +954,48 @@ public class RealGrblServiceTests
         await svc.ConnectAsync("fake");
         Assert.True(svc.IsConnected);
 
+        var sendTask = svc.SendAsync("G0 X1");
+        await sendTask.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Contains("G0 X1", transport.Sent);
+    }
+
+    [Fact]
+    public async Task Stale_watchdog_verdict_cannot_tear_down_a_new_session()
+    {
+        // Regression for the flaky Reconnect_after_disconnect_restores_connection:
+        // a health-check tick belonging to session 1 could pass its IsConnected
+        // check and observe the port as ABSENT, then be descheduled before it
+        // acted. Once it resumed, the operator had already reconnected, and the
+        // stale verdict tore the fresh session down — the next SendAsync then
+        // failed with "Not connected." It needed full-suite load to show up;
+        // 40 isolated runs of the original test reproduced nothing.
+        //
+        // Here the watchdog's observation window is widened deliberately, so the
+        // race is exercised deterministically instead of statistically.
+        var transport = new FakeGrblTransport();
+        using var svc = new RealGrblService(transport) { HealthCheckIntervalMs = 100 };
+
+        await svc.ConnectAsync("fake");
+
+        // Session 1's watchdog looks at the port, sees it gone, and parks before
+        // acting on that verdict.
+        transport.BlockNextPresenceCheck = true;
+        transport.PortPresent = false;
+        Assert.True(transport.PresenceCheckEntered.Wait(TimeSpan.FromSeconds(5)),
+            "the health watchdog never checked port presence");
+
+        // Meanwhile the session is replaced — the operator re-plugs and reconnects.
+        svc.Disconnect();
+        transport.PortPresent = true;
+        await svc.ConnectAsync("fake");
+        Assert.True(svc.IsConnected);
+
+        // The stale verdict now lands. It judged session 1, so it must not touch
+        // session 2.
+        transport.ReleasePresenceCheck.Set();
+        await Task.Delay(200); // give the stale observer time to act if it will
+
+        Assert.True(svc.IsConnected, "a stale watchdog verdict tore down the new session");
         var sendTask = svc.SendAsync("G0 X1");
         await sendTask.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Contains("G0 X1", transport.Sent);

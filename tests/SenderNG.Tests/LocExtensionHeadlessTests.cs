@@ -46,6 +46,7 @@ using Xunit;
 
 namespace SenderNG.Tests;
 
+[Collection("LocalizationState")]
 public class LocExtensionHeadlessTests
 {
     private sealed class StubProvider : IGrblSettingsProvider
