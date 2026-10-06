@@ -47,9 +47,9 @@
     "module.app-settings.name": "Paramètres de l'application",
     "module.app-settings.description": "Paramètres généraux de l'application, mode machine et configuration par module.",
     "module.coolant.name": "Refroidissement",
-    "module.coolant.description": "Activez ou désactivez le refroidissement par ruissellement et par brouillard, ainsi que les surcharges.",
+    "module.coolant.description": "Activez ou désactivez le refroidissement par ruissellement et par brouillard, ainsi que les correcteurs.",
     "module.cutting.name": "Découpe",
-    "module.cutting.description": "Surcharges d'avance et de broche, et commandes de cycle pour la découpe manuelle.",
+    "module.cutting.description": "Correcteurs d'avance et de broche, et commandes de cycle pour la découpe manuelle.",
     "module.goto.name": "Aller à",
     "module.goto.description": "Déplace les axes vers les positions de référence G28/G30 ou vers les coordonnées saisies.",
     "module.jog.name": "Déplacement manuel",
@@ -175,9 +175,9 @@
     "module.coolant.mist": "Brouillard",
     "module.cutting.feed": "Avance",
     "module.cutting.speed": "Vitesse",
-    "module.cutting.feedOverride": "Surchage d'avance",
-    "module.cutting.rapidsOverride": "Surchage des rapides",
-    "module.cutting.speedOverride": "Surchage de vitesse",
+    "module.cutting.feedOverride": "Correcteur de vitesse d'avance",
+    "module.cutting.rapidsOverride": "Correcteur de vitesse des rapides",
+    "module.cutting.speedOverride": "Correcteur de vitesse",
     "module.cutting.reset100": "Réinitialiser à 100 %",
     "module.cutting.spindleRpmHint": "Vitesse de broche (tr/min) utilisée par CW/CCW",
     "module.cutting.cw": "CW",
@@ -237,12 +237,12 @@
     "module.offsets-table.savedToolFailures": "{0} outils enregistrés ; {1} en échec",
     "app.menu.file": "_Fichier",
     "app.menu.file.open": "_Ouvrir",
-    "app.menu.file.save": "Enregis_trer",
+    "app.menu.file.save": "Enre_gistrer",
     "app.menu.file.close": "Fer_mer",
     "app.menu.file.recent": "_Récents",
     "app.menu.file.connect": "_Connecter",
     "app.menu.file.disconnect": "_Déconnecter",
-    "app.menu.file.exit": "Quit_ter",
+    "app.menu.file.exit": "_Quitter",
     "app.menu.file.transform": "_Transformer",
     "app.menu.file.transform.rotate": "_Pivoter…",
     "app.menu.file.transform.arcsToLines": "Arcs en _lignes…",
@@ -363,12 +363,12 @@
     "app.transform.rotate.originY": "Y",
     "app.transform.arcsToLines.title": "Arcs en lignes",
     "app.transform.arcsToLines.tolerance": "Tolérance (mm)",
-    "app.transform.arcsToLines.toleranceHint": "Erreur de corde pour l'approximation des arcs/splines ; les valeurs supérieures à 1 sont traitées comme nombre de points par cercle.",
+    "app.transform.arcsToLines.toleranceHint": "Erreur de corde pour l'approximation des arcs/splines ; les valeurs supérieures à 1 sont traitées comme un nombre de points par cercle.",
     "app.msg.converted": "{0} converti : {1} lignes",
     "app.msg.convertFailed": "Échec de la conversion : {0}",
     "module.offsets-table.touchOffCopied": "Position machine copiée vers T{0} — vérifiez et appuyez sur Tout définir",
     "module.offsets-table.touchOffCopiedWork": "Position travail copiée vers T{0} (position machine indisponible) — vérifiez et appuyez sur Tout définir",
-    "module.offsets-table.touchOffNone": "Le touch-off ne s'applique qu'à un outil numéroté",
+    "module.offsets-table.touchOffNone": "Le toucher ne s'applique qu'à un outil numéroté",
     "module.offsets-table.toolName": "Outil",
     "module.offsets-table.toolsCleared": "Tous les outils ont été effacés de l'éditeur ; appuyez sur Tout définir pour les écrire",
     "module.offsets-table.visibleTools": "Outils visibles",
@@ -493,7 +493,7 @@
     "error.73": "Argument trop grand ou trop petit fourni.",
     "error.74": "L'argument n'est pas valide pour l'opération.",
     "error.75": "L'expression n'est pas valide.",
-    "error.76": "NaN (not a number) ou l'infini a été renvoyé par l'expression.",
+    "error.76": "NaN (not a number — valeur non numérique) ou l'infini a été renvoyé par l'expression.",
     "error.77": "Authentification requise.",
     "error.78": "Accès refusé.",
     "error.79": "Non autorisé tant qu'un événement critique est actif.",
@@ -512,7 +512,7 @@
     "error.92": "La compensation d'outil n'est pas valide pour le mouvement courant.",
     "error.253": "Une erreur définie par l'utilisateur s'est produite.",
     "errorHint.15": "Si la machine n'est pas à l'origine et que les limites logicielles sont activées, lancez d'abord la recherche d'origine ($H).",
-    "errorHint.79": "Une alarme critique (limite matérielle/logicielle, arrêt d'urgence ou défaut de moteur) est active — supprimez la cause, puis Réinitialisez et Déverrouillez à nouveau."
+    "errorHint.79": "Une alarme critique (limite matérielle/logicielle, arrêt d'urgence ou défaut de moteur) est active — supprimez la cause, puis réinitialisez et déverrouillez à nouveau."
   },
   "grblSettingGroups": {
     "0": { "name": "Racine", "en": "Root" },
@@ -651,7 +651,7 @@
       "description": "Vitesse d'avance pour engager lentement l'interrupteur de fin de course et déterminer précisément sa position."
     },
     "25": {
-      "name": "Vitesse de recherche lors de l'origine",
+      "name": "Vitesse de recherche (origine)",
       "en": "Homing search seek rate",
       "description": "Vitesse de recherche pour trouver rapidement l'interrupteur de fin de course avant la phase de localisation plus lente."
     },
@@ -737,22 +737,22 @@
       "description": "Nombre de passages de recherche d'origine. Minimum 1, maximum 128."
     },
     "44": {
-      "name": "Axes à rechercher, première phase",
+      "name": "Axes à mettre à l'origine, première phase",
       "en": "Axes homing, first phase",
       "description": "Axes à mettre à l'origine lors de la première phase."
     },
     "45": {
-      "name": "Axes à rechercher, deuxième phase",
+      "name": "Axes à mettre à l'origine, deuxième phase",
       "en": "Axes homing, second phase",
       "description": "Axes à mettre à l'origine lors de la deuxième phase."
     },
     "46": {
-      "name": "Axes à rechercher, troisième phase",
+      "name": "Axes à mettre à l'origine, troisième phase",
       "en": "Axes homing, third phase",
       "description": "Axes à mettre à l'origine lors de la troisième phase."
     },
     "47": {
-      "name": "Axes à rechercher, quatrième phase",
+      "name": "Axes à mettre à l'origine, quatrième phase",
       "en": "Axes homing, fourth phase",
       "description": "Axes à mettre à l'origine lors de la quatrième phase."
     },
@@ -777,9 +777,9 @@
       "description": "Vitesse rapide du parkage jusqu'à la cible après la sortie, en mm/min."
     },
     "60": {
-      "name": "Rétablir les surcharges",
+      "name": "Rétablir les correcteurs",
       "en": "Restore overrides",
-      "description": "Rétablit les surcharges à leurs valeurs par défaut en fin de programme."
+      "description": "Rétablit les correcteurs à leurs valeurs par défaut en fin de programme."
     },
     "61": {
       "name": "Options de la porte de sécurité",
@@ -804,7 +804,7 @@
     "65": {
       "name": "Options de sondage",
       "en": "Probing options",
-      "description": "Autorise la surcharge d'avance pendant le sondage et/ou limite les commandes de sondage à l'espace de travail de la machine pour les axes à l'origine."
+      "description": "Autorise le correcteur de vitesse d'avance pendant le sondage et/ou limite les commandes de sondage à l'espace de travail de la machine pour les axes à l'origine."
     },
     "100": {
       "name": "Résolution de déplacement axe X",
@@ -889,12 +889,12 @@
     "341": {
       "name": "Mode de changement d'outil",
       "en": "Tool change mode",
-      "description": "Normal : permet le déplacement manuel pour le touch-off. Définissez la nouvelle position manuellement.\n\nTouch-off manuel : rapides vers la position de changement d'outil, utilisez le déplacement manuel ou $TPW pour le touch-off.\n\nTouch-off manuel @ G59.3 : rapides vers la position de changement d'outil, puis bascule vers la position G59.3 pour le touch-off manuel. Utilisez le déplacement manuel ou $TPW pour le touch-off.\n\nTouch-off automatique @ G59.3 : rapides vers la position de changement d'outil, puis bascule vers la position G59.3 pour le touch-off automatique.\n\nSelon les paramètres, l'outil (point contrôlé) sera ramené à sa position d'origine après le touch-off. La « position de changement d'outil » est soit la position d'origine de l'axe d'outil, soit G59.3, soit la position G30, selon les paramètres."
+      "description": "Normal : permet le déplacement manuel pour le toucher. Définissez la nouvelle position manuellement.\n\nToucher manuel : rapides vers la position de changement d'outil, utilisez le déplacement manuel ou $TPW pour le toucher.\n\nToucher manuel @ G59.3 : rapides vers la position de changement d'outil, puis bascule vers la position G59.3 pour le toucher manuel. Utilisez le déplacement manuel ou $TPW pour le toucher.\n\nToucher automatique @ G59.3 : rapides vers la position de changement d'outil, puis bascule vers la position G59.3 pour le toucher automatique.\n\nSelon les paramètres, l'outil (point contrôlé) sera ramené à sa position d'origine après le toucher. La « position de changement d'outil » est soit la position d'origine de l'axe d'outil, soit G59.3, soit la position G30, selon les paramètres."
     },
     "342": {
       "name": "Distance de sondage du changement d'outil",
       "en": "Tool change probing distance",
-      "description": "Distance de sondage maximale pour le touch-off automatique ou $TPW."
+      "description": "Distance de sondage maximale pour le toucher automatique ou $TPW."
     },
     "343": {
       "name": "Vitesse d'avance de localisation du changement d'outil",
@@ -914,7 +914,7 @@
     "346": {
       "name": "Options de changement d'outil",
       "en": "Tool change options",
-      "description": "Restaurer la position après M6 : lorsqu'il est défini, la broche est déplacée pour que le point contrôlé (pointe de l'outil) soit identique à celui d'avant la commande M6 ; sinon la broche n'est déplacée que vers la position d'origine Z.\n\nChanger l'outil à G30 : lorsqu'il est défini, rapides vers la position G30 via la position d'origine de l'axe d'outil. Nécessite que les axes soient à l'origine.\n\nRecul rapide de la sonde : utilise un sondage de type G38.4 pour un touch-off plus rapide."
+      "description": "Restaurer la position après M6 : lorsqu'il est défini, la broche est déplacée pour que le point contrôlé (pointe de l'outil) soit identique à celui d'avant la commande M6 ; sinon la broche n'est déplacée que vers la position d'origine Z.\n\nChanger l'outil à G30 : lorsqu'il est défini, rapides vers la position G30 via la position d'origine de l'axe d'outil. Nécessite que les axes soient à l'origine.\n\nRecul rapide de la sonde : utilise un sondage de type G38.4 pour un toucher plus rapide."
     },
     "370": {
       "name": "Inverser les entrées du port E/S",
