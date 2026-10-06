@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:CNC.Core.ViewModels;assembly=SenderNG.Core"
              xmlns:loc="clr-namespace:SenderNG.Localization;assembly=SenderNG"
+             xmlns:conv="clr-namespace:SenderNG.Converters"
              mc:Ignorable="d" d:DesignWidth="920" d:DesignHeight="560"
              x:Class="SenderNG.Modules.Fixed.AppSettingsView"
              x:DataType="vm:AppSettingsViewModel">
@@ -232,7 +233,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                                   SelectedItem="{Binding SelectedLocale, Mode=TwoWay}"
                                                   Width="200" Height="26" MinHeight="26"
                                                   FontSize="12" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                                                  VerticalContentAlignment="Center" />
+                                                  VerticalContentAlignment="Center">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Converter={x:Static conv:Converters.LocaleDisplayName}}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
                                     </StackPanel>
                                 </ScrollViewer>
                             </DataTemplate>

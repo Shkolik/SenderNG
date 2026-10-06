@@ -50,6 +50,7 @@ public static class Converters
     public static IsNotNullConverter IsNotNull => IsNotNullConverter.Instance;
     public static IsFlyoutModuleConverter IsFlyout => IsFlyoutModuleConverter.Instance;
     public static NumericTextConverter NumericText => NumericTextConverter.Instance;
+    public static LocaleDisplayNameConverter LocaleDisplayName => LocaleDisplayNameConverter.Instance;
 }
 
 /// <summary>
@@ -192,6 +193,21 @@ public sealed class IsFlyoutModuleConverter : IValueConverter
             return m.Panel == SenderNG.Core.Modules.PanelHint.Flyout;
         return false;
     }
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Locale code → native language name for the language picker's ItemTemplate.
+/// Non-string values pass through unchanged.
+/// </summary>
+public sealed class LocaleDisplayNameConverter : IValueConverter
+{
+    public static readonly LocaleDisplayNameConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string code ? SenderNG.Localization.LocaleDisplayNames.For(code) : value;
+
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
