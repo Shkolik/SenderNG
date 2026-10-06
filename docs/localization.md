@@ -11,12 +11,12 @@ mechanism is owned by `SenderNG.Core`.
 ## Data flow at a glance
 
 ```text
-Locale/*.json (en.json base + ru.json ... overrides)
+Locale/*.json (en.json base + ru/de/fr/es overrides)
         │
         ▼
 LocalizationService  (SenderNG.Core)
    • loaded once by HostSetup into DI + LocalizationService.Current
-   • T(key) / Resolve(key, fallback) / TError / ApplySettingStrings
+   • T(key) / Resolve(key, fallback) / TError / ApplySettingStrings / ApplyGroupStrings
    • raises Changed when the locale switches
         │
         ├── {loc:Loc key} markup extension   → static XAML text (re-renders live)
@@ -32,12 +32,12 @@ LocalizationService  (SenderNG.Core)
 UI-owned catalogs live in `src/SenderNG/Locale/`:
 
 - `en.json` — the **base** catalog. Required; loaded first.
-- `ru.json` — a **per-locale override**; English is the source of truth and never depends
-  on a locale file.
+- `ru.json`, `de.json`, `fr.json`, `es.json` — **per-locale overrides**; English is the
+  source of truth and never depends on a locale file.
 
-Both are copied to `OutputDir/Locale/` on build (see the Avalonia csproj) and loaded from
-there at runtime. A non-en locale JSON carries four top-level sections — `locale`, `strings`,
-`grblSettingGroups`, `grblSettings` — the last two optional:
+All five are copied to `OutputDir/Locale/` on build (see the Avalonia csproj) and loaded
+from there at runtime. A non-en locale JSON carries four top-level sections — `locale`,
+`strings`, `grblSettingGroups`, `grblSettings` — the last two optional:
 
 ```jsonc
 {
@@ -94,6 +94,7 @@ Key API:
 | `RegisterModuleLocales(dir)` | Merge a plugin's own `Locale/` JSON into lookup. |
 | `TError(code)` / `DecorateError(line)` | Localized grbl `error:<n>` explanations. |
 | `ApplySettingStrings(setting)` | Guard-based localization of grbl setting names (see below). |
+| `ApplyGroupStrings(group)` | Guard-based localization of grbl group names from `grblSettingGroups` (see below). |
 
 ---
 
