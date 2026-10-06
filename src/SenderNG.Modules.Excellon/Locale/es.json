@@ -1,0 +1,21 @@
+{
+  "strings": {
+    "module.excellon.name": "Excellon",
+    "module.excellon.description": "Archivos de taladrado de PCB Excellon (.drl/.xln) → G-code.",
+    "module.excellon.fileType": "Archivos Excellon",
+    "module.converters.parametersTitle": "Parámetros del convertidor",
+    "module.converters.zHome": "Origen Z",
+    "module.converters.zRapids": "Z de rápidos",
+    "module.converters.zSafe": "Z segura",
+    "module.converters.zMin": "Z mín.",
+    "module.converters.scaleX": "Escala X",
+    "module.converters.rpm": "RPM",
+    "module.converters.toolDiameter": "Ø de la herramienta",
+    "module.converters.feedRate": "Avance",
+    "module.converters.plungeRate": "Avance de entrada",
+    "module.converters.scaleY": "Escala Y",
+    "module.converters.cutMode": "Fresado (desmarcar para el láser)",
+    "module.converters.doNotShowAgain": "No volver a mostrar",
+    "module.converters.showDialog": "Pedir los parámetros al abrir"
+  }
+}
