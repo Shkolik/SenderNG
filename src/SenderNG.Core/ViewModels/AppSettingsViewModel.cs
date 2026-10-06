@@ -732,12 +732,13 @@ public sealed class HotkeyGroup : ViewModelBase
 }
 
 /// <summary>Global &gt; Hotkeys leaf: remap every registered action, grouped by scope.</summary>
-public sealed class HotkeysSettingsLeaf : AppSettingsLeaf
+public sealed class HotkeysSettingsLeaf : AppSettingsLeaf, IDisposable
 {
     private readonly HotkeyService _service;
     private readonly Func<string, string, string> _resolve;
     private readonly Dictionary<string, string> _moduleNames;
     private HotkeyEditorRow? _recordingRow;
+    private bool _disposed;
     private string _searchText = string.Empty;
 
     public HotkeysSettingsLeaf(
@@ -755,7 +756,7 @@ public sealed class HotkeysSettingsLeaf : AppSettingsLeaf
             m => resolve($"module.{m.Id}.name", m.Name));
         RestoreAllCommand = new DelegateCommand(_ => _service.ResetAll());
         Build();
-        _service.Changed += (_, _) => RefreshAll();
+        _service.Changed += OnHotkeysChanged;
     }
 
     public ObservableCollection<HotkeyGroup> Groups { get; } = new();
@@ -905,6 +906,16 @@ public sealed class HotkeysSettingsLeaf : AppSettingsLeaf
             }
     }
 
+    private void OnHotkeysChanged(object? sender, EventArgs e) => RefreshAll();
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        _service.Changed -= OnHotkeysChanged;
+    }
+
     private void ApplyFilter()
     {
         var query = _searchText.Trim();
@@ -922,7 +933,7 @@ public sealed class HotkeysSettingsLeaf : AppSettingsLeaf
  * View model
  * ------------------------------------------------------------------------- */
 
-public class AppSettingsViewModel : ViewModelBase, IClosableDialog
+public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
 {
     private MachineProfile _profile;
     private readonly GlobalSettings _global;
@@ -937,6 +948,7 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
     private Func<bool>? _profileSwitchAllowed;
     private bool _preselectProfiles;
     private bool _updatingSections;
+    private bool _disposed;
     private string _currentLanguage;
 
     public event EventHandler<bool>? CloseRequested;
@@ -967,6 +979,15 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog
 
         _localization.Changed += OnLocaleChanged;
         CloseCommand = new DelegateCommand(_ => RequestClose(true));
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        _localization.Changed -= OnLocaleChanged;
+        _hotkeysLeaf?.Dispose();
     }
 
     /// <summary>

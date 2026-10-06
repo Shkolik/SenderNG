@@ -46,6 +46,7 @@ public class ProgramModule : IModule, IModuleSettingsProvider
 {
     private SettingsService? _settingsService;
     private IServiceProvider? _services;
+    private ProgramSettingsViewModel? _settingsVm;
 
     public string Id => "program";
     public string Name => "Program";
@@ -79,15 +80,17 @@ public class ProgramModule : IModule, IModuleSettingsProvider
 
     // Module-provided settings UI: the compress comment-mode selector, bound to
     // a view model that persists through ProgramConfigStore on selection.
-    public object? CreateSettingsView() =>
-        _services is null || _settingsService is null
-            ? null
-            : new ProgramSettingsView
-            {
-                DataContext = new ProgramSettingsViewModel(
-                    _settingsService,
-                    _services.GetService<SenderNG.Core.Localization.LocalizationService>()),
-            };
+    public object? CreateSettingsView()
+    {
+        if (_services is null || _settingsService is null)
+            return null;
+
+        _settingsVm?.Dispose();
+        _settingsVm = new ProgramSettingsViewModel(
+            _settingsService,
+            _services.GetService<SenderNG.Core.Localization.LocalizationService>());
+        return new ProgramSettingsView { DataContext = _settingsVm };
+    }
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<ProgramViewModel>();

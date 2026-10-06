@@ -72,7 +72,7 @@ public sealed class CommentModeOption : ViewModelBase
 /// re-synced when the profile changes while the dialog is open. Option names
 /// re-resolve when the active locale changes, so the dropdown stays live.
 /// </summary>
-public class ProgramSettingsViewModel : ViewModelBase
+public class ProgramSettingsViewModel : ViewModelBase, IDisposable
 {
     private readonly SettingsService _settings;
     private readonly MachineProfile _profile;
@@ -103,7 +103,7 @@ public class ProgramSettingsViewModel : ViewModelBase
 
         _settings.Changed += OnSettingsChanged;
         if (loc is not null)
-            loc.Changed += (_, _) => Relocalize();
+            loc.Changed += OnLocalizationChanged;
     }
 
     public IReadOnlyList<CommentModeOption> Options { get; }
@@ -132,6 +132,20 @@ public class ProgramSettingsViewModel : ViewModelBase
         var index = IndexOf(mode);
         _selectedIndex = index >= 0 ? index : 0;
         OnPropertyChanged(nameof(SelectedIndex));
+    }
+
+    private bool _disposed;
+
+    private void OnLocalizationChanged(object? sender, EventArgs e) => Relocalize();
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        _settings.Changed -= OnSettingsChanged;
+        if (_loc is not null)
+            _loc.Changed -= OnLocalizationChanged;
     }
 
     private int IndexOf(GCodeCommentMode mode)

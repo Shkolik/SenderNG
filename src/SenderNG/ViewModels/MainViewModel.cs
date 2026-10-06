@@ -950,7 +950,14 @@ public class MainViewModel : ViewModelBase, IDisposable
         ApplySettingsDialogGuards(viewModel);
         if (viewModel is CNC.Core.ViewModels.AppSettingsViewModel settingsVm)
             settingsVm.PreselectProfiles = profiles;
-        await _dialogs.ShowDialogAsync(module.Name, viewModel, module.DialogPreferredSize);
+        try
+        {
+            await _dialogs.ShowDialogAsync(module.Name, viewModel, module.DialogPreferredSize);
+        }
+        finally
+        {
+            (viewModel as IDisposable)?.Dispose();
+        }
     }
 
     /// <summary>Profile switching is nonsense mid-session: the dialog's switch
