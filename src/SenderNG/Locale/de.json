@@ -74,7 +74,7 @@
     "module.program.compressComments": "Komprimieren: Kommentare",
     "module.program.compressComments.keep": "Kommentare behalten",
     "module.program.compressComments.stripAll": "Alle Kommentare entfernen",
-    "module.program.compressCommentsHint": "Wie die Kompress-Transformation (...) Kommentare behandelt — CAM-Kommentare enthalten häufig Betriebs- und Werkzeugnotizen. ';'-Bemerkungszeilen werden von jeder Transformation verworfen (sie werden nie tokenisiert).",
+    "module.program.compressCommentsHint": "Wie die Komprimierungstransformation (...) Kommentare behandelt — CAM-Kommentare enthalten häufig Betriebs- und Werkzeugnotizen. ';'-Bemerkungszeilen werden von jeder Transformation verworfen (sie werden nie tokenisiert).",
     "module.offsets-table.showToolTable": "Werkzeugtabelle anzeigen",
     "module.stepper-calibration.name": "Schrittmotoren-Kalibrierung",
     "module.stepper-calibration.distance": "Abstand",
@@ -368,7 +368,7 @@
     "app.msg.convertFailed": "Umwandlung fehlgeschlagen: {0}",
     "module.offsets-table.touchOffCopied": "Maschinenposition nach T{0} kopiert — prüfen und „Alle setzen“ drücken",
     "module.offsets-table.touchOffCopiedWork": "Arbeitsposition nach T{0} kopiert (Maschinenposition nicht verfügbar) — prüfen und „Alle setzen“ drücken",
-    "module.offsets-table.touchOffNone": "Touch-off gilt nur für ein nummeriertes Werkzeug",
+    "module.offsets-table.touchOffNone": "Das Tasten gilt nur für ein nummeriertes Werkzeug",
     "module.offsets-table.toolName": "Werkzeug",
     "module.offsets-table.toolsCleared": "Alle Werkzeuge im Editor gelöscht; „Alle setzen“ drücken, um sie zu schreiben",
     "module.offsets-table.visibleTools": "Sichtbare Werkzeuge",
@@ -512,7 +512,7 @@
     "error.92": "Die Werkzeugkorrektur ist für die aktuelle Bewegung ungültig.",
     "error.253": "Benutzerdefinierter Fehler aufgetreten.",
     "errorHint.15": "Wenn die Maschine nicht referenziert ist und weiche Anschläge aktiviert sind, zuerst die Referenzfahrt ausführen ($H).",
-    "errorHint.79": "Eine kritische Alarmierung (harte/weiche Endschalter, Not-Stop oder Motorfehler) ist aktiv — Ursache beseitigen, dann zurücksetzen und erneut entsperren."
+    "errorHint.79": "Eine kritische Alarmierung (harte/weiche Anschläge, Not-Stop oder Motorfehler) ist aktiv — Ursache beseitigen, dann zurücksetzen und erneut entsperren."
   },
   "grblSettingGroups": {
     "0": { "name": "Wurzel", "en": "Root" },
@@ -722,9 +722,9 @@
       "description": "Begrenzt Jog-Befehle auf den Arbeitsraum der Maschine für referenzierte Achsen."
     },
     "41": {
-      "name": "Park-Zyklus",
+      "name": "Parkzyklus",
       "en": "Parking cycle",
-      "description": "Aktiviert den Park-Zyklus; erfordert, dass die Parkachse referenziert ist."
+      "description": "Aktiviert den Parkzyklus; erfordert, dass die Parkachse referenziert ist."
     },
     "42": {
       "name": "Parkachse",
@@ -757,12 +757,12 @@
       "description": "Achsen, die in der vierten Phase referenziert werden."
     },
     "56": {
-      "name": "Park-Rückzugsdistanz",
+      "name": "Parkrückzugsdistanz",
       "en": "Parking pull-out distance",
       "description": "Aus- und Einfahrdistanz der Spindel in mm. Inkrementale Distanz."
     },
     "57": {
-      "name": "Park-Rückzugsvorschub",
+      "name": "Parkrückzugsvorschub",
       "en": "Parking pull-out rate",
       "description": "Langsamer Vorschub beim Aus- und Einfahren der Spindel in mm/min."
     },
@@ -772,7 +772,7 @@
       "description": "Ziel der Parkachse. In mm, als Maschinenkoordinate [-max_travel, 0]."
     },
     "59": {
-      "name": "Park-Schnellvorschub",
+      "name": "Parkschnellvorschub",
       "en": "Parking fast rate",
       "description": "Schnelle Geschwindigkeit zum Ziel nach dem Rückzug in mm/min."
     },
@@ -782,7 +782,7 @@
       "description": "Setzt Überschreibungen beim Programmende auf die Standardwerte zurück."
     },
     "61": {
-      "name": "Sicherheitstür-Optionen",
+      "name": "Sicherheitstüroptionen",
       "en": "Safety door options",
       "description": "`Ignore when idle`: das Türsignal im Leerlauf (IDLE) ignorieren, um z. B. Joggen zu ermöglichen. Verfügbar, wenn der Controller einen Türeingang hat"
     },
@@ -887,22 +887,22 @@
       "description": "Maximaler Hub der Achse ab dem Referenzschalter. Bestimmt den gültigen Maschinenraum für weiche Anschläge und die Suchwege der Referenzfahrt."
     },
     "341": {
-      "name": "Werkzeugwechsel-Modus",
+      "name": "Werkzeugwechselmodus",
       "en": "Tool change mode",
-      "description": "Normal: erlaubt Joggen für manuelles Touch-off. Neue Position manuell setzen.\n\nManuelles Touch-off: Schnelllauf zur Werkzeugwechselposition, zum Touch-off joggen oder $TPW verwenden.\n\nManuelles Touch-off @ G59.3: Schnelllauf zur Werkzeugwechselposition, danach Wechsel zur G59.3-Position für manuelles Touch-off. Zum Touch-off joggen oder $TPW verwenden.\n\nAutomatisches Touch-off @ G59.3: Schnelllauf zur Werkzeugwechselposition, danach Wechsel zur G59.3-Position für automatisches Touch-off.\n\nAbhängig von den Einstellungen wird das Werkzeug (der kontrollierte Punkt) nach dem Touch-off auf die Ausgangsposition zurückbewegt. Die „Werkzeugwechselposition“ ist je nach Einstellungen die Home-Position der Werkzeugachse, G59.3 oder die G30-Position."
+      "description": "Normal: erlaubt Joggen für manuelles Touch-off. Neue Position manuell setzen.\n\nManuelles Touch-off: Schnelllauf zur Werkzeugwechselposition, zum Touch-off joggen oder $TPW verwenden.\n\nManuelles Touch-off @ G59.3: Schnelllauf zur Werkzeugwechselposition, danach Wechsel zur G59.3-Position für manuelles Touch-off. Zum Touch-off joggen oder $TPW verwenden.\n\nAutomatisches Touch-off @ G59.3: Schnelllauf zur Werkzeugwechselposition, danach Wechsel zur G59.3-Position für automatisches Touch-off.\n\nAbhängig von den Einstellungen wird das Werkzeug (der kontrollierte Punkt) nach dem Touch-off auf die Ausgangsposition zurückbewegt. Die „Werkzeugwechselposition“ ist je nach Einstellungen die Ursprungsposition der Werkzeugachse, G59.3 oder die G30-Position."
     },
     "342": {
       "name": "Tastweg beim Werkzeugwechsel",
       "en": "Tool change probing distance",
-      "description": "Maximale Tastdistanz für automatisches Touch-off oder $TPW."
+      "description": "Maximale Tastdistanz für automatisches Tasten oder $TPW."
     },
     "343": {
-      "name": "Werkzeugwechsel-Vorschubgeschwindigkeit",
+      "name": "Werkzeugwechselvorschubgeschwindigkeit",
       "en": "Tool change locate feed rate",
       "description": "Vorschubgeschwindigkeit, um den Werkzeugwechselsensor langsam anzusteuern und den Werkzeugversatz genau zu bestimmen."
     },
     "344": {
-      "name": "Werkzeugwechsel-Suchgeschwindigkeit",
+      "name": "Werkzeugwechselsuchgeschwindigkeit",
       "en": "Tool change search seek rate",
       "description": "Suchgeschwindigkeit, um den Werkzeugwechselsensor schnell zu finden, vor der langsameren Positionierphase."
     },
@@ -912,9 +912,9 @@
       "description": "Abzugsgeschwindigkeit für die Rückzugsbewegung vor der langsameren Positionierphase."
     },
     "346": {
-      "name": "Werkzeugwechsel-Optionen",
+      "name": "Werkzeugwechseloptionen",
       "en": "Tool change options",
-      "description": "`Restore position after M6`: wenn gesetzt, wird die Spindel so bewegt, dass der kontrollierte Punkt (Werkzeugspitze) wie vor dem M6-Befehl liegt; andernfalls wird die Spindel nur auf die Z-Home-Position bewegt.\n\n`Change tool at G30`: wenn gesetzt, wird mit Schnelllauf über die Home-Position der Werkzeugachse zur G30-Position gefahren. Erfordert, dass die Achsen referenziert sind.\n\n`Fast probe pull off`: verwendet Tasten im Stil von G38.4 für ein schnelleres Touch-off."
+      "description": "`Restore position after M6`: wenn gesetzt, wird die Spindel so bewegt, dass der kontrollierte Punkt (Werkzeugspitze) wie vor dem M6-Befehl liegt; andernfalls wird die Spindel nur auf die Z-Ursprungsposition bewegt.\n\n`Change tool at G30`: wenn gesetzt, wird mit Schnelllauf über die Ursprungsposition der Werkzeugachse zur G30-Position gefahren. Erfordert, dass die Achsen referenziert sind.\n\n`Fast probe pull off`: verwendet Tasten im Stil von G38.4 für ein schnelleres Tasten."
     },
     "370": {
       "name": "IOPort-Eingänge umkehren",
@@ -982,7 +982,7 @@
       "description": "Verzögerung, damit die Spindel auslaufen kann. 0 oder 0,5 – 20 s\nWenn die Spindel die Funktion „at speed“ unterstützt, ist dies die Wartezeit, bevor Alarm 14 ausgelöst wird."
     },
     "650": {
-      "name": "Dateisystem-Optionen",
+      "name": "Dateisystemoptionen",
       "en": "File systems options",
       "description": "Hängt die SD-Karte beim Start automatisch ein."
     },
@@ -1002,12 +1002,12 @@
       "description": "Verzögerung von der Aktivierung der Schrittmotoren bis zum ersten Schrittimpuls. Der Treiber fügt typischerweise etwa 2 ms hinzu."
     },
     "700": {
-      "name": "Unterprogramm-Optionen",
+      "name": "Unterprogrammoptionen",
       "en": "Subroutine options",
       "description": ""
     },
     "701": {
-      "name": "Drehachsen-Optionen",
+      "name": "Drehachsenoptionen",
       "en": "Rotary options",
       "description": "`Fix feedrate` ändert die Vorschubgeschwindigkeit in den inversen Zeitmodus für kombinierte Winkel- und Linearbewegungen.\n`Revert metric conversion` stellt die Umrechnung der Vorschubgeschwindigkeit von imperial auf metrisch für Winkelbewegungen wieder her."
     }
