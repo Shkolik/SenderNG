@@ -36,7 +36,8 @@ UI-owned catalogs live in `src/SenderNG/Locale/`:
   on a locale file.
 
 Both are copied to `OutputDir/Locale/` on build (see the Avalonia csproj) and loaded from
-there at runtime. A locale JSON has three top-level sections:
+there at runtime. A non-en locale JSON carries four top-level sections — `locale`, `strings`,
+`grblSettingGroups`, `grblSettings` — the last two optional:
 
 ```jsonc
 {
@@ -49,7 +50,9 @@ there at runtime. A locale JSON has three top-level sections:
   "grblSettings": {           // (optional) per-setting overrides, keyed by setting id
     "23": { "name": "Инвертировать направление хоуминга", "en": "Homing direction invert" }
   },
-  "grblSettingGroups": { ... } // (en.json only) group tree / metadata
+  "grblSettingGroups": {      // (optional) per-group name overrides, keyed by group id:
+                              // { "name": "<localized>", "en": "<English guard>" }
+  }
 }
 ```
 
@@ -162,7 +165,9 @@ private string LocalizedName(IModule m) =>
 
 ## Live re-localization
 
-When the user picks a new language in App Settings (`SetLocale("ru")`):
+The language ComboBox renders native names (`English`, `Русский`, `Français`, …) through
+`Converters.LocaleDisplayName`; its value remains the locale code. When the user picks a
+new language in App Settings (`SetLocale("ru")`):
 
 1. `LocalizationService.Changed` fires.
 2. `{loc:Loc}` bindings from `LocSource.HotKey` re-emit automatically (UI-thread-safe).
@@ -201,6 +206,14 @@ its own setting metadata; a translation is applied only when it's safe:
 - On any mismatch the controller's own string is kept, rather than misapplying a
   translation to a differently-meaning id.
 
+Group names use the same mechanism: locale files may carry a
+`grblSettingGroups` section (`{ "<id>": { "name", "en" } }`), and
+`ApplyGroupStrings` applies a name only when its `en` guard matches the
+incoming group name — controller `$EG`, demo, or the embedded catalog all
+arrive with English names and all pass the same check (`GrblSettingsLoader`
+runs it once after the group source is settled). The synthetic `Ungrouped`
+node resolves through the `grblSettings.ungrouped` string key.
+
 When a locale is switched, overrides are rebuilt and re-applied on the next read.
 
 ---
@@ -221,10 +234,19 @@ When a locale is switched, overrides are rebuilt and re-applied on the next read
 
 ### Adding a whole new language
 
-1. Copy `en.json` to `Locale/<code>.json` and translate `strings` (+ `grblSettings`).
+1. Copy `en.json` to `Locale/<code>.json` and translate `strings` (including the
+   `error.*` keys, whose English source is `GrblErrorCodes`), `grblSettings`
+   (`{name, en, description}` per id) and `grblSettingGroups` (`{name, en}` per id).
+   Same for each module's `Locale/<code>.json`.
 2. The language appears automatically in the App Settings picker via
-   `LocalizationService.AvailableLocales` (scans `OutputDir/Locale/*.json`, English first).
-3. Update the catalog test to also resolve in the new code if you want it part of CI.
+   `LocalizationService.AvailableLocales` (scans `OutputDir/Locale/*.json`, English
+   first). The picker renders native names for codes known to
+   `LocaleDisplayNames` (UI project) and falls back to the raw code otherwise —
+   add one line there for a nicer label.
+3. CI validates the file automatically: `LocaleParityTests` (discovery-driven)
+   checks key coverage against en, grbl id-set parity, placeholder preservation,
+   non-blank values, no BOM, and the staged copy — no test edits needed for a
+   new locale.
 
 ---
 
