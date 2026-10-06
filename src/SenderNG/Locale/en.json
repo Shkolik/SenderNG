@@ -5,6 +5,7 @@
     "grblSettings.load": "Load",
     "grblSettings.save": "Save changes",
     "grblSettings.reload": "Reload",
+    "grblSettings.ungrouped": "Ungrouped",
     "grblSettings.searchPlaceholder": "Search…",
     "grblSettings.value": "Value",
     "grblSettings.loaded": "Loaded {count} settings",

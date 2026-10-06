@@ -105,6 +105,11 @@ public sealed class GrblSettingsLoader
         if (groups.Count == 0)
             groups = CatalogGroups(_localization);
 
+        // Localize display names once the source is settled: wire ($EG), demo and
+        // catalog groups all arrive with English names and all pass the same guard.
+        foreach (var group in groups)
+            _localization.ApplyGroupStrings(group);
+
         // 4. Merge values with metadata into the flat setting list.
         var settings = new List<GrblSetting>(values.Count);
         foreach (var (id, value) in values)
@@ -140,7 +145,7 @@ public sealed class GrblSettingsLoader
         // 5. Assemble the tree: drop groups with no settings and no children,
         //    order groups/settings by id, keep the Root group's children as the
         //    top level (Root itself is a container, not a displayed node).
-        var topGroups = AssembleTree(groups, settings);
+        var topGroups = AssembleTree(groups, settings, _localization.Resolve("grblSettings.ungrouped", "Ungrouped"));
 
         return new GrblSettingsSnapshot(topGroups, settings, metadataFromController);
     }
@@ -175,7 +180,7 @@ public sealed class GrblSettingsLoader
     }
 
     private static IReadOnlyList<GrblSettingGroup> AssembleTree(
-        IReadOnlyList<GrblSettingGroup> groups, IReadOnlyList<GrblSetting> settings)
+        IReadOnlyList<GrblSettingGroup> groups, IReadOnlyList<GrblSetting> settings, string ungroupedName)
     {
         var byId = groups.ToDictionary(static g => g.Id);
 
@@ -189,7 +194,7 @@ public sealed class GrblSettingsLoader
             {
                 if (!byId.TryGetValue(SyntheticUngroupedId, out group))
                 {
-                    group = new GrblSettingGroup { Id = SyntheticUngroupedId, ParentId = 0, Name = "Ungrouped" };
+                    group = new GrblSettingGroup { Id = SyntheticUngroupedId, ParentId = 0, Name = ungroupedName };
                     byId[SyntheticUngroupedId] = group;
                     groups = groups.Append(group).ToList();
                 }

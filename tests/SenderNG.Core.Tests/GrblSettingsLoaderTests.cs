@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Text;
 using CNC.Core.Abstractions;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Settings;
@@ -205,5 +206,56 @@ public class GrblSettingsLoaderTests
         var xAxis = snapshot.TopGroups.Single(g => g.Id == 42).Children.Single();
         Assert.Equal([100, 130], xAxis.Settings.Select(static s => s.Id));
         Assert.DoesNotContain(snapshot.TopGroups, static g => g.Id is 5 or 6 or 11); // Coolant/Spindle/Homing
+    }
+
+    private static LocalizationService Localized(string json) =>
+        new(
+            File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Locale", "en.json")),
+            "fr",
+            new MemoryStream(Encoding.UTF8.GetBytes(json)));
+
+    [Fact]
+    public async Task Wire_group_names_are_localized_through_the_guard()
+    {
+        var loc = Localized("""
+            { "grblSettingGroups": { "35": { "name": "Moteurs pas à pas", "en": "Stepper" } } }
+            """);
+        var provider = new StubProvider
+        {
+            ValueLines = ["$0=10"], // classic value-only reply; groups come from $EG lines
+            GroupLines = ["[SETTINGGROUP:0|0|Root]", "[SETTINGGROUP:35|0|Stepper]"],
+        };
+
+        var snapshot = await new GrblSettingsLoader(provider, loc).LoadAsync();
+
+        Assert.Equal("Moteurs pas à pas", snapshot.TopGroups.Single(g => g.Id == 35).Name);
+    }
+
+    [Fact]
+    public async Task Wire_group_names_that_fail_the_guard_are_kept()
+    {
+        var loc = Localized("""
+            { "grblSettingGroups": { "35": { "name": "Moteurs pas à pas", "en": "Stepper" } } }
+            """);
+        var provider = new StubProvider
+        {
+            ValueLines = ["$0=10"],
+            GroupLines = ["[SETTINGGROUP:0|0|Root]", "[SETTINGGROUP:35|0|Something else]"],
+        };
+
+        var snapshot = await new GrblSettingsLoader(provider, loc).LoadAsync();
+
+        Assert.Equal("Something else", snapshot.TopGroups.Single(g => g.Id == 35).Name);
+    }
+
+    [Fact]
+    public async Task The_ungrouped_node_uses_the_localized_label()
+    {
+        var loc = Localized("""{ "strings": { "grblSettings.ungrouped": "Sans groupe" } }""");
+        var provider = new StubProvider { ValueLines = ["$999=42"], GroupLines = [] };
+
+        var snapshot = await new GrblSettingsLoader(provider, loc).LoadAsync();
+
+        Assert.Contains(snapshot.TopGroups, static g => g.Name == "Sans groupe");
     }
 }
