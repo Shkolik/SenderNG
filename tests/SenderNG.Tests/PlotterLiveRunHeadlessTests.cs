@@ -65,7 +65,6 @@ using static SenderNG.Tests.PlotterTestStubs;
 
 namespace SenderNG.Tests;
 
-[Trait("Category", "GPU")]
 public class PlotterLiveRunHeadlessTests
 {
     /// <summary>A long square spiral so the tool glyph travels far across the
@@ -491,40 +490,38 @@ public class PlotterLiveRunHeadlessTests
         for (var i = 0; i < 6; i++)
             await Pump();
 
+        // Capture the opening frame BEFORE RunAsync(): one CaptureFrame costs
+        // 0.6-1.4 s of wall clock against a ~1.7 s demo run, so taking it after
+        // the run has started would spend the whole observation window before the
+        // first sample.
+        var startGlyph = Glyph(CaptureFrame(window));
+        Assert.True(startGlyph.Count > 4,
+            $"the iso wire glyph must be visible before the run ({startGlyph.Count} red pixels)");
+
         var run = program.RunAsync();
         var start = Environment.TickCount64;
-        var firstGood = (X: 0d, Y: 0d);
-        var lastGood = (X: 0d, Y: 0d);
         var sawGlyph = false;
-        var lastGlyph = Glyph(CaptureFrame(window));
-        var ticks = 0;
         while (!run.IsCompleted && Environment.TickCount64 - start < 8000)
         {
             await Pump();
-            ticks++;
-            if ((ticks & 1) == 0)
-            {
-                var g = Glyph(CaptureFrame(window));
-                if (g.Count > 4 && lastGlyph.Count > 4)
-                {
-                    if (!sawGlyph) { firstGood = (g.X, g.Y); sawGlyph = true; }
-                    lastGood = (g.X, g.Y);
-                }
-                lastGlyph = g;
-            }
+            if (Glyph(CaptureFrame(window)).Count > 4)
+                sawGlyph = true;
         }
         await run;
         for (var i = 0; i < 8; i++)
             await Pump();
 
-        var net = Math.Sqrt(Math.Pow(lastGood.X - firstGood.X, 2) + Math.Pow(lastGood.Y - firstGood.Y, 2));
+        var endGlyph = Glyph(CaptureFrame(window));
         Assert.True(plotter.DoneCount == plotter.TotalCount, "run must complete");
         Assert.True(sawGlyph, "the iso wire glyph must be sampled during the run");
-        // First-to-last displacement, not the max hop - see the reasoning in
-        // Check_mode_glyph_follows_the_acked_end_not_the_frozen_position.
+        Assert.True(endGlyph.Count > 10, "the finished wing must still show the wire glyph");
+        // Start-to-end travel, not first-to-last over the loop's samples: the
+        // capture cost above leaves the loop fitting only one or two frames, so a
+        // first-to-last measure of those is dominated by sampling phase and comes
+        // out at zero whenever the machine is loaded.
+        var net = Math.Sqrt(Math.Pow(endGlyph.X - startGlyph.X, 2) + Math.Pow(endGlyph.Y - startGlyph.Y, 2));
         Assert.True(net > 60,
-            $"the iso wire glyph must travel with the run, first-to-last displacement {net:F1} px");
-        Assert.True(Glyph(CaptureFrame(window)).Count > 10, "the finished wing must still show the wire glyph");
+            $"the iso wire glyph must travel with the run, start-to-end displacement {net:F1} px");
     }
 
     /// <summary>Check mode on the iso loft: grbl $C freezes the machine
@@ -545,39 +542,37 @@ public class PlotterLiveRunHeadlessTests
             await Pump();
         Assert.True(plotter.CheckMode, "a Check status must flip the VM into check mode");
 
+        // See Iso_foam_live_run_moves_the_wire_glyph for why the capture has to
+        // precede RunAsync().
+        var startGlyph = Glyph(CaptureFrame(window));
+        Assert.True(startGlyph.Count > 4,
+            $"the iso wire glyph must be visible before the run ({startGlyph.Count} red pixels)");
+
         var run = program.RunAsync();
         var start = Environment.TickCount64;
-        var firstGood = (X: 0d, Y: 0d);
-        var lastGood = (X: 0d, Y: 0d);
         var sawGlyph = false;
-        var lastGlyph = Glyph(CaptureFrame(window));
-        var ticks = 0;
         while (!run.IsCompleted && Environment.TickCount64 - start < 8000)
         {
             await Pump();
-            ticks++;
-            if ((ticks & 1) == 0)
-            {
-                var g = Glyph(CaptureFrame(window));
-                if (g.Count > 4 && lastGlyph.Count > 4)
-                {
-                    if (!sawGlyph) { firstGood = (g.X, g.Y); sawGlyph = true; }
-                    lastGood = (g.X, g.Y);
-                }
-                lastGlyph = g;
-            }
+            if (Glyph(CaptureFrame(window)).Count > 4)
+                sawGlyph = true;
         }
         await run;
         for (var i = 0; i < 8; i++)
             await Pump();
 
-        var net = Math.Sqrt(Math.Pow(lastGood.X - firstGood.X, 2) + Math.Pow(lastGood.Y - firstGood.Y, 2));
+        var endGlyph = Glyph(CaptureFrame(window));
         Assert.True(plotter.DoneCount == plotter.TotalCount, "run must complete");
         Assert.True(sawGlyph, "the iso wire glyph must be sampled during the run");
-        // First-to-last displacement, not the max hop - see the reasoning in
-        // Check_mode_glyph_follows_the_acked_end_not_the_frozen_position.
+        Assert.True(endGlyph.Count > 10, "the iso wire glyph must still be visible after the run");
+        // Start-to-end travel for the reason spelled out in
+        // Iso_foam_live_run_moves_the_wire_glyph. With $C freezing the machine
+        // position for the whole run, only the ACKED end can carry the glyph from
+        // the start of the program to the end - a glyph pinned to the frozen
+        // position would measure zero here.
+        var net = Math.Sqrt(Math.Pow(endGlyph.X - startGlyph.X, 2) + Math.Pow(endGlyph.Y - startGlyph.Y, 2));
         Assert.True(net > 60,
-            $"a frozen machine position in check mode must NOT freeze the iso wire glyph, first-to-last displacement {net:F1} px");
+            $"a frozen machine position in check mode must NOT freeze the iso wire glyph, start-to-end displacement {net:F1} px");
     }
 
     /// <summary>Wing-like program whose tower-1 (Y) also wiggles so the XY

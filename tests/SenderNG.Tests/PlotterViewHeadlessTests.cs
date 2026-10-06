@@ -73,7 +73,11 @@ namespace SenderNG.Tests;
 // fixed 2026-10-05 (docs/test-stability.md §11), and 0 failures in 40 runs under
 // that same load afterwards. The class was also in the gate for every CI run that
 // reported 160 for SenderNG.Tests, all green.
-// PlotterLiveRunHeadlessTests keeps the tag: its Iso_* pair still flakes.
+// PlotterLiveRunHeadlessTests joined it in the gate the same day: its Iso_* pair
+// failed every run under that load because travel was measured from the first
+// frame captured *inside* the run loop, which a single 0.6-1.4 s capture could
+// push past the whole ~1.7 s run — root-caused and fixed 2026-10-05
+// (docs/test-stability.md §12), then 16/16 full-assembly runs green under load.
 public class PlotterViewHeadlessTests
 {
     /// <summary>A long, dense toolpath so a "is the path drawn at all" pixel
