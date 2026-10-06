@@ -1,9 +1,11 @@
 {
+  "locale": "ru",
   "strings": {
     "grblSettings.title": "Настройки GRBL",
     "grblSettings.load": "Загрузить",
     "grblSettings.save": "Сохранить изменения",
     "grblSettings.reload": "Перезагрузить",
+    "grblSettings.ungrouped": "Без группы",
     "grblSettings.searchPlaceholder": "Поиск…",
     "grblSettings.value": "Значение",
     "grblSettings.loaded": "Загружено настроек: {count}",
@@ -511,6 +513,26 @@
     "module.jog.hotkey.jog.together.up": "Двигать обе вверх",
     "module.jog.hotkey.jog.together.down": "Двигать обе вниз",
     "app.msg.hotkeyModuleFailed": "{0}: сбой горячих клавиш: {1}"
+  },
+  "grblSettingGroups": {
+    "0": { "name": "Корень", "en": "Root" },
+    "1": { "name": "Общие", "en": "General" },
+    "2": { "name": "Сигналы управления", "en": "Control signals" },
+    "3": { "name": "Лимиты", "en": "Limits" },
+    "5": { "name": "Охлаждение", "en": "Coolant" },
+    "6": { "name": "Шпиндель", "en": "Spindle" },
+    "9": { "name": "Смена инструмента", "en": "Tool change" },
+    "11": { "name": "Хоуминг", "en": "Homing" },
+    "12": { "name": "Щуп", "en": "Probing" },
+    "13": { "name": "Парковка/Дверь безопасности", "en": "Parking/Safety door" },
+    "14": { "name": "Ручное управление", "en": "Jogging" },
+    "18": { "name": "Вспомогательные порты", "en": "Aux ports" },
+    "35": { "name": "Шаговые двигатели", "en": "Stepper" },
+    "42": { "name": "Оси", "en": "Axis" },
+    "43": { "name": "Ось X", "en": "X-axis" },
+    "44": { "name": "Ось Y", "en": "Y-axis" },
+    "45": { "name": "Ось Z", "en": "Z-axis" },
+    "46": { "name": "Ось A", "en": "A-axis" }
   },
   "grblSettings": {
     "0": {
