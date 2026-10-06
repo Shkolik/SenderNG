@@ -1,0 +1,21 @@
+{
+  "strings": {
+    "module.hpgl.name": "HPGL",
+    "module.hpgl.description": "Fichiers traceurs HPGL (.plt) → g-code.",
+    "module.hpgl.fileType": "Fichiers HPGL",
+    "module.converters.parametersTitle": "Paramètres du convertisseur",
+    "module.converters.zHome": "Origine Z",
+    "module.converters.zRapids": "Z rapides",
+    "module.converters.zSafe": "Z sûr",
+    "module.converters.zMin": "Z min",
+    "module.converters.scaleX": "Échelle X",
+    "module.converters.rpm": "tr/min",
+    "module.converters.toolDiameter": "Ø outil",
+    "module.converters.feedRate": "Avance",
+    "module.converters.plungeRate": "Plongée",
+    "module.converters.scaleY": "Échelle Y",
+    "module.converters.cutMode": "Coupe broche (décocher pour le laser)",
+    "module.converters.doNotShowAgain": "Ne plus afficher",
+    "module.converters.showDialog": "Demander les paramètres à l'ouverture"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "strings": {
+    "module.plotter.name": "Tracé",
+    "module.plotter.description": "Tracé de la trajectoire G-code : chemin d'outil du programme avec suivi d'exécution en direct.",
+    "module.plotter.noProgram": "Aucun programme chargé.",
+    "module.plotter.noMotion": "Le programme ne contient aucun mouvement.",
+    "module.plotter.axisMismatch": "La machine nécessite {0} axes ; le programme en compte {1}. Les plans non affichables sont masqués.",
+    "module.plotter.buildFailed": "Le programme n'a pas pu être tracé.",
+    "module.plotter.building": "Tracé en cours…",
+    "module.plotter.settings.view": "Vue",
+    "module.plotter.settings.showGrid": "Afficher la grille",
+    "module.plotter.settings.showOrigin": "Afficher l'origine",
+    "module.plotter.settings.showEnvelope": "Afficher l'enveloppe",
+    "module.plotter.settings.showRunState": "Afficher l'état d'exécution",
+    "module.plotter.settings.worldAxes": "Axes monde",
+    "module.plotter.settings.origin": "Origine",
+    "module.plotter.settings.plane": "Plan {0}",
+    "module.plotter.zoomIn": "Zoom avant",
+    "module.plotter.zoomOut": "Zoom arrière",
+    "module.plotter.zoomFit": "Ajuster",
+    "module.plotter.savePng": "Enregistrer en PNG"
+  }
+}
