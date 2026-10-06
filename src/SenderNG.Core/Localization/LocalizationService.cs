@@ -65,6 +65,15 @@ public sealed record GrblSettingGroupDefinition(int Id, int ParentId, string Nam
 public sealed record GrblSettingLocalization(int Id, string? Name, string? EnglishName, string? Description);
 
 /// <summary>
+/// Per-locale override for one grbl setting group. <see cref="Name"/> is the
+/// localized display name; <see cref="EnglishName"/> is the canonical English
+/// group name the translation was authored against — the guard compares it with
+/// the incoming group name (catalog English or controller <c>$EG</c>) before
+/// applying, exactly like <see cref="GrblSettingLocalization"/>.
+/// </summary>
+public sealed record GrblSettingGroupLocalization(int Id, string? Name, string? EnglishName);
+
+/// <summary>
 /// Loads the locale JSON catalog (embedded <c>en.json</c> + optional per-locale
 /// override) and resolves strings. Two services in one, deliberately:
 ///   • <see cref="T"/> — regular app strings, fallback chain: locale → English → key.
@@ -83,6 +92,7 @@ public sealed class LocalizationService
     private readonly IReadOnlyDictionary<int, GrblSettingDefinition> _settings;
     private readonly IReadOnlyDictionary<int, GrblSettingGroupDefinition> _groups;
     private IReadOnlyDictionary<int, GrblSettingLocalization> _overrides;
+    private IReadOnlyDictionary<int, GrblSettingGroupLocalization> _groupOverrides;
 
     // Supplementary catalogs registered at runtime by 3rd-party modules (each module
     // serves its own <Module>/Locale/<lang>.json). Base catalogs take precedence;
@@ -162,6 +172,7 @@ public sealed class LocalizationService
             return;
 
         _overrides = new Dictionary<int, GrblSettingLocalization>();
+        _groupOverrides = new Dictionary<int, GrblSettingGroupLocalization>();
         _localeStrings = _enStrings;
         _locale = "en";
 
@@ -171,7 +182,7 @@ public sealed class LocalizationService
             if (!File.Exists(locPath))
                 return;
             using var stream = File.OpenRead(locPath);
-            _overrides = ReadOverrides(stream, out var locStrings);
+            (_overrides, _groupOverrides) = ReadOverrides(stream, out var locStrings);
             if (locStrings.Count > 0)
                 _localeStrings = locStrings;
             _locale = localeCode;
@@ -201,12 +212,13 @@ public sealed class LocalizationService
 
         _localeStrings = _enStrings;
         _overrides = new Dictionary<int, GrblSettingLocalization>();
+        _groupOverrides = new Dictionary<int, GrblSettingGroupLocalization>();
 
         if (localeJson is not null && !string.Equals(_locale, "en", StringComparison.OrdinalIgnoreCase))
         {
             using (localeJson)
             {
-                _overrides = ReadOverrides(localeJson, out var locStrings);
+                (_overrides, _groupOverrides) = ReadOverrides(localeJson, out var locStrings);
                 if (locStrings.Count > 0)
                     _localeStrings = locStrings;
             }
@@ -365,6 +377,33 @@ public sealed class LocalizationService
             setting.Description = loc.Description;
     }
 
+    /// <summary>
+    /// Applies the localized name to a setting group whose incoming name came from
+    /// the controller (<c>$EG</c>), the demo service, or the embedded English
+    /// catalog. Guard rule identical to <see cref="ApplySettingStrings"/>: the
+    /// override applies only when its canonical English name matches the group's
+    /// current name (case-insensitive), or when either side has no English name.
+    /// A mismatch keeps the incoming name rather than misapplying a translation.
+    /// </summary>
+    public void ApplyGroupStrings(GrblSettingGroup group)
+    {
+        if (string.Equals(_locale, "en", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        if (!_groupOverrides.TryGetValue(group.Id, out var loc))
+            return;
+
+        var guardPass = string.IsNullOrEmpty(loc.EnglishName)
+            || string.IsNullOrEmpty(group.Name)
+            || string.Equals(loc.EnglishName, group.Name, StringComparison.OrdinalIgnoreCase);
+
+        if (!guardPass)
+            return;
+
+        if (!string.IsNullOrEmpty(loc.Name))
+            group.Name = loc.Name;
+    }
+
     private static (IReadOnlyDictionary<string, string> Strings,
         IReadOnlyDictionary<int, GrblSettingDefinition> Settings,
         IReadOnlyDictionary<int, GrblSettingGroupDefinition> Groups) ReadCatalog(Stream stream)
@@ -420,8 +459,11 @@ public sealed class LocalizationService
     /// Parses a locale override file: <c>strings</c> for regular strings, and
     /// <c>grblSettings.&lt;id&gt; = { name, en, description }</c> — <c>en</c> is the
     /// canonical English name the translation was authored against (the guard key).
+    /// Also parses <c>grblSettingGroups.&lt;id&gt; = { name, en }</c> the same way.
     /// </summary>
-    private static IReadOnlyDictionary<int, GrblSettingLocalization> ReadOverrides(Stream stream, out IReadOnlyDictionary<string, string> locStrings)
+    private static (IReadOnlyDictionary<int, GrblSettingLocalization> Settings,
+        IReadOnlyDictionary<int, GrblSettingGroupLocalization> Groups) ReadOverrides(
+            Stream stream, out IReadOnlyDictionary<string, string> locStrings)
     {
         using var doc = JsonDocument.Parse(stream);
 
@@ -446,8 +488,20 @@ public sealed class LocalizationService
             }
         }
 
+        var groupOverrides = new Dictionary<int, GrblSettingGroupLocalization>();
+        if (doc.RootElement.TryGetProperty("grblSettingGroups", out var groupsEl) && groupsEl.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var p in groupsEl.EnumerateObject())
+            {
+                var e = p.Value;
+                if (e.ValueKind != JsonValueKind.Object || !int.TryParse(p.Name, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
+                    continue;
+                groupOverrides[id] = new GrblSettingGroupLocalization(id, GetString(e, "name"), GetString(e, "en"));
+            }
+        }
+
         locStrings = strings;
-        return overrides;
+        return (overrides, groupOverrides);
     }
 
     /// <summary>

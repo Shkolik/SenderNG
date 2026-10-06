@@ -286,6 +286,73 @@ public class LocalizationServiceTests
     }
 
     [Fact]
+    public void Group_localization_applies_when_english_names_match()
+    {
+        using var en = EnglishJson();
+        var service = new LocalizationService(
+            en,
+            "fr",
+            Json("""{ "grblSettingGroups": { "1": { "name": "Général", "en": "General" } } }"""));
+
+        var group = new GrblSettingGroup { Id = 1, ParentId = 0, Name = "General" };
+        service.ApplyGroupStrings(group);
+        Assert.Equal("Général", group.Name);
+    }
+
+    [Fact]
+    public void Group_localization_is_rejected_when_english_names_differ()
+    {
+        using var en = EnglishJson();
+        // A firmware that reused id=1 for something else: translation authored
+        // against "General" must not land on a differently-named group.
+        var service = new LocalizationService(
+            en,
+            "fr",
+            Json("""{ "grblSettingGroups": { "1": { "name": "Général", "en": "General" } } }"""));
+
+        var group = new GrblSettingGroup { Id = 1, ParentId = 0, Name = "Something else" };
+        service.ApplyGroupStrings(group);
+        Assert.Equal("Something else", group.Name);
+    }
+
+    [Fact]
+    public void Group_localization_without_en_key_trusts_the_id()
+    {
+        using var en = EnglishJson();
+        var service = new LocalizationService(
+            en,
+            "fr",
+            Json("""{ "grblSettingGroups": { "1": { "name": "Général" } } }"""));
+
+        var group = new GrblSettingGroup { Id = 1, ParentId = 0, Name = "General" };
+        service.ApplyGroupStrings(group);
+        Assert.Equal("Général", group.Name);
+    }
+
+    [Fact]
+    public void Group_localization_is_skipped_for_english_locale()
+    {
+        var service = TestLocalization.Locale; // en
+        var group = new GrblSettingGroup { Id = 1, ParentId = 0, Name = "General" };
+        service.ApplyGroupStrings(group);
+        Assert.Equal("General", group.Name);
+    }
+
+    [Fact]
+    public void Group_localization_without_an_entry_keeps_the_name()
+    {
+        using var en = EnglishJson();
+        var service = new LocalizationService(
+            en,
+            "fr",
+            Json("""{ "grblSettingGroups": { "2": { "name": "Signaux", "en": "Control signals" } } }"""));
+
+        var group = new GrblSettingGroup { Id = 1, ParentId = 0, Name = "General" };
+        service.ApplyGroupStrings(group);
+        Assert.Equal("General", group.Name);
+    }
+
+    [Fact]
     public void Resolve_returns_fallback_when_key_is_missing()
     {
         var service = TestLocalization.Locale;
