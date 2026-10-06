@@ -58,8 +58,13 @@ there at runtime. A locale JSON has three top-level sections:
 - Keys are **dotted and namespaced**: `app.*` (shell), `common.*` (shared buttons),
   `connect.*`, `about.*`, `module.<id>.*` (per-module), `app.msg.*`
   (code-generated status lines).
-- Values may contain format placeholders (`{0}`, `{count}`) — see **And avoid this** below.
-- **`en.json` owns every key.** A locale override only *overrides*; it must not invent keys.
+- Values may contain format placeholders (`{0}`, `{count}`) — substituted through
+  `LocText.Format` (see *ViewModel / code-generated strings* below).
+- **`en.json` owns every key** as the general rule: a locale override only *overrides*; it
+  must not invent keys. The one exception is the grbl error strings — `ru.json` carries 90
+  of them (88 `error.<n>` plus `errorHint.15` and `errorHint.79`) that `en.json` lacks;
+  English for those comes from the built-in `GrblErrorCodes` dictionary instead
+  (`TError`/`TErrorHint` fall back to it).
   Resolution falls back `locale → English → the key itself`/caller-provided English.
 
 ---

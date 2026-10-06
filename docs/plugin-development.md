@@ -88,7 +88,7 @@ authors:
   visualizations) works when their Ids differ. A shared settings section must
   never serve two plugins — that is what the rule protects.
 - **Built-in modules are not gated by this rule.** The app registers its
-  fixed modules (DRO, Program, Console, Jog, Probing, …) directly, before the
+  modules (DRO, Program, Console, Jog, …) directly, before the
   scan, with no Id check — the scan's Id set does not know them. A plugin
   claiming a built-in Id would therefore load as a duplicate (shared settings
   section, duplicated UI), not be rejected. Never claim an app-owned Id.

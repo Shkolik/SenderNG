@@ -91,7 +91,7 @@ These run unattended against the board named by `SENDERNG_HW_PORT`:
 - **`Connect_polls_live_status_and_exchanges_settings_on_hardware`** — `$I` handshake on the
   pinned port, live `?` reports, raw console lines, `$$` round-trip.
 - **`Offsets_module_writes_and_reads_back_G54_through_G59_on_hardware`** — cleans up after itself;
-  pinned port only. Bet a board is already wired to nothing: offsets are safe to write + restore.
+  pinned port only. Better: a board is already wired to nothing: offsets are safe to write + restore.
 - **`Toggle_dtr_reset_on_connect_is_non_destructive_on_hardware`** — verifies the DTR-pulse
   connect path doesn't brick the connection (targets 8-bit Arduino bootloaders).
 - **`Streams_modal_program_with_ok_replies_on_hardware`** — streams a tiny no-motion modal program

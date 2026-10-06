@@ -141,7 +141,7 @@ set was checked for parity defaults before finalizing.
   behind Skia's order 22), hidden by default (`IsVisibleByDefault=false`),
   experimental/PoC (see
   `src/SenderNG.Modules.Plotter.Nex/docs/README.md`).
-  See  **Storage prerequisite landed:**
+  **Storage prerequisite landed:**
   profiles replace the Mill/Foam "mode" split (one file per machine +
   `global.json`, profile manager in App Settings) — see
   `docs/settings-migration.md`. **Schema landed and consumers migrated
@@ -185,14 +185,13 @@ set was checked for parity defaults before finalizing.
   dialog with a "Do not show again" checkbox (silent converts afterwards,
   re-enable from settings). App knowledge is a single Core interface
   (`IGCodeFileHandler`); `IViewFactory` lets any plugin host dialogs. Output
-  is byte-faithful to ioSender v0.47 incl. documented quirks (see
-  `docs/plans/2026-09-04-converters.md`). 46 tests.
+  is byte-faithful to ioSender v0.47 incl. documented quirks. 46 tests.
 - **G-code transforms (Rotate / ArcsToLines / Compress / Wrap)** —
   token-level rewrites over the existing parser/emulator machinery, per
   the verified mechanics in `docs/iosender-gaps.md`. **LANDED (M1–M3):**
   Rotate, ArcsToLines and Compress are in Core (`GCodeTransformers`,
   26 tests) behind the File → Transform menu (dialogs, profile-scoped
-  compress comment setting, en/ru — see `docs/plans/2026-09-04-gcode-transforms.md`).
+  compress comment setting, en/ru).
   **Remaining:** Wrap (rotary mapping X/Y → A/B, diameter, Z0-at-center with
   G93 inverse-time feed switching) — **P1, takeable now**: the earlier gate
   ("until the machine physical-configuration presets land") is gone — the
@@ -201,8 +200,7 @@ set was checked for parity defaults before finalizing.
   and rotation rebuilt on the token machinery (the line-based
   `ProgramTransform` is deleted), closing the documented G91/arc-Z,
   rotation-origin limits (origin picker included), and the "Determine X0,Y0
-  for right-angled workpiece" corner extra — see
-  `docs/plans/2026-09-04-gcode-transforms.md` M4–M5.
+   for right-angled workpiece" corner extra.
 - **Icon & pictogram asset pass (SVG)** — a design deliverable. Three sets,
   drawn by hand as SVG sources:
   1. **Toolbar / run-control icons** — replace the hand-drawn inline `Path`
@@ -232,6 +230,15 @@ set was checked for parity defaults before finalizing.
   wanted, it comes as a 3rd-party plugin; the old plan's libs
   (OpenCvSharp / DirectShow / V4L2 capture) live here in the decision tree
   only, not in the README.
+- **Module enabled state (`IModule.IsEnabledByDefault`)** — visibility is
+  already wired: `IsVisibleByDefault` feeds the profile's Modules map
+  (`MainViewModel.IsModuleVisible`) and the App Settings leaves. Enablement
+  is not — `IsEnabledByDefault` is declared on the SDK contract and
+  overridden by `ConverterModuleBase`, but nothing reads it, so a module can
+  be hidden but never switched off. Closing this item means deciding what
+  "disabled" means for an installed plugin (settings entry, load-time
+  gating, dependencies) and wiring it through. See `docs/plugin-development.md`
+  and `src/SenderNG.Core/Modules/IModule.cs`.
 
 > The full ioSender gap map lives in `docs/iosender-gaps.md`. The cycle-bar
 > realtime bytes, Home/Unlock/Reset bindings, the status read loop / `$I` handshake /
@@ -243,7 +250,7 @@ set was checked for parity defaults before finalizing.
 > still driven exclusively by the same realtime bytes, now sent once per state
 > transition instead of blindly per button press.
 >
-> Cross-cutting tech debt: `Grbl.cs` is ~271L vs upstream 3438L (foamcut's full
+> Cross-cutting tech debt: `Grbl.cs` is 272 L vs upstream 3438 L (foamcut's full
 > `Grbl.cs` is 2535L) — `ParseCaps` + `[OPT:...]` field extraction ported; the
 > `Grbl` partial class's `GrblViewModel`, `GrblParserState` (modal state),
 > `GrblWorkParameters` (coordinate/tool tables), `GrblSettings` (settings lookup),

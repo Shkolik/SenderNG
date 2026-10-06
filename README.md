@@ -10,6 +10,8 @@ SenderNG is a diverged, focused fork of ioSender — stripped to foam cutting, C
 
 - Foam cutting and milling
 - Probing (Center/Edge/HeightMap)
+- Excellon (`.drl`) / HPGL (`.plt`) → g-code converters
+- Stepper-calibration wizard
 - USB serial + Ethernet (Telnet/WebSocket), YModem/SD
 - Program-view plotter plugins: 2D Skia plotter (isometric/flat projection on
   Skia) + 3D Vulkan orbit plotter (`SenderNG.Modules.Plotter.Nex`, HelixToolkit.Nex)
@@ -21,7 +23,7 @@ SenderNG is a diverged, focused fork of ioSender — stripped to foam cutting, C
 ## Origin & License
 
 - Based on `ioSender` `2.0.48` (`terjeio/ioSender`) — see `CNC Core/`, `CNC Controls` for original BSD 3-Clause code.
-- **License:** BSD 3-Clause — `LICENSE` retains `Copyright (c) 2019-2023 Io Engineering` and adds `Copyright (c) 2024-2026 Shkolik`. See `LICENSE` for full text.
+- **License:** BSD 3-Clause — `LICENSE` retains `Copyright (c) 2019-2023, Io Engineering (Terje Io)` and adds `Copyright (c) 2024-2026, Andrew Shkolik`. See `LICENSE` for full text.
 - Avalonia UI (`AvaloniaUI/Avalonia`) is MIT — compatible with BSD.
 
 ## Roadmap
@@ -29,12 +31,12 @@ SenderNG is a diverged, focused fork of ioSender — stripped to foam cutting, C
 1. ✅ `src/SenderNG.Core` (`net9.0`) — engine extracted (`Grbl.cs`, `GCodeParser.cs`, `GCodeEmulator.cs`, `NGCExpr.cs` + foam patches) — done
 2. ✅ `src/SenderNG` (`net9.0`) — Avalonia shell, probing UI, settings — done
 3. ✅ Program-view plotter plugins — 2D Skia plotter: isometric/flat quadrant
-   views + two-carriage iso loft (design: `docs/machine-config-research.md`,
-   plan: `docs/plans/2026-09-07-plotter.md`) — done (2026-09-08). 3D Vulkan
+   views + two-carriage iso loft (design: `docs/machine-config-research.md`)
+   — done (2026-09-08). 3D Vulkan
    orbit plotter: `src/SenderNG.Modules.Plotter.Nex` (HelixToolkit.Nex), "Plot 3D"
    center tab behind Skia's (order 23), hidden by default. Camera is
    deferred (possible future 3rd-party plugin — see `docs/ROADMAP.md`).
-   Linux serial (`/dev/ttyUSB*` / `/dev/ttyACM*`) is already in
+   Linux serial (`/dev/ttyUSB*` / `/dev/ttyACM*`) is already in the sender.
 
 ## Development
 
@@ -50,9 +52,17 @@ well — see [Serial port permission errors](#serial-port-permission-errors).
 ## Running from release assets
 
 Release zips are produced per platform by `tools/ReleaseManager`. On Windows,
-build them with `tools/build-linux-release.ps1` (see "Linux release build
-(WSL2)" below); `tools/ReleaseManager/README.md` has the per-platform runbooks
-and the manual fallback. A release folder (`output/win64/` on Windows,
+build one with:
+
+```bash
+dotnet run --project tools/ReleaseManager -- --include-plugins
+```
+
+`tools/ReleaseManager/README.md` has the per-platform runbooks and the manual
+fallback. (To build the **Linux** zip from a Windows host, use
+`tools/build-linux-release.ps1` — see "Linux release build (WSL2)" below; it
+writes `output\linux` and never reads, writes or deletes `output\win64`.)
+A release folder (`output/win64/` on Windows,
 `output/linux/` on Linux) looks like this:
 
 ```

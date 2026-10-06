@@ -118,6 +118,7 @@ output/
 | `hpgl` | `src/SenderNG.Modules.Hpgl` |
 | `plotter` | `src/SenderNG.Modules.Plotter` |
 | `plotter-nex` | `src/SenderNG.Modules.Plotter.Nex` |
+| `probing` | `src/SenderNG.Modules.Probing` |
 
 `plotter-nex` additionally ships its package closure + native binaries (its
 assembly stays flat; `LoadFrom` probes the `plotter-nex/` subfolder for deps).

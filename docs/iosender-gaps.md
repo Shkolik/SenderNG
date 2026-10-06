@@ -206,9 +206,7 @@ Many already exist; the gaps are listed per widget.
       VisibleTools rule; the probe stores the length via `G10 L1 Pn Z` +
       `G43 Hn`, falling back to `G43.1Z<tlo>` on None/no table. ioSender's
       standalone `ToolView` control (I/J/Q geometry, per-click writes, its
-      disabled radius field) is deliberately **not** ported — see
-      `docs/plans/2026-08-31-toolview.md` (execution plan) and the plan's
-      "NOT porting" list.
+      disabled radius field) is deliberately **not** ported.
 - [x] **Work parameters** — implemented as a SenderNG flyout rather than
       ioSender's right-panel group. It displays the active G54–G59/G59.x selector
       (clamped to the systems the firmware supports, so classic boards never offer
@@ -287,16 +285,21 @@ Many already exist; the gaps are listed per widget.
       `IHeightMap3DRenderer` presence marker), so a renderer can be a
       first-party plugin instead of app-hosted code; the renderer is the
       ROADMAP P1 `SenderNG.Modules.Probing.Nex` item (HelixToolkit.Nex)
-      consuming `IHeightMapSource`. The remaining engine gate is the
-      **Avalonia host problem** — how GPU output gets into a control.
-      Windows-only → HelixToolkit.Avalonia.
-      SharpDX (hosted DX11 swapchain, scene graph; SharpDX is abandoned but
-      wrapped). Cross-platform → low-level engine with official C# bindings
-      (Diligent, Apache-2.0) rendering offscreen + GPU→CPU readback blit;
-      native island embedding (HWND/X11) only if the viewport becomes a
-      core surface. Height map is small (one grid mesh) — engine choice is
-      interchangeable behind a thin interface; decide the host strategy
-      when this item is scoped.
+      consuming `IHeightMapSource`. The former engine gate — the **Avalonia
+      host problem** of getting GPU output into a control — is closed: the
+      Nex plugin renders offscreen on headless Vulkan on every OS and blits
+      the frame back with GPU→CPU readback
+      (`src/SenderNG.Modules.Plotter.Nex/Rendering/NexGpuReadback.cs`,
+      `PlotterNexView.axaml.cs` `RenderOffscreen`, `Rendering/NexPlotScene.cs`);
+      `docs/ROADMAP.md` records this gate as re-opened. The earlier
+      Windows-only alternative, HelixToolkit.Avalonia, would have needed a
+      hosted DX11/SharpDX swapchain (SharpDX is abandoned, though wrapped);
+      a cross-platform path could instead use a low-level engine with official
+      C# bindings (Diligent, Apache-2.0) rendering offscreen + GPU→CPU
+      readback, or native island embedding (HWND/X11) only if the viewport
+      becomes a core surface. The height map is small (one grid mesh) — engine
+      choice stays interchangeable behind a thin interface; scope the renderer
+      when this item is picked up.
 - [ ] **Probe-verification preflight** (`ProbeVerify` + `ConfigControl`
       checkboxes) — "Manually validate probe is connected" and "Check probe
       status before start (G59.3)" dialogs.
@@ -341,7 +344,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
   `Modules/` directory scan, each with its own App Settings leaf, locale
   catalog and parameters dialog ("Do not show again" → silent converts);
   app knows only the `IGCodeFileHandler` contract; `IViewFactory` hosts
-  plugin dialogs — see `docs/plans/2026-09-04-converters.md`.
+  plugin dialogs.
 - [ ] **SD card view** (`SDCardView`).
 - [ ] **Camera** (`CNC Controls Camera`, AForge/V4L2) + Camera menu.
 - [ ] **THC monitor / PID log** (`THCMonitorControl`, `PIDLogView`).
@@ -359,15 +362,14 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
       File → Transform menu (Rotate… / Arcs to lines… / Compress dialogs;
       compress comment handling is a profile-scoped Program setting — the
       "strip ;-comments" middle mode was dropped because `;` lines never
-      tokenize, see `docs/plans/2026-09-04-gcode-transforms.md`).
+      tokenize).
       **Remaining:** Wrap = rotary mapping (X/Y → A/B, diameter,
       Z0-at-center) with **G93 inverse-time feed switching** for combined
       moves — deferred until machine presets land. Probing migration
       **LANDED (2026-09-05)**: height-map apply and rotation rebuilt at this
       token level (instead of the line-based rewriting), closing the
       documented G91/arc-Z and rotation-origin limitations, plus the
-      "Determine X0,Y0" corner extra — see
-      `docs/plans/2026-09-04-gcode-transforms.md` M4–M5.
+      "Determine X0,Y0" corner extra.
 - [x] **Localization** — ioSender ships 9 locales; SenderNG ships an en/ru
       JSON catalog with per-plugin overrides and live switching — see
       `docs/localization.md`; more locales are catalog-only work.
@@ -377,7 +379,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 
 ## Cross-cutting tech debt (architecture §8)
 
-- [ ] **`Grbl.cs` stubs** — ~320 lines vs upstream 3438; caps parsing ported,
+- [ ] **`Grbl.cs` stubs** — 272 lines vs upstream 3438; caps parsing ported,
       rest compile-only stubs. Clean up as features touch them.
 - [x] **`GrblInfo` static state** — resolved 2026-09-19: became a read-only
       facade over an injectable `GrblInfoState` (`GrblInfo.Current` bound to the
@@ -426,7 +428,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | Camera | — | deferred (P4) |
 | Lathe wizards | — | deferred (P4) |
 | Dragknife | — | deferred (P4) |
-| Converters | `SenderNG.Modules.Excellon` + `.Hpgl` (module plugins; shared converter scaffolding in the internal `SenderNG.Shared` folder, SDK in `SenderNG.Modules.Common`) | done — open-flow dispatch by extension, per-plugin parameters + ShowDialog, Modules/ scan (see `docs/plans/2026-09-04-converters.md`, `docs/plugin-development.md`) |
+| Converters | `SenderNG.Modules.Excellon` + `.Hpgl` (module plugins; shared converter scaffolding in the internal `SenderNG.Shared` folder, SDK in `SenderNG.Modules.Common`) | done — open-flow dispatch by extension, per-plugin parameters + ShowDialog, Modules/ scan (see `docs/plugin-development.md`) |
 | THC monitor / PID log / Trinamic | — | deferred (P4) |
 
 ## How this was produced
