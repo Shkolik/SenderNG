@@ -176,7 +176,7 @@
     "module.cutting.feed": "Avance",
     "module.cutting.speed": "Velocidad",
     "module.cutting.feedOverride": "Anulación de avance",
-    "module.cutting.rapidsOverride": "Anulación de rapidos",
+    "module.cutting.rapidsOverride": "Anulación de rápidos",
     "module.cutting.speedOverride": "Anulación de velocidad",
     "module.cutting.reset100": "Restablecer al 100%",
     "module.cutting.spindleRpmHint": "Velocidad del husillo (RPM) que usan CW/CCW",
