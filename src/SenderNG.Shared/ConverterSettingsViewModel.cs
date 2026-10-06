@@ -49,7 +49,7 @@ namespace SenderNG.Modules.Shared;
 /// the module id), persisted on every change and re-synced when the profile
 /// switches while App Settings is open.
 /// </summary>
-public class ConverterSettingsViewModel : ViewModelBase
+public class ConverterSettingsViewModel : ViewModelBase, IDisposable
 {
     private readonly SettingsService _settings;
     private readonly MachineProfile _profile;
@@ -105,6 +105,16 @@ public class ConverterSettingsViewModel : ViewModelBase
     public string FeedRateLabel => L("module.converters.feedRate", "Feed");
     public string PlungeRateLabel => L("module.converters.plungeRate", "Plunge");
     public string ScaleYLabel => L("module.converters.scaleY", "Scale Y");
+
+    private bool _disposed;
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        _settings.Changed -= OnSettingsChanged;
+    }
 
     private void OnSettingsChanged()
     {

@@ -105,4 +105,36 @@ public class SettingsViewSubscriptionLeakTests
             Directory.Delete(dir, recursive: true);
         }
     }
+
+    [Fact]
+    public void Repeated_CreateSettingsView_calls_do_not_accumulate_Converter_subscribers()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var loc = LocalizationService.LoadFromDirectory(
+                Path.Combine(AppContext.BaseDirectory, "Locale"));
+            var services = BuildServices(settings, loc);
+
+            var settingsBaseline = SubscriberCount(settings, "Changed");
+
+            // ExcellonModule, not HpglModule: both define SenderNG.Modules.Shared.* types and
+            // the Hpgl reference in this project carries Aliases="hpgl".
+            var module = new ExcellonModule();
+            module.AttachServices(services);
+
+            Assert.NotNull(module.CreateSettingsView());
+            var settingsAfterFirst = SubscriberCount(settings, "Changed");
+
+            for (var i = 0; i < 24; i++)
+                Assert.NotNull(module.CreateSettingsView());
+
+            Assert.Equal(settingsAfterFirst, SubscriberCount(settings, "Changed"));
+            Assert.InRange(SubscriberCount(settings, "Changed"), settingsBaseline, settingsBaseline + 1);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 }

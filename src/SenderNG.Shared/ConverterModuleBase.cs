@@ -56,6 +56,7 @@ public abstract class ConverterModuleBase : IModule, IModuleSettingsProvider, IL
 {
     private IServiceProvider? _services;
     private bool _dialogViewRegistered;
+    private ConverterSettingsViewModel? _settingsVm;
 
     public abstract string Id { get; }
     public abstract string Name { get; }
@@ -80,13 +81,15 @@ public abstract class ConverterModuleBase : IModule, IModuleSettingsProvider, IL
 
     public void AttachServices(IServiceProvider services) => _services = services;
 
-    public object? CreateSettingsView() =>
-        _services is null
-            ? null
-            : new ConverterSettingsView
-            {
-                DataContext = new ConverterSettingsViewModel(_services, Id, Name, ShowCutMode),
-            };
+    public object? CreateSettingsView()
+    {
+        if (_services is null)
+            return null;
+
+        _settingsVm?.Dispose();
+        _settingsVm = new ConverterSettingsViewModel(_services, Id, Name, ShowCutMode);
+        return new ConverterSettingsView { DataContext = _settingsVm };
+    }
 
     // ---- IModule: no flyout UI ----
 
