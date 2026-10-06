@@ -1,0 +1,23 @@
+{
+  "strings": {
+    "module.plotter.name": "Grafik",
+    "module.plotter.description": "G-Code-Pfadplotter: Werkzeugpfad des Programms mit Live-Verlauf der Ausführung.",
+    "module.plotter.noProgram": "Kein Programm geladen.",
+    "module.plotter.noMotion": "Das Programm enthält keine Bewegungen.",
+    "module.plotter.axisMismatch": "Die Maschine benötigt {0} Achsen; das Programm hat {1}. Nicht darstellbare Ebenen werden ausgeblendet.",
+    "module.plotter.buildFailed": "Das Programm konnte nicht gezeichnet werden.",
+    "module.plotter.building": "Wird gezeichnet…",
+    "module.plotter.settings.view": "Ansicht",
+    "module.plotter.settings.showGrid": "Gitter anzeigen",
+    "module.plotter.settings.showOrigin": "Ursprung anzeigen",
+    "module.plotter.settings.showEnvelope": "Umriss anzeigen",
+    "module.plotter.settings.showRunState": "Ausführungsstatus anzeigen",
+    "module.plotter.settings.worldAxes": "Weltachsen",
+    "module.plotter.settings.origin": "Ursprung",
+    "module.plotter.settings.plane": "Ebene {0}",
+    "module.plotter.zoomIn": "Vergrößern",
+    "module.plotter.zoomOut": "Verkleinern",
+    "module.plotter.zoomFit": "Einpassen",
+    "module.plotter.savePng": "PNG speichern"
+  }
+}

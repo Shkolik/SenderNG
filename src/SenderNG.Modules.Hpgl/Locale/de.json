@@ -1,0 +1,21 @@
+{
+  "strings": {
+    "module.hpgl.name": "HPGL",
+    "module.hpgl.description": "HPGL-Plotterdateien (.plt) → g-code.",
+    "module.hpgl.fileType": "HPGL-Dateien",
+    "module.converters.parametersTitle": "Konverterparameter",
+    "module.converters.zHome": "Z-Ursprung",
+    "module.converters.zRapids": "Z-Schnelllauf",
+    "module.converters.zSafe": "Z-Sicherheitshöhe",
+    "module.converters.zMin": "Z min",
+    "module.converters.scaleX": "Skalierung X",
+    "module.converters.rpm": "Drehzahl",
+    "module.converters.toolDiameter": "Werkzeug Ø",
+    "module.converters.feedRate": "Vorschub",
+    "module.converters.plungeRate": "Eintauchvorschub",
+    "module.converters.scaleY": "Skalierung Y",
+    "module.converters.cutMode": "Fräsen (für Laser abwählen)",
+    "module.converters.doNotShowAgain": "Nicht mehr anzeigen",
+    "module.converters.showDialog": "Beim Öffnen nach Parametern fragen"
+  }
+}
