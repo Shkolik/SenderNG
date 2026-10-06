@@ -573,7 +573,7 @@
     "9": {
       "name": "Opciones PWM del husillo",
       "en": "PWM spindle options",
-      "description": "«Habilitar» controla la disponibilidad de la salida PWM.\nSi está marcada «Controlar la señal de habilitación del husillo con las RPM», con M3 o M4 activos, S0 la apaga y S > 0 la enciende.\nSi está marcada «Habilitar rampa», el tiempo de aceleración y desaceleración del husillo se calcula a partir de $394 y $539 respectivamente."
+      "description": "`Enable` controla la disponibilidad de la salida PWM.\nSi está marcada `RPM controls spindle enable signal`, con M3 o M4 activos, S0 la apaga y S > 0 la enciende.\nSi está marcada `Enable ramping`, el tiempo de aceleración y desaceleración del husillo se calcula a partir de $394 y $539 respectivamente."
     },
     "10": {
       "name": "Opciones del informe de estado",
@@ -638,7 +638,7 @@
     "22": {
       "name": "Ciclo de referenciado",
       "en": "Homing cycle",
-      "description": "Activa el ciclo de referenciado. Requiere finales de carrera en los ejes que se referencien automáticamente.\n\nSi está marcada «Habilitar comandos de eje único», el referenciado de un solo eje puede realizarse con comandos $H<letra de eje>.\n\nSi está marcada «Permitir manual», los ejes que no se referencien automáticamente podrán referenciarse manualmente con $H o $H<letra de eje>.\n\n«Anular bloqueos» permite que un reinicio suave desactive «Requerir referenciado al inicio»."
+      "description": "Activa el ciclo de referenciado. Requiere finales de carrera en los ejes que se referencien automáticamente.\n\nSi está marcada `Enable single axis commands`, el referenciado de un solo eje puede realizarse con comandos $H<letra de eje>.\n\nSi está marcada `Allow manual`, los ejes que no se referencien automáticamente podrán referenciarse manualmente con $H o $H<letra de eje>.\n\n`Override locks` permite que un reinicio suave desactive `Homing on startup required`."
     },
     "23": {
       "name": "Invertir dirección de referenciado",
@@ -914,7 +914,7 @@
     "346": {
       "name": "Opciones de cambio de herramienta",
       "en": "Tool change options",
-      "description": "`Restore position after M6`: si está activa, se mueve el husillo para que el punto controlado (punta de la herramienta) sea el mismo que antes del comando M6; si no, el husillo solo se mueve a la posición de origen del eje Z.\n\n`Change tool at G30`: si está activa, va en rápido a la posición G30 a través del origen del eje de la herramienta. Requiere que los ejes estén referenciados.\n\n`Fast probe pull off`: usa una sondeo al estilo de G38.4 para un toque más rápido."
+      "description": "`Restore position after M6`: si está activa, se mueve el husillo para que el punto controlado (punta de la herramienta) sea el mismo que antes del comando M6; si no, el husillo solo se mueve a la posición de origen del eje Z.\n\n`Change tool at G30`: si está activa, va en rápido a la posición G30 a través del origen del eje de la herramienta. Requiere que los ejes estén referenciados.\n\n`Fast probe pull off`: usa un sondeo al estilo de G38.4 para un toque más rápido."
     },
     "370": {
       "name": "Invertir entradas del puerto E/S",
