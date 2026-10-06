@@ -32,11 +32,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using CNC.Core.Services;
 using CNC.Core.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
+using SenderNG.Core.Services;
 using Xunit;
 
 namespace SenderNG.Core.Tests;
@@ -132,6 +135,102 @@ public class AppSettingsViewModelTests
 
     private static AppSettingsViewModel CreateVm(SettingsService settings) =>
         new(settings, Modules, Loc);
+
+    // Field-like auto-events expose their invocation list through a backing field of the
+    // same name. Assert.NotNull rather than "return 0": if an event is ever rewritten with
+    // explicit add/remove the field disappears, and a silent 0 would pass this test for the
+    // wrong reason.
+    private static int SubscriberCount(object source, string eventName)
+    {
+        var field = source.GetType().GetField(
+            eventName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        Assert.NotNull(field);
+        var handler = field!.GetValue(source) as Delegate;
+        return handler?.GetInvocationList().Length ?? 0;
+    }
+
+    // Construct in a separate frame: with tiered compilation the tier-0 JIT keeps an
+    // object built by `newobj` in the containing method's frame reported as a GC root,
+    // so a VM built inline in the test below would keep the WeakReference alive no
+    // matter what the production code does (a bare `new object()` reproduces this).
+    // NoInlining is what makes the collectability assertion measure the leak, not the JIT.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static AppSettingsViewModel CreateDisposableVm(
+        SettingsService settings, LocalizationService loc, HotkeyService hotkeys) =>
+        new(settings, Modules, loc, null, hotkeys);
+
+    [Fact]
+    public void Dispose_releases_singleton_subscriptions_and_frees_the_view_model()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            // A private instance, not the shared `Loc`: the baseline read below must be ours
+            // alone, not a count that other test classes move by constructing their own VMs.
+            var loc = LocalizationService.LoadFromDirectory(
+                Path.Combine(AppContext.BaseDirectory, "Locale"));
+            var hotkeys = new HotkeyService(settings);
+
+            var locBaseline = SubscriberCount(loc, "Changed");
+            var keyBaseline = SubscriberCount(hotkeys, "Changed");
+
+            AppSettingsViewModel? last = null;
+            for (var i = 0; i < 25; i++)
+            {
+                last = CreateDisposableVm(settings, loc, hotkeys);
+                last.Dispose();
+            }
+
+            Assert.Equal(locBaseline, SubscriberCount(loc, "Changed"));
+            Assert.Equal(keyBaseline, SubscriberCount(hotkeys, "Changed"));
+
+            var weak = new WeakReference(last);
+            last = null;
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            Assert.False(weak.IsAlive,
+                "AppSettingsViewModel must be collectable after Dispose; a live instance means "
+                + "LocalizationService.Changed still pins it.");
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Dispose_is_idempotent()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var loc = LocalizationService.LoadFromDirectory(
+                Path.Combine(AppContext.BaseDirectory, "Locale"));
+            var hotkeys = new HotkeyService(settings);
+
+            var vm = new AppSettingsViewModel(settings, Modules, loc, null, hotkeys);
+            var locAfterCtor = SubscriberCount(loc, "Changed");
+            var keyAfterCtor = SubscriberCount(hotkeys, "Changed");
+
+            vm.Dispose();
+            var locAfterDispose = SubscriberCount(loc, "Changed");
+            var keyAfterDispose = SubscriberCount(hotkeys, "Changed");
+
+            vm.Dispose();   // ReloadProfile and the shell's finally can both fire.
+
+            // Not just "it didn't throw": the second call must move no count, and the first
+            // must have moved them - otherwise this passes even if Dispose does nothing at all.
+            Assert.Equal(locAfterDispose, SubscriberCount(loc, "Changed"));
+            Assert.Equal(keyAfterDispose, SubscriberCount(hotkeys, "Changed"));
+            Assert.NotEqual(locAfterCtor, locAfterDispose);
+            Assert.NotEqual(keyAfterCtor, keyAfterDispose);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 
     private static ModuleSettingsLeaf Leaf(AppSettingsViewModel vm, string id) =>
         vm.ModuleLeaves.First(e => e.Id == id);
