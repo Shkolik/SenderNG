@@ -75,7 +75,7 @@ public sealed class ReleaseEngine
 
         ct.ThrowIfCancellationRequested();
 
-        var plugins = PluginLists.Resolve(_repoRoot, options, _log);
+        var plugins = PluginLists.Resolve(_repoRoot, options, _log, platform);
         var appVersion = options.VersionOverride
             ?? await _cli.ReadVersionAsync(_repoRoot, Path.Combine(_repoRoot, AppCsproj), ct)
             ?? throw new CliException($"No <Version> in {AppCsproj}; add one or pass --version.");

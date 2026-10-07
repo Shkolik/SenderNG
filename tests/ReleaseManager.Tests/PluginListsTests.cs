@@ -132,6 +132,39 @@ public class PluginListsTests
         Assert.Throws<CliException>(() => PluginLists.Resolve(repo, options, new SilentLog()));
     }
 
+    [Fact]
+    public void Resolve_omits_plotter_nex_on_LinuxArm64()
+    {
+        var options = new ReleaseOptions { Selection = PluginSelection.All };
+        var list = PluginLists.Resolve(
+            TempRepo.New(), options, new SilentLog(), ReleasePlatform.LinuxArm64);
+        var ids = list.Select(p => p.Id).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        Assert.Equal(["excellon", "hpgl", "plotter", "probing"], ids);
+    }
+
+    [Fact]
+    public void Resolve_rejects_an_explicit_plotter_nex_request_on_LinuxArm64()
+    {
+        var options = new ReleaseOptions
+        {
+            Selection = PluginSelection.Subset,
+            PluginIds = ["plotter-nex"],
+        };
+        var ex = Assert.Throws<CliException>(() => PluginLists.Resolve(
+            TempRepo.New(), options, new SilentLog(), ReleasePlatform.LinuxArm64));
+        Assert.Contains("plotter-nex", ex.Message);
+        Assert.Contains("linux-arm64", ex.Message);
+    }
+
+    [Fact]
+    public void Resolve_keeps_plotter_nex_on_Linux()
+    {
+        var options = new ReleaseOptions { Selection = PluginSelection.All };
+        var list = PluginLists.Resolve(
+            TempRepo.New(), options, new SilentLog(), ReleasePlatform.Linux);
+        Assert.Contains(list, p => p.Id == "plotter-nex");
+    }
+
     private static ReleaseOptions optionsWithManifest(string repo, string id, string project)
     {
         Directory.CreateDirectory(Path.Combine(repo, "tools", "ReleaseManager"));
