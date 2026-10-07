@@ -37,7 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 
-namespace SenderNG.Core.Modules.Probing;
+namespace SenderNG.Modules.Probing.Core;
 
 /// <summary>Outcome of a probing run: success flag, captured probe touch positions and any message.</summary>
 public sealed class ProbeRunResult

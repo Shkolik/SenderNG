@@ -37,7 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Text.Json;
 using CNC.Core.Services;
 
-namespace SenderNG.Core.Modules.Probing;
+namespace SenderNG.Modules.Probing.Core;
 
 /// <summary>
 /// Loads/saves the named probing profile collection to its own JSON file

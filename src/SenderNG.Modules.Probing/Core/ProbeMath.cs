@@ -36,7 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Globalization;
 
-namespace SenderNG.Core.Modules.Probing;
+namespace SenderNG.Modules.Probing.Core;
 
 /// <summary>
 /// Post-probe calculations: converting captured probe touch positions into

@@ -36,7 +36,7 @@ using Avalonia;
 using Avalonia.Data;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
-using SenderNG.Core.Modules.Probing;
+using SenderNG.Modules.Probing.Core;
 
 namespace SenderNG.Modules.Probing.Converters;
 

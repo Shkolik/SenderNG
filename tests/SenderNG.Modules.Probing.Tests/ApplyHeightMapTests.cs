@@ -33,7 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using CNC.Core.Services;
 using CNC.GCode;
-using SenderNG.Core.Modules.Probing;
+using SenderNG.Modules.Probing.Core;
 using Xunit;
 
 namespace SenderNG.Modules.Probing.Tests;

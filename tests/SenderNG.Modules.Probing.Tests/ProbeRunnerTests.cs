@@ -34,7 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Reactive.Subjects;
 using CNC.Core.Services;
-using SenderNG.Core.Modules.Probing;
+using SenderNG.Modules.Probing.Core;
 using Xunit;
 
 namespace SenderNG.Modules.Probing.Tests;

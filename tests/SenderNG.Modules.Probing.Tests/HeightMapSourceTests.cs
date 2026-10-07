@@ -35,7 +35,7 @@ using System.Reactive.Linq;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Modules;
-using SenderNG.Core.Modules.Probing;
+using SenderNG.Modules.Probing.Core;
 using SenderNG.Modules.Probing.Converters;
 using SenderNG.Modules.Plugins;
 

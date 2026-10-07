@@ -33,7 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using Avalonia.Threading;
 
-namespace SenderNG.Modules.Probing;
+namespace SenderNG.Modules.Plugins;
 
 /// <summary>
 /// Marshals callbacks to the Avalonia UI thread. Machine-state emissions can

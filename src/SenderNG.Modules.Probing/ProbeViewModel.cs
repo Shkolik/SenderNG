@@ -41,13 +41,13 @@ using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using CNC.GCode;
 using Microsoft.Extensions.DependencyInjection;
-using SenderNG.Modules.Probing;
+using SenderNG.Modules.Plugins;
 using SenderNG.Modules.Probing.Localization;
 using SenderNG.Modules.Probing.ViewModels;
 using SenderNG.Core.Commands;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
-using SenderNG.Core.Modules.Probing;
+using SenderNG.Modules.Probing.Core;
 
 namespace SenderNG.Modules.Plugins;
 
