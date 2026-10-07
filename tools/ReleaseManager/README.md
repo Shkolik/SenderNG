@@ -99,6 +99,8 @@ output/
 
 ## Exit codes
 
+`ExitCodes` in `Errors.cs` is the source of truth for these values; `ExitCodeSyncTests` verifies this table against it.
+
 | Code | Meaning |
 | --- | --- |
 | 0 | success (or `--help`) |

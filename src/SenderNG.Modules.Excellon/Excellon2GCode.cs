@@ -151,7 +151,7 @@ public class Excellon2GCode
                             {
                                 var scale = hdr[2].Split('.');
                                 if (scale.Length == 2)
-                                    scaleFactor = ParseD("1" + scale[1]);
+                                    scaleFactor = Dbl.Parse("1" + scale[1]);
                             }
                             break;
 
@@ -162,7 +162,7 @@ public class Excellon2GCode
                             {
                                 var scale = hdr[2].Split('.');
                                 if (scale.Length == 2)
-                                    scaleFactor = ParseD("1" + scale[1]);
+                                    scaleFactor = Dbl.Parse("1" + scale[1]);
                             }
                             break;
 
@@ -175,7 +175,7 @@ public class Excellon2GCode
                     if (s[0] == 'T')
                     {
                         int cpos = s.IndexOf('C');
-                        _tools.Add((Id: int.Parse(s.Substring(1, cpos - 1)), Diameter: ParseD(s.Substring(cpos + 1))));
+                        _tools.Add((Id: int.Parse(s.Substring(1, cpos - 1)), Diameter: Dbl.Parse(s.Substring(cpos + 1))));
                     }
                 }
                 else
@@ -220,9 +220,9 @@ public class Excellon2GCode
                                 // Parse whichever axis is present; the absent one keeps
                                 // the previous hole's coordinate (Excellon is modal).
                                 if (xWord is not null)
-                                    _curX = ParseD(xWord) / factor / units;
+                                    _curX = Dbl.Parse(xWord) / factor / units;
                                 if (yWord is not null)
-                                    _curY = ParseD(yWord) / factor / units;
+                                    _curY = Dbl.Parse(yWord) / factor / units;
 
                                 var cmd = new ExcellonCommand();
                                 cmd.Command = g85pos >= 0 ? "Slot" : "Drill";
@@ -246,8 +246,8 @@ public class Excellon2GCode
                                     // that drives the machine off the board.
                                     // An omitted end axis carries the start's value,
                                     // which is already scaled.
-                                    cmd.End.X = endX is not null ? ParseD(endX) / factor / units : _curX;
-                                    cmd.End.Y = endY is not null ? ParseD(endY) / factor / units : _curY;
+                                    cmd.End.X = endX is not null ? Dbl.Parse(endX) / factor / units : _curX;
+                                    cmd.End.Y = endY is not null ? Dbl.Parse(endY) / factor / units : _curY;
                                     _curX = cmd.End.X;
                                     _curY = cmd.End.Y;
                                 }
@@ -280,9 +280,9 @@ public class Excellon2GCode
         sb.AppendLine("G90G17G21G50");
 
         if (parameters.ScaleX != 1d || parameters.ScaleY != 1d)
-            sb.AppendLine(string.Format("G51X{0}Y{1}", Inv(parameters.ScaleX), Inv(parameters.ScaleY)));
+            sb.AppendLine(string.Format("G51X{0}Y{1}", parameters.ScaleX.ToInvariantString(), parameters.ScaleY.ToInvariantString()));
 
-        sb.AppendLine("G0Z" + Inv(parameters.ZRapids));
+        sb.AppendLine("G0Z" + parameters.ZRapids.ToInvariantString());
         sb.AppendLine("X0Y0");
 
         var target = new Point3D(0d, 0d, parameters.ZRapids);
@@ -295,13 +295,13 @@ public class Excellon2GCode
             target.Z = parameters.ZHome;
             sb.AppendLine("G0" + PosToParams(target));
             sb.AppendLine(string.Format("M6 (MSG, {0} mm {1})",
-                Inv(t.Diameter < parameters.ToolDiameter ? t.Diameter : parameters.ToolDiameter),
+                (t.Diameter < parameters.ToolDiameter ? t.Diameter : parameters.ToolDiameter).ToInvariantString(),
                 t.Diameter < parameters.ToolDiameter ? "drill" : "mill"));
-            sb.AppendLine("M3S" + Inv(parameters.RPM));
+            sb.AppendLine("M3S" + parameters.RPM.ToInvariantString());
             sb.AppendLine("G4P1");
             target.Z = parameters.ZRapids;
             sb.AppendLine("G0" + PosToParams(target));
-            sb.AppendLine("F" + Inv(parameters.PlungeRate));
+            sb.AppendLine("F" + parameters.PlungeRate.ToInvariantString());
 
             foreach (var cmd in _commands)
             {
@@ -321,7 +321,7 @@ public class Excellon2GCode
                                 sb.AppendLine("G0" + p);
                             target.Z = parameters.ZMin;
                             sb.AppendLine("G1" + PosToParams(target));
-                            sb.AppendLine(string.Format("G{0}X{1}I-{2}", "2", Inv(target.X), Inv(r)));
+                            sb.AppendLine(string.Format("G{0}X{1}I-{2}", "2", target.X.ToInvariantString(), r.ToInvariantString()));
                             target.Z = parameters.ZRapids;
                             sb.AppendLine("G0" + PosToParams(target));
                         }
@@ -336,7 +336,7 @@ public class Excellon2GCode
             }
         }
 
-        sb.AppendLine("G0X0Y0Z" + Inv(parameters.ZHome));
+        sb.AppendLine("G0X0Y0Z" + parameters.ZHome.ToInvariantString());
         sb.AppendLine("M30");
 
         return sb.ToString();
@@ -347,13 +347,13 @@ public class Excellon2GCode
         string gcode = string.Empty;
 
         if (pos.X != _lastPos.X)
-            gcode += "X" + Inv(Math.Round(pos.X, 3));
+            gcode += "X" + Math.Round(pos.X, 3).ToInvariantString();
 
         if (pos.Y != _lastPos.Y)
-            gcode += "Y" + Inv(Math.Round(pos.Y, 3));
+            gcode += "Y" + Math.Round(pos.Y, 3).ToInvariantString();
 
         if (pos.Z != _lastPos.Z)
-            gcode += "Z" + Inv(Math.Round(pos.Z, 3));
+            gcode += "Z" + Math.Round(pos.Z, 3).ToInvariantString();
 
         _lastPos = pos;
 
@@ -392,7 +392,7 @@ public class Excellon2GCode
         y = y / dist * factor;
 
         sb.AppendLine(string.Format("(Slot {0};{1} - {2};{3})",
-            Inv(cmd.Start.X), Inv(cmd.Start.Y), Inv(cmd.End.X), Inv(cmd.End.Y)));
+            cmd.Start.X.ToInvariantString(), cmd.Start.Y.ToInvariantString(), cmd.End.X.ToInvariantString(), cmd.End.Y.ToInvariantString()));
 
         Point3D target = new Point3D(cmd.Start.X, cmd.Start.Y, parameters.ZMin);
 
@@ -413,7 +413,7 @@ public class Excellon2GCode
         string p = PosToParams(pos);
 
         if (p.Length > 0)
-            sb.AppendLine("G81" + p + "R" + Inv(parameters.ZSafe));
+            sb.AppendLine("G81" + p + "R" + parameters.ZSafe.ToInvariantString());
     }
 
     /// <summary>The number text of the <c>&lt;axis&gt;&lt;number&gt;</c> word in a
@@ -431,8 +431,4 @@ public class Excellon2GCode
             end++;
         return end > at + 1 ? segment[(at + 1)..end] : null;
     }
-
-    private static double ParseD(string s) => double.Parse(s, CultureInfo.InvariantCulture);
-
-    private static string Inv(double v) => v.ToString(CultureInfo.InvariantCulture);
 }

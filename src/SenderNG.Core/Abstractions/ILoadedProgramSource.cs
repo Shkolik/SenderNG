@@ -69,8 +69,8 @@ public interface ILoadedProgramSource
     /// rebuild their geometry from <see cref="Program"/> on it. Raised by both
     /// the Open flow and program transforms (they all reload through the same
     /// path), so a transformed program is picked up for free.</summary>
-    // System.Action qualified: inside the CNC.Core namespace tree the legacy
-    // CNC.Core.Action enum (GCodeJob.cs) would otherwise shadow the delegate.
+    // System.Action qualified: kept fully qualified throughout for clarity and
+    // consistency with the rest of the event surface.
     event System.Action? ProgramChanged;
 
     /// <summary>A row status changed (send frontier moved, ok/error arrived) —

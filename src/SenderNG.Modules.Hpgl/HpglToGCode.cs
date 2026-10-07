@@ -97,6 +97,7 @@ public class HpglToGCode
     private double _lastFeedRate;
     private bool _isDown;
     private Point3D _offset = new Point3D(100000d, 100000d, 0d), _pos;
+    private int _polygonId;
 
     public string FileType => "HPGL files";
 
@@ -117,10 +118,9 @@ public class HpglToGCode
         _offset = new Point3D(100000d, 100000d, 0d);
         _pos = default;
 
-        // Upstream keeps polygon ids in a static counter that never resets —
-        // ids drift across files in one process. Restart per conversion (the
-        // id only appears in the per-polygon comment).
-        Polygon.ResetIds();
+        // Polygon ids are scoped to this converter instance and restart per
+        // conversion (the id only appears in the per-polygon comment).
+        _polygonId = 0;
 
         var filename = parameters.SourceName;
         if (filename.EndsWith("Edge_Cuts.plt") || filename.EndsWith("Paste.plt"))
@@ -144,7 +144,7 @@ public class HpglToGCode
                         switch (cmd.Substring(0, 2))
                         {
                             case "PM":
-                                if ((_inPolygon = ParseD(cmd.Substring(2)) == 0d))
+                                if ((_inPolygon = Dbl.Parse(cmd.Substring(2)) == 0d))
                                 {
                                     _pm0.Clear();
                                     HPGLCommand hpgl = new HPGLCommand();
@@ -157,7 +157,7 @@ public class HpglToGCode
                                 {
                                     Polygon? polygon;
                                     toVectors(_pm0);
-                                    if ((polygon = Polygon.findPolygon(_vectors, _tolerance)) != null)
+                                    if ((polygon = Polygon.findPolygon(_vectors, _tolerance, ++_polygonId)) != null)
                                         _polygons.Add(polygon);
                                 }
                                 break;
@@ -173,8 +173,8 @@ public class HpglToGCode
                                     {
                                         HPGLCommand hpgl = new HPGLCommand();
                                         hpgl.Command = cmd.Substring(0, 2);
-                                        hpgl.Pos.X = ParseD(args[0]) * _scaleFix;
-                                        hpgl.Pos.Y = ParseD(args[1]) * _scaleFix;
+                                        hpgl.Pos.X = Dbl.Parse(args[0]) * _scaleFix;
+                                        hpgl.Pos.Y = Dbl.Parse(args[1]) * _scaleFix;
                                         _offset.X = Math.Min(_offset.X, hpgl.Pos.X);
                                         _offset.Y = Math.Min(_offset.Y, hpgl.Pos.Y);
                                         if (_inPolygon)
@@ -192,9 +192,9 @@ public class HpglToGCode
                                     {
                                         HPGLCommand hpgl = new HPGLCommand();
                                         hpgl.Command = cmd.Substring(0, 2);
-                                        hpgl.Pos.X = ParseD(args[0]) * _scaleFix;
-                                        hpgl.Pos.Y = ParseD(args[1]) * _scaleFix;
-                                        hpgl.R = ParseD(args[2]) * _scaleFix;
+                                        hpgl.Pos.X = Dbl.Parse(args[0]) * _scaleFix;
+                                        hpgl.Pos.Y = Dbl.Parse(args[1]) * _scaleFix;
+                                        hpgl.R = Dbl.Parse(args[2]) * _scaleFix;
                                         _offset.X = Math.Min(_offset.X, hpgl.Pos.X);
                                         _offset.Y = Math.Min(_offset.Y, hpgl.Pos.Y);
                                         if (_inPolygon)
@@ -313,25 +313,25 @@ public class HpglToGCode
         {
             Polygon? polygon;
 
-            while ((polygon = Polygon.findPolygon(_vectors, _tolerance)) != null)
+            while ((polygon = Polygon.findPolygon(_vectors, _tolerance, ++_polygonId)) != null)
                 _polygons.Add(polygon);
         }
 
         var sb = new StringBuilder();
 
         sb.AppendLine("(Translated by HPGL to GCode converter)");
-        sb.AppendLine(string.Format("(Tool diameter: {0} mm)", Inv(parameters.ToolDiameter)));
+        sb.AppendLine(string.Format("(Tool diameter: {0} mm)", parameters.ToolDiameter.ToInvariantString()));
         sb.AppendLine("G90G91.1G17G21G50");
 
         if (parameters.ScaleX != 1d || parameters.ScaleY != 1d)
-            sb.AppendLine(string.Format("G51X{0}Y{1}", Inv(parameters.ScaleX), Inv(parameters.ScaleY)));
+            sb.AppendLine(string.Format("G51X{0}Y{1}", parameters.ScaleX.ToInvariantString(), parameters.ScaleY.ToInvariantString()));
 
-        sb.AppendLine("G0Z" + Inv(parameters.ZRapids));
+        sb.AppendLine("G0Z" + parameters.ZRapids.ToInvariantString());
         sb.AppendLine("X0Y0");
 
         if (_isCut)
         {
-            sb.AppendLine(string.Format("M3S{0}", Inv(parameters.RPM)));
+            sb.AppendLine(string.Format("M3S{0}", parameters.RPM.ToInvariantString()));
             sb.AppendLine("G4P2");
         }
         else
@@ -352,7 +352,7 @@ public class HpglToGCode
             CutPolygon(sb, parameters, polygon);
         }
 
-        sb.AppendLine("G0X0Y0Z" + Inv(parameters.ZHome));
+        sb.AppendLine("G0X0Y0Z" + parameters.ZHome.ToInvariantString());
         sb.AppendLine("M30");
 
         return sb.ToString();
@@ -452,8 +452,8 @@ public class HpglToGCode
             if (v.IsArc)
                 sb.AppendLine(string.Format("G3{0}I{1}J{2}",
                     PosToParams(target, parameters.FeedRate),
-                    Inv((v.End.X - v.Start.X) / 2d),
-                    Inv((v.End.Y - v.Start.Y) / 2d)));
+                    ((v.End.X - v.Start.X) / 2d).ToInvariantString(),
+                    ((v.End.Y - v.Start.Y) / 2d).ToInvariantString()));
             else
                 sb.AppendLine("G1" + PosToParams(target, parameters.FeedRate));
         }
@@ -467,17 +467,17 @@ public class HpglToGCode
         string gcode = string.Empty;
 
         if (pos.X != _lastPos.X)
-            gcode += "X" + Inv(Math.Round(pos.X, 3));
+            gcode += "X" + Math.Round(pos.X, 3).ToInvariantString();
 
         if (pos.Y != _lastPos.Y)
-            gcode += "Y" + Inv(Math.Round(pos.Y, 3));
+            gcode += "Y" + Math.Round(pos.Y, 3).ToInvariantString();
 
         if (pos.Z != _lastPos.Z)
-            gcode += "Z" + Inv(Math.Round(pos.Z, 3));
+            gcode += "Z" + Math.Round(pos.Z, 3).ToInvariantString();
 
         if (feedRate != 0d && feedRate != _lastFeedRate)
         {
-            gcode += "F" + Inv(feedRate);
+            gcode += "F" + feedRate.ToInvariantString();
             _lastFeedRate = feedRate;
         }
 
@@ -490,27 +490,18 @@ public class HpglToGCode
     {
         return PosToParams(pos, 0d);
     }
-
-    private static double ParseD(string s) => double.Parse(s, CultureInfo.InvariantCulture);
-
-    private static string Inv(double v) => v.ToString(CultureInfo.InvariantCulture);
 }
 
 #region Polygon
 
 internal class Polygon
 {
-    private static int polygonId = 0;
-
-    /// <summary>Restarts the polygon-id counter (see HpglToGCode.Convert).</summary>
-    public static void ResetIds() => polygonId = 0;
-
     public int PolygonId { get; private set; }
     public int Vertices { get { return Vectors.Count; } }
     public bool IsClockwise { get; private set; }
     public List<HpglToGCode.Vector> Vectors { get; private set; } = [];
 
-    public static Polygon? findPolygon(List<HpglToGCode.Vector> vectors, double tolerance)
+    public static Polygon? findPolygon(List<HpglToGCode.Vector> vectors, double tolerance, int id)
     {
         double x0 = 0d;
         double y0 = 0d;
@@ -528,7 +519,7 @@ internal class Polygon
         if (vector != null)
         {
             polygon = new Polygon();
-            polygon.PolygonId = ++polygonId;
+            polygon.PolygonId = id;
 
             x0 = vector.Start.X;
             y0 = vector.Start.Y;

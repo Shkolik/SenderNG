@@ -44,7 +44,7 @@ namespace SenderNG.Core.Tests;
 /// from <c>while (CalculateDOC(++passes) &lt; Depth);</c> where
 /// <c>CalculateDOC(p) = J * p^(1/R)</c>. The loop is only bounded by the
 /// program itself, so any block whose depth-of-cut curve never crosses K spins
-/// forever on the load path (<c>GCodeJob</c> / <c>GCodeLimitsCalculator</c>) and
+/// forever on the load path (<c>GCodeLimitsCalculator</c>) and
 /// freezes the UI with no recovery.
 /// </summary>
 public class G76ThreadingTests

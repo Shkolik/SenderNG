@@ -54,9 +54,8 @@ public sealed class PlotterSettingsViewModel : ViewModelBase, IDisposable
     private readonly MachineProfile _profile;
 
     /// <summary>Raised after any edit that persisted, so the plot view can
-    /// re-read the flags and the mappings. Fully qualified: <c>using CNC.Core;</c>
-    /// pulls in the <c>CNC.Core.Action</c> enum (GCodeJob) and would shadow
-    /// <c>System.Action</c> into an ambiguity.</summary>
+    /// re-read the flags and the mappings. <c>System.Action</c> is fully
+    /// qualified for clarity and consistency.</summary>
     public event System.Action? Changed;
 
     public PlotterSettingsViewModel(SettingsService settingsService, LocalizationService? localization = null)

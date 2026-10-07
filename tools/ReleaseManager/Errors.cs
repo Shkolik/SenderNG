@@ -37,13 +37,26 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace ReleaseManager;
 
+/// <summary>The single source of truth for process exit codes. The README table
+/// and the Linux build script's switch cannot reference these, so they are kept
+/// in sync by ExitCodeSyncTests rather than by convention.</summary>
+internal static class ExitCodes
+{
+    public const int Success = 0;
+    public const int Cli = 1;
+    public const int Build = 2;
+    public const int Staging = 3;
+    public const int UnsupportedPlatform = 4;
+    public const int Cancelled = 130;
+}
+
 public class ReleaseManagerException : Exception
 {
     public int ExitCode { get; }
 
     public ReleaseManagerException(string message) : base(message)
     {
-        ExitCode = 1;
+        ExitCode = ExitCodes.Cli;
     }
 
     protected ReleaseManagerException(string message, int exitCode) : base(message)
@@ -59,16 +72,16 @@ public sealed class CliException : ReleaseManagerException
 
 public sealed class BuildException : ReleaseManagerException
 {
-    public BuildException(string message) : base(message, 2) { }
+    public BuildException(string message) : base(message, ExitCodes.Build) { }
 }
 
 public sealed class StagingException : ReleaseManagerException
 {
-    public StagingException(string message) : base(message, 3) { }
+    public StagingException(string message) : base(message, ExitCodes.Staging) { }
 }
 
 public sealed class UnsupportedPlatformException : ReleaseManagerException
 {
     public UnsupportedPlatformException(string platform)
-        : base($"Unsupported host OS: {platform}. ReleaseManager builds win64 on Windows and linux on Linux.", 4) { }
+        : base($"Unsupported host OS: {platform}. ReleaseManager builds win64 on Windows and linux on Linux.", ExitCodes.UnsupportedPlatform) { }
 }

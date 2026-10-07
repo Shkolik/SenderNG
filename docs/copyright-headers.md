@@ -41,8 +41,8 @@ the mine-only header: the plugin `*View.axaml` files fall in this bucket, so onl
 ViewModels (the ported logic) are double.
 
 ### Untouched
-Files carried over essentially verbatim from ioSender (e.g. `SenderNG.Core/GCodeJob.cs`,
-`GCodeParser.cs`). These already have ioSender's full original header. **Do not add or edit
+Files carried over essentially verbatim from ioSender (e.g. `SenderNG.Core/GCodeParser.cs`).
+These already have ioSender's full original header. **Do not add or edit
 anything** — the upstream notice is already correct and must not be touched.
 
 ## Deciding a new file

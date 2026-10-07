@@ -45,7 +45,7 @@ internal static class Program
         if (!File.Exists(Path.Combine(repoRoot, "SenderNG.sln")))
         {
             Console.WriteLine("Run ReleaseManager from the repo root (where SenderNG.sln lives).");
-            return 1;
+            return ExitCodes.Cli;
         }
 
         try
@@ -55,7 +55,7 @@ internal static class Program
             if (parsed.Options is null)
             {
                 Console.WriteLine(Cli.Usage);
-                return 0;
+                return ExitCodes.Success;
             }
             options = parsed.Options;
 
@@ -102,7 +102,7 @@ internal static class Program
             Console.WriteLine($"  files: {report.FileCount}");
             foreach (var artifact in report.Artifacts)
                 Console.WriteLine($"  artifact: {artifact}");
-            return 0;
+            return ExitCodes.Success;
         }
         catch (ReleaseManagerException ex)
         {
@@ -111,12 +111,12 @@ internal static class Program
         }
         catch (OperationCanceledException)
         {
-            return 130;
+            return ExitCodes.Cancelled;
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"ReleaseManager: unexpected error: {ex}");
-            return 1;
+            return ExitCodes.Cli;
         }
     }
 }

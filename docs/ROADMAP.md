@@ -74,19 +74,6 @@ G53/G28/G30 machine-coordinate paths — regular moves are modeled in machine
 coordinates, so seeded offsets do not shift plain-program limits (pre-existing
 emulator semantics, unchanged by the bridge).
 
-## GCodeJob.LoadFile parse-error policy — DONE
-
-**Resolved (delegate policy):** the CS0665 stub is gone. `LoadFile(filename,
-Func<ParseErrorInfo, bool>? onParseError)` takes the error policy as a delegate:
-the handler receives the raw offending line, its line number, and the parser
-message, and returns `true` to skip the line and keep loading or `false` to
-abort. With **no handler the load fails fast** (clears rows, returns `false`).
-`ParseErrorInfo` is a record, keeping Core UI-free — the ioSender-style
-Yes/No MessageBox belongs to the future File-load feature's view layer, which
-will pass it as the delegate (`Yes` → skip, `No` → abort, exactly ioSender's
-`ok = MessageBox.Show(...) == Yes` semantics). Covered by `GCodeJobTests`
-(4 tests: fail-fast default, skip-and-continue, abort, clean file + limits).
-
 ## Keyboard shortcuts / key-map settings — DONE
 
 **Resolved:** a full keymap stack is live with a remap screen in App Settings.

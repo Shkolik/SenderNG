@@ -40,7 +40,7 @@ public sealed record AxisLimits(char Letter, double Min, double Max);
 
 /// <summary>
 /// Computes per-axis program limits (bounding box) for G-code text,
-/// mirroring ioSender's GCodeJob approach: parse all blocks, run the
+/// mirroring ioSender's load-path approach: parse all blocks, run the
 /// emulator, accumulate arc/spline bounding boxes and axis-word end points.
 /// Returns limits for every axis addressed by the program (XYZABCUVW), or
 /// null when the program contains no motion.
