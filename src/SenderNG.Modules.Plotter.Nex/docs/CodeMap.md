@@ -247,7 +247,7 @@ Vulkan `IPlotScene` implementation. The largest rendering file.
 | Constructor | 158-270 | Creates engine, cameras, chrome (grid/axes/origin/envelopes) |
 | `AddCarriagePlane()` / `AddLoftSurface()` / `CreateTool()` | 271-295 | Content factory (planes, loft, tool) |
 | `SetGrid()` / `AddAxisArrows()` / `SetOrigin()` | 307-383 | Chrome setup |
-| `SetWorkEnvelope()` / `SetJobEnvelope()` | 384-393 | Envelopes |
+| `SetJobEnvelope()` | 384-393 | Envelopes |
 | `SetViewPreset()` | 467-521 | Fit / XY / XZ / YZ / 3D presets |
 | `Pan()` / `ZoomAround()` / `SetViewportSize()` | 522-550 | Navigation wiring; viewport size in px |
 | `PanByScreenDelta()` / `RotateByScreenDelta()` | 552-572 | Drag deltas (pan LMB, orbit RMB) |
