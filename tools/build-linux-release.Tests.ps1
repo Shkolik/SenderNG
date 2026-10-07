@@ -68,6 +68,11 @@ Assert-Equal $envDefault.SENDENG_INCLUDE_PLUGINS "0" "plugins default off"
 Assert-Equal $envDefault.SENDENG_NO_ZIP "0" "zip default on"
 Assert-Equal $envDefault.SENDENG_SKIP_TESTS "0" "tests run by default"
 Assert-Equal $envDefault.SENDENG_LINUX_DRYRUN "0" "dry run defaults off"
+Assert-Equal $envDefault.SENDENG_PLATFORM "linux" "platform defaults to linux"
+
+$envArm = Get-LinuxBuildEnv -RepoRootWsl "/mnt/c/r" -OutRootWsl "/mnt/c/r/output" -Platform "linux-arm64" `
+            -IncludePlugins:$false -NoZip:$false -SkipTests:$false -DryRun:$false
+Assert-Equal $envArm.SENDENG_PLATFORM "linux-arm64" "-Platform reaches the bash payload"
 
 $envAll = Get-LinuxBuildEnv -RepoRootWsl "/mnt/c/r" -OutRootWsl "/mnt/c/r/output" -MirrorDirWsl "/home/andrew/m" `
             -IncludePlugins -NoZip -SkipTests -DryRun
@@ -92,8 +97,8 @@ Assert-Equal ($bash -match [regex]::Escape("'bin/'")) $true "mirror excludes bin
 Assert-Equal ($bash -match [regex]::Escape("'output/'")) $true "mirror excludes output/"
 Assert-Equal ($bash -match '(?m)^\s+dotnet run --project tools/ReleaseManager') $true "invokes ReleaseManager"
 Assert-Equal ($bash -match 'cd "\$MIRROR"') $true "runs from the mirror root so SenderNG.sln is the cwd"
-Assert-Equal ($bash -match [regex]::Escape('LINUX_OUT="$OUTROOT/linux"')) $true "target is output/linux"
-Assert-Equal ($bash -match 'basename "\$LINUX_OUT"') $true "pins the literal linux suffix, so the delete can only ever name output/linux"
+Assert-Equal ($bash -match [regex]::Escape('LINUX_OUT="$OUTROOT/$PLATFORM"')) $true "output folder is derived from the requested platform"
+Assert-Equal ($bash -match [regex]::Escape('[ "$(basename "$LINUX_OUT")" = "$PLATFORM" ]')) $true "pins the platform basename, so the delete can only ever name the requested platform's folder"
 Assert-Equal (([regex]::Matches($bash, '(?m)^[^#\n]*\bwin64\b')).Count) 0 "win64 never appears on an executable line"
 Assert-Equal ($bash -notmatch 'rm -rf[^#\n]*win64') $true "no rm ever targets win64"
 Assert-Equal ($bash -match [regex]::Escape('exit "$RC"')) $true "propagates the ReleaseManager exit code"
@@ -101,6 +106,10 @@ Assert-Equal ($bash -match [regex]::Escape('DRY RUN: would replace')) $true "dry
 Assert-Equal ($bash -match 'rm -rf "\$LINUX_OUT"') $true "a real run still wipes output/linux so the copy-back is fresh"
 Assert-Equal ($bash -match '(?m)^ARGS=\(\)') $true "tests run by default in the payload"
 Assert-Equal ($bash -match [regex]::Escape('SENDENG_SKIP_TESTS')) $true "payload honours SENDENG_SKIP_TESTS"
+Assert-Equal ($bash -notmatch [regex]::Escape('LINUX_OUT="$OUTROOT/linux"')) $true "no hardcoded linux output path remains"
+Assert-Equal ($bash -match [regex]::Escape('--platform "$PLATFORM"')) $true "ReleaseManager is told which platform to build"
+Assert-Equal ($bash -match [regex]::Escape('PLATFORM="${SENDENG_PLATFORM:-linux}"')) $true "platform defaults to linux in the payload too"
+Assert-Equal ($bash -match [regex]::Escape('[ -d "$MIRROR/output/$PLATFORM" ]')) $true "fails loudly if ReleaseManager wrote a different folder name"
 
 Write-Host "`nDry run against a scratch output root"
 $scratch = Join-Path $env:TEMP ("sendeng-linux-test-" + [guid]::NewGuid().ToString("N"))
@@ -161,6 +170,42 @@ try {
     $ErrorActionPreference = $prev
     Remove-Item -LiteralPath $scratch2 -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $scratchMirror2 -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+Write-Host "`nAn arm64 dry run leaves the x64 builds alone"
+$scratch3 = Join-Path $env:TEMP ("sendeng-arm64-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Force -Path (Join-Path $scratch3 "linux") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $scratch3 "win64") | Out-Null
+# A real x64 build sitting next to the target. Any write, delete or replace of
+# output/linux changes the hash, so this catches the copy-back reaching the
+# wrong folder - the failure mode a -Platform parameter makes newly possible.
+$sums3 = Join-Path $scratch3 "linux\SHA256SUMS.txt"
+Set-Content -LiteralPath $sums3 -Value "pre-existing-x64-build" -NoNewline
+$exe3 = Join-Path $scratch3 "win64\SenderNG.exe"
+Set-Content -LiteralPath $exe3 -Value "MZ" -NoNewline
+$before3 = (Get-FileHash -LiteralPath $sums3 -Algorithm SHA256).Hash
+$beforeExe3 = (Get-FileHash -LiteralPath $exe3 -Algorithm SHA256).Hash
+$scratchMirror3 = Join-Path $env:TEMP ("sendeng-arm64-mirror-" + [guid]::NewGuid().ToString("N"))
+$prev = $ErrorActionPreference
+try {
+    $ErrorActionPreference = "Continue"
+    $out4 = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build-linux-release.ps1") `
+        -Platform linux-arm64 -DryRun -OutRoot $scratch3 -MirrorDir $scratchMirror3 2>&1
+    $ErrorActionPreference = $prev
+    Assert-Equal $LASTEXITCODE 0 "arm64 dry run exits 0"
+    Assert-Equal (Test-Path (Join-Path $scratch3 "linux-arm64")) $false "dry run wrote no linux-arm64 folder to the output root"
+    Assert-Equal (Get-FileHash -LiteralPath $sums3 -Algorithm SHA256).Hash $before3 "the pre-existing linux build is byte-identical after an arm64 run"
+    Assert-Equal (Get-FileHash -LiteralPath $exe3 -Algorithm SHA256).Hash $beforeExe3 "win64 is byte-identical after an arm64 run"
+    # The stub lands in the script-owned mirror, keyed by platform, so the
+    # assertion proves the platform reached the copy-back path and not just the
+    # argument parser.
+    Assert-Equal (Test-Path (Join-Path $scratchMirror3 "output\linux-arm64\SHA256SUMS.txt")) $true "arm64 dry run staged its stub under the arm64 folder"
+    Assert-Equal (Test-Path (Join-Path $scratchMirror3 "output\linux")) $false "arm64 dry run staged nothing under the linux folder"
+    Assert-Equal (($out4 -join "`n") -match 'Platform  : linux-arm64') $true "arm64 dry run reports the platform it was asked for"
+} finally {
+    $ErrorActionPreference = $prev
+    Remove-Item -LiteralPath $scratch3 -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $scratchMirror3 -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host "`nMirror ownership guard"
