@@ -45,7 +45,7 @@ internal static class Program
         if (!File.Exists(Path.Combine(repoRoot, "SenderNG.sln")))
         {
             Console.WriteLine("Run ReleaseManager from the repo root (where SenderNG.sln lives).");
-            return 1;
+            return ExitCodes.Cli;
         }
 
         try
@@ -55,7 +55,7 @@ internal static class Program
             if (parsed.Options is null)
             {
                 Console.WriteLine(Cli.Usage);
-                return 0;
+                return ExitCodes.Success;
             }
             options = parsed.Options;
 
