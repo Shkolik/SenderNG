@@ -57,19 +57,9 @@ public static class PlotterNexConfig
                 JsonElement { ValueKind: JsonValueKind.String } e => e.GetString(),
                 _ => null,
             };
-            if (json is not null)
-            {
-                try
-                {
-                    var parsed = JsonSerializer.Deserialize<PlotterNexSettings>(json);
-                    if (parsed is not null)
-                        return Normalize(parsed, type);
-                }
-                catch (JsonException)
-                {
-                    // Corrupt section — fall back to defaults.
-                }
-            }
+            var parsed = JsonDefaults.TryDeserialize<PlotterNexSettings>(json);
+            if (parsed is not null)
+                return Normalize(parsed, type);
         }
         return Defaults(type);
     }

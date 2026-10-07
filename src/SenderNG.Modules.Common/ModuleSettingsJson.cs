@@ -55,16 +55,7 @@ public static class ModuleSettingsJson
     public static T? Load<T>(MachineProfile profile, string moduleId) where T : class
     {
         if (profile.ModuleSettings.TryGetValue(moduleId, out var raw) && raw is string json)
-        {
-            try
-            {
-                return JsonSerializer.Deserialize<T>(json);
-            }
-            catch (JsonException)
-            {
-                // Corrupt entry — fall back to defaults.
-            }
-        }
+            return JsonDefaults.TryDeserialize<T>(json);
 
         return null;
     }
