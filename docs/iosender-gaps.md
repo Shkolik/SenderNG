@@ -379,7 +379,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 
 ## Cross-cutting tech debt (architecture §8)
 
-- [ ] **`Grbl.cs` stubs** — 272 lines vs upstream 3438; caps parsing ported,
+- [ ] **`Grbl.cs` stubs** — 203 lines vs upstream 3438; caps parsing ported,
       rest compile-only stubs. Clean up as features touch them.
 - [x] **`GrblInfo` static state** — resolved 2026-09-19: became a read-only
       facade over an injectable `GrblInfoState` (`GrblInfo.Current` bound to the
