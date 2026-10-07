@@ -486,6 +486,49 @@ public class ConverterTests
         Assert.Contains("G3I0J0", output); // degenerate arc — end equals pen position
     }
 
+    [Fact]
+    public void Hpgl_each_polygon_in_a_file_gets_its_own_id()
+    {
+        // The id is pre-incremented inside the while-loop condition, so every
+        // iteration advances it. Hoisting that increment out of the loop would
+        // hand both polygons id 1 and fail this assertion.
+        const string plt =
+            "IN;\n" +
+            "PU;PA0,0;\n" +
+            "PD;PA1000,0;PA1000,1000;PA0,1000;PA0,0;PU;\n" +
+            "PU;PA5000,0;\n" +
+            "PD;PA6000,0;PA6000,1000;PA5000,1000;PA5000,0;PU;\n";
+
+        var p = HpglDefaults();
+        p.SourceName = "board.Edge_Cuts.plt";
+        p.ToolDiameter = 0;
+        var output = new HpglToGCode().Convert(plt, p);
+
+        Assert.NotNull(output);
+        Assert.Contains("(Polygon: 1,", output);
+        Assert.Contains("(Polygon: 2,", output);
+    }
+
+    [Fact]
+    public void Hpgl_polygon_ids_restart_per_conversion_on_a_shared_instance()
+    {
+        // ids are instance state reset at the top of Convert, so reusing one
+        // converter restarts at 1 instead of continuing to climb. Dropping the
+        // `_polygonId = 0;` statement fails this on the second call.
+        var converter = new HpglToGCode();
+        var p = HpglDefaults();
+        p.SourceName = "board.Edge_Cuts.plt";
+        p.ToolDiameter = 0;
+
+        var first = converter.Convert(SquarePlt, p);
+        var second = converter.Convert(SquarePlt, p);
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.Contains("(Polygon: 1,", first);
+        Assert.Contains("(Polygon: 1,", second);
+    }
+
     // ---- Parameters dialog VM ----
 
     [Fact]
