@@ -40,7 +40,8 @@ namespace ReleaseManager;
 public enum ReleasePlatform
 {
     Win64,
-    Linux
+    Linux,
+    LinuxArm64
 }
 
 public static class PlatformInfo
@@ -59,15 +60,42 @@ public static class PlatformInfo
         }
     }
 
-    public static string FolderName(ReleasePlatform platform)
-        => platform == ReleasePlatform.Win64 ? "win64" : "linux";
+    // Switches, not `platform == Win64 ? a : b`. A ternary sends every member
+    // that is not Win64 down the same branch, so adding LinuxArm64 to the enum
+    // would have made Rid() emit "linux-x64" and ZipSuffix() emit "linux-x64" —
+    // an x64 bundle published under an arm64 name, with no error anywhere. The
+    // `_` arm throws, so a future platform cannot be added without a decision
+    // being made about all four mappings.
 
-    public static string Rid(ReleasePlatform platform)
-        => platform == ReleasePlatform.Win64 ? "win-x64" : "linux-x64";
+    public static string FolderName(ReleasePlatform platform) => platform switch
+    {
+        ReleasePlatform.Win64 => "win64",
+        ReleasePlatform.Linux => "linux",
+        ReleasePlatform.LinuxArm64 => "linux-arm64",
+        _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, null)
+    };
 
-    public static string ZipSuffix(ReleasePlatform platform)
-        => platform == ReleasePlatform.Win64 ? "win64" : "linux-x64";
+    public static string Rid(ReleasePlatform platform) => platform switch
+    {
+        ReleasePlatform.Win64 => "win-x64",
+        ReleasePlatform.Linux => "linux-x64",
+        ReleasePlatform.LinuxArm64 => "linux-arm64",
+        _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, null)
+    };
 
-    public static string RunnerFileName(ReleasePlatform platform)
-        => platform == ReleasePlatform.Win64 ? "SenderNG.exe" : "SenderNG";
+    public static string ZipSuffix(ReleasePlatform platform) => platform switch
+    {
+        ReleasePlatform.Win64 => "win64",
+        ReleasePlatform.Linux => "linux-x64",
+        ReleasePlatform.LinuxArm64 => "linux-arm64",
+        _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, null)
+    };
+
+    public static string RunnerFileName(ReleasePlatform platform) => platform switch
+    {
+        ReleasePlatform.Win64 => "SenderNG.exe",
+        ReleasePlatform.Linux => "SenderNG",
+        ReleasePlatform.LinuxArm64 => "SenderNG",
+        _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, null)
+    };
 }
