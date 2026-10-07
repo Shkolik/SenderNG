@@ -188,7 +188,7 @@ namespace CNC.Core
         }
     }
 
-    // Minimal stubs for other Grbl types not needed for Task 3 but kept for compilation
+    // Minimal portable stand-ins for Grbl types, kept for compilation
     public enum GrblSetting { ReportInches=13, SoftLimitsEnable=20, HardLimitsEnable=21, HomingEnable=22, HomingDirMask=23, HomingPulloff=27, TravelResolutionBase=100, MaxTravelBase=130 }
     public enum grblHALSetting { PulseMicroseconds=0, JogStepDistance=53, JogSlowDistance=54, JogFastDistance=55, JogStepSpeed=50, JogSlowSpeed=51, JogFastSpeed=52, EnableLegacyRTCommands=39, TravelResolutionBase=100, MaxTravelBase=130 }
     public static class Resources

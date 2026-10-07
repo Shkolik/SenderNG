@@ -2219,29 +2219,6 @@ namespace CNC.GCode
         public double V { get { return Values[7]; } set { Values[7] = value; } }
         public double W { get { return Values[8]; } set { Values[8] = value; } }
 
-        // NOTE: only called when Lathe UVW mode is active
-        public GcodeBoundingBox GetBoundingBox(GCPlane plane, double[] start, bool isRelative = false)
-        {
-            GcodeBoundingBox bbox = new GcodeBoundingBox();
-
-            bbox.AddPoint(plane, start[0], start[1], start[2]);
-
-            var end = (double[])start.Clone();
-
-            if (AxisFlags.HasFlag(AxisFlags.X))
-                end[0] = isRelative ? start[0] + X : X;
-            if (AxisFlags.HasFlag(AxisFlags.Y))
-                end[1] = isRelative ? start[1] + Y : Y;
-            if (AxisFlags.HasFlag(AxisFlags.Z))
-                end[2] = isRelative ? start[2] + Z : Z;
-
-            bbox.AddPoint(plane, end[0], end[1], end[2]);
-
-            bbox.Conclude();
-
-            return bbox;
-        }
-
         public new string ToString()
         {
             string s = base.ToString();

@@ -48,7 +48,7 @@ tests/ReleaseManager.Tests  xUnit release-tooling suite
 | Relation | Items |
 | --- | --- |
 | **Kept (ported)** | GCodeParser, NGCExpr, GCodeEmulator, Machine, caps parsing, foam patches, Macro editor (foamcut), Probing, DRO/Jog/Coolant/Offsets concepts |
-| **Slimmed** | Grbl.cs (3438 → 272 L, caps only + stubs), GrblViewModel (1434 L → `MachineState`) |
+| **Slimmed** | Grbl.cs (3438 → 203 L, caps only + stubs), GrblViewModel (1434 L → `MachineState`) |
 | **Stripped** | WPF everywhere; custom streams (Serial/Telnet/Websocket/YModem/Eltima) → `System.IO.Ports`; `Properties.Settings`/`App.config` → portable settings; localization (9 locales → en/ru JSON catalog with per-plugin overrides — see `docs/localization.md`) |
 | **Deferred (lowest priority)** | camera (AForge/V4L2), Lathe, DragKnife, SD card view, MPG, PID log, THC monitor, Trinamic view, ~~steppers calibration wizard~~ (**LANDED 2026-09-19**, Settings-menu wizard with measured backlash — see `docs/superpowers/plans/2026-09-19-stepper-calibration.md`), Tool view |
 | **Added** | Demo/offline mode, DI plugin system + assembly scan, 4-panel layout with per-module visibility, cutting realtime overrides panel (0x90–0x9E), live status parsing (WPos/FS:/Ov:), MDI history, program limits, state indicator, xUnit test suite (upstream had none) |

@@ -237,12 +237,13 @@ set was checked for parity defaults before finalizing.
 > still driven exclusively by the same realtime bytes, now sent once per state
 > transition instead of blindly per button press.
 >
-> Cross-cutting tech debt: `Grbl.cs` is 272 L vs upstream 3438 L (foamcut's full
+> Cross-cutting tech debt: `Grbl.cs` is 203 L vs upstream 3438 L (foamcut's full
 > `Grbl.cs` is 2535L) — `ParseCaps` + `[OPT:...]` field extraction ported; the
-> `Grbl` partial class's `GrblViewModel`, `GrblParserState` (modal state),
-> `PollGrbl`, and the `AxisLetter`/`Position`/`CoordinateSystem`/`Tool`
-> WPF `ViewModelBase` leftovers are compile-only stubs kept so the ported engine
-> files that reference them still compile. The real service uses the portable
+> `AxisLetter`/`Position`/`CoordinateSystem`/`Tool` WPF `ViewModelBase`
+> leftovers are compile-only stubs kept so the ported engine files that
+> reference them still compile. The rest of the upstream stub surface (modal
+> state, poll timer, view model) was retired by the 2026-09-30 audit cleanup
+> (§6 / §2.14, closed 2026-10-07). The real service uses the portable
 > `ControllerCapabilities` + `WorkParameters` + `MachineState` model instead.
 > `GrblInfo` is a read-only facade over an injectable `GrblInfoState` instance
 > (resolved 2026-09-19 — no ambient write path remains).
