@@ -102,7 +102,7 @@ internal static class Program
             Console.WriteLine($"  files: {report.FileCount}");
             foreach (var artifact in report.Artifacts)
                 Console.WriteLine($"  artifact: {artifact}");
-            return 0;
+            return ExitCodes.Success;
         }
         catch (ReleaseManagerException ex)
         {
@@ -111,12 +111,12 @@ internal static class Program
         }
         catch (OperationCanceledException)
         {
-            return 130;
+            return ExitCodes.Cancelled;
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"ReleaseManager: unexpected error: {ex}");
-            return 1;
+            return ExitCodes.Cli;
         }
     }
 }

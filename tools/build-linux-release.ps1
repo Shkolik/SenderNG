@@ -270,6 +270,7 @@ function Invoke-LinuxReleaseBuild {
     if ($code -ne 0) {
         Write-Host ""
         Write-Host "FAILED: exit $code" -ForegroundColor Red
+        # ExitCodes in Errors.cs is the source of truth; ExitCodeSyncTests verifies these arms against it.
         switch ($code) {
             1 { Write-Host "  A precondition failed. See the message above." }
             2 { Write-Host "  Build failed. See the dotnet output above." }
