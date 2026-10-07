@@ -148,7 +148,6 @@ namespace CNC.Core
         public static ObservableCollection<string> SystemInfo { get; } = new ObservableCollection<string>();
         public static bool IsLoaded { get; private set; }
         public static bool LightBurnCluster { get; internal set; } = false;
-        public static bool LatheModeEnabled => GrblParserState.LatheMode != LatheMode.Disabled;
         public static bool LatheUVWModeEnabled { get=>false; set{} }
         public static bool HomingEnabled { get; internal set; } = false;
         public static AxisFlags HomingDirection { get; internal set; } = AxisFlags.None;
@@ -166,8 +165,6 @@ namespace CNC.Core
 
     public static partial class Grbl
     {
-        public static GrblViewModel? GrblViewModel { get; set; }
-
         public static CapsResult ParseCaps(string capsLine)
         {
             // Pure: does not mutate GrblInfo static state (fixes TestProcess leakage / test-order dependence)
@@ -193,28 +190,6 @@ namespace CNC.Core
     }
 
     // Minimal stubs for other Grbl types not needed for Task 3 but kept for compilation
-    public static class GrblParserState
-    {
-        public static string WorkOffset { get; set; } = "G54";
-        public static string Tool { get; set; } = GrblConstants.NO_TOOL;
-        public static bool IsMetric => true;
-        public static DistanceMode DistanceMode => DistanceMode.Absolute;
-        public static LatheMode LatheMode => LatheMode.Disabled;
-        public static CoolantState CoolantState => CoolantState.Off;
-        public static SpindleState SpindleState => SpindleState.Off;
-        public static ToolLengthOffset ToolLengthOffset => ToolLengthOffset.Cancel;
-        public static Plane Plane => Plane.XY;
-        public static bool IsScalingActive => false;
-        public static FeedRateMode FeedRateMode => FeedRateMode.UnitsPerMin;
-        public static IJKMode IJKMode => IJKMode.Incremental;
-        public static MotionMode MotionMode => MotionMode.G0;
-        public static bool IsLoaded => false;
-        public static string? IsActive(string k) => null;
-        public static bool Get(GrblViewModel m)=>false;
-        public static bool Get()=>false;
-        public static bool Get(bool b)=>false;
-        public static bool Process(string d)=>false;
-    }
     public enum GrblSetting { ReportInches=13, SoftLimitsEnable=20, HardLimitsEnable=21, HomingEnable=22, HomingDirMask=23, HomingPulloff=27, TravelResolutionBase=100, MaxTravelBase=130 }
     public enum grblHALSetting { PulseMicroseconds=0, JogStepDistance=53, JogSlowDistance=54, JogFastDistance=55, JogStepSpeed=50, JogSlowSpeed=51, JogFastSpeed=52, EnableLegacyRTCommands=39, TravelResolutionBase=100, MaxTravelBase=130 }
     public static class Resources
@@ -226,5 +201,4 @@ namespace CNC.Core
     }
     public class GrblSettingDetails : ViewModelBase { public int Id; public string Name=""; public string Value=""; }
     [Flags] public enum Signals : int { Off=0, LimitX=1<<0, LimitY=1<<1, LimitZ=1<<2, LimitA=1<<3, LimitB=1<<4, LimitC=1<<5, LimitU=1<<6, LimitV=1<<7, LimitW=1<<8, EStop=1<<9, Probe=1<<10, Reset=1<<11, SafetyDoor=1<<12, Hold=1<<13, CycleStart=1<<14, BlockDelete=1<<15, OptionalStop=1<<16, ProbeDisconnected=1<<17, MotorWarning=1<<18, MotorFault=1<<19 }
-    public class PollGrbl { internal static bool suspend=false; internal static void Suspend()=>suspend=true; internal static void Resume()=>suspend=false; public bool IsEnabled=>false; public void SetState(int i){} public void Run(){} }
 }
