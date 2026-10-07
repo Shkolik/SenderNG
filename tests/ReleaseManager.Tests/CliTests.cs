@@ -171,4 +171,34 @@ public class CliTests
         var repo = TempRepo.New();
         Assert.Null(Record.Exception(() => Cli.EnsureOutputUnderRepo(repo, Path.Combine("OUTPUT", "nested"))));
     }
+
+    [Theory]
+    [InlineData("win64", ReleasePlatform.Win64)]
+    [InlineData("linux", ReleasePlatform.Linux)]
+    [InlineData("linux-arm64", ReleasePlatform.LinuxArm64)]
+    public void Parse_reads_the_platform_flag(string value, ReleasePlatform expected)
+    {
+        var options = Cli.Parse(["--platform", value]).Options!;
+        Assert.Equal(expected, options.Platform);
+    }
+
+    [Fact]
+    public void Parse_leaves_platform_null_when_the_flag_is_absent()
+    {
+        Assert.Null(Cli.Parse([]).Options!.Platform);
+    }
+
+    [Fact]
+    public void Parse_throws_on_an_unknown_platform()
+    {
+        var ex = Assert.Throws<CliException>(() => Cli.Parse(["--platform", "linux-arm"]));
+        Assert.Contains("linux-arm64", ex.Message);
+    }
+
+    [Fact]
+    public void Usage_documents_the_platform_flag()
+    {
+        Assert.Contains("--platform", Cli.Usage);
+        Assert.Contains("linux-arm64", Cli.Usage);
+    }
 }

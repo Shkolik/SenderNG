@@ -45,6 +45,7 @@ public enum PluginSelection
 }
 
 public sealed record ReleaseOptions(
+    ReleasePlatform? Platform = null,
     string? VersionOverride = null,
     bool SkipTests = false,
     bool NoZip = false,

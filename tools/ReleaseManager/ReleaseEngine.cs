@@ -62,10 +62,10 @@ public sealed class ReleaseEngine
     public async Task<EngineReport> ReleaseAsync(ReleaseOptions options, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        var platform = PlatformInfo.Current;
+        var platform = options.Platform ?? PlatformInfo.Current;
         var folder = PlatformInfo.FolderName(platform);
         var platformRoot = Path.Combine(options.OutputDir, folder);
-        _log.Info($"ReleaseManager: platform {folder}");
+        _log.Info($"ReleaseManager: platform {folder} ({PlatformInfo.Rid(platform)})");
 
         if (!options.SkipTests)
         {
