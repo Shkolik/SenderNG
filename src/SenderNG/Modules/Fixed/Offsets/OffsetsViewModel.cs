@@ -98,7 +98,6 @@ public sealed class EditableOffsetRow : ViewModelBase
     public string A { get => GetValueAt(3); set => SetValueAt(3, value); }
     public string B { get => GetValueAt(4); set => SetValueAt(4, value); }
     public string C { get => GetValueAt(5); set => SetValueAt(5, value); }
-    public string? Error { get; set; }
 
     public event EventHandler? ValuesChanged;
     public string GetValueAt(int index) => index >= 0 && index < Values.Count ? Values[index] : string.Empty;
@@ -181,7 +180,6 @@ public sealed class EditableToolRow : ViewModelBase
             ValuesChanged?.Invoke(this, EventArgs.Empty);
         }
     }
-    public string? Error { get; set; }
 
     /// <summary>Original values loaded from the board; a change marks the tool dirty
     /// so the single "Save tool table" button only writes edited rows.</summary>
@@ -546,15 +544,14 @@ public sealed class OffsetsViewModel : ViewModelBase
 
     private async Task SetCoordinateValuesAsync(EditableOffsetRow row, int? onlyAxis = null)
     {
-        if (!WorkParameters.IsG10Writable(row.Code)) { row.Error = LocText.Resolve("module.offsets-table.notWritable", "Only G54..G59.3 are writable"); Status = row.Error; return; }
-        if (!TryValues(row.Values, out var values, out var error)) { row.Error = error; Status = error!; return; }
+        if (!WorkParameters.IsG10Writable(row.Code)) { Status = LocText.Resolve("module.offsets-table.notWritable", "Only G54..G59.3 are writable"); return; }
+        if (!TryValues(row.Values, out var values, out var error)) { Status = error!; return; }
         var words = string.Concat(values.Select((value, index) => onlyAxis is null || index == onlyAxis ? $" {AxisLetters[index]}{Format(value)}" : string.Empty));
         if (words.Length == 0) return;
         var command = $"G10 L2 P{WorkParameters.CoordinateSystemNumber(row.Code)} {words}";
         try
         {
             await _grbl.SendAsync(command);
-            row.Error = null;
             Status = LocText.Format("module.offsets-table.set", "Set {0}", row.Code);
             await SafeRefreshAsync();
         }
@@ -631,7 +628,6 @@ public sealed class OffsetsViewModel : ViewModelBase
         {
             if (!TryValues(row.Values, out var values, out var error))
             {
-                row.Error = error;
                 failures++;
                 continue;
             }
@@ -645,12 +641,10 @@ public sealed class OffsetsViewModel : ViewModelBase
             try
             {
                 await _grbl.SendAsync(command);
-                row.Error = null;
                 sent++;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                row.Error = ex.Message;
                 failures++;
             }
         }
@@ -682,7 +676,6 @@ public sealed class OffsetsViewModel : ViewModelBase
             if (!TryValues(tool.Offsets, out var values, out var error) ||
                 !double.TryParse(tool.Radius, NumberStyles.Float, CultureInfo.InvariantCulture, out var radius))
             {
-                tool.Error = LocText.Resolve("module.offsets-table.invalidToolValue", "Invalid tool-table value");
                 failures++;
                 continue;
             }
@@ -702,12 +695,10 @@ public sealed class OffsetsViewModel : ViewModelBase
             try
             {
                 await _grbl.SendAsync(command);
-                tool.Error = null;
                 sent++;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                tool.Error = ex.Message;
                 failures++;
             }
         }
