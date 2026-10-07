@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using CNC.Core;
+using System.Globalization;
 using Xunit;
 
 namespace SenderNG.Core.Tests;
@@ -97,5 +98,25 @@ public class DblParseTests
         Assert.Equal("G54", cs.Code);
         Assert.Equal(0.0015d, cs.Values[0]);
         Assert.Equal(2.5d, cs.Values[1]);
+    }
+
+    [Fact]
+    public void Parse_ignores_the_current_culture()
+    {
+        // double.Parse uses the current culture by default, so in a de-DE locale
+        // "1.5" reads as 15 - or throws. The converters feed this raw parser text
+        // from .nc/.plt files, which is always invariant. Swap the culture, prove
+        // the round-trip holds, restore it even if the assertion throws.
+        var saved = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
+            Assert.Equal(1.5d, Dbl.Parse("1.5"));
+            Assert.Equal(1.5d, Dbl.Parse(Dbl.ToInvariantString(1.5d)));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = saved;
+        }
     }
 }

@@ -154,6 +154,7 @@ namespace CNC.Core
 
     public static class Dbl
     {
+        public static double Parse(string s) => double.Parse(s, CultureInfo.InvariantCulture);
         public static string ToInvariantString(this double value) => value.ToString(CultureInfo.InvariantCulture);
         public static string ToInvariantString(this double value, string format) => value.ToString(format, CultureInfo.InvariantCulture);
         public static bool Assign(double value, ref double holder)
