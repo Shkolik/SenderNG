@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using Avalonia;
 using Avalonia.Media;
 using SenderNG.ViewModels;
 using Xunit;
@@ -76,6 +77,15 @@ public class MainViewModelStateBrushTests
     private static (byte R, byte G, byte B) ToRgb(IBrush brush)
     {
         var sc = Assert.IsType<SolidColorBrush>(brush);
-        return (sc.Color.R, sc.Color.G, sc.Color.B);
+        // MainViewModel caches these brushes in static readonly fields, so each is
+        // constructed exactly once - on whichever thread reaches them first. The typed
+        // Color getter calls AvaloniaObject.VerifyAccess() against the dispatcher
+        // captured at that construction, and a test class running in parallel on a
+        // different xunit worker thread is not it. Widening the property to
+        // AvaloniaProperty selects the overload that performs no affinity check; the
+        // value is immutable once constructed, so reading it from here is safe.
+        AvaloniaProperty colorProperty = SolidColorBrush.ColorProperty;
+        var color = (Color)sc.GetValue(colorProperty)!;
+        return (color.R, color.G, color.B);
     }
 }
