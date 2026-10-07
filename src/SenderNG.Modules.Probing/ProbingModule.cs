@@ -40,7 +40,6 @@ using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Modules;
 using SenderNG.Modules.Probing.Core;
 using SenderNG.Core.Services;
-using SenderNG.Modules.Plugins;
 
 namespace SenderNG.Modules.Plugins;
 

@@ -626,7 +626,7 @@ public sealed class OffsetsViewModel : ViewModelBase
         var failures = 0;
         foreach (var row in Rows.Where(row => WorkParameters.IsG10Writable(row.Code)))
         {
-            if (!TryValues(row.Values, out var values, out var error))
+            if (!TryValues(row.Values, out var values, out _))
             {
                 failures++;
                 continue;
@@ -673,7 +673,7 @@ public sealed class OffsetsViewModel : ViewModelBase
         var failures = 0;
         foreach (var tool in Tools.Where(t => t.IsDirty))
         {
-            if (!TryValues(tool.Offsets, out var values, out var error) ||
+            if (!TryValues(tool.Offsets, out var values, out _) ||
                 !double.TryParse(tool.Radius, NumberStyles.Float, CultureInfo.InvariantCulture, out var radius))
             {
                 failures++;

@@ -41,7 +41,6 @@ using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using CNC.GCode;
 using Microsoft.Extensions.DependencyInjection;
-using SenderNG.Modules.Plugins;
 using SenderNG.Modules.Probing.Localization;
 using SenderNG.Modules.Probing.ViewModels;
 using SenderNG.Core.Commands;
