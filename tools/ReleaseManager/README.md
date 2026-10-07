@@ -237,7 +237,7 @@ else it owns goes under `<plugin-id>/` (locale + closure). Host-owned assemblies
    dotnet run --project tools/ReleaseManager -- --include-plugins --skip-tests
    ```
    Output: `~/SenderNG/output/linux/`, or `~/SenderNG/output/linux-arm64/` with
-   the script's `-Platform linux-arm64`. Optional smoke test via WSLg (renders
+   ReleaseManager's `--platform linux-arm64`. Optional smoke test via WSLg (renders
    on the Windows desktop): `./output/linux/SenderNG/SenderNG` → Connect → Demo.
    If "Permission denied" (bundle passed through a Windows filesystem):
    `chmod +x ./output/linux/SenderNG/SenderNG` — only the runner needs `+x`, no

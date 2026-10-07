@@ -63,7 +63,8 @@ fallback. (To build the **Linux** zip from a Windows host, use
 `tools/build-linux-release.ps1` — see "Linux release build (WSL2)" below; it
 writes `output\linux` and never reads, writes or deletes `output\win64`.)
 A release folder (`output/win64/` on Windows, `output/linux/` or
-`output/linux-arm64/` on Linux) looks like this:
+`output/linux-arm64/` on Linux) looks like this. The example is an x64
+release; an arm64 folder omits the `SenderNG-plugin-plotter-nex-…` zip:
 
 ```
 SenderNG-<ver>-<suffix>.zip                  ← core bundle: the whole app
