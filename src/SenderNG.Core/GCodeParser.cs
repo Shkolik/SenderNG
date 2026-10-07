@@ -369,9 +369,9 @@ namespace CNC.GCode
             IsScaled = motionModeChanged = false;
             Decimals = 3;
             zorg = feedRate = 0d;
-            remapU2A = !GrblInfo.AxisLetters.Contains('A') && !GrblInfo.LatheUVWModeEnabled;
-            remapV2B = !GrblInfo.AxisLetters.Contains('B') && !GrblInfo.LatheUVWModeEnabled;
-            remapW2C = !GrblInfo.AxisLetters.Contains('C') && !GrblInfo.LatheUVWModeEnabled;
+            remapU2A = !GrblInfo.AxisLetters.Contains('A');
+            remapV2B = !GrblInfo.AxisLetters.Contains('B');
+            remapW2C = !GrblInfo.AxisLetters.Contains('C');
         }
 
         private bool VerifyIgnore(string code, CommandIgnoreState state)
@@ -2234,16 +2234,6 @@ namespace CNC.GCode
                 end[1] = isRelative ? start[1] + Y : Y;
             if (AxisFlags.HasFlag(AxisFlags.Z))
                 end[2] = isRelative ? start[2] + Z : Z;
-
-            if(GrblInfo.LatheUVWModeEnabled)
-            {
-                if(AxisFlags.HasFlag(AxisFlags.U))
-                    end[0] += U / 2d;
-                if (AxisFlags.HasFlag(AxisFlags.V))
-                    end[1] += V;
-                if (AxisFlags.HasFlag(AxisFlags.W))
-                    end[2] += W;
-            }
 
             bbox.AddPoint(plane, end[0], end[1], end[2]);
 

@@ -148,7 +148,6 @@ namespace CNC.Core
         public static ObservableCollection<string> SystemInfo { get; } = new ObservableCollection<string>();
         public static bool IsLoaded { get; private set; }
         public static bool LightBurnCluster { get; internal set; } = false;
-        public static bool LatheUVWModeEnabled { get=>false; set{} }
         public static bool HomingEnabled { get; internal set; } = false;
         public static AxisFlags HomingDirection { get; internal set; } = AxisFlags.None;
         public static string AxisIndexToLetter(int i)=>Current.AxisIndexToLetter(i);

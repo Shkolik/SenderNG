@@ -124,7 +124,7 @@ namespace CNC.Core
             CoolantState = ResetDefaults.CoolantState;
             SpindleState = ResetDefaults.SpindleState;
             LatheMode = ResetDefaults.LatheMode;
-            LatheUVWMode = GrblInfo.LatheUVWModeEnabled;
+            LatheUVWMode = false;
             DistanceMode = ResetDefaults.DistanceMode;
             ToolLengthOffset = ResetDefaults.ToolLengthOffset;
             FeedRateMode = ResetDefaults.FeedRateMode;
