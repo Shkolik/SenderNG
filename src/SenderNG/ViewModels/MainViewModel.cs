@@ -1589,19 +1589,19 @@ public class MainViewModel : ViewModelBase, IDisposable
         RaiseProgramCommands();
     }
 
-    private static IBrush ResolveStateBrush(string status)
+    private static readonly IBrush RunBrush = new SolidColorBrush(Color.Parse("#c8e8c8"));
+    private static readonly IBrush AlarmBrush = new SolidColorBrush(Color.Parse("#e04545"));
+    private static readonly IBrush IdleBrush = new SolidColorBrush(Color.Parse("#ffe8a0"));
+    private static readonly IBrush DefaultBrush = new SolidColorBrush(Color.Parse("#e0e0e0"));
+
+    internal static IBrush ResolveStateBrush(string status)
     {
-        if (status.Contains("run", StringComparison.OrdinalIgnoreCase))
-            return new SolidColorBrush(Color.Parse("#c8e8c8"));
-        if (status.Contains("alarm", StringComparison.OrdinalIgnoreCase))
-            return new SolidColorBrush(Color.Parse("#e04545"));
-        if (status.Contains("idle", StringComparison.OrdinalIgnoreCase))
-            return new SolidColorBrush(Color.Parse("#ffe8a0"));
-        if (status.Contains("hold", StringComparison.OrdinalIgnoreCase))
-            return new SolidColorBrush(Color.Parse("#ffe8a0"));
-        if (status.Contains("check", StringComparison.OrdinalIgnoreCase))
-            return new SolidColorBrush(Color.Parse("#ffe8a0"));
-        return new SolidColorBrush(Color.Parse("#e0e0e0"));
+        if (status.Contains("run", StringComparison.OrdinalIgnoreCase)) return RunBrush;
+        if (status.Contains("alarm", StringComparison.OrdinalIgnoreCase)) return AlarmBrush;
+        if (status.Contains("idle", StringComparison.OrdinalIgnoreCase)) return IdleBrush;
+        if (status.Contains("hold", StringComparison.OrdinalIgnoreCase)) return IdleBrush;
+        if (status.Contains("check", StringComparison.OrdinalIgnoreCase)) return IdleBrush;
+        return DefaultBrush;
     }
 
     private static IGrblService ResolveInner(IGrblService service) =>

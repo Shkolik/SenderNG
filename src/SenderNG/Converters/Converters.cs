@@ -45,7 +45,6 @@ public static class Converters
 {
     public static HasElementsConverter HasElements => HasElementsConverter.Instance;
     public static LeftPluginsVisibilityConverter LeftPluginsVisible => LeftPluginsVisibilityConverter.Instance;
-    public static MachineStateToBrushConverter MachineStateBrush => MachineStateToBrushConverter.Instance;
     public static BoolToSignalBrushConverter SignalBrush => BoolToSignalBrushConverter.Instance;
     public static IsNotNullConverter IsNotNull => IsNotNullConverter.Instance;
     public static IsFlyoutModuleConverter IsFlyout => IsFlyoutModuleConverter.Instance;
@@ -131,32 +130,6 @@ public sealed class LeftPluginsVisibilityConverter : IValueConverter
         try { while (en.MoveNext()) { count++; if (count > 2) break; } }
         finally { (en as IDisposable)?.Dispose(); }
         return count;
-    }
-
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        throw new NotSupportedException();
-}
-
-public sealed class MachineStateToBrushConverter : IValueConverter
-{
-    public static readonly MachineStateToBrushConverter Instance = new();
-
-    private static readonly IBrush RunBrush = new SolidColorBrush(Color.Parse("#c8e8c8"));
-    private static readonly IBrush IdleBrush = new SolidColorBrush(Color.Parse("#ffe8a0"));
-    private static readonly IBrush AlarmBrush = new SolidColorBrush(Color.Parse("#e04545"));
-    private static readonly IBrush DefaultBrush = new SolidColorBrush(Color.Parse("#e0e0e0"));
-
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        var s = value as string ?? string.Empty;
-        if (s.Contains("run", StringComparison.OrdinalIgnoreCase)) return RunBrush;
-        if (s.Contains("alarm", StringComparison.OrdinalIgnoreCase)) return AlarmBrush;
-        if (s.Contains("idle", StringComparison.OrdinalIgnoreCase)) return IdleBrush;
-        // hold, check, door, etc. -> idle yellow; unknown -> gray
-        if (s.Contains("hold", StringComparison.OrdinalIgnoreCase)) return IdleBrush;
-        if (s.Contains("check", StringComparison.OrdinalIgnoreCase)) return IdleBrush;
-        if (string.IsNullOrWhiteSpace(s)) return IdleBrush;
-        return DefaultBrush;
     }
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
