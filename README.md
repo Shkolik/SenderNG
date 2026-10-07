@@ -62,8 +62,8 @@ dotnet run --project tools/ReleaseManager -- --include-plugins
 fallback. (To build the **Linux** zip from a Windows host, use
 `tools/build-linux-release.ps1` — see "Linux release build (WSL2)" below; it
 writes `output\linux` and never reads, writes or deletes `output\win64`.)
-A release folder (`output/win64/` on Windows,
-`output/linux/` on Linux) looks like this:
+A release folder (`output/win64/` on Windows, `output/linux/` or
+`output/linux-arm64/` on Linux) looks like this:
 
 ```
 SenderNG-<ver>-<suffix>.zip                  ← core bundle: the whole app
@@ -75,7 +75,7 @@ SenderNG-plugin-probing-<ver>-<suffix>.zip
 SHA256SUMS.txt                              ← <sha256> <relative path> per file
 ```
 
-`<suffix>` is `win64` on Windows and `linux-x64` on Linux.
+`<suffix>` is `win64` on Windows, `linux-x64` or `linux-arm64` on Linux.
 
 **Core bundle zip** — the complete self-contained app: `SenderNG.exe` /
 `SenderNG` runner, all .NET + platform natives, locale catalogs, and a
@@ -173,10 +173,14 @@ with it already active; launch the app from there.
 
 ## Linux release build (WSL2)
 
-`ReleaseManager` builds the platform of the host it runs on, so the Linux
-release must be produced under Linux. `tools/build-linux-release.ps1` runs it
-under WSL2, mirrors the source tree into WSL-native storage for a fast restore
-and publish, and drops the result in `output\linux` next to `output\win64`.
+`tools/build-linux-release.ps1` runs `ReleaseManager` under WSL2, mirrors the
+source tree into WSL-native storage for a fast restore and publish, and drops the
+result in `output\linux` next to `output\win64`.
+
+A Linux host is still required, though not because `ReleaseManager` reads the
+host OS — `--platform` overrides that. It is required because `SenderNG.csproj`
+selects the Plot 3D plugin's native binaries by build OS, and because keeping
+both Linux targets on one host means one toolchain, one mirror, and one runbook.
 
 ```powershell
 # Linux bundle in output\linux, tests skipped (default)
@@ -192,15 +196,18 @@ and publish, and drops the result in `output\linux` next to `output\win64`.
 | Parameter | Default | Effect |
 |---|---|---|
 | `-Distro` | `Ubuntu` | WSL distribution to build in |
-| `-OutRoot` | `<repo>\output` | Linux output lands in `<OutRoot>\linux` |
+| `-OutRoot` | `<repo>\output` | Output lands in `<OutRoot>\<Platform>` |
+| `-Platform` | `linux` | `linux` or `linux-arm64`; passes `--platform` and selects the output folder |
 | `-MirrorDir` | `~/.cache/sendeng-linux-build` in WSL | where the source is mirrored; wiped each run |
 | `-Plugins` | off | add `--include-plugins` |
 | `-SkipTests` | off | pass `--skip-tests` |
 | `-NoZip` | off | add `--no-zip` |
 | `-DryRun` | off | resolve the SDK, mirror the tree, and report what *would* happen |
 
-A real run replaces `output\linux` wholesale. `output\win64` is never read,
-written, or deleted.
+A real run replaces its own `output\<Platform>` folder wholesale. The other
+output folders — `output\win64`, and whichever of `output\linux` /
+`output\linux-arm64` this run is not building — are never read, written, or
+deleted.
 
 `-DryRun` writes nothing to `<OutRoot>` at all. It stages a stub bundle inside
 the script-owned mirror to prove the mirroring step worked, and leaves any
@@ -232,6 +239,37 @@ the end-to-end check. Two things worth confirming by eye:
 If you interrupt a run with Ctrl+C, check for a leftover `wsl.exe` before
 re-running: PowerShell reports the cancellation but does not necessarily kill
 the child process, which may still be writing to `output\linux`.
+
+### Linux arm64 (Raspberry Pi)
+
+The sender runs on 64-bit arm64 Linux; a Raspberry Pi 4B is the tested target.
+**The Plot 3D tab is not available on arm64** — see the
+[module's platform table](src/SenderNG.Modules.Plotter.Nex/docs/README.md) for
+why. Every other module, including the 2D plotter, ships normally.
+
+Build it from WSL2 on your Windows machine; no .NET SDK on the Pi is needed:
+
+```powershell
+# arm64 bundle in output\linux-arm64
+.\tools\build-linux-release.ps1 -Platform linux-arm64
+```
+
+Output lands in `output\linux-arm64\` as `SenderNG-<version>-linux-arm64.zip`
+plus `SHA256SUMS.txt`. The `win64` and `linux` folders are never touched.
+
+The bundle is cross-published (`dotnet publish -r linux-arm64`) from an x64
+host, so it is produced on a different machine than it runs on. **Verify it on
+the Pi before relying on it** — nothing in either test suite performs a publish.
+
+On the Pi:
+
+- **Serial access needs the `dialout` group.** See [Linux](#linux) above for
+  `usermod -aG dialout $USER` and the `newgrp` alternative. Without it the
+  Connect tab lists no ports.
+- **The app is a GUI and needs a desktop session.** It will not present anything
+  useful over a bare SSH shell. Use a local desktop, or forward X11.
+- **Use 64-bit Raspberry Pi OS.** A 32-bit userland cannot run a `linux-arm64`
+  bundle.
 
 ## Acknowledgements
 
