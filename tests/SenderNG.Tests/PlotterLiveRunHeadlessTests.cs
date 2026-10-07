@@ -54,6 +54,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Core.Localization;
 using SenderNG.Modules.Fixed;
 using SenderNG.Modules.Plotter;
 using Xunit;
@@ -162,6 +163,19 @@ public class PlotterLiveRunHeadlessTests
         }
     }
 
+    // A private instance (not HeadlessTestCatalog.Locale): PlotterViewModel
+    // subscribes to LocalizationService.Changed so its StatusText notice follows
+    // a live language switch, and this fixture never disposes the view models it
+    // builds. Over the process-global catalog they would keep reacting to every
+    // later SetLocale in the suite — from whatever thread called it, driving a
+    // PlotterView already dropped by its test. AboutDialogModelTests switches
+    // locale from a pool thread and surfaced exactly that as "The calling thread
+    // cannot access this object because a different thread owns it" inside its
+    // own class. Same rule AppSettingsViewHeadlessTests and
+    // SettingsFallbackMessageTests follow for their services.
+    private static readonly LocalizationService PlotterLocale =
+        LocalizationService.LoadFromDirectory(Path.Combine(AppContext.BaseDirectory, "Locale"));
+
     private static (DemoGrblService Demo, IGrblService Service, ProgramViewModel Program, PlotterViewModel Plotter, Window Window) Setup(
         string machineTypeId, int demoAxes, string gcode, Func<DemoGrblService, IGrblService>? wrapper = null)
     {
@@ -184,7 +198,7 @@ public class PlotterLiveRunHeadlessTests
         var service = wrapper?.Invoke(demo) ?? new SlowSendWrapper(demo);
         var program = new ProgramViewModel(service);
         program.LoadGCode(gcode);
-        var plotter = new PlotterViewModel(program, service, settings, HeadlessTestCatalog.Locale);
+        var plotter = new PlotterViewModel(program, service, settings, PlotterLocale);
         var view = new PlotterView { DataContext = plotter };
         var window = new Window { Width = 920, Height = 560, Content = view };
         window.Show();

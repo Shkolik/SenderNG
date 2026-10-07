@@ -80,7 +80,7 @@ public class PlotterNexViewModelTests : IDisposable
         "G21\nG1 X10 Y5 F240\nG1 X20 Y5\nG1 X0 Y0\n";
 
     private PlotterNexViewModel MakeVm(StubProgramSource source, RecorderScene scene,
-        string machineTypeId = MachineTypes.Mill)
+        string machineTypeId = MachineTypes.Mill, LocalizationService? localization = null)
     {
         var settings = new SettingsService(_settingsDir);
         var profile = settings.Load();
@@ -88,7 +88,7 @@ public class PlotterNexViewModelTests : IDisposable
         settings.Save(profile);
 
         return new PlotterNexViewModel(source, _grbl, settings,
-            new LocalizationService(new MemoryStream("{ \"strings\": {} }"u8.ToArray())),
+            localization ?? new LocalizationService(new MemoryStream("{ \"strings\": {} }"u8.ToArray())),
             new KinematicSceneFactory(scene));
     }
 
@@ -101,6 +101,68 @@ public class PlotterNexViewModelTests : IDisposable
 
         Assert.False(vm.HasGeometry);
         Assert.False(string.IsNullOrEmpty(vm.StatusText));
+    }
+
+    /// <summary>A directory-backed en/ru service carrying the module's two
+    /// status keys — <c>SetLocale</c> is a no-op for stream-built services, so a
+    /// live-switch test can only run against a directory-backed one.</summary>
+    private LocalizationService StatusLocale()
+    {
+        var locDir = Path.Combine(_settingsDir, "loc");
+        Directory.CreateDirectory(locDir);
+        File.WriteAllText(Path.Combine(locDir, "en.json"), """
+            {"strings":{
+              "module.plotter-nex.noProgram":"No program loaded.",
+              "module.plotter-nex.noMotion":"Program contains no motion."}}
+            """);
+        File.WriteAllText(Path.Combine(locDir, "ru.json"), """
+            {"strings":{
+              "module.plotter-nex.noProgram":"Программа не загружена.",
+              "module.plotter-nex.noMotion":"Программа не содержит перемещений."}}
+            """);
+        return LocalizationService.LoadFromDirectory(locDir, "en");
+    }
+
+    /// <summary>The header strip's "no program loaded" notice must follow the
+    /// Language picker without an app restart.</summary>
+    [Fact]
+    public void Status_text_reresolves_when_the_locale_switches_live()
+    {
+        var loc = StatusLocale();
+
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene, localization: loc);
+
+        Assert.Equal("No program loaded.", vm.StatusText);
+
+        var raised = new List<string?>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        loc.SetLocale("ru");
+
+        Assert.Contains(nameof(PlotterNexViewModel.StatusText), raised);
+        Assert.Equal("Программа не загружена.", vm.StatusText);
+    }
+
+    /// <summary>The "no motion" notice reaches the header through the Geometry
+    /// record rather than a direct status call, so it must survive a live
+    /// locale switch by the same rule as the no-program notice.</summary>
+    [Fact]
+    public void No_motion_status_reresolves_when_the_locale_switches_live()
+    {
+        var loc = StatusLocale();
+
+        var source = new StubProgramSource();
+        var scene = new RecorderScene();
+        using var vm = MakeVm(source, scene, localization: loc);
+        source.Load("F100");
+
+        Assert.Equal("Program contains no motion.", vm.StatusText);
+
+        loc.SetLocale("ru");
+
+        Assert.Equal("Программа не содержит перемещений.", vm.StatusText);
     }
 
     [Fact]

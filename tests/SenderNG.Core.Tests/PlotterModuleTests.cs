@@ -215,7 +215,8 @@ public class PlotterModuleTests
         ILoadedProgramSource source,
         string machineTypeId = MachineTypes.Mill,
         string axisLetters = "XYZA",
-        IGrblService? grbl = null)
+        IGrblService? grbl = null,
+        LocalizationService? localization = null)
     {
         var settingsDir = Path.Combine(Path.GetTempPath(), "plotter-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(settingsDir);
@@ -225,7 +226,7 @@ public class PlotterModuleTests
         settings.Save(profile);
 
         return new PlotterViewModel(source, grbl ?? new StubGrbl(axisLetters), settings,
-            new LocalizationService(new MemoryStream("{ \"strings\": {} }"u8.ToArray())));
+            localization ?? new LocalizationService(new MemoryStream("{ \"strings\": {} }"u8.ToArray())));
     }
 
     private static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 5000)
@@ -351,6 +352,67 @@ public class PlotterModuleTests
 
         Assert.False(vm.HasGeometry);
         Assert.Equal("Program contains no motion.", vm.StatusText);
+    }
+
+    /// <summary>A directory-backed en/ru pair carrying the two status keys this
+    /// file exercises. <c>SetLocale</c> returns BEFORE raising <c>Changed</c>
+    /// for a stream-built service (LocalizationService.SetLocale), so a
+    /// live-switch assertion must run against a directory-backed one — the same
+    /// trap <see cref="Localizable"/> documents.</summary>
+    private static LocalizationService StatusLocale()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "plotter-status-loc-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "en.json"), """
+            {"strings":{
+              "module.plotter.noProgram":"No program loaded.",
+              "module.plotter.noMotion":"Program contains no motion."}}
+            """);
+        File.WriteAllText(Path.Combine(dir, "ru.json"), """
+            {"strings":{
+              "module.plotter.noProgram":"Программа не загружена.",
+              "module.plotter.noMotion":"Программа не содержит перемещений."}}
+            """);
+        return LocalizationService.LoadFromDirectory(dir, "en");
+    }
+
+    /// <summary>The header's "no program loaded" notice must follow the Language
+    /// picker without an app restart — it is stored as a resolved string today,
+    /// so the notice keeps the language it was built in.</summary>
+    [Fact]
+    public void Status_text_reresolves_when_the_locale_switches_live()
+    {
+        var loc = StatusLocale();
+        var source = new StubProgramSource();
+        var vm = MakeVmAround(source, localization: loc);
+
+        Assert.Equal("No program loaded.", vm.StatusText);
+
+        var raised = new List<string?>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        loc.SetLocale("ru");
+
+        Assert.Contains(nameof(PlotterViewModel.StatusText), raised);
+        Assert.Equal("Программа не загружена.", vm.StatusText);
+    }
+
+    /// <summary>The "no motion" notice reaches the header through the Geometry
+    /// record rather than a direct status call, so it must survive a live locale
+    /// switch by the same rule as the no-program notice.</summary>
+    [Fact]
+    public void No_motion_status_reresolves_when_the_locale_switches_live()
+    {
+        var loc = StatusLocale();
+        var source = new StubProgramSource();
+        var vm = MakeVmAround(source, localization: loc);
+        source.Load("F100");
+
+        Assert.Equal("Program contains no motion.", vm.StatusText);
+
+        loc.SetLocale("ru");
+
+        Assert.Equal("Программа не содержит перемещений.", vm.StatusText);
     }
 
     [Fact]

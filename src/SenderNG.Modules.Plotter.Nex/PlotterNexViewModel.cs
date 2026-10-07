@@ -99,6 +99,12 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     private volatile bool _rowsChangedPending;
     private Dictionary<int, ToolpathSegment> _lastSegmentByRow = new();
 
+    /// <summary>Key + English fallback of the current status notice, kept as a
+    /// key rather than a resolved string so <see cref="StatusText"/> translates
+    /// again on a live locale switch (a resolved string would freeze the
+    /// language it was built in until the next program event).</summary>
+    private (string Key, string Fallback)? _status;
+
     public PlotterNexViewModel(
         ILoadedProgramSource programSource,
         IGrblService grbl,
@@ -115,6 +121,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
 
         _planeGeometries = ResolvePlaneGeometries(_machineType);
         _settings.Changed += OnSettingsChanged;
+        _localization.Changed += OnLocalizationChanged;
 
         _programSource.ProgramChanged += OnProgramChanged;
         _programSource.RowsChanged += OnRowsChanged;
@@ -162,8 +169,27 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
 
     /// <summary>Healthy empty when geometry is ready; holds a reason otherwise
     /// (no program loaded, program has no motion, build in progress, build
-    /// failed).</summary>
-    public string? StatusText { get; private set; }
+    /// failed). Resolved on every read, so the notice re-translates on a locale
+    /// switch — <see cref="OnLocalizationChanged"/> re-raises it.</summary>
+    public string? StatusText => _status is { } status
+        ? _localization.Resolve(status.Key, status.Fallback)
+        : null;
+
+    /// <summary>Publish a new status reason (null = healthy, no notice) and
+    /// notify the header binding. The key — not the resolved text — is what is
+    /// stored, so the notice follows the active locale for as long as it is
+    /// shown.</summary>
+    private void SetStatus(string? key, string? fallback = null)
+    {
+        _status = key is null ? null : (key, fallback ?? key);
+        OnPropertyChanged(nameof(StatusText));
+    }
+
+    /// <summary>The language picker switched the locale: re-resolve the status
+    /// notice. Raised on the UI thread (the picker's own thread), so no
+    /// dispatcher post — matches PlotterNexSettingsViewModel.RelocalizeLabels.</summary>
+    private void OnLocalizationChanged(object? sender, EventArgs e) =>
+        OnPropertyChanged(nameof(StatusText));
 
     /// <summary>Set by the view when its Vulkan adapter reports no usable
     /// device; false until <see cref="ReportVulkanUnavailable"/> is called. The
@@ -291,6 +317,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
     public void Dispose()
     {
         _settings.Changed -= OnSettingsChanged;
+        _localization.Changed -= OnLocalizationChanged;
         _programSource.ProgramChanged -= OnProgramChanged;
         _programSource.RowsChanged -= OnRowsChanged;
         _stateSubscription.Dispose();
@@ -495,8 +522,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
 
         // Large program: build off the UI thread, swap under the generation
         // guard so a program opened while the build runs does not get stomped.
-        StatusText = _localization.Resolve("module.plotter-nex.building", "Plotting…");
-        OnPropertyChanged(nameof(StatusText));
+        SetStatus("module.plotter-nex.building", "Plotting…");
         Bump();
 
         var machineType = _machineType;
@@ -518,9 +544,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
                 {
                     if (generation != _generation)
                         return;
-                    StatusText = _localization.Resolve(
-                        "module.plotter-nex.buildFailed", "Program could not be plotted.");
-                    OnPropertyChanged(nameof(StatusText));
+                    SetStatus("module.plotter-nex.buildFailed", "Program could not be plotted.");
                     Bump();
                 });
             }
@@ -556,8 +580,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         _ackedEndRowBaseline = -1;
         _lastAppliedTouched = -1;
         _recoloredUpTo = -1;
-        StatusText = geometry.Status;
-        OnPropertyChanged(nameof(StatusText));
+        SetStatus(geometry.Status?.Key, geometry.Status?.Fallback);
         OnPropertyChanged(nameof(HasGeometry));
         OnPropertyChanged(nameof(Scene));
         OnPropertyChanged(nameof(PlaneCount));
@@ -606,8 +629,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         _ackedEndRowBaseline = -1;
         _lastAppliedTouched = -1;
         _recoloredUpTo = -1;
-        StatusText = _localization.Resolve("module.plotter-nex.noProgram", "No program loaded.");
-        OnPropertyChanged(nameof(StatusText));
+        SetStatus("module.plotter-nex.noProgram", "No program loaded.");
         OnPropertyChanged(nameof(HasGeometry));
         Bump();
     }
@@ -618,7 +640,7 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         if (segments.Count == 0)
         {
             return new Geometry([], [], new Dictionary<uint, int>(),
-                _localization.Resolve("module.plotter-nex.noMotion", "Program contains no motion."));
+                Status: ("module.plotter-nex.noMotion", "Program contains no motion."));
         }
 
         var lineToRow = BuildLineToRow(program);
@@ -889,5 +911,5 @@ public sealed class PlotterNexViewModel : INotifyPropertyChanged, IDisposable
         IReadOnlyList<ToolpathSegment> SourceSegments,
         uint[][] PlaneOutputLines,
         Dictionary<uint, int> LineToRow,
-        string? Status);
+        (string Key, string Fallback)? Status);
 }

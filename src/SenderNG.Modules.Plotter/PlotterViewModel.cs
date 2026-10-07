@@ -94,6 +94,13 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
     private double[][] _bounds = [];
     private Dictionary<uint, int> _lineToRow = new();
 
+    /// <summary>Key + English fallback + format args of the current status
+    /// notice, kept as a key rather than a resolved string so
+    /// <see cref="StatusText"/> translates again on a live locale switch (a
+    /// resolved string would freeze the language it was built in until the
+    /// next program event).</summary>
+    private (string Key, string Fallback, object?[] Args)? _status;
+
     public PlotterViewModel(
         ILoadedProgramSource programSource,
         IGrblService grbl,
@@ -115,6 +122,7 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
 
         _programSource.ProgramChanged += OnProgramChanged;
         _programSource.RowsChanged += OnRowsChanged;
+        _localization.Changed += OnLocalizationChanged;
         _stateSubscription = _grbl.State.Subscribe(state => PostUi(() =>
         {
             LivePosition = state.Positions;
@@ -270,8 +278,32 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
     /// <summary>Human-readable reason there is nothing (or something partial)
     /// to draw: no program, no motion in the program, or a machine type whose
     /// planes need more axes than the program provides. Null when geometry is
-    /// complete and renderable.</summary>
-    public string? StatusText { get; private set; }
+    /// complete and renderable. Resolved (and formatted) on every read, so the
+    /// notice re-translates on a locale switch —
+    /// <see cref="OnLocalizationChanged"/> re-raises it.</summary>
+    public string? StatusText => _status is { } status
+        ? string.Format(
+            CultureInfo.InvariantCulture,
+            _localization.Resolve(status.Key, status.Fallback),
+            status.Args)
+        : null;
+
+    /// <summary>Publish a new status reason (null = healthy, no notice) and
+    /// notify the header. The key and the format args — not the rendered text —
+    /// are what is stored, so a formatted notice (axis mismatch) re-formats in
+    /// the new locale too.</summary>
+    private void SetStatus(string? key, string? fallback = null, params object?[] args)
+    {
+        _status = key is null ? null : (key, fallback ?? key, args);
+        OnPropertyChanged(nameof(StatusText));
+    }
+
+    /// <summary>The language picker switched the locale: re-resolve the status
+    /// notice. Raised on the UI thread (the picker's own thread), so no
+    /// dispatcher post — matches PlotterSettingsViewModel.OnLocalizationChanged.
+    /// The view refreshes the header from its own PropertyChanged handler.</summary>
+    private void OnLocalizationChanged(object? sender, EventArgs e) =>
+        OnPropertyChanged(nameof(StatusText));
 
     /// <summary>Isometric rendering toggle (mill: Z-up iso projection; foam:
     /// the two-carriage loft). View state, not persisted.</summary>
@@ -385,9 +417,7 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         // previous (cleared) state's "No program loaded." notice up for the
         // whole build: say what is actually happening. The header's block
         // counter already reflects the loaded program (RowsChanged ticks).
-        StatusText = _localization.Resolve(
-            "module.plotter.building", "Plotting…");
-        OnPropertyChanged(nameof(StatusText));
+        SetStatus("module.plotter.building", "Plotting…");
         Bump();
 
         var machineType = _machineType;
@@ -411,9 +441,7 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
                 {
                     if (generation != _generation)
                         return;
-                    StatusText = _localization.Resolve(
-                        "module.plotter.buildFailed", "Program could not be plotted.");
-                    OnPropertyChanged(nameof(StatusText));
+                    SetStatus("module.plotter.buildFailed", "Program could not be plotted.");
                 });
             }
         });
@@ -425,9 +453,7 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         SourceSegments = [];
         _bounds = [];
         _lineToRow = new Dictionary<uint, int>();
-        StatusText = _localization.Resolve(
-            "module.plotter.noProgram", "No program loaded.");
-        OnPropertyChanged(nameof(StatusText));
+        SetStatus("module.plotter.noProgram", "No program loaded.");
         GeometryVersion++;
         OnPropertyChanged(nameof(GeometryVersion));
         Bump();
@@ -441,8 +467,7 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         SourceSegments = geometry.SourceSegments;
         _bounds = geometry.Bounds;
         _lineToRow = geometry.LineToRow;
-        StatusText = geometry.Status;
-        OnPropertyChanged(nameof(StatusText));
+        SetStatus(geometry.Status?.Key, geometry.Status?.Fallback, geometry.Status?.Args ?? []);
         GeometryVersion++;
         OnPropertyChanged(nameof(GeometryVersion));
         Bump();
@@ -455,7 +480,7 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         IReadOnlyList<ToolpathSegment> SourceSegments,
         double[][] Bounds,
         Dictionary<uint, int> LineToRow,
-        string? Status);
+        (string Key, string Fallback, object?[] Args)? Status);
 
     private Geometry BuildGeometry(GCodeProgram program, MachineType type)
     {
@@ -466,8 +491,7 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         var segments = ToolpathBuilder.Build(program.Tokens);
         if (segments.Count == 0)
             return new Geometry(emptyPlanes, segments, [], new Dictionary<uint, int>(),
-                _localization.Resolve(
-                    "module.plotter.noMotion", "Program contains no motion."));
+                Status: ("module.plotter.noMotion", "Program contains no motion.", []));
 
         // A machine type whose planes reach beyond the axes the program (via
         // the controller's axis count) actually provides must not be sliced —
@@ -477,13 +501,10 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         var dropped = type.Planes
             .Select((_, p) => type.PlaneAxisIndices(p)[^1])
             .Any(maxIndex => maxIndex >= available);
-        var status = dropped
-            ? string.Format(
-                CultureInfo.InvariantCulture,
-                _localization.Resolve(
-                    "module.plotter.axisMismatch",
-                    "Machine needs {0} axes; program has {1}. Unrenderable planes are hidden."),
-                type.AxisCount, available)
+        (string Key, string Fallback, object?[] Args)? status = dropped
+            ? ("module.plotter.axisMismatch",
+                "Machine needs {0} axes; program has {1}. Unrenderable planes are hidden.",
+                new object?[] { type.AxisCount, available })
             : null;
 
         var bounds = ComputeBounds(segments);
@@ -582,6 +603,7 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
     {
         _programSource.ProgramChanged -= OnProgramChanged;
         _programSource.RowsChanged -= OnRowsChanged;
+        _localization.Changed -= OnLocalizationChanged;
         _stateSubscription.Dispose();
     }
 }
