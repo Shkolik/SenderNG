@@ -38,7 +38,7 @@ using System.Globalization;
 using System.IO;
 using System.Xml;
 
-namespace SenderNG.Core.Modules.Probing;
+namespace SenderNG.Modules.Probing.Core;
 
 /// <summary>A 2D point (min/max bounds helper).</summary>
 public readonly struct Vec2(double x, double y)

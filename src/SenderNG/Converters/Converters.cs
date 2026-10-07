@@ -46,7 +46,6 @@ public static class Converters
     public static HasElementsConverter HasElements => HasElementsConverter.Instance;
     public static LeftPluginsVisibilityConverter LeftPluginsVisible => LeftPluginsVisibilityConverter.Instance;
     public static BoolToSignalBrushConverter SignalBrush => BoolToSignalBrushConverter.Instance;
-    public static IsNotNullConverter IsNotNull => IsNotNullConverter.Instance;
     public static IsFlyoutModuleConverter IsFlyout => IsFlyoutModuleConverter.Instance;
     public static NumericTextConverter NumericText => NumericTextConverter.Instance;
     public static LocaleDisplayNameConverter LocaleDisplayName => LocaleDisplayNameConverter.Instance;
@@ -145,14 +144,6 @@ public sealed class BoolToSignalBrushConverter : IValueConverter
     {
         return value is true ? ActiveBrush : InactiveBrush;
     }
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        throw new NotSupportedException();
-}
-
-public sealed class IsNotNullConverter : IValueConverter
-{
-    public static readonly IsNotNullConverter Instance = new();
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value is not null;
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }

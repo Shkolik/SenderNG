@@ -369,9 +369,9 @@ namespace CNC.GCode
             IsScaled = motionModeChanged = false;
             Decimals = 3;
             zorg = feedRate = 0d;
-            remapU2A = !GrblInfo.AxisLetters.Contains('A') && !GrblInfo.LatheUVWModeEnabled;
-            remapV2B = !GrblInfo.AxisLetters.Contains('B') && !GrblInfo.LatheUVWModeEnabled;
-            remapW2C = !GrblInfo.AxisLetters.Contains('C') && !GrblInfo.LatheUVWModeEnabled;
+            remapU2A = !GrblInfo.AxisLetters.Contains('A');
+            remapV2B = !GrblInfo.AxisLetters.Contains('B');
+            remapW2C = !GrblInfo.AxisLetters.Contains('C');
         }
 
         private bool VerifyIgnore(string code, CommandIgnoreState state)
@@ -1873,70 +1873,6 @@ namespace CNC.GCode
             return true;
         }
 
-        public static void Save(string filePath, List<GCodeToken> objToSerialize)
-        {
-            try
-            {
-                using (Stream stream = File.Open(filePath, FileMode.Create))
-                {
-                    System.Xml.Serialization.XmlSerializer bin = new System.Xml.Serialization.XmlSerializer(typeof(List<GCodeToken>), new[] {
-                        typeof(GCodeToken),
-                        typeof(GCLinearMotion),
-                        typeof(GCAbsLinearMotion),
-                        typeof(GCArc),
-                        typeof(GCCubicSpline),
-                        typeof(GCQuadraticSpline),
-                        typeof(GCSyncMotion),
-                        typeof(GCThreadingMotion),
-                        typeof(GCMacroCall),
-                        typeof(GCCannedDrill),
-                        typeof(GCPlane),
-                        typeof(GCDistanceMode),
-                        typeof(GCFeedRateMode),
-                        typeof(GCIJKMode),
-                        typeof(GCUnits),
-                        typeof(GCLatheMode),
-                        typeof(GCCoordinateSystem),
-                        typeof(GCToolTable),
-                        typeof(GCToolOffset),
-                        typeof(GCToolOffsets),
-                        typeof(GCToolSelect),
-                        typeof(GCSpindleRPM),
-                        typeof(GCSpindleState),
-                        typeof(GCCoolantState),
-                        typeof(GCFeedrate),
-                        typeof(GCComment),
-                        typeof(GCDwell),
-                        typeof(GCScaling),
-                        typeof(GCDigitalOutput),
-                        typeof(GCWaitOnInput),
-                        typeof(GCAnalogOutput),
-                        typeof(GCUserMCommand),
-                        typeof(GCFlowControl)
-                    });
-                    bin.Serialize(stream, objToSerialize);
-                }
-            }
-            catch (IOException)
-            {
-            }
-        }
-
-        public static void Save(string filePath, List<string> gcode)
-        {
-            try
-            {
-                using (StreamWriter stream = new StreamWriter(filePath))
-                {
-                    foreach (string block in gcode)
-                        stream.WriteLine(block);
-                }
-            }
-            catch (IOException)
-            {
-            }
-        }
-
         public static List<string> TokensToGCode(List<GCodeToken> tokens, bool compress = false)
         {
             List<string> gc = new List<string>();
@@ -2282,39 +2218,6 @@ namespace CNC.GCode
         public double U { get { return Values[6]; } set { Values[6] = value; } }
         public double V { get { return Values[7]; } set { Values[7] = value; } }
         public double W { get { return Values[8]; } set { Values[8] = value; } }
-
-        // NOTE: only called when Lathe UVW mode is active
-        public GcodeBoundingBox GetBoundingBox(GCPlane plane, double[] start, bool isRelative = false)
-        {
-            GcodeBoundingBox bbox = new GcodeBoundingBox();
-
-            bbox.AddPoint(plane, start[0], start[1], start[2]);
-
-            var end = (double[])start.Clone();
-
-            if (AxisFlags.HasFlag(AxisFlags.X))
-                end[0] = isRelative ? start[0] + X : X;
-            if (AxisFlags.HasFlag(AxisFlags.Y))
-                end[1] = isRelative ? start[1] + Y : Y;
-            if (AxisFlags.HasFlag(AxisFlags.Z))
-                end[2] = isRelative ? start[2] + Z : Z;
-
-            if(GrblInfo.LatheUVWModeEnabled)
-            {
-                if(AxisFlags.HasFlag(AxisFlags.U))
-                    end[0] += U / 2d;
-                if (AxisFlags.HasFlag(AxisFlags.V))
-                    end[1] += V;
-                if (AxisFlags.HasFlag(AxisFlags.W))
-                    end[2] += W;
-            }
-
-            bbox.AddPoint(plane, end[0], end[1], end[2]);
-
-            bbox.Conclude();
-
-            return bbox;
-        }
 
         public new string ToString()
         {

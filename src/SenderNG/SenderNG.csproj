@@ -119,7 +119,7 @@
        copy nothing.
         Excluded: the module DLL (staged explicitly above), the host-owned
         SenderNG.Core / CNC.Core, and Avalonia (the app root already has the
-        pinned 12.1.1 — same identity, so LoadFrom unification serves the
+        pinned 12.0.0 — same identity, so LoadFrom unification serves the
         module's reference; a second copy would invite duplicate-load noise).
         Native files stage from the plugin's runtimes folder for the CURRENT
         build OS (win-x64 .dll on Windows, linux-x64 .so on Linux) — the Vulkan

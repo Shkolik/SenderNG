@@ -33,7 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using Avalonia;
 using Avalonia.Controls;
-using SenderNG.Core.Modules.Probing;
+using SenderNG.Modules.Probing.Core;
 
 namespace SenderNG.Modules.Plugins;
 

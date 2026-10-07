@@ -429,15 +429,6 @@ public sealed class NexPlotScene : IPlotScene, IDisposable
     }
 
     /// <inheritdoc/>
-    /// <remarks>The work envelope was merged into the job envelope (one combined
-    /// chrome box driven by the single envelope toggle), so this retained member
-    /// of <see cref="IPlotScene"/> forwards to <see cref="SetJobEnvelope"/>. No
-    /// production caller drives it; consider removing it with the interface
-    /// member when the next signature change touches IPlotScene.</remarks>
-    public void SetWorkEnvelope(SBounds box)
-        => SetJobEnvelope(box);
-
-    /// <inheritdoc/>
     public void SetJobEnvelope(SBounds box)
         => FillEnvelope(_jobGeometry, _jobNode, box, JobEnvelopeColor);
 

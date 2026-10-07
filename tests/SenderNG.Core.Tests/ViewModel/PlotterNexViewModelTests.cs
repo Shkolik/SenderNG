@@ -1149,7 +1149,6 @@ public class PlotterNexViewModelTests : IDisposable
         public void AddAxisArrows(IReadOnlyList<(Vector3 Pos, string Label)> arrows) { }
         public void SetGrid(BoundingBox bounds, double minor, double major) { }
         public void SetOrigin(Vector3 origin) { }
-        public void SetWorkEnvelope(BoundingBox box) { }
         public void SetJobEnvelope(BoundingBox box) { }
 
         public ICarriagePlaneLayer AddCarriagePlane()

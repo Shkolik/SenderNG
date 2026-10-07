@@ -34,7 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-namespace SenderNG.Core.Modules.Probing;
+namespace SenderNG.Modules.Probing.Core;
 
 using System.ComponentModel;
 using System.Runtime.CompilerServices;

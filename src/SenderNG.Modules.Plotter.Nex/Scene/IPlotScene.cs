@@ -81,9 +81,6 @@ public interface IPlotScene : IDisposable
 
     /// <summary>Configure the grid with minor/major spacing over the given bounds.</summary>
     void SetGrid(BoundingBox bounds, double minor, double major);
-       
-    /// <summary>Set the machine work envelope.</summary>
-    void SetWorkEnvelope(BoundingBox box);
 
     /// <summary>Set the current job envelope.</summary>
     void SetJobEnvelope(BoundingBox box);

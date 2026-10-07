@@ -38,9 +38,8 @@ using System.Text.Json.Nodes;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Modules;
-using SenderNG.Core.Modules.Probing;
+using SenderNG.Modules.Probing.Core;
 using SenderNG.Core.Services;
-using SenderNG.Modules.Probing;
 
 namespace SenderNG.Modules.Plugins;
 

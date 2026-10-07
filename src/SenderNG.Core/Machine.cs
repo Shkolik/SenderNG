@@ -60,9 +60,28 @@ namespace CNC.Core
         protected List<Tool> toolTable = new List<Tool>();
         protected Point6D machinePos = new Point6D();
 
+        /// <summary>
+        /// Fixed post-reset defaults. These never vary with controller state; they are
+        /// named here so the reset path reads as a table rather than as live sync.
+        /// </summary>
+        private static class ResetDefaults
+        {
+            public const string WorkOffset = "G54";
+            public const bool IsMetric = true;
+            public const DistanceMode DistanceMode = CNC.GCode.DistanceMode.Absolute;
+            public const LatheMode LatheMode = CNC.GCode.LatheMode.Disabled;
+            public const CoolantState CoolantState = CNC.GCode.CoolantState.Off;
+            public const SpindleState SpindleState = CNC.GCode.SpindleState.Off;
+            public const ToolLengthOffset ToolLengthOffset = CNC.GCode.ToolLengthOffset.Cancel;
+            public const Plane Plane = CNC.GCode.Plane.XY;
+            public const FeedRateMode FeedRateMode = CNC.GCode.FeedRateMode.UnitsPerMin;
+            public const IJKMode IJKMode = CNC.GCode.IJKMode.Incremental;
+            public const MotionMode MotionMode = CNC.GCode.MotionMode.G0;
+        }
+
         public void Reset()
         {
-            // The legacy GrblWorkParameters/GrblParserState statics are stubbed in
+            // The values written below come from the fixed ResetDefaults table in
             // this port. Live controller data arrives through WorkParametersProvider
             // (registered by the host from IGrblService.WorkParametersChanges); when
             // it is null the emulator starts from an empty table, which is the
@@ -95,39 +114,40 @@ namespace CNC.Core
                     toolTable.Add(legacy);
                 }
 
-            coordinateSystem = coordinateSystems.Where(x => x.Code == (seed?.ActiveCoordinateSystem ?? GrblParserState.WorkOffset)).FirstOrDefault();
+            coordinateSystem = coordinateSystems.Where(x => x.Code == (seed?.ActiveCoordinateSystem ?? ResetDefaults.WorkOffset)).FirstOrDefault();
             g28 = coordinateSystems.Where(x => x.Code == "G28").FirstOrDefault();
             g30 = coordinateSystems.Where(x => x.Code == "G30").FirstOrDefault();
             g92 = coordinateSystems.Where(x => x.Code == "G92").FirstOrDefault();
 
-            isRelative = GrblParserState.DistanceMode == DistanceMode.Incremental;
-            IsImperial = !GrblParserState.IsMetric;
-            CoolantState = GrblParserState.CoolantState;
-            SpindleState = GrblParserState.SpindleState;
-            LatheMode = GrblParserState.LatheMode;
-            LatheUVWMode = GrblInfo.LatheUVWModeEnabled;
-            DistanceMode = GrblParserState.DistanceMode;
-            ToolLengthOffset = GrblParserState.ToolLengthOffset;
-            FeedRateMode = GrblParserState.FeedRateMode;
-            MotionMode = GrblParserState.MotionMode;
-            IJKMode = GrblParserState.IJKMode;
-            IsScaled = GrblParserState.IsActive("G51") != null;
+            isRelative = ResetDefaults.DistanceMode == DistanceMode.Incremental;
+            IsImperial = !ResetDefaults.IsMetric;
+            CoolantState = ResetDefaults.CoolantState;
+            SpindleState = ResetDefaults.SpindleState;
+            LatheMode = ResetDefaults.LatheMode;
+            LatheUVWMode = false;
+            DistanceMode = ResetDefaults.DistanceMode;
+            ToolLengthOffset = ResetDefaults.ToolLengthOffset;
+            FeedRateMode = ResetDefaults.FeedRateMode;
+            MotionMode = ResetDefaults.MotionMode;
+            IJKMode = ResetDefaults.IJKMode;
+            IsScaled = false;
 
             // F, S and T have always been zero here, and did not get there by
-            // parsing anything: GrblParserState.IsActive is a stub that always
-            // returns null, and GrblParserState.Tool is never assigned, so it
-            // only ever holds GrblConstants.NO_TOOL. The double.Parse/int.Parse
-            // that used to sit behind those checks were unreachable, so they
-            // have been dropped rather than guarded. Whoever fills in the parser
-            // state has to read the F, S and T words here for the first time.
+            // parsing anything: the IsActive lookup this used to consult was a stub
+            // that always returned null, and the parser-state Tool word was never
+            // assigned, so it only ever held GrblConstants.NO_TOOL. The
+            // double.Parse/int.Parse that used to sit behind those checks were
+            // unreachable, so they have been dropped rather than guarded. Whoever
+            // fills in the parser state has to read the F, S and T words here for
+            // the first time.
             Feedrate = 0d;
             _rpm = 0d;
             _tool = 0;
 
             SelectedTool = null;
-            RetractOldZ = GrblParserState.IsActive("G99") == null;
-            SpindleRpmMode = GrblParserState.IsActive("G96") == null;
-            G92Active = GrblParserState.IsActive("G92") != null;
+            RetractOldZ = true;
+            SpindleRpmMode = true;
+            G92Active = false;
 
             Line = 0;
 
@@ -140,7 +160,11 @@ namespace CNC.Core
                 toolOffsets[i] = SelectedTool == null ? 0d : SelectedTool.Values[i];
             }
 
-            switch (GrblParserState.Plane)
+            // Copied to a local so the plane mapping below stays a runtime switch:
+            // switching on the const directly constant-folds it and CS0162 flags the
+            // XZ/YZ arms as unreachable while the default plane is XY.
+            Plane defaultPlane = ResetDefaults.Plane;
+            switch (defaultPlane)
             {
                 case GCode.Plane.XY:
                     Plane = new GCPlane(Commands.G17, 0);

@@ -32,7 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-using SenderNG.Core.Modules.Probing;
+using SenderNG.Modules.Probing.Core;
 using Xunit;
 
 namespace SenderNG.Modules.Probing.Tests;

@@ -331,12 +331,9 @@ namespace CNC.Core
                                 break; // Degenerate token (no axis words): nothing to simulate
 
                             action.IsInMachineCoord = true;
-                            if (action.IsInMachineCoord)
-                            {
-                                foreach (int i in motion.AxisFlags.ToIndices())
-                                    machinePos[i] = motion.Values[i] - offsets[i] - origin[i];
-                                action.End = machinePos.Point3D;
-                            }
+                            foreach (int i in motion.AxisFlags.ToIndices())
+                                machinePos[i] = motion.Values[i] - offsets[i] - origin[i];
+                            action.End = machinePos.Point3D;
                             action.Token = new GCLinearMotion(motion.Motion, token.LineNumber, machinePos.Array, motion.AxisFlags);
                             yield return action;
                             action.Start = action.End;
@@ -361,7 +358,7 @@ namespace CNC.Core
                             coordinateSystem = csys;
                             foreach (int i in AxisFlags.All.ToIndices()) // GrblInfo.AxisFlags?
                                 offsets[i] = csys.Values[i];
-                            //    CoordinateSystem = GrblWorkParameters.CoordinateSystems();
+                            //    CoordinateSystem = legacy static coordinate system table;
                             //GCCoordinateSystem cs = (GCCoordinateSystem)token;
                             // TODO: handle offsets... Need to read current from grbl
                         }

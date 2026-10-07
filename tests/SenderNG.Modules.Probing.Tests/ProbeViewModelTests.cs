@@ -40,7 +40,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Modules.Plugins;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
-using SenderNG.Core.Modules.Probing;
+using SenderNG.Modules.Probing.Core;
 using Xunit;
 
 namespace SenderNG.Modules.Probing.Tests;

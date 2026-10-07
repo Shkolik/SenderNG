@@ -688,11 +688,6 @@ public class MainViewModel : ViewModelBase, IDisposable
     public string MachineState
     {
         get => _machineState;
-        private set
-        {
-            if (SetField(ref _machineState, value))
-                OnPropertyChanged(nameof(StateBrush));
-        }
     }
 
     /// <summary>State indicator text: machine state in all caps, or NOT CONNECTED.</summary>

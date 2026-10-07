@@ -40,7 +40,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              xmlns:panels="clr-namespace:SenderNG.Modules.Plugins"
              xmlns:conv="clr-namespace:SenderNG.Modules.Probing.Converters"
              xmlns:prims="using:Avalonia.Controls.Primitives"
-             xmlns:probing="clr-namespace:SenderNG.Core.Modules.Probing;assembly=SenderNG.Modules.Probing"
+             xmlns:probing="clr-namespace:SenderNG.Modules.Probing.Core;assembly=SenderNG.Modules.Probing"
              xmlns:loc="clr-namespace:SenderNG.Modules.Probing.Localization"
              mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="800"
              x:Class="SenderNG.Modules.Plugins.ProbeView"
