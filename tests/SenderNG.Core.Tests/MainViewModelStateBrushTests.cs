@@ -46,7 +46,7 @@ public class MainViewModelStateBrushTests
     [Fact]
     public void ResolveStateBrush_maps_every_documented_status()
     {
-        // The four colours, verbatim from MainViewModel.cs:1594-1604.
+        // The four colours, verbatim from MainViewModel.cs:1592-1595.
         Assert.Equal((0xc8, 0xe8, 0xc8), Rgb("Run"));
         Assert.Equal((0xe0, 0x45, 0x45), Rgb("Alarm"));
         Assert.Equal((0xff, 0xe8, 0xa0), Rgb("Idle"));
