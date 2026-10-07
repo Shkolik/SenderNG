@@ -51,10 +51,12 @@ ThreadingProfiles.xml
 TurningProfiles.xml
 
 .freebuff*
+
+# SDD/brainstorm scratch
 .superpowers/*
 .debug-repro*
 
-# SDD/brainstorm scratch.superpowers/.github/
+# Local-only agent instructions
 .github/copilot-instructions.md
 
 # Working plans (living documents, not version-controlled)
