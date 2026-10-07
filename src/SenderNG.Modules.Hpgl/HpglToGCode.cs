@@ -97,6 +97,7 @@ public class HpglToGCode
     private double _lastFeedRate;
     private bool _isDown;
     private Point3D _offset = new Point3D(100000d, 100000d, 0d), _pos;
+    private int _polygonId;
 
     public string FileType => "HPGL files";
 
@@ -117,10 +118,9 @@ public class HpglToGCode
         _offset = new Point3D(100000d, 100000d, 0d);
         _pos = default;
 
-        // Upstream keeps polygon ids in a static counter that never resets —
-        // ids drift across files in one process. Restart per conversion (the
-        // id only appears in the per-polygon comment).
-        Polygon.ResetIds();
+        // Polygon ids are scoped to this converter instance and restart per
+        // conversion (the id only appears in the per-polygon comment).
+        _polygonId = 0;
 
         var filename = parameters.SourceName;
         if (filename.EndsWith("Edge_Cuts.plt") || filename.EndsWith("Paste.plt"))
@@ -157,7 +157,7 @@ public class HpglToGCode
                                 {
                                     Polygon? polygon;
                                     toVectors(_pm0);
-                                    if ((polygon = Polygon.findPolygon(_vectors, _tolerance)) != null)
+                                    if ((polygon = Polygon.findPolygon(_vectors, _tolerance, ++_polygonId)) != null)
                                         _polygons.Add(polygon);
                                 }
                                 break;
@@ -313,7 +313,7 @@ public class HpglToGCode
         {
             Polygon? polygon;
 
-            while ((polygon = Polygon.findPolygon(_vectors, _tolerance)) != null)
+            while ((polygon = Polygon.findPolygon(_vectors, _tolerance, ++_polygonId)) != null)
                 _polygons.Add(polygon);
         }
 
@@ -496,17 +496,12 @@ public class HpglToGCode
 
 internal class Polygon
 {
-    private static int polygonId = 0;
-
-    /// <summary>Restarts the polygon-id counter (see HpglToGCode.Convert).</summary>
-    public static void ResetIds() => polygonId = 0;
-
     public int PolygonId { get; private set; }
     public int Vertices { get { return Vectors.Count; } }
     public bool IsClockwise { get; private set; }
     public List<HpglToGCode.Vector> Vectors { get; private set; } = [];
 
-    public static Polygon? findPolygon(List<HpglToGCode.Vector> vectors, double tolerance)
+    public static Polygon? findPolygon(List<HpglToGCode.Vector> vectors, double tolerance, int id)
     {
         double x0 = 0d;
         double y0 = 0d;
@@ -524,7 +519,7 @@ internal class Polygon
         if (vector != null)
         {
             polygon = new Polygon();
-            polygon.PolygonId = ++polygonId;
+            polygon.PolygonId = id;
 
             x0 = vector.Start.X;
             y0 = vector.Start.Y;
