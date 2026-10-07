@@ -62,7 +62,7 @@ namespace CNC.Core
 
         public void Reset()
         {
-            // The legacy GrblWorkParameters/GrblParserState statics are stubbed in
+            // The legacy GrblParserState statics are stubbed in
             // this port. Live controller data arrives through WorkParametersProvider
             // (registered by the host from IGrblService.WorkParametersChanges); when
             // it is null the emulator starts from an empty table, which is the

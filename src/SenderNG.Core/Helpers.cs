@@ -184,34 +184,10 @@ namespace CNC.Core
         }
     }
 
-    public static class FileUtils
-    {
-        public static StreamReader? OpenFile(string filename)
-        {
-            try { return new StreamReader(filename); } catch { return null; }
-        }
-    }
-
     // Portable color stub (replaces System.Windows.Media.Color)
     public struct Color
     {
         public byte R, G, B, A;
         public static Color FromRgb(byte r, byte g, byte b) => new Color { R = r, G = g, B = b, A = 255 };
-    }
-
-    // Minimal WaitFor stub - not used in portable core but kept for source compatibility
-    public static class WaitFor
-    {
-        public static bool SingleEvent<T>(this System.Threading.CancellationToken token, Action<T> handler, Action<Action<T>> subscribe, Action<Action<T>> unsubscribe, int ms, Action? init = null) => false;
-        public static bool AckResponse<T>(this System.Threading.CancellationToken token, Action<T> handler, Action<Action<T>> subscribe, Action<Action<T>> unsubscribe, int ms, Action? init = null) => false;
-    }
-
-    // Portable serial port enumeration stub (replaces System.Management)
-    public static class SerialPortHelper
-    {
-        public static string[] GetPortNames()
-        {
-            try { return System.IO.Ports.SerialPort.GetPortNames(); } catch { return Array.Empty<string>(); }
-        }
     }
 }

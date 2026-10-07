@@ -190,28 +190,6 @@ namespace CNC.Core
             }
             return new CapsResult{ NumAxes=axes, PlanBufferSize=plan, SerialBufferSize=serial, NumTools=tools };
         }
-
-        // Stub for file error handling - retains columns[0] fix from 8ea54fb line 2000
-        public static void LoadErrors(string path)
-        {
-            try{
-                var file = FileUtils.OpenFile(path);
-                if(file!=null){
-                    string? line=file.ReadLine();
-                    line=file.ReadLine();
-                    while(line!=null){
-                        int key;
-                        string[] columns=line.Split(',');
-                        columns[0] = columns[0].Replace("\"", "");
-                        if(columns.Length==3 && int.TryParse(columns[0], out key)){
-                            // dummy
-                        }
-                        line=file.ReadLine();
-                    }
-                    file.Close();
-                }
-            }catch{}
-        }
     }
 
     // Minimal stubs for other Grbl types not needed for Task 3 but kept for compilation
@@ -237,25 +215,6 @@ namespace CNC.Core
         public static bool Get(bool b)=>false;
         public static bool Process(string d)=>false;
     }
-    public static class GrblWorkParameters
-    {
-        public static ObservableCollection<CoordinateSystem> CoordinateSystems { get; } = new ObservableCollection<CoordinateSystem>();
-        public static ObservableCollection<Tool> Tools { get; } = new ObservableCollection<Tool>();
-        public static CoordinateSystem ToolLengtOffset { get; } = new CoordinateSystem("TLO","");
-        public static CoordinateSystem ProbePosition { get; } = new CoordinateSystem("PRB","");
-        public static bool ProbeSuccesful => false;
-        public static bool Get(GrblViewModel m)=>false;
-        public static bool Get()=>false;
-    }
-    public static class GrblSettings
-    {
-        public static ObservableCollection<object> Settings { get; } = new ObservableCollection<object>();
-        public static double GetDouble(GrblSetting s)=>double.NaN;
-        public static int GetInteger(GrblSetting s)=>-1;
-        public static double GetDouble(grblHALSetting s)=>double.NaN;
-        public static int GetInteger(grblHALSetting s)=>-1;
-        public static bool HasSetting(GrblSetting s)=>false;
-    }
     public enum GrblSetting { ReportInches=13, SoftLimitsEnable=20, HardLimitsEnable=21, HomingEnable=22, HomingDirMask=23, HomingPulloff=27, TravelResolutionBase=100, MaxTravelBase=130 }
     public enum grblHALSetting { PulseMicroseconds=0, JogStepDistance=53, JogSlowDistance=54, JogFastDistance=55, JogStepSpeed=50, JogSlowSpeed=51, JogFastSpeed=52, EnableLegacyRTCommands=39, TravelResolutionBase=100, MaxTravelBase=130 }
     public static class Resources
@@ -266,7 +225,6 @@ namespace CNC.Core
         public static bool IsLegacyController { get; set; } = false;
     }
     public class GrblSettingDetails : ViewModelBase { public int Id; public string Name=""; public string Value=""; }
-    public static class GrblAuxIO { public static void ParseConfig(string c){} }
     [Flags] public enum Signals : int { Off=0, LimitX=1<<0, LimitY=1<<1, LimitZ=1<<2, LimitA=1<<3, LimitB=1<<4, LimitC=1<<5, LimitU=1<<6, LimitV=1<<7, LimitW=1<<8, EStop=1<<9, Probe=1<<10, Reset=1<<11, SafetyDoor=1<<12, Hold=1<<13, CycleStart=1<<14, BlockDelete=1<<15, OptionalStop=1<<16, ProbeDisconnected=1<<17, MotorWarning=1<<18, MotorFault=1<<19 }
     public class PollGrbl { internal static bool suspend=false; internal static void Suspend()=>suspend=true; internal static void Resume()=>suspend=false; public bool IsEnabled=>false; public void SetState(int i){} public void Run(){} }
 }

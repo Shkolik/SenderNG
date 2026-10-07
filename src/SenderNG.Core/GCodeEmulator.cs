@@ -361,7 +361,7 @@ namespace CNC.Core
                             coordinateSystem = csys;
                             foreach (int i in AxisFlags.All.ToIndices()) // GrblInfo.AxisFlags?
                                 offsets[i] = csys.Values[i];
-                            //    CoordinateSystem = GrblWorkParameters.CoordinateSystems();
+                            //    CoordinateSystem = legacy static coordinate system table;
                             //GCCoordinateSystem cs = (GCCoordinateSystem)token;
                             // TODO: handle offsets... Need to read current from grbl
                         }

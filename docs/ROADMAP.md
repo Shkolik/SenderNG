@@ -55,7 +55,7 @@ state until the user picks Serial / Network / Demo. Network plumbing is in:
 `Machine.Reset()` — run by every `GCodeEmulator`/`GCodeParser` — now seeds its
 coordinate-system table (G54..G59.3 plus G28/G30/G92 rows when the controller reports
 them), tool table and active system from that snapshot instead of the stubbed legacy
-`GrblWorkParameters` statics; `NGCExpr` PRB expressions (`#5061-#5069`, `#5070`) read
+static tables; `NGCExpr` PRB expressions (`#5061-#5069`, `#5070`) read
 the snapshot through `Machine.GetProbePosition`/`ProbeSuccess`. Null provider keeps the
 old empty-table behavior. Consequences:
 
@@ -240,8 +240,7 @@ set was checked for parity defaults before finalizing.
 > Cross-cutting tech debt: `Grbl.cs` is 272 L vs upstream 3438 L (foamcut's full
 > `Grbl.cs` is 2535L) — `ParseCaps` + `[OPT:...]` field extraction ported; the
 > `Grbl` partial class's `GrblViewModel`, `GrblParserState` (modal state),
-> `GrblWorkParameters` (coordinate/tool tables), `GrblSettings` (settings lookup),
-> `GrblAuxIO`, `PollGrbl`, and the `AxisLetter`/`Position`/`CoordinateSystem`/`Tool`
+> `PollGrbl`, and the `AxisLetter`/`Position`/`CoordinateSystem`/`Tool`
 > WPF `ViewModelBase` leftovers are compile-only stubs kept so the ported engine
 > files that reference them still compile. The real service uses the portable
 > `ControllerCapabilities` + `WorkParameters` + `MachineState` model instead.

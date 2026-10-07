@@ -753,7 +753,7 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         if (throwOnError && IsErrorReply(reply))
         {
             // ioSender re-requests the work parameters when the controller signals
-            // an error (GrblError -> GrblWorkParameters.Get), so the offsets editor
+            // an error (GrblError -> re-fetch work parameters), so the offsets editor
             // reflects the authoritative board state (e.g. a rejected G10) instead
             // of keeping a stale snapshot. Best-effort and fire-and-forget.
             _ = RefreshWorkParametersAfterErrorAsync();

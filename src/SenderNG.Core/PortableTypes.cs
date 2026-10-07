@@ -52,22 +52,6 @@ namespace CNC.Core
     }
 
     // Minimal stubs for WPF dependencies not needed in portable core
-    public static class EventUtils
-    {
-        public static void DoEvents() { System.Threading.Thread.Sleep(1); }
-    }
-
-    // Stub for Comms - not used in portable tests but required for Grbl.cs compilation
-    public class Comms
-    {
-        public static Comms com = new Comms();
-        public string Reply { get; set; } = string.Empty;
-        public void WriteByte(byte b) { }
-        public void WriteCommand(string cmd) { }
-        public void PurgeQueue() { }
-        public void AwaitAck() { }
-    }
-
     // Stub for GrblViewModel - minimal for compilation
     public class GrblViewModel
     {
@@ -108,11 +92,5 @@ namespace CNC.Core
         public double JogStepDistance { get; set; }
         public double[] JogDistances { get; } = new double[3];
         public double[] JogFeedrates { get; } = new double[3];
-    }
-
-    public class DispatcherStub
-    {
-        public void Invoke(System.Action<string> action, string data) => action(data);
-        public static DispatcherStub CurrentDispatcher => new DispatcherStub();
     }
 }
