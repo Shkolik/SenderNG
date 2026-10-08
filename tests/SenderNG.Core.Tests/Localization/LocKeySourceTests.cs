@@ -24,7 +24,9 @@ namespace SenderNG.Core.Tests.Localization;
 /// <summary>
 /// Every <c>LocText.Resolve</c> / <c>LocText.Format</c> string literal in a
 /// project must be a key of that project's <c>Locale/en.json</c>. Non-literal
-/// first arguments are not matched, and none exist today.
+/// first arguments are not matched: a ternary over two literals and wrappers
+/// that forward a caller's key both hide literals from this scan. A literal
+/// introduced inside those shapes must be checked against Locale/en.json by hand.
 /// </summary>
 public class LocKeySourceTests
 {
