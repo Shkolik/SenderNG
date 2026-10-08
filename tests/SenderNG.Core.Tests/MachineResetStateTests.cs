@@ -37,6 +37,7 @@ using Xunit;
 
 namespace SenderNG.Core.Tests;
 
+[Collection("LegacyStatics")] // serializes with other tests mutating Machine.WorkParametersProvider
 public class MachineResetStateTests
 {
     [Fact]

@@ -194,8 +194,11 @@ public class ProbeRunnerTests
                 await Task.Delay(15);
                 var s = _subject.Value;
                 s.Status = "Run";
-                _subject.OnNext(s);
+                // Record before publishing: OnNext runs the observer inline, and that observer
+                // is what unblocks ProbeRunner, which then writes Record("send:...") from another
+                // thread. Logging first makes the event order a guarantee instead of a race.
                 Record("run");
+                _subject.OnNext(s);
 
                 await Task.Delay(15);
                 foreach (System.Text.RegularExpressions.Match m in
@@ -210,8 +213,8 @@ public class ProbeRunnerTests
                     s.ProbePosition = (double[])s.Positions.Clone();
                 }
                 s.Status = "Idle";
-                _subject.OnNext(s);
                 Record("idle");
+                _subject.OnNext(s);
             });
             return Task.CompletedTask;
         }
