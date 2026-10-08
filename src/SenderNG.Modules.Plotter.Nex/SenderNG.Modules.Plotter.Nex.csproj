@@ -15,9 +15,14 @@
     <!-- Pinned to the host app's resolved version (floating 12.* caused a
          framework mismatch TypeLoadException crash in the Skia plotter). -->
     <PackageReference Include="Avalonia" Version="12.0.0" />
-    <!-- PNG screenshot export for the 3D view's save-frame button. Pinned to the
-         version already in the Nex closure so nearest-wins keeps a single copy. -->
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <!-- SixLabors.ImageSharp is deliberately NOT referenced here. It only enters the
+         closure through HelixToolkit.Nex.Textures (>= 3.1.12) and still ships flat into
+         Modules/, but a DIRECT reference would put it under NuGet's audit (direct-only
+         mode), which flags its NU1902/NU1903 advisories: the 3.x line ends at 3.1.12 and
+         every advisory patches only in 4.1.2, and 4.x enforces a Six Labors license key
+         at build time for direct dependents. The screenshot button encodes PNG via
+         Avalonia's Bitmap.Save instead (same as the Skia plotter) — our only use was
+         encoding in-memory pixels; the advisories sit in TIFF-encode/ICC/histogram code. -->
     <!-- Nex: 1.3.0-alpha.41 from the github/helix-toolkit GitHub Packages feed
          (user-level NuGet.Config), not NuGet.org. The Avalonia metapackage is
          deliberately NOT referenced: this module uses ZERO types from
@@ -40,8 +45,9 @@
 
   <PropertyGroup>
     <!-- The plugin's types span its package closure (HelixToolkit.Nex.*,
-         Vortice.*, SharpGen.Runtime, ZLinq, Glslang.NET, SixLabors.ImageSharp,
-         Microsoft.Extensions.* 10.x). The app references plugins with
+         Vortice.*, SharpGen.Runtime, ZLinq, Glslang.NET, Microsoft.Extensions.*
+         10.x; SixLabors.ImageSharp rides along transitively via
+         HelixToolkit.Nex.Textures). The app references plugins with
          ReferenceOutputAssembly="false", so the plugin's NuGet closure is
          otherwise NOT copied anywhere. CopyLocalLockFileAssemblies forces the
          full .deps graph (managed + the win-x64 natives) into this project's
