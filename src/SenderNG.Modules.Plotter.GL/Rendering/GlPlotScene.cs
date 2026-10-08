@@ -69,7 +69,11 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     private static readonly Vector3 LightDirection = Vector3.Normalize(new Vector3(0.4f, 0.8f, 0.5f));
 
     private readonly GlCamera _ortho = new();
-    private readonly GlCamera _persp = new();
+
+    // The perspective camera is born in perspective mode: GlCamera defaults
+    // to orthographic and nothing else ever flips the flag, which left the ISO
+    // preset projecting ortho with a stray width (review Important #1).
+    private readonly GlCamera _persp = new() { IsPerspective = true };
     private GlCamera _active = null!;
     private bool _perspectiveActive;
     private ViewPreset _lastPreset = ViewPreset.Isometric3D;
@@ -170,6 +174,11 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// disposes the scene together with the context (FreeRenderResources) and
     /// rebuilds both on re-attach.</summary>
     internal GlContext Context { get; }
+
+    /// <summary>The camera the next <see cref="RenderFrame"/> projects with and
+    /// the one every gesture dispatches through — read seam for the
+    /// projection-path and gesture-consistency tests (do not mutate).</summary>
+    internal GlCamera ActiveCamera => _active;
 
     /// <summary>Percent readout above the zoom cluster — the fit-seeded
     /// zoom (100 = fitted), hidden at 100% by the view.</summary>
