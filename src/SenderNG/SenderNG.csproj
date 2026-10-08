@@ -165,11 +165,12 @@
        managed-only (Silk.NET binds the OS opengl32/libGL at load time, so,
        unlike Nex, there are no native binaries and no runtimes folder to
        stage). Module DLL flat in Modules\, closure in Modules\plotter-gl\,
-       same exclusion set and linux-arm64 guard as StageNexPluginClosure.
-       Unlike plotter-nex, plotter-gl itself is NOT filtered out of
-       linux-arm64 releases. -->
-  <Target Name="StageGlPluginClosure" AfterTargets="Build"
-          Condition="'$(RuntimeIdentifier)' != 'linux-arm64'">
+       same exclusion set as StageNexPluginClosure — but NO RID guard, unlike
+       StageNexPluginClosure's linux-arm64 skip (Nex ships no Vulkan natives
+       there). The managed-only GL closure stages on every RID including
+       linux-arm64; that is the point of the spike (Task 8 keeps Silk.NET
+       native-free — the EGL package has no natives either). -->
+  <Target Name="StageGlPluginClosure" AfterTargets="Build">
     <ItemGroup>
       <_GlClosure Include="..\SenderNG.Modules.Plotter.GL\bin\$(Configuration)\$(TargetFramework)\*.dll"
                    Exclude="..\SenderNG.Modules.Plotter.GL\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.GL.dll;

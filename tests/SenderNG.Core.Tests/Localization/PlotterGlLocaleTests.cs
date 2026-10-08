@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Text.Json;
+using SenderNG.Modules.Plotter.GL;
 
 namespace SenderNG.Core.Tests;
 
@@ -130,6 +131,82 @@ public class PlotterGlLocaleTests
 
         Assert.Equal(en, ru);
     }
+
+    /// <summary>The module declaration and the English catalog must agree
+    /// exactly: every key <c>PlotterGlModule.LocalizationKeys</c> declares is
+    /// in <c>en.json</c>, and <c>en.json</c> has nothing beyond the declared
+    /// keys plus <see cref="CatalogOnlyByDesign"/> — no missing, no extra.
+    /// <para>Missing-only is what the 2D module's
+    /// <c>PlotterModuleTests.Every_declared_locale_key_exists_in_both_catalogs</c>
+    /// guards (declared ⊆ catalog), on the reasoning that an extra catalog key
+    /// still resolves at runtime. This test also pins the extra direction,
+    /// because that is where this module's two known exceptions live and an
+    /// unpinned "extra" would otherwise be exactly where a typo'd key hides: a
+    /// declared-but-misnamed key falls back to its English literal silently,
+    /// and a catalog-only key no test knows about resolves nowhere useful.</para>
+    /// <para>The ru direction is covered transitively: the declaration ⊆ en
+    /// assertion above plus <c>English_and_russian_key_sets_are_identical</c>
+    /// implies declaration ⊆ ru.</para>
+    /// <para><see cref="CatalogOnlyByDesign"/> is pinned as a set rather than
+    /// exempted by pattern so its members cannot drift unreviewed: removing one
+    /// from the catalog fails the "dropped" assertion below, and adding a new
+    /// catalog-only key fails the "undeclared" assertion until it is either
+    /// declared or consciously added to the pin.</para></summary>
+    [Fact]
+    public void English_catalog_keys_exactly_match_the_declared_keys_plus_the_pinned_catalog_only_set()
+    {
+        var declared = new PlotterGlModule().LocalizationKeys.Keys.ToHashSet(StringComparer.Ordinal);
+        var catalog = Strings("en").Keys.ToHashSet(StringComparer.Ordinal);
+
+        var missing = declared.Except(catalog).OrderBy(k => k, StringComparer.Ordinal).ToList();
+        Assert.True(missing.Count == 0,
+            "en.json is missing declared key(s): " + string.Join(", ", missing));
+
+        var undeclared = catalog.Except(declared)
+            .Except(CatalogOnlyByDesign, StringComparer.Ordinal)
+            .OrderBy(k => k, StringComparer.Ordinal).ToList();
+        Assert.True(undeclared.Count == 0,
+            "en.json has key(s) that are neither declared nor pinned as catalog-only: " +
+            string.Join(", ", undeclared));
+
+        var dropped = CatalogOnlyByDesign.Except(catalog).OrderBy(k => k, StringComparer.Ordinal).ToList();
+        Assert.True(dropped.Count == 0,
+            "en.json dropped pinned catalog-only key(s): " + string.Join(", ", dropped));
+    }
+
+    /// <summary>Keys that legitimately live only in the catalogs, never in
+    /// <c>PlotterGlModule.LocalizationKeys</c>.
+    /// <para>The first group is runtime strings the view model and view
+    /// resolve straight from the catalog (status lines, the failure hint
+    /// chain): Nex declares the same split — its <c>LocalizationKeys</c> holds
+    /// only the chrome and settings labels — and the verbatim-copy rule for
+    /// this scaffold forbids "improving" it here. Their English fallbacks live
+    /// as literals in the VM/view, so a catalog miss degrades instead of
+    /// crashing, which is exactly what the hint-chain tests pin.</para>
+    /// <para>The last three are the anti-aliasing settings entries Step 1.3
+    /// removed from the declaration (the AA UI is gone) while the scripted
+    /// catalog copy kept them — ruled harmless and left in place by review
+    /// ("No action"), so they are pinned here as the documented orphans they
+    /// are. Every key in this list must also exist in en.json; see the test
+    /// above.</para></summary>
+    private static readonly string[] CatalogOnlyByDesign =
+    [
+        // Runtime status + failure-hint strings (VM/view resolve these directly).
+        "module.plotter-gl.noProgram",
+        "module.plotter-gl.noMotion",
+        "module.plotter-gl.building",
+        "module.plotter-gl.buildFailed",
+        "module.plotter-gl.renderUnavailable",
+        "module.plotter-gl.renderUnavailableHint",
+        "module.plotter-gl.renderUnavailable.notSupported",
+        "module.plotter-gl.renderUnavailable.runtimeError",
+        "module.plotter-gl.renderUnavailable.other",
+        // Script-mandated AA orphans: dropped from LocalizationKeys (Step 1.3),
+        // kept in the catalogs by review ruling.
+        "module.plotter-gl.settings.antiAliasing",
+        "module.plotter-gl.settings.aaMode",
+        "module.plotter-gl.settings.aaQuality",
+    ];
 
     [Fact]
     public void No_value_is_empty_or_whitespace()

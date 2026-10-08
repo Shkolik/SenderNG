@@ -269,8 +269,27 @@ public partial class PlotterGlView : UserControl
         }
         else
         {
-            // A live scene survives across tab switches: recreate the per-attach
-            // readback target at the current view size.
+            // A live scene survives across tab switches: recreate the
+            // per-attach GL context FreeRenderResources disposed on detach
+            // (EnableTick gates on it — without this the tick never restarts
+            // after one tab switch away), then the readback target at the
+            // current view size. Mirrors Nex's SetupRenderTarget, which
+            // re-creates its render context on exactly this path.
+            if (_gl is null)
+            {
+                try
+                {
+                    _gl = GlContext.Create();
+                }
+                catch (Exception ex)
+                {
+                    FreeRenderResources();
+                    var verdict = PlotGlFailures.Classify(ex, GlFailureCause.ContextCreate);
+                    ReportRenderFailure(verdict);
+                    LogRenderFailure("RENDERCTX", verdict, "n/a", ex);
+                    return;
+                }
+            }
             SetupReadback();
             EnableTick();
         }
@@ -325,45 +344,6 @@ public partial class PlotterGlView : UserControl
         EnableTick();
         PushOverlayState();
     }
-    /// <summary>Whether a completed scene build still owns the right to report a
-    /// GL verdict, advancing the generation as a side effect.
-    /// <para>
-    /// The bump is inside this function, and deliberately AFTER the comparison.
-    /// The plan's version of this guard incremented the generation first, which
-    /// turned the comparison into <c>x == x+1</c> — always false — so a genuine
-    /// first-attempt failure was never reported and the tab stayed blank with no
-    /// explanation. That is the exact bug this feature exists to prevent, and it
-    /// is invisible to review-by-reading: both orderings look plausible and
-    /// compile cleanly.
-    /// </para>
-    /// <para>
-    /// Folding the bump in here rather than leaving it at the call site is what
-    /// makes the ordering testable. A test that only called a pure
-    /// <c>generation == current</c> helper would pass just as happily against the
-    /// broken call site, which is the point: the bug lived in the *sequence*, not
-    /// in the comparison, so the sequence is what has to be under test.
-    /// See <c>PlotterGlViewTests.ShouldReportFailure_*</c>.
-    /// </para>
-    /// <para>
-    /// Equality means "no newer attempt started, so this attempt is still
-    /// current": report, and advance so no in-flight build can still apply. A
-    /// mismatch means a later <c>EnsureScene</c> (or a detach that advanced the
-    /// generation) superseded this one: stay silent, and do NOT advance, or the
-    /// newer attempt would be invalidated by the stale one it replaced.
-    /// </para></summary>
-    internal static bool ShouldReportFailure(int generation, ref int currentGeneration)
-    {
-        if (generation != currentGeneration)
-            return false;
-        currentGeneration++;
-        return true;
-    }
-
-    /// <summary>First-reason-wins merge for a remembered verdict. A failure that
-    /// is remembered but not reported must not overwrite a verdict the user may
-    /// already have been shown, so an existing entry always wins.</summary>
-    internal static PlotGlFailure RememberFailure(PlotGlFailure cached, PlotGlFailure incoming)
-        => cached == PlotGlFailure.None ? incoming : cached;
 
     private void LogReadbackFailure(Exception ex)
     {
