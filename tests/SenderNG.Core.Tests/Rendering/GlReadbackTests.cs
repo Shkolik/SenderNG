@@ -36,6 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using SenderNG.Modules.Plotter.GL.Rendering;
+using Silk.NET.OpenGL;
 
 namespace SenderNG.Core.Tests;
 
@@ -64,6 +65,51 @@ public class GlReadbackTests
         Assert.Equal(0, pixels[1]);        // G
         Assert.Equal(0, pixels[2]);        // B
         Assert.Equal(255, pixels[3]);      // A forced opaque
+    }
+
+    /// <summary>Checkpoint-1 bug: glReadPixels returns framebuffer rows
+    /// bottom-up (row 0 = bottom of the view) while the WriteableBitmap is
+    /// top-down. Scissor-clear a band at the GL bottom and assert CopyFrame
+    /// writes it into the BOTTOM rows of the destination — the rows the user
+    /// sees at the bottom of the panel.</summary>
+    [GlFact]
+    public unsafe void Gl_bottom_band_lands_in_the_bottom_bitmap_rows()
+    {
+        using var ctx = GlContext.Create();
+        using var rb = new GlReadback(ctx, 64, 64);
+        ctx.MakeCurrent();
+        var gl = ctx.Api;
+        rb.BeginFrame(new byte[] { 10, 20, 30, 255 });
+
+        // The scissor box origin is the framebuffer's bottom-left, so
+        // y = 0..h/4 is what the viewer sees at the BOTTOM of the view.
+        gl.Enable(EnableCap.ScissorTest);
+        gl.Scissor(0, 0, 64, 16);
+        gl.ClearColor(200f / 255f, 0f, 0f, 1f);
+        gl.Clear(ClearBufferMask.ColorBufferBit);
+        gl.Disable(EnableCap.ScissorTest);
+
+        var pixels = new byte[64 * 64 * 4];
+        fixed (byte* p = pixels)
+            Assert.True(rb.CopyFrame((nint)p, 64 * 4));
+
+        // Destination rows are top-down: rows 48..63 are the view's bottom
+        // quarter and must carry the band; rows 0..15 must be pure background.
+        Assert.Equal(16 * 64, CountBand(pixels, 48, 64));
+        Assert.Equal(0, CountBand(pixels, 0, 16));
+    }
+
+    private static int CountBand(byte[] px, int fromRow, int toRow)
+    {
+        var n = 0;
+        for (var y = fromRow; y < toRow; y++)
+        for (var x = 0; x < 64; x++)
+        {
+            var i = (y * 64 + x) * 4;
+            if (px[i] == 200 && px[i + 1] == 0 && px[i + 2] == 0)
+                n++;
+        }
+        return n;
     }
 
     [GlFact]

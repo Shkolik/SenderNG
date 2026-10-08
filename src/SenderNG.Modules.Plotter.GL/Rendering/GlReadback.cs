@@ -150,7 +150,16 @@ internal sealed unsafe class GlReadback : IDisposable
             gl.ReadPixels(0, 0, _w, _h, PixelFormat.Rgba, PixelType.UnsignedByte, srcBuf);
 
             var src = srcBuf;
-            var dst = (byte*)dest;
+            // Start at the LAST destination row: glReadPixels returns rows
+            // bottom-up (row 0 = bottom of the view) while the WriteableBitmap
+            // is top-down, so src row y lands in dst row height-1-y — each
+            // source row walks the destination upward. This is the sanctioned
+            // deviation from Nex's verbatim loop (plan Step 2.4 amended):
+            // Nex's Vulkan Download is already top-down and needs no flip;
+            // keeping the loop literal mirrored the whole viewport
+            // (checkpoint-1: Z axis appeared to point down, mouse up/down
+            // felt inverted).
+            var dst = (byte*)dest + (long)(_h - 1) * destPitch;
             var srcPitch = (int)_w * 4;
             var copy = Math.Min(srcPitch, destPitch);
             for (var y = 0; y < _h; y++)
@@ -163,7 +172,7 @@ internal sealed unsafe class GlReadback : IDisposable
                 for (var x = 3; x < copy; x += 4)
                     dst[x] = 255;
                 src += srcPitch;
-                dst += destPitch;
+                dst -= destPitch;
             }
         }
         return true;

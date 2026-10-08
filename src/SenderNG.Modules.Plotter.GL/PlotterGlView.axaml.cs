@@ -98,11 +98,13 @@ public partial class PlotterGlView : UserControl
     // True while the render loop has been failing, so the failure is logged
     // once per episode rather than once per retry tick. See LogGlFailure.
     private bool _readbackFailed;
-    // Clear color painted every tick: {0.13, 0.14, 0.16} × 255 — the dark
-    // panel grey the placeholder viewport showed. Bytes because
-    // GlReadback.BeginFrame takes a straight RGBA quad, the same shape a
-    // screenshot row has.
-    private static readonly byte[] _backgroundRgba = [33, 36, 41, 255];
+    // Clear color painted every tick: {0.98, 0.98, 0.98} × 255 = 250 — the
+    // near-white that matches Nex's visible output (its clear is ACES-mapped
+    // to ~250/255; Nex is opaque too — CopyFrame forces alpha 255). Bytes
+    // because GlReadback.BeginFrame takes a straight RGBA quad, the same
+    // shape a screenshot row has. (Checkpoint-1 ruling; original mandate was
+    // dark Skia-ish {0.13, 0.14, 0.16}.)
+    private static readonly byte[] _backgroundRgba = [250, 250, 250, 255];
     private WriteableBitmap? _bitmap;
     private DispatcherTimer? _tick;
     private uint _wPx;
@@ -745,9 +747,32 @@ public partial class PlotterGlView : UserControl
             var path = await _fileDialogs.SaveFileAsync("Save screenshot (PNG)", suggested, "PNG image|*.png");
             if (path is null)
                 return;
-            using var img = SixLabors.ImageSharp.Image.LoadPixelData<SixLabors.ImageSharp.PixelFormats.Rgba32>(
-                rgba, _shotW, _shotH);
-            SixLabors.ImageSharp.ImageExtensions.SaveAsPng(img, path);
+            // Encode via Avalonia rather than ImageSharp: a direct ImageSharp
+            // reference is what put the package under NuGet's direct-dependency
+            // audit and raised its NU1902/NU1903 advisories (see the csproj),
+            // and the Skia plotter already exports PNG this way (same pattern
+            // as main's dd9bcdd on the Nex view). A fresh bitmap, not _bitmap:
+            // the shot is the stable snapshot, the live one may be mid-render.
+            // Opened as a stream, NOT Save(path): the string overload swallows
+            // I/O failures, which would turn an unwritable folder into silent
+            // nothing instead of the error dialog below.
+            using (var shot = new WriteableBitmap(
+                new PixelSize(_shotW, _shotH), new Vector(96, 96),
+                PixelFormats.Rgba8888, AlphaFormat.Opaque))
+            {
+                using (var fb = shot.Lock())
+                {
+                    var rowBytes = checked(_shotW * 4);
+                    for (var y = 0; y < _shotH; y++)
+                        System.Runtime.InteropServices.Marshal.Copy(
+                            rgba,
+                            y * rowBytes,
+                            System.IntPtr.Add(fb.Address, y * fb.RowBytes),
+                            rowBytes);
+                }
+                using var file = new FileStream(path, FileMode.Create, FileAccess.Write);
+                shot.Save(file);
+            }
         }
         catch (Exception ex)
         {

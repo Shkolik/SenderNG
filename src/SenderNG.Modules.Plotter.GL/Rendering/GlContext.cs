@@ -142,6 +142,17 @@ internal sealed unsafe class GlContext : IDisposable, INativeContext
         try
         {
             ctx.Initialize();
+            // One line per created context (Initialize runs exactly once) for
+            // the app's captured stdout: which driver did THIS process bind —
+            // the hardware ICD or a Mesa deployment? Version/Renderer/Vendor
+            // are the glGetString reads and profileMask/flags the glGetIntegerv
+            // reads performed on the audited current context in Initialize.
+            Console.WriteLine(
+                $"[Plotter.GL] context ok: {ctx.Version} | renderer \"{ctx.Renderer}\" | " +
+                $"vendor \"{ctx.Vendor}\" | profileMask=0x{ctx.ProfileMask:X} | " +
+                $"flags=0x{ctx.ContextFlagsMask:X} | " +
+                (ctx.ArbCreateSucceeded ? "path=arb-core3.3"
+                    : ctx.UsedLegacyFallback ? "path=legacy-fallback" : "path=legacy"));
             return ctx;
         }
         catch

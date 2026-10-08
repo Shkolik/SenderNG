@@ -86,9 +86,12 @@ public class PlotterGlModule : IModule, ILocalizedModule, IPluginInfo, IPluginDe
     public string Author => "Andrew Shkolik";
     public string License => "BSD-3-Clause";
 
+    // SixLabors.ImageSharp is deliberately absent: with no direct reference
+    // (see the csproj) it leaves the GL closure entirely, so advertising it on
+    // the About screen would name a package this plugin neither references nor
+    // ships. Nex still lists it because Helix brings it in transitively.
     public IReadOnlyList<PluginDependency> Dependencies { get; } =
     [
-        new("SixLabors.ImageSharp", "3.1.12", "Six Labors Split License"),
         new("Silk.NET.OpenGL", "2.23.0", "MIT"),
     ];
 
