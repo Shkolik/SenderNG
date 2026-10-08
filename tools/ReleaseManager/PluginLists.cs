@@ -39,8 +39,13 @@ namespace ReleaseManager;
 
 public static class PluginLists
 {
-    public static IReadOnlyList<PluginEntry> Resolve(string repoRoot, ReleaseOptions options, ILog log)
+    public static IReadOnlyList<PluginEntry> Resolve(
+        string repoRoot,
+        ReleaseOptions options,
+        ILog log,
+        ReleasePlatform? platformOverride = null)
     {
+        var platform = platformOverride ?? PlatformInfo.Current;
         var manifestPath = Path.Combine(repoRoot, "tools", "ReleaseManager", "plugins.json");
         var thirdParty = new List<PluginEntry>();
         if (File.Exists(manifestPath))
@@ -57,7 +62,7 @@ public static class PluginLists
             thirdParty.Add(PluginsManifest.FromAdHoc(projectPath));
         }
 
-        var all = FirstPartyPlugins.All.Concat(thirdParty).ToList();
+        var all = FirstPartyPlugins.ForPlatform(platform).Concat(thirdParty).ToList();
         Validate(all);
 
         switch (options.Selection)
@@ -69,7 +74,15 @@ public static class PluginLists
                 foreach (var id in options.PluginIds)
                 {
                     if (!byId.ContainsKey(id))
-                        throw new CliException($"Unknown plugin id '{id}'. Known ids: {string.Join(", ", all.Select(p => p.Id))}.");
+                    {
+                        // Distinguish "no such plugin" from "not on this platform",
+                        // so a user who names plotter-nex on arm64 is told why
+                        // rather than being told it does not exist.
+                        var knownButExcluded = FirstPartyPlugins.All.Any(p => p.Id == id);
+                        throw new CliException(knownButExcluded
+                            ? $"Plugin '{id}' is not available on {PlatformInfo.FolderName(platform)}."
+                            : $"Unknown plugin id '{id}'. Known ids: {string.Join(", ", all.Select(p => p.Id))}.");
+                    }
                 }
                 return all.Where(p => options.PluginIds.Contains(p.Id)).ToList();
             default:

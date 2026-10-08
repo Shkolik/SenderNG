@@ -126,8 +126,16 @@
         readback is platform-neutral so both ship the same managed closure.
         LoadFrom'd managed DLLs probe their own directory for unmanaged
         libraries, so the flattened natives resolve from Modules\plotter-nex
-        itself. -->
-  <Target Name="StageNexPluginClosure" AfterTargets="Build">
+        itself.
+         The linux-arm64 guard is a second, independent barrier to the one in
+         tools/ReleaseManager/FirstPartyPlugins.cs. That filter keeps the plugin
+         out of the release; this condition keeps a hand-run
+         `dotnet publish -r linux-arm64` from staging linux-x64 .so files into
+         an arm64 bundle that must contain none. Stage by build OS only while
+         the plugin ships on every platform — the moment a platform is excluded,
+         the closure for it must not be staged at all. -->
+  <Target Name="StageNexPluginClosure" AfterTargets="Build"
+          Condition="'$(RuntimeIdentifier)' != 'linux-arm64'">
     <ItemGroup>
       <_NexClosure Include="..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\*.dll"
                    Exclude="..\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.Nex.dll;

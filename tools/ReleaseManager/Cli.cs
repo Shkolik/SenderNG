@@ -50,13 +50,16 @@ public static class Cli
           --plugin <csproj>        add an ad-hoc 3rd-party plugin (repeatable)
           --version <ver>          override the app version read from the csproj
           --out <dir>              output directory (default: ./output)
+          --platform <name>        target: win64 | linux | linux-arm64
+                                    (default: the host OS)
           --skip-tests             do not run the test suite first
           --no-zip                  stage folders + checksums, no zips
           --verbose                per-file detail
           -h, --help               show this help
 
         With no arguments, ReleaseManager starts an interactive checklist.
-        Platform comes from the host OS (win64 on Windows, linux on Linux).
+        Platform defaults to the host OS. --platform cross-publishes, so
+        linux-arm64 can be built from an x64 Linux host.
         """;
 
     public static CliResult Parse(string[] args)
@@ -66,6 +69,7 @@ public static class Cli
 
         string outputDir = "output";
         string? versionOverride = null;
+        string? platformName = null;
         bool skipTests = false;
         bool noZip = false;
         bool verbose = false;
@@ -103,12 +107,25 @@ public static class Cli
                 case "--verbose":
                     verbose = true;
                     break;
+                case "--platform":
+                    platformName = RequireValue(args, ref i, arg);
+                    break;
                 default:
                     throw new CliException($"Unknown option '{arg}'.\n\n{Cli.Usage}");
             }
         }
 
+        ReleasePlatform? platform = platformName is null ? null : platformName switch
+        {
+            "win64" => ReleasePlatform.Win64,
+            "linux" => ReleasePlatform.Linux,
+            "linux-arm64" => ReleasePlatform.LinuxArm64,
+            _ => throw new CliException(
+                $"Unknown platform '{platformName}'. Valid values: win64, linux, linux-arm64.")
+        };
+
         var options = new ReleaseOptions(
+            Platform: platform,
             VersionOverride: versionOverride,
             SkipTests: skipTests,
             NoZip: noZip,

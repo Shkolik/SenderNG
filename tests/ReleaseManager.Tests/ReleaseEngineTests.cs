@@ -150,6 +150,34 @@ public class ReleaseEngineTests
         Assert.False(Directory.Exists(platformRoot));
     }
 
+    [Fact]
+    public async Task Platform_override_stages_into_the_overridden_folder()
+    {
+        var (repo, output, cli) = Setup();
+        cli.AppPublishDir = CompleteAppPublish(ReleasePlatform.LinuxArm64);
+
+        var engine = new ReleaseEngine(repo, cli, new SilentLog());
+        var report = await engine.ReleaseAsync(new ReleaseOptions
+        {
+            OutputDir = output,
+            Platform = ReleasePlatform.LinuxArm64,
+        });
+
+        // Asserted against the mapping, not a literal, so this still holds if a
+        // future platform is added. The host folder must not exist: proving the
+        // override moved the target is the whole point of the test.
+        var armFolder = PlatformInfo.FolderName(ReleasePlatform.LinuxArm64);
+        var hostFolder = PlatformInfo.FolderName(PlatformInfo.Current);
+        Assert.NotEqual(hostFolder, armFolder);
+        Assert.False(Directory.Exists(Path.Combine(output, hostFolder)));
+        Assert.True(Directory.Exists(Path.Combine(output, armFolder, "SenderNG")));
+        Assert.True(File.Exists(Path.Combine(
+            output, armFolder, "SenderNG", "SenderNG")));
+        Assert.True(File.Exists(Path.Combine(
+            output, armFolder, $"SenderNG-0.1.0-{PlatformInfo.ZipSuffix(ReleasePlatform.LinuxArm64)}.zip")));
+        Assert.Equal(armFolder, report.Platform);
+    }
+
     private static (string repo, string output, FakeCli cli) Setup()
     {
         var repo = TempRepo.New();
@@ -170,8 +198,10 @@ public class ReleaseEngineTests
     }
 
     private static string CompleteAppPublish()
+        => CompleteAppPublish(PlatformInfo.Current);
+
+    private static string CompleteAppPublish(ReleasePlatform platform)
     {
-        var platform = PlatformInfo.Current;
         var publish = TempDir.New();
         Directory.CreateDirectory(Path.Combine(publish, "Modules"));
         Directory.CreateDirectory(Path.Combine(publish, "Modules", "excellon", "Locale"));
@@ -186,6 +216,15 @@ public class ReleaseEngineTests
         return publish;
     }
 
-    private static string NativeLib(ReleasePlatform platform)
-        => platform == ReleasePlatform.Win64 ? "coreclr.dll" : "libcoreclr.so";
+    // A switch, not a ternary, for the same reason as PlatformInfo: `== Win64 ?
+    // a : b` would keep working by accident for a new platform and never be
+    // revisited. libcoreclr.so is the runtime's name on every Linux RID, so both
+    // Linux entries are correct, not a copy-paste.
+    private static string NativeLib(ReleasePlatform platform) => platform switch
+    {
+        ReleasePlatform.Win64 => "coreclr.dll",
+        ReleasePlatform.Linux => "libcoreclr.so",
+        ReleasePlatform.LinuxArm64 => "libcoreclr.so",
+        _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, null)
+    };
 }

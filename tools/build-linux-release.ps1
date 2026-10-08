@@ -1,4 +1,6 @@
 param(
+    [ValidateSet("linux", "linux-arm64")]
+    [string]$Platform = "linux",
     [string]$Distro = "Ubuntu",
     [string]$OutRoot,
     [string]$MirrorDir,
@@ -43,6 +45,7 @@ function Get-LinuxBuildEnv {
         [Parameter(Mandatory = $true)][string]$RepoRootWsl,
         [Parameter(Mandatory = $true)][string]$OutRootWsl,
         [string]$MirrorDirWsl = "",
+        [string]$Platform = "linux",
         [switch]$IncludePlugins,
         [switch]$NoZip,
         [switch]$SkipTests,
@@ -59,6 +62,7 @@ function Get-LinuxBuildEnv {
         SENDENG_NO_ZIP          = (Flag ([bool]$NoZip))
         SENDENG_SKIP_TESTS      = (Flag ([bool]$SkipTests))
         SENDENG_LINUX_DRYRUN    = (Flag ([bool]$DryRun))
+        SENDENG_PLATFORM        = $Platform
     }
 }
 
@@ -74,7 +78,11 @@ SRC="$SENDENG_REPO_WSL"
 OUTROOT="$SENDENG_OUTROOT_WSL"
 MIRROR="${SENDENG_MIRROR_WSL:-$HOME/.cache/sendeng-linux-build}"
 MARKER="$MIRROR/.sendeng-linux-build-mirror"
-LINUX_OUT="$OUTROOT/linux"
+PLATFORM="${SENDENG_PLATFORM:-linux}"
+# For both Linux targets PlatformInfo.FolderName(platform) == platform, so this
+# needs no second mapping. The -d check in step 4 asserts ReleaseManager agrees,
+# which is what catches the two ever diverging.
+LINUX_OUT="$OUTROOT/$PLATFORM"
 DRY="${SENDENG_LINUX_DRYRUN:-0}"
 
 fail() { echo "build-linux-release: $*" >&2; exit 1; }
@@ -117,8 +125,11 @@ command -v rsync >/dev/null 2>&1 || fail "rsync is not installed in this WSL dis
 echo "==> dotnet SDK $PINNED resolved as $RESOLVED; rsync available"
 
 # --- 2. Mirror the source tree into WSL-native storage -----------------------
-# A real Linux build is required: ReleaseManager derives the platform from the
-# host OS, and SenderNG.csproj selects Nex natives by build OS, not by RID.
+# A Linux host is still required, but not because ReleaseManager reads the host
+# OS: --platform overrides that. It is required because SenderNG.csproj selects
+# the Nex natives by build OS, and because both Linux targets then share one
+# toolchain, one mirror, and the existing runbooks. Cross-publishing an arm64
+# bundle is what the RID guard in that csproj makes safe.
 #
 # The mirror is wiped and rebuilt rather than synced with `rsync --delete`:
 # --delete cannot remove a destination directory whose contents are protected
@@ -155,14 +166,15 @@ fi
 if [ "${SENDENG_NO_ZIP:-0}" = "1" ]; then
     ARGS+=(--no-zip)
 fi
+ARGS+=(--platform "$PLATFORM")
 
 echo "==> dotnet run --project tools/ReleaseManager -- ${ARGS[*]:-}"
 if [ "$DRY" = "1" ]; then
     echo "==> DRY RUN: not invoking ReleaseManager; writing a stub bundle"
-    mkdir -p "$MIRROR/output/linux/SenderNG"
-    printf '#!/bin/sh\n' > "$MIRROR/output/linux/SenderNG/SenderNG"
-    chmod +x "$MIRROR/output/linux/SenderNG/SenderNG"
-    printf 'dryrun\n' > "$MIRROR/output/linux/SHA256SUMS.txt"
+    mkdir -p "$MIRROR/output/$PLATFORM/SenderNG"
+    printf '#!/bin/sh\n' > "$MIRROR/output/$PLATFORM/SenderNG/SenderNG"
+    chmod +x "$MIRROR/output/$PLATFORM/SenderNG/SenderNG"
+    printf 'dryrun\n' > "$MIRROR/output/$PLATFORM/SHA256SUMS.txt"
 else
     set +e
     dotnet run --project tools/ReleaseManager -- "${ARGS[@]}"
@@ -174,16 +186,23 @@ else
     fi
 fi
 
-# --- 4. Replace output/linux only -------------------------------------------
-# The win64 folder belongs to the Windows build and is never touched here.
-# The guard runs in dry-run mode too: it is a precondition, not an action.
-[ "$(basename "$LINUX_OUT")" = "linux" ] || fail "refusing to replace '$LINUX_OUT': not a 'linux' output folder"
+# --- 4. Replace this platform's output folder only ---------------------------
+# The other platform folders belong to other builds and are never touched here.
+# Two independent guards, and neither is redundant:
+#   - the basename interlock is the pre-delete safety net. Even though
+#     $LINUX_OUT is derived from $PLATFORM, it is the last thing standing
+#     between a bad platform value and a wiped output folder.
+#   - the -d check is a post-condition. It fails loudly if ReleaseManager wrote
+#     a different folder name than this script expects, which would otherwise
+#     place the release somewhere nobody looks, with a zero exit code.
+[ "$(basename "$LINUX_OUT")" = "$PLATFORM" ] || fail "refusing to replace '$LINUX_OUT': basename does not match the requested platform '$PLATFORM'"
+[ -d "$MIRROR/output/$PLATFORM" ] || fail "ReleaseManager did not produce $MIRROR/output/$PLATFORM"
 # A dry run must not touch the real output. $MIRROR is script-owned and
 # disposable, so the stub written in step 3 is harmless there; $OUTROOT/linux is
 # the user's real release, and replacing it with a stub would destroy a good
 # build and leave a fake one that later tooling would trust.
 if [ "$DRY" = "1" ]; then
-    echo "==> DRY RUN: would replace $LINUX_OUT with $MIRROR/output/linux"
+    echo "==> DRY RUN: would replace $LINUX_OUT with $MIRROR/output/$PLATFORM"
     echo "    nothing written to $OUTROOT"
 else
     echo "==> Replacing $LINUX_OUT"
@@ -191,12 +210,12 @@ else
         rm -rf "$LINUX_OUT"
     fi
     mkdir -p "$(dirname "$LINUX_OUT")"
-    rsync -a "$MIRROR/output/linux/" "$LINUX_OUT/"
+    rsync -a "$MIRROR/output/$PLATFORM/" "$LINUX_OUT/"
 
     [ -d "$LINUX_OUT" ] || fail "copy-back produced nothing at $LINUX_OUT"
 
     # --- 5. Report ---------------------------------------------------------
-    echo "==> Linux output in $LINUX_OUT"
+    echo "==> $PLATFORM output in $LINUX_OUT"
     find "$LINUX_OUT" -maxdepth 1 -type f \( -name '*.zip' -o -name 'SHA256SUMS.txt' \) \
         -printf '    %f  (%s bytes)\n' | sort
 fi
@@ -239,13 +258,14 @@ function Invoke-LinuxReleaseBuild {
     }
 
     Write-Host "Repo root : $repoRoot"
-    Write-Host "Output    : $(Join-Path $OutRoot 'linux')"
+    Write-Host "Platform  : $Platform"
+    Write-Host "Output    : $(Join-Path $OutRoot $Platform)"
     Write-Host "Mirror    : $(if ($mirrorWsl) { $mirrorWsl } else { '~/.cache/sendeng-linux-build (default)' })"
     if ($DryRun) { Write-Host "Mode      : DRY RUN (ReleaseManager will not be invoked)" -ForegroundColor Yellow }
     Write-Host ""
 
     $envVars = Get-LinuxBuildEnv -RepoRootWsl $repoWsl -OutRootWsl $outWsl -MirrorDirWsl $mirrorWsl `
-        -IncludePlugins:$Plugins -NoZip:$NoZip -SkipTests:$SkipTests -DryRun:$DryRun
+        -Platform $Platform -IncludePlugins:$Plugins -NoZip:$NoZip -SkipTests:$SkipTests -DryRun:$DryRun
 
     $wslArgs = @("-d", $Distro, "-e", "env")
     foreach ($k in $envVars.Keys) { $wslArgs += "$k=$($envVars[$k])" }
@@ -281,7 +301,7 @@ function Invoke-LinuxReleaseBuild {
         exit $code
     }
 
-    $linuxOut = Join-Path $OutRoot "linux"
+    $linuxOut = Join-Path $OutRoot $Platform
     Write-Host ""
     if ($DryRun) {
         # Never claim a directory exists that this run deliberately did not make.
@@ -289,8 +309,10 @@ function Invoke-LinuxReleaseBuild {
     } else {
         Write-Host "OK: $linuxOut" -ForegroundColor Green
     }
-    if (Test-Path (Join-Path $OutRoot "win64")) {
-        Write-Host "    (the win64 build was not touched)"
+    foreach ($other in @("win64", "linux", "linux-arm64")) {
+        if ($other -ne $Platform -and (Test-Path (Join-Path $OutRoot $other))) {
+            Write-Host "    (the $other build was not touched)"
+        }
     }
 }
 

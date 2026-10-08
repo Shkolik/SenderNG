@@ -68,6 +68,7 @@ public class PlatformInfoTests
     {
         Assert.Equal("win64", PlatformInfo.ZipSuffix(ReleasePlatform.Win64));
         Assert.Equal("linux-x64", PlatformInfo.ZipSuffix(ReleasePlatform.Linux));
+        Assert.Equal("linux-arm64", PlatformInfo.ZipSuffix(ReleasePlatform.LinuxArm64));
     }
 
     [Fact]
@@ -75,6 +76,7 @@ public class PlatformInfoTests
     {
         Assert.Equal("SenderNG.exe", PlatformInfo.RunnerFileName(ReleasePlatform.Win64));
         Assert.Equal("SenderNG", PlatformInfo.RunnerFileName(ReleasePlatform.Linux));
+        Assert.Equal("SenderNG", PlatformInfo.RunnerFileName(ReleasePlatform.LinuxArm64));
     }
 
     [Fact]
@@ -87,5 +89,44 @@ public class PlatformInfoTests
     public void Current_is_Linux_on_Linux()
     {
         Assert.Equal(OperatingSystem.IsLinux(), PlatformInfo.Current == ReleasePlatform.Linux);
+    }
+
+    [Fact]
+    public void Rid_is_linux_arm64_for_LinuxArm64()
+    {
+        Assert.Equal("linux-arm64", PlatformInfo.Rid(ReleasePlatform.LinuxArm64));
+    }
+
+    [Fact]
+    public void Rid_LinuxArm64_is_not_linux_x64()
+    {
+        // The exact regression the ternary-to-switch conversion exists to prevent.
+        // Written as `platform == Win64 ? "win-x64" : "linux-x64"`, a new enum
+        // member silently takes the else branch: an x64 bundle published under an
+        // arm64 name, with no error raised anywhere.
+        Assert.NotEqual("linux-x64", PlatformInfo.Rid(ReleasePlatform.LinuxArm64));
+    }
+
+    [Fact]
+    public void FolderName_LinuxArm64_does_not_collide_with_Linux()
+    {
+        // The collision this prevents: both Linux variants resolving to "linux"
+        // would make an arm64 build delete and overwrite output/linux.
+        Assert.NotEqual(
+            PlatformInfo.FolderName(ReleasePlatform.Linux),
+            PlatformInfo.FolderName(ReleasePlatform.LinuxArm64));
+    }
+
+    [Fact]
+    public void Every_helper_rejects_an_unknown_platform()
+    {
+        // A guard against a future helper being added as a ternary, which would
+        // fall through silently instead of failing. One representative member is
+        // enough: all four share the same _ => throw arm.
+        var unknown = (ReleasePlatform)999;
+        Assert.Throws<ArgumentOutOfRangeException>(() => PlatformInfo.Rid(unknown));
+        Assert.Throws<ArgumentOutOfRangeException>(() => PlatformInfo.FolderName(unknown));
+        Assert.Throws<ArgumentOutOfRangeException>(() => PlatformInfo.ZipSuffix(unknown));
+        Assert.Throws<ArgumentOutOfRangeException>(() => PlatformInfo.RunnerFileName(unknown));
     }
 }

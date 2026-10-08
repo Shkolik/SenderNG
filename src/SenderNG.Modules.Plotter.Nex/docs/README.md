@@ -77,13 +77,14 @@ SenderNG.Modules.Plotter.Nex/
 
 - **HelixToolkit.Nex** 1.3.0-alpha.41 (from GitHub Packages feed — see [Quirks](Quirks.md#helixtoolkitnex-version-pinning))
 - **SenderNG.Core** only — no host app references (true plugin isolation)
-- **Vulkan 1.3** required at runtime (graceful degradation to text fallback when unavailable)
+- **Vulkan 1.3** required at runtime (graceful degradation to text fallback when unavailable). On arm64 releases the module is excluded from the bundle entirely, so there is no tab and the fallback never runs there.
 
 ## Platform Verification Status
 
-The module is cross-platform by design (pure-Vulkan readback, no Windows-only interop), but runtime verification is not yet equal on both platforms:
+The module is cross-platform by design (pure-Vulkan readback, no Windows-only interop), but runtime verification is not yet equal on both supported platforms:
 
 | Platform | Status |
 |---|---|
 | Windows (win-x64) | Verified — scene renders, camera, run-state colors, fps counter (925/925 asset tests incl. 27 GPU readback tests) |
 | Linux (linux-x64) | **Not tested** — code is platform-neutral (Vulkan `IContext.Download`, natives staged by build OS), but no Linux box with a Vulkan 1.3 driver has been exercised yet |
+| Linux (linux-arm64) | **Not supported** — the module is excluded from arm64 releases. No `linux-arm64` native exists for `Vortice.VulkanMemoryAllocator` or `Vortice.SPIRV.Reflect`, and Mesa v3dv fails 10 of the 13 features `CreateFeatures12` requires. See `docs/superpowers/specs/2026-09-26-arm64-linux-support-design.md` |

@@ -62,10 +62,10 @@ public sealed class ReleaseEngine
     public async Task<EngineReport> ReleaseAsync(ReleaseOptions options, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        var platform = PlatformInfo.Current;
+        var platform = options.Platform ?? PlatformInfo.Current;
         var folder = PlatformInfo.FolderName(platform);
         var platformRoot = Path.Combine(options.OutputDir, folder);
-        _log.Info($"ReleaseManager: platform {folder}");
+        _log.Info($"ReleaseManager: platform {folder} ({PlatformInfo.Rid(platform)})");
 
         if (!options.SkipTests)
         {
@@ -75,7 +75,7 @@ public sealed class ReleaseEngine
 
         ct.ThrowIfCancellationRequested();
 
-        var plugins = PluginLists.Resolve(_repoRoot, options, _log);
+        var plugins = PluginLists.Resolve(_repoRoot, options, _log, platform);
         var appVersion = options.VersionOverride
             ?? await _cli.ReadVersionAsync(_repoRoot, Path.Combine(_repoRoot, AppCsproj), ct)
             ?? throw new CliException($"No <Version> in {AppCsproj}; add one or pass --version.");

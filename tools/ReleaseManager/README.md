@@ -3,7 +3,8 @@
 Release staging tool for SenderNG. From a clean checkout it publishes the app
 (self-contained), stages a curated bundle plus optional plugin payloads into
 `./output/`, zips them, and writes `SHA256SUMS.txt`. One command produces a
-Windows or Linux release, based on the host OS.
+Windows or Linux release — the host OS by default, overridable with
+`--platform`.
 
 Authoritative design: `docs/superpowers/specs/2026-09-18-releasemanager-design.md`.
 
@@ -33,7 +34,8 @@ though WSLg supplies the display server.
 ## Pipeline
 
 1. **Tests** (`dotnet test SenderNG.sln`) unless `--skip-tests` — failure aborts, exit 2.
-2. **Publish app** self-contained for the host RID (`win-x64` / `linux-x64`).
+2. **Publish app** self-contained for the target RID (`win-x64`, `linux-x64`,
+   `linux-arm64`; the host OS by default).
 3. **Curate** into `output/<platform>/SenderNG` — drops `*.pdb`, `*.xml`,
    dev-only Avalonia diagnostic assemblies, and strips `Modules/` down to only
    `SenderNG.Modules.Common.dll` (the SDK assembly).
@@ -60,14 +62,16 @@ dotnet run --project tools/ReleaseManager [options]
 | `--plugin <csproj>` | add an ad-hoc 3rd-party plugin (repeatable) |
 | `--version <ver>` | override the app version read from the csproj |
 | `--out <dir>` | output directory (default `./output`) |
+| `--platform <name>` | target `win64`, `linux` or `linux-arm64` (default: the host OS) |
 | `--skip-tests` | do not run the test suite first |
 | `--no-zip` | stage folders + checksums, no zips |
 | `--verbose` | per-file detail |
 | `-h`, `--help` | show help |
 
 - Default (no flags): core app only, current host OS, zips on.
-- No `--platform` flag — the platform is the host (`win64` on Windows, `linux`
-  on Linux). Linux bundles build under WSL2 or a real Linux box.
+- `--platform` overrides the host, which is what makes `linux-arm64`
+  cross-publishing possible from an x64 Linux host. Linux bundles build under
+  WSL2 or a real Linux box.
 - With **no arguments** in a terminal, ReleaseManager starts an interactive
   checklist (version, plugin toggles, zip choice). On a non-TTY it fails with
   exit 1 ("args required") instead of prompting.
@@ -76,7 +80,7 @@ dotnet run --project tools/ReleaseManager [options]
 
 ```
 output/
-├── win64/                                  ← Windows run (linux/ for Linux)
+├── win64/                                  ← Windows run (linux/ or linux-arm64/ for Linux)
 │   ├── SenderNG/                           ← curated app bundle
 │   │   ├── SenderNG.exe, *.dll, .deps.json, .runtimeconfig.json
 │   │   ├── coreclr.dll, hostfxr.dll, …     ← natives hoisted flat (self-contained)
@@ -91,7 +95,8 @@ output/
 │   └── SHA256SUMS.txt                      ← <sha256>  <relative path> per file
 ```
 
-- Linux zip suffix is `linux-x64`; the Linux executable is `SenderNG` (no `.exe`).
+- Linux zip suffix is `linux-x64` or `linux-arm64`; the Linux executable is
+  `SenderNG` (no `.exe`).
 - Installing a plugin = copy `plugins/<id>/*` straight into `Modules/`.
 - **No `runtimes/` folder**: `dotnet publish` with a single RID (`--self-contained`)
   hoists native binaries flat to the bundle root. The verifier checks for the
@@ -168,10 +173,13 @@ else it owns goes under `<plugin-id>/` (locale + closure). Host-owned assemblies
 >
 > ```powershell
 > .\tools\build-linux-release.ps1
+> # or the arm64 bundle (Raspberry Pi)
+> .\tools\build-linux-release.ps1 -Platform linux-arm64
 > ```
 >
 > It mirrors the source into WSL-native storage, runs `ReleaseManager` there, and
-> stages the result in `output\linux` on Windows — leaving `output\win64` alone.
+> stages the result on Windows in `output\linux` or `output\linux-arm64` —
+> leaving `output\win64` alone.
 > See "Linux release build (WSL2)" in the top-level `README.md`.
 >
 > Prefer the script because step 5 below copies the working tree to `~/SenderNG`
@@ -228,8 +236,9 @@ else it owns goes under `<plugin-id>/` (locale + closure). Host-owned assemblies
    ```
    dotnet run --project tools/ReleaseManager -- --include-plugins --skip-tests
    ```
-   Output: `~/SenderNG/output/linux/`. Optional smoke test via WSLg (renders on
-   the Windows desktop): `./output/linux/SenderNG/SenderNG` → Connect → Demo.
+   Output: `~/SenderNG/output/linux/`, or `~/SenderNG/output/linux-arm64/` with
+   ReleaseManager's `--platform linux-arm64`. Optional smoke test via WSLg (renders
+   on the Windows desktop): `./output/linux/SenderNG/SenderNG` → Connect → Demo.
    If "Permission denied" (bundle passed through a Windows filesystem):
    `chmod +x ./output/linux/SenderNG/SenderNG` — only the runner needs `+x`, no
    `777`.
