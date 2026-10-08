@@ -102,6 +102,8 @@ public class SerialGrblTransportTests
 
         transport.Close();
         transport.Close();
+
+        Assert.False(transport.IsOpen, "close must leave a never-opened transport closed");
     }
 
     [Fact]
@@ -111,6 +113,8 @@ public class SerialGrblTransportTests
 
         transport.Dispose();
         transport.Dispose();
+
+        Assert.False(transport.IsOpen, "dispose must leave the transport closed");
     }
 
     [Fact]
