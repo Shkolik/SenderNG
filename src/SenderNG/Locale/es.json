@@ -338,6 +338,8 @@
     "app.msg.settingsCorruptKept": "El archivo de ajustes {0} estaba dañado, así que se cargaron los valores predeterminados; no se pudo apartar y permanece sin cambios",
     "app.msg.settingsUnreadableMoved": "No se pudo leer el archivo de ajustes {0}, así que se cargaron los valores predeterminados; se movió en la misma carpeta a un nombre que termina en .corrupt: verifique los permisos del archivo",
     "app.msg.settingsUnreadableKept": "No se pudo leer el archivo de ajustes {0}, así que se cargaron los valores predeterminados; el archivo permanece sin cambios: verifique sus permisos",
+    "app.msg.settingsNoDialog": "Ajustes de la aplicación: no hay servicio de diálogos disponible",
+    "app.msg.settingsMissing": "Módulo de ajustes de la aplicación no encontrado",
     "app.msg.closed": "Cerrado {0}",
     "app.msg.openFailed": "Error al abrir: {0}",
     "app.msg.loading": "Cargando {0}…",
