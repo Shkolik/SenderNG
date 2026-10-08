@@ -57,8 +57,10 @@ internal sealed class GlPlotScene : IPlotScene
         Context = context;
     }
 
-    /// <summary>The context this scene renders on; Task 2's readback binds its
-    /// FBO to it.</summary>
+    /// <summary>The context this scene renders on. Scene and context are one
+    /// lifetime: GlPlotScene holds GL objects created on it, so the view
+    /// disposes the scene together with the context (FreeRenderResources) and
+    /// rebuilds both on re-attach.</summary>
     internal GlContext Context { get; }
 
     /// <summary>Last viewport size handed in by the view (physical px). Stored
@@ -143,6 +145,16 @@ internal sealed class GlPlotScene : IPlotScene
     public ILoftSurface AddLoftSurface() => new NoopLoft();
 
     public IPlotTool CreateTool(ToolShape shape) => new NoopTool();
+
+    /// <summary>Draw this frame into the readback's FBO — already bound,
+    /// viewport-sized and cleared by <see cref="GlReadback.BeginFrame"/> before
+    /// this is called. Task 2: nothing to draw yet, so the solid clear IS the
+    /// frame; Task 4+ adds the camera-driven chrome draws. <paramref name="rtW"/>
+    /// / <paramref name="rtH"/> are the render-target pixels (supersample
+    /// factor applied), the size the draws must cover.</summary>
+    public void RenderFrame(uint rtW, uint rtH)
+    {
+    }
 
     public void Dispose()
     {

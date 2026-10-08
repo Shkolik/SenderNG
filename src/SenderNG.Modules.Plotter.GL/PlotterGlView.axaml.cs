@@ -60,10 +60,11 @@ namespace SenderNG.Modules.Plotter.GL;
 /// <see cref="PlotterGlViewModel.RenderUnavailable"/> and the XAML swaps in the
 /// text fallback.
 /// <para>
-/// Rendering (Task 2): a DispatcherTimer tick drives the offscreen render into
-/// the readback's FBO, then a CPU row copy into a WriteableBitmap shown by
-/// <c>GpuImage</c>. Task 1 stops before that middle: the prologue and epilogue
-/// of the tick run, the viewport stays blank.
+/// Scene and context are one lifetime (both per-attach: detach disposes them
+/// together, re-attach rebuilds both — see FreeRenderResources / EnsureScene),
+/// because the scene's GL objects only exist on the context that created them.
+/// Each tick: make current → clear the readback FBO → scene draw →
+/// glReadPixels row copy into a WriteableBitmap shown by <c>GpuImage</c>.
 /// </para>
 /// </summary>
 public partial class PlotterGlView : UserControl
@@ -94,9 +95,14 @@ public partial class PlotterGlView : UserControl
     private PlotterGlSettingsViewModel? _overlayToggles;
 
     private GlReadback? _readback;
-    // True while the readback has been failing, so the failure is logged once
-    // per episode rather than once per retry tick. See LogReadbackFailure.
+    // True while the render loop has been failing, so the failure is logged
+    // once per episode rather than once per retry tick. See LogGlFailure.
     private bool _readbackFailed;
+    // Clear color painted every tick: {0.13, 0.14, 0.16} × 255 — the dark
+    // panel grey the placeholder viewport showed. Bytes because
+    // GlReadback.BeginFrame takes a straight RGBA quad, the same shape a
+    // screenshot row has.
+    private static readonly byte[] _backgroundRgba = [33, 36, 41, 255];
     private WriteableBitmap? _bitmap;
     private DispatcherTimer? _tick;
     private uint _wPx;
@@ -133,9 +139,9 @@ public partial class PlotterGlView : UserControl
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
         // Tab switches detach the view from the visual tree; the host caches
-        // one view per module for the app lifetime, so the scene lives for the
-        // view's lifetime (never rebuilt on re-attach — see
-        // OnDetachedFromVisualTree).
+        // one view per module for the app lifetime, but the GL scene and its
+        // context are per-attach: they die together on detach and re-attach
+        // rebuilds both (see OnDetachedFromVisualTree / EnsureScene).
         AttachedToVisualTree += (_, _) => OnAttachedToVisualTree();
         DetachedFromVisualTree += OnDetachedFromVisualTree;
         // No dispatcher post: Changed is raised by the language picker, which
@@ -194,14 +200,11 @@ public partial class PlotterGlView : UserControl
             && _vm!.RenderUnavailable && _scene is not null)
         {
             // Engine or downstream reported failure: release the GPU resources
-            // and the VM's factory (the scene is gone; a later rebuild reattaches
-            // a fresh one) and surface the fallback.
-            var scene = _scene;
-            _scene = null;
+            // (readback, scene, context — scene before context, factory
+            // released too, all inside FreeRenderResources) and surface the
+            // fallback.
             DisableTick();
             FreeRenderResources();
-            scene.Dispose();
-            _vm.ReleaseScene();
         }
     }
 
@@ -265,41 +268,18 @@ public partial class PlotterGlView : UserControl
         _vm.PropertyChanged += OnVmPropertyChanged;
         if (_scene is null)
         {
+            // Detach disposed the scene and its context together (one
+            // lifetime), so every attach comes through the full rebuild here.
             EnsureScene();
-        }
-        else
-        {
-            // A live scene survives across tab switches: recreate the
-            // per-attach GL context FreeRenderResources disposed on detach
-            // (EnableTick gates on it — without this the tick never restarts
-            // after one tab switch away), then the readback target at the
-            // current view size. Mirrors Nex's SetupRenderTarget, which
-            // re-creates its render context on exactly this path.
-            if (_gl is null)
-            {
-                try
-                {
-                    _gl = GlContext.Create();
-                }
-                catch (Exception ex)
-                {
-                    FreeRenderResources();
-                    var verdict = PlotGlFailures.Classify(ex, GlFailureCause.ContextCreate);
-                    ReportRenderFailure(verdict);
-                    LogRenderFailure("RENDERCTX", verdict, "n/a", ex);
-                    return;
-                }
-            }
-            SetupReadback();
-            EnableTick();
         }
     }
 
-    /// <summary>Keep the GL scene alive across tab switches. Only the
-    /// per-attach readback, GL context and tick are torn down; the scene itself
-    /// stays for the view's lifetime (the host caches one
-    /// view per module, so this is bounded). Bumping the scene generation still
-    /// cancels any in-flight creation whose result lands late.</summary>
+    /// <summary>Tear the per-attach render state down on tab switch: tick off,
+    /// then readback + scene + context disposed together (scene before context —
+    /// its GL objects only delete through a live context) and the VM's factory
+    /// released, so re-attach runs the full EnsureScene build against a fresh
+    /// context. Bumping the scene generation still cancels any in-flight
+    /// creation whose result lands late.</summary>
     private void OnDetachedFromVisualTree(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
     {
         _attached = false;
@@ -312,8 +292,11 @@ public partial class PlotterGlView : UserControl
 
     /// <summary>Create the GL context and scene synchronously on the UI thread
     /// (context affinity: a GL context renders on the thread that owns it),
-    /// then attach and start the tick. The scene object lives as long as this
-    /// view, so preset re-frames and program rebuilds mutate it in place.</summary>
+    /// then attach and start the tick. Re-attach re-runs this after the detach
+    /// teardown, so every attach gets a scene bound to its own fresh context —
+    /// GL objects never outlive the context that created them. Preset re-frames
+    /// and program rebuilds still mutate the scene in place for the attach's
+    /// duration.</summary>
     private void EnsureScene()
     {
         if (_vm is null || _scene is not null)
@@ -336,26 +319,27 @@ public partial class PlotterGlView : UserControl
             _vm.ReportRenderUnavailable(_glVerdict.Value, ex.Message);
             return;
         }
-        if (generation != _sceneGeneration) { built.Dispose(); return; }   // stale guard
+        if (generation != _sceneGeneration) { built.Dispose(); ctx?.Dispose(); return; }   // stale guard: GL objects die with their context
         _gl = ctx;
         _scene = built;
         _vm.AttachScene(new KinematicSceneFactory(built));
-        SetupReadback();                 // real FBO + GlReadback sizing land in Task 2.3
-        EnableTick();
+        EnableTick();                       // the first tick creates the readback at the live size
         PushOverlayState();
     }
 
-    private void LogReadbackFailure(Exception ex)
+    private void LogGlFailure(Exception ex)
     {
-        // No verdict here, deliberately. A readback that will not allocate is
-        // usually transient (host memory pressure) and this path RETRIES on
-        // every tick, so reporting a failure kind would cache Other for the
-        // session and disable a scene the renderer is running perfectly well -
-        // the same over-reach the taxonomy forbids elsewhere. What was missing
-        // before is the explanation: this used to swallow the exception, so a
-        // permanently blank viewport was indistinguishable in the log from a
-        // blank one of unknown cause. `failed=` is n/a because no verdict was
-        // reached; the stage says where it happened.
+        // This method never creates a verdict, deliberately. A readback that
+        // will not allocate is usually transient (host memory pressure) and
+        // SetupReadback RETRIES on every tick, so reporting a failure kind
+        // would cache Other for the session and disable a scene the renderer
+        // is running perfectly well - the same over-reach the taxonomy forbids
+        // elsewhere. What was missing before is the explanation: this used to
+        // swallow the exception, so a permanently blank viewport was
+        // indistinguishable in the log from a blank one of unknown cause.
+        // `failed=` is n/a because no verdict was reached; GLFRAME says where
+        // it happened. (The render-loop catch reports a verdict itself, after
+        // logging here - this method is just the record.)
         //
         // Logged once per episode, not once per tick: a readback that keeps
         // throwing would otherwise write two lines every 33ms - about sixty a
@@ -366,8 +350,8 @@ public partial class PlotterGlView : UserControl
             return;
         _readbackFailed = true;
         System.Diagnostics.Trace.WriteLine(
-            $"[GL] READBACK failed=n/a code=n/a {ex.GetType().Name}: {ex.Message}");
-        System.Diagnostics.Trace.WriteLine($"[GL] READBACK stack: {ex.StackTrace}");
+            $"[GL] GLFRAME failed=n/a code=n/a {ex.GetType().Name}: {ex.Message}");
+        System.Diagnostics.Trace.WriteLine($"[GL] GLFRAME stack: {ex.StackTrace}");
     }
 
     /// <summary>Cache the verdict and hand it to the view model, which resolves
@@ -412,29 +396,75 @@ public partial class PlotterGlView : UserControl
         System.Diagnostics.Trace.WriteLine($"[GL] {stage} stack: {ex.StackTrace}");
     }
 
-    /// <summary>Create (or re-create) the readback target for the current view
-    /// size. Task 1 placeholder: the FBO + GlReadback sizing lands in Task 2.3,
-    /// so there is nothing to set up yet — the tick guards on the missing
-    /// readback and leaves the viewport blank.</summary>
-    private void SetupReadback()
+    /// <summary>Create (or re-create) the readback target and its bitmap for
+    /// the render size of this tick — the same create-on-first-tick /
+    /// recreate-on-resize logic Nex runs inline in its tick (NexGpuReadback
+    /// creation at PlotterNexView 673–721), lifted into a method so the size
+    /// bookkeeping and the bitmap stay in step with the FBO. A failure is
+    /// logged once per episode and RETRIED next tick — not a verdict, usually
+    /// memory pressure (see LogGlFailure).</summary>
+    /// <returns>False when the readback is not usable this tick — the caller
+    /// must not render.</returns>
+    private bool SetupReadback(in RenderSize r)
     {
-        var scene = _scene;
-        if (scene is null || _readback is not null)
-            return;
-        // Task 2.3: bind the FBO and construct GlReadback here. Failures keep
-        // flowing through ReportRenderFailure + LogRenderFailure the way the
-        // old render-context creation did — never swallowed, because a silently
-        // blank viewport was exactly the failure mode that path used to hide.
-        // FreeRenderResources owns disposal, so a failed attempt must let it.
+        try
+        {
+            var created = false;
+            if (_readback is null)
+            {
+                _readback = new GlReadback(_gl!, r.RtW, r.RtH);
+                created = true;
+            }
+            else if (r.RtW != _rtW || r.RtH != _rtH)
+            {
+                _readback.Resize(r.RtW, r.RtH);
+                created = true;
+            }
+
+            if (created)
+            {
+                _bitmap = new WriteableBitmap(
+                    new PixelSize((int)r.RtW, (int)r.RtH),
+                    new Vector(96, 96),
+                    PixelFormats.Rgba8888,
+                    AlphaFormat.Opaque);
+                GpuImage.Source = _bitmap;
+            }
+
+            _rtW = r.RtW;
+            _rtH = r.RtH;
+            // The readback is live, so any earlier failure episode is over:
+            // clear the latch so a later one is logged again rather than
+            // swallowed as a duplicate.
+            _readbackFailed = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            // Retried next tick, by design - see LogGlFailure. Not a verdict,
+            // so the panel does not appear; FreeRenderResources owns
+            // disposal, so a failed attempt must let it go.
+            _readback?.Dispose();
+            _readback = null;
+            LogGlFailure(ex);
+            return false;
+        }
     }
 
-    /// <summary>Dispose the per-attach readback and GL context.</summary>
+    /// <summary>Dispose the per-attach render state: readback, scene, context —
+    /// in that order (each step needs the next one alive: the FBO and the
+    /// scene's GL objects only delete through a live context) — then drop the
+    /// VM's factory so a later attach may build a fresh scene. Idempotent:
+    /// detach and the VM-failure handler both call it.</summary>
     private void FreeRenderResources()
     {
         _readback?.Dispose();
         _readback = null;
+        _scene?.Dispose();
+        _scene = null;
         _gl?.Dispose();
         _gl = null;
+        _vm?.ReleaseScene();
         _bitmap = null;
         GpuImage.Source = null;
         _readbackTicks = 0;
@@ -541,34 +571,36 @@ public partial class PlotterGlView : UserControl
         // user points at, not the supersampled render target.
         scene.SetViewportSize((int)r.PanelW, (int)r.PanelH);
         UpdateZoomLabel(scene);
-        // Task 1 placeholder: no readback yet (Task 2.3 builds GlReadback and
-        // sizes the bitmap from it), so the GpuImage stays blank. This guard is
-        // the seam that block will sit behind.
         if (_gl is null)
             return;
         _wPx = r.PanelW;
         _hPx = r.PanelH;
-        _rtW = r.RtW;
-        _rtH = r.RtH;
+        if (!SetupReadback(r))
+            return;
 
         try
         {
-            // Epilogue kept from the readback path: the screenshot copy needs a
-            // bitmap (created by Task 2.3), the invalidation and the diag ring
-            // do not. _readbackTicks drives the apply cadence above, so it
-            // advances either way.
-            if (_bitmap is not null)
+            _gl.MakeCurrent();
+            _readback!.BeginFrame(_backgroundRgba);
+            _scene!.RenderFrame(_readback.Width, _readback.Height);
+
+            // CopyFrame's glReadPixels synchronizes with the draws above, so
+            // the locked bitmap now sees this frame (Nexus's "second WaitAll"
+            // equivalent lives inside CopyFrame).
+            using var fb = _bitmap!.Lock();
+            if (!_readback.CopyFrame(fb.Address, fb.RowBytes))
+                return;
+            // Keep a copy of the displayed frame so the screenshot button can
+            // export the current view (native readback size, stable across
+            // captures) without re-rendering.
+            var shotLen = checked((int)r.RtW * (int)r.RtH * 4);
+            if (_shotRgba == null || _shotRgba.Length != shotLen)
             {
-                using var fb = _bitmap.Lock();
-                var shotLen = checked((int)r.RtW * (int)r.RtH * 4);
-                if (_shotRgba == null || _shotRgba.Length != shotLen)
-                {
-                    _shotRgba = new byte[shotLen];
-                    _shotW = (int)r.RtW;
-                    _shotH = (int)r.RtH;
-                }
-                System.Runtime.InteropServices.Marshal.Copy(fb.Address, _shotRgba, 0, shotLen);
+                _shotRgba = new byte[shotLen];
+                _shotW = (int)r.RtW;
+                _shotH = (int)r.RtH;
             }
+            System.Runtime.InteropServices.Marshal.Copy(fb.Address, _shotRgba, 0, shotLen);
             GpuImage.InvalidateVisual();
             _diagRing[_diagHead = (_diagHead + 1) % _diagRing.Length] =
                 $"[T{_readbackTicks}] runs={_vm!.DumpRunState()}";
@@ -576,8 +608,12 @@ public partial class PlotterGlView : UserControl
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Trace.WriteLine(
-                $"[CRASH] tick={_readbackTicks} {ex.GetType().Name}: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
+            // Terminal for this tick loop: record the failure, report the
+            // verdict (the VM keeps the first reason; its PropertyChanged
+            // handler runs FreeRenderResources — scene, context and readback
+            // go together — and the XAML swaps in the fallback panel), stop.
+            LogGlFailure(ex);
+            _vm?.ReportRenderUnavailable(PlotGlFailures.Classify(ex, GlFailureCause.Runtime), ex.Message);
             DisableTick();
         }
     }
