@@ -243,8 +243,8 @@ the child process, which may still be writing to `output\linux`.
 
 ### Linux arm64 (Raspberry Pi)
 
-The target is 64-bit arm64 Linux (Raspberry Pi 4B); the bundle has been built
-and inspected but not yet launched on hardware — see the note below.
+The target is 64-bit arm64 Linux (Raspberry Pi 4B); the bundle has been
+built, installed, and run on a Pi 4B — see the note below.
 **The Plot 3D tab is not available on arm64** — see the
 [module's platform table](src/SenderNG.Modules.Plotter.Nex/docs/README.md) for
 why. Every other module, including the 2D plotter, ships normally.
@@ -259,10 +259,14 @@ Build it from WSL2 on your Windows machine; no .NET SDK on the Pi is needed:
 Output lands in `output\linux-arm64\` as `SenderNG-<version>-linux-arm64.zip`
 plus `SHA256SUMS.txt`. The `win64` and `linux` folders are never touched.
 
+For the full recipe — build, copy to the Pi (thumb drive or SSH), install,
+verify — see the [arm64 cookbook](docs/arm64-cookbook.md).
+
 The bundle is cross-published (`dotnet publish -r linux-arm64`) from an x64
-host, so it is produced on a different machine than it runs on. **The bundle
-has not yet been run on a Pi — verify it there before relying on it**; nothing
-in either test suite performs a publish.
+host, so it is produced on a different machine than it runs on. It has since
+been installed and launched on a Pi 4B (window renders, 2D tabs present, no
+Plot 3D tab); nothing in either test suite performs a publish, so every
+rebuild's final publish is exercised only by a real run.
 
 On the Pi:
 
