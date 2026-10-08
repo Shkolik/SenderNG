@@ -165,10 +165,12 @@ internal sealed unsafe class GlReadback : IDisposable
             for (var y = 0; y < _h; y++)
             {
                 System.Buffer.MemoryCopy(src, dst, (long)destPitch, copy);
-                // Force opaque: the engine clears to transparent black, so
-                // premultiplied compositing would drop every frame (a fully
-                // transparent bitmap shows whatever sits behind the Image —
-                // the near-black panel). Scene content is opaque.
+                // Force opaque: BeginFrame always clears to the view's opaque
+                // background (_backgroundRgba, alpha 255) and scene content is
+                // opaque, so the pass normally rewrites 255 over 255 — it is
+                // the guarantee, not the fix-up: a non-opaque frame premultiplies
+                // away under the Image (a fully transparent bitmap shows
+                // whatever sits behind it — the panel).
                 for (var x = 3; x < copy; x += 4)
                     dst[x] = 255;
                 src += srcPitch;

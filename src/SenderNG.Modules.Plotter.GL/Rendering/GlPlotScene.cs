@@ -101,11 +101,29 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     private BoundingBox _gridBounds;
     private bool _hasGridBounds;
     private bool _disposed;
+    private readonly float _chromeLineWidth;
+
+    // --- live content (Task 5) ---
+    /// <summary>The carriage plane layers of the current build, in factory
+    /// order. Reset as a set on a program reload (Nex's ResetBuild fence).</summary>
+    private readonly List<GlCarriagePlaneLayer> _liveLayers = [];
+
+    /// <summary>End-of-build marker the kinematic factory trips with its final
+    /// CreateTool — the next AddCarriagePlane after a completed build resets
+    /// the previous run's content (Nex's fence, verbatim).</summary>
+    private bool _buildComplete;
+
+    /// <summary>Spike diagnostic latch (remove before the doc): the one-shot
+    /// GL error probe has run, and what it saw. The probe itself only fires
+    /// from <see cref="RenderFrame"/> in Debug builds.</summary>
+    private bool _glErrorProbed;
+    private GLEnum _glErrorProbeResult;
+
 
     /// <summary>Overlay chrome gates — pushed by <see cref="SetView"/> from the
     /// view's toggle bar (runtime-only: geometry stays uploaded, the draw is
-    /// skipped). <see cref="ShowRunState"/> is stored here and starts gating
-    /// the executed overlay with the layers in Task 5.</summary>
+    /// skipped). <see cref="ShowRunState"/> also forwards to the layers, which
+    /// restage base colors and drop the executed overlay when it goes off.</summary>
     internal bool ShowOrigin { get; private set; } = true;
 
     internal bool ShowEnvelope { get; private set; } = true;
@@ -143,14 +161,23 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
         // Depth test for the whole frame, set once: later draws (the Task 5
         // layers, loft and tool) win an equal-depth test through GL_LEQUAL.
-        // Line width: one query, clamped to the driver's own range — most core
-        // drivers cap at 1.0, which is fine (the supersampled render target is
-        // what buys the coverage).
+        // Line width: several core drivers reject anything over 1.0 with
+        // GL_INVALID_VALUE even when ALIASED_LINE_WIDTH_RANGE claims a larger
+        // range, so probe the preferred width and fall back to 1.0 — fine
+        // either way (the supersampled render target buys the coverage).
+        // DrawChrome re-asserts the accepted width per frame: the layer draws
+        // widen it to their own Nex thickness in between.
         _gl.Enable(EnableCap.DepthTest);
         _gl.DepthFunc(DepthFunction.Lequal);
         float* lineRange = stackalloc float[2];
         _gl.GetFloat(GetPName.AliasedLineWidthRange, lineRange);
-        _gl.LineWidth(MathF.Min(1.5f, lineRange[1]));
+        _chromeLineWidth = MathF.Min(1.5f, lineRange[1]);
+        _gl.LineWidth(_chromeLineWidth);
+        if (_gl.GetError() != GLEnum.NoError)
+        {
+            _chromeLineWidth = 1f;
+            _gl.LineWidth(_chromeLineWidth);
+        }
 
         _gridMinor = new LineMesh(context);
         _gridMajor = new LineMesh(context);
@@ -209,12 +236,20 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         ShowEnvelope = settings.ShowEnvelope;
         ShowGrid = settings.ShowGrid;
         ShowRunState = settings.ShowRunState;
+        // Run state reaches the planes as staging state (Nex's
+        // ApplyRunStateToLayer, minus the parked done node — the GL layer
+        // gates its own overlay draw on the same flag).
+        foreach (var layer in _liveLayers)
+            layer.SetRunStateVisible(ShowRunState);
     }
 
-    /// <summary>Swap-pump the carriage planes into fresh static geometry
-    /// (called at the apply cadence, not every tick).</summary>
+    /// <summary>Pump the carriage planes' staging into their dynamic buffers
+    /// (called at the apply cadence, not every tick). Each layer decides for
+    /// itself whether its <see cref="RebuildGate"/> grants an upload.</summary>
     public void PumpCarriagePlanes()
     {
+        foreach (var layer in _liveLayers)
+            layer.Pump();
     }
 
     /// <summary>Swap-pump the tool connector wire and loft surface.</summary>
@@ -457,21 +492,69 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         void Seg(Vector3 a, Vector3 b) => AppendSegment(verts, a, b, c);
     }
 
-    public ICarriagePlaneLayer AddCarriagePlane() => new NoopLayer();
+    /// <inheritdoc/>
+    public ICarriagePlaneLayer AddCarriagePlane()
+    {
+        // Program reloads: the kinematic factory ends every build with
+        // CreateTool, so the next AddCarriagePlane after a completed build
+        // provokes a ResetBuild that disposes the previous run's layers
+        // (Nex's fence, verbatim) — the scene has no "clear" API, and a stale
+        // toolpath must not keep drawing behind the new one.
+        if (_buildComplete)
+            ResetBuild();
+        _buildComplete = false;
+        var layer = new GlCarriagePlaneLayer(Context);
+        _liveLayers.Add(layer);
+        layer.SetRunStateVisible(ShowRunState);
+        return layer;
+    }
 
-    public ILoftSurface AddLoftSurface() => new NoopLoft();
+    /// <inheritdoc/>
+    public ILoftSurface AddLoftSurface()
+    {
+        if (_buildComplete)
+            ResetBuild();
+        _buildComplete = false;
+        return new NoopLoft();
+    }
 
-    public IPlotTool CreateTool(ToolShape shape) => new NoopTool();
+    /// <inheritdoc/>
+    public IPlotTool CreateTool(ToolShape shape)
+    {
+        if (_buildComplete)
+            ResetBuild();
+        // The factory's end-of-build marker (Nex sets the same flag here).
+        _buildComplete = true;
+        return new NoopTool();
+    }
 
-    /// <summary>Bounding metrics of the live content. Task 5 aggregates the
-    /// layer bounds here (Nex reads its content-node vertices); until then the
-    /// grid bounds stand in — the only real geometry the scene has — and before
-    /// any grid exists this is Nex's not-found envelope (min/max ±25), the
-    /// default box the presets frame until geometry lands.</summary>
+    /// <summary>Dispose the previous run's content (Nex's ResetBuild, GL
+    /// subset): fresh fabric is registered on every program reload, so the old
+    /// layers must go. Runs on the render thread with the context current —
+    /// same thread every pump and draw uses.</summary>
+    private void ResetBuild()
+    {
+        foreach (var layer in _liveLayers)
+            layer.Dispose();
+        _liveLayers.Clear();
+        _buildComplete = false;
+    }
+
+    /// <summary>Bounding metrics of the live content. The layers' staged
+    /// extents win (Nex reads its content-node vertices), so a loaded program
+    /// reframes onto the toolpath; the grid bounds stand in until then — the
+    /// only real geometry the scene has — and before any grid exists this is
+    /// Nex's not-found envelope (min/max ±25), the default box the presets
+    /// frame until geometry lands.</summary>
     private (Vector3 Center, float Radius, Vector3 Span) ContentMetrics()
     {
         Vector3 min, max;
-        if (_hasGridBounds)
+        if (TryGetLayerBounds(out var layerMin, out var layerMax))
+        {
+            min = layerMin;
+            max = layerMax;
+        }
+        else if (_hasGridBounds)
         {
             var b = _gridBounds;
             min = new Vector3((float)b.MinX, (float)b.MinY, (float)b.MinZ);
@@ -486,6 +569,26 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         var span = max - min;
         var radius = MathF.Max(span.Length() * 0.5f, 1f);
         return (center, radius, span);
+    }
+
+    /// <summary>Union of every live layer's staged extents — false when no
+    /// layer has content yet (empty layer, or none created).</summary>
+    private bool TryGetLayerBounds(out Vector3 min, out Vector3 max)
+    {
+        min = default;
+        max = default;
+        var found = false;
+        foreach (var layer in _liveLayers)
+        {
+            if (!layer.TryGetBounds(out var b))
+                continue;
+            var layerLo = new Vector3((float)b.MinX, (float)b.MinY, (float)b.MinZ);
+            var layerHi = new Vector3((float)b.MaxX, (float)b.MaxY, (float)b.MaxZ);
+            min = found ? Vector3.Min(min, layerLo) : layerLo;
+            max = found ? Vector3.Max(max, layerHi) : layerHi;
+            found = true;
+        }
+        return found;
     }
 
     /// <summary>Inverse view-projection cached by the last
@@ -506,7 +609,55 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         var proj = _active.Projection(rtW, rtH);
         _hasInvViewProj = Matrix4x4.Invert(view * proj, out _invViewProj);
         DrawChrome(view * proj);
+        DrawLayers(view * proj);
+#if DEBUG
+        SpikeGlErrorProbe();
+#endif
     }
+
+    /// <summary>The content layers after the chrome (the brief's per-frame
+    /// order), through the same line program — each layer binds its own VAO
+    /// and draws the plane, then the executed overlay: equal depth, the later
+    /// draw wins under the GL_LEQUAL set once in the ctor.</summary>
+    private void DrawLayers(in Matrix4x4 vp)
+    {
+        if (_liveLayers.Count == 0)
+            return;
+        _gl.UseProgram(_lineProg);
+        var mvp = vp;
+        _gl.UniformMatrix4(_lineMvp, false,
+            MemoryMarshal.CreateReadOnlySpan(ref mvp.M11, 16));
+        foreach (var layer in _liveLayers)
+            layer.Draw();
+    }
+
+    /// <summary>Spike diagnostic (remove before the doc): ONE-SHOT
+    /// <c>glGetError</c> in <see cref="RenderFrame"/> — log-and-never-throw,
+    /// a GL error must not take the render loop down. Fires on the first frame
+    /// that draws layer content (Debug builds only), so the probe covers this
+    /// task's new GL calls; chrome-only sessions probe on the first frame.
+    /// The result stays readable for the headless test evidence.</summary>
+    private void SpikeGlErrorProbe()
+    {
+        if (_glErrorProbed)
+            return;
+        var hasLayerContent = false;
+        foreach (var layer in _liveLayers)
+            hasLayerContent |= layer.HasContent;
+        if (!hasLayerContent && _liveLayers.Count > 0)
+            return; // layers registered but not pumped yet — wait for content
+        _glErrorProbed = true;
+        _glErrorProbeResult = _gl.GetError();
+        if (_glErrorProbeResult != GLEnum.NoError)
+            Console.WriteLine($"plotter-gl spike: GL error reported after a frame: {_glErrorProbeResult}");
+    }
+
+    /// <summary>Spike diagnostic read seam: whether the one-shot probe ran.</summary>
+    internal bool GlErrorProbeRan => _glErrorProbed;
+
+    /// <summary>Spike diagnostic read seam: what the one-shot probe saw
+    /// (meaningless until <see cref="GlErrorProbeRan"/>).</summary>
+    internal GLEnum GlErrorProbeResult => _glErrorProbeResult;
 
     /// <summary>This frame's chrome, in the brief's per-frame order: grid →
     /// envelope → axis shafts → cone heads, all under the overlay gates, so the
@@ -514,6 +665,9 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// loft and tool draw after this on top (GL_LEQUAL, set once in the ctor).</summary>
     private void DrawChrome(in Matrix4x4 vp)
     {
+        // Re-assert the chrome width every frame: the layer draws widen it to
+        // their own Nex thickness, and GL line width is global state.
+        _gl.LineWidth(_chromeLineWidth);
         if (ShowGrid || ShowEnvelope || ShowOrigin)
         {
             _gl.UseProgram(_lineProg);
@@ -562,6 +716,9 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             return;
         _disposed = true;
         Context.MakeCurrent();
+        foreach (var layer in _liveLayers)
+            layer.Dispose();
+        _liveLayers.Clear();
         _gridMinor.Dispose();
         _gridMajor.Dispose();
         _axesLines.Dispose();
@@ -857,21 +1014,6 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             _ebo = 0;
             _vbo = 0;
             _vao = 0;
-        }
-    }
-
-    private sealed class NoopLayer : ICarriagePlaneLayer
-    {
-        public void AddSegment(LineSegment seg, MotionType type)
-        {
-        }
-
-        public void SetSegmentRunState(int segmentIndex, RunState state)
-        {
-        }
-
-        public void RebuildExecuted()
-        {
         }
     }
 

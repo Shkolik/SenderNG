@@ -60,6 +60,10 @@ internal sealed class RebuildGate
     private int _pendingMutations;
     private bool _dirty;
 
+    /// <summary>Pending mutations accumulated since the last granted rebuild
+    /// (read seam for "marked, not GPU-touched" assertions).</summary>
+    public int PendingMutations => _pendingMutations;
+
     /// <summary>Record one pooling mutation (add/color/overlay).</summary>
     public void MarkDirty()
     {
