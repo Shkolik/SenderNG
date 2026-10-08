@@ -243,7 +243,8 @@ the child process, which may still be writing to `output\linux`.
 
 ### Linux arm64 (Raspberry Pi)
 
-The sender runs on 64-bit arm64 Linux; a Raspberry Pi 4B is the tested target.
+The target is 64-bit arm64 Linux (Raspberry Pi 4B); the bundle has been built
+and inspected but not yet launched on hardware — see the note below.
 **The Plot 3D tab is not available on arm64** — see the
 [module's platform table](src/SenderNG.Modules.Plotter.Nex/docs/README.md) for
 why. Every other module, including the 2D plotter, ships normally.
@@ -259,8 +260,9 @@ Output lands in `output\linux-arm64\` as `SenderNG-<version>-linux-arm64.zip`
 plus `SHA256SUMS.txt`. The `win64` and `linux` folders are never touched.
 
 The bundle is cross-published (`dotnet publish -r linux-arm64`) from an x64
-host, so it is produced on a different machine than it runs on. **Verify it on
-the Pi before relying on it** — nothing in either test suite performs a publish.
+host, so it is produced on a different machine than it runs on. **The bundle
+has not yet been run on a Pi — verify it there before relying on it**; nothing
+in either test suite performs a publish.
 
 On the Pi:
 
