@@ -149,15 +149,22 @@ public class AppSettingsViewModelTests
         return handler?.GetInvocationList().Length ?? 0;
     }
 
-    // Construct in a separate frame: with tiered compilation the tier-0 JIT keeps an
-    // object built by `newobj` in the containing method's frame reported as a GC root,
-    // so a VM built inline in the test below would keep the WeakReference alive no
-    // matter what the production code does (a bare `new object()` reproduces this).
-    // NoInlining is what makes the collectability assertion measure the leak, not the JIT.
+    // The reference must never become a local of the frame that reads IsAlive: that
+    // frame keeps a stale strong pointer to whatever it has held, even after
+    // `last = null` (a bare `new object()` in this pattern stays alive too), so the
+    // collectability check fails no matter what the production code does. Create,
+    // dispose and capture the WeakReference inside this callee; only the
+    // WeakReference crosses back. NoInlining keeps the whole transaction out of the
+    // test frame, so the assertion measures the leak, not the frame's stack slots.
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static AppSettingsViewModel CreateDisposableVm(
-        SettingsService settings, LocalizationService loc, HotkeyService hotkeys) =>
-        new(settings, Modules, loc, null, hotkeys);
+    private static WeakReference CreateDisposeAndTrack(
+        SettingsService settings, LocalizationService loc, HotkeyService hotkeys, bool dispose)
+    {
+        var vm = new AppSettingsViewModel(settings, Modules, loc, null, hotkeys);
+        if (dispose)
+            vm.Dispose();
+        return new WeakReference(vm);
+    }
 
     [Fact]
     public void Dispose_releases_singleton_subscriptions_and_frees_the_view_model()
@@ -174,24 +181,26 @@ public class AppSettingsViewModelTests
             var locBaseline = SubscriberCount(loc, "Changed");
             var keyBaseline = SubscriberCount(hotkeys, "Changed");
 
-            AppSettingsViewModel? last = null;
+            var tracked = new List<WeakReference>(25);
             for (var i = 0; i < 25; i++)
-            {
-                last = CreateDisposableVm(settings, loc, hotkeys);
-                last.Dispose();
-            }
+                tracked.Add(CreateDisposeAndTrack(settings, loc, hotkeys, dispose: true));
 
             Assert.Equal(locBaseline, SubscriberCount(loc, "Changed"));
             Assert.Equal(keyBaseline, SubscriberCount(hotkeys, "Changed"));
 
-            var weak = new WeakReference(last);
-            last = null;
+            // Control: tracking must notice a real pin, or the check below passes
+            // vacuously. An undisposed VM is rooted by LocalizationService.Changed.
+            var pinned = CreateDisposeAndTrack(settings, loc, hotkeys, dispose: false);
+
             GC.Collect();
             GC.WaitForPendingFinalizers();
             GC.Collect();
-            Assert.False(weak.IsAlive,
+
+            Assert.True(pinned.IsAlive,
+                "control: an undisposed VM must stay rooted by LocalizationService.Changed");
+            Assert.All(tracked, weak => Assert.False(weak.IsAlive,
                 "AppSettingsViewModel must be collectable after Dispose; a live instance means "
-                + "LocalizationService.Changed still pins it.");
+                + "a singleton service still pins it."));
         }
         finally
         {
