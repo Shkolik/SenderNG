@@ -423,6 +423,13 @@ public partial class PlotterGlView : UserControl
 
             if (created)
             {
+                // The previous bitmap is replaced WITHOUT an explicit Dispose
+                // on purpose: byte-for-byte parity with Nex, which does the
+                // same on both its create and resize paths
+                // (PlotterNexView.axaml.cs:682, :707 replace; :567 nulls it
+                // without disposing). GpuImage.Source is reassigned here, so
+                // the old bitmap loses its last reference and the GC's
+                // finalizer reclaims it — matching Nex's lifetime model.
                 _bitmap = new WriteableBitmap(
                     new PixelSize((int)r.RtW, (int)r.RtH),
                     new Vector(96, 96),

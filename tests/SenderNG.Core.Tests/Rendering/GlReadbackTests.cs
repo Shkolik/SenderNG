@@ -73,4 +73,36 @@ public class GlReadbackTests
         Assert.False(string.IsNullOrWhiteSpace(ctx.Version));
         Assert.False(string.IsNullOrWhiteSpace(ctx.Renderer));
     }
+
+    /// <summary>Task 2 review: settle WHICH creation path actually produced
+    /// the context. The GL_VERSION string alone cannot — a legacy bootstrap
+    /// context reports its own (often higher, "Compatibility Profile")
+    /// version, which would sail through the minimum-version audit. So audit
+    /// the path itself: the ARB entry point resolved, the ARB call succeeded
+    /// with the mandated3.3-core-forward-compat attribs, no legacy fallback
+    /// occurred, and the CURRENT context's profile mask + flags say core and
+    /// forward-compatible (glGetIntegerv read back through this very context).</summary>
+    [GlFact]
+    public void Context_is_the_mandated_3_3_core_forward_compatible_context()
+    {
+        using var ctx = GlContext.Create();
+        Assert.True(ctx.ArbCreateResolved,
+            "wglGetProcAddress(\"wglCreateContextAttribsARB\") must resolve — " +
+            "without the extension only a legacy context can exist");
+        Assert.True(ctx.ArbCreateSucceeded,
+            $"the ARB call must succeed, not fall back — attribs: {ctx.ArbCreateAttribs}; " +
+            $"version: {ctx.Version}; renderer: {ctx.Renderer}");
+        Assert.False(ctx.UsedLegacyFallback,
+            "the final context must be the ARB-created one, not the legacy bootstrap");
+        Assert.True(ctx.IsCurrent,
+            "the audit reads below go through the current context — it must be THE context");
+        Assert.Equal(0x1, ctx.ProfileMask);
+        // GL_CONTEXT_FLAGS uses GL QUERY numbering (forward = 0x1,
+        // debug = 0x2) — the mirror image of the WGL request numbering used
+        // in the attribs (WGL forward = 0x2, WGL debug = 0x1).
+        Assert.True((ctx.ContextFlagsMask & 0x1) != 0,
+            $"GL_CONTEXT_FLAGS must include GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT (got 0x{ctx.ContextFlagsMask:X})");
+        Assert.True((ctx.ContextFlagsMask & 0x2) == 0,
+            $"GL_CONTEXT_FLAGS must NOT include GL_CONTEXT_FLAG_DEBUG_BIT (got 0x{ctx.ContextFlagsMask:X})");
+    }
 }

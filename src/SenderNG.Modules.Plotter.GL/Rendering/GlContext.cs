@@ -60,13 +60,17 @@ internal sealed unsafe class GlContext : IDisposable, INativeContext
     private const uint PfdDrawToWindow = 0x00000004, PfdSupportOpengl = 0x00000020,
                        PfdDoublebuffer = 0x00000001;
     private const byte PfdTypeRgba = 0;
-    // WGL_CONTEXT_* from the ARB_create_context spec (the values from the
-    // task sketch did not match the spec: flags bit 0x1 is
-    // WGL_CONTEXT_FORWARD_COMPATIBLE_BIT, the core-profile bit 0x1 belongs to
-    // the PROFILE_MASK attribute, not FLAGS). A core 3.3 context only needs
-    // major/minor + profile mask; forward compatibility is implicit on Windows.
+    // WGL_CONTEXT_* from the ARB_create_context spec (wglext.h). Note the two
+    // DIFFERENT 0x1 bits: inside FLAGS (0x2094), 0x1 is
+    // WGL_CONTEXT_DEBUG_BIT_ARB and 0x2 is
+    // WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB — while 0x1 inside the
+    // PROFILE_MASK (0x9126) value is the core-profile bit. The brief mandates
+    // a 3.3 core FORWARD-COMPATIBLE context, so the request below is
+    // major/minor + core profile mask + forward-compatible flag.
     private const int WglContextMajorVersion = 0x2091, WglContextMinorVersion = 0x2092,
-                      WglContextProfileMask = 0x9126, WglContextCoreProfileBit = 0x00000001;
+                      WglContextFlags = 0x2094, WglContextProfileMask = 0x9126,
+                      WglContextCoreProfileBit = 0x00000001,
+                      WglContextForwardCompatibleBit = 0x00000002;
 
     private static int s_classSeq;
     private static readonly WndProc s_defWndProc = DefWindowProc;
@@ -88,6 +92,41 @@ internal sealed unsafe class GlContext : IDisposable, INativeContext
     public string Renderer { get; private set; } = "";
 
     public string Vendor { get; private set; } = "";
+
+    // --- context-path evidence (Task 2 review): which creation path actually
+    //     produced the current context, and what the driver says it is. The
+    //     test GlReadbackTests.Context_is_the_mandated_3_3_core_context audits
+    //     these; production code never reads them. ---
+
+    /// <summary>wglGetProcAddress("wglCreateContextAttribsARB") returned a
+    /// callable pointer (extension present, not a NULL/sentinel).</summary>
+    internal bool ArbCreateResolved { get; private set; }
+
+    /// <summary>The ARB call itself returned a context. False either when the
+    /// extension was missing (see <see cref="ArbCreateResolved"/>) or when the
+    /// driver rejected the request — both fall back to the legacy bootstrap
+    /// context (see <see cref="UsedLegacyFallback"/>).</summary>
+    internal bool ArbCreateSucceeded { get; private set; }
+
+    /// <summary>The final context IS the legacy wglCreateContext bootstrap
+    /// (ARB path absent or failed) — i.e. NOT a created 3.3 core context.</summary>
+    internal bool UsedLegacyFallback { get; private set; }
+
+    /// <summary>The exact attribute list passed to the ARB call
+    /// (key=value, terminated by 0), or "" when the call never ran.</summary>
+    internal string ArbCreateAttribs { get; private set; } = "";
+
+    /// <summary>glGetIntegerv(GL_CONTEXT_PROFILE_MASK) on the final context:
+    /// 0x1 = core, 0x2 = compatibility, 0 = legacy context created without
+    /// profile attributes (or an invalid enum for pre-3.2 drivers).</summary>
+    internal int ProfileMask { get; private set; }
+
+    /// <summary>glGetIntegerv(GL_CONTEXT_FLAGS) on the final context. Uses
+    /// GL's QUERY numbering — GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT = 0x1,
+    /// GL_CONTEXT_FLAG_DEBUG_BIT = 0x2 — which is the mirror image of the
+    /// WGL request numbering (WGL debug = 0x1, WGL forward-compatible = 0x2);
+    /// EGL numbering matches WGL. Read bit 0x1 for forward-compatible here.</summary>
+    internal int ContextFlagsMask { get; private set; }
 
     public bool IsGles => false;
 
@@ -158,6 +197,7 @@ internal sealed unsafe class GlContext : IDisposable, INativeContext
         var pfd = new PixelFormatDescriptor
         {
             Size = (ushort)sizeof(PixelFormatDescriptor),
+            Version = 1,                    // nVersion is a fixed 1 per wingdi.h
             Flags = PfdDrawToWindow | PfdSupportOpengl | PfdDoublebuffer,
             PixelType = PfdTypeRgba,
             ColorBits = 32,
@@ -179,11 +219,12 @@ internal sealed unsafe class GlContext : IDisposable, INativeContext
         if (wglMakeCurrent(_hdc, _legacyCtx) == 0)
             throw new InvalidOperationException($"wglMakeCurrent(legacy) failed: {Marshal.GetLastWin32Error()}");
 
-        // 6. Upgrade to a real 3.3 core context through
+        // 6. Upgrade to a real 3.3 core forward-compatible context through
         //    wglCreateContextAttribsARB; fall back to the legacy context when
         //    the entry point is missing or the request fails (the version
         //    audit below then decides whether legacy is good enough).
         var pfnCreate = GetUsableProc(wglGetProcAddress("wglCreateContextAttribsARB"));
+        ArbCreateResolved = pfnCreate != 0;
         if (pfnCreate != 0)
         {
             var createAttribs = Marshal.GetDelegateForFunctionPointer<WglCreateContextAttribsArb>(pfnCreate);
@@ -192,13 +233,24 @@ internal sealed unsafe class GlContext : IDisposable, INativeContext
                 WglContextMajorVersion, 3,
                 WglContextMinorVersion, 3,
                 WglContextProfileMask, WglContextCoreProfileBit,
+                WglContextFlags, WglContextForwardCompatibleBit,
                 0,
             };
+            ArbCreateAttribs =
+                $"0x{WglContextProfileMask:X}=0x{WglContextCoreProfileBit:X} (core profile), " +
+                $"0x{WglContextFlags:X}=0x{WglContextForwardCompatibleBit:X} (forward compatible), " +
+                "0 (terminator) — via major=3 minor=3";
             _ctx = createAttribs(_hdc, 0, attribs);
+            if (_ctx != 0)
+                ArbCreateSucceeded = true;
         }
 
         if (_ctx == 0)
         {
+            // Review evidence: record that the mandated core path did NOT
+            // produce this context — the version audit below may still pass,
+            // because a legacy context reports its own (usually higher) version.
+            UsedLegacyFallback = true;
             _ctx = _legacyCtx;
             _legacyCtx = 0;                 // already current — becomes THE context
         }
@@ -221,6 +273,20 @@ internal sealed unsafe class GlContext : IDisposable, INativeContext
         Version = GlString(StringName.Version);
         Renderer = GlString(StringName.Renderer);
         Vendor = GlString(StringName.Vendor);
+
+        // 10. Read the definitive context identity off the CURRENT context —
+        //     profile mask + flags. A legacy bootstrap context reports 0 for
+        //     both (it was created without profile attributes); a successful
+        //     ARB create reports exactly the mask/flags it was requested with.
+        //     Errors are impossible to throw here: an unsupported enum just
+        //     leaves the output untouched (0), which is the right answer.
+        var profileMask = 0;
+        Api.GetInteger(GetPName.ContextProfileMask, &profileMask);
+        ProfileMask = profileMask;
+        var contextFlags = 0;
+        Api.GetInteger(GetPName.ContextFlags, &contextFlags);
+        ContextFlagsMask = contextFlags;
+
         if (!MeetsMinimumVersion(Version, 3, 3))
             throw new PlotGlUnavailableException(
                 $"OpenGL {Version} is below the required 3.3 ({Renderer})",
