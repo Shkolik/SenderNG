@@ -62,6 +62,13 @@ public class PlotterGlViewHeadlessTests
         // GlContext.Create in the process — the static constructor guarantees
         // that for this class. See GlFactAttribute.PreloadSystemOpenGl for
         // the full mechanism.
+        //
+        // Same second job as that method: pin Mesa's Gallium driver to
+        // llvmpipe unless the caller chose one — the app-local Mesa build's
+        // d3d12 Gallium driver crashes the process the first time a primitive
+        // draw executes (the scene draws its chrome every tick as of Task 4).
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GALLIUM_DRIVER")))
+            Environment.SetEnvironmentVariable("GALLIUM_DRIVER", "llvmpipe");
         var system = Path.Combine(Environment.SystemDirectory, "opengl32.dll");
         if (File.Exists(system))
             LoadLibraryW(system);

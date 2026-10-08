@@ -73,22 +73,38 @@ public sealed class GlFactAttribute : FactAttribute
         }
     }
 
-    /// <summary>Test-only: load the SYSTEM OpenGL loader by absolute path
-    /// before any GL call. The GL test bins carry an app-local Mesa
-    /// deployment (the only way to reach GL 3.3 in a headless CI session —
-    /// the session has no hardware display path, only GDI Generic 1.1).
-    /// gdi32's ChoosePixelFormat resolves "opengl32.dll" by bare name with
-    /// app-local first, and Mesa's loader does not register pixel formats
-    /// with GDI — ChoosePixelFormat then returns 0. Pre-loading
+    /// <summary>Test-only: prepare the GL stack for the test session. Two jobs,
+    /// both in force before the first GL call:
+    /// <para>
+    /// 1. Load the SYSTEM OpenGL loader by absolute path. The GL test bins
+    /// carry an app-local Mesa deployment (the only way to reach GL 3.3 in a
+    /// headless CI session — the session has no hardware display path, only
+    /// GDI Generic 1.1). gdi32's ChoosePixelFormat resolves "opengl32.dll" by
+    /// bare name with app-local first, and Mesa's loader does not register
+    /// pixel formats with GDI — ChoosePixelFormat then returns 0. Pre-loading
     /// %SystemRoot%\System32\opengl32.dll pins gdi32's lookup to the system
     /// module (formats work, exactly like a real machine), while .NET's
     /// DllImport probing (full path, app-local first) still binds Mesa for
     /// every wgl/gl call. Without an app-local deployment both paths resolve
-    /// to the same system module — a harmless no-op. Deliberately absent
-    /// from production code: user machines never ship an app-local
-    /// opengl32.dll.</summary>
+    /// to the same system module — a harmless no-op.
+    /// </para>
+    /// <para>
+    /// 2. Pin Mesa's Gallium driver to llvmpipe (software) unless the caller
+    /// already chose one. The app-local Mesa build's d3d12 Gallium driver
+    /// (26.2.4, Intel UHD 630) passes context/clear/readback but CRASHES THE
+    /// TEST HOST when any primitive draw executes — reproduced with a
+    /// minimal 2-vertex GL_LINES draw and a 3-vertex triangle, both clean at
+    /// glGetError, dying in the first sync (glFinish/glReadPixels) after the
+    /// draw. llvmpipe is the same Mesa, same GL 4.6 core context, same
+    /// pixels — only the rasterizer is the CPU — so every assertion here
+    /// still runs for real. A caller-set GALLIUM_DRIVER always wins.
+    /// Deliberately test-only, like the preload above: production must never
+    /// override the user's driver choice.
+    /// </para></summary>
     internal static void PreloadSystemOpenGl()
     {
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GALLIUM_DRIVER")))
+            Environment.SetEnvironmentVariable("GALLIUM_DRIVER", "llvmpipe");
         var system = Path.Combine(Environment.SystemDirectory, "opengl32.dll");
         if (File.Exists(system))
             LoadLibraryW(system);
