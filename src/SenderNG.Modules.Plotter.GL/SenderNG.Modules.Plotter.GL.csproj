@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- byte* row copy in GlReadback.CopyFrame. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pinned to the host app's resolved version (floating versions caused
+         TypeLoadException crashes historically — see the Nex csproj comments). -->
+    <PackageReference Include="Avalonia" Version="12.0.0" />
+    <!-- PNG screenshot export for the save-frame button (parity with Nex). -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <!-- OpenGL bindings. Managed-only: loads the OS-provided opengl32.dll /
+         libGL / libGLESv2 at runtime — no native NuGet assets, so no
+         linux-arm64 deployment gap. 2.x stable line per the due-diligence
+         research; 3.0 is still prerelease. -->
+    <PackageReference Include="Silk.NET.OpenGL" Version="2.23.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!-- Stage the full .deps graph into bin so SenderNG.csproj can copy it
+         into Modules\plotter-gl\ (the plugin's AssemblyResolve probe serves
+         dependencies from that folder). Mirrors the Nex csproj rationale. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SenderNG.Core\SenderNG.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Headless tests assert internal surface (camera state, failure verdicts). -->
+    <InternalsVisibleTo Include="SenderNG.Core.Tests" />
+  </ItemGroup>
+
+</Project>

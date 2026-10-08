@@ -1,0 +1,29 @@
+{
+  "strings": {
+    "module.plotter-gl.name": "Plot GL",
+    "module.plotter-gl.description": "G-code 3D path plotter: program toolpath with live run overlay.",
+    "module.plotter-gl.placeholder": "3D plotter (PoC)",
+    "module.plotter-gl.noProgram": "No program loaded.",
+    "module.plotter-gl.noMotion": "Program contains no motion.",
+    "module.plotter-gl.building": "Plotting…",
+    "module.plotter-gl.buildFailed": "Program could not be plotted.",
+    "module.plotter-gl.renderUnavailable": "3D plotting unavailable",
+    "module.plotter-gl.renderUnavailableHint": "No Vulkan 1.3 device could be created.",
+    "module.plotter-gl.renderUnavailable.notSupported": "Vulkan is not available on this system. Install or enable your Vulkan driver, then restart SenderNG. Run vulkaninfo --summary to check.",
+    "module.plotter-gl.renderUnavailable.runtimeError": "Vulkan is available, but no Vulkan 1.3 device could be created. Your graphics driver may predate Vulkan 1.3. Run vulkaninfo --summary to check.",
+    "module.plotter-gl.renderUnavailable.other": "3D plotting could not start or continue. See the diagnostics log for the exact error.",
+    "module.plotter-gl.settings.wireLength": "Wire length (tower distance)",
+    "module.plotter-gl.settings.worldAxes": "World axes",
+    "module.plotter-gl.settings.origin": "Origin",
+    "module.plotter-gl.settings.plane": "Plane {0}",
+    "module.plotter-gl.settings.view": "View",
+    "module.plotter-gl.settings.showOrigin": "Show origin",
+    "module.plotter-gl.settings.showEnvelope": "Show envelope",
+    "module.plotter-gl.settings.showRunState": "Show run state",
+    "module.plotter-gl.settings.showGrid": "Show grid",
+    "module.plotter-gl.settings.antiAliasing": "Rendering / Anti-aliasing",
+    "module.plotter-gl.settings.aaMode": "Mode",
+    "module.plotter-gl.settings.aaQuality": "Quality",
+    "module.plotter-gl.settings.supersample": "2x supersample (AA at 2x render)"
+  }
+}

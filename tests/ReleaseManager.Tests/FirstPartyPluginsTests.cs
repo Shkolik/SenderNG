@@ -40,24 +40,27 @@ namespace ReleaseManager.Tests;
 public class FirstPartyPluginsTests
 {
     [Fact]
-    public void ForPlatform_Win64_returns_all_five()
+    public void ForPlatform_Win64_returns_all_six()
     {
         var ids = FirstPartyPlugins.ForPlatform(ReleasePlatform.Win64).Select(p => p.Id).ToArray();
-        Assert.Equal(["excellon", "hpgl", "plotter", "plotter-nex", "probing"], ids.OrderBy(x => x, StringComparer.Ordinal));
+        Assert.Equal(["excellon", "hpgl", "plotter", "plotter-gl", "plotter-nex", "probing"], ids.OrderBy(x => x, StringComparer.Ordinal));
     }
 
     [Fact]
-    public void ForPlatform_Linux_returns_all_five()
+    public void ForPlatform_Linux_returns_all_six()
     {
         var ids = FirstPartyPlugins.ForPlatform(ReleasePlatform.Linux).Select(p => p.Id).ToArray();
-        Assert.Equal(["excellon", "hpgl", "plotter", "plotter-nex", "probing"], ids.OrderBy(x => x, StringComparer.Ordinal));
+        Assert.Equal(["excellon", "hpgl", "plotter", "plotter-gl", "plotter-nex", "probing"], ids.OrderBy(x => x, StringComparer.Ordinal));
     }
 
     [Fact]
-    public void ForPlatform_LinuxArm64_omits_plotter_nex()
+    public void ForPlatform_LinuxArm64_omits_plotter_nex_keeps_plotter_gl()
     {
+        // Unlike plotter-nex (Vulkan/Windows-only stack), plotter-gl is
+        // intended for linux-arm64 — that is the point of the spike — so it
+        // must survive the arm64 filter while plotter-nex is dropped.
         var ids = FirstPartyPlugins.ForPlatform(ReleasePlatform.LinuxArm64).Select(p => p.Id).ToArray();
-        Assert.Equal(["excellon", "hpgl", "plotter", "probing"], ids.OrderBy(x => x, StringComparer.Ordinal));
+        Assert.Equal(["excellon", "hpgl", "plotter", "plotter-gl", "probing"], ids.OrderBy(x => x, StringComparer.Ordinal));
     }
 
     [Fact]

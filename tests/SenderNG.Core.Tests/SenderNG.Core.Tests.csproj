@@ -37,6 +37,7 @@
          HPGL-specific types come through the alias. -->
     <ProjectReference Include="..\..\src\SenderNG.Modules.Hpgl\SenderNG.Modules.Hpgl.csproj" Aliases="hpgl" />
     <ProjectReference Include="..\..\src\SenderNG.Modules.Plotter\SenderNG.Modules.Plotter.csproj" />
+    <ProjectReference Include="..\..\src\SenderNG.Modules.Plotter.GL\SenderNG.Modules.Plotter.GL.csproj" />
     <ProjectReference Include="..\..\src\SenderNG.Modules.Plotter.Nex\SenderNG.Modules.Plotter.Nex.csproj" />
   </ItemGroup>
 
@@ -57,6 +58,10 @@
     </None>
     <None Include="..\..\src\SenderNG.Modules.Plotter\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.dll">
       <Link>Modules\SenderNG.Modules.Plotter.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\src\SenderNG.Modules.Plotter.GL\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.GL.dll">
+      <Link>Modules\SenderNG.Modules.Plotter.GL.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.Nex.dll">

@@ -1,0 +1,29 @@
+{
+  "strings": {
+    "module.plotter-gl.name": "3D-Grafik",
+    "module.plotter-gl.description": "3D-Pfadplotter für G-Code: Werkzeugpfad des Programms mit Live-Verlauf der Ausführung.",
+    "module.plotter-gl.placeholder": "3D-Plotter (PoC)",
+    "module.plotter-gl.noProgram": "Kein Programm geladen.",
+    "module.plotter-gl.noMotion": "Das Programm enthält keine Bewegungen.",
+    "module.plotter-gl.building": "Wird gezeichnet…",
+    "module.plotter-gl.buildFailed": "Das Programm konnte nicht gezeichnet werden.",
+    "module.plotter-gl.renderUnavailable": "3D-Darstellung nicht verfügbar",
+    "module.plotter-gl.renderUnavailableHint": "Es konnte kein Gerät mit Vulkan 1.3 erstellt werden.",
+    "module.plotter-gl.renderUnavailable.notSupported": "Vulkan ist auf diesem System nicht verfügbar. Vulkan-Treiber installieren oder aktivieren, dann SenderNG neu starten. Zur Prüfung vulkaninfo --summary ausführen.",
+    "module.plotter-gl.renderUnavailable.runtimeError": "Vulkan ist verfügbar, aber es konnte kein Gerät mit Vulkan 1.3 erstellt werden. Möglicherweise ist der Grafiktreiber älter als Vulkan 1.3. Zur Prüfung vulkaninfo --summary ausführen.",
+    "module.plotter-gl.renderUnavailable.other": "Die 3D-Darstellung konnte nicht gestartet oder fortgesetzt werden. Details zum genauen Fehler stehen im Diagnoseprotokoll.",
+    "module.plotter-gl.settings.wireLength": "Drahtlänge (Abstand der Türme)",
+    "module.plotter-gl.settings.worldAxes": "Weltachsen",
+    "module.plotter-gl.settings.origin": "Ursprung",
+    "module.plotter-gl.settings.plane": "Ebene {0}",
+    "module.plotter-gl.settings.view": "Ansicht",
+    "module.plotter-gl.settings.showOrigin": "Ursprung anzeigen",
+    "module.plotter-gl.settings.showEnvelope": "Umriss anzeigen",
+    "module.plotter-gl.settings.showRunState": "Ausführungsstatus anzeigen",
+    "module.plotter-gl.settings.showGrid": "Gitter anzeigen",
+    "module.plotter-gl.settings.antiAliasing": "Darstellung / Kantenglättung",
+    "module.plotter-gl.settings.aaMode": "Modus",
+    "module.plotter-gl.settings.aaQuality": "Qualität",
+    "module.plotter-gl.settings.supersample": "Überabtastung 2x (Kantenglättung durch 2x-Rendern)"
+  }
+}
