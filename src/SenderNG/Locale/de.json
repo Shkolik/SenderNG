@@ -338,6 +338,8 @@
     "app.msg.settingsCorruptKept": "Die Einstellungsdatei {0} war beschädigt, daher wurden die Standardwerte geladen; sie konnte nicht zur Seite gelegt werden und ist unverändert",
     "app.msg.settingsUnreadableMoved": "Die Einstellungsdatei {0} konnte nicht gelesen werden, daher wurden die Standardwerte geladen; sie wurde im selben Ordner unter einem Namen mit der Endung .corrupt verschoben — Dateiberechtigungen prüfen",
     "app.msg.settingsUnreadableKept": "Die Einstellungsdatei {0} konnte nicht gelesen werden, daher wurden die Standardwerte geladen; die Datei ist unverändert — Berechtigungen prüfen",
+    "app.msg.settingsNoDialog": "App-Einstellungen: kein Dialogdienst verfügbar",
+    "app.msg.settingsMissing": "Modul für die App-Einstellungen nicht gefunden",
     "app.msg.closed": "{0} geschlossen",
     "app.msg.openFailed": "Öffnen fehlgeschlagen: {0}",
     "app.msg.loading": "{0} wird geladen…",

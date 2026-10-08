@@ -338,6 +338,8 @@
     "app.msg.settingsCorruptKept": "Le fichier de paramètres {0} était endommagé ; les valeurs par défaut ont été chargées à la place. Il n'a pas pu être mis de côté et est inchangé",
     "app.msg.settingsUnreadableMoved": "Impossible de lire le fichier de paramètres {0} ; les valeurs par défaut ont été chargées à la place. Il a été déplacé dans le même dossier vers un nom se terminant par .corrupt — vérifiez les autorisations du fichier",
     "app.msg.settingsUnreadableKept": "Impossible de lire le fichier de paramètres {0} ; les valeurs par défaut ont été chargées à la place. Le fichier est inchangé — vérifiez ses autorisations",
+    "app.msg.settingsNoDialog": "Paramètres de l'application : aucun service de boîte de dialogue disponible",
+    "app.msg.settingsMissing": "Module des paramètres de l'application introuvable",
     "app.msg.closed": "{0} fermé",
     "app.msg.openFailed": "Échec de l'ouverture : {0}",
     "app.msg.loading": "Chargement de {0}…",

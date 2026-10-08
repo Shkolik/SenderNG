@@ -338,6 +338,8 @@
     "app.msg.settingsCorruptKept": "Settings file {0} was damaged, so defaults were loaded instead; it could not be set aside and is unchanged",
     "app.msg.settingsUnreadableMoved": "Settings file {0} could not be read, so defaults were loaded instead; it was moved in the same folder to a name ending in .corrupt — check the file's permissions",
     "app.msg.settingsUnreadableKept": "Settings file {0} could not be read, so defaults were loaded instead; the file is unchanged — check its permissions",
+    "app.msg.settingsNoDialog": "App settings: no dialog service available",
+    "app.msg.settingsMissing": "App settings module not found",
     "app.msg.closed": "Closed {0}",
     "app.msg.openFailed": "Open failed: {0}",
     "app.msg.loading": "Loading {0}…",
