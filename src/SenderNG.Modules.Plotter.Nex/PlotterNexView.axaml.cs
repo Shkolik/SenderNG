@@ -928,9 +928,31 @@ public partial class PlotterNexView : UserControl
             var path = await _fileDialogs.SaveFileAsync("Save screenshot (PNG)", suggested, "PNG image|*.png");
             if (path is null)
                 return;
-            using var img = SixLabors.ImageSharp.Image.LoadPixelData<SixLabors.ImageSharp.PixelFormats.Rgba32>(
-                rgba, _shotW, _shotH);
-            SixLabors.ImageSharp.ImageExtensions.SaveAsPng(img, path);
+            // Encode via Avalonia rather than ImageSharp: a direct ImageSharp
+            // reference is what put the package under NuGet's direct-dependency
+            // audit and raised its NU1902/NU1903 advisories (see the csproj), and
+            // the Skia plotter already exports PNG this way. A fresh bitmap, not
+            // _bitmap: the shot is the stable snapshot, the live one may be
+            // mid-render. Opened as a stream, NOT Save(path): the string overload
+            // swallows I/O failures, which would turn an unwritable folder into
+            // silent nothing instead of the error dialog below.
+            using (var shot = new WriteableBitmap(
+                new PixelSize(_shotW, _shotH), new Vector(96, 96),
+                PixelFormats.Rgba8888, AlphaFormat.Opaque))
+            {
+                using (var fb = shot.Lock())
+                {
+                    var rowBytes = checked(_shotW * 4);
+                    for (var y = 0; y < _shotH; y++)
+                        System.Runtime.InteropServices.Marshal.Copy(
+                            rgba,
+                            y * rowBytes,
+                            System.IntPtr.Add(fb.Address, y * fb.RowBytes),
+                            rowBytes);
+                }
+                using var file = new FileStream(path, FileMode.Create, FileAccess.Write);
+                shot.Save(file);
+            }
         }
         catch (Exception ex)
         {
