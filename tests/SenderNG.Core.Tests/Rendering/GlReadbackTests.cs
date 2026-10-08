@@ -79,7 +79,7 @@ public class GlReadbackTests
     /// context reports its own (often higher, "Compatibility Profile")
     /// version, which would sail through the minimum-version audit. So audit
     /// the path itself: the ARB entry point resolved, the ARB call succeeded
-    /// with the mandated3.3-core-forward-compat attribs, no legacy fallback
+    /// with the mandated 3.3-core-forward-compat attribs, no legacy fallback
     /// occurred, and the CURRENT context's profile mask + flags say core and
     /// forward-compatible (glGetIntegerv read back through this very context).</summary>
     [GlFact]
