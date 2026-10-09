@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using SenderNG.Modules.Fixed;
@@ -90,5 +91,17 @@ public partial class ConsoleView : UserControl
         // ScrollViewer clamps the offset to the new end on its own.
         if (e.ExtentDelta.Y > 0)
             _scrollViewer?.ScrollToEnd();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+
+        if (_scrollViewer is not null)
+        {
+            _scrollViewer.ScrollChanged -= OnScrollChanged;
+            ScrollChangedHooked = false;
+            _scrollViewer = null;
+        }
     }
 }
