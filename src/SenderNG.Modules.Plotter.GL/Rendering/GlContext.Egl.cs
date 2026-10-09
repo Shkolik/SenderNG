@@ -76,12 +76,25 @@ internal sealed unsafe partial class GlContext
     {
         // 1. Prefer MESA's surfaceless platform — no X11/Wayland connection
         //    needed, which is exactly what an offscreen FBO renderer wants.
-        //    Fall back to the default display when the extension is missing.
-        _eglDisplay = eglGetPlatformDisplay(EglPlatformSurfacelessMesa, 0, null);
-        if (_eglDisplay == 0)
-            _eglDisplay = eglGetDisplay(0);
-        if (_eglDisplay == 0)
+        //    Fall back to the default display when the platform is missing:
+        //    eglGetPlatformDisplay returns 0 for an unsupported platform, and
+        //    it is an EGL 1.5 entry point, so a pre-1.5 libEGL lacks the
+        //    symbol entirely (EntryPointNotFoundException) — catch that too
+        //    and let eglGetDisplay (present since EGL 1.0) decide.
+        nint display;
+        try
+        {
+            display = eglGetPlatformDisplay(EglPlatformSurfacelessMesa, 0, null);
+        }
+        catch (EntryPointNotFoundException)
+        {
+            display = 0;
+        }
+        if (display == 0)
+            display = eglGetDisplay(0);
+        if (display == 0)
             throw new InvalidOperationException($"eglGetDisplay failed: {EglError()}");
+        _eglDisplay = display;
 
         // 2.
         if (eglInitialize(_eglDisplay, out _, out _) == EglFalse)

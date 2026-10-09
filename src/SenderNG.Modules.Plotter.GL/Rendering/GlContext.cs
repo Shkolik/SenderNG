@@ -168,12 +168,17 @@ internal sealed unsafe partial class GlContext : IDisposable, INativeContext
     }
 
     /// <summary>Parse the leading MAJOR.MINOR of a glGetString(GL_VERSION)
-    /// string ("4.6.0 NVIDIA 546.33", "3.3.0 - Build 30.0.101.1340").
-    /// Unparseable input reports "too old" — the conservative answer, since we
-    /// cannot claim a version the driver did not state.</summary>
+    /// string ("4.6.0 NVIDIA 546.33", "3.3.0 - Build 30.0.101.1340"). GLES
+    /// drivers report the spec-mandated "OpenGL ES 3.2 &lt;info&gt;" form, so
+    /// the "OpenGL ES" prefix is stripped before the digit parse — desktop
+    /// strings never carry it and are unaffected. Unparseable input reports
+    /// "too old" — the conservative answer, since we cannot claim a version
+    /// the driver did not state.</summary>
     private static bool MeetsMinimumVersion(string version, int major, int minor)
     {
         var s = version.AsSpan().TrimStart();
+        if (s.StartsWith("OpenGL ES".AsSpan()))
+            s = s["OpenGL ES".Length..].TrimStart();
         var dot = s.IndexOf('.');
         if (dot <= 0 || !int.TryParse(s[..dot], out var gotMajor))
             return false;
