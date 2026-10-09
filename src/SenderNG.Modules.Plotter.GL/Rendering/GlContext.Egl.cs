@@ -1,12 +1,14 @@
 /*
  * GlContext.Egl.cs - Linux EGL half of GlContext: hand-rolled P/Invokes
  * against libEGL.so.1 (surfaceless, EGL_KHR_surfaceless_context). Desktop
- * GL 3.3 on x64; GLES 3.0 on arm64. Prefers the MESA surfaceless platform
- * display; falls back to the default display (eglGetDisplay(0)) when that
- * platform is missing OR when it initializes with zero configs (WSL2 Mesa
- * d3d12, Task 8b). Only ever *called* on non-Windows (GlContext.Create
- * dispatches at runtime), but compiled on every OS — so these DllImports
- * never fire on Windows.
+ * GL 3.3 on x64; GLES 3.0 on arm64. Walks a three-stage display chain —
+ * MESA surfaceless platform → default display (eglGetDisplay(0)) → MESA
+ * GBM platform — so WSL2 Mesa d3d12 (Task 8b: surfaceless initializes
+ * with zero configs) and a headless Raspberry Pi (Task 8c: default display
+ * fails eglInitialize without X/Wayland; GBM works) both find a working
+ * display. Only ever *called* on non-Windows (GlContext.Create dispatches
+ * at runtime), but compiled on every OS — so these DllImports never fire
+ * on Windows.
  */
 
 /*
@@ -64,53 +66,27 @@ internal sealed unsafe partial class GlContext
     private const int EglContextClientVersion = 0x3098, EglContextMinorVersion = 0x30FB;
     private const uint EglOpenGlEsApi = 0x30A0, EglOpenGlApi = 0x30A2;
     private const uint EglPlatformSurfacelessMesa = 0x31DD;
+    private const uint EglPlatformGbmMesa = 0x31D7;
 
     private static readonly object s_glLibGate = new();
     private static nint s_glLib;
 
     private nint _eglDisplay, _eglContext;
 
-    /// <summary>Create the surfaceless EGL context per the Task 8 call
-    /// sequence: MESA surfaceless display (default-display fallback) →
-    /// initialize → bind ES/GL API → choose one config → create context →
-    /// surfaceless eglMakeCurrent → version audit. When the platform
-    /// display initializes but exposes zero configs (WSL2 Mesa, Task 8b)
-    /// the config step retries the whole acquire → initialize → bind →
-    /// choose sequence on the default display.
-    /// <see cref="IsGles"/> is set to <see cref="IsArm64"/>.</summary>
+    /// <summary>Create the surfaceless EGL context per the Task 8c call
+    /// sequence: walk a three-stage display chain — MESA surfaceless
+    /// platform → default display (eglGetDisplay(0)) → MESA GBM platform —
+    /// running acquire → initialize → bind API → choose config at every
+    /// stage. A stage whose display is unavailable, fails eglInitialize,
+    /// or exposes zero configs is terminated and the chain moves on (WSL2
+    /// Mesa Task 8b: surfaceless initializes but is empty; headless Pi
+    /// Task 8c: default display never initializes without X/Wayland, GBM
+    /// does). Only when all three stages are exhausted does the chain
+    /// throw. <see cref="IsGles"/> is set to <see cref="IsArm64"/>.</summary>
     private void InitializeEgl()
     {
-        // 1. Prefer MESA's surfaceless platform — no X11/Wayland connection
-        //    needed, which is exactly what an offscreen FBO renderer wants.
-        //    Fall back to the default display when the platform is missing:
-        //    eglGetPlatformDisplay returns 0 for an unsupported platform, and
-        //    it is an EGL 1.5 entry point, so a pre-1.5 libEGL lacks the
-        //    symbol entirely (EntryPointNotFoundException) — catch that too
-        //    and let eglGetDisplay (present since EGL 1.0) decide.
-        //    platformDisplay records WHICH display we got: only the
-        //    platform one may be terminated later (empty-display fallback
-        //    in step 4), the default-display path never terminates here.
-        nint display;
-        try
-        {
-            display = eglGetPlatformDisplay(EglPlatformSurfacelessMesa, 0, null);
-        }
-        catch (EntryPointNotFoundException)
-        {
-            display = 0;
-        }
-        var platformDisplay = display != 0;
-        if (!platformDisplay)
-            display = eglGetDisplay(0);
-        if (display == 0)
-            throw new InvalidOperationException($"eglGetDisplay failed: {EglError()}");
-        _eglDisplay = display;
-
-        // 2. + 3. initialize, then arm64 binds GLES 3.0 / x64 binds desktop GL.
-        InitializeAndBindApi();
-
-        // 4. One config: RGBA8 + depth 24 ("COLOR_SIZE 8, DEPTH_SIZE 24" —
-        //    realized as R=G=B=A=8) with the matching renderable type.
+        // One config: RGBA8 + depth 24 ("COLOR_SIZE 8, DEPTH_SIZE 24" —
+        // realized as R=G=B=A=8) with the matching renderable type.
         int* configAttribs = stackalloc int[]
         {
             EglRenderableType, (int)(IsArm64 ? EglOpenGLES3Bit : EglOpenGLBit),
@@ -118,33 +94,79 @@ internal sealed unsafe partial class GlContext
             EglDepthSize, 24,
             EglNone,
         };
-        nint config = ChooseConfig(configAttribs);
 
-        // Task 8b: Mesa under WSL2 hands out a surfaceless platform display
-        // that initializes (EGL 1.5) yet has ZERO framebuffer configs —
-        // eglChooseConfig "succeeds" with numConfigs == 0 (0x3000 =
-        // EGL_SUCCESS). The default display on the same stack reports 75
-        // configs and works with surfaceless MakeCurrent, so terminate the
-        // empty platform display and redo acquire → initialize → bind →
-        // choose against it. Only throw when that ALSO comes up empty.
-        if (config == 0 && platformDisplay)
+        nint config = 0;
+        var creationPath = "";
+        var failure = "no EGL display available";
+
+        // Three-stage display chain: surfaceless → default → GBM. First
+        // stage that yields a config wins; every earlier stage is
+        // terminated before the next one starts. The loop stops as soon
+        // as a config lands, so `config` is 0 only when all 3 failed.
+        for (var stage = 0; stage < 3 && config == 0; stage++)
         {
-            eglTerminate(_eglDisplay);
-            platformDisplay = false;
-            _eglDisplay = eglGetDisplay(0);
-            if (_eglDisplay == 0)
-                throw new InvalidOperationException($"eglGetDisplay failed: {EglError()}");
-            InitializeAndBindApi();
-            config = ChooseConfig(configAttribs);
+            nint display;
+            switch (stage)
+            {
+                case 0:
+                    // MESA surfaceless platform — needs no X11/Wayland
+                    // connection, which is exactly what an offscreen FBO
+                    // renderer wants. Empty under WSL2 Mesa (Task 8b).
+                    creationPath = "path=egl-surfaceless-platform";
+                    display = AcquirePlatformDisplay(EglPlatformSurfacelessMesa);
+                    break;
+                case 1:
+                    // Default display (EGL 1.0): fine under X/Wayland, but
+                    // eglInitialize fails 0x3001 on a headless Pi with no
+                    // DISPLAY/WAYLAND (Task 8c).
+                    creationPath = "path=egl-default-display";
+                    display = eglGetDisplay(0);
+                    break;
+                default:
+                    // GBM_MESA platform with native=0: Mesa's device-less
+                    // entry — the stage that works on the headless Pi
+                    // (V3D, EGL 1.5, GLES 3.1).
+                    creationPath = "path=egl-gbm-platform";
+                    display = AcquirePlatformDisplay(EglPlatformGbmMesa);
+                    break;
+            }
+
+            if (display == 0)
+            {
+                failure = $"{creationPath}: display acquisition failed: {EglError()}";
+                continue;
+            }
+
+            _eglDisplay = display;
+            if (eglInitialize(_eglDisplay, out _, out _) == EglFalse)
+            {
+                failure = $"{creationPath}: eglInitialize failed: {EglError()}";
+                TerminateStage();
+                continue;
+            }
+            if (eglBindAPI(IsArm64 ? EglOpenGlEsApi : EglOpenGlApi) == EglFalse)
+            {
+                failure = $"{creationPath}: eglBindAPI failed: {EglError()}";
+                TerminateStage();
+                continue;
+            }
+            config = ChooseConfig(_eglDisplay, configAttribs);
+            if (config == 0)
+            {
+                failure = $"{creationPath}: eglChooseConfig failed: {EglError()}";
+                TerminateStage();
+            }
         }
+
         if (config == 0)
-            throw new InvalidOperationException($"eglChooseConfig failed: {EglError()}");
+            throw new InvalidOperationException(
+                $"EGL display chain exhausted (surfaceless → default → GBM): {failure}");
 
         // 5. x64: CONTEXT_MAJOR 3 + CONTEXT_MINOR 3 (desktop GL).
-        //    arm64: CONTEXT_CLIENT_VERSION (= MAJOR) 3 only — GLES. A
-        //    stackalloc cannot be retargeted at a different size, so the
-        //    GLES list just plants an early terminator at slot 2; EGL reads
-        //    attribs up to EGL_NONE and ignores the rest.
+        // arm64: CONTEXT_CLIENT_VERSION (= MAJOR) 3 only — GLES. A
+        // stackalloc cannot be retargeted at a different size, so the
+        // GLES list just plants an early terminator at slot 2; EGL reads
+        // attribs up to EGL_NONE and ignores the rest.
         int* ctxAttribs = stackalloc int[]
         {
             EglContextClientVersion, 3,
@@ -170,9 +192,7 @@ internal sealed unsafe partial class GlContext
         Version = GlString(StringName.Version);
         Renderer = GlString(StringName.Renderer);
         Vendor = GlString(StringName.Vendor);
-        CreationPath = platformDisplay
-            ? "path=egl-surfaceless-platform"
-            : "path=egl-default-display";
+        CreationPath = creationPath;
 
         var minMinor = IsArm64 ? 0 : 3;    // GLES 3.0 on arm64, GL 3.3 on x64
         if (!MeetsMinimumVersion(Version, 3, minMinor))
@@ -180,20 +200,36 @@ internal sealed unsafe partial class GlContext
                 $"OpenGL {Version} is below the required {(IsArm64 ? "ES 3.0" : "3.3")} ({Renderer})",
                 GlFailureCause.VersionTooLow);
 
-        void InitializeAndBindApi()
+        // eglGetPlatformDisplay is an EGL 1.5 entry point: a pre-1.5
+        // libEGL lacks the symbol entirely (EntryPointNotFoundException),
+        // which disables BOTH platform stages and leaves the default
+        // display — present since EGL 1.0 — to carry the chain alone.
+        static nint AcquirePlatformDisplay(uint platform)
         {
-            if (eglInitialize(_eglDisplay, out _, out _) == EglFalse)
-                throw new InvalidOperationException($"eglInitialize failed: {EglError()}");
-            if (eglBindAPI(IsArm64 ? EglOpenGlEsApi : EglOpenGlApi) == EglFalse)
-                throw new InvalidOperationException($"eglBindAPI failed: {EglError()}");
+            try
+            {
+                return eglGetPlatformDisplay(platform, 0, null);
+            }
+            catch (EntryPointNotFoundException)
+            {
+                return 0;
+            }
+        }
+
+        // A stage that fails anywhere must hand its display back before
+        // the next stage acquires its own.
+        void TerminateStage()
+        {
+            eglTerminate(_eglDisplay);
+            _eglDisplay = 0;
         }
 
         // Returns 0 on failure (eglChooseConfig FALSE or zero configs) so the
-        // caller can distinguish "surfaceless display is empty" from "done".
-        nint ChooseConfig(int* attribs)
+        // caller can tell "this display is empty" (WSL2, Task 8b) from "done".
+        static nint ChooseConfig(nint display, int* attribs)
         {
             nint cfg = 0;
-            return eglChooseConfig(_eglDisplay, attribs, &cfg, 1, out var numConfigs) != EglFalse
+            return eglChooseConfig(display, attribs, &cfg, 1, out var numConfigs) != EglFalse
                 && numConfigs >= 1 ? cfg : 0;
         }
     }
