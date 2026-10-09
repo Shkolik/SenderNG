@@ -103,6 +103,7 @@
   <ItemGroup>
     <!-- Hotkey provider tests (and other Core.Tests) assert internal host surface. -->
     <InternalsVisibleTo Include="SenderNG.Core.Tests" />
+    <InternalsVisibleTo Include="SenderNG.Tests" />
   </ItemGroup>
 
   <!-- The Nex plugin ships MOST of its code in external assemblies

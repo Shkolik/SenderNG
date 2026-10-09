@@ -48,6 +48,9 @@ public partial class ConsoleView : UserControl
 {
     private ScrollViewer? _scrollViewer;
 
+    internal ScrollViewer? WiredScrollViewer => _scrollViewer;
+    internal bool ScrollChangedHooked { get; private set; }
+
     public ConsoleView()
     {
         InitializeComponent();
@@ -74,6 +77,7 @@ public partial class ConsoleView : UserControl
             return;
 
         viewer.ScrollChanged += OnScrollChanged;
+        ScrollChangedHooked = true;
         viewer.ScrollToEnd(); // land at the bottom when the view (re)opens
         _scrollViewer = viewer;
     }
