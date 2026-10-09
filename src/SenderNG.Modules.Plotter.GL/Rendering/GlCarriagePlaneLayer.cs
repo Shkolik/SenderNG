@@ -87,44 +87,22 @@ internal sealed unsafe class GlCarriagePlaneLayer : ICarriagePlaneLayer, IDispos
     private bool _runStateVisible = true;
     private int _planeCapacity, _doneCapacity;            // fixed VBO budgets (GL_DYNAMIC_DRAW, never shrink)
     private int _planeDrawCount, _doneDrawCount;          // vertices the last pump shipped
-    private readonly float _baseWidth;                     // Nex base thickness the driver accepted
-    private readonly float _executedWidth;                 // Nex executed thickness the driver accepted
     private uint _planeVao, _planeVbo, _doneVao, _doneVbo;
     private bool _disposed;
 
     /// <summary>Create the layer's two VAO/VBO pairs on
-    /// <paramref name="ctx"/>'s context, and pick both draw widths out of the
-    /// <paramref name="acceptedWidths"/> the scene's
-    /// <see cref="GlLineWidths.Probe"/> reported for this context. Empty until
-    /// the first <see cref="Pump"/>.</summary>
-    public GlCarriagePlaneLayer(GlContext ctx, IReadOnlyList<float> acceptedWidths)
+    /// <paramref name="ctx"/>'s context. The draw widths are the Nex palette
+    /// constants: the scene pushes them to the expansion shader as
+    /// <c>uLineWidthPx</c>, so nothing here depends on what the driver's
+    /// <c>glLineWidth</c> accepts (checkpoint-4 items 3+4). Empty until the
+    /// first <see cref="Pump"/>.</summary>
+    public GlCarriagePlaneLayer(GlContext ctx)
     {
         _ctx = ctx;
         ctx.MakeCurrent();
         _gl = ctx.Api;
-        _baseWidth = PickWidth(acceptedWidths, BaseLineThickness);
-        _executedWidth = PickWidth(acceptedWidths, ExecutedLineThickness);
         (_planeVao, _planeVbo) = CreateLineArrays();
         (_doneVao, _doneVbo) = CreateLineArrays();
-    }
-
-    /// <summary>The width for a requested thickness out of the widths the
-    /// context's probe accepted: the largest accepted width that still fits
-    /// the request, so Nex's 3.2 lands on the nearest line the driver really
-    /// draws. The trial is pre-drained — a stale error from unrelated work
-    /// must not condemn it — and checked anyway: if even an accepted width is
-    /// refused, <see cref="GlLineWidths.Fallback"/> is the only thing left.</summary>
-    private float PickWidth(IReadOnlyList<float> accepted, float requested)
-    {
-        var w = GlLineWidths.Pick(accepted, requested);
-        GlLineWidths.Drain(_gl);
-        _gl.LineWidth(w);
-        if (_gl.GetError() != GLEnum.NoError)
-        {
-            w = GlLineWidths.Fallback;
-            _gl.LineWidth(w);
-        }
-        return w;
     }
 
     /// <summary>Pending mutations the layer's <see cref="RebuildGate"/> has
@@ -132,9 +110,10 @@ internal sealed unsafe class GlCarriagePlaneLayer : ICarriagePlaneLayer, IDispos
     /// GPU-touched" test.</summary>
     internal int PendingMutations => _gate.PendingMutations;
 
-    /// <summary>Read seam: the width the base toolpath draws with — Nex's
-    /// <see cref="BaseLineThickness"/> picked from the accepted set.</summary>
-    internal float BaseLineWidth => _baseWidth;
+    /// <summary>Read seam: the width this layer's draws render at — Nex's
+    /// <see cref="BaseLineThickness"/> palette value, pushed by the scene as
+    /// <c>uLineWidthPx</c> (never driver-picked).</summary>
+    internal float BaseLineWidth => BaseLineThickness;
 
     /// <summary>Executed-overlay vertex count (2 per done segment) — the
     /// Nex diagnostic retyped.</summary>
@@ -311,18 +290,17 @@ internal sealed unsafe class GlCarriagePlaneLayer : ICarriagePlaneLayer, IDispos
     /// <summary>Draw the uploaded prefix of both lists — chrome first, then
     /// layers (the scene calls this after <c>DrawChrome</c> under GL_LEQUAL,
     /// so the executed overlay wins an equal depth through its later draw).
-    /// The line program and its MVP are the scene's — set up by the caller.</summary>
+    /// The line program, its MVP, the viewport size and the palette width are
+    /// the scene's — set up by the caller before this runs.</summary>
     internal void Draw()
     {
         if (_disposed || _ctx.IsDisposed || _planeDrawCount == 0)
             return;
         _ctx.MakeCurrent();
-        _gl.LineWidth(_baseWidth);
         _gl.BindVertexArray(_planeVao);
         _gl.DrawArrays(PrimitiveType.Lines, 0, (uint)_planeDrawCount);
         if (_runStateVisible && _doneDrawCount > 0)
         {
-            _gl.LineWidth(_executedWidth);
             _gl.BindVertexArray(_doneVao);
             _gl.DrawArrays(PrimitiveType.Lines, 0, (uint)_doneDrawCount);
         }

@@ -63,6 +63,48 @@ internal static class GlShaders
         void main() { gl_Position = uMvp * vec4(aPos, 1.0); vColor = aColor; }
         """;
 
+    /// <summary>Fat-line expansion (checkpoint-4 items 3+4): every line
+    /// becomes a screen-space quad, because core drivers can refuse
+    /// <c>glLineWidth &gt; 1.0</c> while claiming a range up to 255. One
+    /// segment in, a four-corner triangle strip out: the perpendicular of the
+    /// segment in pixel space, offset by half <c>uLineWidthPx</c> and mapped
+    /// back through <c>uViewportPx</c>. Depth (<c>gl_Position.z</c>/w) is kept
+    /// per endpoint, so the <c>GL_LEQUAL</c> overlay ordering of the draws
+    /// does not change. The quad's long edges are real geometry edges — MSAA
+    /// has something to antialias. <para>
+    /// Note for Task 8 (GLES): geometry stages need GLSL ES 3.20; on ES 3.0
+    /// this stage must be re-cut as vertex-instanced expansion.</para></summary>
+    public const string LineGeometry = """
+        layout(lines) in;
+        layout(triangle_strip, max_vertices = 4) out;
+        in vec4 vColor[];
+        out vec4 gColor;
+        uniform vec2 uViewportPx;
+        uniform float uLineWidthPx;
+        void main() {
+            vec4 c0 = gl_in[0].gl_Position;
+            vec4 c1 = gl_in[1].gl_Position;
+            vec2 n0 = c0.xy / c0.w;
+            vec2 n1 = c1.xy / c1.w;
+            vec2 s0 = n0 * uViewportPx * 0.5;
+            vec2 s1 = n1 * uViewportPx * 0.5;
+            vec2 d = s1 - s0;
+            float len = length(d);
+            vec2 offset = vec2(0.0);
+            if (len > 1e-6) {
+                vec2 dir = d / len;
+                offset = vec2(-dir.y, dir.x) * (uLineWidthPx * 0.5) / (uViewportPx * 0.5);
+            }
+            gColor = vColor[0];
+            gl_Position = vec4((n0 + offset) * c0.w, c0.z, c0.w); EmitVertex();
+            gl_Position = vec4((n0 - offset) * c0.w, c0.z, c0.w); EmitVertex();
+            gColor = vColor[1];
+            gl_Position = vec4((n1 + offset) * c1.w, c1.z, c1.w); EmitVertex();
+            gl_Position = vec4((n1 - offset) * c1.w, c1.z, c1.w); EmitVertex();
+            EndPrimitive();
+        }
+        """;
+
     public const string LineFragment = """
         in vec4 vColor;
         out vec4 FragColor;
@@ -108,10 +150,18 @@ internal static class GlShaders
     /// <summary>Link a vertex+fragment pair into a program and release the
     /// stage objects (detached first, so they go now rather than at program
     /// deletion). Throws with the driver's info log on failure.</summary>
-    public static uint Link(GlApi gl, uint vs, uint fs)
+    public static uint Link(GlApi gl, uint vs, uint fs) => Link(gl, vs, 0, fs);
+
+    /// <summary>The three-stage line program: vertex → geometry (fat-line
+    /// expansion) → fragment. Same detach-and-release contract as the
+    /// two-stage overload; <paramref name="gs"/> 0 means "no geometry stage".
+    /// </summary>
+    public static uint Link(GlApi gl, uint vs, uint gs, uint fs)
     {
         var program = gl.CreateProgram();
         gl.AttachShader(program, vs);
+        if (gs != 0)
+            gl.AttachShader(program, gs);
         gl.AttachShader(program, fs);
         gl.LinkProgram(program);
         if (gl.GetProgram(program, ProgramPropertyARB.LinkStatus) == 0)
@@ -121,8 +171,12 @@ internal static class GlShaders
             throw new InvalidOperationException($"shader link failed: {log}");
         }
         gl.DetachShader(program, vs);
+        if (gs != 0)
+            gl.DetachShader(program, gs);
         gl.DetachShader(program, fs);
         gl.DeleteShader(vs);
+        if (gs != 0)
+            gl.DeleteShader(gs);
         gl.DeleteShader(fs);
         return program;
     }

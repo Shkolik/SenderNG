@@ -44,35 +44,15 @@ namespace SenderNG.Core.Tests;
 /// <summary>Checkpoint 3's line-width evidence: this driver reports
 /// <c>ALIASED_LINE_WIDTH_RANGE = [1,255]</c> and still refuses every wider
 /// line, so the reported range proves nothing and the widths have to be tried
-/// (drain → trial → drain). The probe's accepted set is the only thing the
-/// chrome and the layers are allowed to draw with — and the accepted set is
-/// what the due-diligence doc has to record.</summary>
+/// (drain → trial → drain). The probe stays on as evidence for the
+/// due-diligence doc; since checkpoint 4 the draws themselves use palette
+/// widths through the expansion shader, never driver acceptance.</summary>
 [Trait("Category", "GPU")]
 public class GlLineWidthsTests
 {
     private readonly ITestOutputHelper _output;
 
     public GlLineWidthsTests(ITestOutputHelper output) => _output = output;
-
-    [Fact]
-    public void Pick_takes_the_largest_accepted_width_that_fits()
-    {
-        Assert.Equal(1.5f, GlLineWidths.Pick([1f, 1.5f, 2f, 3f, 3.2f], 1.5f));
-        Assert.Equal(1f, GlLineWidths.Pick([1f, 1.5f, 2f], 1.2f));
-        // Nex's 3.2 palette request: nearest accepted width that does not
-        // exceed it (3.2 itself when the driver takes it).
-        Assert.Equal(3f, GlLineWidths.Pick([1f, 1.5f, 2f, 3f], 3.2f));
-        Assert.Equal(3.2f, GlLineWidths.Pick([1f, 1.5f, 2f, 3f, 3.2f], 3.2f));
-    }
-
-    [Fact]
-    public void Pick_falls_back_to_the_smallest_accepted_then_to_one()
-    {
-        // A driver that only takes wider lines still gets its smallest offer.
-        Assert.Equal(2f, GlLineWidths.Pick([2f, 3f], 1f));
-        // Nothing accepted at all: the one width every driver takes.
-        Assert.Equal(GlLineWidths.Fallback, GlLineWidths.Pick([], 1.5f));
-    }
 
     /// <summary>The evidence step itself, headless: log what this driver
     /// really accepts so the checkpoint record can carry it.</summary>
@@ -93,11 +73,13 @@ public class GlLineWidthsTests
         Assert.Equal(accepted.OrderBy(w => w).ToArray(), accepted); // ascending
     }
 
-    /// <summary>The wiring: the scene probes once, and both the chrome width
-    /// and the layer's toolpath width come out of that accepted set — never
-    /// out of the reported range.</summary>
+    /// <summary>The wiring after checkpoint 4: the probe still measures what
+    /// this driver accepts (evidence for the due-diligence doc), but the
+    /// widths the scene and the layers draw with are the palette values —
+    /// rendering no longer depends on driver <c>glLineWidth</c> acceptance
+    /// (fat-line geometry renders them as quads).</summary>
     [GlFact]
-    public void Scene_and_layers_draw_only_accepted_widths()
+    public void Scene_and_layers_draw_the_palette_widths_not_the_accepted_set()
     {
         using var ctx = GlContext.Create();
         using var scene = new GlPlotScene(ctx);
@@ -107,14 +89,13 @@ public class GlLineWidthsTests
             $"scene accepted line widths: [{string.Join(", ", accepted)}] " +
             $"| chrome {scene.ChromeLineWidth}");
 
+        // The probe remains honest evidence for this context...
         Assert.Contains(GlLineWidths.Fallback, accepted);
-        Assert.Contains(scene.ChromeLineWidth, accepted);
-        Assert.True(scene.ChromeLineWidth <= 1.5f,
-            $"chrome width {scene.ChromeLineWidth} exceeds the plan's 1.5");
+        // ...but the draw widths are the palette, independent of acceptance:
+        Assert.Equal(1.5f, scene.ChromeLineWidth);
 
         var layer = (GlCarriagePlaneLayer)scene.AddCarriagePlane();
-        Assert.Contains(layer.BaseLineWidth, accepted);
-        Assert.True(layer.BaseLineWidth <= GlCarriagePlaneLayer.BaseLineThickness,
-            $"layer width {layer.BaseLineWidth} exceeds Nex's {GlCarriagePlaneLayer.BaseLineThickness}");
+        Assert.Equal(GlCarriagePlaneLayer.BaseLineThickness, layer.BaseLineWidth);
+        Assert.Equal(GlCarriagePlaneLayer.ExecutedLineThickness, layer.BaseLineWidth);
     }
 }

@@ -89,6 +89,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     private readonly uint _lineProg;
     private readonly uint _meshProg;
     private readonly int _lineMvp;
+    private readonly int _lineViewport;
+    private readonly int _lineWidthPx;
     private readonly int _meshMvp;
     private readonly int _meshColor;
     private readonly int _meshLightDir;
@@ -110,20 +112,28 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     internal BoundingBox? ChromeEnvelope { get; private set; }
     private bool _disposed;
 
-    /// <summary>The chrome's preferred line width — the plan's
-    /// <c>min(1.5, max)</c> — picked from the probe at construction.</summary>
+    /// <summary>The chrome's line width — the plan's <c>min(1.5, max)</c>
+    /// preference as-is. A palette value: it is pushed to the expansion
+    /// shader as <c>uLineWidthPx</c> and no longer filtered through the
+    /// driver's glLineWidth acceptance.</summary>
     private const float ChromeLineRequest = 1.5f;
 
-    private readonly float _chromeLineWidth;
     private readonly float[] _acceptedLineSizes;
 
     /// <summary>Read seam: the line widths this context's probe accepted —
-    /// an ascending subset of <see cref="GlLineWidths.Candidates"/>.</summary>
+    /// an ascending subset of <see cref="GlLineWidths.Candidates"/>. Evidence
+    /// only; rendering never picks a width from it.</summary>
     internal IReadOnlyList<float> AcceptedLineSizes => _acceptedLineSizes;
 
-    /// <summary>Read seam: the width <see cref="DrawChrome"/> re-asserts
-    /// every frame (chrome plan preference, accepted-set picked).</summary>
-    internal float ChromeLineWidth => _chromeLineWidth;
+    /// <summary>Read seam: the width <see cref="DrawChrome"/> pushes as
+    /// <c>uLineWidthPx</c> — the chrome palette preference, independent of
+    /// driver acceptance.</summary>
+    internal float ChromeLineWidth => ChromeLineRequest;
+
+    /// <summary>Read seam: the one-shot constructor log line (accepted widths
+    /// + renderer) the due-diligence doc records — also written to
+    /// <see cref="Console"/> exactly once per scene.</summary>
+    internal string LineWidthLogLine { get; }
 
     // --- live content (Task 5) ---
     /// <summary>The carriage plane layers of the current build, in factory
@@ -141,6 +151,15 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// inside the first plane's bounds moves no coordinate but must still
     /// flip the grid to the multi-plane branch.</summary>
     private (Vector3 Center, Vector3 Span, int PlaneCount)? _chromeMetrics;
+
+    /// <summary>Nex's <c>_contentFramed</c> latch, verbatim semantics: the
+    /// constructor frames the camera once against empty content, so the first
+    /// rebuild that finds real content re-applies the current preset against
+    /// the content's bounds (checkpoint-4 item 1, superseding Task 5b's
+    /// no-auto-reframe for this one frame). Every later rebuild is
+    /// geometry-only; the latch resets when the content empties (Nex's
+    /// <c>sum == 0</c> branch), so the next load frames again.</summary>
+    private bool _contentFramed;
 
     /// <summary>Spike diagnostic latch (remove before the doc): the one-shot
     /// GL error probe has run, and what it saw. The probe itself only fires
@@ -179,29 +198,32 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         var gles = context.IsGles;
         _lineProg = GlShaders.Link(_gl,
             GlShaders.Compile(_gl, gles, ShaderType.VertexShader, GlShaders.LineVertex),
+            GlShaders.Compile(_gl, gles, ShaderType.GeometryShader, GlShaders.LineGeometry),
             GlShaders.Compile(_gl, gles, ShaderType.FragmentShader, GlShaders.LineFragment));
         _meshProg = GlShaders.Link(_gl,
             GlShaders.Compile(_gl, gles, ShaderType.VertexShader, GlShaders.MeshVertex),
             GlShaders.Compile(_gl, gles, ShaderType.FragmentShader, GlShaders.MeshFragment));
         _lineMvp = _gl.GetUniformLocation(_lineProg, "uMvp");
+        _lineViewport = _gl.GetUniformLocation(_lineProg, "uViewportPx");
+        _lineWidthPx = _gl.GetUniformLocation(_lineProg, "uLineWidthPx");
         _meshMvp = _gl.GetUniformLocation(_meshProg, "uMvp");
         _meshColor = _gl.GetUniformLocation(_meshProg, "uColor");
         _meshLightDir = _gl.GetUniformLocation(_meshProg, "uLightDir");
 
         // Depth test for the whole frame, set once: later draws (the Task 5
         // layers, loft and tool) win an equal-depth test through GL_LEQUAL.
-        // Line width: the reported ALIASED_LINE_WIDTH_RANGE is not trustworthy
-        // — several core drivers answer glLineWidth(w > 1.0) with
-        // GL_INVALID_VALUE while claiming [1, 255] — so probe the candidates
-        // once per context and pick the chrome's preferred width out of what
-        // the driver really takes. DrawChrome re-asserts the accepted width
-        // per frame: the layer draws widen it to their own Nex thickness in
-        // between.
+        // Line widths are PALETTE values fed to the expansion shader as
+        // uLineWidthPx — glLineWidth is not part of rendering anymore (core
+        // drivers can refuse w > 1.0 while claiming [1, 255]). The probe
+        // below stays on as per-context EVIDENCE, logged once from this
+        // constructor for the due-diligence doc (checkpoint-4 item 4).
         _gl.Enable(EnableCap.DepthTest);
         _gl.DepthFunc(DepthFunction.Lequal);
         _acceptedLineSizes = GlLineWidths.Probe(_gl);
-        _chromeLineWidth = GlLineWidths.Pick(_acceptedLineSizes, ChromeLineRequest);
-        _gl.LineWidth(_chromeLineWidth);
+        LineWidthLogLine =
+            $"[Plotter.GL] line widths accepted=[{string.Join(", ", _acceptedLineSizes)}] " +
+            $"on \"{context.Renderer}\"";
+        Console.WriteLine(LineWidthLogLine);
 
         _gridMinor = new LineMesh(context);
         _gridMajor = new LineMesh(context);
@@ -460,6 +482,21 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// <inheritdoc/>
     public void SetGrid(BoundingBox bounds, double minor, double major)
     {
+        var (minorVerts, majorVerts) = BuildGridLines(bounds, minor, major);
+        _gridMinor.Upload(minorVerts);
+        _gridMajor.Upload(majorVerts);
+        _gridBounds = bounds;
+        _hasGridBounds = true;
+    }
+
+    /// <summary>The grid's line vertices, split minor/major the way
+    /// <see cref="SetGrid"/> uploads them: one line per step along each axis,
+    /// colored per step exactly like Nex. Extracted as a pure function so the
+    /// vertex layout (including the far-edge boundaries) is assertable
+    /// without a GPU.</summary>
+    internal static (float[] Minor, float[] Major) BuildGridLines(
+        BoundingBox bounds, double minor, double major)
+    {
         if (minor <= 0) minor = 1;
         if (major <= 0) major = minor * 5;
 
@@ -475,25 +512,43 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         var minorVerts = new List<float>();
         var majorVerts = new List<float>();
 
+        float? lastX = null;
         for (double x = minX; x <= maxX + 1e-9; x += minor)
         {
             var xx = (float)Math.Min(x, maxX);
+            lastX = xx;
             var onMajor = IsOnStep(xx, major);
             AppendLine(onMajor ? majorVerts : minorVerts,
                 xx, minY, xx, maxY, z, onMajor ? GridMajorColor : GridMinorColor);
         }
+        float? lastY = null;
         for (double y = minY; y <= maxY + 1e-9; y += minor)
         {
             var yy = (float)Math.Min(y, maxY);
+            lastY = yy;
             var onMajor = IsOnStep(yy, major);
             AppendLine(onMajor ? majorVerts : minorVerts,
                 minX, yy, maxX, yy, z, onMajor ? GridMajorColor : GridMinorColor);
         }
 
-        _gridMinor.Upload(minorVerts.ToArray());
-        _gridMajor.Upload(majorVerts.ToArray());
-        _gridBounds = bounds;
-        _hasGridBounds = true;
+        // Close the frame: when (max - min) is not a step multiple the loops
+        // stop short of the far edge, so the grid's Xmax/Ymax boundary lines
+        // are appended explicitly — same major/minor coloring rule the clamp
+        // applies when a step does land on the boundary (checkpoint-4 item 2).
+        if (lastX is { } lx && lx != maxX)
+        {
+            var onMajor = IsOnStep(maxX, major);
+            AppendLine(onMajor ? majorVerts : minorVerts,
+                maxX, minY, maxX, maxY, z, onMajor ? GridMajorColor : GridMinorColor);
+        }
+        if (lastY is { } ly && ly != maxY)
+        {
+            var onMajor = IsOnStep(maxY, major);
+            AppendLine(onMajor ? majorVerts : minorVerts,
+                minX, maxY, maxX, maxY, z, onMajor ? GridMajorColor : GridMinorColor);
+        }
+
+        return (minorVerts.ToArray(), majorVerts.ToArray());
     }
 
     /// <inheritdoc/>
@@ -532,7 +587,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         if (_buildComplete)
             ResetBuild();
         _buildComplete = false;
-        var layer = new GlCarriagePlaneLayer(Context, _acceptedLineSizes);
+        var layer = new GlCarriagePlaneLayer(Context);
         _liveLayers.Add(layer);
         layer.SetRunStateVisible(ShowRunState);
         return layer;
@@ -650,8 +705,12 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
     /// <summary>Re-run the auto chrome when the aggregated content bounds moved
     /// — the plan's "rebuild when bounds change", wired at the pump and at the
-    /// reload fence. Geometry only: the camera never follows, a reframe here is
-    /// what turned a toolpath load into a zoom jump.</summary>
+    /// reload fence. Geometry only, with the single exception of Nex's
+    /// first-content frame: the first rebuild that finds staged content
+    /// re-applies the current preset against those bounds, because the
+    /// constructor framed the empty scene (checkpoint-4 item 1, see
+    /// <see cref="_contentFramed"/>). Later rebuilds never move the camera —
+    /// a reframe on a bounds move is the checkpoint-3 zoom-jump class.</summary>
     private void MaybeRebuildChrome()
     {
         var (center, _, span) = ChromeContentMetrics();
@@ -659,6 +718,20 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             && built.PlaneCount == _liveLayers.Count)
             return;
         BuildAutoChrome();
+        if (TryGetLayerBounds(out _, out _))
+        {
+            if (!_contentFramed)
+            {
+                _contentFramed = true;
+                SetViewPreset(_lastPreset);
+            }
+        }
+        else
+        {
+            // No content: back to grid-default framing on the next arrival
+            // (Nex's sum == 0 branch resets the latch the same way).
+            _contentFramed = false;
+        }
     }
 
     /// <summary>Inverse view-projection cached by the last
@@ -678,8 +751,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         var view = _active.View();
         var proj = _active.Projection(rtW, rtH);
         _hasInvViewProj = Matrix4x4.Invert(view * proj, out _invViewProj);
-        DrawChrome(view * proj);
-        DrawLayers(view * proj);
+        DrawChrome(view * proj, rtW, rtH);
+        DrawLayers(view * proj, rtW, rtH);
 #if DEBUG
         SpikeGlErrorProbe();
 #endif
@@ -688,17 +761,29 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// <summary>The content layers after the chrome (the brief's per-frame
     /// order), through the same line program — each layer binds its own VAO
     /// and draws the plane, then the executed overlay: equal depth, the later
-    /// draw wins under the GL_LEQUAL set once in the ctor.</summary>
-    private void DrawLayers(in Matrix4x4 vp)
+    /// draw wins under the GL_LEQUAL set once in the ctor. Width comes from
+    /// Nex's toolpath palette (base/executed 3.2/3.2), pushed as
+    /// <c>uLineWidthPx</c> — not from <c>glLineWidth</c>.</summary>
+    private void DrawLayers(in Matrix4x4 vp, uint rtW, uint rtH)
     {
         if (_liveLayers.Count == 0)
             return;
+        UseLineProgram(vp, rtW, rtH, GlCarriagePlaneLayer.BaseLineThickness);
+        foreach (var layer in _liveLayers)
+            layer.Draw();
+    }
+
+    /// <summary>Bind the line program with the frame's shared uniforms:
+    /// MVP, render-target size (the expansion's pixel space) and the calling
+    /// role's palette width.</summary>
+    private void UseLineProgram(in Matrix4x4 vp, uint rtW, uint rtH, float widthPx)
+    {
         _gl.UseProgram(_lineProg);
         var mvp = vp;
         _gl.UniformMatrix4(_lineMvp, false,
             MemoryMarshal.CreateReadOnlySpan(ref mvp.M11, 16));
-        foreach (var layer in _liveLayers)
-            layer.Draw();
+        _gl.Uniform2(_lineViewport, (float)rtW, (float)rtH);
+        _gl.Uniform1(_lineWidthPx, widthPx);
     }
 
     /// <summary>Spike diagnostic (remove before the doc): ONE-SHOT
@@ -732,18 +817,14 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// <summary>This frame's chrome, in the brief's per-frame order: grid →
     /// envelope → axis shafts → cone heads, all under the overlay gates, so the
     /// three toggles off leaves the clear color untouched. The Task 5 layers,
-    /// loft and tool draw after this on top (GL_LEQUAL, set once in the ctor).</summary>
-    private void DrawChrome(in Matrix4x4 vp)
+    /// loft and tool draw after this on top (GL_LEQUAL, set once in the ctor).
+    /// Line widths are the chrome palette value pushed as
+    /// <c>uLineWidthPx</c> — no <c>glLineWidth</c> state to re-assert.</summary>
+    private void DrawChrome(in Matrix4x4 vp, uint rtW, uint rtH)
     {
-        // Re-assert the chrome width every frame: the layer draws widen it to
-        // their own Nex thickness, and GL line width is global state.
-        _gl.LineWidth(_chromeLineWidth);
         if (ShowGrid || ShowEnvelope || ShowOrigin)
         {
-            _gl.UseProgram(_lineProg);
-            var mvp = vp;
-            _gl.UniformMatrix4(_lineMvp, false,
-                MemoryMarshal.CreateReadOnlySpan(ref mvp.M11, 16));
+            UseLineProgram(vp, rtW, rtH, ChromeLineRequest);
             if (ShowGrid)
             {
                 _gridMinor.Draw();

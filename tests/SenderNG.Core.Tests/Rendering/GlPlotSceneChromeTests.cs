@@ -110,22 +110,48 @@ public class GlPlotSceneChromeTests
         Assert.Equal(0, LitPixels(px));
     }
 
-    /// <summary>The plan line "rebuild when bounds change" that was never
-    /// wired: content staged far from the origin must move the grid and the
-    /// job envelope onto it at the next pump — while the camera stays put (no
-    /// auto-reframe; that reframe was the checkpoint-3 zoom jump).</summary>
+    /// <summary>Checkpoint-4 item 1 (Nex <c>_contentFramed</c> parity): the
+    /// constructor frames the camera once against empty content, so a model
+    /// that lands afterwards must trigger exactly one reframe onto its bounds
+    /// — the initial view centered like the snap button frames it, not skewed
+    /// toward the grid defaults.</summary>
     [GlFact]
-    public void Chrome_follows_layer_bounds_after_a_pump_without_moving_the_camera()
+    public void First_content_arrival_frames_the_camera_onto_the_content()
     {
         using var ctx = GlContext.Create();
         using var scene = new GlPlotScene(ctx);
         var cam = scene.ActiveCamera;
-        var cameraBefore = (cam.Position, cam.Target, cam.Width);
+        Assert.Equal(new Vector3(30f, 30f, -25f), cam.Target); // grid-default framing
 
         var layer = scene.AddCarriagePlane();
         layer.AddSegment(
             new LineSegment(new Vector3(100, 100, 0), new Vector3(140, 160, 0)), MotionType.Cut);
         scene.PumpCarriagePlanes();
+
+        // The preset (still Isometric3D) re-applied against the content's
+        // own bounds: center of the staged extents.
+        Assert.Equal(new Vector3(120f, 130f, 0f), cam.Target);
+    }
+
+    /// <summary>The plan line "rebuild when bounds change": content staged
+    /// far from the origin must move the grid and the job envelope onto it at
+    /// the next pump. The FIRST arrival reframes once (Nex
+    /// <c>_contentFramed</c>, checkpoint-4 item 1); every later rebuild is
+    /// geometry-only — the camera never follows a bounds move again (that
+    /// reframe was the checkpoint-3 zoom jump class).</summary>
+    [GlFact]
+    public void Chrome_follows_layer_bounds_and_only_the_first_arrival_frames()
+    {
+        using var ctx = GlContext.Create();
+        using var scene = new GlPlotScene(ctx);
+
+        var layer = scene.AddCarriagePlane();
+        layer.AddSegment(
+            new LineSegment(new Vector3(100, 100, 0), new Vector3(140, 160, 0)), MotionType.Cut);
+        scene.PumpCarriagePlanes();
+
+        var cam = scene.ActiveCamera;
+        var cameraAfterFirstFrame = (cam.Position, cam.Target, cam.Width);
 
         // Grid: the mill branch runs from machine (0,0) 20% past the model's
         // positive extent, at the content's own Z — not the ctor's -25 slab.
@@ -146,8 +172,16 @@ public class GlPlotSceneChromeTests
         Assert.Equal(-0.5f, env.Value.MinZ, 3);
         Assert.Equal(0.5f, env.Value.MaxZ, 3);
 
-        // A chrome rebuild never reframes.
-        Assert.Equal(cameraBefore, (cam.Position, cam.Target, cam.Width));
+        // Content moves again: the chrome follows, the camera does not.
+        layer.AddSegment(
+            new LineSegment(new Vector3(200, 200, 0), new Vector3(240, 260, 0)), MotionType.Cut);
+        scene.PumpCarriagePlanes();
+
+        var movedGrid = scene.ChromeGridBounds;
+        Assert.NotNull(movedGrid);
+        Assert.Equal(168f, movedGrid.Value.MaxX, 3); // new span.X 140 * 1.2
+        Assert.Equal(192f, movedGrid.Value.MaxY, 3); // new span.Y 160 * 1.2
+        Assert.Equal(cameraAfterFirstFrame, (cam.Position, cam.Target, cam.Width));
     }
 
     /// <summary>Program reload to an empty run: the reload fence disposes the
@@ -233,6 +267,42 @@ public class GlPlotSceneChromeTests
         Assert.Equal(140f, grid.Value.MaxX, 3);
         Assert.Equal(100f, grid.Value.MinY, 3);
         Assert.Equal(160f, grid.Value.MaxY, 3);
+    }
+
+    /// <summary>Checkpoint-4 item 2: the step loop stops short of the far
+    /// edge whenever (max − min) is not a multiple of the step, so the grid
+    /// never closes its frame — there must still be a line at exactly
+    /// <c>maxX</c> and one at exactly <c>maxY</c>.</summary>
+    [Fact]
+    public void Grid_far_edges_land_exactly_on_maxX_and_maxY_when_the_step_does_not()
+    {
+        // 10 % 3 and 7.5 % 3 are both non-zero: no step lands on either edge.
+        var (minor, major) = GlPlotScene.BuildGridLines(
+            new BoundingBox(0, 0, -1, 10, 7.5, 1), minor: 3, major: 6);
+        var lines = minor.Concat(major).ToArray();
+
+        Assert.True(VerticalLineAt(lines, 10f),
+            "grid has no vertical line at exactly maxX (10)");
+        Assert.True(HorizontalLineAt(lines, 7.5f),
+            "grid has no horizontal line at exactly maxY (7.5)");
+    }
+
+    /// <summary>One line = 2 vertices × 7 floats (pos + color): verticals
+    /// share X in both vertices, horizontals share Y.</summary>
+    private static bool VerticalLineAt(float[] lines, float x)
+    {
+        for (var o = 0; o + 13 < lines.Length; o += 14)
+            if (lines[o] == x && lines[o + 7] == x)
+                return true;
+        return false;
+    }
+
+    private static bool HorizontalLineAt(float[] lines, float y)
+    {
+        for (var o = 0; o + 13 < lines.Length; o += 14)
+            if (lines[o + 1] == y && lines[o + 8] == y)
+                return true;
+        return false;
     }
 
     private static int LitPixels(byte[] px)

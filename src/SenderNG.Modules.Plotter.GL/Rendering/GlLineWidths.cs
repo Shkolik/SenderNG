@@ -1,6 +1,6 @@
 /*
- * GlLineWidths.cs - line-width acceptance probe shared by the chrome and the
- * carriage-plane layers
+ * GlLineWidths.cs - the line-width acceptance probe, kept as per-context
+ * evidence/logging for the due-diligence doc (widths render as quads now)
  */
 
 /*
@@ -44,23 +44,26 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// <summary>The checkpoint-3 line-width evidence, shared: a core driver
 /// answered <c>glLineWidth(w &gt; 1.0)</c> with <c>GL_INVALID_VALUE</c> while
 /// <c>ALIASED_LINE_WIDTH_RANGE</c> reported <c>[1, 255]</c> — the reported
-/// range is a promise the driver does not keep, so the widths have to be
-/// tried. The scene probes once per context and every role (chrome, base
-/// toolpath, executed overlay) picks from the set that survived.</summary>
+/// range is a promise the driver does not keep, so the widths had to be
+/// tried. Since checkpoint 4 the widths render as screen-space quads
+/// (<see cref="GlShaders.LineGeometry"/>) and never read driver acceptance
+/// back: the probe stays on as per-context EVIDENCE, logged once by the
+/// scene constructor for the due-diligence doc (checkpoint-4 item 4).</summary>
 internal static class GlLineWidths
 {
     /// <summary>The probe order: Nex's toolpath thickness (3.2) and the
     /// chrome plan's 1.5, plus the integers checkpoint 3 left unverified.</summary>
     internal static readonly float[] Candidates = [1f, 1.5f, 2f, 3f, 3.2f];
 
-    /// <summary>The only width every driver accepts — the picker's last
-    /// resort and today's behavior when nothing wider survives the probe.</summary>
+    /// <summary>The only width every driver accepts — the documented floor
+    /// of the evidence set.</summary>
     internal const float Fallback = 1f;
 
     /// <summary>Try every candidate and return the widths the driver accepted,
     /// ascending. The error queue is drained before each trial (a stale error
     /// from unrelated work must not condemn a width) and after it (the trial's
-    /// own error must not condemn the next one).</summary>
+    /// own error must not condemn the next one). Evidence only — no draw path
+    /// picks a width from the result.</summary>
     internal static float[] Probe(GlApi gl)
     {
         var accepted = new List<float>(Candidates.Length);
@@ -73,21 +76,6 @@ internal static class GlLineWidths
             Drain(gl);
         }
         return accepted.ToArray();
-    }
-
-    /// <summary>The largest accepted width that still fits
-    /// <paramref name="requested"/>; below every accepted width (a driver that
-    /// only takes wider lines) the smallest accepted one; nothing accepted at
-    /// all falls back to <see cref="Fallback"/>.</summary>
-    internal static float Pick(IReadOnlyList<float> accepted, float requested)
-    {
-        float? best = null;
-        foreach (var w in accepted)
-            if (w <= requested && (best is null || w > best))
-                best = w;
-        if (best is { } picked)
-            return picked;
-        return accepted.Count > 0 ? accepted[0] : Fallback;
     }
 
     /// <summary>Consume the pending <c>glGetError</c> queue, bounded — the
