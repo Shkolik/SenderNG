@@ -72,6 +72,16 @@ internal static class GlShaders
     /// per endpoint, so the <c>GL_LEQUAL</c> overlay ordering of the draws
     /// does not change. The quad's long edges are real geometry edges — MSAA
     /// has something to antialias. <para>
+    /// Color interface (C1): the FS input is matched to
+    /// <c>gColor</c> BY NAME via <see cref="LineFragmentFat"/>. Neither
+    /// sanctioned alternative survives GLSL 330 — a same-name
+    /// <c>out vec4 vColor</c> collides with this stage's
+    /// <c>in vec4 vColor[]</c> (Mesa: <c>redeclaration of 'vColor' has
+    /// incorrect type</c>) and <c>layout(location)</c> on a GS output or FS
+    /// input needs <c>GL_ARB_separate_shader_objects</c>/GLSL 4.20 (Mesa:
+    /// <c>shader output explicit location requires ...</c>) — so the
+    /// geometry stage names its output freely and its twin fragment shader
+    /// follows suit.</para><para>
     /// Note for Task 8 (GLES): geometry stages need GLSL ES 3.20; on ES 3.0
     /// this stage must be re-cut as vertex-instanced expansion.</para></summary>
     public const string LineGeometry = """
@@ -105,10 +115,27 @@ internal static class GlShaders
         }
         """;
 
+    /// <summary>The legacy two-stage program's fragment stage (color matched
+    /// by name from <see cref="LineVertex"/>'s <c>vColor</c>), also the
+    /// body twin of <see cref="LineFragmentFat"/>.</summary>
     public const string LineFragment = """
         in vec4 vColor;
         out vec4 FragColor;
         void main() { FragColor = vec4(vColor.rgb, 1.0); }
+        """;
+
+    /// <summary>The three-stage program's fragment stage: same body as
+    /// <see cref="LineFragment"/>, input renamed to <c>gColor</c> so it
+    /// matches <see cref="LineGeometry"/>'s output by name. A geometry stage
+    /// cannot redeclare <c>vColor</c> (its input is already
+    /// <c>in vec4 vColor[]</c>) and GLSL 330 forbids explicit locations on
+    /// GS outputs / FS inputs, so without this twin the statically-read
+    /// FS input would never be written — undefined by spec, black on
+    /// Mesa.</summary>
+    public const string LineFragmentFat = """
+        in vec4 gColor;
+        out vec4 FragColor;
+        void main() { FragColor = vec4(gColor.rgb, 1.0); }
         """;
 
     public const string MeshVertex = """

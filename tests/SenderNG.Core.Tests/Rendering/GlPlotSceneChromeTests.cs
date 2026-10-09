@@ -129,8 +129,19 @@ public class GlPlotSceneChromeTests
         scene.PumpCarriagePlanes();
 
         // The preset (still Isometric3D) re-applied against the content's
-        // own bounds: center of the staged extents.
+        // own bounds: center of the staged extents. Full framing, not just
+        // the target — eye along the iso corner at radius * 2.2 and the
+        // zoom basis untouched: mirrors ContentMetrics + SetViewPreset's
+        // default branch, so a partial reframe that moved only Target must
+        // fail here.
         Assert.Equal(new Vector3(120f, 130f, 0f), cam.Target);
+        var center = new Vector3(120f, 130f, 0f); // the segment's midpoint
+        var radius = MathF.Max(
+            new Vector3(40f, 60f, 0f).Length() * 0.5f, 1f); // half the box diagonal
+        Assert.Equal(
+            center + Vector3.Normalize(new Vector3(-1f, -1f, 1f)) * (radius * 2.2f),
+            cam.Position);
+        Assert.Equal(100f, cam.Width);
     }
 
     /// <summary>The plan line "rebuild when bounds change": content staged

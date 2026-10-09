@@ -199,7 +199,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _lineProg = GlShaders.Link(_gl,
             GlShaders.Compile(_gl, gles, ShaderType.VertexShader, GlShaders.LineVertex),
             GlShaders.Compile(_gl, gles, ShaderType.GeometryShader, GlShaders.LineGeometry),
-            GlShaders.Compile(_gl, gles, ShaderType.FragmentShader, GlShaders.LineFragment));
+            GlShaders.Compile(_gl, gles, ShaderType.FragmentShader, GlShaders.LineFragmentFat));
         _meshProg = GlShaders.Link(_gl,
             GlShaders.Compile(_gl, gles, ShaderType.VertexShader, GlShaders.MeshVertex),
             GlShaders.Compile(_gl, gles, ShaderType.FragmentShader, GlShaders.MeshFragment));

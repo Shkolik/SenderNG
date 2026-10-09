@@ -122,7 +122,7 @@ public class GlLineShaderTests
         var quad = GlShaders.Link(gl,
             GlShaders.Compile(gl, ctx.IsGles, ShaderType.VertexShader, GlShaders.LineVertex),
             GlShaders.Compile(gl, ctx.IsGles, ShaderType.GeometryShader, GlShaders.LineGeometry),
-            GlShaders.Compile(gl, ctx.IsGles, ShaderType.FragmentShader, GlShaders.LineFragment));
+            GlShaders.Compile(gl, ctx.IsGles, ShaderType.FragmentShader, GlShaders.LineFragmentFat));
         var (vao, vbo) = CreateSegment(gl, -0.5f, 0.5f, ndcY);
         try
         {
@@ -184,6 +184,71 @@ public class GlLineShaderTests
         Assert.Contains(
             $"accepted=[{string.Join(", ", scene.AcceptedLineSizes)}]", log);
         Assert.Contains($"\"{ctx.Renderer}\"", log);
+    }
+
+    /// <summary>C1 guard: a line reaches the fragment shader in its palette
+    /// color — not merely non-background. The geometry stage's output
+    /// (<c>gColor</c>) must be statically matched by the fragment stage the
+    /// three-stage program links (<see cref="GlShaders.LineFragmentFat"/>,
+    /// input <c>gColor</c>); linking any FS whose input name never gets
+    /// written leaves it undefined by spec — black on Mesa. Rapid red
+    /// through the production path (scene program, layer draw).</summary>
+    [GlFact]
+    public unsafe void Rapid_line_pixel_carries_the_rapid_palette_color()
+    {
+        using var ctx = GlContext.Create();
+        using var rb = new GlReadback(ctx, 256, 256);
+        using var scene = new GlPlotScene(ctx);
+        ctx.MakeCurrent();
+        scene.SetViewportSize(256, 256);
+        var layer = (GlCarriagePlaneLayer)scene.AddCarriagePlane();
+        layer.AddSegment(
+            new LineSegment(new Vector3(-40, 0, 0), new Vector3(40, 0, 0)), MotionType.Rapid);
+        scene.PumpCarriagePlanes();
+        scene.SetViewPreset(ViewPreset.XY);
+        scene.SetView(new PlotterGlSettings
+        {
+            ShowOrigin = false,
+            ShowEnvelope = false,
+            ShowGrid = false,
+        });
+
+        rb.BeginFrame(Background);
+        scene.RenderFrame(256, 256);
+        var px = new byte[256 * 256 * 4];
+        fixed (byte* p = px)
+            Assert.True(rb.CopyFrame((nint)p, 256 * 4));
+
+        var rows = LitPixelsInColumn(px, 256, 128);
+        Assert.True(rows >= 1,
+            $"precondition: the Rapid line must light column 128, got {rows} rows");
+
+        var rapid = GlCarriagePlaneLayer.RapidColor;
+        var er = (byte)MathF.Round(rapid.X * 255f);
+        var eg = (byte)MathF.Round(rapid.Y * 255f);
+        var eb = (byte)MathF.Round(rapid.Z * 255f);
+        var mismatches = 0;
+        var fr = -1;
+        var fg = -1;
+        var fb = -1;
+        for (var y = 0; y < 256; y++)
+        {
+            var i = (y * 256 + 128) * 4;
+            if (px[i] == 32 && px[i + 1] == 35 && px[i + 2] == 40)
+                continue;
+            if (Math.Abs(px[i] - er) > 2 || Math.Abs(px[i + 1] - eg) > 2 ||
+                Math.Abs(px[i + 2] - eb) > 2)
+            {
+                if (mismatches == 0)
+                    (fr, fg, fb) = (px[i], px[i + 1], px[i + 2]);
+                mismatches++;
+            }
+        }
+        _output.WriteLine(
+            $"rapid palette rgb=({er},{eg},{eb}) over {rows} rows in column 128; " +
+            $"{mismatches} mismatched" +
+            (mismatches > 0 ? $", first bad rgb=({fr},{fg},{fb})" : string.Empty));
+        Assert.Equal(0, mismatches);
     }
 
     /// <summary>One horizontal line, interleaved vec3 + vec4 (stride 28) —
