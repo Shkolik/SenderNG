@@ -49,9 +49,11 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// Nex's preset/pan/zoom/orbit wiring retyped onto <see cref="CameraGestures"/>,
 /// and the view/projection cached per <see cref="RenderFrame"/> for cursor-ray
 /// placement. Each frame draws the static chrome through the two
-/// <see cref="GlShaders"/> programs — grid, job envelope, axis shafts and
-/// cone heads — in that order, then the content layers, loft and tool (Tasks
-/// 5 and 6) on top under <c>GL_LEQUAL</c>.
+/// <see cref="GlShaders"/> programs — grid, job envelope, axis shafts —
+/// then the content layers, loft and tool (Tasks 5 and 6), and finally the
+/// cone heads: the frame's one triangle pass, deliberately last (Intel
+/// MSAA root cause at the call site in <see cref="RenderFrame"/>), all
+/// under <c>GL_LEQUAL</c>.
 /// </para></summary>
 internal sealed unsafe class GlPlotScene : IPlotScene
 {
@@ -98,11 +100,6 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     private readonly LineMesh _gridMajor;
     private readonly LineMesh _axesLines;
     private readonly LineMesh _jobLines;
-
-    /// <summary>The MSAA re-arm segment: one degenerate off-screen line drawn
-    /// after the cone pass (checkpoint-7). The root-cause comment lives at its
-    /// draw in <see cref="DrawChrome"/>.</summary>
-    private readonly LineMesh _msaaHealer;
     private readonly IndexedMesh _cone;
     private readonly List<ConeInstance> _axisCones = [];
     private BoundingBox _gridBounds;
@@ -184,10 +181,14 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     private bool _glErrorProbed;
     private GLEnum _glErrorProbeResult;
 
-    /// <summary>Step 5f.2 regression latch: the MSAA healer segment has drawn
-    /// at least once (its draw lives in <see cref="DrawChrome"/>).</summary>
-    private bool _msaaHealerDrawn;
-
+    /// <summary>Step 5g.2 order-guard state: the layer pass drew earlier in
+    /// the current <see cref="RenderFrame"/> (<c>_sawLayerDraw</c>, raised by
+    /// <see cref="DrawLayers"/>), and the cone pass then ran after it
+    /// (<c>_layersDrawnBeforeCones</c>, latched by <see cref="DrawAxisCones"/>).
+    /// Both reset at the top of every frame; read through
+    /// <see cref="LayersDrawnBeforeCones"/>.</summary>
+    private bool _sawLayerDraw;
+    private bool _layersDrawnBeforeCones;
 
     /// <summary>Overlay chrome gates — pushed by <see cref="SetView"/> from the
     /// view's toggle bar (runtime-only: geometry stays uploaded, the draw is
@@ -250,15 +251,6 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _gridMajor = new LineMesh(context);
         _axesLines = new LineMesh(context);
         _jobLines = new LineMesh(context);
-        _msaaHealer = new LineMesh(context);
-        // Exactly two coincident vertices (one zero-length GL_LINES segment)
-        // far outside any view, color irrelevant — the segment is clipped
-        // before rasterization, so no fragment of it ever reaches a pixel.
-        // DrawChrome draws it after the cone pass; see there for why it exists.
-        var healerVerts = new List<float>();
-        AppendVertex(healerVerts, new Vector3(1e7f, 1e7f, 0f), Vector4.Zero);
-        AppendVertex(healerVerts, new Vector3(1e7f, 1e7f, 0f), Vector4.Zero);
-        _msaaHealer.Upload(healerVerts.ToArray());
         var (coneVerts, coneIdx) = GlMeshBuilder.BuildCone(
             GlMeshBuilder.DefaultRadius, GlMeshBuilder.DefaultHeight);
         _cone = new IndexedMesh(context, coneVerts, coneIdx);
@@ -773,16 +765,48 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// viewport-sized and cleared by <see cref="GlReadback.BeginFrame"/> before
     /// this is called. Recomputes the active camera's view/projection for the
     /// render-target aspect, caches the inverse for cursor-ray placement, then
-    /// draws the static chrome (grid → envelope → axis shafts → cone heads);
+    /// draws the static chrome (grid → envelope → axis shafts), the content
+    /// layers, and last the cone heads — the frame's only triangle pass,
+    /// deliberately last (root cause at its call below);
     /// <paramref name="rtW"/> / <paramref name="rtH"/> are the render-target
-    /// pixels (supersample factor applied), the size the draws must cover.</summary>
+    /// pixels (supersample factor applied), the size the draws must cover.
+    /// The order-guard seam for that placement resets here, before any
+    /// draw.</summary>
     public void RenderFrame(uint rtW, uint rtH)
     {
+        _sawLayerDraw = false;
+        _layersDrawnBeforeCones = false;
         var view = _active.View();
         var proj = _active.Projection(rtW, rtH);
         _hasInvViewProj = Matrix4x4.Invert(view * proj, out _invViewProj);
         DrawChrome(view * proj, rtW, rtH);
         DrawLayers(view * proj, rtW, rtH);
+        // The cone pass runs LAST, and the placement is the whole fix
+        // (checkpoint-8; probe matrix in the SDD ledger). WHY: on Intel
+        // (UHD 630, driver 31.0.101.2137) any in-frame GL_TRIANGLES draw
+        // drops multisample coverage for every subsequent draw until the
+        // next framebuffer clear, and the cones are the frame's only
+        // triangle pass — in the old order (cones inside DrawChrome, ahead
+        // of the layers) they poisoned the toolpath's AA while chrome drawn
+        // before them kept its own. Checkpoint-7's fix drew a degenerate
+        // re-arm line after the cones instead; on hardware every in-frame
+        // heal variant failed once the line program had already run that
+        // frame (5f's probe matrix), so in-frame healing is a dead end. A
+        // triangles draw only poisons draws AFTER it, so the pass moves
+        // here: with the cones last, every line draw (grid, envelope, axes,
+        // toolpath) is unaffected, and the cones lose nothing — their own
+        // pixels were already hard-edged under MSAA (0/92 changed None vs
+        // X8; the poisoning draw is itself un-antialiased). Documented, not
+        // fixed: at equal-depth overlap (the origin region) the cones now
+        // win ties because they draw later; and any future triangle pass
+        // (Task 6 loft/tool) must also stay after the line passes — all
+        // triangle draws are self-hard under MSAA on this driver regardless
+        // of position. Mesa never shows the defect, so this suite proves
+        // the ORDER only through the LayersDrawnBeforeCones seam, not
+        // pixels. The ShowOrigin gate travels with the pass: the shafts
+        // stay gated in DrawChrome and the heads follow the same toggle.
+        if (ShowOrigin)
+            DrawAxisCones(view * proj);
 #if DEBUG
         SpikeGlErrorProbe();
 #endif
@@ -793,11 +817,14 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// and draws the plane, then the executed overlay: equal depth, the later
     /// draw wins under the GL_LEQUAL set once in the ctor. Width comes from
     /// Nex's toolpath palette (base/executed 3.2/3.2), pushed as
-    /// <c>uLineWidthPx</c> — not from <c>glLineWidth</c>.</summary>
+    /// <c>uLineWidthPx</c> — not from <c>glLineWidth</c>. Reaching this
+    /// method with layers to draw raises the order-guard observation the
+    /// cone pass latches (see <see cref="LayersDrawnBeforeCones"/>).</summary>
     private void DrawLayers(in Matrix4x4 vp, uint rtW, uint rtH)
     {
         if (_liveLayers.Count == 0)
             return;
+        _sawLayerDraw = true;
         UseLineProgram(vp, rtW, rtH, GlCarriagePlaneLayer.BaseLineThickness);
         foreach (var layer in _liveLayers)
             layer.Draw();
@@ -844,21 +871,24 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// (meaningless until <see cref="GlErrorProbeRan"/>).</summary>
     internal GLEnum GlErrorProbeResult => _glErrorProbeResult;
 
-    /// <summary>Step 5f.2 regression read seam: the MSAA healer segment has
-    /// drawn (latched on its first draw in <see cref="DrawChrome"/> — false
-    /// until a frame draws it, so check it before the frame that must not).</summary>
-    internal bool MsaaHealerDrawn => _msaaHealerDrawn;
+    /// <summary>Step 5g.2 order-guard read seam: the most recent
+    /// <see cref="RenderFrame"/> ran the layer pass before the cone pass.
+    /// Fed only by the actual draw methods — <see cref="DrawLayers"/> raises
+    /// the observation, <see cref="DrawAxisCones"/> latches it — and reset
+    /// at the top of every frame, so it is false on a frame with no layer
+    /// content or no cone pass, and false the moment anyone moves the cones
+    /// back ahead of the layers (the checkpoint-7 order).</summary>
+    internal bool LayersDrawnBeforeCones => _layersDrawnBeforeCones;
 
     /// <summary>This frame's chrome, in the brief's per-frame order: grid →
-    /// envelope → axis shafts → cone heads, then the MSAA re-arm segment (see
-    /// the comment in the <see cref="ShowOrigin"/> block), all under the
-    /// overlay gates, so the three toggles off leaves the clear color
-    /// untouched. The Task 5 layers,
-    /// loft and tool draw after this on top (GL_LEQUAL, set once in the ctor).
+    /// envelope → axis shafts, all under the overlay gates, so the three
+    /// toggles off leaves the clear color untouched. The content layers draw
+    /// after this, then the cone heads last — see <see cref="RenderFrame"/>
+    /// for why the triangle pass must close the frame (the GL_LEQUAL set
+    /// once in the ctor decides its equal-depth ties).
     /// Each line piece group re-binds the program with ITS OWN palette width
     /// (Nex per-piece parity: grid/envelope 1.6, axis shafts 3.6) as
-    /// <c>uLineWidthPx</c> — no <c>glLineWidth</c> state to re-assert; the
-    /// cone heads are the mesh pass, untouched by line widths.</summary>
+    /// <c>uLineWidthPx</c> — no <c>glLineWidth</c> state to re-assert.</summary>
     private void DrawChrome(in Matrix4x4 vp, uint rtW, uint rtH)
     {
         if (ShowGrid)
@@ -882,34 +912,20 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             UseLineProgram(vp, rtW, rtH, width);
             _pushedAxesWidth = width;
             _axesLines.Draw();
-            DrawAxisCones(vp);
-
-            // WHY this pointless-looking draw exists (checkpoint-7, Intel
-            // UHD 630): on Intel any in-frame GL_TRIANGLES draw disables
-            // multisample coverage for every subsequent draw until the next
-            // framebuffer clear, and a GL_LINES draw re-arms it. DrawAxisCones
-            // is the frame's only triangle pass, so it poisons coverage for
-            // every layer/toolpath draw after it — chrome drawn before it
-            // (grid, envelope, axes) keeps its AA, which is exactly the user's
-            // "grid soft, toolpath hard" symptom. glFinish, FBO re-binds,
-            // glEnable(MULTISAMPLE) and a scissored clear do NOT recover;
-            // a GL_LINES draw does. Mesa never shows the defect (the headless
-            // suite stayed green). So draw one degenerate zero-length segment
-            // (1e7 off-screen, clipped before rasterization — zero pixels)
-            // through the line program: invisible, but it re-arms MSAA for the
-            // content that follows.
-            UseLineProgram(vp, rtW, rtH, width);
-            _msaaHealer.Draw();
-            _msaaHealerDrawn = true;
         }
     }
 
     /// <summary>The shaded mesh pass: one shared cone mesh, one model matrix
-    /// and one axis color per head (3 heads, 3 uniform sets).</summary>
+    /// and one axis color per head (3 heads, 3 uniform sets). The frame's
+    /// last pass (see <see cref="RenderFrame"/> for why the triangle pass
+    /// must close the frame); reaching it after a layer pass is what latches
+    /// the order-guard seam.</summary>
     private void DrawAxisCones(in Matrix4x4 vp)
     {
         if (_axisCones.Count == 0)
             return;
+        if (_sawLayerDraw)
+            _layersDrawnBeforeCones = true;
         _gl.UseProgram(_meshProg);
         _gl.Uniform3(_meshLightDir, LightDirection);
         for (var i = 0; i < _axisCones.Count; i++)
@@ -939,7 +955,6 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _gridMajor.Dispose();
         _axesLines.Dispose();
         _jobLines.Dispose();
-        _msaaHealer.Dispose();
         _cone.Dispose();
         _gl.DeleteProgram(_lineProg);
         _gl.DeleteProgram(_meshProg);
