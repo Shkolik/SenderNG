@@ -318,7 +318,7 @@ internal sealed unsafe class GlReadback : IDisposable
             return;
         }
         if (_fbo == 0 && _colorRb == 0 && _depthRb == 0
-            && _msaaFbo == 0 && _msaaColorRb == 0 && _resolveTex == 0)
+            && _msaaFbo == 0 && _msaaColorRb == 0 && _msaaDepthRb == 0 && _resolveTex == 0)
             return;
 
         _ctx.MakeCurrent();

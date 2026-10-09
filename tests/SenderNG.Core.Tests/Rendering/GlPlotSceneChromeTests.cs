@@ -202,6 +202,39 @@ public class GlPlotSceneChromeTests
         Assert.Equal(160f, grid.Value.MaxY, 3);
     }
 
+    /// <summary>The rebuild latch must include the plane count: a second plane
+    /// staged entirely inside the first plane's bounds does not move the
+    /// aggregated (center, span) but still flips the grid to the multi-plane
+    /// branch — without planeCount in the latch the chrome keeps the mill
+    /// table for a 2-plane foam run.</summary>
+    [GlFact]
+    public void Second_plane_inside_the_first_planes_bounds_switches_the_grid_branch()
+    {
+        using var ctx = GlContext.Create();
+        using var scene = new GlPlotScene(ctx);
+
+        var first = scene.AddCarriagePlane();
+        first.AddSegment(
+            new LineSegment(new Vector3(100, 100, 0), new Vector3(140, 160, 0)), MotionType.Cut);
+        scene.PumpCarriagePlanes();
+
+        var millGrid = scene.ChromeGridBounds;
+        Assert.NotNull(millGrid);
+        Assert.Equal(0f, millGrid.Value.MinX, 3); // precondition: one plane = mill table
+
+        var second = scene.AddCarriagePlane();
+        second.AddSegment(
+            new LineSegment(new Vector3(110, 110, 0), new Vector3(120, 120, 0)), MotionType.Cut);
+        scene.PumpCarriagePlanes();
+
+        var grid = scene.ChromeGridBounds;
+        Assert.NotNull(grid);
+        Assert.Equal(100f, grid.Value.MinX, 3); // unchanged bounds, two planes: envelope-centered
+        Assert.Equal(140f, grid.Value.MaxX, 3);
+        Assert.Equal(100f, grid.Value.MinY, 3);
+        Assert.Equal(160f, grid.Value.MaxY, 3);
+    }
+
     private static int LitPixels(byte[] px)
     {
         var lit = 0;

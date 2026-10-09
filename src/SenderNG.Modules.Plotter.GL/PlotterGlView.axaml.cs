@@ -411,10 +411,17 @@ public partial class PlotterGlView : UserControl
     {
         try
         {
+            // MSAA rides the same tick as the render size, but on its own axis
+            // (sample count vs supersample scale). The first create takes the
+            // configured mode straight to the ctor — no default-then-rebuild
+            // double allocation on the first tick. SetMsaa is a no-op when the
+            // mode already matches; a mode this driver cannot build falls back
+            // to the plain path rather than losing the whole panel.
+            var msaa = _overlayToggles?.MsaaMode ?? MsaaMode.None;
             var created = false;
             if (_readback is null)
             {
-                _readback = new GlReadback(_gl!, r.RtW, r.RtH);
+                _readback = new GlReadback(_gl!, r.RtW, r.RtH, msaa);
                 created = true;
             }
             else if (r.RtW != _rtW || r.RtH != _rtH)
@@ -423,11 +430,6 @@ public partial class PlotterGlView : UserControl
                 created = true;
             }
 
-            // MSAA rides the same tick as the render size, but on its own axis
-            // (sample count vs supersample scale). SetMsaa is a no-op when the
-            // mode already matches; a mode this driver cannot build falls back
-            // to the plain path rather than losing the whole panel.
-            var msaa = _overlayToggles?.MsaaMode ?? MsaaMode.None;
             if (_readback.Msaa != msaa)
             {
                 try

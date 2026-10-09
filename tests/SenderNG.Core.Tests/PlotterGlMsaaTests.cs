@@ -120,6 +120,17 @@ public class PlotterGlMsaaTests
         Assert.Equal(
             MsaaMode.X4,
             PlotterGlConfig.Load(settings.Load(), Mill).MsaaMode);
+
+        // Out-of-range writes — the ComboBox's transient -1 while it has no
+        // matching selection, or junk from a stale binding — are ignored: no
+        // convert-to-None behind the user's back, nothing new persisted.
+        vm.MsaaIndex = -1;
+        Assert.Equal(MsaaMode.X4, vm.MsaaMode);
+        vm.MsaaIndex = 9;
+        Assert.Equal(MsaaMode.X4, vm.MsaaMode);
+        Assert.Equal(
+            MsaaMode.X4,
+            PlotterGlConfig.Load(settings.Load(), Mill).MsaaMode);
     }
 
     private static MachineProfile MakeMill(SettingsService settings)

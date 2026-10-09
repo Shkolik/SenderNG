@@ -182,13 +182,19 @@ public sealed class PlotterGlSettingsViewModel : CNC.Core.ViewModelBase
 
     /// <summary>The <see cref="MsaaMode"/> as the ComboBox's SelectedIndex
     /// over <see cref="MsaaChoices"/> (the enum members are contiguous from
-    /// zero, so the index and the value are the same number).</summary>
+    /// zero, so the index and the value are the same number). Out-of-range
+    /// writes — the transient -1 a ComboBox reports while it has no matching
+    /// selection, or a stale binding's junk — are ignored: not converted to
+    /// <see cref="MsaaMode.None"/> and persisted behind the user's back.</summary>
     public int MsaaIndex
     {
         get => (int)_settings.MsaaMode;
-        set => MsaaMode = Enum.IsDefined(typeof(MsaaMode), value)
-            ? (MsaaMode)value
-            : MsaaMode.None;
+        set
+        {
+            if (!Enum.IsDefined(typeof(MsaaMode), value))
+                return;
+            MsaaMode = (MsaaMode)value;
+        }
     }
 
     /// <summary>The ComboBox options, in enum order (None, 2x, 4x).</summary>

@@ -135,9 +135,12 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// the previous run's content (Nex's fence, verbatim).</summary>
     private bool _buildComplete;
 
-    /// <summary>The (center, span) the auto chrome was last built from — the
-    /// bounds-changed latch <see cref="MaybeRebuildChrome"/> compares against.</summary>
-    private (Vector3 Center, Vector3 Span)? _chromeMetrics;
+    /// <summary>The metrics the auto chrome was last built from — the
+    /// (center, span, plane count) latch <see cref="MaybeRebuildChrome"/>
+    /// compares against. PlaneCount belongs in it: a second plane staged
+    /// inside the first plane's bounds moves no coordinate but must still
+    /// flip the grid to the multi-plane branch.</summary>
+    private (Vector3 Center, Vector3 Span, int PlaneCount)? _chromeMetrics;
 
     /// <summary>Spike diagnostic latch (remove before the doc): the one-shot
     /// GL error probe has run, and what it saw. The probe itself only fires
@@ -652,7 +655,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     private void MaybeRebuildChrome()
     {
         var (center, _, span) = ChromeContentMetrics();
-        if (_chromeMetrics is { } built && built.Center == center && built.Span == span)
+        if (_chromeMetrics is { } built && built.Center == center && built.Span == span
+            && built.PlaneCount == _liveLayers.Count)
             return;
         BuildAutoChrome();
     }
@@ -824,7 +828,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             (Vector3.Zero, "Z"),
         ]);
         SetJobEnvelope(box);
-        _chromeMetrics = (center, span);
+        _chromeMetrics = (center, span, _liveLayers.Count);
     }
 
     /// <summary>Auto-chrome grid bounds, verbatim from Nex: single-plane (mill)
