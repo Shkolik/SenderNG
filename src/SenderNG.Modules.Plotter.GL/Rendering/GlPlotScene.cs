@@ -50,10 +50,10 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// and the view/projection cached per <see cref="RenderFrame"/> for cursor-ray
 /// placement. Each frame draws the static chrome through the two
 /// <see cref="GlShaders"/> programs — grid, job envelope, axis shafts —
-/// then the content layers, loft and tool (Tasks 5 and 6), and finally the
-/// cone heads: the frame's one triangle pass, deliberately last (Intel
-/// MSAA root cause at the call site in <see cref="RenderFrame"/>), all
-/// under <c>GL_LEQUAL</c>.
+/// then the content layers, the tool (Task 6) and finally the
+/// cone heads: the line passes all precede the triangle passes, deliberately
+/// so (Intel MSAA root cause at the call site in <see cref="RenderFrame"/>),
+/// all under <c>GL_LEQUAL</c>.
 /// </para></summary>
 internal sealed unsafe class GlPlotScene : IPlotScene
 {
@@ -153,6 +153,21 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// <summary>The carriage plane layers of the current build, in factory
     /// order. Reset as a set on a program reload (Nex's ResetBuild fence).</summary>
     private readonly List<GlCarriagePlaneLayer> _liveLayers = [];
+
+    /// <summary>The live tools of the current build — nex keeps the same list
+    /// (<c>NexPlotScene._liveTools</c>). At most one exists at a time: the
+    /// end-of-build fence in <see cref="CreateTool"/> resets (and disposes)
+    /// before every tool after a completed build. Pumped by
+    /// <see cref="PumpToolWire"/>, drawn by <see cref="DrawTools"/>, disposed
+    /// by <see cref="ResetBuild"/>/<see cref="Dispose"/>.</summary>
+    private readonly List<GlPlotTool> _liveTools = [];
+
+    /// <summary>This frame's render-target size, latched at the top of
+    /// <see cref="RenderFrame"/> so the tool draws can bind the line program
+    /// with the frame's pixel space (see
+    /// <see cref="UseToolWireProgram"/>).</summary>
+    private uint _frameRtW;
+    private uint _frameRtH;
 
     /// <summary>End-of-build marker the kinematic factory trips with its final
     /// CreateTool — the next AddCarriagePlane after a completed build resets
@@ -324,9 +339,14 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         MaybeRebuildChrome();
     }
 
-    /// <summary>Swap-pump the tool connector wire and loft surface.</summary>
+    /// <summary>Swap-pump the tool connector wires (and, per Task 7, the loft
+    /// surface). Every live tool decides for itself whether its
+    /// <see cref="RebuildGate"/> grants an upload — the Nex pump cadence the
+    /// view drives every tick.</summary>
     public void PumpToolWire()
     {
+        foreach (var tool in _liveTools)
+            tool.Pump();
     }
 
     /// <inheritdoc/>
@@ -629,17 +649,23 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     {
         if (_buildComplete)
             ResetBuild();
+        _buildComplete = false;
+        var tool = new GlPlotTool(this, shape);
+        _liveTools.Add(tool);
         // The factory's end-of-build marker (Nex sets the same flag here).
         _buildComplete = true;
-        return new NoopTool();
+        return tool;
     }
 
     /// <summary>Dispose the previous run's content (Nex's ResetBuild, GL
     /// subset): fresh fabric is registered on every program reload, so the old
-    /// layers must go. Runs on the render thread with the context current —
-    /// same thread every pump and draw uses.</summary>
+    /// layers and tools must go. Runs on the render thread with the context
+    /// current — same thread every pump and draw uses.</summary>
     private void ResetBuild()
     {
+        foreach (var tool in _liveTools)
+            tool.Dispose();
+        _liveTools.Clear();
         foreach (var layer in _liveLayers)
             layer.Dispose();
         _liveLayers.Clear();
@@ -766,8 +792,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// this is called. Recomputes the active camera's view/projection for the
     /// render-target aspect, caches the inverse for cursor-ray placement, then
     /// draws the static chrome (grid → envelope → axis shafts), the content
-    /// layers, and last the cone heads — the frame's only triangle pass,
-    /// deliberately last (root cause at its call below);
+    /// layers, the tools, and last the cone heads — the line passes all run
+    /// before the triangle passes (root cause at its call below);
     /// <paramref name="rtW"/> / <paramref name="rtH"/> are the render-target
     /// pixels (supersample factor applied), the size the draws must cover.
     /// The order-guard seam for that placement resets here, before any
@@ -776,40 +802,99 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     {
         _sawLayerDraw = false;
         _layersDrawnBeforeCones = false;
+        _frameRtW = rtW;
+        _frameRtH = rtH;
         var view = _active.View();
         var proj = _active.Projection(rtW, rtH);
         _hasInvViewProj = Matrix4x4.Invert(view * proj, out _invViewProj);
         DrawChrome(view * proj, rtW, rtH);
         DrawLayers(view * proj, rtW, rtH);
+        // The tool draws sit HERE — after every chrome/layer line pass, before
+        // the cone heads — for the same checkpoint-8/9 reason as the cone
+        // pass below: on Intel (UHD 630, driver 31.0.101.2137) any in-frame
+        // GL_TRIANGLES draw drops multisample coverage for every subsequent
+        // draw until the next framebuffer clear. GlPlotTool.Draw issues its
+        // wire (GL_LINES) before its cone mesh (GL_TRIANGLES), so this slot
+        // keeps the wire ahead of the frame's first triangles and it stays
+        // AA; the tool's mesh triangles then run before DrawAxisCones, which
+        // loses nothing — all triangle draws are self-hard under MSAA on this
+        // driver regardless of position (probe matrix in the SDD ledger).
+        // NOT gated by ShowOrigin: Nex gates only the axis nodes with that
+        // toggle (NexPlotScene.SetAxesVisible) — the tool nodes live outside
+        // it and stay visible on their own UpdatePosition/Pump state.
+        DrawTools(view * proj);
         // The cone pass runs LAST, and the placement is the whole fix
         // (checkpoint-8; probe matrix in the SDD ledger). WHY: on Intel
         // (UHD 630, driver 31.0.101.2137) any in-frame GL_TRIANGLES draw
         // drops multisample coverage for every subsequent draw until the
-        // next framebuffer clear, and the cones are the frame's only
-        // triangle pass — in the old order (cones inside DrawChrome, ahead
-        // of the layers) they poisoned the toolpath's AA while chrome drawn
-        // before them kept its own. Checkpoint-7's fix drew a degenerate
-        // re-arm line after the cones instead; on hardware every in-frame
-        // heal variant failed once the line program had already run that
-        // frame (5f's probe matrix), so in-frame healing is a dead end. A
-        // triangles draw only poisons draws AFTER it, so the pass moves
-        // here: with the cones last, every line draw (grid, envelope, axes,
-        // toolpath) is unaffected, and the cones lose nothing — their own
-        // pixels were already hard-edged under MSAA (0/92 changed None vs
-        // X8; the poisoning draw is itself un-antialiased). Documented, not
-        // fixed: at equal-depth overlap (the origin region) the cones now
-        // win ties because they draw later; and any future triangle pass
-        // (Task 6 loft/tool) must also stay after the line passes — all
-        // triangle draws are self-hard under MSAA on this driver regardless
-        // of position. Mesa never shows the defect, so this suite proves
-        // the ORDER only through the LayersDrawnBeforeCones seam, not
-        // pixels. The ShowOrigin gate travels with the pass: the shafts
-        // stay gated in DrawChrome and the heads follow the same toggle.
+        // next framebuffer clear — in the old order (cones inside
+        // DrawChrome, ahead of the layers) they poisoned the toolpath's AA
+        // while chrome drawn before them kept its own. Checkpoint-7's fix
+        // drew a degenerate re-arm line after the cones instead; on hardware
+        // every in-frame heal variant failed once the line program had
+        // already run that frame (5f's probe matrix), so in-frame healing is
+        // a dead end. A triangles draw only poisons draws AFTER it, so the
+        // pass sits after every line pass: chrome, layers and the tool wire
+        // are unaffected, and the cones lose nothing — their own pixels were
+        // already hard-edged under MSAA (0/92 changed None vs X8; the
+        // poisoning draw is itself un-antialiased). Documented, not fixed:
+        // at equal-depth overlap (the origin region) the cones now win ties
+        // because they draw later; and any future triangle pass (Task 7's
+        // loft) must also stay after the line passes — all triangle draws
+        // are self-hard under MSAA on this driver regardless of position.
+        // Mesa never shows the defect, so this suite proves the ORDER only
+        // through the LayersDrawnBeforeCones seam, not pixels. The
+        // ShowOrigin gate travels with the pass: the shafts stay gated in
+        // DrawChrome and the heads follow the same toggle.
         if (ShowOrigin)
             DrawAxisCones(view * proj);
 #if DEBUG
         SpikeGlErrorProbe();
 #endif
+    }
+
+    /// <summary>The tool indicators between the layer pass and the cone
+    /// heads — see <see cref="RenderFrame"/> for why this slot exists (the
+    /// wire must land before the frame's first triangles). Not gated by
+    /// <see cref="ShowOrigin"/> (Nex parity: the tool nodes are independent
+    /// of the origin toggle); a parked tool draws nothing from inside
+    /// <see cref="GlPlotTool.Draw"/>. The build fence keeps at most one live
+    /// tool (see <see cref="_liveTools"/>), so a per-tool wire-then-mesh draw
+    /// can never put a second tool's wire behind the first tool's triangles.</summary>
+    private void DrawTools(in Matrix4x4 vp)
+    {
+        if (_liveTools.Count == 0)
+            return;
+        foreach (var tool in _liveTools)
+            tool.Draw(vp);
+    }
+
+    /// <summary>Bind the line program for a tool's connector wire: the
+    /// frame's MVP and render-target pixel space (latched in
+    /// <see cref="RenderFrame"/>) plus the tool-wire palette width
+    /// (<see cref="GlPlotTool.WireThickness"/>, Nex's 2.0f node
+    /// thickness) as <c>uLineWidthPx</c>.</summary>
+    internal void UseToolWireProgram(in Matrix4x4 vp)
+        => UseLineProgram(vp, _frameRtW, _frameRtH, GlPlotTool.WireThickness);
+
+    /// <summary>Bind the mesh program for the tool cones — the same program
+    /// the axis heads draw through, with the fixed light pushed once per
+    /// pass; each instance's MVP/color follows via
+    /// <see cref="SetToolMeshInstance"/>.</summary>
+    internal void UseToolMeshProgram()
+    {
+        _gl.UseProgram(_meshProg);
+        _gl.Uniform3(_meshLightDir, LightDirection);
+    }
+
+    /// <summary>Push one tool cone's uniforms: <c>uMvp = model * viewProj</c>
+    /// (row-vector order) and the tool palette color.</summary>
+    internal void SetToolMeshInstance(in Matrix4x4 model, in Matrix4x4 vp, Vector4 color)
+    {
+        var mvp = model * vp;
+        _gl.UniformMatrix4(_meshMvp, false,
+            MemoryMarshal.CreateReadOnlySpan(ref mvp.M11, 16));
+        _gl.Uniform4(_meshColor, color);
     }
 
     /// <summary>The content layers after the chrome (the brief's per-frame
@@ -883,9 +968,10 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// <summary>This frame's chrome, in the brief's per-frame order: grid →
     /// envelope → axis shafts, all under the overlay gates, so the three
     /// toggles off leaves the clear color untouched. The content layers draw
-    /// after this, then the cone heads last — see <see cref="RenderFrame"/>
-    /// for why the triangle pass must close the frame (the GL_LEQUAL set
-    /// once in the ctor decides its equal-depth ties).
+    /// after this, then the tool, then the cone heads last — see
+    /// <see cref="RenderFrame"/> for why the line passes must precede the
+    /// triangle passes (the GL_LEQUAL set once in the ctor decides its
+    /// equal-depth ties).
     /// Each line piece group re-binds the program with ITS OWN palette width
     /// (Nex per-piece parity: grid/envelope 1.6, axis shafts 3.6) as
     /// <c>uLineWidthPx</c> — no <c>glLineWidth</c> state to re-assert.</summary>
@@ -917,9 +1003,10 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
     /// <summary>The shaded mesh pass: one shared cone mesh, one model matrix
     /// and one axis color per head (3 heads, 3 uniform sets). The frame's
-    /// last pass (see <see cref="RenderFrame"/> for why the triangle pass
-    /// must close the frame); reaching it after a layer pass is what latches
-    /// the order-guard seam.</summary>
+    /// last pass (see <see cref="RenderFrame"/> for why every line pass —
+    /// chrome, layers and tool wire — must precede the triangle passes, this
+    /// one included); reaching it after a layer pass is what latches the
+    /// order-guard seam.</summary>
     private void DrawAxisCones(in Matrix4x4 vp)
     {
         if (_axisCones.Count == 0)
@@ -948,6 +1035,9 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             return;
         _disposed = true;
         Context.MakeCurrent();
+        foreach (var tool in _liveTools)
+            tool.Dispose();
+        _liveTools.Clear();
         foreach (var layer in _liveLayers)
             layer.Dispose();
         _liveLayers.Clear();
@@ -1262,19 +1352,6 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         }
 
         public void SetLoftSheet(IReadOnlyList<Vector3> sideA, IReadOnlyList<Vector3> sideB)
-        {
-        }
-    }
-
-    private sealed class NoopTool : IPlotTool
-    {
-        public ToolShape Shape { get; set; }
-
-        public void UpdatePosition(Endpoint endpoints)
-        {
-        }
-
-        public void Dispose()
         {
         }
     }

@@ -643,6 +643,16 @@ public partial class PlotterGlView : UserControl
             // handler runs FreeRenderResources — scene, context and readback
             // go together — and the XAML swaps in the fallback panel), stop.
             LogGlFailure(ex);
+            // Nex's crash handler dumps scene/layer/run state plus the last
+            // 12 ticks to PoolDiagnostics; the GL module has no pool, so the
+            // same dump goes to Debug.WriteLine (Task 6 brief pins it there,
+            // never PoolDiagnostics). The diag ring entries already count
+            // readback ticks ([T{n}]).
+            System.Diagnostics.Debug.WriteLine(
+                $"[GL] tick crash T{_readbackTicks}: {ex.GetType().Name}: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine(
+                $"[GL] crash dump runs={_vm?.DumpRunState()} "
+                + $"ring={string.Join(" | ", _diagRing.Where(x => x is not null))}");
             _vm?.ReportRenderUnavailable(PlotGlFailures.Classify(ex, GlFailureCause.Runtime), ex.Message);
             DisableTick();
         }
