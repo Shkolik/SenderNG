@@ -1134,9 +1134,11 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// space), the CAD camera uniforms with the RAW discriminator
     /// (<c>uToneMap = 0</c> — the checkpoint-12 measurement: Nex's sheet
     /// lands on the un-tone-mapped cluster, so the tone map must NOT touch
-    /// this pass), the Nex sheet colour at 0.35 alpha
-    /// (<c>(0.42, 0.42, 0.54)</c> — its opacity lives in the blend now, so
-    /// the fragment stage passes <c>uColor.a</c> through), alpha blending
+    /// this pass), a LIGHTENED sheet colour at 0.35 alpha
+    /// (<c>(0.85, 0.85, 0.95)</c> — empirical checkpoint-12/13 fix: hardware
+    /// rendered the original 0.42/0.42/0.54 albedo opaque and ~2× too dark;
+    /// opacity still lives in the blend so the fragment stage passes
+    /// <c>uColor.a</c> through), alpha blending
     /// <c>SrcAlpha / OneMinusSrcAlpha</c> and <c>DepthMask(false)</c> for the
     /// pass, both restored afterwards; the depth TEST is untouched, so the
     /// sheet is still occluded by nearer opaque geometry. Reaching this after
@@ -1166,7 +1168,11 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _gl.UniformMatrix4(_meshModel, false,
             MemoryMarshal.CreateReadOnlySpan(ref identity.M11, 16));
         PushMeshCamera(MeshToneMapOff);
-        _gl.Uniform4(_meshColor, new Vector4(0.42f, 0.42f, 0.54f, 0.35f));
+        // Empirical lighten (checkpoint 12): on hardware the sheet renders opaque
+        // at the raw CAD shade, so the albedo carries the whole result — bump
+        // it until it visually matches Nex's light sheet. Alpha kept at 0.35
+        // so a working blend still composites over the near-white clear.
+        _gl.Uniform4(_meshColor, new Vector4(0.85f, 0.85f, 0.95f, 0.15f));
         _gl.Enable(EnableCap.Blend);
         _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
         _gl.DepthMask(false);

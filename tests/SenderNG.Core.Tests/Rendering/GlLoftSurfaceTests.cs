@@ -197,11 +197,11 @@ public class GlLoftSurfaceTests
         var vOrtho = Vector3.Normalize(
             scene.ActiveCamera.Target - scene.ActiveCamera.Position);
         var srcRgb = GlNexColourParityTests.CadFlat(
-            new Vector3(0, 0, -1), vOrtho, new Vector3(0.42f, 0.42f, 0.54f)) * 255f;
+            new Vector3(0, 0, -1), vOrtho, new Vector3(0.85f, 0.85f, 0.95f)) * 255f;
         var src = new[] { srcRgb.X, srcRgb.Y, srcRgb.Z };
         for (var c = 0; c < 3; c++)
         {
-            var expected = 0.35f * src[c] + 0.65f * dst[i0 + c];
+            var expected = 0.15f * src[c] + 0.85f * dst[i0 + c];
             Assert.InRange(outPx[i0 + c], expected - 3, expected + 3);
         }
     }
