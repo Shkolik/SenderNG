@@ -423,6 +423,25 @@ public partial class PlotterGlView : UserControl
                 created = true;
             }
 
+            // MSAA rides the same tick as the render size, but on its own axis
+            // (sample count vs supersample scale). SetMsaa is a no-op when the
+            // mode already matches; a mode this driver cannot build falls back
+            // to the plain path rather than losing the whole panel.
+            var msaa = _overlayToggles?.MsaaMode ?? MsaaMode.None;
+            if (_readback.Msaa != msaa)
+            {
+                try
+                {
+                    _readback.SetMsaa(msaa);
+                }
+                catch (Exception ex) when (msaa != MsaaMode.None)
+                {
+                    Console.WriteLine(
+                        $"plotter-gl spike: MSAA {msaa} unavailable, falling back to None: {ex.Message}");
+                    _readback.SetMsaa(MsaaMode.None);
+                }
+            }
+
             if (created)
             {
                 // The previous bitmap is replaced WITHOUT an explicit Dispose

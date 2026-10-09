@@ -136,6 +136,11 @@ public static class PlotterGlConfig
         }
         if (s.WireLength <= 0)
             s.WireLength = 100;
+        // System.Text.Json reads ANY integer into an enum, so a hand-edited or
+        // forward-dated profile section can carry a mode the renderer has no
+        // branch for — clamp it to the plain path instead of passing it on.
+        if (!Enum.IsDefined(typeof(MsaaMode), s.MsaaMode))
+            s.MsaaMode = MsaaMode.None;
         return s;
     }
 }

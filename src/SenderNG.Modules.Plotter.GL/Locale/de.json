@@ -24,6 +24,7 @@
     "module.plotter-gl.settings.antiAliasing": "Darstellung / Kantenglättung",
     "module.plotter-gl.settings.aaMode": "Modus",
     "module.plotter-gl.settings.aaQuality": "Qualität",
-    "module.plotter-gl.settings.supersample": "Überabtastung 2x (Kantenglättung durch 2x-Rendern)"
+    "module.plotter-gl.settings.supersample": "Überabtastung 2x (Kantenglättung durch 2x-Rendern)",
+    "module.plotter-gl.settings.msaa": "MSAA (Kantenglättung)"
   }
 }

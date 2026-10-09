@@ -36,7 +36,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using SenderNG.Modules.Plotter.GL.Rendering;
+using SenderNG.Modules.Plotter.GL.Settings;
 using Silk.NET.OpenGL;
+using GlApi = Silk.NET.OpenGL.GL;
 
 namespace SenderNG.Core.Tests;
 
@@ -150,5 +152,115 @@ public class GlReadbackTests
             $"GL_CONTEXT_FLAGS must include GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT (got 0x{ctx.ContextFlagsMask:X})");
         Assert.True((ctx.ContextFlagsMask & 0x2) == 0,
             $"GL_CONTEXT_FLAGS must NOT include GL_CONTEXT_FLAG_DEBUG_BIT (got 0x{ctx.ContextFlagsMask:X})");
+    }
+
+    /// <summary>Step 5b.4 (user ruling): MSAA is an independent axis from the
+    /// supersample render-size scale. Every mode must rebuild into a COMPLETE
+    /// framebuffer and leave no GL error behind (re-alloc, bind, clear).</summary>
+    [GlFact]
+    public unsafe void Msaa_modes_create_complete_targets_with_a_clean_error_state()
+    {
+        using var ctx = GlContext.Create();
+        ctx.MakeCurrent();
+        var gl = ctx.Api;
+        using var rb = new GlReadback(ctx, 64, 64);
+        Assert.Equal(MsaaMode.None, rb.Msaa);
+        Assert.Equal(GLEnum.NoError, TakeErrors(gl));
+
+        foreach (var mode in new[] { MsaaMode.X2, MsaaMode.X4 })
+        {
+            rb.SetMsaa(mode);
+            Assert.Equal(mode, rb.Msaa);
+            Assert.Equal(GLEnum.NoError, TakeErrors(gl));
+
+            gl.BindFramebuffer(FramebufferTarget.Framebuffer, (uint)rb.Fbo);
+            Assert.Equal(GLEnum.FramebufferComplete,
+                gl.CheckFramebufferStatus(FramebufferTarget.Framebuffer));
+
+            rb.BeginFrame([1, 2, 3, 255]);
+            Assert.Equal(GLEnum.NoError, TakeErrors(gl));
+        }
+    }
+
+    /// <summary>The resolve has to deliver the drawn frame: a scissor band
+    /// cleared on the multisampled target comes back through CopyFrame into
+    /// the read pixels (a broken blit would hand the bitmap stale memory).</summary>
+    [GlFact]
+    public unsafe void Msaa_resolve_delivers_the_frame_to_the_read_pixels()
+    {
+        using var ctx = GlContext.Create();
+        using var rb = new GlReadback(ctx, 64, 64);
+        ctx.MakeCurrent();
+        rb.SetMsaa(MsaaMode.X4);
+        Assert.Equal(MsaaMode.X4, rb.Msaa);
+
+        var px = CaptureBand(ctx, rb);
+
+        // Destination rows are top-down: rows 48..63 are the view's bottom
+        // quarter and must carry the band; rows 0..15 must be background.
+        Assert.Equal(16 * 64, CountBand(px, 48, 64));
+        Assert.Equal(0, CountBand(px, 0, 16));
+    }
+
+    /// <summary>Runtime switch: every re-alloc leaves a usable target and a
+    /// clean error state, and a None -> 2x -> 4x -> None round trip lands back
+    /// on byte-identical plain-path output (no MSAA residue).</summary>
+    [GlFact]
+    public unsafe void Msaa_mode_switch_reallocates_without_error_and_none_round_trips()
+    {
+        using var ctx = GlContext.Create();
+        using var rb = new GlReadback(ctx, 64, 64);
+        ctx.MakeCurrent();
+        var gl = ctx.Api;
+
+        var plain = CaptureBand(ctx, rb);
+        rb.SetMsaa(MsaaMode.X2);
+        Assert.Equal(MsaaMode.X2, rb.Msaa);
+        var x2 = CaptureBand(ctx, rb);
+        rb.SetMsaa(MsaaMode.X4);
+        Assert.Equal(MsaaMode.X4, rb.Msaa);
+        var x4 = CaptureBand(ctx, rb);
+        rb.SetMsaa(MsaaMode.None);
+        Assert.Equal(MsaaMode.None, rb.Msaa);
+        var again = CaptureBand(ctx, rb);
+
+        Assert.Equal(GLEnum.NoError, TakeErrors(gl));
+        Assert.Equal(16 * 64, CountBand(x2, 48, 64));  // each mode really resolved content
+        Assert.Equal(16 * 64, CountBand(x4, 48, 64));
+        Assert.Equal(plain, again);                    // None is byte-identical after the round trip
+    }
+
+    /// <summary>One frame: clear the background, scissor-clear a bottom band,
+    /// read the frame back the way the view tick does.</summary>
+    private static unsafe byte[] CaptureBand(GlContext ctx, GlReadback rb)
+    {
+        var gl = ctx.Api;
+        rb.BeginFrame([32, 35, 40, 255]);
+        gl.Enable(EnableCap.ScissorTest);
+        gl.Scissor(0, 0, 64, 16);
+        gl.ClearColor(200f / 255f, 0f, 0f, 1f);
+        gl.Clear(ClearBufferMask.ColorBufferBit);
+        gl.Disable(EnableCap.ScissorTest);
+
+        var px = new byte[64 * 64 * 4];
+        fixed (byte* p = px)
+            Assert.True(rb.CopyFrame((nint)p, 64 * 4));
+        return px;
+    }
+
+    /// <summary>The first pending GL error (NoError when the queue was clean),
+    /// draining the rest so the tests do not trip over each other.</summary>
+    private static GLEnum TakeErrors(GlApi gl)
+    {
+        var first = GLEnum.NoError;
+        for (var i = 0; i < 16; i++)
+        {
+            var e = gl.GetError();
+            if (e == GLEnum.NoError)
+                break;
+            if (first == GLEnum.NoError)
+                first = e;
+        }
+        return first;
     }
 }

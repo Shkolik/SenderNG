@@ -24,6 +24,7 @@
     "module.plotter-gl.settings.antiAliasing": "Renderizado / Suavizado",
     "module.plotter-gl.settings.aaMode": "Modo",
     "module.plotter-gl.settings.aaQuality": "Calidad",
-    "module.plotter-gl.settings.supersample": "Supermuestreo 2x (suavizado con renderizado a 2x)"
+    "module.plotter-gl.settings.supersample": "Supermuestreo 2x (suavizado con renderizado a 2x)",
+    "module.plotter-gl.settings.msaa": "MSAA (suavizado de bordes)"
   }
 }

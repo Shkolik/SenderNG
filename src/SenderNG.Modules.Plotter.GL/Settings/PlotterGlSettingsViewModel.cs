@@ -78,6 +78,7 @@ public sealed class PlotterGlSettingsViewModel : CNC.Core.ViewModelBase
         OnPropertyChanged(nameof(ShowRunStateLabel));
         OnPropertyChanged(nameof(ShowGridLabel));
         OnPropertyChanged(nameof(SupersampleLabel));
+        OnPropertyChanged(nameof(MsaaLabel));
     }
 
     /// <summary>True when the machine has more than one plane (wire length applies).</summary>
@@ -164,6 +165,35 @@ public sealed class PlotterGlSettingsViewModel : CNC.Core.ViewModelBase
         }
     }
 
+    /// <summary>Multisample mode of the readback target. Runtime — the view's
+    /// next tick re-allocates the FBO. Default None.</summary>
+    public MsaaMode MsaaMode
+    {
+        get => _settings.MsaaMode;
+        set
+        {
+            if (_settings.MsaaMode == value) return;
+            _settings.MsaaMode = value;
+            Save();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(MsaaIndex)); // the ComboBox selection follows
+        }
+    }
+
+    /// <summary>The <see cref="MsaaMode"/> as the ComboBox's SelectedIndex
+    /// over <see cref="MsaaChoices"/> (the enum members are contiguous from
+    /// zero, so the index and the value are the same number).</summary>
+    public int MsaaIndex
+    {
+        get => (int)_settings.MsaaMode;
+        set => MsaaMode = Enum.IsDefined(typeof(MsaaMode), value)
+            ? (MsaaMode)value
+            : MsaaMode.None;
+    }
+
+    /// <summary>The ComboBox options, in enum order (None, 2x, 4x).</summary>
+    public string[] MsaaChoices => ["Off", "2x", "4x"];
+
     /// <summary>Localized "View" section heading.</summary>
     public string ViewLabel => Resolve("module.plotter-gl.settings.view", "View");
 
@@ -181,6 +211,9 @@ public sealed class PlotterGlSettingsViewModel : CNC.Core.ViewModelBase
 
     /// <summary>Localized "2x supersample" label for the render-quality toggle.</summary>
     public string SupersampleLabel => Resolve("module.plotter-gl.settings.supersample", "2x supersample (AA at 2x render)");
+
+    /// <summary>Localized label for the MSAA mode selector row.</summary>
+    public string MsaaLabel => Resolve("module.plotter-gl.settings.msaa", "MSAA (edge AA)");
 
     public ObservableCollection<PlotterGlPlaneRow> PlaneRows { get; }
 

@@ -56,11 +56,34 @@ public sealed class PlotterGlSettings
     /// ON; disable on weaker machines (4x the raster + readback cost).</summary>
     public bool Supersample { get; set; } = true;
 
+    /// <summary>Multisample count of the readback target (None / 2x / 4x) —
+    /// the orthogonal axis to <see cref="Supersample"/> (sample count vs
+    /// render size, they compose). Default None until checkpoint verification
+    /// proves a win on the target machines.</summary>
+    public MsaaMode MsaaMode { get; set; } = MsaaMode.None;
+
     /// <summary>Ordered per-machine plane; <c>WorldAxes[s]</c> = world axis index
     /// (0=X, 1=Y, 2=Z) for the plane's slot <c>s</c> (distinct); <c>Origin</c> =
     /// world position of the plane's origin. Length must equal the schema plane's
     /// role count / 3 respectively (enforced by <see cref="PlotterGlConfig"/>).</summary>
     public List<GlPlaneGeometry> Planes { get; set; } = [];
+}
+
+/// <summary>Multisampling of the readback FBO: sample count per pixel for the
+/// edges, independent of <see cref="PlotterGlSettings.Supersample"/>'s render
+/// size. Serializes as the raw number through the module's JSON section;
+/// <see cref="PlotterGlConfig"/> clamps a value outside these members back to
+/// <see cref="None"/>.</summary>
+public enum MsaaMode
+{
+    /// <summary>No multisampling — the plain single-sample path.</summary>
+    None = 0,
+
+    /// <summary>Two samples per pixel.</summary>
+    X2 = 1,
+
+    /// <summary>Four samples per pixel.</summary>
+    X4 = 2,
 }
 
 /// <summary>One machine carriage plane's world mapping.</summary>

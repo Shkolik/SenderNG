@@ -35,14 +35,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using Silk.NET.OpenGL;
+using SenderNG.Modules.Plotter.GL.Settings;
 
 namespace SenderNG.Modules.Plotter.GL.Rendering;
 
-/// <summary>The offscreen target the view tick renders into: one RGBA8 +
-/// depth24 FBO the scene draws into, and a <c>glReadPixels</c> + row copy that
-/// lands the frame in the caller's locked WriteableBitmap. Public surface
-/// mirrors NexGpuReadback (ctor(w,h), BeginFrame, CopyFrame, Resize, Dispose)
-/// so the view-side pipeline stays renderer-shaped.
+/// <summary>The offscreen target the view tick renders into: the FBO the scene
+/// draws into (single-sample RGBA8 + depth24 by default; multisampled color +
+/// depth renderbuffers with a blit-resolve when <see cref="Msaa"/> is on), and
+/// a <c>glReadPixels</c> + row copy that lands the frame in the caller's locked
+/// WriteableBitmap. Public surface mirrors NexGpuReadback (ctor(w,h),
+/// BeginFrame, CopyFrame, Resize, Dispose) so the view-side pipeline stays
+/// renderer-shaped.
 /// <para>
 /// Synchronization: <c>glReadPixels</c> on the same context synchronizes with
 /// all prior draws, so no fence or wait is needed (the Nexus "second WaitAll"
@@ -58,6 +61,8 @@ internal sealed unsafe class GlReadback : IDisposable
     private uint _w;
     private uint _h;
     private uint _fbo, _colorRb, _depthRb;
+    private uint _msaaFbo, _msaaColorRb, _msaaDepthRb, _resolveTex;
+    private MsaaMode _msaa;
     private byte[] _scratch;
     private bool _disposed;
 
@@ -65,11 +70,29 @@ internal sealed unsafe class GlReadback : IDisposable
 
     public uint Height => _h;
 
-    /// <summary>The FBO this readback renders into (diagnostics + Task 4's
-    /// draw path binds it).</summary>
-    public int Fbo => (int)_fbo;
+    /// <summary>The multisample mode the FBO set is currently built for —
+    /// read seam for the mode-switch tests.</summary>
+    public MsaaMode Msaa => _msaa;
 
-    public GlReadback(GlContext ctx, uint width, uint height)
+    /// <summary>The FBO draws go into this frame (diagnostics + Task 4's draw
+    /// path bind it): the multisampled target while <see cref="Msaa"/> is on,
+    /// the plain single-sample one otherwise.</summary>
+    public int Fbo => (int)(_msaa == MsaaMode.None ? _fbo : _msaaFbo);
+
+    /// <summary>Switch the multisample mode at runtime: the FBO set is
+    /// rebuilt from scratch on the current context, so nothing from the old
+    /// mode leaks. No-op when unchanged — the view calls this every tick.</summary>
+    public void SetMsaa(MsaaMode mode)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_msaa == mode)
+            return;
+        DeleteResources();
+        _msaa = mode;
+        CreateResources();
+    }
+
+    public GlReadback(GlContext ctx, uint width, uint height, MsaaMode msaa = MsaaMode.None)
     {
         ArgumentNullException.ThrowIfNull(ctx);
         if (width == 0 || height == 0)
@@ -77,6 +100,7 @@ internal sealed unsafe class GlReadback : IDisposable
         _ctx = ctx;
         _w = width;
         _h = height;
+        _msaa = msaa;
         _scratch = new byte[checked((int)width * height * 4)];
         CreateResources();
     }
@@ -85,32 +109,94 @@ internal sealed unsafe class GlReadback : IDisposable
     {
         _ctx.MakeCurrent();
         var gl = _ctx.Api;
+        var samples = SampleCount();
 
+        // The single-sample target: always the color source CopyFrame reads,
+        // and the ONLY framebuffer the scene draws into in None mode. With MSAA
+        // on, its color attachment is a texture instead of a renderbuffer —
+        // the multisampled draw target blit-resolves into it, and glReadPixels
+        // then reads the resolved frame.
         gl.GenFramebuffers(1, out _fbo);
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, _fbo);
-
-        gl.GenRenderbuffers(1, out _colorRb);
-        gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, _colorRb);
-        gl.RenderbufferStorage(RenderbufferTarget.Renderbuffer, InternalFormat.Rgba8, _w, _h);
-        gl.FramebufferRenderbuffer(FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, _colorRb);
+        if (samples == 0)
+        {
+            gl.GenRenderbuffers(1, out _colorRb);
+            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, _colorRb);
+            gl.RenderbufferStorage(RenderbufferTarget.Renderbuffer, InternalFormat.Rgba8, _w, _h);
+            gl.FramebufferRenderbuffer(FramebufferTarget.Framebuffer,
+                FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, _colorRb);
+        }
+        else
+        {
+            gl.GenTextures(1, out _resolveTex);
+            gl.BindTexture(TextureTarget.Texture2D, _resolveTex);
+            gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba8, _w, _h, 0,
+                PixelFormat.Rgba, PixelType.UnsignedByte, null);
+            gl.FramebufferTexture2D(FramebufferTarget.Framebuffer,
+                FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, _resolveTex, 0);
+            // Leave no texture bound: the frame's own draws assume the default
+            // texture unit state.
+            gl.BindTexture(TextureTarget.Texture2D, 0);
+        }
 
         gl.GenRenderbuffers(1, out _depthRb);
         gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, _depthRb);
         gl.RenderbufferStorage(RenderbufferTarget.Renderbuffer, InternalFormat.DepthComponent24, _w, _h);
         gl.FramebufferRenderbuffer(FramebufferTarget.Framebuffer,
             FramebufferAttachment.DepthAttachment, RenderbufferTarget.Renderbuffer, _depthRb);
+        CheckComplete(_fbo, "resolve target");
 
-        var status = gl.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-        if (status != GLEnum.FramebufferComplete)
-            throw new InvalidOperationException($"framebuffer incomplete: {status}");
+        if (samples > 0)
+        {
+            gl.GenFramebuffers(1, out _msaaFbo);
+            gl.BindFramebuffer(FramebufferTarget.Framebuffer, _msaaFbo);
+
+            gl.GenRenderbuffers(1, out _msaaColorRb);
+            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, _msaaColorRb);
+            gl.RenderbufferStorageMultisample(RenderbufferTarget.Renderbuffer, samples,
+                InternalFormat.Rgba8, _w, _h);
+            gl.FramebufferRenderbuffer(FramebufferTarget.Framebuffer,
+                FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, _msaaColorRb);
+
+            gl.GenRenderbuffers(1, out _msaaDepthRb);
+            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, _msaaDepthRb);
+            gl.RenderbufferStorageMultisample(RenderbufferTarget.Renderbuffer, samples,
+                InternalFormat.DepthComponent24, _w, _h);
+            gl.FramebufferRenderbuffer(FramebufferTarget.Framebuffer,
+                FramebufferAttachment.DepthAttachment, RenderbufferTarget.Renderbuffer, _msaaDepthRb);
+
+            CheckComplete(_msaaFbo, $"multisample target ({samples}x)");
+        }
+
+        gl.BindFramebuffer(FramebufferTarget.Framebuffer, (uint)Fbo);
 
         // Tight rows: CopyFrame's pitch math assumes no GL-side padding.
         gl.PixelStore(PixelStoreParameter.PackAlignment, 1);
     }
 
-    /// <summary>Bind the FBO, set the viewport and clear for the frame the
-    /// scene is about to draw. Called by the view every tick.</summary>
+    /// <summary>Samples per pixel for the current mode, clamped to what this
+    /// driver's renderbuffers actually support (0 = the plain path).</summary>
+    private uint SampleCount()
+    {
+        if (_msaa == MsaaMode.None)
+            return 0;
+        uint want = _msaa == MsaaMode.X2 ? 2u : 4u;
+        // GL_MAX_SAMPLES lives on GLEnum, not GetPName, in Silk.NET's bindings.
+        _ctx.Api.GetInteger((GetPName)GLEnum.MaxSamples, out var max);
+        return max > 0 ? Math.Min(want, (uint)max) : want;
+    }
+
+    private void CheckComplete(uint fbo, string what)
+    {
+        var gl = _ctx.Api;
+        gl.BindFramebuffer(FramebufferTarget.Framebuffer, fbo);
+        var status = gl.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+        if (status != GLEnum.FramebufferComplete)
+            throw new InvalidOperationException($"framebuffer incomplete ({what}): {status}");
+    }
+
+    /// <summary>Bind the draw target for the frame the scene is about to draw,
+    /// set the viewport and clear. Called by the view every tick.</summary>
     public void BeginFrame(byte[] rgbaClearColor)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -120,7 +206,7 @@ internal sealed unsafe class GlReadback : IDisposable
 
         _ctx.MakeCurrent();
         var gl = _ctx.Api;
-        gl.BindFramebuffer(FramebufferTarget.Framebuffer, _fbo);
+        gl.BindFramebuffer(FramebufferTarget.Framebuffer, (uint)Fbo);
         gl.Viewport(0, 0, _w, _h);
         gl.ClearColor(
             rgbaClearColor[0] / 255f,
@@ -145,6 +231,18 @@ internal sealed unsafe class GlReadback : IDisposable
 
         _ctx.MakeCurrent();
         var gl = _ctx.Api;
+        if (_msaa != MsaaMode.None)
+        {
+            // Resolve first: the multisampled draw target -> the single-sample
+            // texture the read below comes from. Same size, RGBA8 on both
+            // sides; Nearest is the canonical resolve filter (a multisampled
+            // buffer is involved, so Linear is not allowed).
+            gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, _msaaFbo);
+            gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, _fbo);
+            gl.BlitFramebuffer(0, 0, (int)_w, (int)_h, 0, 0, (int)_w, (int)_h,
+                ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Nearest);
+        }
+        gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, _fbo);
         fixed (byte* srcBuf = _scratch)
         {
             gl.ReadPixels(0, 0, _w, _h, PixelFormat.Rgba, PixelType.UnsignedByte, srcBuf);
@@ -216,13 +314,35 @@ internal sealed unsafe class GlReadback : IDisposable
         if (_ctx.IsDisposed)
         {
             _fbo = _colorRb = _depthRb = 0;
+            _msaaFbo = _msaaColorRb = _msaaDepthRb = _resolveTex = 0;
             return;
         }
-        if (_fbo == 0 && _colorRb == 0 && _depthRb == 0)
+        if (_fbo == 0 && _colorRb == 0 && _depthRb == 0
+            && _msaaFbo == 0 && _msaaColorRb == 0 && _resolveTex == 0)
             return;
 
         _ctx.MakeCurrent();
         var gl = _ctx.Api;
+        if (_msaaColorRb != 0)
+        {
+            gl.DeleteRenderbuffers(1, ref _msaaColorRb);
+            _msaaColorRb = 0;
+        }
+        if (_msaaDepthRb != 0)
+        {
+            gl.DeleteRenderbuffers(1, ref _msaaDepthRb);
+            _msaaDepthRb = 0;
+        }
+        if (_msaaFbo != 0)
+        {
+            gl.DeleteFramebuffers(1, ref _msaaFbo);
+            _msaaFbo = 0;
+        }
+        if (_resolveTex != 0)
+        {
+            gl.DeleteTextures(1, ref _resolveTex);
+            _resolveTex = 0;
+        }
         if (_colorRb != 0)
         {
             gl.DeleteRenderbuffers(1, ref _colorRb);

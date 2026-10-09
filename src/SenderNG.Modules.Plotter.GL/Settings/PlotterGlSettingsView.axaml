@@ -59,6 +59,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         </StackPanel>
         <StackPanel Spacing="4">
 			<CheckBox Content="{Binding SupersampleLabel}" IsChecked="{Binding Supersample, Mode=TwoWay}" FontSize="11" Margin="0,6,0,4" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="{Binding MsaaLabel}" FontSize="11" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding MsaaChoices}"
+                          SelectedIndex="{Binding MsaaIndex, Mode=TwoWay}"
+                          Width="72" MinWidth="56" Height="28" MinHeight="28" CornerRadius="0" />
+            </StackPanel>
         </StackPanel>
         <Rectangle Height="1" Fill="#ddd" />
         <ItemsControl ItemsSource="{Binding PlaneRows}">

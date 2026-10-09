@@ -93,32 +93,35 @@ internal sealed unsafe class GlCarriagePlaneLayer : ICarriagePlaneLayer, IDispos
     private bool _disposed;
 
     /// <summary>Create the layer's two VAO/VBO pairs on
-    /// <paramref name="ctx"/>'s context. Empty until the first
-    /// <see cref="Pump"/>.</summary>
-    public GlCarriagePlaneLayer(GlContext ctx)
+    /// <paramref name="ctx"/>'s context, and pick both draw widths out of the
+    /// <paramref name="acceptedWidths"/> the scene's
+    /// <see cref="GlLineWidths.Probe"/> reported for this context. Empty until
+    /// the first <see cref="Pump"/>.</summary>
+    public GlCarriagePlaneLayer(GlContext ctx, IReadOnlyList<float> acceptedWidths)
     {
         _ctx = ctx;
         ctx.MakeCurrent();
         _gl = ctx.Api;
-        float* range = stackalloc float[2];
-        _gl.GetFloat(GetPName.AliasedLineWidthRange, range);
-        _baseWidth = PickWidth(BaseLineThickness, range[1]);
-        _executedWidth = PickWidth(ExecutedLineThickness, range[1]);
+        _baseWidth = PickWidth(acceptedWidths, BaseLineThickness);
+        _executedWidth = PickWidth(acceptedWidths, ExecutedLineThickness);
         (_planeVao, _planeVbo) = CreateLineArrays();
         (_doneVao, _doneVbo) = CreateLineArrays();
     }
 
-    /// <summary>The width the driver actually accepts for a requested
-    /// thickness: clamped to the reported range, then probed — several core
-    /// drivers answer wide lines with GL_INVALID_VALUE even when
-    /// ALIASED_LINE_WIDTH_RANGE claims a larger range, so fall back to 1.0.</summary>
-    private float PickWidth(float requested, float reportedMax)
+    /// <summary>The width for a requested thickness out of the widths the
+    /// context's probe accepted: the largest accepted width that still fits
+    /// the request, so Nex's 3.2 lands on the nearest line the driver really
+    /// draws. The trial is pre-drained — a stale error from unrelated work
+    /// must not condemn it — and checked anyway: if even an accepted width is
+    /// refused, <see cref="GlLineWidths.Fallback"/> is the only thing left.</summary>
+    private float PickWidth(IReadOnlyList<float> accepted, float requested)
     {
-        var w = MathF.Min(requested, reportedMax);
+        var w = GlLineWidths.Pick(accepted, requested);
+        GlLineWidths.Drain(_gl);
         _gl.LineWidth(w);
         if (_gl.GetError() != GLEnum.NoError)
         {
-            w = 1f;
+            w = GlLineWidths.Fallback;
             _gl.LineWidth(w);
         }
         return w;
@@ -128,6 +131,10 @@ internal sealed unsafe class GlCarriagePlaneLayer : ICarriagePlaneLayer, IDispos
     /// recorded and not yet flushed — read seam for the "marked, not
     /// GPU-touched" test.</summary>
     internal int PendingMutations => _gate.PendingMutations;
+
+    /// <summary>Read seam: the width the base toolpath draws with — Nex's
+    /// <see cref="BaseLineThickness"/> picked from the accepted set.</summary>
+    internal float BaseLineWidth => _baseWidth;
 
     /// <summary>Executed-overlay vertex count (2 per done segment) — the
     /// Nex diagnostic retyped.</summary>

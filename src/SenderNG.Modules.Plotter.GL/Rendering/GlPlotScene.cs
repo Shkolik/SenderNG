@@ -100,8 +100,30 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     private readonly List<ConeInstance> _axisCones = [];
     private BoundingBox _gridBounds;
     private bool _hasGridBounds;
+
+    /// <summary>Read seam: the bounds the grid chrome currently draws (null
+    /// before the first <see cref="SetGrid"/>).</summary>
+    internal BoundingBox? ChromeGridBounds => _hasGridBounds ? _gridBounds : null;
+
+    /// <summary>Read seam: the box the job-envelope chrome currently draws —
+    /// set by <see cref="SetJobEnvelope"/>, including every auto-chrome build.</summary>
+    internal BoundingBox? ChromeEnvelope { get; private set; }
     private bool _disposed;
+
+    /// <summary>The chrome's preferred line width — the plan's
+    /// <c>min(1.5, max)</c> — picked from the probe at construction.</summary>
+    private const float ChromeLineRequest = 1.5f;
+
     private readonly float _chromeLineWidth;
+    private readonly float[] _acceptedLineSizes;
+
+    /// <summary>Read seam: the line widths this context's probe accepted —
+    /// an ascending subset of <see cref="GlLineWidths.Candidates"/>.</summary>
+    internal IReadOnlyList<float> AcceptedLineSizes => _acceptedLineSizes;
+
+    /// <summary>Read seam: the width <see cref="DrawChrome"/> re-asserts
+    /// every frame (chrome plan preference, accepted-set picked).</summary>
+    internal float ChromeLineWidth => _chromeLineWidth;
 
     // --- live content (Task 5) ---
     /// <summary>The carriage plane layers of the current build, in factory
@@ -112,6 +134,10 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// CreateTool — the next AddCarriagePlane after a completed build resets
     /// the previous run's content (Nex's fence, verbatim).</summary>
     private bool _buildComplete;
+
+    /// <summary>The (center, span) the auto chrome was last built from — the
+    /// bounds-changed latch <see cref="MaybeRebuildChrome"/> compares against.</summary>
+    private (Vector3 Center, Vector3 Span)? _chromeMetrics;
 
     /// <summary>Spike diagnostic latch (remove before the doc): the one-shot
     /// GL error probe has run, and what it saw. The probe itself only fires
@@ -161,23 +187,18 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
         // Depth test for the whole frame, set once: later draws (the Task 5
         // layers, loft and tool) win an equal-depth test through GL_LEQUAL.
-        // Line width: several core drivers reject anything over 1.0 with
-        // GL_INVALID_VALUE even when ALIASED_LINE_WIDTH_RANGE claims a larger
-        // range, so probe the preferred width and fall back to 1.0 — fine
-        // either way (the supersampled render target buys the coverage).
-        // DrawChrome re-asserts the accepted width per frame: the layer draws
-        // widen it to their own Nex thickness in between.
+        // Line width: the reported ALIASED_LINE_WIDTH_RANGE is not trustworthy
+        // — several core drivers answer glLineWidth(w > 1.0) with
+        // GL_INVALID_VALUE while claiming [1, 255] — so probe the candidates
+        // once per context and pick the chrome's preferred width out of what
+        // the driver really takes. DrawChrome re-asserts the accepted width
+        // per frame: the layer draws widen it to their own Nex thickness in
+        // between.
         _gl.Enable(EnableCap.DepthTest);
         _gl.DepthFunc(DepthFunction.Lequal);
-        float* lineRange = stackalloc float[2];
-        _gl.GetFloat(GetPName.AliasedLineWidthRange, lineRange);
-        _chromeLineWidth = MathF.Min(1.5f, lineRange[1]);
+        _acceptedLineSizes = GlLineWidths.Probe(_gl);
+        _chromeLineWidth = GlLineWidths.Pick(_acceptedLineSizes, ChromeLineRequest);
         _gl.LineWidth(_chromeLineWidth);
-        if (_gl.GetError() != GLEnum.NoError)
-        {
-            _chromeLineWidth = 1f;
-            _gl.LineWidth(_chromeLineWidth);
-        }
 
         _gridMinor = new LineMesh(context);
         _gridMajor = new LineMesh(context);
@@ -187,10 +208,11 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             GlMeshBuilder.DefaultRadius, GlMeshBuilder.DefaultHeight);
         _cone = new IndexedMesh(context, coneVerts, coneIdx);
 
-        // The scene reaches the view with no content (the layers are Task 5), so
-        // the constructor provisions the chrome once — the GL counterpart of
-        // Nex's EnsureChromeUpToDate first frame. ContentMetrics still reports
-        // the not-found envelope at this point: no grid exists yet.
+        // The scene reaches the view with no content, so the constructor
+        // provisions the chrome once — the GL counterpart of Nex's first-frame
+        // EnsureChromeUpToDate. ChromeContentMetrics reports the not-found
+        // envelope here (no layers yet); later pumps re-run this through
+        // MaybeRebuildChrome when the staged bounds move.
         BuildAutoChrome();
 
         SetViewPreset(ViewPreset.Isometric3D);
@@ -245,11 +267,14 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
     /// <summary>Pump the carriage planes' staging into their dynamic buffers
     /// (called at the apply cadence, not every tick). Each layer decides for
-    /// itself whether its <see cref="RebuildGate"/> grants an upload.</summary>
+    /// itself whether its <see cref="RebuildGate"/> grants an upload. The pump
+    /// is also the chrome's bounds checkpoint: whatever the staging now reports,
+    /// the auto chrome follows — Nex's "rebuild when bounds change".</summary>
     public void PumpCarriagePlanes()
     {
         foreach (var layer in _liveLayers)
             layer.Pump();
+        MaybeRebuildChrome();
     }
 
     /// <summary>Swap-pump the tool connector wire and loft surface.</summary>
@@ -488,6 +513,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         Seg(c4, c5); Seg(c5, c6); Seg(c6, c7); Seg(c7, c4); // top
         Seg(c0, c4); Seg(c1, c5); Seg(c2, c6); Seg(c3, c7); // verticals
         _jobLines.Upload(verts.ToArray());
+        ChromeEnvelope = box;
 
         void Seg(Vector3 a, Vector3 b) => AppendSegment(verts, a, b, c);
     }
@@ -503,7 +529,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         if (_buildComplete)
             ResetBuild();
         _buildComplete = false;
-        var layer = new GlCarriagePlaneLayer(Context);
+        var layer = new GlCarriagePlaneLayer(Context, _acceptedLineSizes);
         _liveLayers.Add(layer);
         layer.SetRunStateVisible(ShowRunState);
         return layer;
@@ -538,6 +564,9 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             layer.Dispose();
         _liveLayers.Clear();
         _buildComplete = false;
+        // Nothing is live anymore: the chrome falls back to the same
+        // grid-default bounds the ctor provisions (Nex's empty-chrome state).
+        MaybeRebuildChrome();
     }
 
     /// <summary>Bounding metrics of the live content. The layers' staged
@@ -589,6 +618,43 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             found = true;
         }
         return found;
+    }
+
+    /// <summary>The bounds the chrome derives from: the live content's staged
+    /// extents when there is any (Nex's <c>ContentMetrics</c> over its content
+    /// nodes), else the not-found envelope ±25. Deliberately WITHOUT
+    /// <see cref="ContentMetrics"/>'s grid-bounds fallback: a chrome rebuild
+    /// must not feed its own previous grid back into the next derivation (the
+    /// ratchet), and the camera keeps <see cref="ContentMetrics"/> unchanged.</summary>
+    private (Vector3 Center, float Radius, Vector3 Span) ChromeContentMetrics()
+    {
+        Vector3 min, max;
+        if (TryGetLayerBounds(out var layerMin, out var layerMax))
+        {
+            min = layerMin;
+            max = layerMax;
+        }
+        else
+        {
+            min = new Vector3(-25f);
+            max = new Vector3(25f);
+        }
+        var center = (min + max) * 0.5f;
+        var span = max - min;
+        var radius = MathF.Max(span.Length() * 0.5f, 1f);
+        return (center, radius, span);
+    }
+
+    /// <summary>Re-run the auto chrome when the aggregated content bounds moved
+    /// — the plan's "rebuild when bounds change", wired at the pump and at the
+    /// reload fence. Geometry only: the camera never follows, a reframe here is
+    /// what turned a toolpath load into a zoom jump.</summary>
+    private void MaybeRebuildChrome()
+    {
+        var (center, _, span) = ChromeContentMetrics();
+        if (_chromeMetrics is { } built && built.Center == center && built.Span == span)
+            return;
+        BuildAutoChrome();
     }
 
     /// <summary>Inverse view-projection cached by the last
@@ -730,13 +796,15 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
     // --- chrome geometry (ports of Nex's yellow regions) ---
 
-    /// <summary>Provision grid, axes and envelope from the framing metrics —
-    /// Nex's <c>BuildAutoChrome</c> with a fixed <c>planeCount: 0</c> (the GL
-    /// scene holds no plane list; layers are Task 5), so the mill rule applies:
-    /// an origin-corner table from machine (0,0).</summary>
+    /// <summary>Provision grid, axes and envelope from the chrome framing
+    /// metrics — Nex's <c>BuildAutoChrome</c>, with the plane count taken from
+    /// the live carriage planes (Nex passes its plane-node count): one plane
+    /// (mill) gets the origin-corner table from machine (0,0), two or more
+    /// (foam) the envelope-centered one. Re-runs whenever
+    /// <see cref="MaybeRebuildChrome"/> sees the bounds move.</summary>
     private void BuildAutoChrome()
     {
-        var (center, radius, span) = ContentMetrics();
+        var (center, radius, span) = ChromeContentMetrics();
         var hx = Math.Max(span.X, 1f) * 0.5f;
         var hy = Math.Max(span.Y, 1f) * 0.5f;
         var hz = Math.Max(span.Z, 1f) * 0.5f;
@@ -744,7 +812,10 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             center.X - hx, center.Y - hy, center.Z - hz,
             center.X + hx, center.Y + hy, center.Z + hz);
         var major = NiceStep(Math.Max(radius * 0.25, 1));
-        var grid = AutoGridBounds(center, span, planeCount: 0, (float)box.MinZ);
+        // One plane (mill) = origin-corner table from machine (0,0); two or
+        // more (foam) = grid pinned to the model's XY envelope — Nex passes
+        // its plane-node count, the GL scene its live carriage planes.
+        var grid = AutoGridBounds(center, span, planeCount: _liveLayers.Count, (float)box.MinZ);
         SetGrid(grid, major / 5, major);
         AddAxisArrows(
         [
@@ -753,6 +824,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             (Vector3.Zero, "Z"),
         ]);
         SetJobEnvelope(box);
+        _chromeMetrics = (center, span);
     }
 
     /// <summary>Auto-chrome grid bounds, verbatim from Nex: single-plane (mill)
@@ -789,7 +861,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
     private float AxisArrowLength()
     {
-        var (_, radius, _) = ContentMetrics();
+        var (_, radius, _) = ChromeContentMetrics();
         return Math.Clamp(radius * 0.12f, 4f, 60f);
     }
 

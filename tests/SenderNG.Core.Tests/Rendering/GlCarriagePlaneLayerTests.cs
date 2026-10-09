@@ -75,7 +75,7 @@ public class GlCarriagePlaneLayerTests
         layer.SetSegmentRunState(0, RunState.Pending);    // rewind → full overlay rebuild
         layer.RebuildExecuted();                          // rare O(n) path stays valid
         Assert.Equal(0, layer.ExecutedVerticesCount);
-        Assert.True(layer.PendingMutations >= 0);         // RebuildGate was marked, not GPU-touched
+        Assert.True(layer.PendingMutations > 0);         // RebuildGate was marked, not GPU-touched
     }
 
     [GlFact]

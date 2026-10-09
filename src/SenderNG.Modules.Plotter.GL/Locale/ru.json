@@ -24,6 +24,7 @@
     "module.plotter-gl.settings.antiAliasing": "Рендеринг / Сглаживание",
     "module.plotter-gl.settings.aaMode": "Режим",
     "module.plotter-gl.settings.aaQuality": "Качество",
-    "module.plotter-gl.settings.supersample": "2x суперсэмпл (сглаживание на 2x рендере)"
+    "module.plotter-gl.settings.supersample": "2x суперсэмпл (сглаживание на 2x рендере)",
+    "module.plotter-gl.settings.msaa": "MSAA (сглаживание краёв)"
   }
 }
