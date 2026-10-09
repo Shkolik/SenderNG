@@ -45,7 +45,8 @@ namespace SenderNG.Core.Tests;
 /// <c>NexPlotToolOrientationTests</c>, retyped onto the GL tool's internal
 /// model-matrix accessors — InternalsVisibleTo), and the parked/dedup halves
 /// of <c>NexPlotTool.UpdatePosition</c> / <c>Pump</c> port with their visible
-/// behavior. Gated by <see cref="GlFactAttribute"/> like the other GPU
+/// behavior. Gated by <see cref="GlFactAttribute"/> /
+/// <see cref="GlTheoryAttribute"/> like the other GPU
 /// tests.</summary>
 [Trait("Category", "GPU")]
 public class GlPlotToolTests
@@ -68,8 +69,11 @@ public class GlPlotToolTests
     /// cone model matrices must map local +Z away from / along the wire
     /// direction. GL-flavored: the direction is read off the matrix as
     /// <c>Transform(UnitZ) - Transform(Zero)</c> (the translation cancels),
-    /// where Nex read it off the bare quaternion.</summary>
-    [Theory]
+    /// where Nex read it off the bare quaternion. <c>[GlTheory]</c>, not a
+    /// bare <c>[Theory]</c>: the rows create a GL context, so without the
+    /// discovery-time gate they FAIL on GL-less machines where the
+    /// <c>[GlFact]</c> siblings skip.</summary>
+    [GlTheory]
     [InlineData(1f, 0f, 0f)]
     [InlineData(0f, 1f, 0f)]
     [InlineData(-1f, 0f, 0f)]

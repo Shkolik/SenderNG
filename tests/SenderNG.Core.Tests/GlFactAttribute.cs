@@ -55,9 +55,17 @@ public sealed class GlFactAttribute : FactAttribute
 
     public GlFactAttribute()
     {
-        if (Probe.Value is { } failure)
-            Skip = $"no OpenGL context available: {failure.GetType().Name}: {failure.Message}";
+        if (SkipReason is { } reason)
+            Skip = reason;
     }
+
+    /// <summary>The skip message when the one-per-process probe failed, else
+    /// null — shared with <see cref="GlTheoryAttribute"/> so both gates run
+    /// the exact same probe.</summary>
+    internal static string? SkipReason =>
+        Probe.Value is { } failure
+            ? $"no OpenGL context available: {failure.GetType().Name}: {failure.Message}"
+            : null;
 
     private static Exception? ProbeContext()
     {

@@ -45,6 +45,9 @@
   <ItemGroup>
     <!-- Headless tests assert internal surface (camera state, failure verdicts). -->
     <InternalsVisibleTo Include="SenderNG.Core.Tests" />
+    <!-- tools/PlotterGlBench drives GlContext/GlPlotScene/GlReadback directly
+         for the offscreen segment-count benchmark (Task 9). -->
+    <InternalsVisibleTo Include="PlotterGlBench" />
   </ItemGroup>
 
 </Project>
