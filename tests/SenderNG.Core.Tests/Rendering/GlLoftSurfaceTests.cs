@@ -184,10 +184,21 @@ public class GlLoftSurfaceTests
         scene.SetView(new PlotterGlSettings { ShowLoft = true });
         var outPx = Capture(rb, scene);                  // sheet blended over it
 
-        // Flat normal of this quad is (0,0,-1) (SafeNormal of b0-a0 x b1-a0),
-        // so vShade = max(dot((0,0,-1), normalize(LightDirection)), 0) * 0.7 + 0.3
-        // with LightDirection = (0.4, 0.8, 0.5) (GlPlotScene.cs:71) -> 0.3.
-        var src = new[] { 0.42f * 0.3f * 255f, 0.42f * 0.3f * 255f, 0.54f * 0.3f * 255f };
+        // Task 7b re-baseline (old expectation -> new, formula cited): the
+        // sheet now shades with Nex's cadStyleLightingFlat
+        // (psPBRTemplate.glsl:374-461) in RAW form (uToneMap=0 — the
+        // checkpoint-12 discriminator; the tone-mapped cluster misses the
+        // Nex measurement by ~13 bytes). Old: vShade Lambert with the fixed
+        // light, dot((0,0,-1), normalize((0.4,0.8,0.5))) clamped to 0 ->
+        // shade 0.3 -> src = albedo * 0.3 = (32.1, 32.1, 41.3). New:
+        // CadFlat(N=(0,0,-1), V=camera forward, albedo (0.42,0.42,0.54))
+        // -> src = (88.75, 88.75, 112.91). The blend contract under test is
+        // unchanged: composite = 0.35 * src + 0.65 * dst.
+        var vOrtho = Vector3.Normalize(
+            scene.ActiveCamera.Target - scene.ActiveCamera.Position);
+        var srcRgb = GlNexColourParityTests.CadFlat(
+            new Vector3(0, 0, -1), vOrtho, new Vector3(0.42f, 0.42f, 0.54f)) * 255f;
+        var src = new[] { srcRgb.X, srcRgb.Y, srcRgb.Z };
         for (var c = 0; c < 3; c++)
         {
             var expected = 0.35f * src[c] + 0.65f * dst[i0 + c];

@@ -65,10 +65,13 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     private static readonly Vector4 GridMajorColor = new(0.62f, 0.62f, 0.62f, 1f);
     private static readonly Vector4 JobEnvelopeColor = new(0f, 0.7f, 0.9f, 1f);
 
-    /// <summary>Fixed light for the shaded mesh pass. The mesh vertex shader
-    /// shades against local-space normals (no normal matrix), which is all the
-    /// small fixed chrome heads need to read as solid rather than flat.</summary>
-    private static readonly Vector3 LightDirection = Vector3.Normalize(new Vector3(0.4f, 0.8f, 0.5f));
+    /// <summary>Task 7b: the mesh pass shades with Nex's CAD pipeline
+    /// (<c>cadStyleLightingFlat</c>) against world-space positions/normals, so
+    /// the camera state and the tone-map discriminator travel as uniforms —
+    /// the fixed light is gone with the port.</summary>
+    private const float MeshToneMapOn = 1f;
+
+    private const float MeshToneMapOff = 0f;
 
     private readonly GlCamera _ortho = new();
 
@@ -95,7 +98,11 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     private readonly int _lineWidthPx;
     private readonly int _meshMvp;
     private readonly int _meshColor;
-    private readonly int _meshLightDir;
+    private readonly int _meshModel;
+    private readonly int _meshCamPos;
+    private readonly int _meshViewDir;
+    private readonly int _meshPerspective;
+    private readonly int _meshToneMap;
     private readonly LineMesh _gridMinor;
     private readonly LineMesh _gridMajor;
     private readonly LineMesh _axesLines;
@@ -266,7 +273,11 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _lineWidthPx = _gl.GetUniformLocation(_lineProg, "uLineWidthPx");
         _meshMvp = _gl.GetUniformLocation(_meshProg, "uMvp");
         _meshColor = _gl.GetUniformLocation(_meshProg, "uColor");
-        _meshLightDir = _gl.GetUniformLocation(_meshProg, "uLightDir");
+        _meshModel = _gl.GetUniformLocation(_meshProg, "uModel");
+        _meshCamPos = _gl.GetUniformLocation(_meshProg, "uCamPos");
+        _meshViewDir = _gl.GetUniformLocation(_meshProg, "uViewDir");
+        _meshPerspective = _gl.GetUniformLocation(_meshProg, "uPerspective");
+        _meshToneMap = _gl.GetUniformLocation(_meshProg, "uToneMap");
 
         // Depth test for the whole frame, set once: later draws (the Task 5
         // layers, loft and tool) win an equal-depth test through GL_LEQUAL.
@@ -924,23 +935,46 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         => UseLineProgram(vp, _frameRtW, _frameRtH, GlPlotTool.WireThickness);
 
     /// <summary>Bind the mesh program for the tool cones — the same program
-    /// the axis heads draw through, with the fixed light pushed once per
-    /// pass; each instance's MVP/color follows via
-    /// <see cref="SetToolMeshInstance"/>.</summary>
+    /// the axis heads draw through, with the camera uniforms and the
+    /// tone-mapped discriminator pushed once per pass; each instance's
+    /// MVP/model/color follows via <see cref="SetToolMeshInstance"/>.</summary>
     internal void UseToolMeshProgram()
     {
         _gl.UseProgram(_meshProg);
-        _gl.Uniform3(_meshLightDir, LightDirection);
+        PushMeshCamera(MeshToneMapOn);
     }
 
     /// <summary>Push one tool cone's uniforms: <c>uMvp = model * viewProj</c>
-    /// (row-vector order) and the tool palette color.</summary>
+    /// (row-vector order), its model matrix (the CAD pass's world transform)
+    /// and the tool palette color.</summary>
     internal void SetToolMeshInstance(in Matrix4x4 model, in Matrix4x4 vp, Vector4 color)
     {
-        var mvp = model * vp;
+        var m = model;
+        var mvp = m * vp;
         _gl.UniformMatrix4(_meshMvp, false,
             MemoryMarshal.CreateReadOnlySpan(ref mvp.M11, 16));
+        _gl.UniformMatrix4(_meshModel, false,
+            MemoryMarshal.CreateReadOnlySpan(ref m.M11, 16));
         _gl.Uniform4(_meshColor, color);
+    }
+
+    /// <summary>Push the mesh pass's camera uniforms: the tone-map
+    /// discriminator, the camera position (the perspective view direction is
+    /// per-fragment <c>normalize(camPos - worldPos)</c>, the engine's
+    /// <c>getViewDirection()</c>), the constant ortho view direction
+    /// (camera forward <c>normalize(Target - Position)</c>, the task-7b
+    /// brief's parallel-projection analogue) and the mode flag that selects
+    /// between them.</summary>
+    private void PushMeshCamera(float toneMap)
+    {
+        _gl.Uniform1(_meshToneMap, toneMap);
+        _gl.Uniform3(_meshCamPos, _active.Position);
+        var forward = _active.Target - _active.Position;
+        forward = forward.LengthSquared() > 1e-12f
+            ? Vector3.Normalize(forward)
+            : -Vector3.UnitZ;
+        _gl.Uniform3(_meshViewDir, forward);
+        _gl.Uniform1(_meshPerspective, _perspectiveActive ? 1f : 0f);
     }
 
     /// <summary>The content layers after the chrome (the brief's per-frame
@@ -1077,13 +1111,16 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         if (_sawLayerDraw)
             _layersDrawnBeforeCones = true;
         _gl.UseProgram(_meshProg);
-        _gl.Uniform3(_meshLightDir, LightDirection);
+        PushMeshCamera(MeshToneMapOn);
         for (var i = 0; i < _axisCones.Count; i++)
         {
             var instance = _axisCones[i];
-            var mvp = instance.Model * vp;
+            var model = instance.Model;
+            var mvp = model * vp;
             _gl.UniformMatrix4(_meshMvp, false,
                 MemoryMarshal.CreateReadOnlySpan(ref mvp.M11, 16));
+            _gl.UniformMatrix4(_meshModel, false,
+                MemoryMarshal.CreateReadOnlySpan(ref model.M11, 16));
             _gl.Uniform4(_meshColor, instance.Color);
             _cone.Draw();
         }
@@ -1093,7 +1130,11 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// translucent sheet between the carriage planes, gated by
     /// <see cref="ShowLoft"/> and by a live sheet with geometry (Nex's
     /// lazily-absent node — an empty sheet draws nothing). Pass state:
-    /// <c>uMvp = vp</c>, the fixed light, the Nex sheet colour at 0.35 alpha
+    /// <c>uMvp = vp</c> with an identity model (the sheet is already in world
+    /// space), the CAD camera uniforms with the RAW discriminator
+    /// (<c>uToneMap = 0</c> — the checkpoint-12 measurement: Nex's sheet
+    /// lands on the un-tone-mapped cluster, so the tone map must NOT touch
+    /// this pass), the Nex sheet colour at 0.35 alpha
     /// (<c>(0.42, 0.42, 0.54)</c> — its opacity lives in the blend now, so
     /// the fragment stage passes <c>uColor.a</c> through), alpha blending
     /// <c>SrcAlpha / OneMinusSrcAlpha</c> and <c>DepthMask(false)</c> for the
@@ -1121,7 +1162,10 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         var mvp = vp;
         _gl.UniformMatrix4(_meshMvp, false,
             MemoryMarshal.CreateReadOnlySpan(ref mvp.M11, 16));
-        _gl.Uniform3(_meshLightDir, LightDirection);
+        var identity = Matrix4x4.Identity;
+        _gl.UniformMatrix4(_meshModel, false,
+            MemoryMarshal.CreateReadOnlySpan(ref identity.M11, 16));
+        PushMeshCamera(MeshToneMapOff);
         _gl.Uniform4(_meshColor, new Vector4(0.42f, 0.42f, 0.54f, 0.35f));
         _gl.Enable(EnableCap.Blend);
         _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);

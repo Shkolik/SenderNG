@@ -117,11 +117,22 @@ internal static class GlShaders
 
     /// <summary>The legacy two-stage program's fragment stage (color matched
     /// by name from <see cref="LineVertex"/>'s <c>vColor</c>), also the
-    /// body twin of <see cref="LineFragmentFat"/>.</summary>
+    /// body twin of <see cref="LineFragmentFat"/>. Lines pass through the
+    /// same ACES filmic curve Nex tones the whole frame with
+    /// (psToneGamma.glsl:25-32) — authored palette in, on-screen bytes out.</summary>
     public const string LineFragment = """
         in vec4 vColor;
         out vec4 FragColor;
-        void main() { FragColor = vec4(vColor.rgb, 1.0); }
+        // psToneGamma.glsl:25-32
+        vec3 AcesFilm(vec3 x) {
+            const float a = 2.51;
+            const float b = 0.03;
+            const float c = 2.43;
+            const float d = 0.59;
+            const float e = 0.14;
+            return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+        }
+        void main() { FragColor = vec4(AcesFilm(vColor.rgb), 1.0); }
         """;
 
     /// <summary>The three-stage program's fragment stage: same body as
@@ -135,26 +146,112 @@ internal static class GlShaders
     public const string LineFragmentFat = """
         in vec4 gColor;
         out vec4 FragColor;
-        void main() { FragColor = vec4(gColor.rgb, 1.0); }
+        // psToneGamma.glsl:25-32
+        vec3 AcesFilm(vec3 x) {
+            const float a = 2.51;
+            const float b = 0.03;
+            const float c = 2.43;
+            const float d = 0.59;
+            const float e = 0.14;
+            return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+        }
+        void main() { FragColor = vec4(AcesFilm(gColor.rgb), 1.0); }
         """;
 
+    /// <summary>World-space mesh pass: the model matrix rides along so the
+    /// fragment stage can run Nex's CAD lighting against world positions and
+    /// normals. The normal matrix is the GLSL-canonical
+    /// <c>transpose(inverse(mat3(uModel)))</c> — the axis-cone instances
+    /// carry non-uniform scale — and both GLSL 330 and GLSL ES 3.00 provide
+    /// <c>inverse()</c>.</summary>
     public const string MeshVertex = """
         layout(location = 0) in vec3 aPos;
         layout(location = 1) in vec3 aNormal;
         uniform mat4 uMvp;
-        uniform vec3 uLightDir;
-        out float vShade;
+        uniform mat4 uModel;
+        out vec3 vWorldPos;
+        out vec3 vWorldNormal;
         void main() {
             gl_Position = uMvp * vec4(aPos, 1.0);
-            vShade = max(dot(normalize(aNormal), normalize(uLightDir)), 0.0) * 0.7 + 0.3;
+            vec4 world = uModel * vec4(aPos, 1.0);
+            vWorldPos = world.xyz;
+            vWorldNormal = transpose(inverse(mat3(uModel))) * aNormal;
         }
         """;
 
+    /// <summary>Nex's CAD flat shading, ported verbatim from
+    /// <c>cadStyleLightingFlat</c> (psPBRTemplate.glsl:374-461) against the
+    /// default PBR material (ambient 0.01, ao 1, metallic 0, emissive 0 — see
+    /// <c>PBRMaterialProperties.DefaultProperties</c>). View direction: the
+    /// perspective branch is the engine's <c>getViewDirection()</c>
+    /// (psPBRTemplate.glsl:156-158, per-fragment
+    /// <c>normalize(camPos - worldPos)</c>); the ortho branch is the constant
+    /// camera forward <c>normalize(Target - Position)</c> (task-7b brief —
+    /// the parallel-projection analogue, pushed once per pass). The
+    /// <c>uToneMap</c> uniform is the checkpoint-12 discriminator: the loft
+    /// sheet draws RAW CAD (0 — Nex's measured sheet value is the
+    /// un-tone-mapped cluster), the cone heads and tool meshes draw
+    /// ACES(CAD) (1). The N-flip at the top is psPBRTemplate.glsl:382-384.
+    /// </summary>
     public const string MeshFragment = """
-        in float vShade;
+        in vec3 vWorldPos;
+        in vec3 vWorldNormal;
         uniform vec4 uColor;
+        uniform vec3 uCamPos;
+        uniform vec3 uViewDir;
+        uniform float uPerspective;
+        uniform float uToneMap;
         out vec4 FragColor;
-        void main() { FragColor = vec4(uColor.rgb * vShade, uColor.a); }
+        // psToneGamma.glsl:25-32
+        vec3 AcesFilm(vec3 x) {
+            const float a = 2.51;
+            const float b = 0.03;
+            const float c = 2.43;
+            const float d = 0.59;
+            const float e = 0.14;
+            return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+        }
+        // psPBRTemplate.glsl:374-461
+        vec3 CadStyleLightingFlat(vec3 N, vec3 V, vec3 albedo) {
+            if (dot(N, V) < 0.0) N = -N;                    // :382-384
+            float NdotV = max(dot(N, V), 0.0);              // :386
+            float ambientStrength = 0.15;                   // :392
+            float diffuseStrength = 0.75;                   // :393
+            float specularStrength = 0.25;                  // :394
+            float specularShininess = 48.0;                 // :395
+            vec3 keyLightDir = normalize(V + vec3(0.25, 0.35, 0.15));   // :401
+            vec3 fillLightDir = normalize(vec3(-0.6, 0.3, -0.4));       // :403
+            float keyNdotL = max(dot(N, keyLightDir), 0.0);             // :410
+            float fillNdotL = max(dot(N, fillLightDir), 0.0);           // :411
+            float keyWrap = keyNdotL * 0.8 + 0.2;                       // :414
+            vec3 keyDiffuse = albedo * keyWrap * diffuseStrength;       // :416
+            vec3 fillDiffuse = albedo * fillNdotL * 0.2;                // :417
+            vec3 H = normalize(V + keyLightDir);                        // :422
+            float NdotH = max(dot(N, H), 0.0);                          // :423
+            float normFactor = (specularShininess + 2.0) / 8.0;         // :424
+            float spec = pow(NdotH, specularShininess) * normFactor;    // :425
+            float F0 = 0.04;                                            // :428 metallic=0
+            float fresnel = F0 + (1.0 - F0) * pow(1.0 - NdotV, 5.0);    // :429
+            vec3 specular = vec3(spec * specularStrength * fresnel);    // :430
+            float edgeFactor = 1.0 - pow(1.0 - NdotV, 2.5);             // :437
+            float edgeDarken = mix(0.7, 1.0, edgeFactor);               // :438
+            float rimHighlight = pow(1.0 - NdotV, 4.0) * 0.15;          // :441
+            vec3 ambient = albedo * vec3(0.01) * ambientStrength;       // :447 ao=1
+            vec3 diffuse = (keyDiffuse + fillDiffuse) * edgeDarken;     // :452
+            // metallic 0: finalDiffuse = diffuse, finalSpecular =
+            // specular, emissive = 0 (:455-458)
+            return ambient + diffuse + specular + vec3(rimHighlight);   // :458
+        }
+        void main() {
+            vec3 N = normalize(vWorldNormal);
+            vec3 V = uPerspective > 0.5
+                ? normalize(uCamPos - vWorldPos)
+                : uViewDir;
+            vec3 c = CadStyleLightingFlat(N, V, uColor.rgb);
+            if (uToneMap > 0.5)
+                c = AcesFilm(c);
+            FragColor = vec4(c, uColor.a);
+        }
         """;
 
     /// <summary>Compile one shader stage. Throws with the driver's info log on

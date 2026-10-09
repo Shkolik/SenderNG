@@ -184,7 +184,8 @@ internal sealed unsafe class GlLoftSurface : ILoftSurface, IDisposable
     }
 
     /// <summary>Issue the sheet's triangles. The pass uniforms (program,
-    /// <c>uMvp = vp</c>, light, sheet colour, blend and depth-mask state)
+    /// <c>uMvp = vp</c>, identity model, the CAD camera uniforms with the
+    /// raw tone-map discriminator, sheet colour, blend and depth-mask state)
     /// belong to the caller — <see cref="GlPlotScene.DrawLoft"/> owns the
     /// frame's only blend pass — so this only binds the VAO and draws;
     /// <paramref name="vp"/> is the frame's view-projection that pass pushed,
