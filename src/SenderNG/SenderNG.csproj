@@ -101,8 +101,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Hotkey provider tests (and other Core.Tests) assert internal host surface. -->
+    <!-- Tests asserting internal host surface: Core.Tests (hotkeys) and SenderNG.Tests (views). -->
     <InternalsVisibleTo Include="SenderNG.Core.Tests" />
+    <InternalsVisibleTo Include="SenderNG.Tests" />
   </ItemGroup>
 
   <!-- The Nex plugin ships MOST of its code in external assemblies
