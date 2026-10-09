@@ -50,9 +50,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <StackPanel Spacing="4">
             <TextBlock Text="{Binding ViewLabel}" FontSize="12" FontWeight="SemiBold"
                        Foreground="#333" Margin="0,6,0,0" />
-			<Grid ColumnDefinitions="Auto,24,Auto" RowDefinitions="Auto,Auto">			    
+			<Grid ColumnDefinitions="Auto,24,Auto" RowDefinitions="Auto,Auto,Auto">			    
 				<CheckBox Grid.Column="0" Grid.Row="0" Content="{Binding ShowOriginLabel}" IsChecked="{Binding ShowOrigin, Mode=TwoWay}" FontSize="11" />
 			    <CheckBox Grid.Column="0" Grid.Row="1" Content="{Binding ShowEnvelopeLabel}" IsChecked="{Binding ShowEnvelope, Mode=TwoWay}" FontSize="11" />
+			    <CheckBox Grid.Column="0" Grid.Row="2" Content="{Binding ShowLoftLabel}" IsChecked="{Binding ShowLoft, Mode=TwoWay}" IsVisible="{Binding HasLoft}" FontSize="11" />
 			    <CheckBox Grid.Column="2" Grid.Row="0" Content="{Binding ShowRunStateLabel}" IsChecked="{Binding ShowRunState, Mode=TwoWay}" FontSize="11" />
 			    <CheckBox Grid.Column="2" Grid.Row="1" Content="{Binding ShowGridLabel}" IsChecked="{Binding ShowGrid, Mode=TwoWay}" FontSize="11" />
 			</Grid>

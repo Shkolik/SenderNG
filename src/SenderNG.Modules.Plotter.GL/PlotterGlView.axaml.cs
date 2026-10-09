@@ -246,6 +246,7 @@ public partial class PlotterGlView : UserControl
             ShowEnvelope = vm.ShowEnvelope,
             ShowRunState = vm.ShowRunState,
             ShowGrid = vm.ShowGrid,
+            ShowLoft = vm.ShowLoft,
         });
     }
 
@@ -255,6 +256,7 @@ public partial class PlotterGlView : UserControl
             && e.PropertyName is not nameof(PlotterGlSettingsViewModel.ShowEnvelope)
             && e.PropertyName is not nameof(PlotterGlSettingsViewModel.ShowRunState)
             && e.PropertyName is not nameof(PlotterGlSettingsViewModel.ShowGrid)
+            && e.PropertyName is not nameof(PlotterGlSettingsViewModel.ShowLoft)
             && e.PropertyName is not nameof(PlotterGlSettingsViewModel.Supersample))
         {
             return;

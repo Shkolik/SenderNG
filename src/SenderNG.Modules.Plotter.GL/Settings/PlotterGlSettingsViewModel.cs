@@ -77,12 +77,21 @@ public sealed class PlotterGlSettingsViewModel : CNC.Core.ViewModelBase
         OnPropertyChanged(nameof(ShowEnvelopeLabel));
         OnPropertyChanged(nameof(ShowRunStateLabel));
         OnPropertyChanged(nameof(ShowGridLabel));
+        OnPropertyChanged(nameof(ShowLoftLabel));
         OnPropertyChanged(nameof(SupersampleLabel));
         OnPropertyChanged(nameof(MsaaLabel));
     }
 
     /// <summary>True when the machine has more than one plane (wire length applies).</summary>
     public bool ShowWireLength => _settings.Planes.Count > 1;
+
+    /// <summary>True when the machine has at least two planes — a sheet
+    /// spans the space BETWEEN planes, so a single-plane mill has nothing to
+    /// show and neither toolbar nor settings carry the loft toggle. Same
+    /// shape and refresh semantics as <see cref="ShowWireLength"/>: the
+    /// profile switch rebuilds this VM, so no PropertyChanged refresh is
+    /// raised here.</summary>
+    public bool HasLoft => _settings.Planes.Count >= 2;
 
     public double WireLength
     {
@@ -151,6 +160,21 @@ public sealed class PlotterGlSettingsViewModel : CNC.Core.ViewModelBase
         }
     }
 
+    /// <summary>Show the translucent loft sheet between the carriage planes.
+    /// Runtime — the next frame's draw pass reads the gate. Default ON.
+    /// Hidden entirely on single-plane machines via <see cref="HasLoft"/>.</summary>
+    public bool ShowLoft
+    {
+        get => _settings.ShowLoft;
+        set
+        {
+            if (_settings.ShowLoft == value) return;
+            _settings.ShowLoft = value;
+            Save();
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>Render the view at 2x panel resolution (hairline AA). Runtime —
     /// the next tick re-sizes the render target. Default ON.</summary>
     public bool Supersample
@@ -214,6 +238,9 @@ public sealed class PlotterGlSettingsViewModel : CNC.Core.ViewModelBase
 
     /// <summary>Localized "Show grid" toggle label.</summary>
     public string ShowGridLabel => Resolve("module.plotter-gl.settings.showGrid", "Show grid");
+
+    /// <summary>Localized "Show loft" toggle label.</summary>
+    public string ShowLoftLabel => Resolve("module.plotter-gl.settings.showLoft", "Show loft");
 
     /// <summary>Localized "2x supersample" label for the render-quality toggle.</summary>
     public string SupersampleLabel => Resolve("module.plotter-gl.settings.supersample", "2x supersample (AA at 2x render)");

@@ -1,7 +1,8 @@
 /*
  * PlotterGlLocaleTests.cs - guards the plotter-gl module's real Locale
  * catalogs: both files parse, carry no UTF-8 BOM, hold the per-kind
- * render-unavailable hints, agree on their key set, and hold no blank value
+ * render-unavailable hints and settings labels, agree on their key set, and
+ * hold no blank value
  */
 
 /*
@@ -76,6 +77,28 @@ public class PlotterGlLocaleTests
         "module.plotter-gl.renderUnavailable.runtimeError",
         "module.plotter-gl.renderUnavailable.other",
     };
+
+    /// <summary>Settings labels resolved code-side by
+    /// <c>PlotterGlSettingsViewModel</c> the same way the hints are: a miss
+    /// degrades to the English fallback literal, silently, in every
+    /// language.</summary>
+    public static TheoryData<string> SettingsLabelKeys() => new()
+    {
+        "module.plotter-gl.settings.showLoft",
+    };
+
+    [Theory]
+    [MemberData(nameof(SettingsLabelKeys))]
+    public void Every_settings_label_key_exists_in_both_locales(string key)
+    {
+        foreach (var locale in Locales)
+        {
+            var strings = Strings(locale);
+            Assert.True(strings.ContainsKey(key),
+                $"{locale}.json has no '{key}'. Without it the settings label " +
+                "falls back to the English literal.");
+        }
+    }
 
     [Theory]
     [MemberData(nameof(RenderHintKeys))]

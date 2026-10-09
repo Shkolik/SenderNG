@@ -25,6 +25,7 @@
     "module.plotter-gl.settings.aaMode": "Mode",
     "module.plotter-gl.settings.aaQuality": "Qualité",
     "module.plotter-gl.settings.supersample": "Suréchantillonnage 2x (AA au rendu 2x)",
+    "module.plotter-gl.settings.showLoft": "Afficher la surface loft",
     "module.plotter-gl.settings.msaa": "MSAA (anticrénelage)"
   }
 }

@@ -367,7 +367,7 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>True when <paramref name="a"/> and <paramref name="b"/> differ in
-    /// AT MOST the four view toggles (ShowOrigin/ShowEnvelope/ShowRunState/ShowGrid)
+    /// AT MOST the five view toggles (ShowOrigin/ShowEnvelope/ShowRunState/ShowGrid/ShowLoft)
     /// — the runtime-only case
     /// (identical machine type, planes and wire length). The view pushes these live
     /// onto the scene (SetView — node-level Enabled/park flips only), so a

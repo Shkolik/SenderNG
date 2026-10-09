@@ -231,6 +231,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 								  StrokeThickness="1.5"
 								  Data="M 4,2 L 13,8 L 4,14 Z" />
 						</ToggleButton>
+
+						<!-- Loft (the sheet between the carriage planes — hidden on
+						     single-plane machines, which have no sheet to show) -->
+						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowLoftLabel}" IsChecked="{Binding ShowLoft}" IsVisible="{Binding HasLoft}">
+							<Path Width="16" Height="16" Stretch="Uniform"
+								  HorizontalAlignment="Center" VerticalAlignment="Center"
+								  Stroke="{Binding $parent[ToggleButton].Foreground}"
+								  StrokeThickness="1.5"
+								  Data="M 2,6 L 12,2 L 14,10 L 4,14 Z" />
+						</ToggleButton>
                     </StackPanel>
 
 					<!-- Bottom-left: save the current view (the readback frame at its

@@ -50,10 +50,10 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// and the view/projection cached per <see cref="RenderFrame"/> for cursor-ray
 /// placement. Each frame draws the static chrome through the two
 /// <see cref="GlShaders"/> programs — grid, job envelope, axis shafts —
-/// then the content layers, the tool (Task 6) and finally the
-/// cone heads: the line passes all precede the triangle passes, deliberately
-/// so (Intel MSAA root cause at the call site in <see cref="RenderFrame"/>),
-/// all under <c>GL_LEQUAL</c>.
+/// then the content layers, the tool (Task 6), the cone heads and finally
+/// the loft sheet (Task 7): the line passes all precede the triangle passes,
+/// deliberately so (Intel MSAA root cause at the call site in
+/// <see cref="RenderFrame"/>), all under <c>GL_LEQUAL</c>.
 /// </para></summary>
 internal sealed unsafe class GlPlotScene : IPlotScene
 {
@@ -162,6 +162,13 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// by <see cref="ResetBuild"/>/<see cref="Dispose"/>.</summary>
     private readonly List<GlPlotTool> _liveTools = [];
 
+    /// <summary>The live loft sheets of the current build — created by
+    /// <see cref="AddLoftSurface"/>, drawn by <see cref="DrawLoft"/> (Task 7),
+    /// disposed as a set by <see cref="ResetBuild"/>/<see cref="Dispose"/>
+    /// (mirrors <see cref="_liveTools"/>: one sheet per build, replaced with
+    /// the rest of the content).</summary>
+    private readonly List<GlLoftSurface> _liveLofts = [];
+
     /// <summary>This frame's render-target size, latched at the top of
     /// <see cref="RenderFrame"/> so the tool draws can bind the line program
     /// with the frame's pixel space (see
@@ -205,6 +212,18 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     private bool _sawLayerDraw;
     private bool _layersDrawnBeforeCones;
 
+    /// <summary>Task 7 order/latch state, same one-shot pattern as the step
+    /// 5g guard above: the loft pass drew in the current
+    /// <see cref="RenderFrame"/> (<c>_loftDrawn</c>) and it drew after the
+    /// cone pass (<c>_loftAfterConePass</c>, latched by
+    /// <see cref="DrawLoft"/> from <c>_sawConeDraw</c>, raised by
+    /// <see cref="DrawAxisCones"/>). All three reset at the top of every
+    /// frame; read through <see cref="LoftDrawnThisFrame"/> /
+    /// <see cref="LoftDrawnAfterConePass"/>.</summary>
+    private bool _loftDrawn;
+    private bool _loftAfterConePass;
+    private bool _sawConeDraw;
+
     /// <summary>Overlay chrome gates — pushed by <see cref="SetView"/> from the
     /// view's toggle bar (runtime-only: geometry stays uploaded, the draw is
     /// skipped). <see cref="ShowRunState"/> also forwards to the layers, which
@@ -216,6 +235,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     internal bool ShowGrid { get; private set; } = true;
 
     internal bool ShowRunState { get; private set; } = true;
+
+    internal bool ShowLoft { get; private set; } = true;
 
     /// <summary>Last frame's render truth for cursor-ray placement (the inverse
     /// view-projection the GPU actually drew with). <c>_hasInvViewProj</c> goes
@@ -320,6 +341,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         ShowEnvelope = settings.ShowEnvelope;
         ShowGrid = settings.ShowGrid;
         ShowRunState = settings.ShowRunState;
+        ShowLoft = settings.ShowLoft;
         // Run state reaches the planes as staging state (Nex's
         // ApplyRunStateToLayer, minus the parked done node — the GL layer
         // gates its own overlay draw on the same flag).
@@ -339,10 +361,11 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         MaybeRebuildChrome();
     }
 
-    /// <summary>Swap-pump the tool connector wires (and, per Task 7, the loft
-    /// surface). Every live tool decides for itself whether its
-    /// <see cref="RebuildGate"/> grants an upload — the Nex pump cadence the
-    /// view drives every tick.</summary>
+    /// <summary>Swap-pump the tool connector wires. Every live tool decides
+    /// for itself whether its <see cref="RebuildGate"/> grants an upload —
+    /// the Nex pump cadence the view drives every tick. The loft is NOT
+    /// pumped: its sheet is static for the life of a build (Task 7 uploads it
+    /// once, from the build path that calls <c>SetLoftSheet</c>).</summary>
     public void PumpToolWire()
     {
         foreach (var tool in _liveTools)
@@ -638,10 +661,19 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// <inheritdoc/>
     public ILoftSurface AddLoftSurface()
     {
+        // Same reload fence as AddCarriagePlane: a loft requested after a
+        // completed build provokes a ResetBuild that drops the previous
+        // run's content first.
         if (_buildComplete)
             ResetBuild();
         _buildComplete = false;
-        return new NoopLoft();
+        var loft = new GlLoftSurface(Context);
+        _liveLofts.Add(loft);
+        // NO end-of-build fence here on purpose: the kinematic factory calls
+        // CreateTool after this, and that call owns the build-end marker —
+        // AddLoftSurface must not complete a build the factory has not
+        // finished yet.
+        return loft;
     }
 
     /// <inheritdoc/>
@@ -659,8 +691,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
     /// <summary>Dispose the previous run's content (Nex's ResetBuild, GL
     /// subset): fresh fabric is registered on every program reload, so the old
-    /// layers and tools must go. Runs on the render thread with the context
-    /// current — same thread every pump and draw uses.</summary>
+    /// layers, lofts and tools must go. Runs on the render thread with the
+    /// context current — same thread every pump and draw uses.</summary>
     private void ResetBuild()
     {
         foreach (var tool in _liveTools)
@@ -669,6 +701,9 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         foreach (var layer in _liveLayers)
             layer.Dispose();
         _liveLayers.Clear();
+        foreach (var loft in _liveLofts)
+            loft.Dispose();
+        _liveLofts.Clear();
         _buildComplete = false;
         // Nothing is live anymore: the chrome falls back to the same
         // grid-default bounds the ctor provisions (Nex's empty-chrome state).
@@ -792,8 +827,9 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// this is called. Recomputes the active camera's view/projection for the
     /// render-target aspect, caches the inverse for cursor-ray placement, then
     /// draws the static chrome (grid → envelope → axis shafts), the content
-    /// layers, the tools, and last the cone heads — the line passes all run
-    /// before the triangle passes (root cause at its call below);
+    /// layers, the tools, the cone heads and last the loft sheet — the line
+    /// passes all run before the triangle passes (root cause at its call
+    /// below);
     /// <paramref name="rtW"/> / <paramref name="rtH"/> are the render-target
     /// pixels (supersample factor applied), the size the draws must cover.
     /// The order-guard seam for that placement resets here, before any
@@ -802,6 +838,9 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     {
         _sawLayerDraw = false;
         _layersDrawnBeforeCones = false;
+        _loftDrawn = false;
+        _loftAfterConePass = false;
+        _sawConeDraw = false;
         _frameRtW = rtW;
         _frameRtH = rtH;
         var view = _active.View();
@@ -848,6 +887,13 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         // DrawChrome and the heads follow the same toggle.
         if (ShowOrigin)
             DrawAxisCones(view * proj);
+        // Task 7's loft draws LAST, after the cone pass: the sheet is the
+        // frame's only blend pass and must stay after every line pass (the
+        // 5g rule above — a blend composites over a frame that must already
+        // hold the lines), and triangle-after-triangle only follows, so
+        // nothing loses AA. The sheet itself is self-hard on Intel like all
+        // triangle meshes (documented, not fixed).
+        DrawLoft(view * proj);
 #if DEBUG
         SpikeGlErrorProbe();
 #endif
@@ -965,6 +1011,20 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// back ahead of the layers (the checkpoint-7 order).</summary>
     internal bool LayersDrawnBeforeCones => _layersDrawnBeforeCones;
 
+    /// <summary>Task 7 read seam: the most recent <see cref="RenderFrame"/>
+    /// ran the loft pass — <see cref="DrawLoft"/> raised it, reset at the top
+    /// of every frame, so a frame with <c>ShowLoft</c> off or no sheet with
+    /// geometry reads false. Fed only by the actual draw, never by the gate
+    /// itself (same discipline as <see cref="LayersDrawnBeforeCones"/>).</summary>
+    internal bool LoftDrawnThisFrame => _loftDrawn;
+
+    /// <summary>Task 7 read seam: the most recent frame's loft pass ran AFTER
+    /// the cone pass — the checkpoint-8/9 ordering rule extended to the
+    /// sheet, which is the frame's only blend pass. False when the loft did
+    /// not draw or the cone pass did not run (no cones, or
+    /// <c>ShowOrigin</c> off).</summary>
+    internal bool LoftDrawnAfterConePass => _loftAfterConePass;
+
     /// <summary>This frame's chrome, in the brief's per-frame order: grid →
     /// envelope → axis shafts, all under the overlay gates, so the three
     /// toggles off leaves the clear color untouched. The content layers draw
@@ -1003,14 +1063,17 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
     /// <summary>The shaded mesh pass: one shared cone mesh, one model matrix
     /// and one axis color per head (3 heads, 3 uniform sets). The frame's
-    /// last pass (see <see cref="RenderFrame"/> for why every line pass —
-    /// chrome, layers and tool wire — must precede the triangle passes, this
-    /// one included); reaching it after a layer pass is what latches the
-    /// order-guard seam.</summary>
+    /// cone pass, after every line pass (see <see cref="RenderFrame"/> for
+    /// why every line pass — chrome, layers and tool wire — must precede the
+    /// triangle passes, this one included); reaching it after a layer pass is
+    /// what latches the order-guard seam, and running it raises the
+    /// <c>_sawConeDraw</c> observation <see cref="DrawLoft"/> latches after
+    /// it.</summary>
     private void DrawAxisCones(in Matrix4x4 vp)
     {
         if (_axisCones.Count == 0)
             return;
+        _sawConeDraw = true;
         if (_sawLayerDraw)
             _layersDrawnBeforeCones = true;
         _gl.UseProgram(_meshProg);
@@ -1024,6 +1087,49 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             _gl.Uniform4(_meshColor, instance.Color);
             _cone.Draw();
         }
+    }
+
+    /// <summary>The frame's LAST draw and its only blend pass: the
+    /// translucent sheet between the carriage planes, gated by
+    /// <see cref="ShowLoft"/> and by a live sheet with geometry (Nex's
+    /// lazily-absent node — an empty sheet draws nothing). Pass state:
+    /// <c>uMvp = vp</c>, the fixed light, the Nex sheet colour at 0.35 alpha
+    /// (<c>(0.42, 0.42, 0.54)</c> — its opacity lives in the blend now, so
+    /// the fragment stage passes <c>uColor.a</c> through), alpha blending
+    /// <c>SrcAlpha / OneMinusSrcAlpha</c> and <c>DepthMask(false)</c> for the
+    /// pass, both restored afterwards; the depth TEST is untouched, so the
+    /// sheet is still occluded by nearer opaque geometry. Reaching this after
+    /// the cone pass is what latches <see cref="LoftDrawnAfterConePass"/>.</summary>
+    private void DrawLoft(in Matrix4x4 vp)
+    {
+        if (!ShowLoft)
+            return;
+        var hasGeometry = false;
+        foreach (var loft in _liveLofts)
+        {
+            if (loft.HasGeometry)
+            {
+                hasGeometry = true;
+                break;
+            }
+        }
+        if (!hasGeometry)
+            return;
+        _loftDrawn = true;
+        _loftAfterConePass = _sawConeDraw;
+        _gl.UseProgram(_meshProg);
+        var mvp = vp;
+        _gl.UniformMatrix4(_meshMvp, false,
+            MemoryMarshal.CreateReadOnlySpan(ref mvp.M11, 16));
+        _gl.Uniform3(_meshLightDir, LightDirection);
+        _gl.Uniform4(_meshColor, new Vector4(0.42f, 0.42f, 0.54f, 0.35f));
+        _gl.Enable(EnableCap.Blend);
+        _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+        _gl.DepthMask(false);
+        foreach (var loft in _liveLofts)
+            loft.Draw(vp);
+        _gl.DepthMask(true);
+        _gl.Disable(EnableCap.Blend);
     }
 
     /// <summary>Free the GL objects this scene created. Scene and context are
@@ -1041,6 +1147,9 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         foreach (var layer in _liveLayers)
             layer.Dispose();
         _liveLayers.Clear();
+        foreach (var loft in _liveLofts)
+            loft.Dispose();
+        _liveLofts.Clear();
         _gridMinor.Dispose();
         _gridMajor.Dispose();
         _axesLines.Dispose();
@@ -1342,17 +1451,6 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             _ebo = 0;
             _vbo = 0;
             _vao = 0;
-        }
-    }
-
-    private sealed class NoopLoft : ILoftSurface
-    {
-        public void SetWirePlane(Vector3[] polygon)
-        {
-        }
-
-        public void SetLoftSheet(IReadOnlyList<Vector3> sideA, IReadOnlyList<Vector3> sideB)
-        {
         }
     }
 }

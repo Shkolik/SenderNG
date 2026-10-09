@@ -42,6 +42,11 @@ public sealed class PlotterGlSettings
     /// <summary>Show the origin pivot + chrome.</summary>
     public bool ShowOrigin { get; set; } = true;
 
+    /// <summary>Show the translucent loft sheet between the carriage planes
+    /// (multi-plane machines only — the toggle is gated by
+    /// <c>HasLoft</c>).</summary>
+    public bool ShowLoft { get; set; } = true;
+
     /// <summary>Show the combined work/job envelope wireframe.</summary>
     public bool ShowEnvelope { get; set; } = true;
 

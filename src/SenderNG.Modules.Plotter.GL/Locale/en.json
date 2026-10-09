@@ -25,6 +25,7 @@
     "module.plotter-gl.settings.aaMode": "Mode",
     "module.plotter-gl.settings.aaQuality": "Quality",
     "module.plotter-gl.settings.supersample": "2x supersample (AA at 2x render)",
+    "module.plotter-gl.settings.showLoft": "Show loft",
     "module.plotter-gl.settings.msaa": "MSAA (edge AA)"
   }
 }

@@ -112,6 +112,7 @@ public class PlotterGlModule : IModule, ILocalizedModule, IPluginInfo, IPluginDe
             ["module.plotter-gl.settings.showGrid"] = "Show grid",
             ["module.plotter-gl.settings.supersample"] = "2x supersample (AA at 2x render)",
             ["module.plotter-gl.settings.msaa"] = "MSAA (edge AA)",
+            ["module.plotter-gl.settings.showLoft"] = "Show loft",
         };
 
     public void RegisterServices(IServiceCollection services)
