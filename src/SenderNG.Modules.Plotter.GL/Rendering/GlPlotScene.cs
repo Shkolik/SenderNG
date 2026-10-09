@@ -98,6 +98,11 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     private readonly LineMesh _gridMajor;
     private readonly LineMesh _axesLines;
     private readonly LineMesh _jobLines;
+
+    /// <summary>The MSAA re-arm segment: one degenerate off-screen line drawn
+    /// after the cone pass (checkpoint-7). The root-cause comment lives at its
+    /// draw in <see cref="DrawChrome"/>.</summary>
+    private readonly LineMesh _msaaHealer;
     private readonly IndexedMesh _cone;
     private readonly List<ConeInstance> _axisCones = [];
     private BoundingBox _gridBounds;
@@ -179,6 +184,10 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     private bool _glErrorProbed;
     private GLEnum _glErrorProbeResult;
 
+    /// <summary>Step 5f.2 regression latch: the MSAA healer segment has drawn
+    /// at least once (its draw lives in <see cref="DrawChrome"/>).</summary>
+    private bool _msaaHealerDrawn;
+
 
     /// <summary>Overlay chrome gates — pushed by <see cref="SetView"/> from the
     /// view's toggle bar (runtime-only: geometry stays uploaded, the draw is
@@ -241,6 +250,15 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _gridMajor = new LineMesh(context);
         _axesLines = new LineMesh(context);
         _jobLines = new LineMesh(context);
+        _msaaHealer = new LineMesh(context);
+        // Exactly two coincident vertices (one zero-length GL_LINES segment)
+        // far outside any view, color irrelevant — the segment is clipped
+        // before rasterization, so no fragment of it ever reaches a pixel.
+        // DrawChrome draws it after the cone pass; see there for why it exists.
+        var healerVerts = new List<float>();
+        AppendVertex(healerVerts, new Vector3(1e7f, 1e7f, 0f), Vector4.Zero);
+        AppendVertex(healerVerts, new Vector3(1e7f, 1e7f, 0f), Vector4.Zero);
+        _msaaHealer.Upload(healerVerts.ToArray());
         var (coneVerts, coneIdx) = GlMeshBuilder.BuildCone(
             GlMeshBuilder.DefaultRadius, GlMeshBuilder.DefaultHeight);
         _cone = new IndexedMesh(context, coneVerts, coneIdx);
@@ -826,9 +844,16 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// (meaningless until <see cref="GlErrorProbeRan"/>).</summary>
     internal GLEnum GlErrorProbeResult => _glErrorProbeResult;
 
+    /// <summary>Step 5f.2 regression read seam: the MSAA healer segment has
+    /// drawn (latched on its first draw in <see cref="DrawChrome"/> — false
+    /// until a frame draws it, so check it before the frame that must not).</summary>
+    internal bool MsaaHealerDrawn => _msaaHealerDrawn;
+
     /// <summary>This frame's chrome, in the brief's per-frame order: grid →
-    /// envelope → axis shafts → cone heads, all under the overlay gates, so the
-    /// three toggles off leaves the clear color untouched. The Task 5 layers,
+    /// envelope → axis shafts → cone heads, then the MSAA re-arm segment (see
+    /// the comment in the <see cref="ShowOrigin"/> block), all under the
+    /// overlay gates, so the three toggles off leaves the clear color
+    /// untouched. The Task 5 layers,
     /// loft and tool draw after this on top (GL_LEQUAL, set once in the ctor).
     /// Each line piece group re-binds the program with ITS OWN palette width
     /// (Nex per-piece parity: grid/envelope 1.6, axis shafts 3.6) as
@@ -858,6 +883,24 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             _pushedAxesWidth = width;
             _axesLines.Draw();
             DrawAxisCones(vp);
+
+            // WHY this pointless-looking draw exists (checkpoint-7, Intel
+            // UHD 630): on Intel any in-frame GL_TRIANGLES draw disables
+            // multisample coverage for every subsequent draw until the next
+            // framebuffer clear, and a GL_LINES draw re-arms it. DrawAxisCones
+            // is the frame's only triangle pass, so it poisons coverage for
+            // every layer/toolpath draw after it — chrome drawn before it
+            // (grid, envelope, axes) keeps its AA, which is exactly the user's
+            // "grid soft, toolpath hard" symptom. glFinish, FBO re-binds,
+            // glEnable(MULTISAMPLE) and a scissored clear do NOT recover;
+            // a GL_LINES draw does. Mesa never shows the defect (the headless
+            // suite stayed green). So draw one degenerate zero-length segment
+            // (1e7 off-screen, clipped before rasterization — zero pixels)
+            // through the line program: invisible, but it re-arms MSAA for the
+            // content that follows.
+            UseLineProgram(vp, rtW, rtH, width);
+            _msaaHealer.Draw();
+            _msaaHealerDrawn = true;
         }
     }
 
@@ -896,6 +939,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _gridMajor.Dispose();
         _axesLines.Dispose();
         _jobLines.Dispose();
+        _msaaHealer.Dispose();
         _cone.Dispose();
         _gl.DeleteProgram(_lineProg);
         _gl.DeleteProgram(_meshProg);
