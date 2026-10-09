@@ -1,9 +1,12 @@
 /*
  * GlContext.Egl.cs - Linux EGL half of GlContext: hand-rolled P/Invokes
  * against libEGL.so.1 (surfaceless, EGL_KHR_surfaceless_context). Desktop
- * GL 3.3 on x64; GLES 3.0 on arm64. Only ever *called* on non-Windows
- * (GlContext.Create dispatches at runtime), but compiled on every OS — so
- * these DllImports never fire on Windows.
+ * GL 3.3 on x64; GLES 3.0 on arm64. Prefers the MESA surfaceless platform
+ * display; falls back to the default display (eglGetDisplay(0)) when that
+ * platform is missing OR when it initializes with zero configs (WSL2 Mesa
+ * d3d12, Task 8b). Only ever *called* on non-Windows (GlContext.Create
+ * dispatches at runtime), but compiled on every OS — so these DllImports
+ * never fire on Windows.
  */
 
 /*
@@ -70,8 +73,11 @@ internal sealed unsafe partial class GlContext
     /// <summary>Create the surfaceless EGL context per the Task 8 call
     /// sequence: MESA surfaceless display (default-display fallback) →
     /// initialize → bind ES/GL API → choose one config → create context →
-    /// surfaceless eglMakeCurrent → version audit. <see cref="IsGles"/> is
-    /// set to <see cref="IsArm64"/>.</summary>
+    /// surfaceless eglMakeCurrent → version audit. When the platform
+    /// display initializes but exposes zero configs (WSL2 Mesa, Task 8b)
+    /// the config step retries the whole acquire → initialize → bind →
+    /// choose sequence on the default display.
+    /// <see cref="IsGles"/> is set to <see cref="IsArm64"/>.</summary>
     private void InitializeEgl()
     {
         // 1. Prefer MESA's surfaceless platform — no X11/Wayland connection
@@ -81,6 +87,9 @@ internal sealed unsafe partial class GlContext
         //    it is an EGL 1.5 entry point, so a pre-1.5 libEGL lacks the
         //    symbol entirely (EntryPointNotFoundException) — catch that too
         //    and let eglGetDisplay (present since EGL 1.0) decide.
+        //    platformDisplay records WHICH display we got: only the
+        //    platform one may be terminated later (empty-display fallback
+        //    in step 4), the default-display path never terminates here.
         nint display;
         try
         {
@@ -90,19 +99,15 @@ internal sealed unsafe partial class GlContext
         {
             display = 0;
         }
-        if (display == 0)
+        var platformDisplay = display != 0;
+        if (!platformDisplay)
             display = eglGetDisplay(0);
         if (display == 0)
             throw new InvalidOperationException($"eglGetDisplay failed: {EglError()}");
         _eglDisplay = display;
 
-        // 2.
-        if (eglInitialize(_eglDisplay, out _, out _) == EglFalse)
-            throw new InvalidOperationException($"eglInitialize failed: {EglError()}");
-
-        // 3. arm64 is the GLES 3.0 flavor; x64 binds desktop GL.
-        if (eglBindAPI(IsArm64 ? EglOpenGlEsApi : EglOpenGlApi) == EglFalse)
-            throw new InvalidOperationException($"eglBindAPI failed: {EglError()}");
+        // 2. + 3. initialize, then arm64 binds GLES 3.0 / x64 binds desktop GL.
+        InitializeAndBindApi();
 
         // 4. One config: RGBA8 + depth 24 ("COLOR_SIZE 8, DEPTH_SIZE 24" —
         //    realized as R=G=B=A=8) with the matching renderable type.
@@ -113,9 +118,26 @@ internal sealed unsafe partial class GlContext
             EglDepthSize, 24,
             EglNone,
         };
-        nint config = 0;
-        if (eglChooseConfig(_eglDisplay, configAttribs, &config, 1, out var numConfigs) == EglFalse
-            || numConfigs < 1)
+        nint config = ChooseConfig(configAttribs);
+
+        // Task 8b: Mesa under WSL2 hands out a surfaceless platform display
+        // that initializes (EGL 1.5) yet has ZERO framebuffer configs —
+        // eglChooseConfig "succeeds" with numConfigs == 0 (0x3000 =
+        // EGL_SUCCESS). The default display on the same stack reports 75
+        // configs and works with surfaceless MakeCurrent, so terminate the
+        // empty platform display and redo acquire → initialize → bind →
+        // choose against it. Only throw when that ALSO comes up empty.
+        if (config == 0 && platformDisplay)
+        {
+            eglTerminate(_eglDisplay);
+            platformDisplay = false;
+            _eglDisplay = eglGetDisplay(0);
+            if (_eglDisplay == 0)
+                throw new InvalidOperationException($"eglGetDisplay failed: {EglError()}");
+            InitializeAndBindApi();
+            config = ChooseConfig(configAttribs);
+        }
+        if (config == 0)
             throw new InvalidOperationException($"eglChooseConfig failed: {EglError()}");
 
         // 5. x64: CONTEXT_MAJOR 3 + CONTEXT_MINOR 3 (desktop GL).
@@ -148,13 +170,32 @@ internal sealed unsafe partial class GlContext
         Version = GlString(StringName.Version);
         Renderer = GlString(StringName.Renderer);
         Vendor = GlString(StringName.Vendor);
-        CreationPath = "path=egl-surfaceless";
+        CreationPath = platformDisplay
+            ? "path=egl-surfaceless-platform"
+            : "path=egl-default-display";
 
         var minMinor = IsArm64 ? 0 : 3;    // GLES 3.0 on arm64, GL 3.3 on x64
         if (!MeetsMinimumVersion(Version, 3, minMinor))
             throw new PlotGlUnavailableException(
                 $"OpenGL {Version} is below the required {(IsArm64 ? "ES 3.0" : "3.3")} ({Renderer})",
                 GlFailureCause.VersionTooLow);
+
+        void InitializeAndBindApi()
+        {
+            if (eglInitialize(_eglDisplay, out _, out _) == EglFalse)
+                throw new InvalidOperationException($"eglInitialize failed: {EglError()}");
+            if (eglBindAPI(IsArm64 ? EglOpenGlEsApi : EglOpenGlApi) == EglFalse)
+                throw new InvalidOperationException($"eglBindAPI failed: {EglError()}");
+        }
+
+        // Returns 0 on failure (eglChooseConfig FALSE or zero configs) so the
+        // caller can distinguish "surfaceless display is empty" from "done".
+        nint ChooseConfig(int* attribs)
+        {
+            nint cfg = 0;
+            return eglChooseConfig(_eglDisplay, attribs, &cfg, 1, out var numConfigs) != EglFalse
+                && numConfigs >= 1 ? cfg : 0;
+        }
     }
 
     private void MakeCurrentEgl()
