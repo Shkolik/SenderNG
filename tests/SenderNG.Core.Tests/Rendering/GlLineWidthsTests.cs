@@ -75,25 +75,24 @@ public class GlLineWidthsTests
 
     /// <summary>The wiring after checkpoint 4: the probe still measures what
     /// this driver accepts (evidence for the due-diligence doc), but the
-    /// widths the scene and the layers draw with are the palette values —
-    /// rendering no longer depends on driver <c>glLineWidth</c> acceptance
-    /// (fat-line geometry renders them as quads).</summary>
+    /// widths the layers draw with are the palette values — rendering no
+    /// longer depends on driver <c>glLineWidth</c> acceptance (fat-line
+    /// geometry renders them as quads). The scene's chrome palette is
+    /// per-piece (checkpoint-5 item 3) and pinned end-to-end by
+    /// <c>Chrome_pieces_draw_at_their_nex_palette_widths</c>.</summary>
     [GlFact]
-    public void Scene_and_layers_draw_the_palette_widths_not_the_accepted_set()
+    public void Layers_draw_the_palette_widths_not_the_accepted_set()
     {
         using var ctx = GlContext.Create();
         using var scene = new GlPlotScene(ctx);
 
         var accepted = scene.AcceptedLineSizes;
         _output.WriteLine(
-            $"scene accepted line widths: [{string.Join(", ", accepted)}] " +
-            $"| chrome {scene.ChromeLineWidth}");
+            $"scene accepted line widths: [{string.Join(", ", accepted)}]");
 
         // The probe remains honest evidence for this context...
         Assert.Contains(GlLineWidths.Fallback, accepted);
         // ...but the draw widths are the palette, independent of acceptance:
-        Assert.Equal(1.5f, scene.ChromeLineWidth);
-
         var layer = (GlCarriagePlaneLayer)scene.AddCarriagePlane();
         Assert.Equal(GlCarriagePlaneLayer.BaseLineThickness, layer.BaseLineWidth);
         Assert.Equal(GlCarriagePlaneLayer.ExecutedLineThickness, layer.BaseLineWidth);

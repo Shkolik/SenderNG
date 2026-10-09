@@ -156,7 +156,10 @@ public class GlReadbackTests
 
     /// <summary>Step 5b.4 (user ruling): MSAA is an independent axis from the
     /// supersample render-size scale. Every mode must rebuild into a COMPLETE
-    /// framebuffer and leave no GL error behind (re-alloc, bind, clear).</summary>
+    /// framebuffer and leave no GL error behind (re-alloc, bind, clear). The
+    /// sample count each mode builds with is clamped to this driver's
+    /// <c>GL_MAX_SAMPLES</c>, so the assertion is the clamped value — never a
+    /// count the driver does not offer (8x on a 4x-max driver builds 4x).</summary>
     [GlFact]
     public unsafe void Msaa_modes_create_complete_targets_with_a_clean_error_state()
     {
@@ -167,7 +170,7 @@ public class GlReadbackTests
         Assert.Equal(MsaaMode.None, rb.Msaa);
         Assert.Equal(GLEnum.NoError, TakeErrors(gl));
 
-        foreach (var mode in new[] { MsaaMode.X2, MsaaMode.X4 })
+        foreach (var mode in new[] { MsaaMode.X2, MsaaMode.X4, MsaaMode.X8 })
         {
             rb.SetMsaa(mode);
             Assert.Equal(mode, rb.Msaa);
@@ -176,6 +179,14 @@ public class GlReadbackTests
             gl.BindFramebuffer(FramebufferTarget.Framebuffer, (uint)rb.Fbo);
             Assert.Equal(GLEnum.FramebufferComplete,
                 gl.CheckFramebufferStatus(FramebufferTarget.Framebuffer));
+
+            // What the driver can give, not what the mode asked for.
+            gl.GetInteger((GetPName)GLEnum.MaxSamples, out var maxSamples);
+            var wanted = WantedSamples(mode);
+            var expected = maxSamples > 0
+                ? Math.Min(wanted, (uint)maxSamples)
+                : wanted;
+            Assert.Equal(expected, rb.Samples);
 
             rb.BeginFrame([1, 2, 3, 255]);
             Assert.Equal(GLEnum.NoError, TakeErrors(gl));
@@ -203,8 +214,8 @@ public class GlReadbackTests
     }
 
     /// <summary>Runtime switch: every re-alloc leaves a usable target and a
-    /// clean error state, and a None -> 2x -> 4x -> None round trip lands back
-    /// on byte-identical plain-path output (no MSAA residue).</summary>
+    /// clean error state, and a None -> 2x -> 4x -> 8x -> None round trip lands
+    /// back on byte-identical plain-path output (no MSAA residue).</summary>
     [GlFact]
     public unsafe void Msaa_mode_switch_reallocates_without_error_and_none_round_trips()
     {
@@ -220,6 +231,9 @@ public class GlReadbackTests
         rb.SetMsaa(MsaaMode.X4);
         Assert.Equal(MsaaMode.X4, rb.Msaa);
         var x4 = CaptureBand(ctx, rb);
+        rb.SetMsaa(MsaaMode.X8);
+        Assert.Equal(MsaaMode.X8, rb.Msaa);
+        var x8 = CaptureBand(ctx, rb);
         rb.SetMsaa(MsaaMode.None);
         Assert.Equal(MsaaMode.None, rb.Msaa);
         var again = CaptureBand(ctx, rb);
@@ -227,6 +241,7 @@ public class GlReadbackTests
         Assert.Equal(GLEnum.NoError, TakeErrors(gl));
         Assert.Equal(16 * 64, CountBand(x2, 48, 64));  // each mode really resolved content
         Assert.Equal(16 * 64, CountBand(x4, 48, 64));
+        Assert.Equal(16 * 64, CountBand(x8, 48, 64));
         Assert.Equal(plain, again);                    // None is byte-identical after the round trip
     }
 
@@ -247,6 +262,15 @@ public class GlReadbackTests
             Assert.True(rb.CopyFrame((nint)p, 64 * 4));
         return px;
     }
+
+    /// <summary>The mode-to-sample mapping the readback must implement.</summary>
+    private static uint WantedSamples(MsaaMode mode) => mode switch
+    {
+        MsaaMode.X2 => 2u,
+        MsaaMode.X4 => 4u,
+        MsaaMode.X8 => 8u,
+        _ => 0u,
+    };
 
     /// <summary>The first pending GL error (NoError when the queue was clean),
     /// draining the rest so the tests do not trip over each other.</summary>

@@ -112,11 +112,28 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     internal BoundingBox? ChromeEnvelope { get; private set; }
     private bool _disposed;
 
-    /// <summary>The chrome's line width — the plan's <c>min(1.5, max)</c>
-    /// preference as-is. A palette value: it is pushed to the expansion
-    /// shader as <c>uLineWidthPx</c> and no longer filtered through the
-    /// driver's glLineWidth acceptance.</summary>
-    private const float ChromeLineRequest = 1.5f;
+    /// <summary>The chrome palette — Nex's PER-PIECE line thicknesses, verbatim
+    /// (Nex <c>NexPlotScene.cs:265-267</c>: grid 1.6, axis-arrows 3.6,
+    /// job-envelope 1.6). Palette values pushed to the expansion shader as
+    /// <c>uLineWidthPx</c>, never filtered through the driver's glLineWidth
+    /// acceptance. They supersede the plan-era single <c>min(1.5, max)</c>
+    /// request: fat-line geometry removed the driver-width constraint.</summary>
+    private const float GridChromeWidth = 1.6f;
+
+    private const float AxesChromeWidth = 3.6f;
+
+    private const float EnvelopeChromeWidth = 1.6f;
+
+    /// <summary>What <see cref="DrawChrome"/> pushed as <c>uLineWidthPx</c>
+    /// for each chrome piece group on the most recent frame — the width read
+    /// seam the palette tests assert through (0 for a group that has not
+    /// drawn yet; a toggled-off group keeps its last pushed value).</summary>
+    internal (float Grid, float Envelope, float Axes) ChromeWidthsPushed =>
+        (_pushedGridWidth, _pushedEnvelopeWidth, _pushedAxesWidth);
+
+    private float _pushedGridWidth;
+    private float _pushedEnvelopeWidth;
+    private float _pushedAxesWidth;
 
     private readonly float[] _acceptedLineSizes;
 
@@ -124,11 +141,6 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// an ascending subset of <see cref="GlLineWidths.Candidates"/>. Evidence
     /// only; rendering never picks a width from it.</summary>
     internal IReadOnlyList<float> AcceptedLineSizes => _acceptedLineSizes;
-
-    /// <summary>Read seam: the width <see cref="DrawChrome"/> pushes as
-    /// <c>uLineWidthPx</c> — the chrome palette preference, independent of
-    /// driver acceptance.</summary>
-    internal float ChromeLineWidth => ChromeLineRequest;
 
     /// <summary>Read seam: the one-shot constructor log line (accepted widths
     /// + renderer) the due-diligence doc records — also written to
@@ -818,25 +830,35 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// envelope → axis shafts → cone heads, all under the overlay gates, so the
     /// three toggles off leaves the clear color untouched. The Task 5 layers,
     /// loft and tool draw after this on top (GL_LEQUAL, set once in the ctor).
-    /// Line widths are the chrome palette value pushed as
-    /// <c>uLineWidthPx</c> — no <c>glLineWidth</c> state to re-assert.</summary>
+    /// Each line piece group re-binds the program with ITS OWN palette width
+    /// (Nex per-piece parity: grid/envelope 1.6, axis shafts 3.6) as
+    /// <c>uLineWidthPx</c> — no <c>glLineWidth</c> state to re-assert; the
+    /// cone heads are the mesh pass, untouched by line widths.</summary>
     private void DrawChrome(in Matrix4x4 vp, uint rtW, uint rtH)
     {
-        if (ShowGrid || ShowEnvelope || ShowOrigin)
+        if (ShowGrid)
         {
-            UseLineProgram(vp, rtW, rtH, ChromeLineRequest);
-            if (ShowGrid)
-            {
-                _gridMinor.Draw();
-                _gridMajor.Draw();
-            }
-            if (ShowEnvelope)
-                _jobLines.Draw();
-            if (ShowOrigin)
-                _axesLines.Draw();
+            var width = GridChromeWidth;
+            UseLineProgram(vp, rtW, rtH, width);
+            _pushedGridWidth = width;
+            _gridMinor.Draw();
+            _gridMajor.Draw();
+        }
+        if (ShowEnvelope)
+        {
+            var width = EnvelopeChromeWidth;
+            UseLineProgram(vp, rtW, rtH, width);
+            _pushedEnvelopeWidth = width;
+            _jobLines.Draw();
         }
         if (ShowOrigin)
+        {
+            var width = AxesChromeWidth;
+            UseLineProgram(vp, rtW, rtH, width);
+            _pushedAxesWidth = width;
+            _axesLines.Draw();
             DrawAxisCones(vp);
+        }
     }
 
     /// <summary>The shaded mesh pass: one shared cone mesh, one model matrix

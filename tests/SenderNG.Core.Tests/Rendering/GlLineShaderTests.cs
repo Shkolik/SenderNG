@@ -145,7 +145,7 @@ public class GlLineShaderTests
     }
 
     /// <summary>Guard (c): a full frame with every palette width &gt; 1
-    /// (chrome 1.5, plane + done overlay 3.2) leaves a clean GL error queue —
+    /// (chrome 1.6/3.6, plane + done overlay 3.2) leaves a clean GL error queue —
     /// uniforms, geometry stage and all draw sites included.</summary>
     [GlFact]
     public unsafe void A_frame_with_palette_widths_leaves_no_gl_error()
@@ -165,7 +165,7 @@ public class GlLineShaderTests
         Drain(gl);
 
         rb.BeginFrame(Background);
-        scene.RenderFrame(256, 256); // chrome 1.5 + plane 3.2 + done overlay 3.2
+        scene.RenderFrame(256, 256); // chrome 1.6/3.6 + plane 3.2 + done overlay 3.2
 
         Assert.Equal(GLEnum.NoError, FirstError(gl));
     }

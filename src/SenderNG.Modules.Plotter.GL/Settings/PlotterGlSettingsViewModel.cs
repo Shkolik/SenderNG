@@ -197,8 +197,8 @@ public sealed class PlotterGlSettingsViewModel : CNC.Core.ViewModelBase
         }
     }
 
-    /// <summary>The ComboBox options, in enum order (None, 2x, 4x).</summary>
-    public string[] MsaaChoices => ["Off", "2x", "4x"];
+    /// <summary>The ComboBox options, in enum order (None, 2x, 4x, 8x).</summary>
+    public string[] MsaaChoices => ["Off", "2x", "4x", "8x"];
 
     /// <summary>Localized "View" section heading.</summary>
     public string ViewLabel => Resolve("module.plotter-gl.settings.view", "View");

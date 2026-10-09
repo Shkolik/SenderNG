@@ -74,6 +74,12 @@ internal sealed unsafe class GlReadback : IDisposable
     /// read seam for the mode-switch tests.</summary>
     public MsaaMode Msaa => _msaa;
 
+    /// <summary>Samples per pixel the current mode actually builds with — the
+    /// mode's request already clamped to this driver's <c>GL_MAX_SAMPLES</c>
+    /// (read seam for the mode tests: never a count the driver does not
+    /// offer; 0 = the plain path).</summary>
+    public uint Samples => SampleCount();
+
     /// <summary>The FBO draws go into this frame (diagnostics + Task 4's draw
     /// path bind it): the multisampled target while <see cref="Msaa"/> is on,
     /// the plain single-sample one otherwise.</summary>
@@ -180,7 +186,13 @@ internal sealed unsafe class GlReadback : IDisposable
     {
         if (_msaa == MsaaMode.None)
             return 0;
-        uint want = _msaa == MsaaMode.X2 ? 2u : 4u;
+        uint want = _msaa switch
+        {
+            MsaaMode.X2 => 2u,
+            MsaaMode.X4 => 4u,
+            MsaaMode.X8 => 8u,
+            _ => 4u, // undefined value: the pre-X8 fallback (its msaa FBO exists)
+        };
         // GL_MAX_SAMPLES lives on GLEnum, not GetPName, in Silk.NET's bindings.
         _ctx.Api.GetInteger((GetPName)GLEnum.MaxSamples, out var max);
         return max > 0 ? Math.Min(want, (uint)max) : want;

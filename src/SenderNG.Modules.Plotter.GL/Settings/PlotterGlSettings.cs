@@ -56,7 +56,7 @@ public sealed class PlotterGlSettings
     /// ON; disable on weaker machines (4x the raster + readback cost).</summary>
     public bool Supersample { get; set; } = true;
 
-    /// <summary>Multisample count of the readback target (None / 2x / 4x) —
+    /// <summary>Multisample count of the readback target (None / 2x / 4x / 8x) —
     /// the orthogonal axis to <see cref="Supersample"/> (sample count vs
     /// render size, they compose). Default None until checkpoint verification
     /// proves a win on the target machines.</summary>
@@ -84,6 +84,10 @@ public enum MsaaMode
 
     /// <summary>Four samples per pixel.</summary>
     X4 = 2,
+
+    /// <summary>Eight samples per pixel (checkpoint-5 item 4), clamped to the
+    /// driver's <c>GL_MAX_SAMPLES</c> at framebuffer build time.</summary>
+    X8 = 3,
 }
 
 /// <summary>One machine carriage plane's world mapping.</summary>

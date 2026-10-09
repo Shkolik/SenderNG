@@ -73,6 +73,33 @@ public class GlPlotSceneChromeTests
         Assert.True(lit > 50, $"expected grid/axes/envelope pixels, got {lit}");
     }
 
+    /// <summary>Checkpoint-5 item 3 (Nex parity): the chrome pieces draw with
+    /// Nex's PER-PIECE thicknesses — grid 1.6, axis arrows 3.6, job envelope
+    /// 1.6 (Nex <c>NexPlotScene.cs:265-267</c>) — not one shared width for
+    /// every piece. Observed through the width seam the palette tests use: what
+    /// each piece group actually pushed as <c>uLineWidthPx</c> this frame.</summary>
+    [GlFact]
+    public void Chrome_pieces_draw_at_their_nex_palette_widths()
+    {
+        using var ctx = GlContext.Create();
+        using var rb = new GlReadback(ctx, 256, 256);
+        using var scene = new GlPlotScene(ctx);
+        ctx.MakeCurrent();
+        scene.SetViewportSize(256, 256);
+        scene.SetViewPreset(ViewPreset.Isometric3D);
+        scene.SetGrid(new BoundingBox(-50, -50, -1, 50, 50, 1), 10, 50);
+        scene.AddAxisArrows([(Vector3.Zero, "X"), (Vector3.Zero, "Y"), (Vector3.Zero, "Z")]);
+        scene.SetJobEnvelope(new BoundingBox(0, 0, 0, 100, 100, 10));
+
+        rb.BeginFrame(Background);
+        scene.RenderFrame(256, 256);
+
+        var (grid, envelope, axes) = scene.ChromeWidthsPushed;
+        Assert.Equal(1.6f, grid);     // Nex grid node thickness
+        Assert.Equal(1.6f, envelope); // Nex job-envelope node thickness
+        Assert.Equal(3.6f, axes);     // Nex axis-arrows node thickness
+    }
+
     /// <summary>SetView is the runtime chrome gate the overlay bar drives: all
     /// three toggles off must leave an untouched background frame, no rebuild
     /// and no parked leftovers.</summary>

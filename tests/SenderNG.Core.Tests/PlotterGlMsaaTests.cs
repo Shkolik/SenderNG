@@ -96,6 +96,32 @@ public class PlotterGlMsaaTests
         profile.ModuleSettings[PlotterGlConfig.SectionKey] = section.ToJsonString();
 
         Assert.Equal(MsaaMode.None, PlotterGlConfig.Load(profile, Mill).MsaaMode);
+
+        // ...and the clamp tracks the enum as it grows: with X8 defined, 4 is
+        // the first value past the members — still a forward-dated profile
+        // value, still normalized back to the plain path.
+        section["MsaaMode"] = 4;
+        profile.ModuleSettings[PlotterGlConfig.SectionKey] = section.ToJsonString();
+
+        Assert.Equal(MsaaMode.None, PlotterGlConfig.Load(profile, Mill).MsaaMode);
+    }
+
+    /// <summary>Checkpoint-5 item 4: 8x must survive the module's JSON section
+    /// like every other member — save, reload, still 8x.</summary>
+    [Fact]
+    public void Msaa_8x_round_trips_through_the_profile()
+    {
+        var settings = new SettingsService(_dir);
+        var profile = MakeMill(settings);
+
+        var loaded = PlotterGlConfig.Load(profile, Mill);
+        loaded.MsaaMode = MsaaMode.X8;
+        PlotterGlConfig.Save(profile, loaded);
+        settings.Save(profile);
+
+        Assert.Equal(
+            MsaaMode.X8,
+            PlotterGlConfig.Load(settings.Load(), Mill).MsaaMode);
     }
 
     [Fact]
@@ -107,7 +133,7 @@ public class PlotterGlMsaaTests
 
         Assert.Equal(MsaaMode.None, vm.MsaaMode);
         Assert.Equal(0, vm.MsaaIndex);
-        Assert.Equal(new[] { "Off", "2x", "4x" }, vm.MsaaChoices);
+        Assert.Equal(new[] { "Off", "2x", "4x", "8x" }, vm.MsaaChoices);
 
         var changed = new List<string?>();
         vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
@@ -121,15 +147,26 @@ public class PlotterGlMsaaTests
             MsaaMode.X4,
             PlotterGlConfig.Load(settings.Load(), Mill).MsaaMode);
 
+        // 8x rides the same binding: the fourth choice, the fourth member.
+        vm.MsaaIndex = 3;
+
+        Assert.Equal(MsaaMode.X8, vm.MsaaMode);
+        Assert.Equal(
+            MsaaMode.X8,
+            PlotterGlConfig.Load(settings.Load(), Mill).MsaaMode);
+
         // Out-of-range writes — the ComboBox's transient -1 while it has no
         // matching selection, or junk from a stale binding — are ignored: no
         // convert-to-None behind the user's back, nothing new persisted.
+        // 4 is now the first index past the members (the guard grew with X8).
         vm.MsaaIndex = -1;
-        Assert.Equal(MsaaMode.X4, vm.MsaaMode);
+        Assert.Equal(MsaaMode.X8, vm.MsaaMode);
+        vm.MsaaIndex = 4;
+        Assert.Equal(MsaaMode.X8, vm.MsaaMode);
         vm.MsaaIndex = 9;
-        Assert.Equal(MsaaMode.X4, vm.MsaaMode);
+        Assert.Equal(MsaaMode.X8, vm.MsaaMode);
         Assert.Equal(
-            MsaaMode.X4,
+            MsaaMode.X8,
             PlotterGlConfig.Load(settings.Load(), Mill).MsaaMode);
     }
 
