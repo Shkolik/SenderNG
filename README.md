@@ -55,7 +55,7 @@ Release zips are produced per platform by `tools/ReleaseManager`. On Windows,
 build one with:
 
 ```bash
-dotnet run --project tools/ReleaseManager -- --include-plugins
+dotnet run --project tools/ReleaseManager --include-plugins
 ```
 
 `tools/ReleaseManager/README.md` has the per-platform runbooks and the manual
