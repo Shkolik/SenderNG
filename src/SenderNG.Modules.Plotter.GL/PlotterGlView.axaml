@@ -247,7 +247,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					     native size) as a PNG through the standard save dialog. -->
                     <StackPanel Orientation="Vertical" Spacing="6"
                                 HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12">
-                        <Button Classes="navBtn" ToolTip.Tip="Save screenshot (PNG)" Click="OnSaveScreenshot">
+                        <Button Classes="navBtn" x:Name="SaveScreenshotButton" ToolTip.Tip="Save screenshot (PNG)" Click="OnSaveScreenshot">
                             <Path Width="16" Height="16" Stretch="Uniform"
                                   HorizontalAlignment="Center" VerticalAlignment="Center"
                                   Stroke="{Binding $parent[Button].Foreground}"

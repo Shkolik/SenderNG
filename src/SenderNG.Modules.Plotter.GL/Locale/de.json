@@ -26,6 +26,8 @@
     "module.plotter-gl.settings.aaQuality": "Qualität",
     "module.plotter-gl.settings.supersample": "Überabtastung 2x (Kantenglättung durch 2x-Rendern)",
     "module.plotter-gl.settings.showLoft": "Loft-Fläche anzeigen",
-    "module.plotter-gl.settings.msaa": "MSAA (Kantenglättung)"
+    "module.plotter-gl.settings.msaa": "MSAA (Kantenglättung)",
+    "module.plotter-gl.saveScreenshot": "Screenshot speichern (PNG)",
+    "module.plotter-gl.saveScreenshotErrorTitle": "Screenshot speichern"
   }
 }

@@ -26,6 +26,8 @@
     "module.plotter-gl.settings.aaQuality": "Качество",
     "module.plotter-gl.settings.supersample": "2x суперсэмпл (сглаживание на 2x рендере)",
     "module.plotter-gl.settings.showLoft": "Показать поверхность лофт",
-    "module.plotter-gl.settings.msaa": "MSAA (сглаживание краёв)"
+    "module.plotter-gl.settings.msaa": "MSAA (сглаживание краёв)",
+    "module.plotter-gl.saveScreenshot": "Сохранить снимок экрана (PNG)",
+    "module.plotter-gl.saveScreenshotErrorTitle": "Сохранить снимок экрана"
   }
 }

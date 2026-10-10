@@ -156,7 +156,8 @@ public partial class PlotterGlView : UserControl
         ApplyFallbackTexts();
     }
 
-    /// <summary>Resolve both panel labels in the current locale. Called from the
+    /// <summary>Resolve both panel labels and the save-screenshot tooltip in
+    /// the current locale. Called from the
     /// constructor, whenever a verdict is reported, and on every locale change.
     /// <para>Assigning from code-behind rather than binding is deliberate; see
     /// the comment on ReportRenderFailure. Re-reading the view model's detail
@@ -182,6 +183,10 @@ public partial class PlotterGlView : UserControl
                 "module.plotter-gl.renderUnavailableHint",
                 "No OpenGL context could be created.")
               ?? "No OpenGL context could be created.";
+
+        ToolTip.SetTip(SaveScreenshotButton, loc?.Resolve(
+            "module.plotter-gl.saveScreenshot", "Save screenshot (PNG)")
+            ?? "Save screenshot (PNG)");
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
@@ -775,9 +780,13 @@ public partial class PlotterGlView : UserControl
             return;
         try
         {
+            var loc = LocalizationService.Current;
+            var saveTitle = loc?.Resolve(
+                "module.plotter-gl.saveScreenshot", "Save screenshot (PNG)")
+                ?? "Save screenshot (PNG)";
             var suggested =
                 $"SenderNG_{DateTime.Now:yyyyMMdd_HHmmss_fff}_{_shotW}x{_shotH}.png";
-            var path = await _fileDialogs.SaveFileAsync("Save screenshot (PNG)", suggested, "PNG image|*.png");
+            var path = await _fileDialogs.SaveFileAsync(saveTitle, suggested, "PNG image|*.png");
             if (path is null)
                 return;
             // Encode via Avalonia rather than ImageSharp: a direct ImageSharp
@@ -809,7 +818,11 @@ public partial class PlotterGlView : UserControl
         }
         catch (Exception ex)
         {
-            await _fileDialogs.ShowErrorAsync("Save screenshot", $"Save failed: {ex.Message}");
+            var loc = LocalizationService.Current;
+            var errorTitle = loc?.Resolve(
+                "module.plotter-gl.saveScreenshotErrorTitle", "Save screenshot")
+                ?? "Save screenshot";
+            await _fileDialogs.ShowErrorAsync(errorTitle, $"Save failed: {ex.Message}");
         }
     }
 

@@ -140,15 +140,15 @@ public class GlPlotSceneChromeTests
     /// <summary>Checkpoint-4 item 1 (Nex <c>_contentFramed</c> parity): the
     /// constructor frames the camera once against empty content, so a model
     /// that lands afterwards must trigger exactly one reframe onto its bounds
-    /// — the initial view centered like the snap button frames it, not skewed
-    /// toward the grid defaults.</summary>
+    /// — the initial view is Nex's empty framing (center origin), so the
+    /// first arrival lands on the content's own bounds.</summary>
     [GlFact]
     public void First_content_arrival_frames_the_camera_onto_the_content()
     {
         using var ctx = GlContext.Create();
         using var scene = new GlPlotScene(ctx);
         var cam = scene.ActiveCamera;
-        Assert.Equal(new Vector3(30f, 30f, -25f), cam.Target); // grid-default framing
+        Assert.Equal(new Vector3(0f), cam.Target); // empty-state framing: ±25 fallback, origin center (Nex parity)
 
         var layer = scene.AddCarriagePlane();
         layer.AddSegment(
@@ -223,8 +223,8 @@ public class GlPlotSceneChromeTests
     }
 
     /// <summary>Program reload to an empty run: the reload fence disposes the
-    /// content and the chrome must fall back to the same grid-default bounds
-    /// the ctor provisions (Nex's empty-chrome state).</summary>
+    /// content and the chrome must fall back to the empty-state reference grid
+    /// the ctor provisions (Nex's <c>BuildEmptyChrome</c>).</summary>
     [GlFact]
     public void ResetBuild_returns_the_chrome_to_the_defaults()
     {
@@ -232,6 +232,14 @@ public class GlPlotSceneChromeTests
         using var scene = new GlPlotScene(ctx);
         var defaultGrid = scene.ChromeGridBounds;
         var defaultEnvelope = scene.ChromeEnvelope;
+        Assert.NotNull(defaultGrid);                       // ctor provisions the empty chrome
+        Assert.Equal(-50f, defaultGrid.Value.MinX, 3);
+        Assert.Equal(-50f, defaultGrid.Value.MinY, 3);
+        Assert.Equal(0f, defaultGrid.Value.MinZ, 3);
+        Assert.Equal(50f, defaultGrid.Value.MaxX, 3);
+        Assert.Equal(50f, defaultGrid.Value.MaxY, 3);
+        Assert.Equal(0f, defaultGrid.Value.MaxZ, 3);
+        Assert.Null(defaultEnvelope);                      // no envelope without a program
 
         var stale = scene.AddCarriagePlane();
         stale.AddSegment(
@@ -246,7 +254,72 @@ public class GlPlotSceneChromeTests
         scene.PumpCarriagePlanes();
 
         Assert.Equal(defaultGrid, scene.ChromeGridBounds);
-        Assert.Equal(defaultEnvelope, scene.ChromeEnvelope);
+        Assert.Null(scene.ChromeEnvelope);
+        Assert.Equal((2d, 10d), scene.ChromeGridSteps);
+    }
+
+    /// <summary>The no-program state, Nex's BuildEmptyChrome ported: a fixed
+    /// −50..+50 reference grid at Z=0 (10×10 major cells of 10, minor 2),
+    /// no job envelope, and the camera framed from the ±25 fallback so the
+    /// view centers on the origin with Nex's fit.</summary>
+    [GlFact]
+    public void Empty_state_chrome_is_the_nex_reference_grid()
+    {
+        using var ctx = GlContext.Create();
+        using var scene = new GlPlotScene(ctx);
+
+        var grid = scene.ChromeGridBounds;
+        Assert.NotNull(grid);
+        Assert.Equal(-50f, grid.Value.MinX, 3);
+        Assert.Equal(-50f, grid.Value.MinY, 3);
+        Assert.Equal(0f, grid.Value.MinZ, 3);
+        Assert.Equal(50f, grid.Value.MaxX, 3);
+        Assert.Equal(50f, grid.Value.MaxY, 3);
+        Assert.Equal(0f, grid.Value.MaxZ, 3);
+        Assert.Equal((2d, 10d), scene.ChromeGridSteps);
+        Assert.Null(scene.ChromeEnvelope);
+
+        var cam = scene.ActiveCamera;
+        Assert.Equal(new Vector3(0f), cam.Target);
+        Assert.Equal(100f, scene.ZoomPercent, 3); // fresh scene sits at its fit
+    }
+
+    /// <summary>The latch must discriminate the empty state from content whose
+    /// aggregated bbox happens to equal the ±25 fallback: after a reset the
+    /// empty chrome is latched with the live plane count already at N, so a
+    /// first arrival whose bounds are exactly −25..+25 collides with that
+    /// latch on (center, span, PlaneCount) — without HasContent in the latch
+    /// the rebuild early-returns and the empty chrome (no envelope) sticks.</summary>
+    [GlFact]
+    public void First_content_equal_to_the_fallback_box_still_rebuilds_after_reset()
+    {
+        using var ctx = GlContext.Create();
+        using var scene = new GlPlotScene(ctx);
+        var defaultGrid = scene.ChromeGridBounds;
+
+        // Reset while a layer is already live: the pump after the reload
+        // fence records the empty-state latch with PlaneCount = 1 — the
+        // count the collision needs (same sequence as the reset test).
+        var stale = scene.AddCarriagePlane();
+        stale.AddSegment(
+            new LineSegment(new Vector3(100, 100, 0), new Vector3(140, 160, 0)), MotionType.Cut);
+        scene.PumpCarriagePlanes();
+        scene.CreateTool(ToolShape.Cone);
+        var fresh = scene.AddCarriagePlane();
+        scene.PumpCarriagePlanes();
+        Assert.Null(scene.ChromeEnvelope); // precondition: empty chrome latched
+
+        // First content whose bbox is exactly the ±25 fallback: (center,
+        // span, PlaneCount) all collide with the empty latch — only
+        // HasContent tells the states apart. The camera reframe is not
+        // observable here (fallback and content share the same framing), so
+        // the envelope's return from null is the rebuild's signature.
+        fresh.AddSegment(
+            new LineSegment(new Vector3(-25f), new Vector3(25f)), MotionType.Cut);
+        scene.PumpCarriagePlanes();
+
+        Assert.NotNull(scene.ChromeEnvelope);
+        Assert.NotEqual(defaultGrid, scene.ChromeGridBounds); // content-state grid, not the reference one
     }
 
     /// <summary>Multi-plane (foam) runs: with two live carriage planes the
@@ -323,6 +396,81 @@ public class GlPlotSceneChromeTests
             "grid has no vertical line at exactly maxX (10)");
         Assert.True(HorizontalLineAt(lines, 7.5f),
             "grid has no horizontal line at exactly maxY (7.5)");
+    }
+
+    /// <summary>Nex's orbit-pivot marker lifecycle: the translucent amber
+    /// sphere is up exactly while an orbit gesture is open (RMB), a preset
+    /// switch cancels it, an ortho preset refuses the gesture, and the radius
+    /// tracks max(0.5, contentRadius * 0.05) from the framing metrics.</summary>
+    [GlFact]
+    public void Orbit_pivot_sphere_tracks_the_gesture_and_sizes_to_the_content()
+    {
+        using var ctx = GlContext.Create();
+        using var scene = new GlPlotScene(ctx);
+
+        // Fresh scene: no gesture, no marker; the ctor preset seeded the radius
+        // from the ±25 fallback (radius 43.301 → 2.165).
+        Assert.False(scene.OrbitSphereVisible);
+        var expectedRadius = MathF.Max(
+            0.5f, MathF.Max(new Vector3(50f).Length() * 0.5f, 1f) * 0.05f);
+        Assert.Equal(expectedRadius, scene.OrbitSphereRadius, 4);
+
+        scene.BeginOrbit(new Vector2(10, 10));
+        Assert.True(scene.OrbitSphereVisible); // RMB down: marker at the pivot
+
+        scene.EndOrbit();
+        Assert.False(scene.OrbitSphereVisible); // release: marker gone
+
+        scene.BeginOrbit(new Vector2(10, 10));
+        Assert.True(scene.OrbitSphereVisible);
+        scene.SetViewPreset(ViewPreset.XY); // preset switch cancels the marker
+        Assert.False(scene.OrbitSphereVisible);
+
+        // Ortho is rotation-locked: BeginOrbit must refuse and keep it hidden.
+        scene.BeginOrbit(new Vector2(10, 10));
+        Assert.False(scene.OrbitSphereVisible);
+    }
+
+    /// <summary>The marker on the pixel path: chrome toggles off, so the only
+    /// thing that can light the frame during an orbit is the sphere — and the
+    /// frame must go dark again the moment the gesture ends.</summary>
+    [GlFact]
+    public unsafe void Orbit_pivot_sphere_lights_pixels_during_the_gesture()
+    {
+        using var ctx = GlContext.Create();
+        using var rb = new GlReadback(ctx, 256, 256);
+        using var scene = new GlPlotScene(ctx);
+        ctx.MakeCurrent();
+        scene.SetViewportSize(256, 256);
+        scene.SetViewPreset(ViewPreset.Isometric3D);
+        scene.SetView(new PlotterGlSettings
+        {
+            ShowOrigin = false,
+            ShowEnvelope = false,
+            ShowGrid = false,
+        });
+        var px = new byte[256 * 256 * 4];
+
+        rb.BeginFrame(Background);
+        scene.RenderFrame(256, 256);
+        fixed (byte* p = px)
+            Assert.True(rb.CopyFrame((nint)p, 256 * 4));
+        Assert.Equal(0, LitPixels(px)); // precondition: chrome off, no gesture
+
+        scene.BeginOrbit(new Vector2(128, 128));
+        rb.BeginFrame(Background);
+        scene.RenderFrame(256, 256);
+        fixed (byte* p = px)
+            Assert.True(rb.CopyFrame((nint)p, 256 * 4));
+        var lit = LitPixels(px);
+        Assert.True(lit > 30, $"expected orbit-pivot sphere pixels, got {lit}");
+
+        scene.EndOrbit();
+        rb.BeginFrame(Background);
+        scene.RenderFrame(256, 256);
+        fixed (byte* p = px)
+            Assert.True(rb.CopyFrame((nint)p, 256 * 4));
+        Assert.Equal(0, LitPixels(px)); // marker leaves with the gesture
     }
 
     /// <summary>One line = 2 vertices × 7 floats (pos + color): verticals

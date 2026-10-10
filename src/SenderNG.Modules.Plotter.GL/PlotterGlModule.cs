@@ -113,6 +113,8 @@ public class PlotterGlModule : IModule, ILocalizedModule, IPluginInfo, IPluginDe
             ["module.plotter-gl.settings.supersample"] = "2x supersample (AA at 2x render)",
             ["module.plotter-gl.settings.msaa"] = "MSAA (edge AA)",
             ["module.plotter-gl.settings.showLoft"] = "Show loft",
+            ["module.plotter-gl.saveScreenshot"] = "Save screenshot (PNG)",
+            ["module.plotter-gl.saveScreenshotErrorTitle"] = "Save screenshot",
         };
 
     public void RegisterServices(IServiceCollection services)
