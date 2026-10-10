@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- byte* row copy in GlReadback.CopyFrame. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pinned to the host app's resolved version (floating versions caused
+         TypeLoadException crashes historically — see the Nex csproj comments). -->
+    <PackageReference Include="Avalonia" Version="12.0.0" />
+    <!-- SixLabors.ImageSharp is deliberately NOT referenced here. A direct
+         reference puts the package under NuGet's direct-dependency audit
+         (direct-only mode), which flags its NU1902/NU1903 advisories: the 3.x
+         line ends at 3.1.12 and every advisory patches only in 4.1.2, and 4.x
+         enforces a Six Labors license key at build time for direct dependents.
+         The screenshot button encodes PNG via Avalonia's WriteableBitmap.Save
+         instead (same as the Skia plotter and, after main's dd9bcdd, the Nex
+         plotter) — our only use was encoding in-memory pixels; the advisories
+         sit in TIFF-encode/ICC/histogram code. Unlike Nex, GL has NO Helix
+         transitive bringing it in either: with this line gone ImageSharp
+         leaves the GL closure entirely. -->
+    <!-- OpenGL bindings. Managed-only: loads the OS-provided opengl32.dll /
+         libGL / libGLESv2 at runtime — no native NuGet assets, so no
+         linux-arm64 deployment gap. 2.x stable line per the due-diligence
+         research; 3.0 is still prerelease. -->
+    <PackageReference Include="Silk.NET.OpenGL" Version="2.23.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!-- Stage the full .deps graph into bin so SenderNG.csproj can copy it
+         into Modules\plotter-gl\ (the plugin's AssemblyResolve probe serves
+         dependencies from that folder). Mirrors the Nex csproj rationale. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SenderNG.Core\SenderNG.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Headless tests assert internal surface (camera state, failure verdicts). -->
+    <InternalsVisibleTo Include="SenderNG.Core.Tests" />
+    <!-- tools/PlotterGlBench drives GlContext/GlPlotScene/GlReadback directly
+         for the offscreen segment-count benchmark (Task 9). -->
+    <InternalsVisibleTo Include="PlotterGlBench" />
+  </ItemGroup>
+
+</Project>

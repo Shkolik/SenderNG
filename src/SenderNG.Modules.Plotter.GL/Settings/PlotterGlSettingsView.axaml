@@ -1,0 +1,117 @@
+<!--
+PlotterGlSettingsView.axaml
+
+Copyright (c) 2026 Andrew Shkolik
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+· Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+
+· Redistributions in binary form must reproduce the above copyright notice, this
+list of conditions and the following disclaimer in the documentation and/or
+other materials provided with the distribution.
+
+· Neither the name of the copyright holder nor the names of its contributors may
+be used to endorse or promote products derived from this software without
+specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+-->
+
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Modules.Plotter.GL.Settings"
+             mc:Ignorable="d" d:DesignWidth="240" d:DesignHeight="120"
+             x:Class="SenderNG.Modules.Plotter.GL.Settings.PlotterGlSettingsView"
+             x:DataType="vm:PlotterGlSettingsViewModel">
+    <StackPanel Spacing="8">
+        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowWireLength}">
+            <TextBlock Text="{Binding WireLengthLabel}" FontSize="11" VerticalAlignment="Center" />
+            <TextBox Text="{Binding WireLength}" Width="100" Height="28" MinHeight="24"
+                     CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                     FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
+        </StackPanel>
+        <StackPanel Spacing="4">
+            <TextBlock Text="{Binding ViewLabel}" FontSize="12" FontWeight="SemiBold"
+                       Foreground="#333" Margin="0,6,0,0" />
+			<Grid ColumnDefinitions="Auto,24,Auto" RowDefinitions="Auto,Auto,Auto">			    
+				<CheckBox Grid.Column="0" Grid.Row="0" Content="{Binding ShowOriginLabel}" IsChecked="{Binding ShowOrigin, Mode=TwoWay}" FontSize="11" />
+			    <CheckBox Grid.Column="0" Grid.Row="1" Content="{Binding ShowEnvelopeLabel}" IsChecked="{Binding ShowEnvelope, Mode=TwoWay}" FontSize="11" />
+			    <CheckBox Grid.Column="0" Grid.Row="2" Content="{Binding ShowLoftLabel}" IsChecked="{Binding ShowLoft, Mode=TwoWay}" IsVisible="{Binding HasLoft}" FontSize="11" />
+			    <CheckBox Grid.Column="2" Grid.Row="0" Content="{Binding ShowRunStateLabel}" IsChecked="{Binding ShowRunState, Mode=TwoWay}" FontSize="11" />
+			    <CheckBox Grid.Column="2" Grid.Row="1" Content="{Binding ShowGridLabel}" IsChecked="{Binding ShowGrid, Mode=TwoWay}" FontSize="11" />
+			</Grid>
+        </StackPanel>
+        <StackPanel Spacing="4">
+			<CheckBox Content="{Binding SupersampleLabel}" IsChecked="{Binding Supersample, Mode=TwoWay}" FontSize="11" Margin="0,6,0,4" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="{Binding MsaaLabel}" FontSize="11" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding MsaaChoices}"
+                          SelectedIndex="{Binding MsaaIndex, Mode=TwoWay}"
+                          Width="72" MinWidth="56" Height="28" MinHeight="28" CornerRadius="0" />
+            </StackPanel>
+        </StackPanel>
+        <Rectangle Height="1" Fill="#ddd" />
+        <ItemsControl ItemsSource="{Binding PlaneRows}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:PlotterGlPlaneRow">
+                    <StackPanel Margin="0,6" Spacing="4">
+                        <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="#333" />
+                        <Rectangle Height="1" Fill="#ddd" />
+                        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,24,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding WorldAxesLabel}"
+                                       FontSize="11" Margin="0,4,0,6" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding OriginLabel}"
+                                       FontSize="11" Margin="0,4,0,6" VerticalAlignment="Center" />
+                            <ItemsControl Grid.Row="1" Grid.Column="0" ItemsSource="{Binding Slots}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="6" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:WorldAxisRow">
+                                        <ComboBox ItemsSource="{Binding Choices}"
+                                                  SelectedIndex="{Binding Axis}"
+                                                  Width="64" MinWidth="56" Height="28" MinHeight="28" CornerRadius="0" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="X" FontSize="11" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding OriginX}" Width="56" Height="28" MinHeight="28"
+                                         CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                         FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
+                                <TextBlock Text="Y" FontSize="11" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding OriginY}" Width="56" Height="28" MinHeight="28"
+                                         CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                         FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
+                                <TextBlock Text="Z" FontSize="11" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding OriginZ}" Width="56" Height="28" MinHeight="28"
+                                         CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                          FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

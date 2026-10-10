@@ -98,6 +98,14 @@ public class MainViewModel : ViewModelBase, IDisposable
     private readonly List<IGCodeFileHandler> _fileHandlers;
     private readonly Func<IModule, object>? _viewFactory;
     private readonly Dictionary<IModule, object> _moduleViews = new();
+    /// <summary>Last sequence <see cref="CenterTabs"/> handed out. The getter
+    /// rebuilds every read and returns this instance while the result still
+    /// value-equals it (module ref, cached view ref, localized name), so a
+    /// settings-save or locale-change notification with no visible effect does
+    /// not give the TabControl a new sequence to rebind containers for — that
+    /// re-parenting tore the plotter's GL scene down and rebuilt it against
+    /// grid-default bounds (checkpoint-3 "zoom jump to default").</summary>
+    private CenterTab[]? _centerTabsCache;
     private bool _isDemo;
     private IGrblService _grbl;
     private readonly CNC.Core.GrblInfoState _info;
@@ -800,8 +808,22 @@ public class MainViewModel : ViewModelBase, IDisposable
     ];
 
 
-    public IEnumerable<CenterTab> CenterTabs =>
-        CenterModules.Select(m => new CenterTab(m, ViewFor(m), LocalizedModuleName(m)));
+    /// <summary>Center-module tabs. Rebuilding, but returning the cached
+    /// sequence when nothing visible changed (see <see cref="_centerTabsCache"/>).</summary>
+    public IEnumerable<CenterTab> CenterTabs
+    {
+        get
+        {
+            var built = CenterModules
+                .Select(m => new CenterTab(m, ViewFor(m), LocalizedModuleName(m)))
+                .ToArray();
+            var cached = _centerTabsCache;
+            if (cached is not null && cached.SequenceEqual(built))
+                return cached;
+            _centerTabsCache = built;
+            return built;
+        }
+    }
 
     public string SelectedModuleName =>
         SelectedModule is null ? string.Empty : LocalizedModuleName(SelectedModule);

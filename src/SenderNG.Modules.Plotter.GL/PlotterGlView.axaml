@@ -1,0 +1,295 @@
+<!--
+PlotterGlView.axaml
+
+Copyright (c) 2026 Andrew Shkolik
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+· Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+
+· Redistributions in binary form must reproduce the above copyright notice, this
+list of conditions and the following disclaimer in the documentation and/or
+other materials provided with the distribution.
+
+· Neither the name of the copyright holder nor the names of its contributors may
+be used to endorse or promote products derived from this software without
+specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+-->
+
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SenderNG.Modules.Plotter.GL"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="500"
+             x:Class="SenderNG.Modules.Plotter.GL.PlotterGlView"
+             x:Name="Root"
+             x:DataType="vm:PlotterGlViewModel"
+             x:CompileBindings="False">
+
+    <!-- Skia-plotter-matching chrome: light #e8e8e8 header bar with dark text
+         and a #aaa frame, the 3D viewport filling the rest. The GL context and
+         viewport client live on the code-behind (they are concrete types;
+         the view model stays headless). The scene is rendered offscreen and
+         read back to a WriteableBitmap by a DispatcherTimer tick in the
+         code-behind; GpuImage shows the result. (Task 1 placeholder: no
+         readback yet, so the image stays empty. See GlReadback.) -->
+    <Border BorderBrush="#aaa" BorderThickness="1" Background="White">
+        <DockPanel>
+            <!-- Header bar (Skia PlotterView row): view snaps right, status left. -->
+            <Border DockPanel.Dock="Top" Background="#e8e8e8" Height="24">
+                <DockPanel Margin="8,0,6,0">
+                    <StackPanel Orientation="Horizontal" Spacing="4"
+                                DockPanel.Dock="Right" VerticalAlignment="Center">
+                        <StackPanel.Styles>
+                            <!-- Dimmed explicitly rather than relying on the
+                                 default theme's disabled state: this module
+                                 hardcodes its colours instead of using theme
+                                 resources, so whether a disabled ToggleButton
+                                 is visibly greyed is an unverified assumption
+                                 about a dependency default. The four buttons
+                                 are direct children, so the type selector here
+                                 matches exactly them. -->
+                            <Style Selector="ToggleButton:disabled">
+                                <Setter Property="Opacity" Value="0.4" />
+                            </Style>
+                        </StackPanel.Styles>
+                        <ToggleButton x:Name="SnapXyButton" Content="XY" FontSize="11" Padding="8,1" Click="OnSnapXy"
+                                      IsEnabled="{Binding !RenderUnavailable, Mode=OneWay}" />
+                        <ToggleButton x:Name="SnapXzButton" Content="XZ" FontSize="11" Padding="8,1" Click="OnSnapXz"
+                                      IsEnabled="{Binding !RenderUnavailable, Mode=OneWay}" />
+                        <ToggleButton x:Name="SnapYzButton" Content="YZ" FontSize="11" Padding="8,1" Click="OnSnapYz"
+                                      IsEnabled="{Binding !RenderUnavailable, Mode=OneWay}" />
+                        <ToggleButton x:Name="SnapIsoButton" Content="3D" FontSize="11" Padding="8,1" Click="OnSnapIso" IsChecked="True"
+                                      IsEnabled="{Binding !RenderUnavailable, Mode=OneWay}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding PlaneLettersText, Mode=OneWay}"
+                                   FontSize="11" FontWeight="SemiBold" Foreground="#333" />
+                        <TextBlock Text="{Binding ProgressText, Mode=OneWay}"
+                                   FontSize="11" Foreground="#666" Margin="12,0,0,0" />
+                        <TextBlock x:Name="StatusTextBlock"
+                                   Text="{Binding StatusText, Mode=OneWay}"
+                                   FontSize="11" Foreground="#b03030" Margin="12,0,0,0"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <Panel x:Name="ScenePanel" IsVisible="{Binding !RenderUnavailable, Mode=OneWay}">
+                <Image x:Name="GpuImage" Stretch="UniformToFill" RenderOptions.BitmapInterpolationMode="HighQuality" />
+
+                <!-- Navigation input: LMB drag pans, wheel zooms at the cursor,
+                     RMB drag orbits (3D only). Bottom-right: − ⛶ + overlay with a
+                     percent readout above it. -->
+                <Panel x:Name="PlotInput"
+                       Background="Transparent"
+                       PointerPressed="OnPlotInputPointerPressed"
+                       PointerMoved="OnPlotInputPointerMoved"
+                       PointerReleased="OnPlotInputPointerReleased"
+                       PointerCaptureLost="OnPlotInputPointerCaptureLost"
+                       PointerWheelChanged="OnPlotInputPointerWheelChanged">
+					<Panel.Styles>
+						<!-- Base Styles for Idle State -->
+						<Style Selector="Button.navBtn, ToggleButton.navBtn">
+							<Setter Property="Width" Value="32" />
+							<Setter Property="Height" Value="32" />
+							<Setter Property="Padding" Value="0" />
+							<Setter Property="FontSize" Value="24" />
+							<Setter Property="Foreground" Value="#777" />
+							<Setter Property="FontWeight" Value="Normal" />
+							<Setter Property="Background" Value="Transparent" />
+							<Setter Property="BorderThickness" Value="0" />
+						</Style>
+
+						<!-- Custom Button Templates -->
+						<Style Selector="Button.navBtn">
+							<Setter Property="Template">
+								<ControlTemplate TargetType="Button">
+									<ContentPresenter x:Name="PART_ContentPresenter"
+													  Background="Transparent"
+													  Content="{TemplateBinding Content}"
+													  ContentTemplate="{TemplateBinding ContentTemplate}"
+													  HorizontalContentAlignment="Center"
+													  VerticalContentAlignment="Center" />
+								</ControlTemplate>
+							</Setter>
+						</Style>
+						<Style Selector="ToggleButton.navBtn">
+							<Setter Property="Template">
+								<ControlTemplate TargetType="ToggleButton">
+									<ContentPresenter x:Name="PART_ContentPresenter"
+													  Background="Transparent"
+													  Content="{TemplateBinding Content}"
+													  ContentTemplate="{TemplateBinding ContentTemplate}"
+													  HorizontalContentAlignment="Center"
+													  VerticalContentAlignment="Center" />
+								</ControlTemplate>
+							</Setter>
+						</Style>
+
+						<!-- State: Pointerover (Root level targets text, Template targets paths) -->
+						<Style Selector="Button.navBtn:pointerover, ToggleButton.navBtn:pointerover">
+							<Setter Property="Foreground" Value="#444" />
+							<Setter Property="FontWeight" Value="SemiBold" />
+						</Style>
+						<Style Selector="Button.navBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter, 
+                     ToggleButton.navBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+							<Setter Property="Foreground" Value="#444" />
+						</Style>
+
+						<!-- State: Pressed (Root level targets text, Template targets paths) -->
+						<Style Selector="Button.navBtn:pressed, ToggleButton.navBtn:pressed">
+							<Setter Property="Foreground" Value="#222" />
+							<Setter Property="FontWeight" Value="SemiBold" />
+						</Style>
+						<Style Selector="Button.navBtn:pressed /template/ ContentPresenter#PART_ContentPresenter, 
+                     ToggleButton.navBtn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+							<Setter Property="Foreground" Value="#222" />
+						</Style>
+
+						<!-- State: Checked (Root level handles structure) -->
+						<Style Selector="ToggleButton.navBtn:checked">
+							<Setter Property="FontWeight" Value="SemiBold" />
+							<Setter Property="Foreground" Value="#222" />
+						</Style>
+
+						<!-- State: Checked (Template level handles vector paths color) -->
+						<Style Selector="ToggleButton.navBtn:checked /template/ ContentPresenter#PART_ContentPresenter">
+							<Setter Property="Foreground" Value="#222" />
+							<Setter Property="Background" Value="Transparent" />
+						</Style>
+
+						<!-- State: Checked + Pointerover combined (Prevents hover from rolling back to #444 when checked)
+						     #80DDDDDD = #ddd at 50% opacity so the 3D view shows through. -->
+						<Style Selector="ToggleButton.navBtn:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+							<Setter Property="Foreground" Value="#222" />
+							<Setter Property="Background" Value="#22000000" />
+						</Style>
+
+					</Panel.Styles>
+
+					<!-- Top-left view-toggle chrome: the same 4
+                         PlotterGlSettings toggles the App Settings leaf binds,
+                         so both surfaces stay two views onto ONE shared model.
+                         The DataContext is the module's single shared
+                         PlotterGlSettingsViewModel (wired via the view's
+                         OverlaySettings property); each flip persists through
+                         the app's DI SettingsService and is pushed to the live
+                         scene as a runtime chrome change. -->
+                    <StackPanel Orientation="Horizontal" Spacing="6"
+                                HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"
+                                x:Name="OverlayViewToggles">
+						<!-- Grid (3D Isometric Floor Grid) -->
+						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowGridLabel}" IsChecked="{Binding ShowGrid}">
+							<Path Width="16" Height="16" Stretch="Uniform"
+								  HorizontalAlignment="Center" VerticalAlignment="Center"
+								  Stroke="{Binding $parent[ToggleButton].Foreground}"
+								  StrokeThickness="1.5"
+								  Data="M 1,1 L 15,1 L 15,15 L 1,15 Z M 1,5.66 L 15,5.66 M 1,10.33 L 15,10.33 M 5.66,1 L 5.66,15 M 10.33,1 L 10.33,15" />
+						</ToggleButton>
+						
+						<!-- Origin (3D Isometric Axes) -->
+						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowOriginLabel}" IsChecked="{Binding ShowOrigin}">
+							<Path Width="16" Height="16" Stretch="Uniform"
+								  HorizontalAlignment="Center" VerticalAlignment="Center"
+								  Stroke="{Binding $parent[ToggleButton].Foreground}"
+								  StrokeThickness="1.5"
+								  Data="M 8,8 L 8,1 M 8,1 L 6.5,3 M 8,1 L 9.5,3 M 8,8 L 2,11.5 M 2,11.5 L 4,11 M 2,11.5 L 2.5,9.5 M 8,8 L 14,11.5 M 14,11.5 L 13.5,9.5 M 14,11.5 L 12,11" />
+						</ToggleButton>
+
+						<!-- Envelope (3D Isometric Bounding Box) -->
+						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowEnvelopeLabel}" IsChecked="{Binding ShowEnvelope}">
+							<Path Width="16" Height="16" Stretch="Uniform"
+								  HorizontalAlignment="Center" VerticalAlignment="Center"
+								  Stroke="{Binding $parent[ToggleButton].Foreground}"
+								  StrokeThickness="1.5"
+								  Data="M 8,1 L 15,4.5 L 15,11.5 L 8,15 L 1,11.5 L 1,4.5 Z M 1,4.5 L 8,8 L 15,4.5 M 8,8 L 8,15" />
+						</ToggleButton>
+
+						<!-- Run State (Play Icon) -->
+						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowRunStateLabel}" IsChecked="{Binding ShowRunState}">
+							<Path Width="16" Height="16" Stretch="Uniform"
+								  HorizontalAlignment="Center" VerticalAlignment="Center"
+								  Stroke="{Binding $parent[ToggleButton].Foreground}"
+								  StrokeThickness="1.5"
+								  Data="M 4,2 L 13,8 L 4,14 Z" />
+						</ToggleButton>
+
+						<!-- Loft (the sheet between the carriage planes — hidden on
+						     single-plane machines, which have no sheet to show) -->
+						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowLoftLabel}" IsChecked="{Binding ShowLoft}" IsVisible="{Binding HasLoft}">
+							<Path Width="16" Height="16" Stretch="Uniform"
+								  HorizontalAlignment="Center" VerticalAlignment="Center"
+								  Stroke="{Binding $parent[ToggleButton].Foreground}"
+								  StrokeThickness="1.5"
+								  Data="M 2,6 L 12,2 L 14,10 L 4,14 Z" />
+						</ToggleButton>
+                    </StackPanel>
+
+					<!-- Bottom-left: save the current view (the readback frame at its
+					     native size) as a PNG through the standard save dialog. -->
+                    <StackPanel Orientation="Vertical" Spacing="6"
+                                HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12">
+                        <Button Classes="navBtn" ToolTip.Tip="Save screenshot (PNG)" Click="OnSaveScreenshot">
+                            <Path Width="16" Height="16" Stretch="Uniform"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Stroke="{Binding $parent[Button].Foreground}"
+                                  StrokeThickness="1.3"
+                                  Data="M 2,1 L 12,1 L 14,3 L 14,14 L 2,14 Z M 4,1 L 4,6 L 12,6 L 12,1 M 3,14 L 3,9 L 13,9 L 13,14 M 6,2 L 10,2" />
+                        </Button>
+                    </StackPanel>
+                    <StackPanel Orientation="Vertical" Spacing="6"
+                                HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12">
+                        <TextBlock x:Name="ZoomPctText" Text="100%" FontSize="12" Foreground="#777"
+                                   HorizontalAlignment="Center" IsVisible="False" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button x:Name="ZoomOutButton" Classes="navBtn" Content="−" Click="OnZoomOut" />
+                            <Button x:Name="ReframeButton" Classes="navBtn" Content="⛶" Click="OnReframe" />
+                            <Button x:Name="ZoomInButton" Classes="navBtn" Content="+" Click="OnZoomIn" />
+                        </StackPanel>
+                    </StackPanel>
+                </Panel>
+            </Panel>
+
+            <!-- Fallback shown when no GL context could be created. Both Text
+                 values below are intentionally empty: ApplyFallbackTexts is their
+                 only assigner - it sets the localized title and the generic
+                 localized hint, swaps the hint for the per-kind text
+                 (notSupported / runtimeError / other) once a verdict is reported,
+                 and re-resolves both on every locale change. A literal here would
+                 be a second copy of an English string that can never be seen - it
+                 is overwritten before the panel is ever shown - and that has to be
+                 kept in sync with the localized one for no benefit. The text is
+                 assigned from code-behind rather than bound, deliberately; see the
+                 comment on ReportRenderFailure. -->
+            <Border Background="Transparent" IsVisible="{Binding RenderUnavailable, Mode=OneWay}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="460">
+                    <TextBlock x:Name="FallbackTitle"
+                               Text=""
+                               FontSize="16" FontWeight="SemiBold"
+                               Foreground="#222" HorizontalAlignment="Center" />
+                    <TextBlock x:Name="FallbackHint"
+                               Text=""
+                               Foreground="#555" TextWrapping="Wrap" HorizontalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </DockPanel>
+    </Border>
+</UserControl>
