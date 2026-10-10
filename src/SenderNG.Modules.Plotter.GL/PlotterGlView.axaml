@@ -193,7 +193,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                          OverlaySettings property); each flip persists through
                          the app's DI SettingsService and is pushed to the live
                          scene as a runtime chrome change. -->
-                    <StackPanel Orientation="Horizontal" Spacing="6"
+                    <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"
                                 x:Name="OverlayViewToggles">
 						<!-- Grid (3D Isometric Floor Grid) -->
@@ -229,7 +229,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 								  HorizontalAlignment="Center" VerticalAlignment="Center"
 								  Stroke="{Binding $parent[ToggleButton].Foreground}"
 								  StrokeThickness="1.5"
-								  Data="M 4,2 L 13,8 L 4,14 Z" />
+								  Data="M 5,2 L 18,8 L 5,14 Z" />
 						</ToggleButton>
 
 						<!-- Loft (the sheet between the carriage planes — hidden on
@@ -239,7 +239,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 								  HorizontalAlignment="Center" VerticalAlignment="Center"
 								  Stroke="{Binding $parent[ToggleButton].Foreground}"
 								  StrokeThickness="1.5"
-								  Data="M 2,6 L 12,2 L 14,10 L 4,14 Z" />
+								  Data="M 0.5,8 A 3,3 0 1,1 6.5,8 A 3,3 0 1,1 0.5,8 Z M 9.5,0.5 h 4 A 1.5,1.5 0 0,1 15,2 v 12 a 1.5,1.5 0 0,1 -1.5,1.5 h -4 A 1.5,1.5 0 0,1 8,14 V 2 A 1.5,1.5 0 0,1 9.5,0.5 Z M 3,5 L 4.2,3.5 M 5.2,2.2 L 6.2,1 M 3,11 L 4.2,12.5 M 5.2,13.8 L 6.2,15" />
 						</ToggleButton>
                     </StackPanel>
 
