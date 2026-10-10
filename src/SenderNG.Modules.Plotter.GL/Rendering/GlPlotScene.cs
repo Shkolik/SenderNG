@@ -261,10 +261,15 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _gl = context.Api;
 
         var gles = context.IsGles;
-        _lineProg = GlShaders.Link(_gl,
-            GlShaders.Compile(_gl, gles, ShaderType.VertexShader, GlShaders.LineVertex),
-            GlShaders.Compile(_gl, gles, ShaderType.GeometryShader, GlShaders.LineGeometry),
-            GlShaders.Compile(_gl, gles, ShaderType.FragmentShader, GlShaders.LineFragmentFat));
+        FatLines = GlShaders.SupportsGeometryShaders(context.Version, gles);
+        _lineProg = FatLines
+            ? GlShaders.Link(_gl,
+                GlShaders.Compile(_gl, gles, ShaderType.VertexShader, GlShaders.LineVertex),
+                GlShaders.Compile(_gl, gles, ShaderType.GeometryShader, GlShaders.LineGeometry),
+                GlShaders.Compile(_gl, gles, ShaderType.FragmentShader, GlShaders.LineFragmentFat))
+            : GlShaders.Link(_gl,
+                GlShaders.Compile(_gl, gles, ShaderType.VertexShader, GlShaders.LineVertex),
+                GlShaders.Compile(_gl, gles, ShaderType.FragmentShader, GlShaders.LineFragment));
         _meshProg = GlShaders.Link(_gl,
             GlShaders.Compile(_gl, gles, ShaderType.VertexShader, GlShaders.MeshVertex),
             GlShaders.Compile(_gl, gles, ShaderType.FragmentShader, GlShaders.MeshFragment));
@@ -317,6 +322,14 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// disposes the scene together with the context (FreeRenderResources) and
     /// rebuilds both on re-attach.</summary>
     internal GlContext Context { get; }
+
+    /// <summary>Whether the line program was linked with the three-stage
+    /// fat-line expansion (geometry shader present) — false on GLES
+    /// contexts below ES 3.2, which have no geometry shaders and link the
+    /// two-stage thin-line program instead (Task 8d). Read seam for tests;
+    /// on the thin path <c>uViewportPx</c>/<c>uLineWidthPx</c> do not exist
+    /// and <see cref="UseLineProgram"/> skips those uniform sets.</summary>
+    internal bool FatLines { get; }
 
     /// <summary>The camera the next <see cref="RenderFrame"/> projects with and
     /// the one every gesture dispatches through — read seam for the
@@ -996,14 +1009,19 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     }
 
     /// <summary>Bind the line program with the frame's shared uniforms:
-    /// MVP, render-target size (the expansion's pixel space) and the calling
-    /// role's palette width.</summary>
+    /// MVP, and on the fat path also render-target size (the expansion's
+    /// pixel space) and the calling role's palette width. The thin-line
+    /// fallback (GLES &lt; 3.2, no geometry shader) has no
+    /// <c>uViewportPx</c>/<c>uLineWidthPx</c> — plain GL_LINES at the
+    /// default driver width.</summary>
     private void UseLineProgram(in Matrix4x4 vp, uint rtW, uint rtH, float widthPx)
     {
         _gl.UseProgram(_lineProg);
         var mvp = vp;
         _gl.UniformMatrix4(_lineMvp, false,
             MemoryMarshal.CreateReadOnlySpan(ref mvp.M11, 16));
+        if (!FatLines)
+            return;
         _gl.Uniform2(_lineViewport, (float)rtW, (float)rtH);
         _gl.Uniform1(_lineWidthPx, widthPx);
     }

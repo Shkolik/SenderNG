@@ -55,6 +55,32 @@ internal static class GlShaders
         ? "#version 300 es\nprecision highp float;\n"
         : "#version 330 core\n";
 
+    /// <summary>Geometry-shader availability for the fat-line expansion
+    /// program: always true on desktop GL (GS is core since GL 3.2); on GLES
+    /// only ES 3.20+ has it — ES 3.0/3.1 hard-fail the GeometryShader
+    /// compile (Task 8d, the Pi V3D repro). Parses the leading MAJOR.MINOR of
+    /// the glGetString(GL_VERSION) string ("OpenGL ES 3.1 Mesa …" → minor 1);
+    /// an unparseable GLES version reports false — the conservative answer,
+    /// since we cannot claim a capability the driver did not state.</summary>
+    internal static bool SupportsGeometryShaders(string version, bool isGles)
+    {
+        if (!isGles)
+            return true;
+        var s = version.AsSpan().TrimStart();
+        if (s.StartsWith("OpenGL ES".AsSpan()))
+            s = s["OpenGL ES".Length..].TrimStart();
+        var dot = s.IndexOf('.');
+        if (dot <= 0 || !int.TryParse(s[..dot], out var major))
+            return false;
+        var rest = s[(dot + 1)..];
+        var end = 0;
+        while (end < rest.Length && char.IsAsciiDigit(rest[end]))
+            end++;
+        if (end == 0 || !int.TryParse(rest[..end], out var minor))
+            return false;
+        return major > 3 || (major == 3 && minor >= 2);
+    }
+
     public const string LineVertex = """
         layout(location = 0) in vec3 aPos;
         layout(location = 1) in vec4 aColor;
