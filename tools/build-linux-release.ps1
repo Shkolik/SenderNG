@@ -168,7 +168,7 @@ if [ "${SENDENG_NO_ZIP:-0}" = "1" ]; then
 fi
 ARGS+=(--platform "$PLATFORM")
 
-echo "==> dotnet run --project tools/ReleaseManager -- ${ARGS[*]:-}"
+echo "==> dotnet run --project tools/ReleaseManager ${ARGS[*]:-}"
 if [ "$DRY" = "1" ]; then
     echo "==> DRY RUN: not invoking ReleaseManager; writing a stub bundle"
     mkdir -p "$MIRROR/output/$PLATFORM/SenderNG"
@@ -177,7 +177,7 @@ if [ "$DRY" = "1" ]; then
     printf 'dryrun\n' > "$MIRROR/output/$PLATFORM/SHA256SUMS.txt"
 else
     set +e
-    dotnet run --project tools/ReleaseManager -- "${ARGS[@]}"
+    dotnet run --project tools/ReleaseManager "${ARGS[@]}"
     RC=$?
     set -e
     if [ "$RC" -ne 0 ]; then
