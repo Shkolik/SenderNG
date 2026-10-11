@@ -36,3 +36,62 @@ jobs:
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') { $gateArgs += '-SkipChangeCheck' }
           if ('${{ inputs.stable }}' -eq 'true') { $gateArgs += '-Stable' }
           & ./tools/release-gate.ps1 @gateArgs
+
+  build-win64:
+    needs: gate
+    if: needs.gate.outputs.build == 'true'
+    runs-on: windows-latest
+    env:
+      MSBUILDDISABLENODEREUSE: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          source-url: https://nuget.pkg.github.com/helix-toolkit/index.json
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.PACKAGES_PAT }}
+
+      - name: Build win64 release
+        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform win64 --version ${{ needs.gate.outputs.version }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-win64
+          path: output/win64/*.zip
+          if-no-files-found: error
+
+  build-linux:
+    needs: gate
+    if: needs.gate.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    env:
+      MSBUILDDISABLENODEREUSE: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          source-url: https://nuget.pkg.github.com/helix-toolkit/index.json
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.PACKAGES_PAT }}
+
+      - name: Build linux-x64 release
+        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform linux --version ${{ needs.gate.outputs.version }}
+
+      - name: Build linux-arm64 release
+        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform linux-arm64 --skip-tests --version ${{ needs.gate.outputs.version }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: output/linux/*.zip
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-arm64
+          path: output/linux-arm64/*.zip
+          if-no-files-found: error
