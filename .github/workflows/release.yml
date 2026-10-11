@@ -110,9 +110,9 @@ jobs:
 
       - name: Collect assets and write merged checksums
         run: |
-          mkdir assets
-          mv release-win64/*.zip release-linux/*.zip release-linux-arm64/*.zip assets/
-          cd assets
+          mkdir -p release-assets
+          mv release-win64/*.zip release-linux/*.zip release-linux-arm64/*.zip release-assets/
+          cd release-assets
           sha256sum *.zip > SHA256SUMS.txt
           echo "Assets: $(ls *.zip | wc -l) zips"
 
@@ -130,7 +130,7 @@ jobs:
           git tag "$TAG" "$GITHUB_SHA"
           git push origin "$TAG"
           if [ "$STABLE" = "true" ]; then
-            gh release create "$TAG" assets/*.zip assets/SHA256SUMS.txt --title "$TAG" --generate-notes
+            gh release create "$TAG" release-assets/*.zip release-assets/SHA256SUMS.txt --title "$TAG" --generate-notes
           else
-            gh release create "$TAG" assets/*.zip assets/SHA256SUMS.txt --title "$TAG" --generate-notes --prerelease
+            gh release create "$TAG" release-assets/*.zip release-assets/SHA256SUMS.txt --title "$TAG" --generate-notes --prerelease
           fi
