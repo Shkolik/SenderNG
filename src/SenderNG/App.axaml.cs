@@ -33,8 +33,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SenderNG.ViewModels;
@@ -61,10 +63,25 @@ public partial class App : Application
         UiThread.Initialize();
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // The .ico, not the .png: Win32Icon parses the ICO directory and
+            // hands Windows the frame closest to the requested size (16 for the
+            // title bar, 24/32 for the taskbar). A PNG takes the
+            // CreateIconIndirect fallback instead - one 512px downscale reused
+            // everywhere. The stream is already copied into a MemoryStream by
+            // IconImpl, so disposing it here is safe.
+            using var iconStream = AssetLoader.Open(new Uri("avares://SenderNG/Assets/appIcon.ico"));
+            var appIcon = new WindowIcon(iconStream);
+
             Host = HostSetup.BuildHost(StartupArgs);
             var vm = Host.Services.GetRequiredService<MainViewModel>();
 
+            // Before MainWindow, not after: registering a default on a property
+            // of an already-constructed window only worked because Icon is not
+            // read in the constructor.
+            Window.IconProperty.OverrideDefaultValue<Window>(appIcon);
+
             desktop.MainWindow = new MainWindow { DataContext = vm };
+
             // The app starts disconnected; open the connect dialog right after
             // the window is shown so the user picks Serial / Network / Demo first.
             desktop.MainWindow.Opened += (_, _) => _ = vm.ShowConnectDialogAsync();

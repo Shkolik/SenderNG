@@ -4,6 +4,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\appIcon.ico</ApplicationIcon>
     <Version>0.1.0</Version>
   </PropertyGroup>
 
@@ -24,6 +25,8 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\banner.png" />
+    <AvaloniaResource Include="Assets\appIcon.png" />
+    <AvaloniaResource Include="Assets\appIcon.ico" />
   </ItemGroup>
 
   <ItemGroup>
