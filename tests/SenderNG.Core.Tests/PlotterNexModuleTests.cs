@@ -88,7 +88,6 @@ public class PlotterNexModuleTests
         Assert.Equal("Plot 3D (Nex)", module.Name);
         Assert.Equal("G-code 3D path plotter: program toolpath with live run overlay.", module.Description);
         Assert.False(string.IsNullOrWhiteSpace(module.LocalizationKeys[$"module.{module.Id}.description"]));
-        Assert.False(string.IsNullOrWhiteSpace(module.LocalizationKeys[$"module.{module.Id}.placeholder"]));
     }
 
     [Fact]

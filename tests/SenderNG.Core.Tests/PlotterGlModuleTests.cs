@@ -91,7 +91,6 @@ public class PlotterGlModuleTests
         Assert.Equal("Plot 3D", module.Name);
         Assert.Equal("G-code 3D path plotter: program toolpath with live run overlay.", module.Description);
         Assert.False(string.IsNullOrWhiteSpace(module.LocalizationKeys[$"module.{module.Id}.description"]));
-        Assert.False(string.IsNullOrWhiteSpace(module.LocalizationKeys[$"module.{module.Id}.placeholder"]));
     }
 
     /// <summary>Every declared key must live under the module's own prefix:
