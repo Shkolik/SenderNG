@@ -81,7 +81,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			<ComboBox Grid.Column="1" Grid.Row="0" ItemsSource="{Binding Axes}" SelectedIndex="{Binding SelectedAxis}" Width="150" IsEnabled="{Binding IsSetup}"/>
 
 			<TextBlock Grid.Column="0" Grid.Row="1" Text="{loc:Loc module.stepper-calibration.distance}" VerticalAlignment="Center"/>
-			<TextBox x:Name="DistanceBox" Grid.Column="1" Grid.Row="1" Text="{Binding Distance, Converter={x:Static conv:Converters.NumericText}}" Width="150" IsEnabled="{Binding IsSetup}"/>
+			<TextBox x:Name="DistanceBox" Classes="num" Grid.Column="1" Grid.Row="1" Text="{Binding Distance, Converter={x:Static conv:Converters.NumericText}}" Width="150" IsEnabled="{Binding IsSetup}"/>
 			<TextBlock Grid.Column="2" Grid.Row="1" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
 
 			<TextBlock Grid.Column="0" Grid.Row="2" Text="{loc:Loc module.stepper-calibration.currentSteps}" VerticalAlignment="Center"/>
@@ -90,12 +90,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 			<!-- Measure -->
 			<TextBlock Grid.Column="0" Grid.Row="4" Text="{loc:Loc module.stepper-calibration.measured}" VerticalAlignment="Center"/>
-			<TextBox x:Name="MeasuredBox" Grid.Column="1" Grid.Row="4" Text="{Binding MeasuredDistance, Converter={x:Static conv:Converters.NumericText}}" Width="150" 
+			<TextBox x:Name="MeasuredBox" Classes="udec" Grid.Column="1" Grid.Row="4" Text="{Binding MeasuredDistance, Converter={x:Static conv:Converters.NumericText}}" Width="150" 
 					 IsEnabled="{Binding Step, Converter={x:Static vm:StepperCalibrationStepConverters.IsMeasureForward}}"/>
 			<TextBlock Grid.Column="2" Grid.Row="4" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
 
 			<TextBlock Grid.Column="0" Grid.Row="5" Text="{loc:Loc module.stepper-calibration.backlash}" VerticalAlignment="Center"/>
-			<TextBox x:Name="BacklashBox" Grid.Column="1" Grid.Row="5" Text="{Binding Backlash, Converter={x:Static conv:Converters.NumericText}}" Width="150" 
+			<TextBox x:Name="BacklashBox" Classes="udec" Grid.Column="1" Grid.Row="5" Text="{Binding Backlash, Converter={x:Static conv:Converters.NumericText}}" Width="150" 
 					 IsEnabled="{Binding Step, Converter={x:Static vm:StepperCalibrationStepConverters.IsMeasureBacklash}}"/>
 			<TextBlock Grid.Column="2" Grid.Row="5" Classes="unit" Text="{loc:Loc common.mm, DText='mm'}" />
 

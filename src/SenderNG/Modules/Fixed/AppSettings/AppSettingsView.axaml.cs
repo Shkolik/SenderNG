@@ -39,6 +39,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using CNC.Core.ViewModels;
+using SenderNG.Services;
 
 namespace SenderNG.Modules.Fixed;
 
@@ -49,6 +50,9 @@ public partial class AppSettingsView : UserControl
         InitializeComponent();
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, BindingCommit.OnEnterKeyDown, RoutingStrategies.Bubble);
+        AddHandler(InputElement.TextInputEvent, NumericInputFilter.OnTextInput, RoutingStrategies.Tunnel);
+        AddHandler(TextBox.PastingFromClipboardEvent, NumericInputFilter.OnPasting, RoutingStrategies.Bubble);
     }
 
     private HotkeysSettingsLeaf? Leaf => (DataContext as AppSettingsViewModel)?.SelectedHotkeysLeaf;

@@ -1209,7 +1209,14 @@ public class MainViewModel : ViewModelBase, IDisposable
             RecentFiles.RemoveAt(RecentFiles.Count - 1);
         var global = _settingsService.Global;
         global.RecentFiles = [.. RecentFiles];
-        _settingsService.SaveGlobal(global);
+        try
+        {
+            _settingsService.SaveGlobal(global);
+        }
+        catch
+        {
+            // Best-effort persistence; the recent list still shows for the session.
+        }
 
         var isConverted = FindFileHandler(Path.GetExtension(path)) is not null;
         Status = isConverted
@@ -1680,7 +1687,14 @@ public class MainViewModel : ViewModelBase, IDisposable
                 if (active.DemoAxes != choice.DemoAxes)
                 {
                     active.DemoAxes = choice.DemoAxes;
-                    _settingsService.Save(active);
+                    try
+                    {
+                        _settingsService.Save(active);
+                    }
+                    catch
+                    {
+                        // Best-effort persistence; the demo choice still applies for the session.
+                    }
                 }
                 await ActivateDemoAsync();
                 break;

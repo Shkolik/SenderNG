@@ -36,6 +36,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using SenderNG.Services;
 
 namespace SenderNG.Views;
 
@@ -44,5 +47,7 @@ public partial class RotateProgramView : UserControl
     public RotateProgramView()
     {
         InitializeComponent();
+        AddHandler(InputElement.TextInputEvent, NumericInputFilter.OnTextInput, RoutingStrategies.Tunnel);
+        AddHandler(TextBox.PastingFromClipboardEvent, NumericInputFilter.OnPasting, RoutingStrategies.Bubble);
     }
 }

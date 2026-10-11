@@ -165,8 +165,15 @@ public sealed class PlotterSettingsViewModel : ViewModelBase, IDisposable
 
     private void Persist()
     {
-        PlotterConfig.Save(_profile, Model);
-        _settingsService.SaveProfile(_profile);
+        try
+        {
+            PlotterConfig.Save(_profile, Model);
+            _settingsService.SaveProfile(_profile);
+        }
+        catch
+        {
+            // Best-effort persistence; settings still apply for the session.
+        }
         // Every toggle notifies itself so a binding on THIS instance re-reads
         // it — without this the checkbox it is bound to keeps its stale visual
         // state after a flip. (The plot overlay that binds these too is wired

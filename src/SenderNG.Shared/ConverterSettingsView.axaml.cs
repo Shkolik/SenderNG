@@ -36,6 +36,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using Avalonia.Controls;
+using Avalonia.Data;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using SenderNG.Modules.Shared.Input;
 
 namespace SenderNG.Modules.Shared;
 
@@ -44,5 +48,15 @@ public partial class ConverterSettingsView : UserControl
     public ConverterSettingsView()
     {
         InitializeComponent();
+        AddHandler(InputElement.TextInputEvent, NumericInputFilter.OnTextInput, RoutingStrategies.Tunnel);
+        AddHandler(TextBox.PastingFromClipboardEvent, NumericInputFilter.OnPasting, RoutingStrategies.Bubble);
+        AddHandler(KeyDownEvent, OnCommitEnter, RoutingStrategies.Bubble);
+    }
+
+    private static void OnCommitEnter(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || e.Key != Key.Enter || e.Source is not TextBox { AcceptsReturn: false } tb)
+            return;
+        BindingOperations.GetBindingExpressionBase(tb, TextBox.TextProperty)?.UpdateSource();
     }
 }

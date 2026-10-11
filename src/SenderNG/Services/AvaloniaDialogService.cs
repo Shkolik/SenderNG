@@ -73,6 +73,10 @@ public class AvaloniaDialogService : IDialogService
             window.CanResize = false;
         }
 
+        // Commit any focused TextBox's pending text (lost-focus cadence) before
+        // the dialog goes away — closing via the title-bar X moves no focus.
+        window.Closing += (_, _) => BindingCommit.CommitFocused(window);
+
         bool? result = null;
         if (viewModel is IClosableDialog closable)
             closable.CloseRequested += (_, r) =>

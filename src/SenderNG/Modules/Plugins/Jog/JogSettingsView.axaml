@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Modules.Plugins"
              xmlns:loc="clr-namespace:SenderNG.Localization;assembly=SenderNG"
+             xmlns:conv="clr-namespace:SenderNG.Converters"
              mc:Ignorable="d" d:DesignWidth="130" d:DesignHeight="170"
              x:Class="SenderNG.Modules.Plugins.JogSettingsView"
              x:DataType="vm:JogViewModel">
@@ -66,15 +67,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <StackPanel Orientation="Horizontal" Spacing="12">
             <StackPanel>
                 <TextBlock Classes="caption" Text="{loc:Loc module.jog.distances}" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Distance1}" PlaceholderText="{loc:Loc module.jog.step1}" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Distance2}" PlaceholderText="{loc:Loc module.jog.step2}" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Distance3}" PlaceholderText="{loc:Loc module.jog.step3}" />
+                <TextBox Classes="stepValue num" Text="{Binding Config.Distance1, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" PlaceholderText="{loc:Loc module.jog.step1}" />
+                <TextBox Classes="stepValue num" Text="{Binding Config.Distance2, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" PlaceholderText="{loc:Loc module.jog.step2}" />
+                <TextBox Classes="stepValue num" Text="{Binding Config.Distance3, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" PlaceholderText="{loc:Loc module.jog.step3}" />
             </StackPanel>
             <StackPanel>
                 <TextBlock Classes="caption" Text="{loc:Loc module.jog.speeds}" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Speed1}" PlaceholderText="{loc:Loc module.jog.speed1}" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Speed2}" PlaceholderText="{loc:Loc module.jog.speed2}" />
-                <TextBox Classes="stepValue" Text="{Binding Config.Speed3}" PlaceholderText="{loc:Loc module.jog.speed3}" />
+                <TextBox Classes="stepValue num" Text="{Binding Config.Speed1, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" PlaceholderText="{loc:Loc module.jog.speed1}" />
+                <TextBox Classes="stepValue num" Text="{Binding Config.Speed2, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" PlaceholderText="{loc:Loc module.jog.speed2}" />
+                <TextBox Classes="stepValue num" Text="{Binding Config.Speed3, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" PlaceholderText="{loc:Loc module.jog.speed3}" />
             </StackPanel>
         </StackPanel>
         <CheckBox Content="{loc:Loc module.jog.diagonal}" IsChecked="{Binding Config.Diagonals}" FontSize="10" Margin="0,6,0,0" />

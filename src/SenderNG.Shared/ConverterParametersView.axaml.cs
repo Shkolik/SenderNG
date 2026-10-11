@@ -36,6 +36,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using SenderNG.Modules.Shared.Input;
 
 namespace SenderNG.Modules.Shared;
 
@@ -44,5 +47,7 @@ public partial class ConverterParametersView : UserControl
     public ConverterParametersView()
     {
         InitializeComponent();
+        AddHandler(InputElement.TextInputEvent, NumericInputFilter.OnTextInput, RoutingStrategies.Tunnel);
+        AddHandler(TextBox.PastingFromClipboardEvent, NumericInputFilter.OnPasting, RoutingStrategies.Bubble);
     }
 }

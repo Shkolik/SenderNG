@@ -8,6 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- ProbeView's ItemContainerTheme does BasedOn="{StaticResource {x:Type TabItem}}"
+         and its TextBoxes need real templates: headless view construction requires
+         the same Fluent theme the app host provides (mirror of SenderNG.Tests
+         UiHeadlessApp). -->
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.0" />
     <PackageReference Include="Avalonia.Headless.XUnit" Version="12.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.*" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />

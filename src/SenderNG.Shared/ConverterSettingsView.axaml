@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Modules.Shared"
+             xmlns:conv="clr-namespace:SenderNG.Modules.Shared.Converters"
              mc:Ignorable="d" d:DesignWidth="420" d:DesignHeight="260"
              x:Class="SenderNG.Modules.Shared.ConverterSettingsView"
              x:DataType="vm:ConverterSettingsViewModel">
@@ -53,35 +54,35 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <Grid ColumnDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="6"
               RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="4">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding ZHomeLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
-            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ZHome, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+            <TextBox Classes="num" Grid.Row="0" Grid.Column="1" Text="{Binding ZHome, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" FontSize="12" Height="22" Width="70"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
             <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding ZRapidsLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
-            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ZRapids, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+            <TextBox Classes="num" Grid.Row="1" Grid.Column="1" Text="{Binding ZRapids, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" FontSize="12" Height="22" Width="70"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
             <TextBlock Grid.Row="2" Grid.Column="0" Text="{Binding ZSafeLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
-            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding ZSafe, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+            <TextBox Classes="num" Grid.Row="2" Grid.Column="1" Text="{Binding ZSafe, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" FontSize="12" Height="22" Width="70"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
             <TextBlock Grid.Row="3" Grid.Column="0" Text="{Binding ZMinLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
-            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding ZMin, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+            <TextBox Classes="num" Grid.Row="3" Grid.Column="1" Text="{Binding ZMin, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" FontSize="12" Height="22" Width="70"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
             <TextBlock Grid.Row="4" Grid.Column="0" Text="{Binding ScaleXLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
-            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding ScaleX, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+            <TextBox Classes="num" Grid.Row="4" Grid.Column="1" Text="{Binding ScaleX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" FontSize="12" Height="22" Width="70"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
 
             <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding RpmLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
-            <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding RPM, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+            <TextBox Classes="num" Grid.Row="0" Grid.Column="3" Text="{Binding RPM, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" FontSize="12" Height="22" Width="70"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
             <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding ToolDiameterLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
-            <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding ToolDiameter, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+            <TextBox Classes="num" Grid.Row="1" Grid.Column="3" Text="{Binding ToolDiameter, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" FontSize="12" Height="22" Width="70"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
             <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding FeedRateLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
-            <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding FeedRate, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+            <TextBox Classes="num" Grid.Row="2" Grid.Column="3" Text="{Binding FeedRate, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" FontSize="12" Height="22" Width="70"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
             <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding PlungeRateLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
-            <TextBox Grid.Row="3" Grid.Column="3" Text="{Binding PlungeRate, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+            <TextBox Classes="num" Grid.Row="3" Grid.Column="3" Text="{Binding PlungeRate, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" FontSize="12" Height="22" Width="70"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
             <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding ScaleYLabel}" FontSize="11" Foreground="#666" HorizontalAlignment="Right" VerticalAlignment="Center" />
-            <TextBox Grid.Row="4" Grid.Column="3" Text="{Binding ScaleY, Mode=TwoWay}" FontSize="12" Height="22" Width="70"
+            <TextBox Classes="num" Grid.Row="4" Grid.Column="3" Text="{Binding ScaleY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" FontSize="12" Height="22" Width="70"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
         </Grid>
     </StackPanel>

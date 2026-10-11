@@ -125,10 +125,17 @@ public class MacroViewModel : ViewModelBase
 
     public void Save()
     {
-        _profile.ModuleSettings["Macros"] = Macros
-            .Select(m => new Dictionary<string, object> { ["Name"] = m.Name, ["Code"] = m.Code })
-            .ToList();
-        _settingsService.Save(_profile);
+        try
+        {
+            _profile.ModuleSettings["Macros"] = Macros
+                .Select(m => new Dictionary<string, object> { ["Name"] = m.Name, ["Code"] = m.Code })
+                .ToList();
+            _settingsService.Save(_profile);
+        }
+        catch
+        {
+            // Best-effort persistence; settings still apply for the session.
+        }
     }
 
     private void Load()

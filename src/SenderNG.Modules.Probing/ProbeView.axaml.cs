@@ -32,30 +32,20 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.VisualTree;
+using SenderNG.Modules.Probing.Input;
 
 namespace SenderNG.Modules.Plugins;
 
 public partial class ProbeView : UserControl
 {
-    // Letters and other non-numeric characters are blocked in the probing
-    // numeric inputs (left column + tool panels) so the double/int bindings
-    // never hit a validation error. The editable profile ComboBox hosts a
-    // TextBox that must keep accepting arbitrary text, so it is excluded.
-    // The bindings also use NumericTextConverter, which silently ignores any
-    // remaining unparseable text (dangling sign, empty field, paste), so no
-    // red validation border or conversion exception can ever surface.
-    private static readonly Regex DecimalPattern = new(@"^[+-]?\d*[.,]?\d*$", RegexOptions.Compiled);
-    private static readonly Regex IntPattern = new(@"^[+-]?\d*$", RegexOptions.Compiled);
-
     public ProbeView()
     {
         InitializeComponent();
-        AddHandler(InputElement.TextInputEvent, OnNumericTextInput, RoutingStrategies.Tunnel);
+        AddHandler(InputElement.TextInputEvent, NumericInputFilter.OnTextInput, RoutingStrategies.Tunnel);
+        AddHandler(TextBox.PastingFromClipboardEvent, NumericInputFilter.OnPasting, RoutingStrategies.Bubble);
 
         // The designer never provides a DataContext, so every IsVisible
         // binding fails and all six tool panels stack on top of each other.
@@ -64,24 +54,6 @@ public partial class ProbeView : UserControl
         // to switch which panel the designer shows.
         if (Design.IsDesignMode)
             DataContext = ProbeViewModel.CreateDesignInstance(ProbeDesignState.GetPinnedTool(this));
-    }
-
-    private void OnNumericTextInput(object? sender, TextInputEventArgs e)
-    {
-        if (e.Source is not TextBox box || string.IsNullOrEmpty(e.Text))
-            return;
-
-        // The editable profile ComboBox contains a TextBox for profile names.
-        if (box.FindAncestorOfType<ComboBox>() is not null)
-            return;
-
-        var pattern = box.Classes.Contains("int") ? IntPattern : DecimalPattern;
-        var text = box.Text ?? string.Empty;
-        var caret = Math.Min(box.SelectionStart, box.SelectionEnd);
-        var length = Math.Abs(box.SelectionEnd - box.SelectionStart);
-        var result = text.Remove(caret, length).Insert(caret, e.Text);
-        if (!pattern.IsMatch(result))
-            e.Handled = true;
     }
 
     // Avalonia does not auto-open a Button's ContextMenu on click (WPF did);

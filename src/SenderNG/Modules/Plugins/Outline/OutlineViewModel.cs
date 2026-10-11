@@ -173,15 +173,22 @@ public class OutlineViewModel : ViewModelBase
 
     private void SaveFeedRate(int value)
     {
-        var app = _settings.Load();
-        if (!app.ModuleSettings.TryGetValue(OutlineModule.SettingsSection, out var raw) ||
-            raw is not Dictionary<string, object> section)
+        try
         {
-            section = new Dictionary<string, object>();
-            app.ModuleSettings[OutlineModule.SettingsSection] = section;
+            var app = _settings.Load();
+            if (!app.ModuleSettings.TryGetValue(OutlineModule.SettingsSection, out var raw) ||
+                raw is not Dictionary<string, object> section)
+            {
+                section = new Dictionary<string, object>();
+                app.ModuleSettings[OutlineModule.SettingsSection] = section;
+            }
+            section[OutlineModule.FeedRateKey] = (double)value;
+            _settings.Save(app);
         }
-        section[OutlineModule.FeedRateKey] = (double)value;
-        _settings.Save(app);
+        catch
+        {
+            // Best-effort persistence; settings still apply for the session.
+        }
     }
 
     private sealed record SweepPlane(string HLetter, ProgramLimitRow H, string VLetter, ProgramLimitRow V);

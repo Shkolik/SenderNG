@@ -235,14 +235,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <CheckBox Content="{loc:Loc module.probing.probeZ, DText='Probe Z'}" IsChecked="{Binding ProbeZ}" IsEnabled="{Binding IsProbeZEditable}" FontSize="11" />
                     <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="4">
                         <TextBlock Text="{loc:Loc module.probing.workpieceHeight, DText='Workpiece height:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                        <TextBox Grid.Column="1" Text="{Binding WorkpieceHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                        <TextBox Grid.Column="1" Classes="num" Width="NaN" Text="{Binding WorkpieceHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
                                  IsEnabled="{Binding ProbeZ}" Margin="4,0"/>
 
 						<TextBlock Grid.Row="1" Text="{loc:Loc module.probing.edgeOffset, DText='Edge offset:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
                                    ToolTip.Tip="{loc:Loc module.probing.edgeOffsetHint, DText='0 uses half the probe diameter'}" />
-						<TextBox Grid.Row="1" Grid.Column="1" Text="{Binding WorkpieceXYEdgeOffset, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+						<TextBox Grid.Row="1" Grid.Column="1" Classes="num" Width="NaN" Text="{Binding WorkpieceXYEdgeOffset, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
                                  IsEnabled="{Binding ProbeZ}" Margin="4,0"/>

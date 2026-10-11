@@ -33,6 +33,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using SenderNG.Services;
 
 namespace SenderNG.Modules.Plugins;
 
@@ -41,5 +44,8 @@ public partial class JogSettingsView : UserControl
     public JogSettingsView()
     {
         InitializeComponent();
+        AddHandler(KeyDownEvent, BindingCommit.OnEnterKeyDown, RoutingStrategies.Bubble);
+        AddHandler(InputElement.TextInputEvent, NumericInputFilter.OnTextInput, RoutingStrategies.Tunnel);
+        AddHandler(TextBox.PastingFromClipboardEvent, NumericInputFilter.OnPasting, RoutingStrategies.Bubble);
     }
 }

@@ -139,8 +139,15 @@ public abstract class ConverterModuleBase : IModule, IModuleSettingsProvider, IL
                 return null; // cancelled — nothing loaded
 
             stored = vm.ToSettings();
-            ConverterSettingsStore.Save(profile, Id, stored);
-            settingsService.Save(profile);
+            try
+            {
+                ConverterSettingsStore.Save(profile, Id, stored);
+                settingsService.Save(profile);
+            }
+            catch
+            {
+                // Best-effort persistence; the parameters still apply for the session.
+            }
         }
 
         try

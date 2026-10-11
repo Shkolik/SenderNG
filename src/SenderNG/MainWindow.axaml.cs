@@ -36,6 +36,7 @@ using Avalonia.Controls;
 using Avalonia.VisualTree;
 using SenderNG.Core.Services;
 using SenderNG.Localization;
+using SenderNG.Services;
 using SenderNG.ViewModels;
 
 namespace SenderNG;
@@ -49,6 +50,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        Closing += (_, _) => BindingCommit.CommitFocused(this);
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)

@@ -50,11 +50,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         </StackPanel>
 
         <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
-            <TextBox Text="{Binding SelectedMacro.Name, Mode=TwoWay}"
+            <TextBox Text="{Binding SelectedMacro.Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                      PlaceholderText="{loc:Loc module.macro.namePlaceholder}"
                      IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-            <TextBox Text="{Binding SelectedMacro.Code, Mode=TwoWay}"
+            <TextBox Text="{Binding SelectedMacro.Code, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                      PlaceholderText="{loc:Loc module.macro.codePlaceholder}"
                      AcceptsReturn="True" MinHeight="100" TextWrapping="Wrap"
                      IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}"

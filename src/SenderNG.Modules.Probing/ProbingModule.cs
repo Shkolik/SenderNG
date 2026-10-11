@@ -151,9 +151,16 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule,
                     tools[key] = value;
                     if (_settingsService is { } svc)
                     {
-                        var settings = svc.Load();
-                        EnsureSection(settings)[EnabledToolsKey] = tools;
-                        svc.Save(settings);
+                        try
+                        {
+                            var settings = svc.Load();
+                            EnsureSection(settings)[EnabledToolsKey] = tools;
+                            svc.Save(settings);
+                        }
+                        catch
+                        {
+                            // Best-effort persistence; the tool selection still applies for the session.
+                        }
                     }
                 },
                 key: "module.probing." + key);

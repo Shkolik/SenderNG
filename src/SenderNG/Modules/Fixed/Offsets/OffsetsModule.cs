@@ -100,9 +100,16 @@ public sealed class OffsetsModule : IModule, IModuleSettingsProvider, ILocalized
             () => _settingsService.Load().VisibleTools,
             value =>
             {
-                var settings = _settingsService.Load();
-                settings.VisibleTools = (int)System.Math.Clamp(value, 0, 64);
-                _settingsService.Save(settings);
+                try
+                {
+                    var settings = _settingsService.Load();
+                    settings.VisibleTools = (int)System.Math.Clamp(value, 0, 64);
+                    _settingsService.Save(settings);
+                }
+                catch
+                {
+                    // Best-effort persistence; the field value still applies for the session.
+                }
             },
             key: "module.offsets-table.visibleTools")];
     }

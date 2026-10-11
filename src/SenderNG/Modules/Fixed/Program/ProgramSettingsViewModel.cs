@@ -158,9 +158,16 @@ public class ProgramSettingsViewModel : ViewModelBase, IDisposable
 
     private void Save()
     {
-        var config = ProgramConfigStore.Load(_profile);
-        config.CompressCommentMode = Options[SelectedIndex].Mode;
-        ProgramConfigStore.Save(_profile, config);
-        _settings.Save(_profile);
+        try
+        {
+            var config = ProgramConfigStore.Load(_profile);
+            config.CompressCommentMode = Options[SelectedIndex].Mode;
+            ProgramConfigStore.Save(_profile, config);
+            _settings.Save(_profile);
+        }
+        catch
+        {
+            // Best-effort persistence; settings still apply for the session.
+        }
     }
 }

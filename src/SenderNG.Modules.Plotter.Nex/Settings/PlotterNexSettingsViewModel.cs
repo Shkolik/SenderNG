@@ -237,6 +237,10 @@ public sealed class PlotterNexSettingsViewModel : CNC.Core.ViewModelBase
             PlotterNexConfig.Save(_profile, _settings);
             _settingsService.Save(_profile);
         }
+        catch
+        {
+            // Best-effort persistence; settings still apply for the session.
+        }
         finally
         {
             _saving = false;

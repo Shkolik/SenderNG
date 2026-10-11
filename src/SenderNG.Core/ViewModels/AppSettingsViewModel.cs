@@ -1270,9 +1270,29 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         }
     }
 
-    private void SaveProfile() => _settingsService.Save(_profile);
+    private void SaveProfile()
+    {
+        try
+        {
+            _settingsService.Save(_profile);
+        }
+        catch
+        {
+            // Best-effort persistence; settings still apply for the session.
+        }
+    }
 
-    private void SaveGlobal() => _settingsService.SaveGlobal(_global);
+    private void SaveGlobal()
+    {
+        try
+        {
+            _settingsService.SaveGlobal(_global);
+        }
+        catch
+        {
+            // Best-effort persistence; settings still apply for the session.
+        }
+    }
 
     protected void RequestClose(bool result) => CloseRequested?.Invoke(this, result);
 }

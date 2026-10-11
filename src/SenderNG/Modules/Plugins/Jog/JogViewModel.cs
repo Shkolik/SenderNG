@@ -476,6 +476,10 @@ public class JogViewModel : ViewModelBase
             JogConfigStore.Save(_profile, Config);
             _settingsService.Save(_profile);
         }
+        catch
+        {
+            // Best-effort persistence; settings still apply for the session.
+        }
         finally
         {
             _suppressReload = false;

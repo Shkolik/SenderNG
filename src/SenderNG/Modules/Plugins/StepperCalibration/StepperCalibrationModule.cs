@@ -93,10 +93,17 @@ public class StepperCalibrationModule : IModule, IModuleSettingsProvider, ILocal
             {
                 if (_settingsService is not { } service)
                     return;
-                var profile = service.Load();
-                StepperCalibrationSettingsStore.Save(profile,
-                    new StepperCalibrationSettings { Distance = value });
-                service.Save(profile);
+                try
+                {
+                    var profile = service.Load();
+                    StepperCalibrationSettingsStore.Save(profile,
+                        new StepperCalibrationSettings { Distance = value });
+                    service.Save(profile);
+                }
+                catch
+                {
+                    // Best-effort persistence; the field value still applies for the session.
+                }
             },
             key: "module.stepper-calibration.distance");
     }

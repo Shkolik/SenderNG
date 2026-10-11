@@ -51,19 +51,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <TextBlock Text="{loc:Loc module.probing.area, DText='Area'}" FontWeight="SemiBold" FontSize="11" />
                     <Grid ColumnDefinitions="*,64,*,64" RowDefinitions="Auto,Auto" HorizontalAlignment="Stretch">
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc module.probing.minX, DText='Min X:'}" FontSize="11" VerticalAlignment="Center" Margin="6,0" />
-                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding HmMinX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                        <TextBox Grid.Row="0" Grid.Column="1" Classes="num" Width="64" Text="{Binding HmMinX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,12,4" />
                         <TextBlock Grid.Row="0" Grid.Column="2" Text="{loc:Loc module.probing.maxX, DText='Max X:'}" FontSize="11" VerticalAlignment="Center" Margin="6,0" />
-                        <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding HmMaxX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                        <TextBox Grid.Row="0" Grid.Column="3" Classes="num" Width="64" Text="{Binding HmMaxX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,0,4" />
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc module.probing.minY, DText='Min Y:'}" FontSize="11" VerticalAlignment="Center" Margin="6,0" />
-                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding HmMinY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                        <TextBox Grid.Row="1" Grid.Column="1" Classes="num" Width="64" Text="{Binding HmMinY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,12,0" />
                         <TextBlock Grid.Row="1" Grid.Column="2" Text="{loc:Loc module.probing.maxY, DText='Max Y:'}" FontSize="11" VerticalAlignment="Center" Margin="6,0" />
-                        <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding HmMaxY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                        <TextBox Grid.Row="1" Grid.Column="3" Classes="num" Width="64" Text="{Binding HmMaxY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
                     </Grid>
@@ -76,11 +76,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <TextBlock Text="{loc:Loc module.probing.grid, DText='Grid'}" FontWeight="SemiBold" FontSize="11" />
                     <Grid ColumnDefinitions="*,64,*,64" HorizontalAlignment="Stretch">
                         <TextBlock Grid.Column="0" Text="{loc:Loc module.probing.gridX, DText='Grid X:'}" FontSize="11" VerticalAlignment="Center" Margin="6,0" />
-                        <TextBox Grid.Column="1" Text="{Binding HmGridSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                        <TextBox Grid.Column="1" Classes="num" Width="64" Text="{Binding HmGridSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center" Margin="0,0,12,0" />
                         <TextBlock Grid.Column="2" Text="{loc:Loc module.probing.gridY, DText='Grid Y:'}" FontSize="11" VerticalAlignment="Center" Margin="6,0" />
-                        <TextBox Grid.Column="3" Text="{Binding HmGridSizeY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                        <TextBox Grid.Column="3" Classes="num" Width="64" Text="{Binding HmGridSizeY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
                     </Grid>

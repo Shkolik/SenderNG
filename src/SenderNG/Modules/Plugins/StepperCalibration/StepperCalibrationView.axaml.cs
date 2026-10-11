@@ -31,40 +31,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using SenderNG.Services;
 
 namespace SenderNG.Modules.Plugins;
 
 public partial class StepperCalibrationView : UserControl
 {
-    // The commanded distance is allowed to be negative (the axis moves the other
-    // way), but the measured distance and backlash must stay non-negative: their
-    // double? bindings would otherwise flash a red validation border while the
-    // sign is typed. The regex blocks '-' (and any other malformed input) before
-    // it reaches the NumericTextConverter, which silently swallows the rest.
-    private static readonly Regex SignedDecimalPattern = new(@"^[+-]?\d*[.,]?\d*$", RegexOptions.Compiled);
-    private static readonly Regex UnsignedDecimalPattern = new(@"^\d*[.,]?\d*$", RegexOptions.Compiled);
-
     public StepperCalibrationView()
     {
         InitializeComponent();
-        AddHandler(InputElement.TextInputEvent, OnNumericTextInput, RoutingStrategies.Tunnel);
-    }
-
-    private void OnNumericTextInput(object? sender, TextInputEventArgs e)
-    {
-        if (e.Source is not TextBox box || string.IsNullOrEmpty(e.Text))
-            return;
-
-        var pattern = box.Name == "DistanceBox" ? SignedDecimalPattern : UnsignedDecimalPattern;
-        var text = box.Text ?? string.Empty;
-        var caret = Math.Min(box.SelectionStart, box.SelectionEnd);
-        var length = Math.Abs(box.SelectionEnd - box.SelectionStart);
-        var result = text.Remove(caret, length).Insert(caret, e.Text);
-        if (!pattern.IsMatch(result))
-            e.Handled = true;
+        AddHandler(InputElement.TextInputEvent, NumericInputFilter.OnTextInput, RoutingStrategies.Tunnel);
+        AddHandler(TextBox.PastingFromClipboardEvent, NumericInputFilter.OnPasting, RoutingStrategies.Bubble);
     }
 }

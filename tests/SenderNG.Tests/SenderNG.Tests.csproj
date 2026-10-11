@@ -25,6 +25,7 @@
          plugin's attach/detach lifecycle headlessly. -->
     <ProjectReference Include="..\..\src\SenderNG.Modules.Plotter.GL\SenderNG.Modules.Plotter.GL.csproj" />
     <ProjectReference Include="..\..\src\SenderNG.Modules.Plotter.Nex\SenderNG.Modules.Plotter.Nex.csproj" />
+    <ProjectReference Include="..\..\src\SenderNG.Modules.Excellon\SenderNG.Modules.Excellon.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -88,14 +88,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <!-- X / Y sizes on one line, lock between them -->
                     <Grid ColumnDefinitions="Auto,100,44,Auto,100,*" HorizontalAlignment="Stretch">
                         <TextBlock Text="X:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
-                        <TextBox Grid.Column="1" Text="{Binding WorkpieceSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                        <TextBox Grid.Column="1" Classes="num" Width="100" Text="{Binding WorkpieceSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
                         <CheckBox Grid.Column="2" Classes="padlock" VerticalAlignment="Center"
                                   IsChecked="{Binding WorkpieceLockXY}"
                                   ToolTip.Tip="{loc:Loc module.probing.lockHint, DText='Locked: X and Y sizes stay equal. Unlock to probe in one direction only.'}" />
                         <TextBlock Grid.Column="3" Text="Y:" FontSize="11" VerticalAlignment="Center" Margin="6,0,6,0" />
-                        <TextBox Grid.Column="4" Text="{Binding WorkpieceSizeY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
+                        <TextBox Grid.Column="4" Classes="num" Width="100" Text="{Binding WorkpieceSizeY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                                  Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
                     </Grid>

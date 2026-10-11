@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Modules.Plotter.Settings"
+             xmlns:conv="clr-namespace:SenderNG.Modules.Plotter.Converters"
              mc:Ignorable="d" d:DesignWidth="240" d:DesignHeight="180"
              x:Class="SenderNG.Modules.Plotter.Settings.PlotterSettingsView"
              x:DataType="vm:PlotterSettingsViewModel">
@@ -65,7 +66,7 @@
                                             <StackPanel Orientation="Horizontal" Spacing="2">
                                                 <TextBlock Text="{Binding AxisLabel}" FontSize="11"
                                                            VerticalAlignment="Center" />
-                                                <TextBox Text="{Binding Value, Mode=TwoWay}"
+                                                <TextBox Classes="num" Text="{Binding Value, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}"
                                                          Width="56" Height="28" MinHeight="28"
                                                          CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                                          FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />

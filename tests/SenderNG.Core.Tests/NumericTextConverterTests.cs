@@ -72,5 +72,24 @@ public class NumericTextConverterTests
     {
         Assert.Equal("5.5", Converter.Convert(5.5, typeof(string), null, Culture));
         Assert.Equal("5", Converter.Convert(5.0, typeof(string), null, Culture));
+        Assert.Equal("2.123", Converter.Convert(2.123456, typeof(string), null, Culture));
+    }
+
+    [Fact]
+    public void Convert_formats_int_with_the_default_format()
+    {
+        Assert.Equal("42", Converter.Convert(42, typeof(string), null, Culture));
+    }
+
+    [Fact]
+    public void Convert_honours_the_culture_parameter()
+    {
+        Assert.Equal("1,5", Converter.Convert(1.5, typeof(string), null, new CultureInfo("ru-RU")));
+    }
+
+    [Fact]
+    public void Convert_back_returns_DoNothing_for_non_string_input()
+    {
+        Assert.Same(BindingOperations.DoNothing, Converter.ConvertBack(1.5, typeof(double), null, Culture));
     }
 }

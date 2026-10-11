@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Modules.Plugins"
              xmlns:loc="clr-namespace:SenderNG.Localization;assembly=SenderNG"
+             xmlns:conv="clr-namespace:SenderNG.Converters"
              mc:Ignorable="d" d:DesignWidth="280" d:DesignHeight="260"
              x:Class="SenderNG.Modules.Plugins.CuttingView"
              x:DataType="vm:CuttingViewModel">
@@ -152,9 +153,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <!-- Spindle control row: [rpm input] [CW] [CCW] [On/Off]; input and
                  direction buttons are disabled while the spindle is running. -->
             <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,12,0,0">
-                <TextBox Width="64" Height="26" MinHeight="26" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                <TextBox Classes="int" Width="64" Height="26" MinHeight="26" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                          Padding="4,0" FontSize="11" VerticalContentAlignment="Center"
-                         Text="{Binding SpindleRpm, Mode=TwoWay}"
+                         Text="{Binding SpindleRpm, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                          IsEnabled="{Binding !IsSpindleOn}"
                          ToolTip.Tip="{loc:Loc module.cutting.spindleRpmHint}" />
                 <Button Classes="ovr" Content="{loc:Loc module.cutting.cw}" Command="{Binding SpindleCwCommand}" ToolTip.Tip="{loc:Loc module.cutting.spindleCwHint}" />

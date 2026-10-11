@@ -32,6 +32,10 @@
  */
 
 using Avalonia.Controls;
+using Avalonia.Data;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using SenderNG.Modules.Plotter.Input;
 
 namespace SenderNG.Modules.Plotter.Settings;
 
@@ -43,5 +47,18 @@ namespace SenderNG.Modules.Plotter.Settings;
 /// (<c>AppSettingsViewModel.ReloadProfile</c>).</summary>
 public partial class PlotterSettingsView : UserControl
 {
-    public PlotterSettingsView() => InitializeComponent();
+    public PlotterSettingsView()
+    {
+        InitializeComponent();
+        AddHandler(InputElement.TextInputEvent, NumericInputFilter.OnTextInput, RoutingStrategies.Tunnel);
+        AddHandler(TextBox.PastingFromClipboardEvent, NumericInputFilter.OnPasting, RoutingStrategies.Bubble);
+        AddHandler(KeyDownEvent, OnCommitEnter, RoutingStrategies.Bubble);
+    }
+
+    private static void OnCommitEnter(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || e.Key != Key.Enter || e.Source is not TextBox { AcceptsReturn: false } tb)
+            return;
+        BindingOperations.GetBindingExpressionBase(tb, TextBox.TextProperty)?.UpdateSource();
+    }
 }

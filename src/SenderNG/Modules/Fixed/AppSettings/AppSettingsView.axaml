@@ -285,7 +285,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,3,0,0">
                                                         <TextBlock Text="{Binding Label}" FontSize="11"
                                                                    VerticalAlignment="Center" />
-                                                        <TextBox Text="{Binding Value}" Width="110" Height="24" MinHeight="24"
+                                                         <TextBox Classes="num" Text="{Binding Value, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" Width="110" Height="24" MinHeight="24"
                                                                  CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                                                  FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
                                                     </StackPanel>

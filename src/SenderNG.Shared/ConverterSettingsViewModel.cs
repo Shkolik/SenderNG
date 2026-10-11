@@ -136,8 +136,15 @@ public class ConverterSettingsViewModel : ViewModelBase, IDisposable
 
     private void Save()
     {
-        ConverterSettingsStore.Save(_profile, _moduleId, _current);
-        _settings.Save(_profile);
+        try
+        {
+            ConverterSettingsStore.Save(_profile, _moduleId, _current);
+            _settings.Save(_profile);
+        }
+        catch
+        {
+            // Best-effort persistence; settings still apply for the session.
+        }
     }
 
     private string L(string key, string fallback) => _loc?.Resolve(key, fallback) ?? fallback;

@@ -188,7 +188,15 @@ public sealed class HotkeyService
 
     private void Persist()
     {
-        _settings.SaveGlobal(_settings.Global);
+        try
+        {
+            _settings.SaveGlobal(_settings.Global);
+        }
+        catch
+        {
+            // Best-effort persistence; the in-memory change already applied,
+            // so Changed still fires below.
+        }
         Changed?.Invoke(this, EventArgs.Empty);
     }
 }

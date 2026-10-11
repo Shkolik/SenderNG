@@ -37,13 +37,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SenderNG.Modules.Plotter.Nex.Settings"
+             xmlns:conv="clr-namespace:SenderNG.Modules.Plotter.Nex.Converters"
              mc:Ignorable="d" d:DesignWidth="240" d:DesignHeight="120"
              x:Class="SenderNG.Modules.Plotter.Nex.Settings.PlotterNexSettingsView"
              x:DataType="vm:PlotterNexSettingsViewModel">
     <StackPanel Spacing="8">
         <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowWireLength}">
             <TextBlock Text="{Binding WireLengthLabel}" FontSize="11" VerticalAlignment="Center" />
-            <TextBox Text="{Binding WireLength}" Width="100" Height="28" MinHeight="24"
+            <TextBox Classes="num" Text="{Binding WireLength, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" Width="100" Height="28" MinHeight="24"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                      FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
         </StackPanel>
@@ -103,15 +104,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             </ItemsControl>
                             <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Spacing="6">
                                 <TextBlock Text="X" FontSize="11" VerticalAlignment="Center" />
-                                <TextBox Text="{Binding OriginX}" Width="56" Height="28" MinHeight="28"
+                                <TextBox Classes="num" Text="{Binding OriginX, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" Width="56" Height="28" MinHeight="28"
                                          CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                          FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
                                 <TextBlock Text="Y" FontSize="11" VerticalAlignment="Center" />
-                                <TextBox Text="{Binding OriginY}" Width="56" Height="28" MinHeight="28"
+                                <TextBox Classes="num" Text="{Binding OriginY, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" Width="56" Height="28" MinHeight="28"
                                          CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                          FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
                                 <TextBlock Text="Z" FontSize="11" VerticalAlignment="Center" />
-                                <TextBox Text="{Binding OriginZ}" Width="56" Height="28" MinHeight="28"
+                                <TextBox Classes="num" Text="{Binding OriginZ, Converter={x:Static conv:Converters.NumericText}, UpdateSourceTrigger=LostFocus}" Width="56" Height="28" MinHeight="28"
                                          CornerRadius="0" BorderBrush="#999" BorderThickness="1"
                                           FontSize="11" VerticalContentAlignment="Center" Padding="4,0" />
                             </StackPanel>
