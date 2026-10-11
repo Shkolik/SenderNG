@@ -37,6 +37,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
+using Avalonia.Styling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SenderNG.ViewModels;
@@ -75,10 +76,9 @@ public partial class App : Application
             Host = HostSetup.BuildHost(StartupArgs);
             var vm = Host.Services.GetRequiredService<MainViewModel>();
 
-            // Before MainWindow, not after: registering a default on a property
-            // of an already-constructed window only worked because Icon is not
-            // read in the constructor.
-            Window.IconProperty.OverrideDefaultValue<Window>(appIcon);
+            var globalIconStyle = new Style(x => x.OfType<Window>());
+            globalIconStyle.Setters.Add(new Setter(Window.IconProperty, appIcon));
+            this.Styles.Add(globalIconStyle);
 
             desktop.MainWindow = new MainWindow { DataContext = vm };
 
