@@ -151,6 +151,57 @@ try {
     Remove-Item -LiteralPath $notRepo -Recurse -Force -ErrorAction SilentlyContinue
 }
 
+Write-Host "`nInvoke-ReleaseGate / Write-GateOutputs"
+$gateRepo = New-ScratchRepo
+try {
+    $srcDir = Join-Path $gateRepo "src/SenderNG"
+    New-Item -ItemType Directory -Path $srcDir -Force | Out-Null
+    Set-Content -Path (Join-Path $srcDir "SenderNG.csproj") -Value "<Project><PropertyGroup><Version>0.1.0</Version></PropertyGroup></Project>"
+
+    $r = Invoke-ReleaseGate -RepoRoot $gateRepo -UtcDate "20261010"
+    Assert-Equal $r.Tag "v0.1.0-20261010" "prerelease tag from the fixture version"
+    Assert-Equal $r.Version "0.1.0-20261010" "version matches the tag minus v"
+    Assert-Equal $r.Build $true "first run (no tags) builds"
+
+    Add-ScratchTag -Repo $gateRepo -Tag "v0.1.0-20261010"
+    $r = Invoke-ReleaseGate -RepoRoot $gateRepo -UtcDate "20261010"
+    Assert-Equal $r.Build $false "tag already at HEAD -> quiet week"
+
+    $r = Invoke-ReleaseGate -RepoRoot $gateRepo -UtcDate "20261010" -SkipChangeCheck
+    Assert-Equal $r.Build $true "-SkipChangeCheck forces a build (dispatch)"
+
+    Add-ScratchCommit -Repo $gateRepo
+    $r = Invoke-ReleaseGate -RepoRoot $gateRepo -UtcDate "20261017" -Stable
+    Assert-Equal $r.Tag "v0.1.0" "-Stable drops the date suffix"
+    Assert-Equal $r.Version "0.1.0" "-Stable version is the bare csproj version"
+    Assert-Equal $r.Build $true "commit after the prerelease tag -> build"
+
+    $outFile = Join-Path $env:TEMP ("gate-out-" + [guid]::NewGuid().ToString("N"))
+    $prevOut = $env:GITHUB_OUTPUT
+    try {
+        $env:GITHUB_OUTPUT = $outFile
+        Write-GateOutputs -Tag "v0.1.0-20261010" -Version "0.1.0-20261010" -Build $true
+        $content = Get-Content -LiteralPath $outFile -Raw
+        Assert-Match $content 'tag=v0\.1\.0-20261010' "tag= written to GITHUB_OUTPUT"
+        Assert-Match $content 'version=0\.1\.0-20261010' "version= written to GITHUB_OUTPUT"
+        Assert-Match $content 'build=true' "build=true written to GITHUB_OUTPUT"
+    } finally {
+        $env:GITHUB_OUTPUT = $prevOut
+        Remove-Item -LiteralPath $outFile -Force -ErrorAction SilentlyContinue
+    }
+
+    $prevOut2 = $env:GITHUB_OUTPUT
+    try {
+        Remove-Item Env:GITHUB_OUTPUT -ErrorAction SilentlyContinue
+        Write-GateOutputs -Tag "v0.1.0" -Version "0.1.0" -Build $false
+        Assert-Equal $true $true "Write-GateOutputs survives without GITHUB_OUTPUT"
+    } finally {
+        $env:GITHUB_OUTPUT = $prevOut2
+    }
+} finally {
+    Remove-ScratchRepo -Repo $gateRepo
+}
+
 Write-Host ""
 if ($script:Failed -gt 0) {
     Write-Host "FAILED: $($script:Failed) failed, $($script:Passed) passed"

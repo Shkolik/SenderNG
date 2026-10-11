@@ -58,3 +58,43 @@ function Test-HasChangesSinceLastTag {
         $ErrorActionPreference = $prevEap
     }
 }
+
+function Write-GateOutputs {
+    param([string]$Tag, [string]$Version, [bool]$Build)
+    $buildValue = if ($Build) { "true" } else { "false" }
+    $lines = @("tag=$Tag", "version=$Version", "build=$buildValue")
+    foreach ($line in $lines) {
+        Write-Host $line
+    }
+    if ($env:GITHUB_OUTPUT) {
+        Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value $lines
+    }
+}
+
+function Invoke-ReleaseGate {
+    param(
+        [switch]$Stable,
+        [switch]$SkipChangeCheck,
+        [string]$RepoRoot = (Get-Location).Path,
+        [string]$UtcDate = ([DateTime]::UtcNow.ToString("yyyyMMdd"))
+    )
+    $csproj = Join-Path $RepoRoot "src/SenderNG/SenderNG.csproj"
+    $baseVersion = Get-CsprojVersion -CsprojPath $csproj
+    $strings = Get-ReleaseStrings -Version $baseVersion -Stable ([bool]$Stable) -UtcDate $UtcDate
+    $build = if ($SkipChangeCheck) {
+        $true
+    } else {
+        Test-HasChangesSinceLastTag -RepoRoot $RepoRoot
+    }
+    $result = [pscustomobject]@{
+        Tag     = $strings.Tag
+        Version = $strings.Version
+        Build   = $build
+    }
+    Write-GateOutputs -Tag $result.Tag -Version $result.Version -Build $result.Build
+    return $result
+}
+
+if ($MyInvocation.InvocationName -ne '.') {
+    Invoke-ReleaseGate -Stable:$Stable -SkipChangeCheck:$SkipChangeCheck -RepoRoot $RepoRoot | Out-Null
+}
