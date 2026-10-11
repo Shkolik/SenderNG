@@ -47,6 +47,8 @@ public sealed record EngineReport(
 public sealed class ReleaseEngine
 {
     private const string AppCsproj = "src/SenderNG/SenderNG.csproj";
+    private const string LinuxDesktopScript = "tools/install-desktop.sh";
+    private const string AppIconPng = "src/SenderNG/Assets/appIcon.png";
 
     private readonly string _repoRoot;
     private readonly ICli _cli;
@@ -95,6 +97,8 @@ public sealed class ReleaseEngine
             var bundleDir = Path.Combine(platformRoot, "SenderNG");
             Curation.CopyBundle(appPublish, bundleDir, _log);
             Curation.StripModulesToSdk(Path.Combine(bundleDir, "Modules"));
+            if (platform is ReleasePlatform.Linux or ReleasePlatform.LinuxArm64)
+                StageLinuxDesktopEntry(bundleDir);
 
             var stagedPlugins = new List<string>();
             if (plugins.Count > 0)
@@ -146,6 +150,23 @@ public sealed class ReleaseEngine
         {
             if (Directory.Exists(tmp))
                 Directory.Delete(tmp, recursive: true);
+        }
+    }
+
+    // The linux bundle is a portable zip, so it carries the desktop-entry
+    // installer plus a loose PNG for it to install. Staged from the repo root
+    // and gated on the target platform, never on the build OS: a win64 zip must
+    // not grow a .sh, and the linux zip must be identical whether it was built
+    // on a Linux host or through WSL from Windows.
+    private void StageLinuxDesktopEntry(string bundleDir)
+    {
+        foreach (var relative in new[] { LinuxDesktopScript, AppIconPng })
+        {
+            var source = Path.Combine(_repoRoot, relative.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(source))
+                throw new StagingException($"missing {relative}; a linux bundle cannot ship a desktop entry without it.");
+            File.Copy(source, Path.Combine(bundleDir, Path.GetFileName(source)), overwrite: true);
+            _log.Info($"staged {Path.GetFileName(source)}");
         }
     }
 

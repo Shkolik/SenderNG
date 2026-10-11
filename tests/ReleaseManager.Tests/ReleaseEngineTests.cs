@@ -155,6 +155,7 @@ public class ReleaseEngineTests
     {
         var (repo, output, cli) = Setup();
         cli.AppPublishDir = CompleteAppPublish(ReleasePlatform.LinuxArm64);
+        StageLinuxDesktopSources(repo);
 
         var engine = new ReleaseEngine(repo, cli, new SilentLog());
         var report = await engine.ReleaseAsync(new ReleaseOptions
@@ -173,9 +174,78 @@ public class ReleaseEngineTests
         Assert.True(Directory.Exists(Path.Combine(output, armFolder, "SenderNG")));
         Assert.True(File.Exists(Path.Combine(
             output, armFolder, "SenderNG", "SenderNG")));
+        // linux-arm64 is a separate enum member, so it needs its own proof that
+        // the desktop entry is staged - the linux fact alone would not catch a
+        // `platform == ReleasePlatform.Linux` regression.
+        Assert.True(File.Exists(Path.Combine(
+            output, armFolder, "SenderNG", "install-desktop.sh")));
+        Assert.True(File.Exists(Path.Combine(
+            output, armFolder, "SenderNG", "appIcon.png")));
         Assert.True(File.Exists(Path.Combine(
             output, armFolder, $"SenderNG-0.1.0-{PlatformInfo.ZipSuffix(ReleasePlatform.LinuxArm64)}.zip")));
         Assert.Equal(armFolder, report.Platform);
+    }
+
+    [Fact]
+    public async Task Linux_bundle_ships_the_desktop_entry_installer()
+    {
+        var (repo, output, cli) = Setup();
+        cli.AppPublishDir = CompleteAppPublish(ReleasePlatform.Linux);
+        StageLinuxDesktopSources(repo);
+
+        var engine = new ReleaseEngine(repo, cli, new SilentLog());
+        await engine.ReleaseAsync(new ReleaseOptions
+        {
+            OutputDir = output,
+            Platform = ReleasePlatform.Linux,
+        });
+
+        var bundle = Path.Combine(output, PlatformInfo.FolderName(ReleasePlatform.Linux), "SenderNG");
+        Assert.True(File.Exists(Path.Combine(bundle, "install-desktop.sh")));
+        Assert.True(File.Exists(Path.Combine(bundle, "appIcon.png")));
+    }
+
+    [Fact]
+    public async Task Win64_bundle_does_not_ship_the_desktop_entry_installer()
+    {
+        var (repo, output, cli) = Setup();
+        cli.AppPublishDir = CompleteAppPublish(ReleasePlatform.Win64);
+        StageLinuxDesktopSources(repo);
+
+        var engine = new ReleaseEngine(repo, cli, new SilentLog());
+        await engine.ReleaseAsync(new ReleaseOptions
+        {
+            OutputDir = output,
+            Platform = ReleasePlatform.Win64,
+        });
+
+        var bundle = Path.Combine(output, PlatformInfo.FolderName(ReleasePlatform.Win64), "SenderNG");
+        Assert.False(File.Exists(Path.Combine(bundle, "install-desktop.sh")));
+        Assert.False(File.Exists(Path.Combine(bundle, "appIcon.png")));
+    }
+
+    [Fact]
+    public async Task Linux_bundle_without_the_desktop_entry_installer_fails_loudly()
+    {
+        var (repo, output, cli) = Setup();
+        cli.AppPublishDir = CompleteAppPublish(ReleasePlatform.Linux);
+        // Deliberately does NOT call StageLinuxDesktopSources: a linux release
+        // must fail rather than ship a bundle that promises a desktop entry it
+        // cannot install.
+
+        var engine = new ReleaseEngine(repo, cli, new SilentLog());
+        await Assert.ThrowsAsync<StagingException>(() =>
+            engine.ReleaseAsync(new ReleaseOptions { OutputDir = output, Platform = ReleasePlatform.Linux }));
+    }
+
+    // The engine resolves these two files from the repo root, and the tests run
+    // against a scratch repo, so both have to be seeded by hand.
+    private static void StageLinuxDesktopSources(string repo)
+    {
+        Directory.CreateDirectory(Path.Combine(repo, "tools"));
+        File.WriteAllText(Path.Combine(repo, "tools", "install-desktop.sh"), "#!/bin/sh\n");
+        Directory.CreateDirectory(Path.Combine(repo, "src", "SenderNG", "Assets"));
+        File.WriteAllText(Path.Combine(repo, "src", "SenderNG", "Assets", "appIcon.png"), "png");
     }
 
     private static (string repo, string output, FakeCli cli) Setup()
