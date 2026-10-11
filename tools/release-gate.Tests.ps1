@@ -1,0 +1,85 @@
+$ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "release-gate.ps1")
+$script:Passed = 0
+$script:Failed = 0
+
+function Assert-Equal {
+    param($Actual, $Expected, [string]$Because)
+    # -ceq, not -eq: PowerShell's -eq is case-insensitive (see
+    # build-linux-release.Tests.ps1 for the same rule).
+    if ([string]$Actual -ceq [string]$Expected) {
+        $script:Passed++
+        Write-Host "  ok    $Because"
+    } else {
+        $script:Failed++
+        Write-Host "  FAIL  $Because"
+        Write-Host "          expected: [$Expected]"
+        Write-Host "          actual:   [$Actual]"
+    }
+}
+
+function Assert-Throws {
+    param([scriptblock]$Action, [string]$Because)
+    try {
+        & $Action | Out-Null
+        $script:Failed++
+        Write-Host "  FAIL  $Because (nothing was thrown)"
+    } catch {
+        $script:Passed++
+        Write-Host "  ok    $Because"
+    }
+}
+
+function Assert-NotNull {
+    param($Value, [string]$Because)
+    if ($null -ne $Value) {
+        $script:Passed++
+        Write-Host "  ok    $Because"
+    } else {
+        $script:Failed++
+        Write-Host "  FAIL  $Because (was null)"
+    }
+}
+
+function Assert-Match {
+    param([string]$Value, [string]$Pattern, [string]$Because)
+    if ($Value -match $Pattern) {
+        $script:Passed++
+        Write-Host "  ok    $Because"
+    } else {
+        $script:Failed++
+        Write-Host "  FAIL  $Because"
+        Write-Host "          value:    [$Value]"
+        Write-Host "          pattern:  [$Pattern]"
+    }
+}
+
+Write-Host "Get-CsprojVersion"
+$fx = Join-Path $env:TEMP ("release-gate-fx-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $fx | Out-Null
+try {
+    $csproj = Join-Path $fx "SenderNG.csproj"
+    Set-Content -Path $csproj -Value "<Project>`n  <PropertyGroup>`n    <Version>0.1.0</Version>`n  </PropertyGroup>`n</Project>"
+    Assert-Equal (Get-CsprojVersion -CsprojPath $csproj) "0.1.0" "reads the Version element"
+
+    Set-Content -Path $csproj -Value "<Project><PropertyGroup><AssemblyVersion>1.2.3.4</AssemblyVersion><Version>2.0.0-rc.1</Version></PropertyGroup></Project>"
+    Assert-Equal (Get-CsprojVersion -CsprojPath $csproj) "2.0.0-rc.1" "first Version element wins; AssemblyVersion is not a match"
+
+    Set-Content -Path $csproj -Value "<Project><PropertyGroup></PropertyGroup></Project>"
+    Assert-Throws { Get-CsprojVersion -CsprojPath $csproj } "no Version element throws"
+
+    Assert-Throws { Get-CsprojVersion -CsprojPath (Join-Path $fx "missing.csproj") } "missing file throws"
+
+    $repoCsproj = Join-Path (Split-Path -Parent $PSScriptRoot) "src/SenderNG/SenderNG.csproj"
+    Assert-Match (Get-CsprojVersion -CsprojPath $repoCsproj) '^\d+\.\d+\.\d+' "reads the real repo csproj"
+} finally {
+    Remove-Item -LiteralPath $fx -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+Write-Host ""
+if ($script:Failed -gt 0) {
+    Write-Host "FAILED: $($script:Failed) failed, $($script:Passed) passed"
+    exit 1
+}
+Write-Host "PASSED: $($script:Passed) assertions"
+exit 0
