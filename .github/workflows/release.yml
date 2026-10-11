@@ -9,6 +9,11 @@ on:
         description: 'Formal release (no date suffix, marked latest)'
         type: boolean
         default: false
+      notes:
+        description: 'Optional release notes (known issues, upgrade summary, etc.)'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -122,6 +127,7 @@ jobs:
           TAG: ${{ needs.gate.outputs.tag }}
           STABLE: ${{ inputs.stable }}
           EVENT: ${{ github.event_name }}
+          NOTES: ${{ inputs.notes }}
         run: |
           if [ "$EVENT" = "workflow_dispatch" ]; then
             gh release delete "$TAG" --yes || true
@@ -134,3 +140,48 @@ jobs:
           else
             gh release create "$TAG" release-assets/*.zip release-assets/SHA256SUMS.txt --title "$TAG" --generate-notes --prerelease
           fi
+
+      - name: Prepend release header
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.gate.outputs.tag }}
+          STABLE: ${{ inputs.stable }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          HEADER_FILE=$(mktemp)
+          if [ "$STABLE" = "true" ]; then
+            if [ -n "$NOTES" ]; then
+              printf '%s\n\n' "$NOTES" > "$HEADER_FILE"
+            else
+              : > "$HEADER_FILE"
+            fi
+          else
+            cat > "$HEADER_FILE" << 'EOF'
+          ## ⚠️ Weekly Preview
+
+          This is an automated weekly preview build. It may contain unfinished
+          features, regressions, or bugs still under active development.
+          **Use at your own risk.**
+
+          For a tested build, use the
+          [latest stable release](https://github.com/Shkolik/SenderNG/releases/latest).
+
+          EOF
+          fi
+          cat >> "$HEADER_FILE" << 'EOF'
+          ### Assets
+
+          - **SenderNG** — core application (win64, linux-x64, linux-arm64)
+          - **Plugins** — optional plugin packages, one zip per plugin,
+            matching the platform suffix (e.g. a `linux-x64` plugin goes with
+            the `linux-x64` core only)
+          - **SHA256SUMS.txt** — SHA-256 checksums for all zips above
+
+          ---
+
+          EOF
+          CURRENT_BODY=$(gh release view "$TAG" --json body -q .body)
+          COMBINED=$(cat "$HEADER_FILE"; printf '%s\n' "$CURRENT_BODY")
+          printf '%s\n' "$COMBINED" > /tmp/release-body.md
+          gh release edit "$TAG" --notes-file /tmp/release-body.md
+          rm -f "$HEADER_FILE" /tmp/release-body.md
