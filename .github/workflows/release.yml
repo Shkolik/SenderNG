@@ -32,10 +32,11 @@ jobs:
       - id: gate
         shell: pwsh
         run: |
-          $gateArgs = @()
-          if ('${{ github.event_name }}' -eq 'workflow_dispatch') { $gateArgs += '-SkipChangeCheck' }
-          if ('${{ inputs.stable }}' -eq 'true') { $gateArgs += '-Stable' }
-          & ./tools/release-gate.ps1 @gateArgs
+          $gateParams = @{
+            SkipChangeCheck = ('${{ github.event_name }}' -eq 'workflow_dispatch')
+            Stable          = ('${{ inputs.stable }}' -eq 'true')
+          }
+          & ./tools/release-gate.ps1 @gateParams
 
   build-win64:
     needs: gate
