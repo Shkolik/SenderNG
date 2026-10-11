@@ -46,7 +46,6 @@ using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Localization;
 using SenderNG.Modules.Plotter.GL.Settings;
-using SenderNG.Modules.Plotter.Nex.Settings;
 using SenderNG.Modules.Plotter.Settings;
 using SenderNG.Modules.Plugins;
 using SenderNG.Modules.Shared;
@@ -215,60 +214,6 @@ public class SettingsCommitHeadlessTests
         await Pump();
         Assert.Equal(1, saves);
         Assert.Equal("Renamed", vm.SelectedMacro!.Name);
-    }
-
-    [AvaloniaFact]
-    public async Task Nex_wire_length_reaches_the_vm_only_after_a_commit()
-    {
-        var settings = MakeFoamSettings();
-        var vm = new PlotterNexSettingsViewModel(settings, null);
-        var view = new PlotterNexSettingsView { DataContext = vm };
-        var window = new Window { Content = view };
-        window.Show();
-        await Pump();
-
-        var saves = 0;
-        settings.Changed += () => saves++;
-
-        // WireLength's box is the view's first TextBox (PlotterNexSettingsView.axaml:46;
-        // the origin-row boxes follow at :106+).
-        var box = window.GetVisualDescendants().OfType<TextBox>().First();
-        box.Focus();
-        var before = vm.WireLength;
-        box.Text = "4321";
-        await Pump();
-        Assert.Equal(0, saves);
-        Assert.Equal(before, vm.WireLength);
-
-        Blur(window, box);
-        await Pump();
-        Assert.Equal(1, saves);
-        Assert.Equal(4321d, vm.WireLength);
-    }
-
-    [AvaloniaFact]
-    public async Task Nex_wire_length_enter_commits_with_the_plugins_own_handler()
-    {
-        var settings = MakeSettings();
-        var vm = new PlotterNexSettingsViewModel(settings, null);
-        var view = new PlotterNexSettingsView { DataContext = vm };
-        var window = new Window { Content = view };
-        window.Show();
-        await Pump();
-
-        var saves = 0;
-        settings.Changed += () => saves++;
-
-        var box = window.GetVisualDescendants().OfType<TextBox>().First();
-        box.Focus();
-        box.Text = "777";
-        await Pump();
-        Assert.Equal(0, saves);
-
-        RaiseEnter(box);
-        await Pump();
-        Assert.Equal(1, saves);
-        Assert.Equal(777d, vm.WireLength);
     }
 
     [AvaloniaFact]

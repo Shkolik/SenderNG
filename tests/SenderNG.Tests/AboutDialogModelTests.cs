@@ -98,13 +98,11 @@ public class AboutDialogModelTests
     [Fact]
     public void Bundled_plotter_modules_declare_third_party_dependencies()
     {
-        var nex = new SenderNG.Modules.Plotter.Nex.PlotterNexModule();
+        var gl = new SenderNG.Modules.Plotter.GL.PlotterGlModule();
 
-        Assert.True(nex is IPluginDependencies);
-        Assert.Contains(nex.Dependencies, d => d.Name == "HelixToolkit.Nex.Engine" && d.Version == "1.3.0-alpha.41");
-        Assert.Contains(nex.Dependencies, d => d.Name == "HelixToolkit.Nex.Graphics.Vulkan");
-        Assert.Contains(nex.Dependencies, d => d.Name == "HelixToolkit.Nex.Interop");
-        Assert.DoesNotContain(nex.Dependencies, d => d.Name == "Avalonia");
+        Assert.True(gl is IPluginDependencies);
+        Assert.Contains(gl.Dependencies, d => d.Name == "Silk.NET.OpenGL" && d.Version == "2.23.0");
+        Assert.DoesNotContain(gl.Dependencies, d => d.Name == "Avalonia");
     }
 
     [Fact]

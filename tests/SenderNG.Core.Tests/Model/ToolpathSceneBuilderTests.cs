@@ -36,9 +36,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Numerics;
 using CNC.Core.Services;
-using SenderNG.Modules.Plotter.Nex.Model;
-using SenderNG.Modules.Plotter.Nex.Scene;
-using SenderNG.Modules.Plotter.Nex.Settings;
+using SenderNG.Modules.Plotter.GL.Model;
+using SenderNG.Modules.Plotter.GL.Scene;
+using SenderNG.Modules.Plotter.GL.Settings;
 
 namespace SenderNG.Core.Tests;
 
@@ -55,7 +55,7 @@ public class ToolpathSceneBuilderTests
             new ToolpathSegment(new[]{20.0,5,0}, new[]{20.0,5,0}, Rapid:false, LineNumber:3),
         };
         var n = ToolpathSceneBuilder.PopulatePlane(layer, segs, new[]{0,1},
-            new SenderNG.Modules.Plotter.Nex.Settings.NexPlaneGeometry
+            new SenderNG.Modules.Plotter.GL.Settings.GlPlaneGeometry
             {
                 WorldAxes = [0, 1],
                 Origin = [0, 0, 0],
@@ -91,7 +91,7 @@ public class ToolpathSceneBuilderTests
         };
 
         // Foam plane 1: machine slots [2,3] = [Z,A] -> world Y,Z; world X = wire position (+50).
-        var geometry = new SenderNG.Modules.Plotter.Nex.Settings.NexPlaneGeometry
+        var geometry = new SenderNG.Modules.Plotter.GL.Settings.GlPlaneGeometry
         {
             WorldAxes = [1, 2],
             Origin = [50, 0, 0],

@@ -1,5 +1,5 @@
 /*
- * PlotSceneAbstractionTests.cs - contract-shape tests for the Nex scene abstraction
+ * PlotSceneAbstractionTests.cs - contract-shape tests for the GL scene abstraction
  */
 
 /*
@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Numerics;
-using SenderNG.Modules.Plotter.Nex.Scene;
+using SenderNG.Modules.Plotter.GL.Scene;
 
 namespace SenderNG.Core.Tests;
 

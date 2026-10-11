@@ -33,7 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Numerics;
 using CNC.Core.Services;
-using SenderNG.Modules.Plotter.Nex.Scene;
+using SenderNG.Modules.Plotter.GL.Scene;
 
 namespace SenderNG.Core.Tests;
 

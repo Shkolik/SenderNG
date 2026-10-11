@@ -43,7 +43,6 @@ public class LocaleParityTests
         Path.Combine("src", "SenderNG.Modules.Excellon", "Locale"),
         Path.Combine("src", "SenderNG.Modules.Hpgl", "Locale"),
         Path.Combine("src", "SenderNG.Modules.Plotter", "Locale"),
-        Path.Combine("src", "SenderNG.Modules.Plotter.Nex", "Locale"),
         Path.Combine("src", "SenderNG.Modules.Probing", "Locale"),
     ];
 

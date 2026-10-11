@@ -40,7 +40,6 @@
     <ProjectReference Include="..\..\src\SenderNG.Modules.Hpgl\SenderNG.Modules.Hpgl.csproj" Aliases="hpgl" />
     <ProjectReference Include="..\..\src\SenderNG.Modules.Plotter\SenderNG.Modules.Plotter.csproj" />
     <ProjectReference Include="..\..\src\SenderNG.Modules.Plotter.GL\SenderNG.Modules.Plotter.GL.csproj" />
-    <ProjectReference Include="..\..\src\SenderNG.Modules.Plotter.Nex\SenderNG.Modules.Plotter.Nex.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -66,10 +65,6 @@
       <Link>Modules\SenderNG.Modules.Plotter.GL.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.Nex.dll">
-      <Link>Modules\SenderNG.Modules.Plotter.Nex.dll</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
     <None Include="..\..\src\SenderNG.Modules.Probing\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Probing.dll">
       <Link>Modules\SenderNG.Modules.Probing.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -92,22 +87,5 @@
        PlotterLocaleTests.The_staged_catalogs_ship_the_keys exists to catch. The
        test therefore reads whatever the app's staging put there, and nothing
        else. -->
-
-  <!-- Mirror of the app's StageNexPluginClosure: the Nex module DLL is staged
-       flat above, and its package closure + natives land in Modules\plotter-nex\
-       so the real drop-in ScanDirectory test exercises the folder resolver. -->
-  <Target Name="StageNexPluginClosure" AfterTargets="Build">
-    <ItemGroup>
-      <_NexClosure Include="..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\*.dll"
-                   Exclude="..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.Nex.dll;
-                            ..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\SenderNG.Core.dll;
-                            ..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\CNC.Core.dll;
-                            ..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\Avalonia*.dll" />
-      <_NexNative Include="..\..\src\SenderNG.Modules.Plotter.Nex\bin\$(Configuration)\$(TargetFramework)\runtimes\win-x64\native\*.dll" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_NexClosure);@(_NexNative)"
-          DestinationFolder="$(OutputPath)Modules\plotter-nex"
-          SkipUnchangedFiles="true" />
-  </Target>
 
 </Project>

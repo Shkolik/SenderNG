@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Numerics;
-using SenderNG.Modules.Plotter.Nex.Rendering;
+using SenderNG.Modules.Plotter.GL.Rendering;
 
 namespace SenderNG.Core.Tests;
 

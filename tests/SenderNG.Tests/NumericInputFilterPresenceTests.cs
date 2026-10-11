@@ -41,7 +41,6 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using CNC.Core.Services;
 using SenderNG.Modules.Plotter.GL.Settings;
-using SenderNG.Modules.Plotter.Nex.Settings;
 using SenderNG.Modules.Plotter.Settings;
 using SenderNG.Modules.Plugins;
 using SenderNG.Modules.Shared;
@@ -153,10 +152,6 @@ public class NumericInputFilterPresenceTests
         var vm = new PlotterSettingsViewModel(new SettingsService(dir), null);
         AssertAllRejectLetters(new PlotterSettingsView { DataContext = vm });
     }
-
-    [AvaloniaFact]
-    public void Plotter_nex_settings_boxes_reject_letters() =>
-        AssertAllRejectLetters(new PlotterNexSettingsView());
 
     [AvaloniaFact]
     public void Plotter_gl_settings_boxes_reject_letters() =>

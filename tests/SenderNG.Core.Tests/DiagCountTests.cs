@@ -52,12 +52,12 @@ public class HostModuleRegistrationTests
         var ids = modules.Select(m => m.Id).OrderBy(i => i).ToList();
         Assert.True(modules.Count == modules.DistinctBy(m => m.Id).Count(),
             $"duplicates ({modules.Count}): {string.Join(",", ids)}");
-        // 15 code-registered modules + 6 staged plugins (Excellon + HPGL +
-        // Plotter + Plotter.GL + Plotter.Nex + Probing) discovered via the
-        // Modules/ directory scan — the real drop-in path.
-        Assert.Equal(21, modules.Count);
+        // 15 code-registered modules + 5 staged plugins (Excellon + HPGL +
+        // Plotter + Plotter.GL + Probing) discovered via the Modules/
+        // directory scan — the real drop-in path.
+        Assert.Equal(20, modules.Count);
         // Pin Probing to the staged-DLL path explicitly — a swallowed payload
-        // would still keep the count at 21, and this claim is what the probe
+        // would still keep the count at 20, and this claim is what the probe
         // extraction depends on.
         Assert.Contains("probing", ids);
     }
