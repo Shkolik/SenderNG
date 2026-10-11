@@ -171,12 +171,17 @@ jobs:
           cat >> "$HEADER_FILE" << 'EOF'
           ### Assets
 
-          - **SenderNG** — core application (win64, linux-x64, linux-arm64)
+          - **SenderNG** — core application (win64, linux-x64, linux-arm64). Barebone functions included, no plugins.
           - **Plugins** — optional plugin packages, one zip per plugin,
-            matching the platform suffix (e.g. a `linux-x64` plugin goes with
-            the `linux-x64` core only)
+          matching the platform suffix (e.g. a `linux-x64` plugin goes with
+          the `linux-x64` core only)
+            * SenderNG-plugin-hpgl - HPGL->Gcode converter
+            * SenderNG-plugin-excellon - Excellon->Gcode converter
+            * SenderNG-plugin-plotter - 2D/Isometric Gcode viewer/plotter (good for a weak hardware)
+            * SenderNG-plugin-plotter-gl - 3D Gcode viewer/plotter (requires OpenGL 3.1+)
+            * SenderNG-plugin-plotter-nex - 3D Gcode viewer/plotter (requires Vulkan 1.3)
+            * SenderNG-plugin-probing - Probing module
           - **SHA256SUMS.txt** — SHA-256 checksums for all zips above
-
           ---
 
           EOF
