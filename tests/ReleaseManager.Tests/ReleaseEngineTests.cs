@@ -155,7 +155,6 @@ public class ReleaseEngineTests
     {
         var (repo, output, cli) = Setup();
         cli.AppPublishDir = CompleteAppPublish(ReleasePlatform.LinuxArm64);
-        StageLinuxDesktopSources(repo);
 
         var engine = new ReleaseEngine(repo, cli, new SilentLog());
         var report = await engine.ReleaseAsync(new ReleaseOptions
@@ -191,7 +190,6 @@ public class ReleaseEngineTests
     {
         var (repo, output, cli) = Setup();
         cli.AppPublishDir = CompleteAppPublish(ReleasePlatform.Linux);
-        StageLinuxDesktopSources(repo);
 
         var engine = new ReleaseEngine(repo, cli, new SilentLog());
         await engine.ReleaseAsync(new ReleaseOptions
@@ -210,7 +208,6 @@ public class ReleaseEngineTests
     {
         var (repo, output, cli) = Setup();
         cli.AppPublishDir = CompleteAppPublish(ReleasePlatform.Win64);
-        StageLinuxDesktopSources(repo);
 
         var engine = new ReleaseEngine(repo, cli, new SilentLog());
         await engine.ReleaseAsync(new ReleaseOptions
@@ -229,9 +226,11 @@ public class ReleaseEngineTests
     {
         var (repo, output, cli) = Setup();
         cli.AppPublishDir = CompleteAppPublish(ReleasePlatform.Linux);
-        // Deliberately does NOT call StageLinuxDesktopSources: a linux release
-        // must fail rather than ship a bundle that promises a desktop entry it
-        // cannot install.
+        // Setup() seeds the desktop-entry sources so the scratch repo resembles
+        // the real one. Remove them again: a linux release must fail rather than
+        // ship a bundle that promises a desktop entry it cannot install.
+        File.Delete(Path.Combine(repo, "tools", "install-desktop.sh"));
+        File.Delete(Path.Combine(repo, "src", "SenderNG", "Assets", "appIcon.png"));
 
         var engine = new ReleaseEngine(repo, cli, new SilentLog());
         await Assert.ThrowsAsync<StagingException>(() =>
@@ -239,7 +238,8 @@ public class ReleaseEngineTests
     }
 
     // The engine resolves these two files from the repo root, and the tests run
-    // against a scratch repo, so both have to be seeded by hand.
+    // against a scratch repo, so Setup() seeds them for every test. The only
+    // test that wants them absent deletes them again.
     private static void StageLinuxDesktopSources(string repo)
     {
         Directory.CreateDirectory(Path.Combine(repo, "tools"));
@@ -263,6 +263,13 @@ public class ReleaseEngineTests
         }
 
         File.WriteAllText(Path.Combine(repo, "src", "SenderNG.Modules.Excellon", "Locale", "excellon", "en.json"), "{}");
+
+        // Seed here rather than per-test: a test that leaves options.Platform
+        // unset releases for PlatformInfo.Current, so which platform it actually
+        // exercises depends on the build host. On a Windows dev box that is
+        // Win64 and the linux staging never runs; on the Linux CI runner it is
+        // Linux and the scratch repo must already look like the real one.
+        StageLinuxDesktopSources(repo);
 
         return (repo, output, cli);
     }
