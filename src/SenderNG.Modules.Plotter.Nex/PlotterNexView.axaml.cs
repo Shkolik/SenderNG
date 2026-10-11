@@ -928,10 +928,7 @@ public partial class PlotterNexView : UserControl
             var path = await _fileDialogs.SaveFileAsync("Save screenshot (PNG)", suggested, "PNG image|*.png");
             if (path is null)
                 return;
-            // Encode via Avalonia rather than ImageSharp: a direct ImageSharp
-            // reference is what put the package under NuGet's direct-dependency
-            // audit and raised its NU1902/NU1903 advisories (see the csproj), and
-            // the Skia plotter already exports PNG this way. A fresh bitmap, not
+            // Encode via Avalonia, same as the Skia plotter. A fresh bitmap, not
             // _bitmap: the shot is the stable snapshot, the live one may be
             // mid-render. Opened as a stream, NOT Save(path): the string overload
             // swallows I/O failures, which would turn an unwritable folder into

@@ -789,15 +789,12 @@ public partial class PlotterGlView : UserControl
             var path = await _fileDialogs.SaveFileAsync(saveTitle, suggested, "PNG image|*.png");
             if (path is null)
                 return;
-            // Encode via Avalonia rather than ImageSharp: a direct ImageSharp
-            // reference is what put the package under NuGet's direct-dependency
-            // audit and raised its NU1902/NU1903 advisories (see the csproj),
-            // and the Skia plotter already exports PNG this way (same pattern
-            // as main's dd9bcdd on the Nex view). A fresh bitmap, not _bitmap:
-            // the shot is the stable snapshot, the live one may be mid-render.
-            // Opened as a stream, NOT Save(path): the string overload swallows
-            // I/O failures, which would turn an unwritable folder into silent
-            // nothing instead of the error dialog below.
+            // Encode via Avalonia, same as the Skia plotter and the Nex view.
+            // A fresh bitmap, not _bitmap: the shot is the stable snapshot, the
+            // live one may be mid-render. Opened as a stream, NOT Save(path):
+            // the string overload swallows I/O failures, which would turn an
+            // unwritable folder into silent nothing instead of the error dialog
+            // below.
             using (var shot = new WriteableBitmap(
                 new PixelSize(_shotW, _shotH), new Vector(96, 96),
                 PixelFormats.Rgba8888, AlphaFormat.Opaque))

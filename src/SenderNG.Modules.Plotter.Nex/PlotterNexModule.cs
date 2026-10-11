@@ -68,7 +68,7 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IPluginD
     private PlotterNexView? _plotView;
 
     public string Id => "plotter-nex";
-    public string Name => "Plot 3D";
+    public string Name => "Plot 3D (Nex)";
     public string Description => "G-code 3D path plotter: program toolpath with live run overlay.";
     // Right after the Skia plotter (22) — the two plot tabs read as one group,
     // and the 3D one sits behind it in the tab order.
@@ -88,7 +88,6 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IPluginD
 
     public IReadOnlyList<PluginDependency> Dependencies { get; } =
     [
-        new("SixLabors.ImageSharp", "3.1.12", "Six Labors Split License"),
         new("HelixToolkit.Nex.Engine", "1.3.0-alpha.41", "MIT"),
         new("HelixToolkit.Nex.Graphics.Vulkan", "1.3.0-alpha.41", "MIT"),
         new("HelixToolkit.Nex.Interop", "1.3.0-alpha.41", "MIT"),

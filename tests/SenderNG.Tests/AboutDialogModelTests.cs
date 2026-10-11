@@ -101,7 +101,6 @@ public class AboutDialogModelTests
         var nex = new SenderNG.Modules.Plotter.Nex.PlotterNexModule();
 
         Assert.True(nex is IPluginDependencies);
-        Assert.Contains(nex.Dependencies, d => d.Name == "SixLabors.ImageSharp" && d.License == "Six Labors Split License");
         Assert.Contains(nex.Dependencies, d => d.Name == "HelixToolkit.Nex.Engine" && d.Version == "1.3.0-alpha.41");
         Assert.Contains(nex.Dependencies, d => d.Name == "HelixToolkit.Nex.Graphics.Vulkan");
         Assert.Contains(nex.Dependencies, d => d.Name == "HelixToolkit.Nex.Interop");
@@ -171,7 +170,7 @@ public class AboutDialogModelTests
         var vm = new AboutViewModel(new IModule[] { new CopyTestPlugin(), new CopyNoDepsTestPlugin() });
         var text = vm.BuildCopyText();
         Assert.Contains("Copy Test v.2.0.0 — Tester · MIT", text);
-        Assert.Contains("    SixLabors.ImageSharp v.3.1.12 · Six Labors Split License", text);
+        Assert.Contains("    Sample.Dependency v.1.2.3 · MIT", text);
         Assert.Contains("No Deps v.1.0.0 — Tester · BSD-3-Clause", text);
     }
 
@@ -266,7 +265,7 @@ public class AboutDialogModelTests
         public string Author => "Tester";
         public string License => "MIT";
         public IReadOnlyList<PluginDependency> Dependencies { get; } =
-            [new PluginDependency("SixLabors.ImageSharp", "3.1.12", "Six Labors Split License")];
+            [new PluginDependency("Sample.Dependency", "1.2.3", "MIT")];
     }
 
     private sealed class CopyNoDepsTestPlugin : IModule, IPluginInfo

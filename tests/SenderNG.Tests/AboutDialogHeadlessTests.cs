@@ -128,7 +128,7 @@ public class AboutDialogHeadlessTests
             Assert.NotNull(card);
             // Caption + chips render only when the plugin declared dependencies.
             const string depCaption = "Dependencies";
-            const string chipText = "SixLabors.ImageSharp v.3.1.12 · Six Labors Split License";
+            const string chipText = "Sample.Dependency v.1.2.3 · MIT";
             var caption = await WaitForVisual<TextBlock>(tabControl, t => t.Text == depCaption,
                 "the dependency caption to render");
             Assert.NotNull(caption);
@@ -217,6 +217,6 @@ public class AboutDialogHeadlessTests
         public string Author => "Author";
         public string License => "MIT";
         public IReadOnlyList<PluginDependency> Dependencies { get; } =
-            [new PluginDependency("SixLabors.ImageSharp", "3.1.12", "Six Labors Split License")];
+            [new PluginDependency("Sample.Dependency", "1.2.3", "MIT")];
     }
 }

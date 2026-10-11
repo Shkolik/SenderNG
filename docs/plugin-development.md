@@ -123,7 +123,7 @@ opt-in, never-validated rule as `IPluginInfo`):
 ```csharp
 public interface IPluginDependencies
 {
-    IReadOnlyList<PluginDependency> Dependencies { get; }   // "SixLabors.ImageSharp v.3.1.12 · Six Labors Split License"
+    IReadOnlyList<PluginDependency> Dependencies { get; }   // rendered as "Name v.Version · License"
 }
 ```
 
