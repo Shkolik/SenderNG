@@ -138,12 +138,24 @@ SHA256SUMS.txt`.
    (zips don't always carry it):
    ```
    unzip SenderNG-<ver>-linux-x64.zip
-   chmod +x SenderNG/SenderNG
+   chmod +x SenderNG/SenderNG SenderNG/install-desktop.sh
    ```
 4. Optional modules: same copy step as Windows — plugin contents into
    `SenderNG/Modules/`.
 5. Run `./SenderNG/SenderNG` → Connect → open the machine's port
    (`/dev/ttyUSB*` / `/dev/ttyACM*` for serial, or TCP).
+6. Optional: add a desktop-menu entry. This installs `SenderNG.desktop` into
+   `~/.local/share/applications/` and the icon into
+   `~/.local/share/icons/hicolor/512x512/apps/`, pointing at the absolute path
+   of this bundle. Move the bundle somewhere permanent first — moving it
+   afterwards orphans the entry.
+
+   ```
+   cd SenderNG
+   ./install-desktop.sh
+   ```
+
+   Undo it with `./install-desktop.sh --uninstall`.
 
 #### Serial port permission errors
 
