@@ -126,10 +126,8 @@ echo "==> dotnet SDK $PINNED resolved as $RESOLVED; rsync available"
 
 # --- 2. Mirror the source tree into WSL-native storage -----------------------
 # A Linux host is still required, but not because ReleaseManager reads the host
-# OS: --platform overrides that. It is required because SenderNG.csproj selects
-# the Nex natives by build OS, and because both Linux targets then share one
-# toolchain, one mirror, and the existing runbooks. Cross-publishing an arm64
-# bundle is what the RID guard in that csproj makes safe.
+# OS: --platform overrides that. It is required because both Linux targets then
+# share one toolchain, one mirror, and the existing runbooks.
 #
 # The mirror is wiped and rebuilt rather than synced with `rsync --delete`:
 # --delete cannot remove a destination directory whose contents are protected

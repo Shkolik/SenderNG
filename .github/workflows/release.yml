@@ -55,9 +55,6 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-          source-url: https://nuget.pkg.github.com/helix-toolkit/index.json
-        env:
-          NUGET_AUTH_TOKEN: ${{ secrets.PACKAGES_PAT }}
 
       - name: Build win64 release
         run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform win64 --version ${{ needs.gate.outputs.version }}
@@ -80,9 +77,6 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-          source-url: https://nuget.pkg.github.com/helix-toolkit/index.json
-        env:
-          NUGET_AUTH_TOKEN: ${{ secrets.PACKAGES_PAT }}
 
       - name: Build linux-x64 release
         run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform linux --version ${{ needs.gate.outputs.version }}
@@ -179,7 +173,6 @@ jobs:
             * SenderNG-plugin-excellon - Excellon->Gcode converter
             * SenderNG-plugin-plotter - 2D/Isometric Gcode viewer/plotter (good for a weak hardware)
             * SenderNG-plugin-plotter-gl - 3D Gcode viewer/plotter (requires OpenGL 3.1+)
-            * SenderNG-plugin-plotter-nex - 3D Gcode viewer/plotter (requires Vulkan 1.3)
             * SenderNG-plugin-probing - Probing module
           - **SHA256SUMS.txt** — SHA-256 checksums for all zips above
           ---

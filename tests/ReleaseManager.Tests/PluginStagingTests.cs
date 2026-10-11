@@ -99,21 +99,21 @@ public class PluginStagingTests
         var publish = TempDir.New();
         var project = TempDir.New();
         var dest = TempDir.New();
-        File.WriteAllText(Path.Combine(publish, "SenderNG.Modules.Plotter.Nex.dll"), "mod");
-        File.WriteAllText(Path.Combine(publish, "HelixToolkit.Nex.Engine.dll"), "dep");
-        File.WriteAllText(Path.Combine(publish, "Vortice.Vulkan.dll"), "dep2");
-        File.WriteAllText(Path.Combine(publish, "SenderNG.Modules.Plotter.Nex.deps.json"), "unwanted");
+        File.WriteAllText(Path.Combine(publish, "SenderNG.Modules.Plotter.GL.dll"), "mod");
+        File.WriteAllText(Path.Combine(publish, "Dep.Alpha.dll"), "dep");
+        File.WriteAllText(Path.Combine(publish, "Dep.Beta.dll"), "dep2");
+        File.WriteAllText(Path.Combine(publish, "SenderNG.Modules.Plotter.GL.deps.json"), "unwanted");
         Directory.CreateDirectory(Path.Combine(publish, "runtimes", "win-x64", "native"));
-        File.WriteAllText(Path.Combine(publish, "runtimes", "win-x64", "native", "vma.dll"), "nat");
+        File.WriteAllText(Path.Combine(publish, "runtimes", "win-x64", "native", "nat.dll"), "nat");
 
-        PluginStaging.Stage(publish, project, "plotter-nex", dest, new SilentLog());
+        PluginStaging.Stage(publish, project, "plotter-gl", dest, new SilentLog());
 
-        Assert.True(File.Exists(Path.Combine(dest, "SenderNG.Modules.Plotter.Nex.dll")));
-        var folder = Path.Combine(dest, "plotter-nex");
-        Assert.True(File.Exists(Path.Combine(folder, "HelixToolkit.Nex.Engine.dll")));
-        Assert.True(File.Exists(Path.Combine(folder, "Vortice.Vulkan.dll")));
-        Assert.True(File.Exists(Path.Combine(folder, "vma.dll")));
-        Assert.False(File.Exists(Path.Combine(folder, "SenderNG.Modules.Plotter.Nex.deps.json")));
+        Assert.True(File.Exists(Path.Combine(dest, "SenderNG.Modules.Plotter.GL.dll")));
+        var folder = Path.Combine(dest, "plotter-gl");
+        Assert.True(File.Exists(Path.Combine(folder, "Dep.Alpha.dll")));
+        Assert.True(File.Exists(Path.Combine(folder, "Dep.Beta.dll")));
+        Assert.True(File.Exists(Path.Combine(folder, "nat.dll")));
+        Assert.False(File.Exists(Path.Combine(folder, "SenderNG.Modules.Plotter.GL.deps.json")));
     }
 
     [Fact]

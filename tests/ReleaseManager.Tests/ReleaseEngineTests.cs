@@ -254,7 +254,7 @@ public class ReleaseEngineTests
         var output = TempDir.New();
         var cli = new FakeCli { PluginVersions = { ["SenderNG.Modules.Excellon"] = "0.1.0" } };
 
-        foreach (var id in new[] { "Excellon", "Hpgl", "Plotter", "Plotter.Nex" })
+        foreach (var id in new[] { "Excellon", "Hpgl", "Plotter" })
         {
             var projectDir = Path.Combine(repo, "src", $"SenderNG.Modules.{id}");
             Directory.CreateDirectory(projectDir);

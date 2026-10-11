@@ -42,10 +42,10 @@ public class PluginListsTests
     private static readonly List<string> NoAdHoc = [];
 
     [Fact]
-    public void FirstParty_is_the_six_in_solution_plugins()
+    public void FirstParty_is_the_five_in_solution_plugins()
     {
         var ids = FirstPartyPlugins.All.Select(p => p.Id).OrderBy(x => x).ToArray();
-        Assert.Equal(["excellon", "hpgl", "plotter", "plotter-gl", "plotter-nex", "probing"], ids);
+        Assert.Equal(["excellon", "hpgl", "plotter", "plotter-gl", "probing"], ids);
     }
 
     [Fact]
@@ -130,39 +130,6 @@ public class PluginListsTests
 
         options = options with { PluginIds = ["nope"] };
         Assert.Throws<CliException>(() => PluginLists.Resolve(repo, options, new SilentLog()));
-    }
-
-    [Fact]
-    public void Resolve_omits_plotter_nex_on_LinuxArm64()
-    {
-        var options = new ReleaseOptions { Selection = PluginSelection.All };
-        var list = PluginLists.Resolve(
-            TempRepo.New(), options, new SilentLog(), ReleasePlatform.LinuxArm64);
-        var ids = list.Select(p => p.Id).OrderBy(x => x, StringComparer.Ordinal).ToArray();
-        Assert.Equal(["excellon", "hpgl", "plotter", "plotter-gl", "probing"], ids);
-    }
-
-    [Fact]
-    public void Resolve_rejects_an_explicit_plotter_nex_request_on_LinuxArm64()
-    {
-        var options = new ReleaseOptions
-        {
-            Selection = PluginSelection.Subset,
-            PluginIds = ["plotter-nex"],
-        };
-        var ex = Assert.Throws<CliException>(() => PluginLists.Resolve(
-            TempRepo.New(), options, new SilentLog(), ReleasePlatform.LinuxArm64));
-        Assert.Contains("plotter-nex", ex.Message);
-        Assert.Contains("linux-arm64", ex.Message);
-    }
-
-    [Fact]
-    public void Resolve_keeps_plotter_nex_on_Linux()
-    {
-        var options = new ReleaseOptions { Selection = PluginSelection.All };
-        var list = PluginLists.Resolve(
-            TempRepo.New(), options, new SilentLog(), ReleasePlatform.Linux);
-        Assert.Contains(list, p => p.Id == "plotter-nex");
     }
 
     private static ReleaseOptions optionsWithManifest(string repo, string id, string project)

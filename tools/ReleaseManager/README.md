@@ -12,8 +12,7 @@ Authoritative design: `docs/superpowers/specs/2026-09-18-releasemanager-design.m
 
 - .NET 9 SDK (≥ `9.0.100`, pinned by `global.json`)
 - NuGet feeds configured: the feed URLs come from the repo's tracked
-  `NuGet.config`; only the HelixToolkit GitHub Packages token lives in the
-  user-level `NuGet.Config`
+  `NuGet.config` (nuget.org only — no extra tokens needed)
 - Run from the **repo root** (`SenderNG.sln` must be in the current directory)
 
 ### Linux runtime prerequisites (target machine)
@@ -124,11 +123,11 @@ output/
 | `excellon` | `src/SenderNG.Modules.Excellon` |
 | `hpgl` | `src/SenderNG.Modules.Hpgl` |
 | `plotter` | `src/SenderNG.Modules.Plotter` |
-| `plotter-nex` | `src/SenderNG.Modules.Plotter.Nex` |
+| `plotter-gl` | `src/SenderNG.Modules.Plotter.GL` |
 | `probing` | `src/SenderNG.Modules.Probing` |
 
-`plotter-nex` additionally ships its package closure + native binaries (its
-assembly stays flat; `LoadFrom` probes the `plotter-nex/` subfolder for deps).
+`plotter-gl` additionally ships its package closure (its assembly stays flat;
+`LoadFrom` probes the `plotter-gl/` subfolder for deps).
 
 **3rd-party** (`tools/ReleaseManager/plugins.json`, empty by default):
 
@@ -214,18 +213,12 @@ else it owns goes under `<plugin-id>/` (locale + closure). Host-owned assemblies
    cd ~/SenderNG
    find . -type d \( -name bin -o -name obj \) -exec rm -rf {} +
    ```
-6. **NuGet feeds** (HelixToolkit GitHub Packages needs the token):
-   ```
-   mkdir -p ~/.nuget/NuGet
-   cp "/mnt/c/Users/<you>/AppData/Roaming/NuGet/NuGet.Config" ~/.nuget/NuGet/
-   chmod 600 ~/.nuget/NuGet/NuGet.Config
-   ```
-7. **Restore + sanity build:**
+6. **Restore + sanity build:**
    ```
    dotnet restore
    dotnet build SenderNG.sln
    ```
-8. **Release:**
+7. **Release:**
    ```
    dotnet run --project tools/ReleaseManager -- --include-plugins
    ```
@@ -245,7 +238,7 @@ else it owns goes under `<plugin-id>/` (locale + closure). Host-owned assemblies
    Serial connectivity is **not** testable under WSL2 (Windows COM ports are
    invisible to it; USB passthrough with usbipd-win would tie up the port). Test
    connection on the Windows bundle or a real machine instead.
-9. **Copy to the thumb drive** (WSL2 auto-mounts Windows drives under
+8. **Copy to the thumb drive** (WSL2 auto-mounts Windows drives under
    `/mnt/<letter>`):
    ```
    ls /mnt/
@@ -255,10 +248,10 @@ else it owns goes under `<plugin-id>/` (locale + closure). Host-owned assemblies
    Note: exFAT/NTFS drives don't store Unix permissions — after copying the
    bundle off the drive onto a real Linux machine, run `chmod +x SenderNG`
    before first launch.
-10. **Verify on the drive:**
-    ```
-    cd /mnt/e/SenderNG-linux && sha256sum -c SHA256SUMS.txt
-    ```
+9. **Verify on the drive:**
+   ```
+   cd /mnt/e/SenderNG-linux && sha256sum -c SHA256SUMS.txt
+   ```
 
 ## Deferred
 

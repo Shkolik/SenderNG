@@ -46,7 +46,7 @@ namespace SenderNG.Core.Tests;
 /// <summary>
 /// Guards the plotter-gl module's shipped Locale/*.json, and only those. The
 /// other modules staging catalogs into the same output tree (plotter, excellon,
-/// hpgl, probing, plotter-nex) and the app's own Locale/ are NOT covered here.
+/// hpgl, probing) and the app's own Locale/ are NOT covered here.
 /// The name is deliberately narrow rather than a walk over every Modules/*/Locale,
 /// because that would reach outside this feature and surface any pre-existing
 /// mismatch in another module's files.

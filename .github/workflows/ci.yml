@@ -11,7 +11,7 @@ jobs:
         os: [windows-latest, ubuntu-latest]
     env:
       # The ubuntu-latest deaths were an OOM, not a build-tool defect: an unbounded
-      # snapshot-stress writer in NexCarriagePlaneLayerTests grew a dotnet process to
+      # snapshot-stress writer (in a test since removed) grew a dotnet process to
       # ~15 GB of anonymous RSS, and the kernel reaped whichever process it found --
       # an MSBuild node ("MSB4166: Child node \"2\" exited prematurely") or the runner
       # agent itself ("The operation was canceled.", no artifacts, post-steps never
@@ -25,9 +25,6 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-          source-url: https://nuget.pkg.github.com/helix-toolkit/index.json
-        env:
-          NUGET_AUTH_TOKEN: ${{ secrets.PACKAGES_PAT }}
 
       - name: Build
         run: dotnet build SenderNG.sln -c Release --nologo -t:Rebuild -warnaserror -m:1

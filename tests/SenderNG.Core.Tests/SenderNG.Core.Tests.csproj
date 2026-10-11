@@ -11,8 +11,6 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
-    <!-- Pinned to a version satisfying the transitive 10.x required by the
-         HelixToolkit.Nex stack (the old 8.* downgraded against it → NU1605). -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.*" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <!-- Win32_PnPEntity enumeration for the hardware tests' ghost-port filter

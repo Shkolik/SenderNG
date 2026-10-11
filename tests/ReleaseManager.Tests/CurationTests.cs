@@ -114,14 +114,14 @@ public class CurationTests
         File.WriteAllText(Path.Combine(modules, "SenderNG.Modules.Excellon.dll"), "mod");
         Directory.CreateDirectory(Path.Combine(modules, "excellon", "Locale"));
         File.WriteAllText(Path.Combine(modules, "excellon", "Locale", "en.json"), "{}");
-        Directory.CreateDirectory(Path.Combine(modules, "plotter-nex"));
-        File.WriteAllText(Path.Combine(modules, "plotter-nex", "HelixToolkit.dll"), "lib");
+        Directory.CreateDirectory(Path.Combine(modules, "hpgl"));
+        File.WriteAllText(Path.Combine(modules, "hpgl", "ThirdPartyDep.dll"), "lib");
 
         Curation.StripModulesToSdk(modules);
 
         Assert.True(File.Exists(Path.Combine(modules, "SenderNG.Modules.Common.dll")));
         Assert.False(File.Exists(Path.Combine(modules, "SenderNG.Modules.Excellon.dll")));
         Assert.False(Directory.Exists(Path.Combine(modules, "excellon")));
-        Assert.False(Directory.Exists(Path.Combine(modules, "plotter-nex")));
+        Assert.False(Directory.Exists(Path.Combine(modules, "hpgl")));
     }
 }

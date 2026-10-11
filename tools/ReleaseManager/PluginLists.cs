@@ -62,7 +62,7 @@ public static class PluginLists
             thirdParty.Add(PluginsManifest.FromAdHoc(projectPath));
         }
 
-        var all = FirstPartyPlugins.ForPlatform(platform).Concat(thirdParty).ToList();
+        var all = FirstPartyPlugins.All.Concat(thirdParty).ToList();
         Validate(all);
 
         switch (options.Selection)
@@ -75,13 +75,8 @@ public static class PluginLists
                 {
                     if (!byId.ContainsKey(id))
                     {
-                        // Distinguish "no such plugin" from "not on this platform",
-                        // so a user who names plotter-nex on arm64 is told why
-                        // rather than being told it does not exist.
-                        var knownButExcluded = FirstPartyPlugins.All.Any(p => p.Id == id);
-                        throw new CliException(knownButExcluded
-                            ? $"Plugin '{id}' is not available on {PlatformInfo.FolderName(platform)}."
-                            : $"Unknown plugin id '{id}'. Known ids: {string.Join(", ", all.Select(p => p.Id))}.");
+                        throw new CliException(
+                            $"Unknown plugin id '{id}'. Known ids: {string.Join(", ", all.Select(p => p.Id))}.");
                     }
                 }
                 return all.Where(p => options.PluginIds.Contains(p.Id)).ToList();

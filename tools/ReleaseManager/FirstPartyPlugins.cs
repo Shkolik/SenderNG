@@ -45,40 +45,8 @@ public static class FirstPartyPlugins
         new("hpgl", "src/SenderNG.Modules.Hpgl/SenderNG.Modules.Hpgl.csproj", null),
         new("plotter", "src/SenderNG.Modules.Plotter/SenderNG.Modules.Plotter.csproj", null),
         new("plotter-gl", "src/SenderNG.Modules.Plotter.GL/SenderNG.Modules.Plotter.GL.csproj", null),
-        new("plotter-nex", "src/SenderNG.Modules.Plotter.Nex/SenderNG.Modules.Plotter.Nex.csproj", null),
         new("probing", "src/SenderNG.Modules.Probing/SenderNG.Modules.Probing.csproj", null)
     ];
-
-    /// <summary>
-    /// The 1st-party plugins available on <paramref name="platform"/>.
-    ///
-    /// plotter-nex is excluded on linux-arm64. Two independent reasons, either
-    /// sufficient on its own:
-    ///
-    ///   1. No aarch64 natives exist. Vortice.SPIRV.Reflect and
-    ///      Vortice.VulkanMemoryAllocator are direct dependencies of
-    ///      HelixToolkit.Nex.Graphics.Vulkan and P/Invoke into `spirv-reflect`
-    ///      and `vma*`. Neither package ships a linux-arm64 native — only
-    ///      linux-x64, android-arm64, osx-arm64 and win-arm64 — so staging
-    ///      linux-x64 .so files into an arm64 bundle would crash at first use.
-    ///   2. The driver is insufficient. Mesa v3dv on a Pi 4B reports
-    ///      apiVersion 1.3.354 and passes all four Vulkan 1.3 feature checks,
-    ///      but fails 10 of the 13 features CreateFeatures12 hard-throws on
-    ///      (DeviceFeatures.cs:73-175) — including descriptorIndexing, which
-    ///      the renderer needs structurally: every texture is bound through one
-    ///      global bindless descriptor set (HeaderDefines.glsl:22-29,
-    ///      VulkanContext.cs:1068-1148) and indexed per-fragment via
-    ///      nonuniformEXT.
-    ///
-    /// Do not "fix" this omission without re-testing on real hardware. See
-    /// docs/superpowers/specs/2026-09-26-arm64-linux-support-design.md.
-    /// </summary>
-    public static IReadOnlyList<PluginEntry> ForPlatform(ReleasePlatform platform)
-    {
-        if (platform != ReleasePlatform.LinuxArm64)
-            return All;
-        return All.Where(p => p.Id != "plotter-nex").ToList();
-    }
 
     public static PluginEntry First(string id)
     {

@@ -60,7 +60,6 @@ public class PlotterGlModuleTests
 
         Assert.Equal("plotter-gl", m.Id);
         Assert.NotEqual("plotter", m.Id);
-        Assert.NotEqual("plotter-nex", m.Id);
     }
 
     [Fact]
