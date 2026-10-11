@@ -46,7 +46,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         Background="#f6f6f6" WindowStartupLocation="CenterOwner">
 
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8" Margin="8">
-        <!-- Program banner (placeholder image; swap Assets/banner.png with the real one). -->
         <Image Grid.Row="0" Source="avares://SenderNG/Assets/banner.png"
                Height="200" Stretch="Uniform" HorizontalAlignment="Stretch" />
 
