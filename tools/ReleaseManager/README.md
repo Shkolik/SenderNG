@@ -264,5 +264,8 @@ else it owns goes under `<plugin-id>/` (locale + closure). Host-owned assemblies
 
 AppImage/Flatpak packaging (the linux layout is what `linuxdeploy` expects);
 Windows→Linux cross-building (the csproj plugin staging selects natives by
-build OS, not RID); code/plugin signing; automatic changelogs; GitHub Release
-upload automation.
+build OS, not RID); code/plugin signing.
+
+Automated weekly uploads to GitHub Releases with auto-generated notes live in
+`.github/workflows/release.yml`; design:
+`docs/superpowers/specs/2026-10-10-automated-releases-design.md`.

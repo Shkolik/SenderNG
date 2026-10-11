@@ -51,6 +51,15 @@ well — see [Serial port permission errors](#serial-port-permission-errors).
 
 ## Running from release assets
 
+**Automated weekly builds:** every Monday 06:00 UTC the **Release** workflow
+(`.github/workflows/release.yml`) builds win64, linux-x64 and linux-arm64 with
+all plugins and publishes a prerelease to the
+[Releases page](https://github.com/Shkolik/SenderNG/releases) — unless nothing
+changed since the previous release, in which case it skips. Formal releases use
+the same workflow: bump `<Version>` in `src/SenderNG/SenderNG.csproj`, then run
+the workflow manually from the Actions tab with *stable* checked. Design:
+`docs/superpowers/specs/2026-10-10-automated-releases-design.md`.
+
 Release zips are produced per platform by `tools/ReleaseManager`. On Windows,
 build one with:
 
