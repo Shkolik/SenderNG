@@ -113,40 +113,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Tests asserting internal host surface: Core.Tests (hotkeys) and SenderNG.Tests (views). -->
     <InternalsVisibleTo Include="SenderNG.Core.Tests" />
     <InternalsVisibleTo Include="SenderNG.Tests" />
   </ItemGroup>
-
-  <!-- The Nex plugin ships MOST of its code in external assemblies
-       (HelixToolkit.Nex.*, Vortice.*, SharpGen.Runtime, ZLinq, Glslang.NET,
-       SixLabors.ImageSharp, the Microsoft.Extensions 10.x closure) and native
-       binaries (vma.dll, spirv-reflect.dll, glslang.dll). Per the drop-in
-       layout, the plugin DLL stays FLAT in Modules\ while its package closure
-       and native binaries live in Modules\plotter-nex\ — ModuleCatalog's
-       flat *.dll scan never touches them (no BadImageFormat/GetTypes noise on
-       startup), and its AssemblyResolve probe serves them from the folder.
-       Staged as a post-Build Copy, not a None+Link glob: the app's build-order
-       reference means the plugin's bin is only populated when the build RAN,
-       so evaluation-time globs would see an empty bin on a clean build and
-       copy nothing.
-        Excluded: the module DLL (staged explicitly above), the host-owned
-        SenderNG.Core / CNC.Core, and Avalonia (the app root already has the
-        pinned 12.0.0 — same identity, so LoadFrom unification serves the
-        module's reference; a second copy would invite duplicate-load noise).
-        Native files stage from the plugin's runtimes folder for the CURRENT
-        build OS (win-x64 .dll on Windows, linux-x64 .so on Linux) — the Vulkan
-        readback is platform-neutral so both ship the same managed closure.
-        LoadFrom'd managed DLLs probe their own directory for unmanaged
-        libraries, so the flattened natives resolve from Modules\plotter-nex
-        itself.
-         The linux-arm64 guard is a second, independent barrier to the one in
-         tools/ReleaseManager/FirstPartyPlugins.cs. That filter keeps the plugin
-         out of the release; this condition keeps a hand-run
-         `dotnet publish -r linux-arm64` from staging linux-x64 .so files into
-         an arm64 bundle that must contain none. Stage by build OS only while
-         the plugin ships on every platform — the moment a platform is excluded,
-         the closure for it must not be staged at all. -->
+  
   <Target Name="StageNexPluginClosure" AfterTargets="Build"
           Condition="'$(RuntimeIdentifier)' != 'linux-arm64'">
     <ItemGroup>
@@ -164,16 +134,7 @@
           DestinationFolder="$(OutputPath)Modules\plotter-nex"
           SkipUnchangedFiles="true" />
   </Target>
-
-  <!-- Plotter.GL's closure is just Silk.NET.OpenGL (managed-only: Silk.NET
-       binds the OS opengl32/libGL at load time, so, unlike Nex, there are no
-       native binaries and no runtimes folder to stage; SixLabors.ImageSharp
-       dropped from the closure with the direct reference — see the GL csproj). Module DLL flat in Modules\, closure in Modules\plotter-gl\,
-       same exclusion set as StageNexPluginClosure — but NO RID guard, unlike
-       StageNexPluginClosure's linux-arm64 skip (Nex ships no Vulkan natives
-       there). The managed-only GL closure stages on every RID including
-       linux-arm64; that is the point of the spike (Task 8 keeps Silk.NET
-       native-free — the EGL package has no natives either). -->
+  
   <Target Name="StageGlPluginClosure" AfterTargets="Build">
     <ItemGroup>
       <_GlClosure Include="..\SenderNG.Modules.Plotter.GL\bin\$(Configuration)\$(TargetFramework)\*.dll"

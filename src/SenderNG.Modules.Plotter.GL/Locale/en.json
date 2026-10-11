@@ -1,8 +1,7 @@
 {
   "strings": {
-    "module.plotter-gl.name": "Plot GL",
+    "module.plotter-gl.name": "Plot 3D",
     "module.plotter-gl.description": "G-code 3D path plotter: program toolpath with live run overlay.",
-    "module.plotter-gl.placeholder": "3D plotter (PoC)",
     "module.plotter-gl.noProgram": "No program loaded.",
     "module.plotter-gl.noMotion": "Program contains no motion.",
     "module.plotter-gl.building": "Plotting…",

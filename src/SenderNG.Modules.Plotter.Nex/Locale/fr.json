@@ -1,8 +1,7 @@
 {
   "strings": {
-    "module.plotter-nex.name": "Tracé 3D",
+    "module.plotter-nex.name": "Tracé 3D (Nex)",
     "module.plotter-nex.description": "Tracé 3D de la trajectoire G-code : chemin d'outil du programme avec suivi d'exécution en direct.",
-    "module.plotter-nex.placeholder": "Tracé 3D (PoC)",
     "module.plotter-nex.noProgram": "Aucun programme chargé.",
     "module.plotter-nex.noMotion": "Le programme ne contient aucun mouvement.",
     "module.plotter-nex.building": "Tracé en cours…",

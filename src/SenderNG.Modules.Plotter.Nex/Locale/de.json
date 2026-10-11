@@ -1,8 +1,7 @@
 {
   "strings": {
-    "module.plotter-nex.name": "3D-Grafik",
+    "module.plotter-nex.name": "3D-Grafik (Nex)",
     "module.plotter-nex.description": "3D-Pfadplotter für G-Code: Werkzeugpfad des Programms mit Live-Verlauf der Ausführung.",
-    "module.plotter-nex.placeholder": "3D-Plotter (PoC)",
     "module.plotter-nex.noProgram": "Kein Programm geladen.",
     "module.plotter-nex.noMotion": "Das Programm enthält keine Bewegungen.",
     "module.plotter-nex.building": "Wird gezeichnet…",

@@ -2,7 +2,6 @@
   "strings": {
     "module.plotter-gl.name": "Tracé 3D",
     "module.plotter-gl.description": "Tracé 3D de la trajectoire G-code : chemin d'outil du programme avec suivi d'exécution en direct.",
-    "module.plotter-gl.placeholder": "Tracé 3D (PoC)",
     "module.plotter-gl.noProgram": "Aucun programme chargé.",
     "module.plotter-gl.noMotion": "Le programme ne contient aucun mouvement.",
     "module.plotter-gl.building": "Tracé en cours…",

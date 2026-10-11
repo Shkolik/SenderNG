@@ -68,7 +68,7 @@ public class PlotterGlModule : IModule, ILocalizedModule, IPluginInfo, IPluginDe
     private PlotterGlView? _plotView;
 
     public string Id => "plotter-gl";
-    public string Name => "Plot GL";
+    public string Name => "Plot 3D";
     public string Description => "G-code 3D path plotter: program toolpath with live run overlay.";
     // Right after the Skia plotter (22) — the two plot tabs read as one group,
     // and the GL one sits behind it in the tab order (Nex took 23).
@@ -98,9 +98,8 @@ public class PlotterGlModule : IModule, ILocalizedModule, IPluginInfo, IPluginDe
     public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
         new Dictionary<string, string>
         {
-            ["module.plotter-gl.name"] = "Plot GL",
+            ["module.plotter-gl.name"] = "Plot 3D",
             ["module.plotter-gl.description"] = "G-code 3D path plotter: program toolpath with live run overlay.",
-            ["module.plotter-gl.placeholder"] = "3D plotter (PoC)",
             ["module.plotter-gl.settings.wireLength"] = "Wire length (tower distance)",
             ["module.plotter-gl.settings.worldAxes"] = "World axes",
             ["module.plotter-gl.settings.origin"] = "Origin",

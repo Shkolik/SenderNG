@@ -87,8 +87,8 @@ public class PlotterGlModuleTests
         // Keys follow the module.<id>. scheme (Id = "plotter-gl") so the tab /
         // App Settings / About lookups (module.plotter-gl.name) resolve through
         // the catalog instead of always falling back to the English literals.
-        Assert.Equal("Plot GL", module.LocalizationKeys[$"module.{module.Id}.name"]);
-        Assert.Equal("Plot GL", module.Name);
+        Assert.Equal("Plot 3D", module.LocalizationKeys[$"module.{module.Id}.name"]);
+        Assert.Equal("Plot 3D", module.Name);
         Assert.Equal("G-code 3D path plotter: program toolpath with live run overlay.", module.Description);
         Assert.False(string.IsNullOrWhiteSpace(module.LocalizationKeys[$"module.{module.Id}.description"]));
         Assert.False(string.IsNullOrWhiteSpace(module.LocalizationKeys[$"module.{module.Id}.placeholder"]));

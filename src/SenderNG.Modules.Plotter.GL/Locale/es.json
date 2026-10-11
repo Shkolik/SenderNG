@@ -2,7 +2,6 @@
   "strings": {
     "module.plotter-gl.name": "Trazado 3D",
     "module.plotter-gl.description": "Trazado 3D de la trayectoria de G-code: trayectoria de la herramienta del programa con superposición de la ejecución en tiempo real.",
-    "module.plotter-gl.placeholder": "Trazador 3D (PoC)",
     "module.plotter-gl.noProgram": "No hay programa cargado.",
     "module.plotter-gl.noMotion": "El programa no contiene movimientos.",
     "module.plotter-gl.building": "Trazando…",

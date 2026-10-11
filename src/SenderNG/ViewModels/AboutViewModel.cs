@@ -39,7 +39,7 @@ public class AboutViewModel : ViewModelBase
     public string AppName => LocText.Resolve("about.name", "SenderNG");
     public string Version => LocText.Format("about.version", "Version: {0}", AssemblyVersion);
     public string Copyright => LocText.Resolve("about.copyright",
-        "Copyright (c) 2024-2026 Shkolik · 2019-2023 Io Engineering");
+        "Copyright (c) 2024-2026 Andrew Shkolik · 2019-2023 Io Engineering");
     public string License => LocText.Resolve("about.license", "BSD 3-Clause License");
     public string RepoUrl => LocText.Resolve("about.repo", "https://github.com/Shkolik/SenderNG");
     public IReadOnlyList<ThirdPartyLibrary> Libraries => ThirdPartyLibraries.List;

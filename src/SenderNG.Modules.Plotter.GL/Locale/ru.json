@@ -2,7 +2,6 @@
   "strings": {
     "module.plotter-gl.name": "График 3D",
     "module.plotter-gl.description": "Постройщик траектории G-кода в 3D: путь программы с живым ходом обработки.",
-    "module.plotter-gl.placeholder": "График 3D (PoC)",
     "module.plotter-gl.noProgram": "Программа не загружена.",
     "module.plotter-gl.noMotion": "Программа не содержит движений.",
     "module.plotter-gl.building": "Построение…",

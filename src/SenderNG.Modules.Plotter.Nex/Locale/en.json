@@ -1,8 +1,7 @@
 {
   "strings": {
-    "module.plotter-nex.name": "Plot 3D",
+    "module.plotter-nex.name": "Plot 3D (Nex)",
     "module.plotter-nex.description": "G-code 3D path plotter: program toolpath with live run overlay.",
-    "module.plotter-nex.placeholder": "3D plotter (PoC)",
     "module.plotter-nex.noProgram": "No program loaded.",
     "module.plotter-nex.noMotion": "Program contains no motion.",
     "module.plotter-nex.building": "Plotting…",

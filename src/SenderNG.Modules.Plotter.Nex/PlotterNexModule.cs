@@ -97,9 +97,8 @@ public class PlotterNexModule : IModule, ILocalizedModule, IPluginInfo, IPluginD
     public IReadOnlyDictionary<string, string> LocalizationKeys { get; } =
         new Dictionary<string, string>
         {
-            ["module.plotter-nex.name"] = "Plot 3D",
+            ["module.plotter-nex.name"] = "Plot 3D (Nex)",
             ["module.plotter-nex.description"] = "G-code 3D path plotter: program toolpath with live run overlay.",
-            ["module.plotter-nex.placeholder"] = "3D plotter (PoC)",
             ["module.plotter-nex.settings.wireLength"] = "Wire length (tower distance)",
             ["module.plotter-nex.settings.worldAxes"] = "World axes",
             ["module.plotter-nex.settings.origin"] = "Origin",

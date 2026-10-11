@@ -58,8 +58,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 </TabItem.Header>
                 <ScrollViewer>
                     <StackPanel Spacing="10" Margin="12,8,12,12" VerticalAlignment="Top">
-                        <TextBlock Text="{Binding AppName}" FontSize="20" FontWeight="Bold" />
-                        <TextBlock Text="{Binding Version}" FontSize="12" Foreground="#555" />
+						<StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Spacing="4">
+                            <TextBlock Text="{Binding AppName}" FontSize="20" FontWeight="Bold" />
+                            <TextBlock Text="{Binding Version}" FontSize="11" Foreground="#555" Margin="0,0,0,2" VerticalAlignment="Bottom"/>
+						</StackPanel>
                         <TextBlock Text="{Binding Copyright}" FontSize="12" Foreground="#555" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding License}" FontSize="12" Foreground="#555" />
                         <TextBlock Text="{Binding RepoUrl}" FontSize="12" Foreground="#06c" TextWrapping="Wrap" />
