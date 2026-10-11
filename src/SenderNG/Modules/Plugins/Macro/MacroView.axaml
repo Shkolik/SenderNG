@@ -56,12 +56,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
             <TextBox Text="{Binding SelectedMacro.Code, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                      PlaceholderText="{loc:Loc module.macro.codePlaceholder}"
-                     AcceptsReturn="True" MinHeight="100" TextWrapping="Wrap"
+                     AcceptsReturn="True" MinHeight="100" TextWrapping="Wrap" VerticalContentAlignment="Top"
                      IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}"
                      CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
         </StackPanel>
 
-        <ListBox ItemsSource="{Binding Macros}" SelectedItem="{Binding SelectedMacro}" MinHeight="80" CornerRadius="0" BorderBrush="#aaa" BorderThickness="1" Background="White">
+        <ListBox ItemsSource="{Binding Macros}" SelectedItem="{Binding SelectedMacro}" MinHeight="80" MaxHeight="300"
+				 CornerRadius="0" BorderBrush="#aaa" BorderThickness="1" Background="White">
             <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="vm:MacroItem">
                     <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Margin="2" FontSize="11" Foreground="#333" />
