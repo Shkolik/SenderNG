@@ -62,6 +62,7 @@ TurningProfiles.xml
 # Working plans (living documents, not version-controlled)
 docs/plans/
 docs/screenshots/
+docs/superpowers/
 
 # Isolated git worktrees
 .worktrees/
