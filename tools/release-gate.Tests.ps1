@@ -76,6 +76,18 @@ try {
     Remove-Item -LiteralPath $fx -Recurse -Force -ErrorAction SilentlyContinue
 }
 
+Write-Host "`nGet-ReleaseStrings"
+$s = Get-ReleaseStrings -Version "0.1.0" -Stable $true -UtcDate "20261010"
+Assert-Equal $s.Version "0.1.0" "stable keeps the csproj version untouched"
+Assert-Equal $s.Tag "v0.1.0" "stable tag is v + version"
+
+$s = Get-ReleaseStrings -Version "0.1.0" -Stable $false -UtcDate "20261010"
+Assert-Equal $s.Version "0.1.0-20261010" "prerelease appends -YYYYMMDD"
+Assert-Equal $s.Tag "v0.1.0-20261010" "prerelease tag is v + suffixed version"
+
+$s = Get-ReleaseStrings -Version "1.2.3" -Stable $false -UtcDate "20270101"
+Assert-Equal $s.Tag "v1.2.3-20270101" "suffix uses the injected date, not the clock"
+
 Write-Host ""
 if ($script:Failed -gt 0) {
     Write-Host "FAILED: $($script:Failed) failed, $($script:Passed) passed"

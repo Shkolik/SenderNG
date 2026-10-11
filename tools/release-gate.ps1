@@ -17,3 +17,12 @@ function Get-CsprojVersion {
     }
     return $m.Groups[1].Value
 }
+
+function Get-ReleaseStrings {
+    param([string]$Version, [bool]$Stable, [string]$UtcDate)
+    $ver = if ($Stable) { $Version } else { "$Version-$UtcDate" }
+    return [pscustomobject]@{
+        Version = $ver
+        Tag     = "v$ver"
+    }
+}
