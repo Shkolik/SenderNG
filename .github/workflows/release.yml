@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      stable:
+        description: 'Formal release (no date suffix, marked latest)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.gate.outputs.tag }}
+      version: ${{ steps.gate.outputs.version }}
+      build: ${{ steps.gate.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: gate
+        shell: pwsh
+        run: |
+          $gateArgs = @()
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') { $gateArgs += '-SkipChangeCheck' }
+          if ('${{ inputs.stable }}' -eq 'true') { $gateArgs += '-Stable' }
+          & ./tools/release-gate.ps1 @gateArgs
