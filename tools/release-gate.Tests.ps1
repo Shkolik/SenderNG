@@ -88,6 +88,69 @@ Assert-Equal $s.Tag "v0.1.0-20261010" "prerelease tag is v + suffixed version"
 $s = Get-ReleaseStrings -Version "1.2.3" -Stable $false -UtcDate "20270101"
 Assert-Equal $s.Tag "v1.2.3-20270101" "suffix uses the injected date, not the clock"
 
+function New-ScratchRepo {
+    $dir = Join-Path $env:TEMP ("release-gate-repo-" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $dir | Out-Null
+    git -C $dir init -q -b main
+    Set-Content -Path (Join-Path $dir "file.txt") -Value "one"
+    git -C $dir add .
+    git -C $dir -c user.email=release-gate@example.invalid -c user.name="release gate test" -c commit.gpgsign=false commit -qm "c1"
+    if ($LASTEXITCODE -ne 0) { throw "scratch repo initial commit failed" }
+    return $dir
+}
+
+function Add-ScratchCommit {
+    param([string]$Repo)
+    Set-Content -Path (Join-Path $Repo "file.txt") -Value ([guid]::NewGuid().ToString())
+    git -C $Repo add .
+    git -C $Repo -c user.email=release-gate@example.invalid -c user.name="release gate test" -c commit.gpgsign=false commit -qm "more"
+    if ($LASTEXITCODE -ne 0) { throw "scratch repo commit failed" }
+}
+
+function Add-ScratchTag {
+    param([string]$Repo, [string]$Tag)
+    git -C $Repo tag $Tag
+    if ($LASTEXITCODE -ne 0) { throw "scratch repo tag failed" }
+}
+
+function Remove-ScratchRepo {
+    param([string]$Repo)
+    Remove-Item -LiteralPath $Repo -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+Write-Host "`nTest-HasChangesSinceLastTag"
+$repo = New-ScratchRepo
+try {
+    Assert-Equal (Test-HasChangesSinceLastTag -RepoRoot $repo) $true "no tags yet -> build (first run)"
+
+    Add-ScratchTag -Repo $repo -Tag "v0.1.0"
+    Assert-Equal (Test-HasChangesSinceLastTag -RepoRoot $repo) $false "tag at HEAD -> quiet week"
+
+    Add-ScratchCommit -Repo $repo
+    Assert-Equal (Test-HasChangesSinceLastTag -RepoRoot $repo) $true "commit after the tag -> changed"
+
+    Add-ScratchTag -Repo $repo -Tag "v0.1.0-20990101"
+    Assert-Equal (Test-HasChangesSinceLastTag -RepoRoot $repo) $false "newest tag back at HEAD -> quiet week"
+} finally {
+    Remove-ScratchRepo -Repo $repo
+}
+
+$repo2 = New-ScratchRepo
+try {
+    Add-ScratchTag -Repo $repo2 -Tag "misc-tag"
+    Assert-Equal (Test-HasChangesSinceLastTag -RepoRoot $repo2) $true "non-v tags are ignored -> build"
+} finally {
+    Remove-ScratchRepo -Repo $repo2
+}
+
+$notRepo = Join-Path $env:TEMP ("release-gate-notrepo-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $notRepo | Out-Null
+try {
+    Assert-Throws { Test-HasChangesSinceLastTag -RepoRoot $notRepo } "non-git directory throws"
+} finally {
+    Remove-Item -LiteralPath $notRepo -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 Write-Host ""
 if ($script:Failed -gt 0) {
     Write-Host "FAILED: $($script:Failed) failed, $($script:Passed) passed"
