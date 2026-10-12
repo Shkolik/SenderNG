@@ -15,7 +15,7 @@ throwaway/service account. `<pi-host>` is the Pi's hostname or IP.
 `output\linux-arm64\` after a build:
 
 - `SenderNG-<version>-linux-arm64.zip` — the app (self-contained .NET, **no SDK needed on the Pi**)
-- `SenderNG-plugin-{excellon,hpgl,plotter,probing}-<version>-linux-arm64.zip`
+- `SenderNG-plugin-{excellon,hpgl,plotter,plotter-gl,probing}-<version>-linux-arm64.zip`
 - `SHA256SUMS.txt` — hashes for the zips *and* the staged bundle files
 
 The arm64 build ships the full plugin set — Plotter GL renders through Mesa's
@@ -120,7 +120,7 @@ cat > ~/Desktop/SenderNG.desktop <<EOF
 [Desktop Entry]
 Type=Application
 Name=SenderNG
-Comment=CNC sender (2D only on arm64)
+Comment=CNC sender
 Exec=$HOME/SenderNG/SenderNG
 Icon=applications-engineering
 Terminal=false
