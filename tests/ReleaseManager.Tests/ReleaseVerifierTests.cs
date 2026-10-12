@@ -88,6 +88,15 @@ public class ReleaseVerifierTests
         Assert.Contains("native runtime", ex.Message);
     }
 
+    [Fact]
+    public void Verify_rejects_missing_license()
+    {
+        var bundle = CompleteBundle(ReleasePlatform.Win64);
+        File.Delete(Path.Combine(bundle, "LICENSE"));
+        var ex = Assert.Throws<StagingException>(() => ReleaseVerifier.Verify(bundle, ReleasePlatform.Win64));
+        Assert.Contains("LICENSE", ex.Message);
+    }
+
     private static string CompleteBundle(ReleasePlatform platform)
     {
         var dir = Path.Combine(TempDir.New(), "SenderNG");
@@ -99,6 +108,7 @@ public class ReleaseVerifierTests
         File.WriteAllText(Path.Combine(dir, "SenderNG.Core.dll"), "core");
         File.WriteAllText(Path.Combine(dir, "Modules", "SenderNG.Modules.Common.dll"), "sdk");
         File.WriteAllText(Path.Combine(dir, platform == ReleasePlatform.Win64 ? "coreclr.dll" : "libcoreclr.so"), "native");
+        File.WriteAllText(Path.Combine(dir, "LICENSE"), "BSD 3-Clause\n");
         return dir;
     }
 }

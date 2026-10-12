@@ -50,7 +50,8 @@ public static class ReleaseVerifier
             "SenderNG.deps.json",
             "SenderNG.runtimeconfig.json",
             "SenderNG.Core.dll",
-            Path.Combine("Modules", "SenderNG.Modules.Common.dll")
+            Path.Combine("Modules", "SenderNG.Modules.Common.dll"),
+            "LICENSE"
         };
         foreach (var relative in required)
         {
