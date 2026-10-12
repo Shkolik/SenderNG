@@ -583,8 +583,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             var (pos, label) = arrows[i];
             var color = AxisColor(label);
             FillAxisShaft(shafts, pos, AxisDirection(label), len, coneHeight, color);
-            // Only the first three arrows get heads — the arrowhead instance
-            // array is preallocated to three.
+            // Only the first three arrows get heads — capped by AxisConeLimit.
             if (i >= AxisConeLimit)
                 continue;
             var (tip, rotation, scale) = AxisConeTransform(label, pos, len);
