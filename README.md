@@ -285,8 +285,8 @@ verify — see the [arm64 cookbook](docs/arm64-cookbook.md).
 The bundle is cross-published (`dotnet publish -r linux-arm64`) from an x64
 host, so it is produced on a different machine than it runs on. It has since
 been installed and launched on a Pi 4B (window renders, 2D tabs present, no
-Plot 3D tab); nothing in either test suite performs a publish, so every
-rebuild's final publish is exercised only by a real run.
+Plot 3D tab — hidden by default); nothing in either test suite performs a
+publish, so every rebuild's final publish is exercised only by a real run.
 
 On the Pi:
 

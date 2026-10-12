@@ -49,7 +49,7 @@ Prefer the ReleaseManager CLI directly? Use the
 
 ### A. Thumb drive
 
-1. On the build machine, copy the five `.zip` files plus `SHA256SUMS.txt`
+1. On the build machine, copy the six `.zip` files plus `SHA256SUMS.txt`
    from `output\linux-arm64\` onto any USB stick (FAT32/exFAT, ~45 MB total).
 2. On the Pi, plug it in — the desktop auto-mounts it under
    `/media/<user>/<LABEL>`. If it doesn't, find and mount it manually:
@@ -177,7 +177,7 @@ back up `global.json` and `profiles/` if you want to keep them.
 - Expected: window `SenderNG`, menus File/Settings/Help, tabs
   **Program / Console / Plot**, the right-hand Probing/Macros/… panel, and
   status `NOT CONNECTED` until a machine is connected.
-- **No Plot 3D tab — by design** on arm64 (see "What you get").
+- **Plot 3D is hidden by default** — enable it in Settings, same as every platform.
 - Serial ports need the `dialout` group:
 
   ```bash
