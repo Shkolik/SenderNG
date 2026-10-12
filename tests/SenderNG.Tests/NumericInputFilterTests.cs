@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using Avalonia.Controls;
+using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using SenderNG.Services;
 using Xunit;
@@ -56,7 +57,7 @@ public class NumericInputFilterTests
         return e.Handled;
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData("")]
     [InlineData("-")]
     [InlineData("1.")]
@@ -67,7 +68,7 @@ public class NumericInputFilterTests
     public void Num_accepts_valid_states(string input) =>
         Assert.False(Type(Box("num"), input));
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData("a")]
     [InlineData("1.2.3")]
     [InlineData("--")]
@@ -75,28 +76,28 @@ public class NumericInputFilterTests
     public void Num_rejects_invalid_states(string input) =>
         Assert.True(Type(Box("num"), input));
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData("")]
     [InlineData("12.5")]
     [InlineData(".5")]
     public void Udec_accepts_valid_states(string input) =>
         Assert.False(Type(Box("udec"), input));
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData("-")]
     [InlineData("-5")]
     [InlineData("a")]
     public void Udec_rejects_invalid_states(string input) =>
         Assert.True(Type(Box("udec"), input));
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData("")]
     [InlineData("0")]
     [InlineData("1234567890")]
     public void Int_accepts_valid_states(string input) =>
         Assert.False(Type(Box("int"), input));
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(".")]
     [InlineData("-")]
     [InlineData("-5")]
@@ -105,11 +106,11 @@ public class NumericInputFilterTests
     public void Int_rejects_invalid_states(string input) =>
         Assert.True(Type(Box("int"), input));
 
-    [Fact]
+    [AvaloniaFact]
     public void Box_without_filter_class_is_untouched() =>
         Assert.False(Type(Box(), "abc"));
 
-    [Fact]
+    [AvaloniaFact]
     public void Simulated_insert_replaces_selection()
     {
         var box = Box("num");
@@ -123,7 +124,7 @@ public class NumericInputFilterTests
         Assert.True(Type(box, "a"));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Empty_insert_is_not_swallowed() =>
         Assert.False(Type(Box("num"), ""));
 }

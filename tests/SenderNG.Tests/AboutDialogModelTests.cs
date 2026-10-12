@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using Avalonia.Headless.XUnit;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Localization;
@@ -113,7 +114,7 @@ public class AboutDialogModelTests
         Assert.False(plotter is IPluginDependencies);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void BuildCopyText_starts_with_version_header_and_active_language()
     {
         var prev = LocalizationService.Current;
@@ -202,7 +203,7 @@ public class AboutDialogModelTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RepoUrl_is_fixed_even_when_a_locale_defines_about_repo()
     {
         var prev = LocalizationService.Current;
@@ -220,7 +221,7 @@ public class AboutDialogModelTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Acknowledgement_comes_from_the_active_locale()
     {
         var prev = LocalizationService.Current;
@@ -259,7 +260,7 @@ public class AboutDialogModelTests
             new ModuleInfoItem("HPGL", "1.0", "Author", "MIT").CopyName);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void BuildCopyText_uses_English_module_names_under_a_non_english_locale()
     {
         var prev = LocalizationService.Current;

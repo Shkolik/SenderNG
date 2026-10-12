@@ -69,7 +69,7 @@ public class ProbeViewModelTests : IDisposable
         return demo;
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void AttachServices_initializes_the_marshaller()
     {
         var module = new ProbingModule();
@@ -711,7 +711,7 @@ public class ProbeViewModelTests : IDisposable
         Assert.True(vm.IsProbeZEditable);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Enabled_tools_roundtrip_through_module_settings()
     {
         // Seed the profile with the height map disabled, then save + reload
@@ -762,7 +762,7 @@ public class ProbeViewModelTests : IDisposable
         Assert.False(module3.GetBoolSettingFields().Single(f => f.Key == "module.probing.heightmap").Get());
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Enabled_tools_toggle_roundtrips_in_memory_without_restart()
     {
         // The App Settings flow in one session: uncheck tools through the
