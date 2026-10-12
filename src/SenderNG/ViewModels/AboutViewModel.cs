@@ -23,7 +23,8 @@ public class AboutViewModel : ViewModelBase
                 t.Info!.Version,
                 t.Info.Author,
                 t.Info.License,
-                t.Deps?.Dependencies))
+                t.Deps?.Dependencies,
+                t.Module.Name))
             .OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -39,9 +40,12 @@ public class AboutViewModel : ViewModelBase
     public string AppName => LocText.Resolve("about.name", "SenderNG");
     public string Version => LocText.Format("about.version", "Version: {0}", AssemblyVersion);
     public string Copyright => LocText.Resolve("about.copyright",
-        "Copyright (c) 2024-2026 Andrew Shkolik · 2019-2023 Io Engineering");
+        "Copyright (c) 2024-2026 Andrew Shkolik");
+    public string Acknowledgement => LocText.Resolve("about.acknowledgement",
+        "Derived from ioSender Copyright (c) 2019-2023, Io Engineering (Terje Io) \nBSD 3-Clause License");
+    public string IoSenderUrl => "https://github.com/terjeio/ioSender";
     public string License => LocText.Resolve("about.license", "BSD 3-Clause License");
-    public string RepoUrl => LocText.Resolve("about.repo", "https://github.com/Shkolik/SenderNG");
+    public string RepoUrl => "https://github.com/Shkolik/SenderNG";
     public IReadOnlyList<ThirdPartyLibrary> Libraries => ThirdPartyLibraries.List;
     public IReadOnlyList<ModuleInfoItem> Modules { get; }
 
@@ -90,7 +94,9 @@ public class AboutViewModel : ViewModelBase
 
     /// <summary>
     /// The full clipboard payload: header line, then Libraries / Plugins / System
-    /// sections. Fixed English headings; the header carries the active language.
+    /// sections. Always English — module names use their literal (English)
+    /// <see cref="IModule.Name"/> via <see cref="ModuleInfoItem.CopyName"/>, while the
+    /// Modules tab shows the localized names. The header carries the active language code.
     /// </summary>
     public string BuildCopyText()
     {
@@ -106,7 +112,7 @@ public class AboutViewModel : ViewModelBase
         sb.AppendLine("Plugins:");
         foreach (var m in Modules)
         {
-            sb.AppendLine($"{m.Name} v.{m.Version} — {m.AuthorLicense}");
+            sb.AppendLine($"{m.CopyName} v.{m.Version} — {m.AuthorLicense}");
             if (m.HasDependencies)
                 foreach (var d in m.Dependencies!)
                     sb.AppendLine($"    {d.OneLine}");
@@ -127,11 +133,14 @@ public class AboutViewModel : ViewModelBase
 /// <summary>One loaded plugin row on the About → Modules tab (IPluginInfo metadata + optional IPluginDependencies).</summary>
 public sealed record ModuleInfoItem(
     string Name, string Version, string Author, string License,
-    IReadOnlyList<PluginDependency>? Dependencies = null)
+    IReadOnlyList<PluginDependency>? Dependencies = null, string? EnglishName = null)
 {
     /// <summary>Whether the plugin declared dependencies (drives expander visibility).</summary>
     public bool HasDependencies { get; } = Dependencies is { Count: > 0 };
 
     /// <summary>Card line 2: "Author · License".</summary>
     public string AuthorLicense { get; } = $"{Author} · {License}";
+
+    /// <summary>Always-English name for the copy-to-clipboard text; falls back to <see cref="Name"/>.</summary>
+    public string CopyName => EnglishName ?? Name;
 }

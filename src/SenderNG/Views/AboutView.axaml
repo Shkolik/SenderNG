@@ -63,7 +63,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 						</StackPanel>
                         <TextBlock Text="{Binding Copyright}" FontSize="12" Foreground="#555" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding License}" FontSize="12" Foreground="#555" />
-                        <TextBlock Text="{Binding RepoUrl}" FontSize="12" Foreground="#06c" TextWrapping="Wrap" />
+                        <HyperlinkButton NavigateUri="{Binding RepoUrl}" Content="{Binding RepoUrl}"
+                                         FontSize="12" Foreground="#06c" Padding="0" MinHeight="0"
+                                         Background="Transparent" BorderThickness="0"
+                                         HorizontalAlignment="Left" />
+                        <TextBlock Text="{Binding Acknowledgement}" FontSize="12" Foreground="#555" TextWrapping="Wrap" />
+                        <HyperlinkButton NavigateUri="{Binding IoSenderUrl}" Content="{Binding IoSenderUrl}"
+                                         FontSize="12" Foreground="#06c" Padding="0" MinHeight="0"
+                                         Background="Transparent" BorderThickness="0"
+                                         HorizontalAlignment="Left" />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

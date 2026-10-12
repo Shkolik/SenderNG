@@ -176,6 +176,29 @@ public class AboutDialogHeadlessTests
     }
 
     [AvaloniaFact]
+    public async Task About_tab_urls_are_clickable_hyperlinks()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = HeadlessTestCatalog.Locale;
+            var vm = new AboutViewModel();
+            var window = new AboutView { DataContext = vm };
+            window.Show();
+            for (var i = 0; i < 4; i++) await Pump();
+
+            var links = window.GetVisualDescendants().OfType<HyperlinkButton>().ToArray();
+            Assert.Contains(links, b => b.NavigateUri == new Uri(vm.RepoUrl));
+            Assert.Contains(links, b => b.NavigateUri == new Uri(vm.IoSenderUrl));
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
     public async Task About_dialog_close_command_closes_the_window()
     {
         var prev = LocalizationService.Current;

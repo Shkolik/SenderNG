@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
@@ -179,6 +180,106 @@ public class AboutDialogModelTests
         var text = vm.BuildCopyText();
         var plugins = text[(text.IndexOf("Plugins:", StringComparison.Ordinal) + 8)..text.IndexOf("\nSystem:", StringComparison.Ordinal)];
         Assert.DoesNotContain("\n    ", plugins);
+    }
+
+    [Fact]
+    public void All_shipped_catalogs_define_acknowledgement_and_omit_repo()
+    {
+        var localeDir = Path.Combine(AppContext.BaseDirectory, "Locale");
+        foreach (var code in new[] { "en", "ru", "fr", "de", "es" })
+        {
+            var path = Path.Combine(localeDir, code + ".json");
+            Assert.True(File.Exists(path), $"missing staged catalog {path}");
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            var strings = doc.RootElement.GetProperty("strings");
+            Assert.True(
+                strings.TryGetProperty("about.acknowledgement", out var ack)
+                    && !string.IsNullOrWhiteSpace(ack.GetString()),
+                $"{code}.json is missing a non-blank about.acknowledgement");
+            Assert.False(
+                strings.TryGetProperty("about.repo", out _),
+                $"{code}.json still has about.repo — RepoUrl is a plain URL, not localizable");
+        }
+    }
+
+    [Fact]
+    public void RepoUrl_is_fixed_even_when_a_locale_defines_about_repo()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = TempLocaleService(
+                """{ "locale":"en","strings":{ "about.repo":"https://example.com/en" } }""",
+                """{ "locale":"ru","strings":{ "about.repo":"https://example.com/ru" } }""");
+            LocalizationService.Current.SetLocale("ru");
+            Assert.Equal("https://github.com/Shkolik/SenderNG", new AboutViewModel().RepoUrl);
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [Fact]
+    public void Acknowledgement_comes_from_the_active_locale()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = TempLocaleService(
+                """{ "locale":"en","strings":{ "about.acknowledgement":"ACK-EN" } }""",
+                """{ "locale":"ru","strings":{ "about.acknowledgement":"ACK-RU" } }""");
+            LocalizationService.Current.SetLocale("ru");
+            Assert.Equal("ACK-RU", new AboutViewModel().Acknowledgement);
+            LocalizationService.Current.SetLocale("en");
+            Assert.Equal("ACK-EN", new AboutViewModel().Acknowledgement);
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    /// <summary>Minimal en+ru catalog directory so tests can pin locale-dependent lookups.</summary>
+    private static LocalizationService TempLocaleService(string enJson, string ruJson)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "SenderNG.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "en.json"), enJson);
+        File.WriteAllText(Path.Combine(dir, "ru.json"), ruJson);
+        return LocalizationService.LoadFromDirectory(dir);
+    }
+
+    [Fact]
+    public void ModuleInfoItem_CopyName_prefers_EnglishName_and_falls_back_to_Name()
+    {
+        Assert.Equal("Probing",
+            new ModuleInfoItem("Измерение", "1.0", "Author", "MIT", null, "Probing").CopyName);
+        Assert.Equal("HPGL",
+            new ModuleInfoItem("HPGL", "1.0", "Author", "MIT").CopyName);
+    }
+
+    [Fact]
+    public void BuildCopyText_uses_English_module_names_under_a_non_english_locale()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = TempLocaleService(
+                """{ "locale":"en","strings":{ "module.copy-test.name":"Copy Test" } }""",
+                """{ "locale":"ru","strings":{ "module.copy-test.name":"Тест" } }""");
+            LocalizationService.Current.SetLocale("ru");
+            var vm = new AboutViewModel(new IModule[] { new CopyTestPlugin() });
+
+            Assert.Equal("Тест", vm.Modules[0].Name); // the Modules tab stays localized
+            var text = vm.BuildCopyText();
+            Assert.Contains("Copy Test v.2.0.0 — Tester · MIT", text);
+            Assert.DoesNotContain("Тест", text);
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
     }
 
     [Fact]
