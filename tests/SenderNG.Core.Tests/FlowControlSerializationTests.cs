@@ -42,7 +42,7 @@ namespace SenderNG.Core.Tests;
 // G-code with a culture-sensitive ToLower(). Under tr-TR that maps I to the
 // dotless "ı", so ENDIF serialises as "endıf" and IF as "ıf" - output that
 // cannot be re-parsed. Same defect in the read direction at
-// NGCExpr.ReadFlowControl's ToUpper() (audit §1.16).
+// NGCExpr.ReadFlowControl's ToUpper().
 //
 // The token is built directly rather than through the parser because
 // GCodeParser.ExpressionsSupported defaults to false and nothing in the repo

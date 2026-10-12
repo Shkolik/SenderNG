@@ -46,8 +46,7 @@ public static class MachineTypes
 /// <summary>
 /// One machine's persisted settings — the per-profile graph that replaces the
 /// legacy <c>AppSettings</c> + per-mode <c>ModeSettings</c> pair. Stored one
-/// file per profile (<c>profiles/&lt;id&gt;.json</c>); see
-/// <c>docs/settings-migration.md</c> for the split and the tier mapping.
+/// file per profile (<c>profiles/&lt;id&gt;.json</c>).
 /// <para>
 /// <c>Id</c> is the stable slug used for the file name and as the active
 /// profile pointer in <see cref="GlobalSettings"/> — renaming the display

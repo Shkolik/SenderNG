@@ -40,8 +40,8 @@ namespace SenderNG.Core.Tests;
 // Dbl.ParseList is the number parser behind Position.Parse, which is how every
 // work-offset and tool row is seeded: CoordinateSystem(code, data) and
 // Tool(code, offsets) both chain to it through base(data). So this is not a
-// dormant helper - the review in the audit called it dead because it grepped for
-// "new Position(" and missed the base-constructor chaining (audit §1.15).
+// dormant helper - a prior review called it dead because it grepped for
+// "new Position(" and missed the base-constructor chaining.
 
 public class DblParseTests
 {

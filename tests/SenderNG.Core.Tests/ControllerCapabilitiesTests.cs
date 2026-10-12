@@ -324,7 +324,7 @@ public class ControllerCapabilitiesDemoAndProxyTests
 }
 
 /// <summary>
-/// [AXS:] letter parsing (machine-axis-schema M1): letters reach
+/// [AXS:] letter parsing: letters reach
 /// <see cref="ControllerCapabilities.AxisLetters"/> only when the letter list
 /// is a bare ASCII-letter run whose length matches the resolved axis count —
 /// otherwise empty (conventional fallback; the count stays authoritative).

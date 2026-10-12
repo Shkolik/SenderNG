@@ -130,4 +130,4 @@ One real-world caveat encoded in the tests: **grblHAL native-USB boards (RP2040)
 alarm (hard/soft limit, e-stop, motor fault) can refuse `$X` with **error:79** — a physical reset
 after clearing the cause is required to unlock them. With no limit switches wired, floating inputs
 can read as tripped; clearing that float (e.g. `$5`/`$14` inversion to the normally-open state) is
-what unlocks the board again. See `docs/p0-controller-plumbing-plan.md` for the triage history.
+what unlocks the board again.

@@ -48,7 +48,7 @@ using Xunit;
 namespace SenderNG.Core.Tests;
 
 /// <summary>
-/// §2.3: <c>Dispose</c> must release every handler and subscription it takes.
+/// <c>Dispose</c> must release every handler and subscription it takes.
 /// These tests build a view model directly so disposal can be driven by hand.
 /// </summary>
 [Collection("LegacyStatics")]
@@ -309,8 +309,8 @@ public class MainViewModelDisposeTests
         // the proxy: production registers IGrblService as a GrblServiceProxy
         // (HostSetup.cs:118-119), so SwapInner always takes the proxy.Inner = target
         // branch (:983) and never reaches Grbl = target (:985). Reaching the setter
-        // here is therefore the point -- the audit records this trigger as
-        // unreachable in the app, so the test pins the invariant rather than a
+        // here is therefore the point -- the trigger is unreachable in the app,
+        // so the test pins the invariant rather than a
         // shipped path. Swap twice, since SetField only runs the setter body when
         // the reference actually changes.
         var property = typeof(MainViewModel).GetProperty(

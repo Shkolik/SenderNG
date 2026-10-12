@@ -2,9 +2,8 @@
 
 > This is the high-level, checkable plan for closing the gap to the original
 > ioSender (`terjeio/ioSender` `master` @ `3a817cf`, plus the `foamcut` branch
-> `8ea54fb`). Priorities come from `docs/architecture.md` §3 and
-> `docs/ROADMAP.md`. Detailed per-module deviations live in
-> `docs/probing-gaps.md`; this document is the umbrella view.
+> `8ea54fb`). Priorities come from `docs/ROADMAP.md`; this document is
+> the umbrella view.
 >
 > **How to use:** tick a box when the item is *done and verified*. "Partial"
 > items list exactly what exists today; finish them or explicitly mark them
@@ -12,11 +11,10 @@
 
 ## Priority 0 — Real-controller plumbing (gates everything)
 
-> Implementation plan with checkable items, parallelization markers and a
-> sequencing summary: **`docs/p0-controller-plumbing-plan.md`**.
-
 Nothing on a real machine works reliably until `RealGrblService` can talk to a
-controller. Demo mode masks these gaps in day-to-day use.- [x] **Status-report read loop** — `RealGrblService` now runs a background reader
+controller. Demo mode masks these gaps in day-to-day use.
+
+- [x] **Status-report read loop** — `RealGrblService` now runs a background reader
       (injectable `IGrblTransport`) that feeds status reports into
       `StatusReportParser` continuously, plus a suspendable `?` poller
       (ioSender `PollGrbl` semantics). Verified on a real grbl 1.2i board @ COM6
@@ -28,8 +26,8 @@ controller. Demo mode masks these gaps in day-to-day use.- [x] **Status-report r
 
 SenderNG's jog is **click-to-jog** (each button press sends one `$J=G91 …`
 command); **continuous jog** (hold-to-jog with velocity-based `$J=` and
-stop-on-release via 0x85 JogCancel) is now implemented (2026-09-17) — see
-`docs/continuous-jog.md`. The hold is scoped to the owning pointer, so
+stop-on-release via 0x85 JogCancel) is now implemented (2026-09-17).
+The hold is scoped to the owning pointer, so
 drag-off / capture-lost ends the jog, and a disconnect or the jog panel
 closing cancels an active hold.
 
@@ -70,7 +68,7 @@ closing cancels an active hold.
 
 ## Priority 1 — Base widgets and processes (mill + foam)
 
-The core UI widgets and the processes behind them, per architecture §3.1.
+The core UI widgets and the processes behind them.
 Many already exist; the gaps are listed per widget.
 
 ### Done / largely done (maintained, verify occasionally)
@@ -89,8 +87,8 @@ Many already exist; the gaps are listed per widget.
       controller immediately; positions always come from the controller's MPos /
       WCO report fields (WPos is derived controller-style, never local math).
 - [x] Jog widget (`Modules/Plugins/Jog`) — cross + linear axes, distances/speeds,
-      foam Z/A cross, padlock. Layout is schema-driven (2026-09-07,
-      `docs/machine-axis-schema.md`): crosses from the machine-type preset's
+      foam Z/A cross, padlock. Layout is schema-driven (2026-09-07):
+      crosses from the machine-type preset's
       planes, letters from the controller's `[AXS:]` report (XYUV-style boards
       display correctly), and an under-axed multi-plane machine hides its
       second plane with a status hint instead of showing a dead cross.
@@ -249,8 +247,7 @@ Many already exist; the gaps are listed per widget.
 ### Deferred scope noted here for completeness (do not start without asking)
 
 - [x] **Foam functional mode** — mode is persisted but only changes the jog
-      layout; continuous jog works on the cross incl. Together (2026-09-17,
-      see `docs/continuous-jog.md`).
+      layout; continuous jog works on the cross incl. Together (2026-09-17).
 - [x] **Home / Unlock / Reset / Check** — `$H`/`$X`/realtime Reset and the
       **Check checkbox** (`$C`, dry-run) are all bound in `MainViewModel`.
       Nothing left unbound in this area.
@@ -267,7 +264,7 @@ Many already exist; the gaps are listed per widget.
       (isometric loft | XY/ZA flats) with the wire as the tool.      Depends
       on the machine axis-role schema from ROADMAP's "Machine physical
       configuration" item — **designed, decided and landed**
-      (`docs/machine-axis-schema.md`, 2026-09-07): the plotter's schema
+      (2026-09-07): the plotter's schema
       blocker is gone; it consumes `MachineType.Planes` (layer decomposition)
       and `GrblInfo.AxisLetters` (labels). **A true 3D orbit view LANDED
       (2026-10-08+)** as the `SenderNG.Modules.Plotter.GL` plugin — OpenGL,
@@ -305,16 +302,13 @@ Many already exist; the gaps are listed per widget.
       layout); regenerates live on input changes (2026-09-05).
 - [x] **Height-map apply completeness** — rebuilt on the token machinery
       (`GCodeTransformers.ApplyHeightMap`, 2026-09-05): feeds split at the
-      map grid spacing, arcs split into sub-arcs with helix Z, G91 supported
-      (see probing-gaps.md #5).
+      map grid spacing, arcs split into sub-arcs with helix Z, G91 supported.
 - [x] **Rotation apply origin** — token-level `GCodeTransformers.Rotate` with
       the in-panel origin selector (program-limits corners / center / edge
-      midpoints / DRO / 0,0), probed slope converted with Atan (2026-09-05,
-      probing-gaps.md #6).
+      midpoints / DRO / 0,0), probed slope converted with Atan (2026-09-05).
 - [x] **"Determine X0,Y0 for right-angled workpiece"** — third left-edge probe
       computes the corner (`ProbeMath.ComputeCorner`); corner becomes work
-      zero (G92/G10) and the rotation applies about it (2026-09-05, closes
-      probing-gaps.md "Rotation extras").
+      zero (G92/G10) and the rotation applies about it (2026-09-05).
 
 ## Priority 3 — Steppers calibration
 
@@ -322,13 +316,11 @@ Many already exist; the gaps are listed per widget.
       (2026-09-19):** Settings-menu module with a measured backlash step (no
       hardcoded 0.5 mm overshoot), pre-move space check, `$G` modal
       capture/restore, and a firmware-branched Stop (`0x19` grblHAL / `0x18`
-      classic) shared with the cycle bar — see
-      `docs/superpowers/plans/2026-09-19-stepper-calibration.md` and
-      `docs/superpowers/specs/2026-09-19-stepper-calibration-design.md`.
+      classic) shared with the cycle bar.
 
 ## Priority 4 — Everything else
 
-Explicitly deferred per architecture §3.4. Tick when deliberately started.
+Explicitly deferred per `docs/ROADMAP.md`. Tick when deliberately started.
 
 - [ ] **Lathe wizards** (`CNC Controls Lathe`).
 - [ ] **DragKnife** (`CNC Controls Dragknife`) — transform + config.
@@ -408,7 +400,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | SignalsControl / StatusControl | Signals + state indicator | done |
 | LimitsControl | Program limits panel | done |
 | MacroEditor / MacroExecuteControl | `Plugins/Macro` | done (flyout) |
-| ProbingView + 6 tool controls | `SenderNG.Modules.Probing` (first-party plugin, runtime-discovered) | done (flyout) — see `probing-gaps.md` |
+| ProbingView + 6 tool controls | `SenderNG.Modules.Probing` (first-party plugin, runtime-discovered) | done (flyout) |
 | GotoControl / GotoFlyoutControl | `Plugins/Goto` | done (flyout, homed-gated) |
 | ToolView | `Fixed/Offsets` tool table + Work Parameters/Probe selectors | done — editor (names, touch-off, radius, VisibleTools) + `[None, Tx (name)]` selectors; ioSender's standalone control deliberately not ported |
 | WorkParametersControl | `Fixed/WorkParameters` flyout | done (read/select; editable write-back in `Fixed/Offsets`) |

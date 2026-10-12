@@ -62,7 +62,7 @@ public class GCodeLimitsCalculatorTests
     [Fact]
     public void Compute_arc_on_a_two_axis_board_reports_XY_without_throwing()
     {
-        // Audit §1.10: a board reporting [AXS:2:XY] gives count == 2, so the arc/spline
+        // A board reporting [AXS:2:XY] gives count == 2, so the arc/spline
         // bounding box used to write min[2]/max[2] on a length-2 array.
         var limits = GCodeLimitsCalculator.Compute("G1 F100 X0 Y0\r\nG2 X10 Y0 I5 J0\r\n", "XY");
 

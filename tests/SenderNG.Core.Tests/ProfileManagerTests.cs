@@ -45,7 +45,7 @@ using Xunit;
 namespace SenderNG.Core.Tests;
 
 /// <summary>
-/// Profile manager (docs/settings-migration.md §7): add / duplicate / rename /
+/// Profile manager: add / duplicate / rename /
 /// remove / activate on the App Settings Profiles leaf, backed by
 /// SettingsService CRUD, plus the switch guard and the tree rebuild on
 /// activation.
@@ -288,8 +288,8 @@ public class ProfileManagerTests
 }
 
 /// <summary>
-/// Cached-config VMs must follow profile switches (docs/settings-migration.md
-/// §6.3): after an activation they keep saving to the ACTIVE machine's file and
+/// Cached-config VMs must follow profile switches: after an activation they
+/// keep saving to the ACTIVE machine's file and
 /// reload their state from it.
 /// </summary>
 public class ProfileSwitchReReadTests
@@ -390,9 +390,9 @@ public class ProfileSwitchReReadTests
 }
 
 /// <summary>
-/// Fresh profiles seed machine-coupled defaults from the type preset
-/// (docs/machine-axis-schema.md M3): the demo controller simulates the type's
-/// axis count (Foam needs 4 so both towers exist). Duplicates are machine
+/// Fresh profiles seed machine-coupled defaults from the type preset: the
+/// demo controller simulates the type's axis count (Foam needs 4 so both
+/// towers exist). Duplicates are machine
 /// copies, not templates — they keep the source's configured values.
 /// </summary>
 public class ProfileDemoAxesSeedTests

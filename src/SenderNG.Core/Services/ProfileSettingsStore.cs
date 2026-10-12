@@ -37,8 +37,7 @@ namespace CNC.Core.Services;
 
 /// <summary>Paths and helpers for the two-tier settings layout
 /// (<c>global.json</c> + <c>profiles/&lt;id&gt;.json</c> + per-profile
-/// module companion files such as <c>.probing.json</c>). See
-/// <c>docs/settings-migration.md</c>.</summary>
+/// module companion files such as <c>.probing.json</c>).</summary>
 public static class ProfileSettingsPaths
 {
     public const string GlobalFileName = "global.json";
@@ -72,7 +71,7 @@ public enum SettingsFallbackReason
 /// A settings file that could not be loaded, so the caller fell back to defaults.
 /// Structured rather than a formatted string on purpose: the message is composed
 /// by the host, which owns the <c>app.msg.*</c> resources — Core emits no user-facing
-/// text (audit §1.6).
+/// text.
 /// </summary>
 /// <param name="Path">Full path of the file that could not be loaded.</param>
 /// <param name="Reason">Whether the content was bad or merely unreachable.</param>
@@ -113,7 +112,7 @@ public static class GlobalSettingsStore
 
     /// <summary>Reads <c>global.json</c>, falling back to defaults when the
     /// file is corrupt, truncated or unreadable. Never throws for bad file
-    /// content — this is on the startup path (audit §1.6).
+    /// content — this is on the startup path.
     ///
     /// A file that exists but cannot be loaded is moved aside to
     /// <c>&lt;name&gt;.corrupt</c> and reported through
@@ -158,7 +157,7 @@ public static class GlobalSettingsStore
     /// The host callback resolves a service, formats a message and writes to the
     /// status bar, so it is arbitrary code running inside what is otherwise a
     /// never-throw loader on the <c>HostSetup</c> startup path. An exception
-    /// escaping here would be the same crash audit §1.6 exists to close, arriving
+    /// escaping here would be the same crash this loader exists to close, arriving
     /// through the notification instead of the file.
     ///
     /// The catch is deliberately broad — this is the outermost boundary of a
@@ -221,7 +220,7 @@ public static class ProfilesStore
 
     /// <summary>Loads one profile, or null when it is absent, corrupt,
     /// truncated or unreadable. Being a <c>Try</c> method it must not throw
-    /// for bad file content (audit §1.6). A file that exists but cannot be loaded
+    /// for bad file content. A file that exists but cannot be loaded
     /// is moved aside to <c>&lt;name&gt;.corrupt</c> and reported through
     /// <paramref name="onFallback"/>.</summary>
     /// <param name="dir">Directory holding the <c>profiles</c> subdirectory.</param>
@@ -258,7 +257,7 @@ public static class ProfilesStore
     /// The host callback resolves a service, formats a message and writes to the
     /// status bar, so it is arbitrary code running inside what is otherwise a
     /// never-throw loader on the <c>HostSetup</c> startup path. An exception
-    /// escaping here would be the same crash audit §1.6 exists to close, arriving
+    /// escaping here would be the same crash this loader exists to close, arriving
     /// through the notification instead of the file.
     ///
     /// The catch is deliberately broad — this is the outermost boundary of a

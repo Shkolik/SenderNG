@@ -145,7 +145,7 @@ public class ProbeMathTests
         // The only production caller (ProbeViewModel) already checks the count,
         // so this is not reachable in the app — but ComputeCenter is public, and
         // an unguarded index here reports "Index out of range" with no hint about
-        // which array was short (audit §1.9).
+        // which array was short.
         var ex = Assert.Throws<ArgumentException>(() =>
             ProbeMath.ComputeCenter(Center.Inside, new Pos(0, 0, 5), Array.Empty<Pos>(), 2d, 40, 30));
 

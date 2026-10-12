@@ -6,8 +6,6 @@ Release staging tool for SenderNG. From a clean checkout it publishes the app
 Windows or Linux release — the host OS by default, overridable with
 `--platform`.
 
-Authoritative design: `docs/superpowers/specs/2026-09-18-releasemanager-design.md`.
-
 ## Requirements
 
 - .NET 9 SDK (≥ `9.0.100`, pinned by `global.json`)
@@ -260,5 +258,4 @@ Windows→Linux cross-building (the csproj plugin staging selects natives by
 build OS, not RID); code/plugin signing.
 
 Automated weekly uploads to GitHub Releases with auto-generated notes live in
-`.github/workflows/release.yml`; design:
-`docs/superpowers/specs/2026-10-10-automated-releases-design.md`.
+`.github/workflows/release.yml`.

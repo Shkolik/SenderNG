@@ -204,4 +204,3 @@ rm -rf ~/SenderNG ~/Desktop/SenderNG.desktop
 
 - [README — Linux arm64 (Raspberry Pi)](../README.md#linux-arm64-raspberry-pi)
 - [ReleaseManager runbook](../tools/ReleaseManager/README.md)
-- [arm64 support design](superpowers/specs/2026-09-26-arm64-linux-support-design.md)

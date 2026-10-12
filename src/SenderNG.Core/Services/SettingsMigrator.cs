@@ -38,8 +38,7 @@ namespace CNC.Core.Services;
 
 /// <summary>
 /// One-time migration of a legacy flat or mode-scoped <c>settings.json</c>
-/// into the two-tier layout (<c>global.json</c> + <c>profiles/&lt;id&gt;.json</c>),
-/// following the mapping in <c>docs/settings-migration.md</c> §4-§5:
+/// into the two-tier layout (<c>global.json</c> + <c>profiles/&lt;id&gt;.json</c>):
 /// <list type="bullet">
 /// <item>every existing mode block (Mill, Foam) becomes one profile, active = old <c>Mode</c>;</item>
 /// <item>per-mode fields split by profile; the mode-nested Jog section unwraps;</item>

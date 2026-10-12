@@ -143,7 +143,7 @@ public static class GCodeLimitsCalculator
         // Arcs/splines run on the selected plane (XYZ) — fold their box in, but
         // only for axes this board actually has: the arrays are sized from the
         // board's own AxisLetters, which can be shorter than three on a 2-axis
-        // machine (audit §1.10). The present bits are raised inside the loop so
+        // machine. The present bits are raised inside the loop so
         // they describe the axes that really got a value, as the linear path above
         // already does with its `i >= count` skip.
         for (var i = 0; i < 3 && i < min.Length; i++)

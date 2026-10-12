@@ -2614,7 +2614,7 @@ namespace CNC.GCode
             // A start that coincides with the end divides by sqrt(0) below, and the
             // offsets then evaluate 0 * Infinity to NaN with a perfectly positive
             // discriminant — the check above cannot see it, so the centre itself has
-            // to be validated (audit §1.11).
+            // to be validated.
             if (!double.IsFinite(center[0]) || !double.IsFinite(center[1]))
                 throw new GCodeException(LibStrings.FindResource("ParserRadiusErr"));
 
@@ -2685,7 +2685,7 @@ namespace CNC.GCode
          * The count comes from dividing by sqrt(a * (2r - a)), which only has a
          * real, non-zero value while the tolerance is strictly under twice the
          * radius. Outside that window it produced two bad values, both reachable
-         * at the default 0.1 tolerance with no user input (audit §1.14):
+         * at the default 0.1 tolerance with no user input:
          * a*(2r-a) < 0 made sqrt NaN, and (int)NaN is 0, so the sampling loop
          * never ran and the arc collapsed to one straight chord; at exactly
          * a*(2r-a) == 0 the division was by zero, and (int)Infinity is
@@ -2769,7 +2769,7 @@ namespace CNC.GCode
             // spans 0..1, so a large value has no meaning to preserve and falls
             // back to the engine's fixed 0.002 step. Resolved once up front
             // rather than on every pass of the sampling loop, which used to
-            // rewrite the caller's parameter mid-run (audit §1.14).
+            // rewrite the caller's parameter mid-run.
             double minStep = arcResolution > 1d ? 0.002d : arcResolution;
 
             double t = 0d, step = 0.1d;
@@ -3589,7 +3589,7 @@ namespace CNC.GCode
             // Invariant on purpose: this text is re-parsed as G-code, and under a
             // tr-TR locale the culture-sensitive ToLower() writes the dotless
             // "ı" for every I in the statement (ENDIF -> "endıf"), producing a
-            // file the parser cannot read back (audit §1.16).
+            // file the parser cannot read back.
             return base.ToString() + "O" + O + FlowControl.ToString().ToLowerInvariant() + Expression;
         }
     }

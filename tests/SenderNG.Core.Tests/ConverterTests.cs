@@ -159,7 +159,7 @@ public class ConverterTests
         Assert.Contains("G81X3R1", output); // only changed words are emitted
     }
 
-    // ---- Excellon: slot interpolation bound (audit §1.8) ----
+    // ---- Excellon: slot interpolation bound ----
 
     [Fact]
     public void Excellon_slot_positions_for_a_zero_diameter_tool_stays_small()
@@ -212,7 +212,7 @@ public class ConverterTests
         Assert.InRange(CountOccurrences(output, "G81"), 1, 10000);
     }
 
-    // ---- Excellon: modal coordinates (audit §1.7) ----
+    // ---- Excellon: modal coordinates ----
 
     private static int CountOccurrences(string haystack, string needle)
     {

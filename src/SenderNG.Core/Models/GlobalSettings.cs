@@ -38,7 +38,6 @@ namespace CNC.Core.Services;
 /// here. Holds the UI language, the active-profile pointer, the recent-file
 /// list, the network-availability feature gate, the profile registry (id →
 /// display name) and global-scoped module sections (currently only Console).
-/// See <c>docs/settings-migration.md</c>.
 /// </summary>
 public class GlobalSettings
 {

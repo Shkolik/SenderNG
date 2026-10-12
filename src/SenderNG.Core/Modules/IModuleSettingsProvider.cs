@@ -34,7 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace SenderNG.Core.Modules;
 
-/// <summary>Where a module's settings section is persisted (docs/settings-migration.md §6.4).</summary>
+/// <summary>Where a module's settings section is persisted.</summary>
 public enum SettingsScope
 {
     /// <summary>Machine-coupled: the section lives in the active profile's file

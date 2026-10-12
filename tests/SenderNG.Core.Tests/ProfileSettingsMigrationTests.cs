@@ -39,8 +39,7 @@ namespace SenderNG.Core.Tests;
 
 /// <summary>
 /// Tests for the two-tier settings layout (global.json + profiles/&lt;id&gt;.json)
-/// and the one-time migration of a legacy settings.json, per
-/// docs/settings-migration.md.
+/// and the one-time migration of a legacy settings.json.
 /// </summary>
 public class ProfileSettingsMigrationTests
 {

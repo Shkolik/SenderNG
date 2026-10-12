@@ -38,7 +38,7 @@ namespace SenderNG.Core.Tests;
 /// <summary>
 /// A corrupt, truncated or hand-edited settings file must fall back to
 /// defaults, never throw. These reach the startup path through
-/// <see cref="SettingsService"/> (audit §1.6).
+/// <see cref="SettingsService"/>.
 /// </summary>
 public class ProfileSettingsStoreCorruptionTests
 {

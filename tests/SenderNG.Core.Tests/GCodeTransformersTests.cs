@@ -289,7 +289,7 @@ public class GCodeTransformersTests
 
     // The chord-tolerance count divides by sqrt(a * (2r - a)), which is only real
     // while a < 2r. Both failure modes below are reachable at the default 0.1
-    // tolerance with no user input, from a small-radius arc (audit §1.14).
+    // tolerance with no user input, from a small-radius arc.
 
     [Theory]
     [InlineData(0.04d)]   // a*(2r-a) < 0 -> sqrt NaN -> (int)NaN == 0

@@ -678,10 +678,10 @@ public class JogProxyInitialStateTests
 }
 
 /// <summary>
-/// Schema-driven jog layout (docs/machine-axis-schema.md M2): crosses derive
+/// Schema-driven jog layout: crosses derive
 /// from the machine-type preset's planes, letters follow the controller's
 /// [AXS:] report, and an under-axed multi-plane machine hides its second
-/// plane (decision #3) instead of showing a dead cross.
+/// plane instead of showing a dead cross.
 /// </summary>
 public class JogSchemaLayoutTests
 {

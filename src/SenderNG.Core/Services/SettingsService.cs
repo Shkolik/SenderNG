@@ -36,7 +36,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CNC.Core.Services;
 
 /// <summary>
-/// Two-tier settings store (see <c>docs/settings-migration.md</c>):
+/// Two-tier settings store:
 /// <list type="bullet">
 /// <item><b>Global</b> (<c>global.json</c> — <see cref="GlobalSettings"/>):
 /// language, recent files, network-availability gate, profile registry,
@@ -74,7 +74,7 @@ public class SettingsService
     /// profile file.</summary>
     /// <param name="onFallback">Invoked when a settings file exists but cannot be
     /// loaded. The host passes a callback that shows the user a notice; Core
-    /// itself stays silent and free of user-facing text (audit §1.6).</param>
+    /// itself stays silent and free of user-facing text.</param>
     public SettingsService(string? dir = null, IServiceProvider? services = null,
                            Action<SettingsFallback>? onFallback = null)
     {
@@ -187,9 +187,9 @@ public class SettingsService
     public MachineProfile CreateProfile(string name, string machineTypeId, string? copyFromId = null)
     {
         var id = UniqueId(name);
-        // Fresh profiles seed machine-coupled defaults from the type preset
-        // (machine-axis-schema.md M3): the demo controller simulates the type's
-        // axis count (Foam needs 4 so both towers exist). Duplicates keep the
+        // Fresh profiles seed machine-coupled defaults from the type preset: the
+        // demo controller simulates the type's axis count (Foam needs 4 so both
+        // towers exist). Duplicates keep the
         // source machine's configured values — a copy is that machine, not a
         // fresh template.
         var profile = copyFromId is null

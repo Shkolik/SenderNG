@@ -40,11 +40,11 @@ using Xunit;
 namespace SenderNG.Core.Tests;
 
 // Excellon2GCode divides a drill/slot START coordinate by both the format factor
-// and the unit scale, but divided the G85 END by the unit scale only
-// (audit §1.17). Every header that declares a decimal format therefore produced
+// and the unit scale, but divided the G85 END by the unit scale only.
+// Every header that declares a decimal format therefore produced
 // a slot whose end is off by exactly that format's factor - 1000x for a
 // 3-decimal file - which also inflated the interpolated G81 hole count by the
-// same factor (the §1.8 length-derived count).
+// same factor (the length-derived count).
 //
 // The tests below pin the END against the START rather than against a magic
 // number, because the START was already correct: that is what makes this a
@@ -121,9 +121,8 @@ public class ExcellonSlotScalingTests
     [Fact]
     public void Excellon_tz_slot_does_not_inflate_the_interpolated_hole_count()
     {
-        // §1.17 amplified §1.8: the G81 count is derived from the slot length
-        // (§1.8 :351), so a 1000x-too-long slot emitted ~1975 holes for a
-        // 0.266mm slot that needs 2.
+        // The inflated length also inflated the length-derived G81 count, so a
+        // 1000x-too-long slot emitted ~1975 holes for a 0.266mm slot that needs 2.
         var gcode = Convert("METRIC,TZ", "X0001234Y0000500G85X0001500Y0000500");
 
         Assert.Equal(2, gcode.Split('\n').Count(l => l.Contains("G81")));

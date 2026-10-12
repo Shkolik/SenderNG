@@ -1,53 +1,177 @@
 # SenderNG
 
-**Lightweight cross-platform (Windows + Linux) grblHAL gcode sender based on [ioSender](https://github.com/terjeio/ioSender) by Io Engineering (Terje Io).**
+**Modern cross-platform (Windows + Linux + Linux ARM64) grblHAL gcode sender based on [ioSender](https://github.com/terjeio/ioSender) by Io Engineering (Terje Io).**
 
-SenderNG is a diverged, focused fork of ioSender — stripped to foam cutting, CNC milling, probing, and USB/Ethernet connectivity. The sender supports as many axes as the controller reports (axis count comes from the firmware, not the app; producing multi-axis g-code is CAM's scope). Lathe, DragKnife and other heavy modules are deferred. Not affiliated with or endorsed by Io Engineering / upstream ioSender.
+[![CI](https://github.com/Shkolik/SenderNG/actions/workflows/ci.yml/badge.svg)](https://github.com/Shkolik/SenderNG/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Shkolik/SenderNG?include_prereleases)](https://github.com/Shkolik/SenderNG/releases)
+[![License](https://img.shields.io/github/license/Shkolik/SenderNG)](LICENSE)
 
-> **Status:** Private development. Cross-platform Avalonia UI + .NET 9 — engine and shell functional: demo/offline mode, serial + TCP connect, DRO/Jog/Probing widgets, localization (en/ru). Legacy Windows build remains at [Shkolik/ioSender](https://github.com/Shkolik/ioSender) (branch `foamcut`).
+![SenderNG](/docs/images/main_screen.png)
+![SenderNG](/docs/images/plot_jog.png)
 
-## Scope (v0.1)
+## Table of contents
 
-- Foam cutting and milling
-- Probing (Center/Edge/HeightMap)
-- Excellon (`.drl`) / HPGL (`.plt`) → g-code converters
-- Stepper-calibration wizard
-- USB serial + Ethernet (Telnet/WebSocket), YModem/SD
-- Program-view plotter plugins: 2D Skia plotter (isometric/flat projection on
-  Skia) + 3D OpenGL orbit plotter (`SenderNG.Modules.Plotter.GL`, OpenGL 3.1+ / GLES 3.0+)
-  — design + lib comparison: `docs/machine-config-research.md`
-- Camera: deferred — if ever wanted, as a 3rd-party plugin (libs live in
-  the decision tree: `docs/ROADMAP.md`)
-- Deferred: Lathe wizards, DragKnife
+- [About](#about)
+- [Features](#features)
+- [App settings](#app-settings)
+- [Supported controllers and limitations](#supported-controllers-and-limitations)
+- [Plugins](#plugins)
+- [System requirements](#system-requirements)
+- [Origin and License](#origin-and-license)
+- [Development](#development)
+- [Documentation](#documentation)
+- [Running from release assets](#running-from-release-assets)
+  - [Windows](#windows)
+  - [Linux](#linux)
+- [Linux release build (WSL2)](#linux-release-build-wsl2)
+- [Linux arm64 (Raspberry Pi)](#linux-arm64-raspberry-pi)
+- [Contributing](#contributing)
+- [Acknowledgements](#acknowledgements)
 
-## Origin & License
+## About
 
-- Based on `ioSender` `2.0.48` (`terjeio/ioSender`) — see `CNC Core/`, `CNC Controls` for original BSD 3-Clause code.
-- **License:** BSD 3-Clause — `LICENSE` retains `Copyright (c) 2019-2023, Io Engineering (Terje Io)` and adds `Copyright (c) 2024-2026, Andrew Shkolik`. See `LICENSE` for full text.
+SenderNG is a focused fork of ioSender. The main differences are cross-platform support, 2-plane machine support (hotwire CNC foam cutters) and a Demo mode that lets users test G-code without hardware. The sender supports as many axes as the controller reports — the axis count comes from the firmware, not the app; producing multi-axis G-code is CAM's scope. The base app contains only core functionality and can be extended with plugins (see [Plugins](#plugins)).
+
+## Features
+
+- Cross-platform: Windows + Linux x64 + Linux ARM64. ARM64 is tested on a Raspberry Pi 4B; x64 is tested on Ubuntu 22.04 and Mint 21.3.
+- 2-plane machine support (hotwire CNC foam cutters)
+
+![Foam mode](/docs/images/foam_plot_jog.png)
+
+- Connect: three-tab connect dialog — Serial (port list, refresh, baud), Network (TCP, for grblHAL Ethernet boards) and Demo (always available, with a disclaimer). The app starts disconnected and shows an obvious "NOT CONNECTED" state until you pick one.
+
+![Connect dialog](/docs/images/connect.png)
+
+- Demo mode (test G-code without hardware)
+
+![Connect dialog - demo mode](/docs/images/connect_demo.png)
+
+- Localization (en/ru/fr/es/de). English and Russian are proofread; the other languages are automatic translations.
+
+![Localization settings](/docs/images/localization.png)
+
+- Jogging with a hold-to-jog continuous step (hold to move, release to stop)
+
+![Jog widget](/docs/images/jog.png)
+
+- Probing (tool-length, edge, center, rotation and height-map cycles)
+
+![Probing widget](/docs/images/probing.png)
+
+- Plotter (2D/Isometric). No orbiting, but works everywhere.
+
+![Plotter widget](/docs/images/plot_iso.png)
+
+- Plotter 3D. Supports orbiting and snap views, but requires OpenGL 3.1+ and may be resource-hungry (tested on an Intel Compute Stick — may be slow, RPi 4B works just fine)
+
+![Plotter 3D widget](/docs/images/plot_3d.png)
+
+- Macros
+
+![Macros widget](/docs/images/macros.png)
+
+- Excellon & HPGL converters
+- Outline
+- Coolant/mist control
+- MDI
+- Offsets and tool table support (grblHAL)
+
+![Offsets widget](/docs/images/offsets.png)
+
+- G-code transforms: Rotate, ArcsToLines, Compress (File → Transform)
+- Keyboard shortcuts with a fully remappable keymap (remap screen in App Settings)
+
+![Hotkeys settings](/docs/images/hotkeys.png)
+
+- Cycle bar: the single run-control surface (start/hold/resume/stop/rewind)
+
+![Cycle bar](/docs/images/cycle.png)
+
+- Cutting widget: live feed and speed readout, feed/rapids/speed override controls that mirror the controller, and spindle control
+
+![Cutting widget](/docs/images/cutting.png)
+
+- Stepper calibration wizard
+
+![Stepper calibration](/docs/images/calibration.png)
+
+- Automatic controller type and features detection ($I handshake at connect)
+- Instant settings update
+- Machine profiles and settings presets. Settings are saved per machine profile, so switching between different machines is as easy as selecting a profile.
+
+![Profiles settings](/docs/images/profiles.png)
+
+> **Note:** Not affiliated with or endorsed by Io Engineering / upstream ioSender.
+
+> **Status:** Early stages. Cross-platform Avalonia UI + .NET 9+; demo/offline mode, serial + TCP connect, DRO/Jog/Probing, Plotter widgets, localization (en/ru/fr/es/de).
+
+## App settings
+
+Everything is configured from App Settings, scoped to the active machine profile (one file per machine plus a `global.json`, with a profile manager inside the settings). Almost any widget can be hidden from there — every module has a visibility toggle (the built-ins: DRO, Jog, Console, Program, Plotter, Coolant, plus the tabs installed by plugins), so the UI shows only what your machine needs. Hotkey remapping, converter parameters and per-module options live there too.
+
+![App settings](/docs/images/settings.png)
+
+## Supported controllers and limitations
+
+SenderNG speaks the grbl / grblHAL protocol:
+
+- **grblHAL** — the primary target. Full capability detection via the connect-time `$I` handshake: axis count and letters (`[AXS:]`), tool count, options, signals, settings catalog (`$ES`/`$EG`), the G10 L1 tool table, and extended coordinate systems (G59.2/G59.3).
+- **Classic grbl 1.1 and forks** (e.g. the mega5x 1.2i build) — verified against real boards. Detection degrades gracefully: no `[AXS:]` → 3-axis default, settings fall back to the embedded English catalog, no G10 L1 tool table, coordinate systems limited to G54..G59, and mist (M7) support is assumed rather than reported.
+- **Transports** — serial (COM ports, `/dev/ttyUSB*`, `/dev/ttyACM*`), plain TCP (grblHAL Ethernet boards), or Demo mode.
+
+Limitations:
+
+- TCP only — no telnet option negotiation and no WebSocket transport yet.
+- The app shows as many axes as the firmware reports; producing multi-axis G-code is CAM's scope.
+- No machine kinematics model yet — jog layout is driven by machine profiles (Mill / Foam presets), not by an axis-role map.
+- Camera support is deferred indefinitely (if ever, as a 3rd-party plugin).
+- The Plot 3D tab ships on every platform but is hidden by default; on ARM64 it renders via Mesa.
+
+## Plugins
+
+The base app ships only core functionality; everything else is a plugin — a separate assembly discovered by scanning `Modules/*.dll` at startup. No DLL, no feature: the core bundle runs fine without any of them, and installing one is a straight copy of the plugin zip's contents into the bundle's `Modules/` folder (see [Running from release assets](#running-from-release-assets)). This repository includes:
+
+- Probing — tool-length, edge, center, rotation and height-map probing cycles
+- Plotter (2D/Isometric)
+- Plotter 3D (OpenGL orbit view)
+- Excellon converter
+- HPGL converter
+
+Lathe, DragKnife and other heavy modules are planned. To write your own plugin, see [docs/plugin-development.md](docs/plugin-development.md).
+
+## System requirements
+
+| | Minimum |
+|---|---|
+| Windows | Windows 10/11 x64 — the bundle is self-contained, no .NET install needed |
+| Linux x64 | Distro with X11; `libx11-6 libice6 libsm6 libfontconfig1` (Debian/Ubuntu package names) |
+| Linux ARM64 | 64-bit Raspberry Pi OS on a Pi 4B — a 32-bit userland cannot run a `linux-arm64` bundle |
+| Serial | membership in the `dialout` group on Linux (see [Linux](#linux)) |
+| Controller | grblHAL or grbl 1.1 over serial or plain TCP — see [Supported controllers and limitations](#supported-controllers-and-limitations) |
+
+## Origin and License
+
+- Based on `ioSender` `2.0.48` (`terjeio/ioSender`) — see [original BSD 3-Clause](https://github.com/terjeio/ioSender/blob/master/LICENSE).
+- **License:** BSD 3-Clause — [LICENSE](/LICENSE) retains `Copyright (c) 2019-2023, Io Engineering (Terje Io)` and adds `Copyright (c) 2024-2026, Andrew Shkolik`. See `LICENSE` for full text.
 - Avalonia UI (`AvaloniaUI/Avalonia`) is MIT — compatible with BSD.
 
-## Roadmap
-
-1. ✅ `src/SenderNG.Core` (`net9.0`) — engine extracted (`Grbl.cs`, `GCodeParser.cs`, `GCodeEmulator.cs`, `NGCExpr.cs` + foam patches) — done
-2. ✅ `src/SenderNG` (`net9.0`) — Avalonia shell, probing UI, settings — done
-3. ✅ Program-view plotter plugins — 2D Skia plotter: isometric/flat quadrant
-   views + two-carriage iso loft (design: `docs/machine-config-research.md`)
-   — done (2026-09-08). 3D OpenGL
-   orbit plotter: `src/SenderNG.Modules.Plotter.GL` (OpenGL 3.1+ / GLES 3.0+), "Plot 3D"
-   center tab behind Skia's (order 23), hidden by default. Camera is
-   deferred (possible future 3rd-party plugin — see `docs/ROADMAP.md`).
-   Linux serial (`/dev/ttyUSB*` / `/dev/ttyACM*`) is already in the sender.
+> **No warranties:** THE SOFTWARE IS PROVIDED "AS IS", without warranty of any kind, express or implied. See [LICENSE](/LICENSE) for the full BSD 3-Clause disclaimer.
 
 ## Development
 
 ```bash
-# .NET 9 SDK + Avalonia 12 required
+# .NET 9 SDK + Avalonia 12 required (global.json pins 9.0.100)
 dotnet build
+dotnet test SenderNG.sln
 dotnet run --project src/SenderNG
 ```
 
-Running from source on Linux? The `dialout` group requirement applies here as
-well — see [Serial port permission errors](#serial-port-permission-errors).
+## Documentation
+
+- [Architecture](docs/architecture.md) — solution layout, engine and shell
+- [Localization](docs/localization.md) — adding and editing locale catalogs
+- [arm64 cookbook](docs/arm64-cookbook.md) — build, install and verify on a Raspberry Pi
 
 ## Running from release assets
 
@@ -57,8 +181,7 @@ all plugins and publishes a prerelease to the
 [Releases page](https://github.com/Shkolik/SenderNG/releases) — unless nothing
 changed since the previous release, in which case it skips. Formal releases use
 the same workflow: bump `<Version>` in `src/SenderNG/SenderNG.csproj`, then run
-the workflow manually from the Actions tab with *stable* checked. Design:
-`docs/superpowers/specs/2026-10-10-automated-releases-design.md`.
+the workflow manually from the Actions tab with *stable* checked.
 
 Release zips are produced per platform by `tools/ReleaseManager`. On Windows,
 build one with:
@@ -73,7 +196,8 @@ fallback. (To build the **Linux** zip from a Windows host, use
 writes `output\linux` and never reads, writes or deletes `output\win64`.)
 A release folder (`output/win64/` on Windows, `output/linux/` or
 `output/linux-arm64/` on Linux) looks like this. The example is an x64
-release (arm64 ships the same plugin set — Plotter GL runs on Mesa):
+release (arm64 ships the same plugin set — the Plot 3D tab runs on Mesa and is
+hidden by default):
 
 ```
 SenderNG-<ver>-<suffix>.zip                  ← core bundle: the whole app
@@ -267,7 +391,8 @@ the child process, which may still be writing to `output\linux`.
 The target is 64-bit arm64 Linux (Raspberry Pi 4B); the bundle has been
 built, installed, and run on a Pi 4B — see the note below.
 **The Plot 3D tab runs on arm64** (OpenGL via Mesa) — every plugin ships on
-every platform.
+every platform; the tab itself is hidden by default and can be enabled in App
+Settings after installing the `plotter-gl` plugin.
 
 Build it from WSL2 on your Windows machine; no .NET SDK on the Pi is needed:
 
@@ -297,6 +422,10 @@ On the Pi:
   useful over a bare SSH shell. Use a local desktop, or forward X11.
 - **Use 64-bit Raspberry Pi OS.** A 32-bit userland cannot run a `linux-arm64`
   bundle.
+
+## Contributing
+
+Contributions are welcome. Found a bug or have an idea? [Open an issue](https://github.com/Shkolik/SenderNG/issues) — bug reports and feature requests are just as welcome as code. Improvements are welcome as pull requests: keep changes focused, follow the existing conventions, and make sure `dotnet build SenderNG.sln` and `dotnet test SenderNG.sln` pass. See [AGENT.md](AGENT.md) for the full contributor workflow.
 
 ## Acknowledgements
 

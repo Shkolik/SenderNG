@@ -37,8 +37,7 @@ namespace CNC.Core.Services;
 /// machine type is an ordered list of carriage planes, each plane an ordered
 /// list of roles, and the flattened position is the grbl axis index (grbl's
 /// internal axis order is fixed — index 0 = first axis — and grblHAL letter
-/// remaps never reorder axes). No letter→role dictionaries exist anywhere;
-/// see <c>docs/machine-axis-schema.md</c> for the decision record.
+/// remaps never reorder axes). No letter→role dictionaries exist anywhere.
 /// </summary>
 public enum AxisRoleKind
 {
@@ -127,8 +126,8 @@ public sealed class MachineType
 /// Registry of machine-type presets. Built-ins (<see cref="MachineTypes"/>) are
 /// registered in the static constructor; plugins may register their own types
 /// (a later module-contract hook — the API exists here from day one). Unknown
-/// ids resolve to Mill + the caller surfaces a warning (the settings-migration
-/// load rule: a removed plugin type must not brick a profile).
+/// ids resolve to Mill + the caller surfaces a warning (a removed plugin
+/// type must not brick a profile).
 /// </summary>
 public static class MachineTypeCatalog
 {

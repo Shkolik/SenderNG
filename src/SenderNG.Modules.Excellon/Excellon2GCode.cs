@@ -61,7 +61,7 @@ namespace SenderNG.Modules.Excellon;
 /// (1000x on a 3-decimal file) and inflated the interpolated hole count to
 /// match. Output now differs from ioSender for files that declare a decimal
 /// format AND contain a slot. It is a wrong-coordinate fix, not a behaviour
-/// change worth preserving - do not restore parity here (audit §1.17).
+/// change worth preserving - do not restore parity here.
 /// </para>
 /// </summary>
 public class Excellon2GCode
@@ -94,7 +94,7 @@ public class Excellon2GCode
     private double _curX, _curY;
 
     // Input lines that were dropped; reported in the output so a corrupt file
-    // cannot silently lose holes (audit §1.7).
+    // cannot silently lose holes.
     private int _skippedLines;
 
     public string FileType => "Excellon files";
@@ -240,8 +240,8 @@ public class Excellon2GCode
                                     // and unit scale. The original divided only the
                                     // start, which put every G85 end out by the whole
                                     // format factor - 1000x on a 3-decimal file - and
-                                    // inflated the interpolated hole count to match
-                                    // (audit §1.17). Deliberately NOT kept for parity
+                                    // inflated the interpolated hole count to match.
+                                    // Deliberately NOT kept for parity
                                     // with ioSender: this one is a coordinate error
                                     // that drives the machine off the board.
                                     // An omitted end axis carries the start's value,
@@ -264,7 +264,7 @@ public class Excellon2GCode
             catch (Exception)
             {
                 // Bad line — skip, like ioSender, but count it: a silently dropped
-                // line means a silently missing hole (audit §1.7). Blank lines and
+                // line means a silently missing hole. Blank lines and
                 // `;` comments are not input, so they are not counted.
                 if (!string.IsNullOrWhiteSpace(s) && !s.StartsWith(';'))
                     _skippedLines++;
@@ -362,7 +362,7 @@ public class Excellon2GCode
 
     /// <summary>Upper bound on the G81 positions used to interpolate one slot.
     /// A PCB slot needs tens of positions; this exists only so a malformed tool
-    /// diameter cannot make the interpolation loop unbounded (audit §1.8).</summary>
+    /// diameter cannot make the interpolation loop unbounded.</summary>
     internal const int MaxSlotPositions = 10000;
 
     /// <summary>Number of G81 positions used to interpolate a slot of length

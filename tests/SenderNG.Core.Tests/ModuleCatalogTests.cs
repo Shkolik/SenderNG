@@ -155,7 +155,7 @@ public class ModuleCatalogTests
     [Fact]
     public void Settings_provider_defaults_to_profile_scope()
     {
-        // docs/settings-migration.md §6.4: machine-coupled by default; only
+        // Machine-coupled by default; only
         // modules that opt in (e.g. Console) persist to global.json.
         IModuleSettingsProvider provider = new FieldlessProvider();
         Assert.Equal(SettingsScope.Profile, provider.Scope);

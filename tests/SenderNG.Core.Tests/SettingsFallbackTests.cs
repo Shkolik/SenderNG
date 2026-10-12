@@ -39,7 +39,7 @@ namespace SenderNG.Core.Tests;
 /// <summary>
 /// A settings file that cannot be loaded must (a) say so and (b) keep the
 /// original bytes, because the next Save overwrites the file in place. These
-/// reach the startup path through SettingsService (audit §1.6).
+/// reach the startup path through SettingsService.
 /// </summary>
 public class SettingsFallbackTests
 {

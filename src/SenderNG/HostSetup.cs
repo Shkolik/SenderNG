@@ -210,7 +210,7 @@ public static class HostSetup
     /// <summary>
     /// Composes the one user-facing string for a settings file that could not be
     /// loaded. Lives here, not in Core, because the app.msg.* resources are the
-    /// host's (audit §1.6). One key per (reason x Quarantined) cell: the two axes
+    /// host's. One key per (reason x Quarantined) cell: the two axes
     /// are independent facts, and collapsing either one makes the message untrue —
     /// an unreadable file is not a damaged one, and a file that was not moved is
     /// not preserved.

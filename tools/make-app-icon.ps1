@@ -6,8 +6,7 @@ param(
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 
-# Frame sizes and the split between BMP and PNG encoding are fixed by the
-# design spec (docs/superpowers/specs/2026-10-11-app-icon-design.md). Do not
+# Frame sizes and the split between BMP and PNG encoding are fixed. Do not
 # drop 24: Avalonia's Win32 IconImpl hardcodes 24px as the Win10+ taskbar size
 # and silently upscales from 16 if it is missing.
 $script:IconFrameSizes = @(16, 24, 32, 48, 64, 128, 256)

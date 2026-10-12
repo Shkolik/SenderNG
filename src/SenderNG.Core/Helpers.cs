@@ -168,7 +168,7 @@ namespace CNC.Core
             // NumberStyles.Float plus surrounding whitespace. The old set allowed
             // only a sign and a decimal point, so exponent notation ("1.5e-3")
             // and any padding (" 1.5") failed and the element silently became
-            // 0.0d - a real number read as zero, with no error (audit §1.15).
+            // 0.0d - a real number read as zero, with no error.
             const NumberStyles Real = NumberStyles.AllowLeadingSign
                                     | NumberStyles.AllowDecimalPoint
                                     | NumberStyles.AllowExponent

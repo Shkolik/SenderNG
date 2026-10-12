@@ -67,7 +67,7 @@ namespace SenderNG.Core.Tests;
 /// class "Ports"); elsewhere every discovery attempt is bounded by a deadline, so
 /// a wedged port is abandoned instead of hanging the suite.
 ///
-/// Signals/limits remain untested on hardware as noted in p0-controller-plumbing-plan.
+/// Signals/limits remain untested on hardware.
 /// </summary>
 public class RealGrblHardwareTests
 {

@@ -75,7 +75,7 @@ public class JsonDefaultsTests
     {
         // An interface has no deserializable shape: System.Text.Json throws
         // NotSupportedException, not JsonException. This is the widened case
-        // the audit §7.3 finding was actually about. It must be a NON-collection
+        // worth pinning. It must be a NON-collection
         // interface: STJ materialises well-known collection interfaces
         // (IList<T>, IEnumerable<T>, ...) into List<T>, so those return a value
         // instead of throwing and would make this assertion vacuous.

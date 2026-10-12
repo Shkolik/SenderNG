@@ -18,9 +18,7 @@ and left only the delegate-based `IProgramTransformTarget` transform tap-point
 `InternalsVisibleTo("SenderNG.Modules.Probing.Tests")`. The plugin boundary
 re-opened the **height-map 3D preview** gate — the "Avalonia host problem" no
 longer blocks a renderer, tracked as an open gap in
-`docs/iosender-gaps.md`. Design
-spec: `docs/superpowers/specs/2026-09-23-probing-plugin-design.md` (approved
-2026-09-23).
+`docs/iosender-gaps.md`.
 
 ## Controller capability detection (grbl handshake) — DONE
 
@@ -109,15 +107,15 @@ set was checked for parity defaults before finalizing.
   against that model and the config UI can follow later without blocking it.
   Subsumes the axis-layout half of Foam CNC mode below. Research on how
   other senders (ioSender, UGS, LinuxCNC, Mach, Centroid, Masso, foam CAM
-  tools) model this lives in `docs/machine-config-research.md`; V1 lean is
+  tools) model this informed the design; V1 lean is
   named presets (Mill / Foam) with a per-axis role map underneath. The
-  **schema is designed and decided** (2026-09-07):
-  `docs/machine-axis-schema.md` — positional roles + controller letters
+  **schema is designed and decided** (2026-09-07): positional roles +
+  controller letters
   (`[AXS:]` parsing, jog migration, demo seeding are the agreed first
   landing); the plotter consumes it separately. The
   foam plotter has field precedents now — GrblHotWire's two flat canvases
-  (XY | ZA, one per carriage plane) and hoWiGS's isometric loft (see the
-  research doc). V1 decision: isometric + flat views on a plain canvas,
+  (XY | ZA, one per carriage plane) and hoWiGS's isometric loft (informed by
+  the research). V1 decision: isometric + flat views on a plain canvas,
   no 3D lib; true 3D orbit deferred. **Plotter LANDED (2026-09-08, M0–M5):**
   external plugin (`src/SenderNG.Modules.Plotter`) — flat quadrant views
   (foam: both carriages on one canvas, diagonal quadrants), two-carriage iso
@@ -129,8 +127,7 @@ set was checked for parity defaults before finalizing.
   (`IsVisibleByDefault=false`), ships on win-x64, linux-x64 and linux-arm64.
   **Storage prerequisite landed:**
   profiles replace the Mill/Foam "mode" split (one file per machine +
-  `global.json`, profile manager in App Settings) — see
-  `docs/settings-migration.md`. **Schema landed and consumers migrated
+  `global.json`, profile manager in App Settings). **Schema landed and consumers migrated
   (2026-09-07):** Jog's layout derives from the preset's planes + controller
   letters (M2), fresh profiles seed demo axes from the preset (M3); the
   plotter (P2) and Wrap remain the open consumers.
@@ -138,17 +135,14 @@ set was checked for parity defaults before finalizing.
   Continuous mode), feedrate selection, and stop-on-release (0x85
   JogCancel). Axis layout comes from the existing jog pad, later from
   Machine physical configuration above. **Researched and designed
-  (2026-09-07):** `docs/continuous-jog.md` — ioSender's single-command
+  (2026-09-07):** ioSender's single-command
   model (`$J=G91 <axis><MaxTravel> F<feed>` once per press, 0x85 on
   release; no repeat loop) adopted over the originally sketched
   repeat-`$J=`-every-100ms approach; continuous ships as a 4th distance
   step, not a separate toggle. Distance source settled: per-axis `$130+`
   max travel fetched at connect (ioSender parity) — no fallback constant;
   continuous jog is gated until the handshake reports travel (mega5x 1.2i
-  and classic 1.1h 4-axis builds report it for all axes). **Implementation
-  plan ready for handoff (2026-09-07):**
-  `docs/continuous-jog-implementation.md` — file-by-file change list,
-  code shapes, tests, and acceptance checklist. **Implemented (2026-09-17):**
+  and classic 1.1h 4-axis builds report it for all axes). **Implemented (2026-09-17):**
   hold-to-jog continuous step (sentinel 4th distance slot, per-press
   `$J=G91 <axis><travel> F<feed>`, 0x85 JogCancel on release) with travel
   from the connect handshake's per-axis `$130+` settings. The hold is
@@ -194,17 +188,15 @@ set was checked for parity defaults before finalizing.
      them in the machine list and the future plotter view headers.
   3. **Probing selector visuals — DONE:** the probe direction / touch-off /
      selection illustrations exist — letter-labeled corner/edge diagram with
-     red Z-contact markers (functionally equivalent to ioSender's pictograms,
-     see `docs/probing-gaps.md`). No longer gates the Probing sign-off.
+      red Z-contact markers (functionally equivalent to ioSender's pictograms).
+      No longer gates the Probing sign-off.
 - Foam CNC mode: functional foam-specific behavior (mode is persisted but only
   changes jog layout today — the layout itself is now schema-driven:
-  machine-type preset planes + controller `[AXS:]` letters,
-  `docs/machine-axis-schema.md`).
+  machine-type preset planes + controller `[AXS:]` letters).
   Continuous jog (hold-to-jog: velocity-based `$J=` + stop-on-release 0x85)
-  is implemented (2026-09-17) — design doc at `docs/continuous-jog.md`.
+  is implemented (2026-09-17).
 - Telnet / WebSocket transports: `TcpGrblTransport` covers plain TCP; telnet
-  option negotiation and WebSocket are still not implemented. See
-  `docs/p0-controller-plumbing-plan.md` D.3.
+  option negotiation and WebSocket are still not implemented.
 - **Camera** — deferred indefinitely: no planned in-app value. If ever
   wanted, it comes as a 3rd-party plugin; the old plan's libs
   (OpenCvSharp / DirectShow / V4L2 capture) live here in the decision tree
@@ -234,8 +226,8 @@ set was checked for parity defaults before finalizing.
 > `AxisLetter`/`Position`/`CoordinateSystem`/`Tool` WPF `ViewModelBase`
 > leftovers are compile-only stubs kept so the ported engine files that
 > reference them still compile. The rest of the upstream stub surface (modal
-> state, poll timer, view model) was retired by the 2026-09-30 audit cleanup
-> (§6 / §2.14, closed 2026-10-07). The real service uses the portable
+> state, poll timer, view model) was retired by the 2026-10-07 cleanup.
+> The real service uses the portable
 > `ControllerCapabilities` + `WorkParameters` + `MachineState` model instead.
 > `GrblInfo` is a read-only facade over an injectable `GrblInfoState` instance
 > (resolved 2026-09-19 — no ambient write path remains).

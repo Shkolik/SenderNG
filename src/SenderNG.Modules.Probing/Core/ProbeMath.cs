@@ -107,7 +107,7 @@ public static class ProbeMath
     /// A short array throws <see cref="ArgumentException"/> rather than being indexed:
     /// probing fewer positions than the mode implies used to raise
     /// <see cref="IndexOutOfRangeException"/>, and with three positions it did not even
-    /// throw — it silently averaged the wrong pair (audit §1.9).</summary>
+    /// throw — it silently averaged the wrong pair.</summary>
     public static (Pos Center, double XDistance, double YDistance) ComputeCenter(
         Center center, Pos start, Pos[] probes, double probeDiameter, double sizeX, double sizeY)
     {

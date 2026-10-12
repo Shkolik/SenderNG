@@ -1,6 +1,6 @@
 /*
  * ModuleSettingsScopeTests.cs - SettingsScope declarations on built-in
- * modules (docs/settings-migration.md §6.4): profile is the default, and the
+ * modules: profile is the default, and the
  * Console module — whose options persist in global.json — declares Global.
  */
 

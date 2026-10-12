@@ -37,7 +37,7 @@ using CNC.Core.Services;
 namespace SenderNG.Modules.Plugins;
 
 /// <summary>Persisted wizard settings (profile scope): only the default move distance.
-/// Steps/mm and backlash live on the controller; no local copy (spec §8).</summary>
+/// Steps/mm and backlash live on the controller; no local copy.</summary>
 public sealed class StepperCalibrationSettings
 {
     public double Distance { get; set; } = 100d;

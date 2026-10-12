@@ -15,8 +15,8 @@ jobs:
       # ~15 GB of anonymous RSS, and the kernel reaped whichever process it found --
       # an MSBuild node ("MSB4166: Child node \"2\" exited prematurely") or the runner
       # agent itself ("The operation was canceled.", no artifacts, post-steps never
-      # ran). Fixed at the source by capping that writer; see docs/test-stability.md
-      # section 13. MSBUILDDISABLENODEREUSE and the -m:1 below stay as cheap memory
+      # ran). Fixed at the source by capping that writer. MSBUILDDISABLENODEREUSE
+      # and the -m:1 below stay as cheap memory
       # hygiene for a 7 GB runner, not as a fix.
       MSBUILDDISABLENODEREUSE: "1"
     steps:

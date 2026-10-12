@@ -138,7 +138,7 @@ public class JogViewModel : ViewModelBase
 
     public ObservableCollection<LinearAxisRow> LinearAxisLetters { get; } = new();
 
-    // ---- Machine geometry (docs/machine-axis-schema.md, M2) ----
+    // ---- Machine geometry ----
     // The layout derives from the profile's machine-type preset
     // (MachineTypeCatalog), not from machine-type strings: planes drive the
     // crosses, roles pair the letters, and the controller's handshake letters
@@ -150,7 +150,7 @@ public class JogViewModel : ViewModelBase
 
     /// <summary>Plane 2 (second carriage) is drivable: a multi-plane preset AND
     /// enough reported axes (foam needs 4). Under-axed boards hide the plane
-    /// and show the hint (decision #3, docs/machine-axis-schema.md).</summary>
+    /// and show the hint.</summary>
     public bool Plane2Visible => IsMultiPlane && _numAxes >= _machineType.AxisCount;
 
     /// <summary>Shown when a multi-plane machine meets fewer axes than its planes need.</summary>

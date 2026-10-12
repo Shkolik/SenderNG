@@ -355,7 +355,7 @@ public sealed class ModuleSettingsLeaf : AppSettingsLeaf
 }
 
 /* ---------------------------------------------------------------------------
- * Profiles leaf — the profile manager (docs/settings-migration.md §7)
+ * Profiles leaf — the profile manager
  * ------------------------------------------------------------------------- */
 
 /// <summary>One row in the profile list: display name, machine-type badge, active marker.</summary>
@@ -1072,8 +1072,8 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         var global = new AppSettingsGroupItem(GroupName("global", "Global"));
         _globalLeaves.Clear();
         // Profiles replaces the old machine-type (Mill/Foam) selector: a machine
-        // is a profile now, chosen via the profile manager (settings split —
-        // docs/settings-migration.md). Its editor runs the CRUD below.
+        // is a profile now, chosen via the profile manager. Its editor runs the
+        // CRUD below.
         _profilesLeaf = new ProfileSettingsLeaf(_settingsService, Resolve,
             LeafName("profiles", "Profiles"),
             LeafDescription("profiles", "Machines and their settings — one profile per machine."));
