@@ -160,6 +160,18 @@ public sealed class ReleaseEngine
     // and gated on the target platform, never on the build OS: a win64 zip must
     // not grow a .sh, and the linux zip must be identical whether it was built
     // on a Linux host or through WSL from Windows.
+    private void StageLinuxDesktopEntry(string bundleDir)
+    {
+        foreach (var relative in new[] { LinuxDesktopScript, AppIconPng })
+        {
+            var source = Path.Combine(_repoRoot, relative.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(source))
+                throw new StagingException($"missing {relative}; a linux bundle cannot ship a desktop entry without it.");
+            File.Copy(source, Path.Combine(bundleDir, Path.GetFileName(source)), overwrite: true);
+            _log.Info($"staged {Path.GetFileName(source)}");
+        }
+    }
+
     // BSD 3-Clause requires binary distributions to reproduce the license
     // text, so every core bundle carries the repo-root LICENSE. Staged
     // unconditionally on the shared path for all platforms; a release must
@@ -171,18 +183,6 @@ public sealed class ReleaseEngine
             throw new StagingException($"missing {LicenseFile}; a bundle cannot ship without the license text.");
         File.Copy(source, Path.Combine(bundleDir, LicenseFile), overwrite: true);
         _log.Info($"staged {LicenseFile}");
-    }
-
-    private void StageLinuxDesktopEntry(string bundleDir)
-    {
-        foreach (var relative in new[] { LinuxDesktopScript, AppIconPng })
-        {
-            var source = Path.Combine(_repoRoot, relative.Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(source))
-                throw new StagingException($"missing {relative}; a linux bundle cannot ship a desktop entry without it.");
-            File.Copy(source, Path.Combine(bundleDir, Path.GetFileName(source)), overwrite: true);
-            _log.Info($"staged {Path.GetFileName(source)}");
-        }
     }
 
     private static void WritePluginReadme(string pluginDir, string pluginId)
