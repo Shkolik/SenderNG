@@ -68,9 +68,9 @@ public static class ModuleCatalog
         // its managed dependencies, so an AssemblyResolve probe serves them from
         // the plugin folder. Registered for the process lifetime: resolving the
         // module types during the scan is only the first touch — the closure
-        // assemblies' own dependencies get JIT-resolved later (e.g. HelixToolkit
-        // engine code touching Vortice), and must find the same folder. Native
-        // binaries are not assemblies; the managed DLLs that P/Invoke them are
+        // assemblies' own dependencies get JIT-resolved later (e.g. a plugin's
+        // helper assembly touching a third-party library), and must find the same folder.
+        // Native binaries are not assemblies; the managed DLLs that P/Invoke them are
         // LoadFrom'd from the same folder, whose own directory the loader probes
         // for unmanaged libraries.
         Interlocked.Exchange(ref _pluginFolder, directory);

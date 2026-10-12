@@ -161,7 +161,7 @@ public class PlotterSettingsViewModelTests : IDisposable
     public void A_duplicate_slot_pick_nudges_the_other_slot_onto_the_free_axis()
     {
         // Slot 1 (currently Y) is given X — slot 0's axis. The user's pick
-        // sticks and slot 0 is moved to the free axis (Y), mirroring the Nex
+        // sticks and slot 0 is moved to the free axis (Y), mirroring the
         // editor's constraint that each carriage feeds a different world axis.
         var vm = Build(MachineTypes.Foam);
         vm.PlaneRows[0].Slots[1].Axis = 0;
@@ -246,9 +246,9 @@ public class PlotterSettingsViewModelTests : IDisposable
         //
         // `SetLocale` raises `Changed` ONLY for a directory-backed service: the
         // stream ctor leaves `_localeDirectory` null and SetLocale returns before
-        // the raise (LocalizationService.cs:161). `PlotterNexSettingsViewModelTests`
-        // warns with the same comment: "SetLocale() is a no-op for stream-built
-        // services". And `ru.json` must exist too — a missing locale file also
+        // the raise (LocalizationService.cs:161): SetLocale() is a no-op for
+        // stream-built services. And `ru.json` must exist too — a missing locale
+        // file also
         // returns without the raise (:172). Do NOT invent a test-only raiser on
         // LocalizationService — that is a file this task must not touch.
         var locDir = Path.Combine(_dir, "loc");

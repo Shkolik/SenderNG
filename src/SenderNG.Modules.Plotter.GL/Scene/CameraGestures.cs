@@ -197,7 +197,7 @@ internal static class CameraGestures
     }
 
     /// <summary>Orbit the camera around a fixed world <paramref name="origin"/>
-    /// by a screen-pixel delta, ioSender/Helix-turntable style: left/right
+    /// by a screen-pixel delta, ioSender turntable style: left/right
     /// rotates about the camera-up axis (or the fixed model-up when
     /// <paramref name="useWorldUp"/> is true) so dragging right spins the model
     /// right; up/down rotates about the camera-right axis. Both the camera

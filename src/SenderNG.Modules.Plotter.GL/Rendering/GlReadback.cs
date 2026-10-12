@@ -43,13 +43,11 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// draws into (single-sample RGBA8 + depth24 by default; multisampled color +
 /// depth renderbuffers with a blit-resolve when <see cref="Msaa"/> is on), and
 /// a <c>glReadPixels</c> + row copy that lands the frame in the caller's locked
-/// WriteableBitmap. Public surface mirrors NexGpuReadback (ctor(w,h),
-/// BeginFrame, CopyFrame, Resize, Dispose) so the view-side pipeline stays
-/// renderer-shaped.
+/// WriteableBitmap. Public surface: ctor(w,h), BeginFrame, CopyFrame, Resize,
+/// Dispose, so the view-side pipeline stays renderer-shaped.
 /// <para>
 /// Synchronization: <c>glReadPixels</c> on the same context synchronizes with
-/// all prior draws, so no fence or wait is needed (the Nexus "second WaitAll"
-/// equivalent — see CopyFrame).
+/// all prior draws, so no fence or wait is needed — see CopyFrame.
 /// </para>
 /// <para>
 /// Every member runs on the thread that owns the context (the UI thread — see
@@ -230,7 +228,7 @@ internal sealed unsafe class GlReadback : IDisposable
 
     /// <summary>Copies the finished frame into the caller-locked WriteableBitmap.
     /// glReadPixels on the same context synchronizes with all prior draws, so no
-    /// explicit fence is required (the Nexus "second WaitAll" equivalent).
+    /// explicit fence is required.
     /// The bitmap row stride may differ from the tightly-packed RGBA8 source
     /// pitch; the smaller of the two is copied row by row.</summary>
     /// <param name="dest">Base address of the first destination row.</param>
@@ -263,12 +261,9 @@ internal sealed unsafe class GlReadback : IDisposable
             // Start at the LAST destination row: glReadPixels returns rows
             // bottom-up (row 0 = bottom of the view) while the WriteableBitmap
             // is top-down, so src row y lands in dst row height-1-y — each
-            // source row walks the destination upward. This is the sanctioned
-            // deviation from Nex's verbatim loop (plan Step 2.4 amended):
-            // Nex's Vulkan Download is already top-down and needs no flip;
-            // keeping the loop literal mirrored the whole viewport
-            // (checkpoint-1: Z axis appeared to point down, mouse up/down
-            // felt inverted).
+            // source row walks the destination upward. A naive top-down loop
+            // mirrors the whole viewport (checkpoint-1: Z axis appeared
+            // to point down, mouse up/down felt inverted).
             var dst = (byte*)dest + (long)(_h - 1) * destPitch;
             var srcPitch = (int)_w * 4;
             var copy = Math.Min(srcPitch, destPitch);
@@ -291,7 +286,7 @@ internal sealed unsafe class GlReadback : IDisposable
     }
 
     /// <summary>Recreates the FBO and renderbuffers for a new pixel size.
-    /// No-op when the size is unchanged (parity with NexGpuReadback.Resize).
+    /// No-op when the size is unchanged.
     /// The context must not be mid-frame — the view calls this between frames.</summary>
     public void Resize(uint width, uint height)
     {

@@ -1,5 +1,5 @@
 /*
- * IPlotScene.cs - top-level scene abstraction for the Nex plotter
+ * IPlotScene.cs - top-level scene abstraction for the 3D plotter
  */
 
 /*
@@ -38,7 +38,7 @@ using System.Numerics;
 
 namespace SenderNG.Modules.Plotter.GL.Scene;
 
-/// <summary>Top-level scene abstraction for the Nex g-code plotter.
+/// <summary>Top-level scene abstraction for the 3D g-code plotter.
 /// Headless — no camera types leak in; the adapter applies kinematic transforms.</summary>
 public interface IPlotScene : IDisposable
 {

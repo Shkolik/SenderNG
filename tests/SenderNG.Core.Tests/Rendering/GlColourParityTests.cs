@@ -1,6 +1,6 @@
 /*
- * GlNexColourParityTests.cs - Task 7b: whole-scene CAD lighting + ACES
- * tone mapping parity against the Nex engine
+ * GlColourParityTests.cs - Task 7b: whole-scene CAD lighting + ACES
+ * tone mapping parity against the reference CAD look
  */
 
 /*
@@ -42,11 +42,11 @@ using SenderNG.Modules.Plotter.GL.Settings;
 
 namespace SenderNG.Core.Tests;
 
-/// <summary>Task 7b (checkpoint-12): the GL plot scene shades with Nex's CAD
+/// <summary>Task 7b (checkpoint-12): the GL plot scene shades with the CAD
 /// pipeline — <c>cadStyleLightingFlat</c> (psPBRTemplate.glsl:374-461) in the
 /// mesh fragment stage and the ACES filmic curve (psToneGamma.glsl:25-32) on
-/// the tone-mapped passes — so a whole-frame capture lands on the Nex
-/// screenshot's measured values. One scene drives all three passes at once:
+/// the tone-mapped passes — so a whole-frame capture lands on the measured
+/// reference values. One scene drives all three passes at once:
 /// a worldwide loft sheet over open background (the sheet is the frame's only
 /// RAW-CAD pass — no tone map, the checkpoint-11 discriminator), the axis
 /// cones (CAD + ACES), and a rapid toolpath line (authored colour + ACES).
@@ -54,7 +54,7 @@ namespace SenderNG.Core.Tests;
 /// (a C# port of the two functions), never hand-rounded. Gated by
 /// <see cref="GlFactAttribute"/>.</summary>
 [Trait("Category", "GPU")]
-public class GlNexColourParityTests
+public class GlColourParityTests
 {
     private static readonly byte[] Background = [251, 251, 251, 255];
     private const int Size = 256;
@@ -72,7 +72,7 @@ public class GlNexColourParityTests
     /// sheet — so every composite pixel can be checked against its own
     /// behind-the-sheet destination.</summary>
     [GlFact]
-    public unsafe void Sheet_cone_and_line_land_on_the_nex_cad_and_aces_values()
+    public unsafe void Sheet_cone_and_line_land_on_the_cad_and_aces_values()
     {
         using var ctx = GlContext.Create();
         using var rb = new GlReadback(ctx, Size, Size);
@@ -230,7 +230,7 @@ public class GlNexColourParityTests
             $"coneHits={coneHits} lineHits={lineHits}");
 
         // Sheet: enough pure-composite pixels, every one on the formula (the
-        // cluster target is the lightened empirical colour, not Nex's exact
+        // cluster target is the lightened empirical colour, not a verbatim
         // screenshot value — see SheetAlbedo).
         Assert.True(sheetCount >= 1000,
             $"precondition: the sheet must cover the open-background pixels, got {sheetCount}");
@@ -304,8 +304,8 @@ public class GlNexColourParityTests
         m.M31, m.M32, m.M33, 0,
         0, 0, 0, 1);
 
-    /// <summary>C# port of Nex's <c>cadStyleLightingFlat</c>
-    /// (psPBRTemplate.glsl:374-461) with the default PBR material
+    /// <summary>C# port of the <c>cadStyleLightingFlat</c> CAD flat-lighting
+    /// model (psPBRTemplate.glsl:374-461) with the default PBR material
     /// (ambient 0.01, ao 1, metallic 0, emissive 0 — see
     /// <c>PBRMaterialProperties.DefaultProperties</c>). The view direction is
     /// supplied by the caller (the scene's ortho forward or the per-fragment
@@ -337,7 +337,7 @@ public class GlNexColourParityTests
         return ambient + diffuse + specular + new Vector3(rim);
     }
 
-    /// <summary>C# port of Nex's ACES filmic curve
+    /// <summary>C# port of the ACES filmic curve
     /// (psToneGamma.glsl:25-32). Internal — see <see cref="CadFlat"/>.</summary>
     internal static Vector3 Aces(Vector3 x)
     {

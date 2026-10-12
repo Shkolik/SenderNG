@@ -65,7 +65,7 @@ public class SettingsCommitHeadlessTests
 
     /// <summary>Like <see cref="MakeSettings"/> but seeded to the two-plane Foam
     /// machine type (same Load/modify/Save shape as JogViewModelTests.MakeSettings).
-    /// The Nex/GL WireLength row is visible only when the profile has more than
+    /// The GL WireLength row is visible only when the profile has more than
     /// one plane (ShowWireLength => Plaines.Count > 1), and a hidden box cannot
     /// take focus, so blur would raise no LostFocus.</summary>
     private static SettingsService MakeFoamSettings()

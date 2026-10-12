@@ -53,7 +53,7 @@ public class GlReadbackTests
     [GlFact]
     public unsafe void Clear_color_survives_readback_roundtrip()
     {
-        using var ctx = GlContext.Create();               // throws → test framework skip, mirroring Nex GPU tests
+        using var ctx = GlContext.Create();               // throws → test framework skip
         using var rb = new GlReadback(ctx, 64, 32);
         ctx.MakeCurrent();
         rb.BeginFrame(new byte[] { 255, 0, 0, 255 });     // opaque red clear

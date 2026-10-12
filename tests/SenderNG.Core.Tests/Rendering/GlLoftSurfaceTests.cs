@@ -1,6 +1,5 @@
 /*
  * GlLoftSurfaceTests.cs - Task 7 loft sheet: BuildSheet quad-strip semantics
- * ported from Nex's NexLoftSurface
  */
 
 /*
@@ -42,8 +41,8 @@ using SenderNG.Modules.Plotter.GL.Settings;
 
 namespace SenderNG.Core.Tests;
 
-/// <summary>Task 7: <see cref="GlLoftSurface"/> ports
-/// <c>NexLoftSurface.BuildSheet</c> (lines 140-185) verbatim — one quad per
+/// <summary>Task 7: <see cref="GlLoftSurface"/> implements
+/// <c>BuildSheet</c> verbatim — one quad per
 /// consecutive pair with 4 unshared vertices and 6 indices each, the two
 /// degenerate-pair skip rules, the count-mismatch throw, and the empty-sheet
 /// cases — and <see cref="GlPlotScene"/> draws that sheet only under the
@@ -99,7 +98,7 @@ public class GlLoftSurfaceTests
         using var ctx = GlContext.Create();
         using var scene = new GlPlotScene(ctx);
         var loft = (GlLoftSurface)scene.AddLoftSurface();
-        // Skip rule 1 (Nex BuildSheet): both sides stationary across the pair.
+        // Skip rule 1 (BuildSheet): both sides stationary across the pair.
         loft.SetLoftSheet(
             [new Vector3(0, 0, 0), new Vector3(0, 0, 0)],
             [new Vector3(5, 0, 0), new Vector3(5, 0, 0)]);
@@ -185,10 +184,10 @@ public class GlLoftSurfaceTests
         var outPx = Capture(rb, scene);                  // sheet blended over it
 
         // Task 7b re-baseline (old expectation -> new, formula cited): the
-        // sheet now shades with Nex's cadStyleLightingFlat
+        // sheet now shades with cadStyleLightingFlat
         // (psPBRTemplate.glsl:374-461) in RAW form (uToneMap=0 — the
         // checkpoint-12 discriminator; the tone-mapped cluster misses the
-        // Nex measurement by ~13 bytes). Old: vShade Lambert with the fixed
+        // baseline measurement by ~13 bytes). Old: vShade Lambert with the fixed
         // light, dot((0,0,-1), normalize((0.4,0.8,0.5))) clamped to 0 ->
         // shade 0.3 -> src = albedo * 0.3 = (32.1, 32.1, 41.3). New:
         // CadFlat(N=(0,0,-1), V=camera forward, albedo (0.42,0.42,0.54))
@@ -196,7 +195,7 @@ public class GlLoftSurfaceTests
         // unchanged: composite = 0.35 * src + 0.65 * dst.
         var vOrtho = Vector3.Normalize(
             scene.ActiveCamera.Target - scene.ActiveCamera.Position);
-        var srcRgb = GlNexColourParityTests.CadFlat(
+        var srcRgb = GlColourParityTests.CadFlat(
             new Vector3(0, 0, -1), vOrtho, new Vector3(0.85f, 0.85f, 0.95f)) * 255f;
         var src = new[] { srcRgb.X, srcRgb.Y, srcRgb.Z };
         for (var c = 0; c < 3; c++)

@@ -81,13 +81,12 @@ public static class PlotterIsoChrome
 
     /// <summary>The three world axis arrows leaving the origin, each
     /// <paramref name="reach"/> long along its own world axis, and each in ITS OWN
-    /// colour: X red, Y green, Z blue, the scheme
-    /// <c>NexPlotScene.AxisColor</c> uses. One blue pen for all three said
+    /// colour: X red, Y green, Z blue. One blue pen for all three said
     /// nothing about which arrow was which, which is the one job these arrows
     /// have. The header carries the letters; the arrows carry the directions.
     /// <para>Toggleable, via <c>ChromeFlags.Origin</c>, and because the arrows
     /// start at the world origin that is the flag that gates them — the same
-    /// "Show origin" → <c>SetAxesVisible</c> mapping Nex uses. The machine
+    /// "Show origin" → <c>SetAxesVisible</c> mapping. The machine
     /// origin itself needs no second mark; see
     /// <c>PlotterFlatChrome</c>.</para></summary>
     public static void DrawAxes(

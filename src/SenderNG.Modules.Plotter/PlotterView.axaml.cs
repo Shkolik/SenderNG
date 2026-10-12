@@ -66,7 +66,7 @@ public static class PlotterProjection
 /// <summary>Shared pens/brushes for the flat and isometric canvases (frontier
 /// coloring is row-state driven: done green, error red, in-flight amber).
 /// The path is grey by default (the user's palette request — blue was too
-/// dark against the grid), with G0 rapids in the Nex plotter's red; the idle
+/// dark against the grid), with G0 rapids in red; the idle
 /// grey and in-flight amber cut at the base width so a dense toolpath reads as
 /// lines, while the done/error frontiers
 /// are 1.5x heavier so the cut frontier stands out inside the grey. Brushes + widths
@@ -76,15 +76,13 @@ internal static class PlotterPens
 {
     public static readonly IBrush FeedBrush = new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80));
     public const double FeedW = 1.1;
-    // Rapids are RED, the same 0.9/0.12/0.12 the Nex plotter draws
-    // (NexCarriagePlaneLayer.RapidColor), so a G0 reads as "a move that cuts
+    // Rapids are RED, the same 0.9/0.12/0.12 the 3D plotter draws
+    // (GlCarriagePlaneLayer.RapidColor), so a G0 reads as "a move that cuts
     // nothing" instead of a paler grey stripe. The dash is gone with the grey:
     // it existed to make an almost-invisible #c8c8c8 stroke read as a stroke at
     // all, and on red it only chews the line into dots.
     // Thinner than the feed pen on purpose — a rapid is not cutting, so it
-    // should sit behind the geometry rather than compete with it. Nex draws
-    // both at one thickness because its LineNode width is node-global and
-    // cannot vary per segment; that is a Nex limitation, not a target to copy.
+    // should sit behind the geometry rather than compete with it.
     public static readonly IBrush RapidBrush = new SolidColorBrush(Color.FromRgb(0xe6, 0x1f, 0x1f));
     public const double RapidW = 0.8;
     public static readonly IBrush DoneBrush = new SolidColorBrush(Color.FromRgb(0x1b, 0x9e, 0x3e));
@@ -564,8 +562,7 @@ public partial class PlotterView : UserControl
     /// <para>The <c>Changed</c> subscription is what makes the OTHER direction
     /// work: the App Settings leaf writes to the model, not to this view, so
     /// without it a leaf-side flip would move the leaf's checkbox and leave the
-    /// plot's lattice on screen. The same shape as
-    /// <c>PlotterNexView.OverlaySettings</c>. The module pushes on the same
+    /// plot's lattice on screen. The module pushes on the same
     /// event as well; this view keeps its own so one built outside the module
     /// still follows the model instead of depending on its host to forward
     /// it. Both paths are idempotent — they set the same flags.</para></summary>
@@ -934,9 +931,8 @@ public partial class PlotterView : UserControl
     /// <c>PlotterView.axaml</c>, which carries no handlers, and died over most of
     /// the plot. Measured: a 5x5 probe grid returned the canvas at zoom 2.0 and
     /// the Border at 1.25 and below, at every point tried.
-    /// <c>Background = Brushes.Transparent</c> — the one-liner
-    /// <c>PlotterNexView.axaml:86</c> uses on its input panel — does NOT port: that
-    /// works on a <c>Panel</c>, which paints the brush itself, while
+    /// <c>Background = Brushes.Transparent</c> does NOT work here: on a
+    /// <c>Panel</c> the control paints the brush itself, while
     /// <c>Background</c> on a <c>TemplatedControl</c> is template-bound and these
     /// canvases have no template (measured: still falling through). So the canvas
     /// stays a <c>Control</c> and declares the hit area directly. The four pointer
@@ -2874,8 +2870,8 @@ public partial class PlotterView : UserControl
                 footprint.MaxY - footprint.MinY), 1e-6) * 0.25;
             // The arrows leave the world origin, so Chrome.Origin gates them —
             // not because it draws a mark there, but because the origin is
-            // what they measure from. Same mapping as Nex's ShowOrigin →
-            // SetAxesVisible.
+            // what they measure from — the ShowOrigin → SetAxesVisible
+            // mapping.
             if (Chrome.Origin)
                 PlotterIsoChrome.DrawAxes(ctx, zoom, pan, clip, reach);
             if (Chrome.Envelope)

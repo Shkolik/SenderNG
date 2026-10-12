@@ -144,7 +144,7 @@ internal static class GlShaders
     /// <summary>The legacy two-stage program's fragment stage (color matched
     /// by name from <see cref="LineVertex"/>'s <c>vColor</c>), also the
     /// body twin of <see cref="LineFragmentFat"/>. Lines pass through the
-    /// same ACES filmic curve Nex tones the whole frame with
+    /// same ACES filmic curve the whole frame is toned with
     /// (psToneGamma.glsl:25-32) — authored palette in, on-screen bytes out.</summary>
     public const string LineFragment = """
         in vec4 vColor;
@@ -185,7 +185,7 @@ internal static class GlShaders
         """;
 
     /// <summary>World-space mesh pass: the model matrix rides along so the
-    /// fragment stage can run Nex's CAD lighting against world positions and
+    /// fragment stage can run the CAD lighting against world positions and
     /// normals. The normal matrix is the GLSL-canonical
     /// <c>transpose(inverse(mat3(uModel)))</c> — the axis-cone instances
     /// carry non-uniform scale — and both GLSL 330 and GLSL ES 3.00 provide
@@ -205,7 +205,7 @@ internal static class GlShaders
         }
         """;
 
-    /// <summary>Nex's CAD flat shading, ported verbatim from
+    /// <summary>The CAD flat shading, ported verbatim from
     /// <c>cadStyleLightingFlat</c> (psPBRTemplate.glsl:374-461) against the
     /// default PBR material (ambient 0.01, ao 1, metallic 0, emissive 0 — see
     /// <c>PBRMaterialProperties.DefaultProperties</c>). View direction: the
@@ -215,7 +215,7 @@ internal static class GlShaders
     /// camera forward <c>normalize(Target - Position)</c> (task-7b brief —
     /// the parallel-projection analogue, pushed once per pass). The
     /// <c>uToneMap</c> uniform is the checkpoint-12 discriminator: the loft
-    /// sheet draws RAW CAD (0 — Nex's measured sheet value is the
+    /// sheet draws RAW CAD (0 — the measured sheet value is the
     /// un-tone-mapped cluster), the cone heads and tool meshes draw
     /// ACES(CAD) (1). The N-flip at the top is psPBRTemplate.glsl:382-384.
     /// </summary>

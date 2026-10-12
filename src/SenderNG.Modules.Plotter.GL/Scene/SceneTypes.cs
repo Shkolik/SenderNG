@@ -1,5 +1,5 @@
 /*
- * SceneTypes.cs - enums and records for the Nex scene abstraction
+ * SceneTypes.cs - enums and records for the 3D plotter's scene abstraction
  */
 
 /*

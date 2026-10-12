@@ -51,12 +51,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <DockPanel>
             <Border x:Name="HeaderHost" DockPanel.Dock="Top" Background="#e8e8e8" Height="24">
                 <DockPanel Margin="6,0">
-                    <!-- [2D] / [Iso] are the same decision the Nex view offers as
-                         [XY]/[3D], so they are the same control: bare ToggleButtons
-                         whose look comes entirely from FluentTheme. No Classes, no
-                         CornerRadius, no Background - those would be a Skia-specific
-                         style and the two rows would stop matching. The 3px corner
-                         radius they therefore get is the price of that parity. -->
+                    <!-- [2D] / [Iso] are the same decision the 3D plotter's
+                         view offers as [XY]/[3D], so they are the same control:
+                         bare ToggleButtons whose look comes entirely from
+                         FluentTheme. No Classes, no CornerRadius, no Background
+                         - those would be a Skia-specific style and the two rows
+                         would stop matching. The 3px corner radius they
+                         therefore get is the price of that parity. -->
                     <StackPanel Orientation="Horizontal" Spacing="4"
                                 DockPanel.Dock="Right" VerticalAlignment="Center">
                         <ToggleButton x:Name="FlatViewButton" Content="2D"
@@ -106,16 +107,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <Grid x:Name="OverlayHost" DataContext="{x:Null}"
                       x:DataType="s:PlotterSettingsViewModel">
                     <Grid.Styles>
-                        <!-- navBtn, ported verbatim from PlotterNexView.axaml so the
-                             two plots' chrome is the same control, not merely a
-                             similar one: same 32x32 box, same #777 idle grey, the
-                             same pointerover/pressed/checked ramp, and the same
-                             borderless ContentPresenter template that lets an
-                             icon Path take the button's Foreground. It is a
-                             copy and not a shared resource because the Nex view
-                             defines it in its OWN Panel.Styles; hoisting it to a
-                             common file is a bigger change than this parity fix,
-                             and a divergence here would be a silent one.
+                        <!-- navBtn: the same chrome the 3D plotter's view uses,
+                             so the two plots' chrome is the same control, not
+                             merely a similar one: same 32x32 box, same #777 idle
+                             grey, the same pointerover/pressed/checked ramp, and
+                             the same borderless ContentPresenter template that
+                             lets an icon Path take the button's Foreground. It
+                             is a local copy and not a shared resource, so a
+                             divergence here would be a silent one.
                              If you change one, change both. -->
                         <Style Selector="Button.navBtn, ToggleButton.navBtn">
                             <Setter Property="Width" Value="32" />
@@ -182,14 +181,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     </Grid.Styles>
 
                     <!-- The four visibility toggles: a horizontal row of icon
-                         buttons at the top LEFT, as in Nex. They were a vertical
-                         column of text CheckBoxes at the top right, which is a
-                         different control doing the same job in a different
-                         place — and the text made the overlay wider than the
-                         plot it sat on. Same x:Names, so the headless tests that
-                         address them by name still find them; IsChecked and the
-                         tooltip bind to the same shared-model properties, so only
-                         the presentation changed. -->
+                         buttons at the top LEFT, as in the 3D plotter's view.
+                         They were a vertical column of text CheckBoxes at the
+                         top right, which is a different control doing the same
+                         job in a different place — and the text made the
+                         overlay wider than the plot it sat on. Same x:Names, so
+                         the headless tests that address them by name still find
+                         them; IsChecked and the tooltip bind to the same
+                         shared-model properties, so only the presentation
+                         changed. -->
                     <StackPanel x:Name="TogglesPanel"
                                 HorizontalAlignment="Left" VerticalAlignment="Top"
                                 Margin="12" Spacing="6" Orientation="Horizontal">

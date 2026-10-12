@@ -73,13 +73,13 @@ public class GlPlotSceneChromeTests
         Assert.True(lit > 50, $"expected grid/axes/envelope pixels, got {lit}");
     }
 
-    /// <summary>Checkpoint-5 item 3 (Nex parity): the chrome pieces draw with
-    /// Nex's PER-PIECE thicknesses — grid 1.6, axis arrows 3.6, job envelope
-    /// 1.6 (Nex <c>NexPlotScene.cs:265-267</c>) — not one shared width for
-    /// every piece. Observed through the width seam the palette tests use: what
-    /// each piece group actually pushed as <c>uLineWidthPx</c> this frame.</summary>
+    /// <summary>Checkpoint-5 item 3: the chrome pieces draw with PER-PIECE
+    /// thicknesses — grid 1.6, axis arrows 3.6, job envelope 1.6 — not one
+    /// shared width for every piece. Observed through the width seam the
+    /// palette tests use: what each piece group actually pushed as
+    /// <c>uLineWidthPx</c> this frame.</summary>
     [GlFact]
-    public void Chrome_pieces_draw_at_their_nex_palette_widths()
+    public void Chrome_pieces_draw_at_their_palette_widths()
     {
         using var ctx = GlContext.Create();
         using var rb = new GlReadback(ctx, 256, 256);
@@ -95,9 +95,9 @@ public class GlPlotSceneChromeTests
         scene.RenderFrame(256, 256);
 
         var (grid, envelope, axes) = scene.ChromeWidthsPushed;
-        Assert.Equal(1.6f, grid);     // Nex grid node thickness
-        Assert.Equal(1.6f, envelope); // Nex job-envelope node thickness
-        Assert.Equal(3.6f, axes);     // Nex axis-arrows node thickness
+        Assert.Equal(1.6f, grid);     // grid node thickness
+        Assert.Equal(1.6f, envelope); // job-envelope node thickness
+        Assert.Equal(3.6f, axes);     // axis-arrows node thickness
     }
 
     /// <summary>SetView is the runtime chrome gate the overlay bar drives: all
@@ -137,10 +137,10 @@ public class GlPlotSceneChromeTests
         Assert.Equal(0, LitPixels(px));
     }
 
-    /// <summary>Checkpoint-4 item 1 (Nex <c>_contentFramed</c> parity): the
+    /// <summary>Checkpoint-4 item 1 (the <c>_contentFramed</c> latch): the
     /// constructor frames the camera once against empty content, so a model
     /// that lands afterwards must trigger exactly one reframe onto its bounds
-    /// — the initial view is Nex's empty framing (center origin), so the
+    /// — the initial view is the empty framing (center origin), so the
     /// first arrival lands on the content's own bounds.</summary>
     [GlFact]
     public void First_content_arrival_frames_the_camera_onto_the_content()
@@ -148,7 +148,7 @@ public class GlPlotSceneChromeTests
         using var ctx = GlContext.Create();
         using var scene = new GlPlotScene(ctx);
         var cam = scene.ActiveCamera;
-        Assert.Equal(new Vector3(0f), cam.Target); // empty-state framing: ±25 fallback, origin center (Nex parity)
+        Assert.Equal(new Vector3(0f), cam.Target); // empty-state framing: ±25 fallback, origin center
 
         var layer = scene.AddCarriagePlane();
         layer.AddSegment(
@@ -173,8 +173,8 @@ public class GlPlotSceneChromeTests
 
     /// <summary>The plan line "rebuild when bounds change": content staged
     /// far from the origin must move the grid and the job envelope onto it at
-    /// the next pump. The FIRST arrival reframes once (Nex
-    /// <c>_contentFramed</c>, checkpoint-4 item 1); every later rebuild is
+    /// the next pump. The FIRST arrival reframes once (the
+    /// <c>_contentFramed</c> latch, checkpoint-4 item 1); every later rebuild is
     /// geometry-only — the camera never follows a bounds move again (that
     /// reframe was the checkpoint-3 zoom jump class).</summary>
     [GlFact]
@@ -224,7 +224,7 @@ public class GlPlotSceneChromeTests
 
     /// <summary>Program reload to an empty run: the reload fence disposes the
     /// content and the chrome must fall back to the empty-state reference grid
-    /// the ctor provisions (Nex's <c>BuildEmptyChrome</c>).</summary>
+    /// the ctor provisions (<c>BuildEmptyChrome</c>).</summary>
     [GlFact]
     public void ResetBuild_returns_the_chrome_to_the_defaults()
     {
@@ -258,12 +258,12 @@ public class GlPlotSceneChromeTests
         Assert.Equal((2d, 10d), scene.ChromeGridSteps);
     }
 
-    /// <summary>The no-program state, Nex's BuildEmptyChrome ported: a fixed
+    /// <summary>The no-program state: a fixed
     /// −50..+50 reference grid at Z=0 (10×10 major cells of 10, minor 2),
     /// no job envelope, and the camera framed from the ±25 fallback so the
-    /// view centers on the origin with Nex's fit.</summary>
+    /// view centers on the origin with the default fit.</summary>
     [GlFact]
-    public void Empty_state_chrome_is_the_nex_reference_grid()
+    public void Empty_state_chrome_is_the_reference_grid()
     {
         using var ctx = GlContext.Create();
         using var scene = new GlPlotScene(ctx);
@@ -323,7 +323,7 @@ public class GlPlotSceneChromeTests
     }
 
     /// <summary>Multi-plane (foam) runs: with two live carriage planes the
-    /// grid switches to Nex's envelope-centered branch — pinned to the model's
+    /// grid switches to the envelope-centered branch — pinned to the model's
     /// XY envelope like a work table — instead of the origin-corner table.</summary>
     [GlFact]
     public void Two_live_layers_pick_the_envelope_centered_grid()
@@ -398,7 +398,7 @@ public class GlPlotSceneChromeTests
             "grid has no horizontal line at exactly maxY (7.5)");
     }
 
-    /// <summary>Nex's orbit-pivot marker lifecycle: the translucent amber
+    /// <summary>The orbit-pivot marker lifecycle: the translucent amber
     /// sphere is up exactly while an orbit gesture is open (RMB), a preset
     /// switch cancels it, an ortho preset refuses the gesture, and the radius
     /// tracks max(0.5, contentRadius * 0.05) from the framing metrics.</summary>

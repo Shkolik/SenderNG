@@ -60,7 +60,7 @@ public class GlLineShaderTests
 
     public GlLineShaderTests(ITestOutputHelper output) => _output = output;
 
-    /// <summary>RED (a): the toolpath draws at Nex's 3.2px palette width —
+    /// <summary>RED (a): the toolpath draws at the 3.2px palette width —
     /// a horizontal segment must cover at least three pixel rows in a column
     /// it crosses. Pre-geometry-shader this fails: the driver only accepts
     /// glLineWidth 1.0, so the line rasterizes one row.</summary>
@@ -224,7 +224,7 @@ public class GlLineShaderTests
             $"precondition: the Rapid line must light column 128, got {rows} rows");
 
         // Task 7b re-baseline (old expectation -> new, formula cited): lines
-        // now pass through Nex's ACES filmic curve (psToneGamma.glsl:25-32) —
+        // now pass through the ACES filmic curve (psToneGamma.glsl:25-32) —
         // the engine tones the whole frame, palette lines included. Old:
         // raw palette bytes Round((0.9,0.12,0.12)*255) = (230,31,31). New:
         // ACES((0.9,0.12,0.12))*255 = (199,41,41). The C1 property under test
@@ -232,7 +232,7 @@ public class GlLineShaderTests
         // through the geometry stage) is unchanged — only the on-screen
         // bytes moved with the pipeline.
         var rapid = GlCarriagePlaneLayer.RapidColor;
-        var aces = GlNexColourParityTests.Aces(new Vector3(
+        var aces = GlColourParityTests.Aces(new Vector3(
             rapid.X, rapid.Y, rapid.Z));
         var er = (byte)MathF.Round(aces.X * 255f);
         var eg = (byte)MathF.Round(aces.Y * 255f);

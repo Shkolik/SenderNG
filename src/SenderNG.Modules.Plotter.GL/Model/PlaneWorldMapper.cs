@@ -1,5 +1,5 @@
 /*
- * PlaneWorldMapper.cs - pure plane-local → world mapping helper for Plot 3D (NEX)
+ * PlaneWorldMapper.cs - pure plane-local → world mapping helper for Plot 3D
  */
 
 /*

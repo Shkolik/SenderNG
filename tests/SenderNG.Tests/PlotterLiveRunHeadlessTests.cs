@@ -787,8 +787,8 @@ public class PlotterLiveRunHeadlessTests
             $"dragging plane 0 across the center must keep the profile visible beyond it, got {pastCenter} px right of x={centerX}");
     }
 
-    /// <summary>Rapids are RED, cuts are grey — the same split the Nex plotter
-    /// draws (<c>NexCarriagePlaneLayer.RapidColor</c> 0.9/0.12/0.12). The Skia
+    /// <summary>Rapids are RED, cuts are grey — the same split the GL plotter
+    /// draws (<c>GlCarriagePlaneLayer.RapidColor</c> 0.9/0.12/0.12). The Skia
     /// plotter used to paint rapids #c8c8c8 dashed, i.e. a paler grey than the
     /// cuts, so a G0 read as "more toolpath" rather than "a move that cuts
     /// nothing".
@@ -798,7 +798,7 @@ public class PlotterLiveRunHeadlessTests
     /// control frame — the identical program with the G0s stripped — is what
     /// pins the red to the rapid flag specifically.</para>
     /// <para>Both plotters' rapids are red, so this is the same contract the
-    /// Nex layer test pins; this one holds the Skia side.</para>
+    /// GL layer test pins; this one holds the Skia side.</para>
     /// <para>The fixture is the shared deterministic stub, not this file's
     /// streamed <c>Setup</c>: the assertion is about pen colour, and a streamed
     /// run would buy only timing flake.</para></summary>

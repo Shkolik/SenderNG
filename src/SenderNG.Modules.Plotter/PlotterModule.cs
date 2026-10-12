@@ -86,7 +86,7 @@ public class PlotterModule : IModule, ILocalizedModule, IPluginInfo, IModuleSett
 
     /// <summary>Every user-visible string this module produces, per
     /// <see cref="ILocalizedModule"/>. The 12 view-chrome keys are here because
-    /// the Nex sibling lists its own <c>settings.*</c> keys the same way: this
+    /// the 3D sibling lists its own <c>settings.*</c> keys the same way: this
     /// dictionary is the module's declaration of what it can localize, and a key
     /// resolved only inside <c>PlotterSettingsViewModel</c> is invisible to
     /// <c>PlotterModuleTests.Every_declared_locale_key_exists_in_both_catalogs</c>.

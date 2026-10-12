@@ -1,5 +1,5 @@
 /*
- * IPlotTool.cs - plot tool abstraction for the Nex scene
+ * IPlotTool.cs - plot tool abstraction for the 3D plotter's scene
  */
 
 /*

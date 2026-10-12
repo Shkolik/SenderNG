@@ -231,15 +231,15 @@ public static class PlotterChromePens
     public static readonly IPen GridMajor =
         new Pen(new SolidColorBrush(Color.FromRgb(0xc0, 0xc0, 0xc0)));
 
-    /// <summary>#d93333 — X, red. Matches <c>NexPlotScene.AxisColor</c>'s X.</summary>
+    /// <summary>#d93333 — X, red (matches the 3D plotter's axis X).</summary>
     public static readonly IPen AxisX =
         new Pen(new SolidColorBrush(Color.FromRgb(0xd9, 0x33, 0x33)), 1.5);
 
-    /// <summary>#33cc33 — Y, green. Matches <c>NexPlotScene.AxisColor</c>'s Y.</summary>
+    /// <summary>#33cc33 — Y, green (matches the 3D plotter's axis Y).</summary>
     public static readonly IPen AxisY =
         new Pen(new SolidColorBrush(Color.FromRgb(0x33, 0xcc, 0x33)), 1.5);
 
-    /// <summary>#3359e6 — Z, blue. Matches <c>NexPlotScene.AxisColor</c>'s Z.</summary>
+    /// <summary>#3359e6 — Z, blue (matches the 3D plotter's axis Z).</summary>
     public static readonly IPen AxisZ =
         new Pen(new SolidColorBrush(Color.FromRgb(0x33, 0x59, 0xe6)), 1.5);
 
@@ -262,15 +262,16 @@ public static class PlotterChromePens
     // permanently-drawn green arrow is a false positive in it; the fix is in the
     // probe's call sites, which now compare green WITH and WITHOUT the iso
     // arrows, not a colour change that would make the Y arrow something other
-    // than the green Nex draws. See PlotterViewHeadlessTests.
+    // than the green the 3D plotter draws. See PlotterViewHeadlessTests.
 
-    /// <summary>#00b2e6 at 50% alpha — teal, Nex's <c>JobEnvelopeColor</c>
-    /// (0, 0.7, 0.9), which is drawn OPAQUE there. The alpha is a deliberate
-    /// departure from Nex parity and not an oversight: the envelope is a frame
+    /// <summary>#00b2e6 at 50% alpha — teal, the <c>JobEnvelopeColor</c>
+    /// (0, 0.7, 0.9), which the 3D plotter draws OPAQUE. The alpha is a
+    /// deliberate departure and not an oversight: the envelope is a frame
     /// measured AROUND the toolpath (see <c>PlotterFlatChrome.DrawEnvelope</c>,
     /// which passes a null brush on purpose), so half-transparent keeps it
-    /// legible without competing with the path it exists to measure. Nex can
-    /// afford full opacity because it draws last over its own wireframe; this
+    /// legible without competing with the path it exists to measure. The 3D
+    /// plotter can afford full opacity because it draws last over its own
+    /// wireframe; this
     /// plotter's envelope is also the gate for the foam tile frames and the iso
     /// box, so the same stroke is a carrier for three subjects and a heavier one
     /// would flatten the hierarchy.

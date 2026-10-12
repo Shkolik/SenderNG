@@ -70,9 +70,8 @@ public class PlotterGlModule : IModule, ILocalizedModule, IPluginInfo, IPluginDe
     public string Id => "plotter-gl";
     public string Name => "Plot 3D";
     public string Description => "G-code 3D path plotter: program toolpath with live run overlay.";
-    // Right after the Skia plotter (22) — the two plot tabs read as one group,
-    // and the GL one sits behind it in the tab order (Nex took 23).
-    public int Order => 24;
+    // Right after the Skia plotter (22) — the two plot tabs read as one group.
+    public int Order => 23;
     public PanelHint Panel => PanelHint.Center;
     // Not visible by default: the 3D plotter is A/B'd behind the scenes until
     // the plugin proves itself, so the Skia plotter stays the default.

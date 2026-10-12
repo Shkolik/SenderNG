@@ -58,8 +58,7 @@ public static class UiThread
     public static void Initialize() => _uiDispatcher = Dispatcher.UIThread;
 
     /// <summary>Test seam: clears the captured dispatcher so each test starts
-    /// uninitialised, matching the headless contract in
-    /// <c>docs/nex-check-mode-ui-starvation.md</c> §6.</summary>
+    /// uninitialised, matching the headless contract.</summary>
     internal static void ResetForTests() => _uiDispatcher = null;
 
     /// <summary>Whether <see cref="Initialize"/> has run. Lets tests pin the

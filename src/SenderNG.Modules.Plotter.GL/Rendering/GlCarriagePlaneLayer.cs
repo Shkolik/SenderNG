@@ -44,12 +44,11 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 
 /// <summary>
 /// One carriage-plane layer rendered as two pumped GL line lists (plane +
-/// executed overlay). Ported from <c>NexCarriagePlaneLayer</c>: the staging
-/// logic — O(1) <see cref="AddSegment"/>, idempotent
-/// <see cref="SetSegmentRunState"/> with incremental overlay append, rewind to
-/// an O(n) <see cref="RebuildExecuted"/> — is CPU-only and identical modulo
-/// retype; the GL half replaces the engine's static geometry swap-pump with two
-/// dynamic VBOs re-uploaded in place by <see cref="Pump"/>.
+/// executed overlay). The staging logic — O(1) <see cref="AddSegment"/>,
+/// idempotent <see cref="SetSegmentRunState"/> with incremental overlay
+/// append, rewind to an O(n) <see cref="RebuildExecuted"/> — is CPU-only;
+/// the GL half uses two dynamic VBOs re-uploaded in place by
+/// <see cref="Pump"/>.
 /// <para>
 /// GPU content never changes at a mutation API — mutations only stage and
 /// <see cref="RebuildGate.MarkDirty"/>. <see cref="Pump"/> (called at the
@@ -61,8 +60,7 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// </para></summary>
 internal sealed unsafe class GlCarriagePlaneLayer : ICarriagePlaneLayer, IDisposable
 {
-    // Skia-plotter-compatible palette (opaque — the line shader forces alpha 1),
-    // retyped from NexCarriagePlaneLayer.cs:79-86.
+    // Skia-plotter-compatible palette (opaque — the line shader forces alpha 1).
     internal static readonly Vector4 CutColor = new(0.5f, 0.5f, 0.5f, 1f);
     internal static readonly Vector4 RapidColor = new(0.9f, 0.12f, 0.12f, 1f);
     internal static readonly Vector4 ExecutedColor = new(0.106f, 0.62f, 0.243f, 1f);
@@ -91,7 +89,7 @@ internal sealed unsafe class GlCarriagePlaneLayer : ICarriagePlaneLayer, IDispos
     private bool _disposed;
 
     /// <summary>Create the layer's two VAO/VBO pairs on
-    /// <paramref name="ctx"/>'s context. The draw widths are the Nex palette
+    /// <paramref name="ctx"/>'s context. The draw widths are the palette
     /// constants: the scene pushes them to the expansion shader as
     /// <c>uLineWidthPx</c>, so nothing here depends on what the driver's
     /// <c>glLineWidth</c> accepts (checkpoint-4 items 3+4). Empty until the
@@ -110,13 +108,13 @@ internal sealed unsafe class GlCarriagePlaneLayer : ICarriagePlaneLayer, IDispos
     /// GPU-touched" test.</summary>
     internal int PendingMutations => _gate.PendingMutations;
 
-    /// <summary>Read seam: the width this layer's draws render at — Nex's
+    /// <summary>Read seam: the width this layer's draws render at — the
     /// <see cref="BaseLineThickness"/> palette value, pushed by the scene as
     /// <c>uLineWidthPx</c> (never driver-picked).</summary>
     internal float BaseLineWidth => BaseLineThickness;
 
     /// <summary>Executed-overlay vertex count (2 per done segment) — the
-    /// Nex diagnostic retyped.</summary>
+    /// diagnostic count.</summary>
     internal int ExecutedVerticesCount => _doneVerts.Count;
 
     /// <summary>Whether the last pump shipped plane content to the GPU — the
@@ -155,7 +153,7 @@ internal sealed unsafe class GlCarriagePlaneLayer : ICarriagePlaneLayer, IDispos
         _colors[segmentIndex * 2] = color;
         _colors[segmentIndex * 2 + 1] = color;
 
-        // Overlay bookkeeping (Nex semantics, lines 174-184): append the done
+        // Overlay bookkeeping: append the done
         // segment exactly once per Pending/InFlight → Executed transition; the
         // flag flip keeps repeated grants idempotent. Rewind (Executed → any
         // other state) rebuilds the overlay from the flags. GPU content never

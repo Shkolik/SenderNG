@@ -40,12 +40,11 @@ using SenderNG.Modules.Plotter.GL.Scene;
 
 namespace SenderNG.Core.Tests;
 
-/// <summary>The Task 6 tool: the cone orients along the wire the way
-/// <c>NexPlotTool</c> does (assertion style ported from
-/// <c>NexPlotToolOrientationTests</c>, retyped onto the GL tool's internal
-/// model-matrix accessors — InternalsVisibleTo), and the parked/dedup halves
-/// of <c>NexPlotTool.UpdatePosition</c> / <c>Pump</c> port with their visible
-/// behavior. Gated by <see cref="GlFactAttribute"/> /
+/// <summary>The Task 6 tool: the cone orients along the wire (assertion style
+/// retyped onto the GL tool's internal model-matrix accessors —
+/// InternalsVisibleTo), and the parked/dedup halves of <c>UpdatePosition</c> /
+/// <c>Pump</c> keep their visible behavior. Gated by
+/// <see cref="GlFactAttribute"/> /
 /// <see cref="GlTheoryAttribute"/> like the other GPU
 /// tests.</summary>
 [Trait("Category", "GPU")]
@@ -65,11 +64,11 @@ public class GlPlotToolTests
         Assert.True(float.IsFinite(apex.X + apex.Y + apex.Z));
     }
 
-    /// <summary>NexPlotToolOrientationTests' multi-axis theory, ported: both
-    /// cone model matrices must map local +Z away from / along the wire
-    /// direction. GL-flavored: the direction is read off the matrix as
-    /// <c>Transform(UnitZ) - Transform(Zero)</c> (the translation cancels),
-    /// where Nex read it off the bare quaternion. <c>[GlTheory]</c>, not a
+    /// <summary>The multi-axis orientation theory: both cone model matrices
+    /// must map local +Z away from / along the wire direction. GL-flavored:
+    /// the direction is read off the matrix as
+    /// <c>Transform(UnitZ) - Transform(Zero)</c> (the translation cancels).
+    /// <c>[GlTheory]</c>, not a
     /// bare <c>[Theory]</c>: the rows create a GL context, so without the
     /// discovery-time gate they FAIL on GL-less machines where the
     /// <c>[GlFact]</c> siblings skip.</summary>
@@ -114,8 +113,8 @@ public class GlPlotToolTests
         Assert.True(Vector3.Distance(mappedB, d) < 1e-4f, $"B got {mappedB}");
     }
 
-    /// <summary>The park half of Nex's UpdatePosition (NexPlotTool 140-161):
-    /// one endpoint keeps the primary cone on the point (mill) and switches
+    /// <summary>The park half of UpdatePosition: one endpoint keeps the primary
+    /// cone on the point (mill) and switches
     /// the connector wire and second cone off; zero endpoints parks
     /// everything. GL parks by skipping the draw — no far-off ParkedPosition
     /// — so the observable state is the visibility flags plus the parked
@@ -145,7 +144,7 @@ public class GlPlotToolTests
         Assert.True(tool.Parked, "zero endpoints parks the whole tool");
     }
 
-    /// <summary>The dedup half of Nex's UpdatePosition (167-172): idle status
+    /// <summary>The dedup half of UpdatePosition: idle status
     /// polls re-send the same endpoints tens of times a second, and only a
     /// change may mark the swap-pump. The gate's PendingMutations is the seam
     /// (one mark per real change).</summary>
@@ -168,7 +167,7 @@ public class GlPlotToolTests
         Assert.Equal(2, tool.PendingMutations);
     }
 
-    /// <summary>The Pump half (Nex 211-223): the dirty wire uploads once and
+    /// <summary>The Pump half: the dirty wire uploads once and
     /// the pending flag clears; a clean tool pumps nothing.</summary>
     [GlFact]
     public void Pump_uploads_the_dirty_wire_once()
@@ -188,7 +187,7 @@ public class GlPlotToolTests
     }
 
     /// <summary>Local +Z direction of a cone model matrix, translation
-    /// removed — the matrix form of Nex's <c>Vector3.Transform(UnitZ, q)</c>.</summary>
+    /// removed — the matrix form of <c>Vector3.Transform(UnitZ, q)</c>.</summary>
     private static Vector3 MappedDirection(Matrix4x4 m) =>
         Vector3.Transform(Vector3.UnitZ, m) - Vector3.Transform(Vector3.Zero, m);
 }

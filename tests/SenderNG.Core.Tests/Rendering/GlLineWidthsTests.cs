@@ -79,7 +79,7 @@ public class GlLineWidthsTests
     /// longer depends on driver <c>glLineWidth</c> acceptance (fat-line
     /// geometry renders them as quads). The scene's chrome palette is
     /// per-piece (checkpoint-5 item 3) and pinned end-to-end by
-    /// <c>Chrome_pieces_draw_at_their_nex_palette_widths</c>.</summary>
+    /// <c>Chrome_pieces_draw_at_their_palette_widths</c>.</summary>
     [GlFact]
     public void Layers_draw_the_palette_widths_not_the_accepted_set()
     {

@@ -25,10 +25,8 @@
  *    File.ReadAllText(path, Encoding.UTF8) STRIPS a BOM, so a text-based guard
  *    cannot see one - hence The_catalogs_carry_no_utf8_bom below, which reads the
  *    bytes.
- * 3. The plan names tests/SenderNG.Core.Tests/Localization/PlotterNexLocaleTests.cs
- *    as the discovery to copy. That file is not in this branch (it exists only on
- *    refs/backup/pre-msg-rewrite), and no locale guard existed anywhere, so the
- *    walk-up here is self-contained.
+ * 3. No locale guard existed anywhere before this file, so the walk-up here
+ *    is self-contained — it copies from no other locale test.
  *
  * SOURCE tree, not the staged copy, is what these checks read: a mutation run
  * edits the file and re-runs the test without a rebuild, and a CopyToOutputDirectory

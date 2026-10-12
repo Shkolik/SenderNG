@@ -51,7 +51,7 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// scene constructor for the due-diligence doc (checkpoint-4 item 4).</summary>
 internal static class GlLineWidths
 {
-    /// <summary>The probe order: Nex's toolpath thickness (3.2), the plan-era
+    /// <summary>The probe order: the toolpath thickness (3.2), the plan-era
     /// chrome width (1.5), plus the integers checkpoint 3 left unverified.</summary>
     internal static readonly float[] Candidates = [1f, 1.5f, 2f, 3f, 3.2f];
 

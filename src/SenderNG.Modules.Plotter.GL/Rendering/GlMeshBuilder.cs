@@ -40,16 +40,14 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 
 /// <summary>Static triangle meshes for the chrome heads and the plot tool.
 /// <para>
-/// The tessellation is a port of Nex's <c>ConeMesh</c>/<c>SphereMesh</c>: same
-/// ring math, same winding, same wrap-around index scheme — only the output
-/// container changed (Helix <c>Geometry</c> → interleaved <c>pos(3)+normal(3)</c>
-/// floats plus a triangle-list index array), so the duplicated math stays
-/// line-for-line auditable against the source.
+/// The tessellation is shared cone/sphere mesh math: the same
+/// ring math, winding, and wrap-around index scheme, emitted as an
+/// interleaved <c>pos(3)+normal(3)</c> float buffer plus a triangle-list
+/// index array.
 /// </para></summary>
 internal static class GlMeshBuilder
 {
-    /// <summary>Shared cone dimensions — Nex's <c>ConeMesh.DefaultRadius</c>/
-    /// <c>DefaultHeight</c>. The axis-arrowhead scale divides by these, so the
+    /// <summary>Shared cone dimensions. The axis-arrowhead scale divides by these, so the
     /// axis cone must be built at exactly this size.</summary>
     public const float DefaultRadius = 1.5f;
     public const float DefaultHeight = 3f;

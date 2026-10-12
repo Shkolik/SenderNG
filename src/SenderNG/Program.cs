@@ -50,9 +50,8 @@ class Program
         // (e.g. --locale <code>), so stash them before the lifetime takes over.
         App.StartupArgs = args;
 #if DEBUG
-        // Surface Avalonia/HelixToolkit Trace logs (LogToTrace) to the console so
-        // the nightly HelixViewport's "perf"/"tick failed" lines are visible while
-        // debugging the freeze.
+        // Surface Avalonia's Trace logs (LogToTrace) to the console so the
+        // "perf"/"tick failed" lines are visible while debugging a freeze.
         System.Diagnostics.Trace.Listeners.Add(
             new System.Diagnostics.TextWriterTraceListener(System.Console.Error));
         System.Diagnostics.Trace.AutoFlush = true;

@@ -117,7 +117,7 @@ public sealed class RecorderPlaneLayer : ICarriagePlaneLayer
     public void AddSegment(LineSegment seg, MotionType type) =>
         Added.Add((seg.From, seg.To, type));
 
-    // Mirrors NexCarriagePlaneLayer: re-applying an unchanged state records
+    // Mirrors the carriage-plane layer: re-applying an unchanged state records
     // nothing, so the recorder stays faithful to the real layer's no-op.
     public void SetSegmentRunState(int segmentIndex, RunState state)
     {

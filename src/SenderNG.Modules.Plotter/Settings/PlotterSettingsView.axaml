@@ -10,9 +10,8 @@
     <!-- The four view toggles, then one row per carriage plane: a world-axis
          combo per slot and the three world-axis origin offsets. Every label is a
          *Label property on the model, resolved code-side — plugin views cannot
-         use the app-only {Loc} markup (PlotterSettingsViewModel.Resolve). The
-         per-slot combos mirror the Nex module's axis editor: one combo per
-         carriage, each picking a distinct world axis (enforced by the row). -->
+         use the app-only {Loc} markup (PlotterSettingsViewModel.Resolve). Each
+         per-slot axis combo picks a distinct world axis (enforced by the row). -->
     <StackPanel Spacing="4">
         <TextBlock Text="{Binding ViewLabel}" FontSize="12" FontWeight="SemiBold"
                    Foreground="#333" Margin="0,6,0,0" />

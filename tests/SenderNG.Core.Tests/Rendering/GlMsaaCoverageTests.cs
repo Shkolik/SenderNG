@@ -118,7 +118,7 @@ public class GlMsaaCoverageTests
     }
 
     /// <summary>The chrome side of the same comparison: the isometric grid's
-    /// diagonal lines at the Nex 1.6 palette width, None vs X8 through the
+    /// diagonal lines at the 1.6 palette width, None vs X8 through the
     /// same readback. Supplies the chrome edge numbers the report quantifies
     /// against the toolpath.</summary>
     [GlFact]

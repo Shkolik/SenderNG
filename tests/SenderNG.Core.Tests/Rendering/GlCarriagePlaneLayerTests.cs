@@ -1,6 +1,6 @@
 /*
  * GlCarriagePlaneLayerTests.cs - toolpath staging, run-state overlay and the
- * retyped Nex color table on the real GL path
+ * colour palette on the real GL path
  */
 
 /*
@@ -44,8 +44,8 @@ using SenderNG.Modules.Plotter.GL.Settings;
 namespace SenderNG.Core.Tests;
 
 /// <summary>The Task 5 layer: segments stage on CPU, run-state transitions
-/// drive the executed overlay idempotently, and the palette is Nex's
-/// color table retyped onto <see cref="Vector4"/>. Gated by
+/// drive the executed overlay idempotently, and the palette is a
+/// <see cref="Vector4"/> colour table. Gated by
 /// <see cref="GlFactAttribute"/> like the other GPU tests.</summary>
 [Trait("Category", "GPU")]
 public class GlCarriagePlaneLayerTests
@@ -91,8 +91,8 @@ public class GlCarriagePlaneLayerTests
         var rapid = layer.ColorAt(1);
         Assert.NotEqual(cut, rapid);
 
-        // Nex color-table assertion style (NexCarriagePlaneLayerTests:
-        // component-wise equality against the palette constants).
+        // Color-table assertion style: component-wise equality against the
+        // palette constants.
         Assert.Equal(GlCarriagePlaneLayer.CutColor, cut);
         Assert.Equal(0.5f, cut.X);
         Assert.Equal(0.5f, cut.Y);

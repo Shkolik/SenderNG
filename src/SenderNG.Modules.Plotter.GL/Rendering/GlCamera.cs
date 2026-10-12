@@ -39,7 +39,7 @@ using System.Numerics;
 namespace SenderNG.Modules.Plotter.GL.Rendering;
 
 /// <summary>Renderer-neutral camera state — the six properties CameraGestures
-/// touches. Replaces Helix's OrthographicCamera/PerspectiveCamera without
+/// touches. Replaces the conventional orthographic/perspective camera without
 /// inventing a camera abstraction: one mutable record-ish class, two modes.</summary>
 internal sealed class GlCamera
 {

@@ -1316,8 +1316,8 @@ public class PlotterViewHeadlessTests
     /// most of the plot. Probing a 5x5 grid found the canvas returned at zoom 2.0
     /// and the Border at 1.25 and below, at every point tried.</para>
     /// <para>The fix is <c>PlotCanvas : Control, ICustomHitTest</c> claiming its
-    /// whole box (<c>Background = Brushes.Transparent</c> was tried first and does
-    /// not port from the Nex view: that works on a <c>Panel</c>, while
+    /// whole box (<c>Background = Brushes.Transparent</c> was tried first: that
+    /// works on a <c>Panel</c>, while
     /// <c>Background</c> on a <c>TemplatedControl</c> is template-bound and these
     /// canvases have no template - measured, still falling through). This test
     /// asserts the canvas is in the hit chain at a zoom where it demonstrably was
@@ -1615,7 +1615,7 @@ public class PlotterViewHeadlessTests
     }
 
     /// <summary>The teal envelope (<c>PlotterChromePens.Envelope</c> =
-    /// <c>#00b2e6</c> at 50% alpha, Nex's <c>0, 0.7, 0.9</c>), allowing for
+    /// <c>#00b2e6</c> at 50% alpha), allowing for
     /// the antialiased edge pixels AND for alpha blending against whatever the
     /// stroke crosses.
     ///
@@ -2911,9 +2911,9 @@ public class PlotterViewHeadlessTests
             $"the iso lattice must not paint over the toolpath: {replaced} pixels were path with the grid off and light with it on");
     }
 
-    /// <summary>The origin toggle gates the world AXES. Nex maps
+    /// <summary>The origin toggle gates the world AXES. It maps
     /// <c>ShowOrigin</c> to axis visibility
-    /// (<c>NexPlotScene.SetView → SetAxesVisible</c>); this view used to draw the
+    /// (<c>SetView → SetAxesVisible</c>); this view used to draw the
     /// arrows unconditionally, so toggling Origin hid only the small machine-origin
     /// cross that used to sit under the shaft bases while the X/Y/Z arrows — the
     /// thing the user can actually see — never moved. Both are gone now: the cross

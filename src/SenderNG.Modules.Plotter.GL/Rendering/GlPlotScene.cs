@@ -46,7 +46,7 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// <summary>The plot scene the view drives through <see cref="IPlotScene"/>.
 /// <para>
 /// Navigation is live: two <see cref="GlCamera"/> modes (ortho/perspective),
-/// Nex's preset/pan/zoom/orbit wiring retyped onto <see cref="CameraGestures"/>,
+/// preset/pan/zoom/orbit gestures on <see cref="CameraGestures"/>,
 /// and the view/projection cached per <see cref="RenderFrame"/> for cursor-ray
 /// placement. Each frame draws the static chrome through the two
 /// <see cref="GlShaders"/> programs — grid, job envelope, axis shafts —
@@ -60,19 +60,18 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 {
     private const float OrbitSensitivity = 0.005f;
 
-    /// <summary>Nex's orbit-pivot albedo RGB (NexPlotScene.cs:78), alpha baked
-    /// into the mesh color the way DrawLoft bakes the sheet's — 0.20, a touch
-    /// lighter than Nex's 0.35 opacity so the marker sits quieter over the
-    /// loft.</summary>
+    /// <summary>The orbit-pivot albedo RGB, alpha baked into the mesh color
+    /// the way DrawLoft bakes the sheet's — 0.20, a touch lighter than a 0.35
+    /// opacity so the marker sits quieter over the loft.</summary>
     private static readonly Vector4 OrbitPivotColor = new(1f, 0.66f, 0.1f, 0.2f);
 
     /// <summary>Opaque chrome colors (no alpha — premultiply handling is
-    /// unverified). Verbatim from Nex's palette.</summary>
+    /// unverified).</summary>
     private static readonly Vector4 GridMinorColor = new(0.82f, 0.82f, 0.82f, 1f);
     private static readonly Vector4 GridMajorColor = new(0.62f, 0.62f, 0.62f, 1f);
     private static readonly Vector4 JobEnvelopeColor = new(0f, 0.7f, 0.9f, 1f);
 
-    /// <summary>Task 7b: the mesh pass shades with Nex's CAD pipeline
+    /// <summary>Task 7b: the mesh pass shades with the CAD pipeline
     /// (<c>cadStyleLightingFlat</c>) against world-space positions/normals, so
     /// the camera state and the tone-map discriminator travel as uniforms —
     /// the fixed light is gone with the port.</summary>
@@ -140,9 +139,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     internal BoundingBox? ChromeEnvelope { get; private set; }
     private bool _disposed;
 
-    /// <summary>The chrome palette — Nex's PER-PIECE line thicknesses, verbatim
-    /// (Nex <c>NexPlotScene.cs:265-267</c>: grid 1.6, axis-arrows 3.6,
-    /// job-envelope 1.6). Palette values pushed to the expansion shader as
+    /// <summary>The chrome palette — PER-PIECE line thicknesses: grid 1.6,
+    /// axis-arrows 3.6, job-envelope 1.6. Pushed to the expansion shader as
     /// <c>uLineWidthPx</c>, never filtered through the driver's glLineWidth
     /// acceptance. They supersede the plan-era single <c>min(1.5, max)</c>
     /// request: fat-line geometry removed the driver-width constraint.</summary>
@@ -164,8 +162,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     private float _pushedAxesWidth;
 
     /// <summary>Read seam: the orbit-pivot marker is up while an orbit
-    /// gesture is open (Nex's Show/HideOrbitPivot pair, gated here on
-    /// <see cref="_orbitPivot"/> itself).</summary>
+    /// gesture is open, gated here on <see cref="_orbitPivot"/> itself.</summary>
     internal bool OrbitSphereVisible => _orbitPivot is not null;
 
     /// <summary>Read seam: the marker's world radius, reseeded by every
@@ -186,11 +183,11 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
     // --- live content (Task 5) ---
     /// <summary>The carriage plane layers of the current build, in factory
-    /// order. Reset as a set on a program reload (Nex's ResetBuild fence).</summary>
+    /// order. Reset as a set on a program reload.</summary>
     private readonly List<GlCarriagePlaneLayer> _liveLayers = [];
 
-    /// <summary>The live tools of the current build — nex keeps the same list
-    /// (<c>NexPlotScene._liveTools</c>). At most one exists at a time: the
+    /// <summary>The live tools of the current build. At most one exists at a
+    /// time: the
     /// end-of-build fence in <see cref="CreateTool"/> resets (and disposes)
     /// before every tool after a completed build. Pumped by
     /// <see cref="PumpToolWire"/>, drawn by <see cref="DrawTools"/>, disposed
@@ -213,7 +210,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
     /// <summary>End-of-build marker the kinematic factory trips with its final
     /// CreateTool — the next AddCarriagePlane after a completed build resets
-    /// the previous run's content (Nex's fence, verbatim).</summary>
+    /// the previous run's content.</summary>
     private bool _buildComplete;
 
     /// <summary>The metrics the chrome was last built from — the
@@ -225,13 +222,12 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// the ±25 fallback collides with the empty latch on every other field.</summary>
     private (Vector3 Center, Vector3 Span, int PlaneCount, bool HasContent)? _chromeMetrics;
 
-    /// <summary>Nex's <c>_contentFramed</c> latch, verbatim semantics: the
-    /// constructor frames the camera once against empty content, so the first
-    /// rebuild that finds real content re-applies the current preset against
-    /// the content's bounds (checkpoint-4 item 1, superseding Task 5b's
-    /// no-auto-reframe for this one frame). Every later rebuild is
-    /// geometry-only; the latch resets when the content empties (Nex's
-    /// <c>sum == 0</c> branch), so the next load frames again.</summary>
+    /// <summary>The <c>_contentFramed</c> latch: the constructor frames the
+    /// camera once against empty content, so the first rebuild that finds
+    /// real content re-applies the current preset against the content's
+    /// bounds (checkpoint-4 item 1, superseding Task 5b's no-auto-reframe
+    /// for this one frame). Every later rebuild is geometry-only; the latch
+    /// resets when the content empties, so the next load frames again.</summary>
     private bool _contentFramed;
 
     /// <summary>Spike diagnostic latch (remove before the doc): the one-shot
@@ -340,10 +336,9 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _orbitSphere = new IndexedMesh(context, sphereVerts, sphereIdx);
 
         // The scene reaches the view with no content, so the constructor
-        // provisions the chrome once — the GL counterpart of Nex's first-frame
-        // EnsureChromeUpToDate, and with no content that is Nex's
-        // BuildEmptyChrome (fixed origin grid, no envelope). Later pumps
-        // re-run this through MaybeRebuildChrome when the staged bounds move.
+        // provisions the chrome once — a fixed origin grid, no envelope.
+        // Later pumps re-run this through MaybeRebuildChrome when the staged
+        // bounds move.
         BuildEmptyChrome();
 
         SetViewPreset(ViewPreset.Isometric3D);
@@ -389,8 +384,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
     /// <summary>Push the overlay view toggles (runtime-only, no rebuild). Each
     /// gate is read in <see cref="RenderFrame"/> — the geometry stays uploaded,
-    /// the draw is skipped, which is the Nex node park/enable flip without the
-    /// parked transform.</summary>
+    /// the draw is skipped (node park/enable flip without the parked
+    /// transform).</summary>
     public void SetView(PlotterGlSettings settings)
     {
         ShowOrigin = settings.ShowOrigin;
@@ -398,9 +393,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         ShowGrid = settings.ShowGrid;
         ShowRunState = settings.ShowRunState;
         ShowLoft = settings.ShowLoft;
-        // Run state reaches the planes as staging state (Nex's
-        // ApplyRunStateToLayer, minus the parked done node — the GL layer
-        // gates its own overlay draw on the same flag).
+        // Run state reaches the planes as staging state — the layer gates its
+        // own overlay draw on the same flag.
         foreach (var layer in _liveLayers)
             layer.SetRunStateVisible(ShowRunState);
     }
@@ -409,7 +403,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// (called at the apply cadence, not every tick). Each layer decides for
     /// itself whether its <see cref="RebuildGate"/> grants an upload. The pump
     /// is also the chrome's bounds checkpoint: whatever the staging now reports,
-    /// the auto chrome follows — Nex's "rebuild when bounds change".</summary>
+    /// the auto chrome follows — rebuild when bounds change.</summary>
     public void PumpCarriagePlanes()
     {
         foreach (var layer in _liveLayers)
@@ -419,7 +413,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
     /// <summary>Swap-pump the tool connector wires. Every live tool decides
     /// for itself whether its <see cref="RebuildGate"/> grants an upload —
-    /// the Nex pump cadence the view drives every tick. The loft is NOT
+    /// the pump cadence the view drives every tick. The loft is NOT
     /// pumped: its sheet is static for the life of a build (Task 7 uploads it
     /// once, from the build path that calls <c>SetLoftSheet</c>).</summary>
     public void PumpToolWire()
@@ -440,8 +434,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         // a common world-units-per-pixel keeps all projections at the same
         // apparent scale, and is the tracked base for the wheel zoom.
         _orthoZoom = MathF.Max(span.Length() * 1.1f, 1f);
-        // Nex's pivot-sphere size (NexPlotScene.cs:523): 5% of the framing
-        // radius, floored so a tiny model still gets a visible marker.
+        // Pivot-sphere size: 5% of the framing radius, floored so a tiny
+        // model still gets a visible marker.
         _orbitSphereRadius = MathF.Max(0.5f, radius * 0.05f);
         switch (preset)
         {
@@ -589,8 +583,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             var (pos, label) = arrows[i];
             var color = AxisColor(label);
             FillAxisShaft(shafts, pos, AxisDirection(label), len, coneHeight, color);
-            // Nex heads the first three arrows only — its arrowhead mesh nodes
-            // are a preallocated array of three.
+            // Only the first three arrows get heads — the arrowhead instance
+            // array is preallocated to three.
             if (i >= AxisConeLimit)
                 continue;
             var (tip, rotation, scale) = AxisConeTransform(label, pos, len);
@@ -617,7 +611,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
     /// <summary>The grid's line vertices, split minor/major the way
     /// <see cref="SetGrid"/> uploads them: one line per step along each axis,
-    /// colored per step exactly like Nex. Extracted as a pure function so the
+    /// colored per step. Extracted as a pure function so the
     /// vertex layout (including the far-edge boundaries) is assertable
     /// without a GPU.</summary>
     internal static (float[] Minor, float[] Major) BuildGridLines(
@@ -633,8 +627,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         var minY = (float)bounds.MinY;
         var maxY = (float)bounds.MaxY;
 
-        // One pass, two buffers: a line is minor or major exactly the way Nex
-        // colors it per step, it just lands in the mesh that carries that color.
+        // One pass, two buffers: a line is minor or major by its step colour,
+        // and lands in the mesh that carries that color.
         var minorVerts = new List<float>();
         var majorVerts = new List<float>();
 
@@ -707,9 +701,9 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     {
         // Program reloads: the kinematic factory ends every build with
         // CreateTool, so the next AddCarriagePlane after a completed build
-        // provokes a ResetBuild that disposes the previous run's layers
-        // (Nex's fence, verbatim) — the scene has no "clear" API, and a stale
-        // toolpath must not keep drawing behind the new one.
+        // provokes a ResetBuild that disposes the previous run's layers —
+        // the scene has no "clear" API, and a stale toolpath must not keep
+        // drawing behind the new one.
         if (_buildComplete)
             ResetBuild();
         _buildComplete = false;
@@ -745,15 +739,15 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _buildComplete = false;
         var tool = new GlPlotTool(this, shape);
         _liveTools.Add(tool);
-        // The factory's end-of-build marker (Nex sets the same flag here).
+        // The factory's end-of-build marker.
         _buildComplete = true;
         return tool;
     }
 
-    /// <summary>Dispose the previous run's content (Nex's ResetBuild, GL
-    /// subset): fresh fabric is registered on every program reload, so the old
-    /// layers, lofts and tools must go. Runs on the render thread with the
-    /// context current — same thread every pump and draw uses.</summary>
+    /// <summary>Dispose the previous run's content: fresh fabric is registered
+    /// on every program reload, so the old layers, lofts and tools must go.
+    /// Runs on the render thread with the context current — same thread every
+    /// pump and draw uses.</summary>
     private void ResetBuild()
     {
         foreach (var tool in _liveTools)
@@ -767,17 +761,16 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _liveLofts.Clear();
         _buildComplete = false;
         // Nothing is live anymore: the chrome falls back to the empty-state
-        // reference grid the ctor provisions (Nex's BuildEmptyChrome).
+        // reference grid the ctor provisions.
         MaybeRebuildChrome();
     }
 
     /// <summary>Bounding metrics of the live content. The layers' staged
-    /// extents win (Nex reads its content-node vertices), so a loaded program
-    /// reframes onto the toolpath; with none — the empty state — this is
-    /// Nex's not-found envelope (min/max ±25), the default box the presets
-    /// frame until geometry lands. Camera AND chrome read these same metrics
-    /// (Nex parity): the old grid-bounds fallback here is what aimed the
-    /// empty camera at the corner grid's center, (30, 30, −25).</summary>
+    /// extents win, so a loaded program reframes onto the toolpath; with none
+    /// — the empty state — this is the not-found envelope (min/max ±25), the
+    /// default box the presets frame until geometry lands. Camera AND chrome
+    /// read these same metrics: the old grid-bounds fallback here is what
+    /// aimed the empty camera at the corner grid's center, (30, 30, −25).</summary>
     private (Vector3 Center, float Radius, Vector3 Span) ContentMetrics()
     {
         Vector3 min, max;
@@ -821,7 +814,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// bounds moved — the empty state's fixed reference grid and the loaded
     /// program's fitted chrome are both rebuilt through this latch (the
     /// plan's "rebuild when bounds change", wired at the pump and at the
-    /// reload fence). Geometry only, with the single exception of Nex's
+    /// reload fence). Geometry only, with the single exception of the
     /// first-content frame: the first rebuild that finds staged content
     /// re-applies the current preset against those bounds, because the
     /// constructor framed the empty scene (checkpoint-4 item 1, see
@@ -845,7 +838,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         }
         else
         {
-            // No content: Nex's sum == 0 branch — the fixed empty chrome and
+            // No content: the empty branch — the fixed empty chrome and
             // the frame-latch reset, no camera move; the next arrival
             // reframes through the branch above.
             BuildEmptyChrome();
@@ -895,9 +888,9 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         // AA; the tool's mesh triangles then run before DrawAxisCones, which
         // loses nothing — all triangle draws are self-hard under MSAA on this
         // driver regardless of position (probe matrix in the SDD ledger).
-        // NOT gated by ShowOrigin: Nex gates only the axis nodes with that
-        // toggle (NexPlotScene.SetAxesVisible) — the tool nodes live outside
-        // it and stay visible on their own UpdatePosition/Pump state.
+        // NOT gated by ShowOrigin: that toggle gates only the axis nodes —
+        // the tool nodes live outside it and stay visible on their own
+        // UpdatePosition/Pump state.
         DrawTools(view * proj);
         // The cone pass runs after every line pass, and the placement is
         // the whole fix (checkpoint-8; probe matrix in the SDD ledger). WHY: on Intel
@@ -942,8 +935,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// <summary>The tool indicators between the layer pass and the cone
     /// heads — see <see cref="RenderFrame"/> for why this slot exists (the
     /// wire must land before the frame's first triangles). Not gated by
-    /// <see cref="ShowOrigin"/> (Nex parity: the tool nodes are independent
-    /// of the origin toggle); a parked tool draws nothing from inside
+    /// <see cref="ShowOrigin"/> (the tool nodes are independent of the
+    /// origin toggle); a parked tool draws nothing from inside
     /// <see cref="GlPlotTool.Draw"/>. The build fence keeps at most one live
     /// tool (see <see cref="_liveTools"/>), so a per-tool wire-then-mesh draw
     /// can never put a second tool's wire behind the first tool's triangles.</summary>
@@ -958,7 +951,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// <summary>Bind the line program for a tool's connector wire: the
     /// frame's MVP and render-target pixel space (latched in
     /// <see cref="RenderFrame"/>) plus the tool-wire palette width
-    /// (<see cref="GlPlotTool.WireThickness"/>, Nex's 2.0f node
+    /// (<see cref="GlPlotTool.WireThickness"/>, the 2.0f wire
     /// thickness) as <c>uLineWidthPx</c>.</summary>
     internal void UseToolWireProgram(in Matrix4x4 vp)
         => UseLineProgram(vp, _frameRtW, _frameRtH, GlPlotTool.WireThickness);
@@ -1010,7 +1003,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// order), through the same line program — each layer binds its own VAO
     /// and draws the plane, then the executed overlay: equal depth, the later
     /// draw wins under the GL_LEQUAL set once in the ctor. Width comes from
-    /// Nex's toolpath palette (base/executed 3.2/3.2), pushed as
+    /// the toolpath palette (base/executed 3.2/3.2), pushed as
     /// <c>uLineWidthPx</c> — not from <c>glLineWidth</c>. Reaching this
     /// method with layers to draw raises the order-guard observation the
     /// cone pass latches (see <see cref="LayersDrawnBeforeCones"/>).</summary>
@@ -1101,8 +1094,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// triangle passes (the GL_LEQUAL set once in the ctor decides its
     /// equal-depth ties).
     /// Each line piece group re-binds the program with ITS OWN palette width
-    /// (Nex per-piece parity: grid/envelope 1.6, axis shafts 3.6) as
-    /// <c>uLineWidthPx</c> — no <c>glLineWidth</c> state to re-assert.</summary>
+    /// (grid/envelope 1.6, axis shafts 3.6) as <c>uLineWidthPx</c> — no
+    /// <c>glLineWidth</c> state to re-assert.</summary>
     private void DrawChrome(in Matrix4x4 vp, uint rtW, uint rtH)
     {
         if (ShowGrid)
@@ -1163,11 +1156,11 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// <summary>The frame's loft pass — its first blend pass (the orbit-pivot
     /// marker's follows): the translucent sheet between the carriage planes,
     /// gated by <see cref="ShowLoft"/> and by a live sheet with geometry
-    /// (Nex's lazily-absent node — an empty sheet draws nothing).
+    /// (an empty sheet draws nothing).
     /// Pass state:
     /// <c>uMvp = vp</c> with an identity model (the sheet is already in world
     /// space), the CAD camera uniforms with the RAW discriminator
-    /// (<c>uToneMap = 0</c> — the checkpoint-12 measurement: Nex's sheet
+    /// (<c>uToneMap = 0</c> — the checkpoint-12 measurement: the sheet
     /// lands on the un-tone-mapped cluster, so the tone map must NOT touch
     /// this pass), a LIGHTENED sheet colour at 0.15 alpha
     /// (<c>(0.85, 0.85, 0.95)</c> — empirical checkpoint-12/13 fix: hardware
@@ -1205,7 +1198,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         PushMeshCamera(MeshToneMapOff);
         // Empirical lighten (checkpoint 12): on hardware the sheet renders opaque
         // at the raw CAD shade, so the albedo carries the whole result — bump
-        // it until it visually matches Nex's light sheet. Alpha kept at 0.15
+        // it until the sheet reads as a light shade. Alpha kept at 0.15
         // so a working blend still composites over the near-white clear.
         _gl.Uniform4(_meshColor, new Vector4(0.85f, 0.85f, 0.95f, 0.15f));
         _gl.Enable(EnableCap.Blend);
@@ -1217,7 +1210,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _gl.Disable(EnableCap.Blend);
     }
 
-    /// <summary>The orbit-pivot marker: Nex's translucent amber sphere at the
+    /// <summary>The orbit-pivot marker: a translucent amber sphere at the
     /// rotation origin, up exactly while an orbit gesture is open. The
     /// frame's second blend pass and its new last draw, copying DrawLoft's
     /// state discipline — <c>SrcAlpha / OneMinusSrcAlpha</c> and
@@ -1276,10 +1269,9 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _gl.DeleteProgram(_meshProg);
     }
 
-    // --- chrome geometry (ports of Nex's yellow regions) ---
+    // --- chrome geometry ---
 
-    /// <summary>Chrome for the no-content state — port of Nex's
-    /// <c>BuildEmptyChrome</c> (<c>NexPlotScene.cs:1120-1130</c>): a fixed
+    /// <summary>Chrome for the no-content state: a fixed
     /// square 10×10 reference grid spanning a 100×100 field centered on the
     /// origin at Z=0, origin arrows, and no job envelope — sized to the
     /// empty-content fallback framing (±25) so it fills the view. The metrics
@@ -1300,8 +1292,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _chromeMetrics = (center, span, _liveLayers.Count, false);
     }
 
-    /// <summary>Drop the job-envelope chrome — Nex's <c>ClearNode</c> on the
-    /// job geometry, the empty state's "no bounding-box envelopes". The empty
+    /// <summary>Drop the job-envelope chrome — the empty state's "no
+    /// bounding-box envelopes". The empty
     /// upload zeroes the vertex count (an empty array is a legal upload), and
     /// the null seam keeps <see cref="DrawChrome"/> from binding the piece.
     /// </summary>
@@ -1312,9 +1304,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     }
 
     /// <summary>Provision grid, axes and envelope from the shared
-    /// <c>ContentMetrics</c> (camera and chrome agree — Nex parity) — Nex's
-    /// <c>BuildAutoChrome</c>, with the plane count taken from
-    /// the live carriage planes (Nex passes its plane-node count): one plane
+    /// <c>ContentMetrics</c> (camera and chrome agree), with the plane count
+    /// taken from the live carriage planes: one plane
     /// (mill) gets the origin-corner table from machine (0,0), two or more
     /// (foam) the envelope-centered one. Re-runs whenever
     /// <see cref="MaybeRebuildChrome"/> sees the bounds move.</summary>
@@ -1329,8 +1320,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             center.X + hx, center.Y + hy, center.Z + hz);
         var major = NiceStep(Math.Max(radius * 0.25, 1));
         // One plane (mill) = origin-corner table from machine (0,0); two or
-        // more (foam) = grid pinned to the model's XY envelope — Nex passes
-        // its plane-node count, the GL scene its live carriage planes.
+        // more (foam) = grid pinned to the model's XY envelope, the plane
+        // count coming from the live carriage planes.
         var grid = AutoGridBounds(center, span, planeCount: _liveLayers.Count, (float)box.MinZ);
         SetGrid(grid, major / 5, major);
         AddAxisArrows(
@@ -1343,7 +1334,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _chromeMetrics = (center, span, _liveLayers.Count, true);
     }
 
-    /// <summary>Auto-chrome grid bounds, verbatim from Nex: single-plane (mill)
+    /// <summary>Auto-chrome grid bounds: single-plane (mill)
     /// plots start at machine (0,0) and run 20% past the model's positive
     /// extent; multi-plane (foam) plots pin to the model's XY envelope.</summary>
     internal static BoundingBox AutoGridBounds(in Vector3 center, in Vector3 span, int planeCount, float z)
@@ -1358,8 +1349,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         return new BoundingBox(0, 0, z, Math.Max(span.X, 1f) * 1.2, Math.Max(span.Y, 1f) * 1.2, z);
     }
 
-    /// <summary>Round a raw grid step up to the next 1/2/5×10ⁿ — verbatim from
-    /// Nex; the minor step is always this divided by five.</summary>
+    /// <summary>Round a raw grid step up to the next 1/2/5×10ⁿ; the minor
+    /// step is always this divided by five.</summary>
     internal static double NiceStep(double raw)
     {
         var exp = Math.Floor(Math.Log10(raw));
@@ -1409,8 +1400,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     private const float AxisConeHeightFraction = 0.32f;
     private const float AxisConeRadiusFraction = 0.38f;
 
-    /// <summary>Nex's arrowhead node count — the heads it preallocates, so only
-    /// the first three arrows get one.</summary>
+    /// <summary>The arrowhead instance count — only the first three arrows
+    /// get one.</summary>
     private const int AxisConeLimit = 3;
 
     internal static float AxisConeHeight(float shaftLength) => shaftLength * AxisConeHeightFraction;

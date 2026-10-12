@@ -279,8 +279,8 @@ public class PlotterGlViewHeadlessTests
             var bitmap = Assert.IsType<Avalonia.Media.Imaging.WriteableBitmap>(
                 Private(view, "_bitmap"));
             // RGBA8888 byte order: the clear color {0.98, 0.98, 0.98, 1}
-            // (bytes 250, 250, 250 — checkpoint-1 near-white ruling, matching
-            // Nex) must round-trip byte-exact through glClear → glReadPixels →
+            // (bytes 250, 250, 250 — checkpoint-1 near-white ruling) must
+            // round-trip byte-exact through glClear → glReadPixels →
             // the locked bitmap.
             using var fb = bitmap.Lock();
             var pixel = new byte[4];

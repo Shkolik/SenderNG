@@ -83,7 +83,7 @@ public class PlotterModuleTests
     /// <summary>Every key the module DECLARES must exist in both catalogs.
     ///
     /// <para><c>LocalizationKeys</c> is the module's own list of the strings it
-    /// produces — <c>ILocalizedModule</c> documents it as such, and the Nex sibling
+    /// produces — <c>ILocalizedModule</c> documents it as such, and the 3D sibling
     /// declares its own <c>settings.*</c> keys the same way. Before the view chrome
     /// landed this list held 8 while the catalogs carried 20, and nothing
     /// cross-checked the two - so deleting a key such as

@@ -1,10 +1,10 @@
 /*
  * PlotterGlModuleTests.cs
  *
- * The GL plotter ships as a true external plugin (own DLL, Modules/ scan), a
- * sibling of the Helix-based Plot 3D plugin. These tests pin the module
- * contract (id, panel hint, locale keys, plugin metadata) and the
- * ScanDirectory discovery of the staged DLL, mirroring PlotterNexModuleTests.
+ * The GL plotter ships as a true external plugin (own DLL, Modules/ scan).
+ * These tests pin the module contract (id, panel hint, locale keys, plugin
+ * metadata) and the ScanDirectory discovery of the staged DLL, mirroring the
+ * Skia plotter's module tests.
  */
 
 /*
@@ -74,7 +74,7 @@ public class PlotterGlModuleTests
         Assert.Equal(PanelHint.Center, module.Panel);
         Assert.False(module.IsVisibleByDefault);
         Assert.True(module.CanHide);
-        Assert.Equal(24, module.Order);
+        Assert.Equal(23, module.Order);
         Assert.Empty(module.HotKeys);
     }
 
@@ -145,7 +145,7 @@ public class PlotterGlModuleTests
 
     /// <summary>The host calls CreateViewModel on the UI thread with exactly
     /// these four services resolvable (ILoadedProgramSource, IGrblService,
-    /// SettingsService, LocalizationService) — the stub set the Nex test uses.
+    /// SettingsService, LocalizationService) — the shared stub set.
     /// It must hand back the GL plotter's own view model, and it must not
     /// touch the Avalonia dispatcher beyond capturing it (headless
     /// construction stays inline).</summary>

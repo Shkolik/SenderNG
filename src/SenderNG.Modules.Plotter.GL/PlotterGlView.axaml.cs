@@ -99,11 +99,11 @@ public partial class PlotterGlView : UserControl
     // once per episode rather than once per retry tick. See LogGlFailure.
     private bool _readbackFailed;
     // Clear color painted every tick: {0.98, 0.98, 0.98} × 255 = 250 — the
-    // near-white that matches Nex's visible output (its clear is ACES-mapped
-    // to ~250/255; Nex is opaque too — CopyFrame forces alpha 255). Bytes
-    // because GlReadback.BeginFrame takes a straight RGBA quad, the same
-    // shape a screenshot row has. (Checkpoint-1 ruling; original mandate was
-    // dark Skia-ish {0.13, 0.14, 0.16}.)
+    // near-white (~250/255 after the ACES-mapped clear; the frame is opaque
+    // — CopyFrame forces alpha 255). Bytes because GlReadback.BeginFrame
+    // takes a straight RGBA quad, the same shape a screenshot row has.
+    // (Checkpoint-1 ruling; original mandate was dark Skia-ish
+    // {0.13, 0.14, 0.16}.)
     private static readonly byte[] _backgroundRgba = [250, 250, 250, 255];
     private WriteableBitmap? _bitmap;
     private DispatcherTimer? _tick;
@@ -311,7 +311,7 @@ public partial class PlotterGlView : UserControl
         if (_vm is null || _scene is not null)
             return;
         if (_glVerdict is not null)
-            return;                      // one GPU-init attempt per process (parity with Nex)
+            return;                      // one GPU-init attempt per process
         var generation = ++_sceneGeneration;
         GlContext? ctx = null;
         GlPlotScene? built = null;
@@ -406,9 +406,8 @@ public partial class PlotterGlView : UserControl
     }
 
     /// <summary>Create (or re-create) the readback target and its bitmap for
-    /// the render size of this tick — the same create-on-first-tick /
-    /// recreate-on-resize logic Nex runs inline in its tick (NexGpuReadback
-    /// creation at PlotterNexView 673–721), lifted into a method so the size
+    /// the render size of this tick — the create-on-first-tick /
+    /// recreate-on-resize logic, lifted into a method so the size
     /// bookkeeping and the bitmap stay in step with the FBO. A failure is
     /// logged once per episode and RETRIED next tick — not a verdict, usually
     /// memory pressure (see LogGlFailure).</summary>
@@ -454,12 +453,9 @@ public partial class PlotterGlView : UserControl
             if (created)
             {
                 // The previous bitmap is replaced WITHOUT an explicit Dispose
-                // on purpose: byte-for-byte parity with Nex, which does the
-                // same on both its create and resize paths
-                // (PlotterNexView.axaml.cs:682, :707 replace; :567 nulls it
-                // without disposing). GpuImage.Source is reassigned here, so
-                // the old bitmap loses its last reference and the GC's
-                // finalizer reclaims it — matching Nex's lifetime model.
+                // on purpose: GpuImage.Source is reassigned here, so the old
+                // bitmap loses its last reference and the GC's finalizer
+                // reclaims it.
                 _bitmap = new WriteableBitmap(
                     new PixelSize((int)r.RtW, (int)r.RtH),
                     new Vector(96, 96),
@@ -622,8 +618,7 @@ public partial class PlotterGlView : UserControl
             _scene!.RenderFrame(_readback.Width, _readback.Height);
 
             // CopyFrame's glReadPixels synchronizes with the draws above, so
-            // the locked bitmap now sees this frame (Nexus's "second WaitAll"
-            // equivalent lives inside CopyFrame).
+            // the locked bitmap now sees this frame.
             using var fb = _bitmap!.Lock();
             if (!_readback.CopyFrame(fb.Address, fb.RowBytes))
                 return;
@@ -650,11 +645,9 @@ public partial class PlotterGlView : UserControl
             // handler runs FreeRenderResources — scene, context and readback
             // go together — and the XAML swaps in the fallback panel), stop.
             LogGlFailure(ex);
-            // Nex's crash handler dumps scene/layer/run state plus the last
-            // 12 ticks to PoolDiagnostics; the GL module has no pool, so the
-            // same dump goes to Debug.WriteLine (Task 6 brief pins it there,
-            // never PoolDiagnostics). The diag ring entries already count
-            // readback ticks ([T{n}]).
+            // Crash dump: scene/layer/run state plus the last 12 ticks go to
+            // Debug.WriteLine, never PoolDiagnostics. The diag ring entries
+            // already count readback ticks ([T{n}]).
             System.Diagnostics.Debug.WriteLine(
                 $"[GL] tick crash T{_readbackTicks}: {ex.GetType().Name}: {ex.Message}");
             System.Diagnostics.Debug.WriteLine(
@@ -789,7 +782,7 @@ public partial class PlotterGlView : UserControl
             var path = await _fileDialogs.SaveFileAsync(saveTitle, suggested, "PNG image|*.png");
             if (path is null)
                 return;
-            // Encode via Avalonia, same as the Skia plotter and the Nex view.
+            // Encode via Avalonia, same as the Skia plotter.
             // A fresh bitmap, not _bitmap: the shot is the stable snapshot, the
             // live one may be mid-render. Opened as a stream, NOT Save(path):
             // the string overload swallows I/O failures, which would turn an

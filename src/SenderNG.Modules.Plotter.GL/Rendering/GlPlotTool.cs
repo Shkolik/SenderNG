@@ -1,5 +1,5 @@
 /*
- * GlPlotTool.cs - GL plot tool: oriented cone + connector wire (NexPlotTool port)
+ * GlPlotTool.cs - GL plot tool: oriented cone + connector wire
  */
 
 /*
@@ -41,19 +41,16 @@ using GlApi = Silk.NET.OpenGL.GL;
 
 namespace SenderNG.Modules.Plotter.GL.Rendering;
 
-/// <summary>The tool indicator, ported from <c>NexPlotTool</c>: an
-/// apex-at-origin cone mesh moved by a model matrix (Nex's node transform,
-/// row-vector order <c>v * S * R * T</c>) plus a two-vertex connector wire
-/// used by multi-plane machines. <see cref="UpdatePosition"/> with one point
-/// parks the primary cone on that point (single-plane mill); two points draw
-/// a wire between them with a cone at each end (POC wire/foam machines).
+/// <summary>The tool indicator: an apex-at-origin cone mesh moved by a
+/// model matrix (row-vector order <c>v * S * R * T</c>) plus a two-vertex
+/// connector wire used by multi-plane machines. <see cref="UpdatePosition"/>
+/// with one point parks the primary cone on that point (single-plane mill);
+/// two points draw a wire between them with a cone at each end (POC
+/// wire/foam machines).
 /// <para>
-/// Parking deliberately differs from Nex: Nex parks hidden geometry at a
-/// far-off coordinate (<c>ParkedPosition</c>, y = -50 000) because its engine
-/// still submitted disabled nodes, and parks the empty primary cone at
-/// <c>Vector3.Zero</c>. GL skips those draws instead — see <c>_parked</c> and
-/// the two visibility flags — so no far-off coordinate exists here; the
-/// plan's dependency analysis flagged that Helix workaround as eliminable.
+/// Parking skips the hidden geometry's draws instead of parking it at a
+/// far-off coordinate — see <c>_parked</c> and the two visibility flags, so
+/// no far-off coordinate exists here.
 /// </para>
 /// <para>
 /// <see cref="Draw"/> issues the wire (GL_LINES) BEFORE the cone mesh
@@ -64,20 +61,19 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// </para></summary>
 internal sealed unsafe class GlPlotTool : IPlotTool, IDisposable
 {
-    /// <summary>Nex's tool palette verbatim (<c>NexPlotTool.ToolColor</c>):
-    /// cone albedo and connector-wire vertex tint alike.</summary>
+    /// <summary>The tool palette: cone albedo and connector-wire vertex tint
+    /// alike.</summary>
     internal static readonly Vector4 ToolColor = new(0.85f, 0.15f, 0.2f, 1f);
 
-    /// <summary>Nex's connector-wire node thickness
-    /// (<c>NexPlotTool</c>: <c>LineThickness = 2.0f</c>), pushed to the
-    /// expansion shader as <c>uLineWidthPx</c> by the scene — never through
-    /// <c>glLineWidth</c>.</summary>
+    /// <summary>The connector-wire thickness (<c>LineThickness = 2.0f</c>),
+    /// pushed to the expansion shader as <c>uLineWidthPx</c> by the scene —
+    /// never through <c>glLineWidth</c>.</summary>
     internal const float WireThickness = 2.0f;
 
     private readonly GlContext _ctx;
     private readonly GlApi _gl;
     private readonly GlPlotScene _scene;
-    private readonly RebuildGate _gate = new();       // copied GREEN: Nex's swap-pump gate
+    private readonly RebuildGate _gate = new();       // copied GREEN: swap-pump gate
     private readonly uint _wireVao, _wireVbo;         // dynamic 2-vertex line, stride 28
     private readonly uint _meshVao, _meshVbo, _meshEbo;
     private readonly int _meshIndexCount;
@@ -87,13 +83,13 @@ internal sealed unsafe class GlPlotTool : IPlotTool, IDisposable
     private bool _endpointsDirty;                     // mirror of the gate's dirty bit (read seam)
     private bool _wireUploaded;
     private bool _parked = true;                      // no endpoints yet — draw nothing
-    private bool _wireVisible;                        // Nex _segmentNode.Enabled
-    private bool _secondConeVisible;                  // Nex _coneNodeB.Enabled
+    private bool _wireVisible;                        // wire draw enabled
+    private bool _secondConeVisible;                  // second cone draw enabled
     private bool _disposed;
     private ToolShape _shape;
 
     /// <summary>Create the tool's static mesh (one VAO/VBO/EBO, uploaded once
-    /// — Nex's static cone geometry) and its two-vertex wire buffer on
+    /// — the static cone geometry) and its two-vertex wire buffer on
     /// <paramref name="scene"/>'s context; the cones then only ever move via
     /// <see cref="ModelMatrix"/>/<see cref="ModelMatrixB"/>, the wire only via
     /// <see cref="Pump"/>.</summary>
@@ -109,10 +105,9 @@ internal sealed unsafe class GlPlotTool : IPlotTool, IDisposable
     }
 
     /// <summary>The requested shape. The mesh is built once in the
-    /// constructor and the setter only stores the request — Nex's setter
-    /// behaves the same way (its remark: "POC only creates
-    /// <see cref="ToolShape.Cone"/>; other shapes fall back to the cone
-    /// geometry"). See <see cref="CreateMesh"/> for the GL mapping.</summary>
+    /// constructor and the setter only stores the request — POC only creates
+    /// <see cref="ToolShape.Cone"/>, so other shapes fall back to the cone
+    /// geometry. See <see cref="CreateMesh"/> for the GL mapping.</summary>
     public ToolShape Shape
     {
         get => _shape;
@@ -132,12 +127,10 @@ internal sealed unsafe class GlPlotTool : IPlotTool, IDisposable
     /// <summary>Whole tool parked (no endpoints seen yet) — read seam.</summary>
     internal bool Parked => _parked;
 
-    /// <summary>Connector wire draw enabled (Nex's <c>_segmentNode.Enabled</c>)
-    /// — read seam.</summary>
+    /// <summary>Connector wire draw enabled — read seam.</summary>
     internal bool WireVisible => _wireVisible;
 
-    /// <summary>Second cone draw enabled (Nex's <c>_coneNodeB.Enabled</c>) —
-    /// read seam.</summary>
+    /// <summary>Second cone draw enabled — read seam.</summary>
     internal bool SecondConeVisible => _secondConeVisible;
 
     /// <summary>Pending swap-pump marks the gate has recorded and not yet
@@ -149,8 +142,7 @@ internal sealed unsafe class GlPlotTool : IPlotTool, IDisposable
     /// uploaded the wire yet — read seam.</summary>
     internal bool WireUploadPending => _endpointsDirty;
 
-    /// <summary>Dedup + park detection, ported from <c>NexPlotTool
-    /// .UpdatePosition</c> lines 138-176: a single point parks the primary
+    /// <summary>Dedup + park detection: a single point parks the primary
     /// cone on it and switches the wire and second cone off; zero points
     /// parks the whole tool; two points dedup against the last endpoints and,
     /// on a real change, refresh both cone orientations and mark the wire's
@@ -160,20 +152,19 @@ internal sealed unsafe class GlPlotTool : IPlotTool, IDisposable
         var pts = endpoints.Points;
         if (pts.Length < 2)
         {
-            // Nex 140-161: the wire and second cone switch off; the primary
-            // cone goes to the single endpoint (mill) or to "parked" (GL:
-            // skipped entirely instead of Nex's zero/far-off placement).
+            // The wire and second cone switch off; the primary cone goes to
+            // the single endpoint (mill) or to "parked" (skipped entirely).
             _wireVisible = false;
             _secondConeVisible = false;
             _parked = pts.Length == 0;
             var p = pts.Length == 1 ? pts[0] : Vector3.Zero;
             ModelMatrix = Matrix4x4.CreateScale(_meshScale)
-                * Matrix4x4.CreateTranslation(p);       // identity rotation (Nex Quaternion.Identity)
+                * Matrix4x4.CreateTranslation(p);       // identity rotation (Quaternion.Identity)
             ModelMatrixB = Matrix4x4.Identity;
             // Only re-stage the wire when the value changed. Idle polls call
             // UpdatePosition with the same endpoints tens of times a second;
-            // re-staging on every poll kept Nex's wire on a ~150ms rebuild
-            // cadence for a static scene (Nex 148-159).
+            // re-staging on every poll would keep the wire on a ~150ms
+            // rebuild cadence for a static scene.
             if (_lastWireA is not null || _lastWireB is not null)
             {
                 _lastWireA = null;
@@ -193,8 +184,7 @@ internal sealed unsafe class GlPlotTool : IPlotTool, IDisposable
             return;
         _lastWireA = p0;
         _lastWireB = p1;
-        // GPU content never changes here — mark the swap-pump pending instead
-        // (Nex 171-172).
+        // GPU content never changes here — mark the swap-pump pending instead.
         _endpointsDirty = true;
         _gate.MarkDirty();
         var (rotationA, rotationB) = ConeOrientations(p0, p1);
@@ -206,13 +196,11 @@ internal sealed unsafe class GlPlotTool : IPlotTool, IDisposable
             * Matrix4x4.CreateTranslation(p1);
     }
 
-    /// <summary>Swap-pump the connector wire, ported from <c>NexPlotTool
-    /// .Pump</c> (211-223): the RebuildGate decides whether this poll may
-    /// upload (coalesced cadence, immediate on a burst), then the two staged
-    /// endpoints are re-uploaded into the SAME fixed device buffer — no
-    /// geometry is created or disposed. The wire's draw enable re-derives
-    /// from the staged endpoints exactly like Nex's
-    /// <c>_segmentNode.Enabled</c> line.</summary>
+    /// <summary>Swap-pump the connector wire: the RebuildGate decides whether
+    /// this poll may upload (coalesced cadence, immediate on a burst), then
+    /// the two staged endpoints are re-uploaded into the SAME fixed device
+    /// buffer — no geometry is created or disposed. The wire's draw enable
+    /// re-derives from the staged endpoints.</summary>
     internal void Pump()
     {
         if (_disposed || _ctx.IsDisposed || !_endpointsDirty)
@@ -278,8 +266,7 @@ internal sealed unsafe class GlPlotTool : IPlotTool, IDisposable
         _gl.BindVertexArray(0);
     }
 
-    /// <summary>Orientations for the two wire-end cones, ported verbatim from
-    /// <c>NexPlotTool.ConeOrientations</c> (239-246): each cone's local +Z
+    /// <summary>Orientations for the two wire-end cones: each cone's local +Z
     /// (its opening) lies along the wire with its apex at the endpoint and
     /// its body opening <em>away</em> from the other end, so the two points
     /// meet the wire from opposite sides. Identity for a zero-length
@@ -294,11 +281,9 @@ internal sealed unsafe class GlPlotTool : IPlotTool, IDisposable
     }
 
     /// <summary>The wire's two interleaved <c>vec3 pos + vec4 color</c>
-    /// vertices (stride 28), ported from <c>NexPlotTool.FillWire</c>
-    /// (183-201): a null endpoint degenerates the line. Nex parks that
-    /// degenerate line far below the table; GL uploads a zero-length segment
-    /// AND skips the draw entirely (<see cref="_wireVisible"/> false), so the
-    /// far-off ParkedPosition has no counterpart here.</summary>
+    /// vertices (stride 28): a null endpoint degenerates the line — a
+    /// zero-length segment is uploaded AND the draw is skipped entirely
+    /// (<see cref="_wireVisible"/> false).</summary>
     private static float[] FillWire(Vector3? p0, Vector3? p1)
     {
         var a = p0 ?? Vector3.Zero;
@@ -312,16 +297,15 @@ internal sealed unsafe class GlPlotTool : IPlotTool, IDisposable
 
     /// <summary>The static tool mesh, built once from the requested shape:
     /// <list type="bullet">
-    /// <item><see cref="ToolShape.Cone"/> — the shared default-dimension cone
-    /// (Nex's <c>ConeMesh</c> defaults), apex at the local origin opening
-    /// along +Z;</item>
+    /// <item><see cref="ToolShape.Cone"/> — the shared default-dimension cone,
+    /// apex at the local origin opening along +Z;</item>
     /// <item><see cref="ToolShape.Sphere"/> — <see cref="GlMeshBuilder"/>
     /// .BuildSphere, centred, orientation irrelevant;</item>
     /// <item><see cref="ToolShape.Cylinder"/> — the brief maps it onto a
     /// scaled cone (the cone mesh at half height): GlMeshBuilder has no
     /// cylinder tessellator and nothing in the app passes Cylinder — the
-    /// kinematic factory only ever asks for Cone, so Nex's "other shapes fall
-    /// back to the cone geometry" remark covers the same ground;</item>
+    /// kinematic factory only ever asks for Cone, and other shapes fall back
+    /// to the cone geometry;</item>
     /// <item><see cref="ToolShape.Crosshair"/> — still builds the cone mesh
     /// so a later shape flip has geometry to draw, but <see cref="Draw"/>
     /// never issues it (crosshair = wire only).</item>

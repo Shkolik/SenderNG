@@ -201,9 +201,8 @@ public class PlotterGlLocaleTests
     /// <c>PlotterGlModule.LocalizationKeys</c>.
     /// <para>The first group is runtime strings the view model and view
     /// resolve straight from the catalog (status lines, the failure hint
-    /// chain): Nex declares the same split — its <c>LocalizationKeys</c> holds
-    /// only the chrome and settings labels — and the verbatim-copy rule for
-    /// this scaffold forbids "improving" it here. Their English fallbacks live
+    /// chain): the module declares the split — <c>LocalizationKeys</c> holds
+    /// only the chrome and settings labels. Their English fallbacks live
     /// as literals in the VM/view, so a catalog miss degrades instead of
     /// crashing, which is exactly what the hint-chain tests pin.</para>
     /// <para>The last three are the anti-aliasing settings entries Step 1.3

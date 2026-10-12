@@ -43,15 +43,13 @@ using GlApi = Silk.NET.OpenGL.GL;
 namespace SenderNG.Modules.Plotter.GL.Rendering;
 
 /// <summary>The translucent swept sheet between the two carriage planes —
-/// the GL port of <c>NexLoftSurface</c> with a container swap (Nex's
-/// <c>Geometry</c> → plain interleaved arrays) and direct GL uploads instead
-/// of engine nodes. <see cref="SetLoftSheet"/> ports
-/// <c>NexLoftSurface.BuildSheet</c> (lines 140-185) verbatim: one quad per
+/// interleaved position+normal arrays uploaded straight to GL.
+/// <see cref="SetLoftSheet"/> builds one quad per
 /// consecutive pair, 4 unshared vertices and 6 indices each, both
 /// degenerate-pair skip rules and the flat per-quad normal with its
 /// <c>(0,0,1)</c> fallback. <para>
 /// The line-loop wire (<see cref="SetWirePlane"/>) is permanently disabled —
-/// fork #7 kept it that way in Nex and the interface only survives so the
+/// attributed to the red-fan artifact — and the interface only survives so the
 /// build pipeline can keep calling it. The sheet is static per program build
 /// (uploaded by <see cref="SetLoftSheet"/>, never pumped) and drawn last in
 /// the frame through the shared mesh program by
@@ -107,20 +105,17 @@ internal sealed unsafe class GlLoftSurface : ILoftSurface, IDisposable
     internal bool HasGeometry => IndexCount > 0;
 
     /// <summary>Permanently disabled: the line-loop wire was attributed to the
-    /// red-fan artifact (Nex fork #7, 2026-09-16) and removed. The interface
-    /// is retained so the build pipeline can keep calling it — behavior
-    /// preserved verbatim from <c>NexLoftSurface.SetWirePlane</c>.</summary>
+    /// red-fan artifact and removed. The interface is retained so the build
+    /// pipeline can keep calling it — the method is a no-op.</summary>
     public void SetWirePlane(Vector3[] polygon)
     {
     }
 
     /// <summary>Build and upload the static sheet between the two equal-length
-    /// side arrays — the <c>NexLoftSurface.BuildSheet</c> port (lines
-    /// 140-185), a container swap from Nex's <c>Geometry</c> to interleaved
-    /// position+normal arrays. Called once per program build, never per
-    /// status poll. Count mismatch throws; fewer than two points (or a
-    /// degenerate-only strip) uploads an empty sheet, which
-    /// <see cref="HasGeometry"/> reports as no geometry.</summary>
+    /// side arrays as interleaved position+normal data. Called once per
+    /// program build, never per status poll. Count mismatch throws; fewer
+    /// than two points (or a degenerate-only strip) uploads an empty sheet,
+    /// which <see cref="HasGeometry"/> reports as no geometry.</summary>
     public void SetLoftSheet(IReadOnlyList<Vector3> sideA, IReadOnlyList<Vector3> sideB)
     {
         ArgumentNullException.ThrowIfNull(sideA);
@@ -165,8 +160,7 @@ internal sealed unsafe class GlLoftSurface : ILoftSurface, IDisposable
 
     /// <summary>Re-upload the rebuilt arrays into the SAME device buffers
     /// (DynamicDraw — replaced, never reallocated) and latch the counts. An
-    /// empty build stores a zero count, so <see cref="Draw"/> skips like
-    /// Nex's lazily-absent sheet node.</summary>
+    /// empty build stores a zero count, so <see cref="Draw"/> skips.</summary>
     private void Upload(List<float> verts, List<uint> indices)
     {
         if (_disposed || _ctx.IsDisposed)
@@ -223,13 +217,11 @@ internal sealed unsafe class GlLoftSurface : ILoftSurface, IDisposable
             _gl.DeleteVertexArray(_vao);
     }
 
-    /// <summary>Nex's <c>AlmostSame</c> (NexLoftSurface.cs:187-188),
-    /// verbatim.</summary>
+    /// <summary>Near-equality under a squared-distance tolerance of 1e-12.</summary>
     private static bool AlmostSame(Vector3 x, Vector3 y) =>
         Vector3.DistanceSquared(x, y) < 1e-12f;
 
-    /// <summary>Nex's <c>SafeNormal</c> (NexLoftSurface.cs:190-200),
-    /// verbatim: cross with the reversed cross, then a (0,0,1) fallback.</summary>
+    /// <summary>Cross with the reversed cross, then a (0,0,1) fallback.</summary>
     private static Vector3 SafeNormal(Vector3 u, Vector3 v)
     {
         var n = Vector3.Cross(u, v);

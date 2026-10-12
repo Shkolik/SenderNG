@@ -245,8 +245,7 @@ public sealed class PlotterSettingsViewModel : ViewModelBase, IDisposable
 
         /// <summary>One world-axis row per carriage slot, in slot order. A slot
         /// picks which world axis that carriage feeds; the choices stay
-        /// distinct (<see cref="OnAxisChanged"/>), mirroring the Nex module's
-        /// axis editor.</summary>
+        /// distinct (<see cref="OnAxisChanged"/>).</summary>
         public ObservableCollection<PlotterSlotRow> Slots { get; }
 
         /// <summary>The current mapping as the plane geometry stores it.</summary>

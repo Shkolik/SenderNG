@@ -150,8 +150,8 @@ public static class PlotterPlaneMapper
     /// minima, max of the maxima. The envelope is a property of the job, not of
     /// a carriage, so a foam job's two planes must not each bring their own
     /// extent: the two tiles would be different sizes and the same envelope
-    /// rectangle would mean a different thing on each. Nex takes Min/Max for
-    /// the same reason (<c>NexPlotScene.BuildAutoChrome</c>).
+    /// rectangle would mean a different thing on each; the envelope is a
+    /// single Min/Max union over all of them.
     /// <para>The origin is unioned in here, exactly as
     /// <see cref="TryWorldFootprint"/> does, so the two cannot disagree about
     /// what "the extent" includes and the origin stays in frame.

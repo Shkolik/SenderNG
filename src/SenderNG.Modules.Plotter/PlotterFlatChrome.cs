@@ -42,7 +42,7 @@ namespace SenderNG.Modules.Plotter;
 /// nothing here knows about carriage planes.
 /// <para>No second mark at the origin: the arrows leave it along each axis, so
 /// they already say where it is, and a second mark on the same corner said it
-/// again. That is also how Nex reads its own "Show origin" toggle.</para></summary>
+/// again. The "Show origin" toggle does not add a second mark either.</para></summary>
 public static class PlotterFlatChrome
 {
     /// <summary>The world XY grid, face-on. A grid line is a world-space
@@ -71,7 +71,7 @@ public static class PlotterFlatChrome
 
     /// <summary>The world X and Y axis arrows, leaving the pane's world origin
     /// along each axis for a quarter of the pane's own span. X red, Y green, as
-    /// in the iso painter and in Nex — the same two axes, so the same two
+    /// in the iso painter — the same two axes, so the same two
     /// colours, and a reader who learned the scheme in one view can read it in
     /// the other. No Z: a face-on pane has no Z direction to point.</summary>
     public static void DrawAxes(
