@@ -82,7 +82,8 @@ output/
 │   │   ├── SenderNG.exe, *.dll, .deps.json, .runtimeconfig.json
 │   │   ├── coreclr.dll, hostfxr.dll, …     ← natives hoisted flat (self-contained)
 │   │   ├── Locale/**                       ← app locale catalogs
-│   │   └── Modules/SenderNG.Modules.Common.dll  ← SDK assembly, and ONLY it
+│   │   ├── Modules/SenderNG.Modules.Common.dll  ← SDK assembly, and ONLY it
+│   │   └── LICENSE                          ← BSD 3-Clause text (from repo root)
 │   ├── plugins/<plugin-id>/                ← one folder per included plugin
 │   │   ├── SenderNG.Modules.<X>.dll        ← flat (the module's own assembly)
 │   │   ├── README.txt                      ← install mapping into SenderNG/Modules/

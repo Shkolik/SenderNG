@@ -68,6 +68,7 @@ public class ReleaseEngineTests
         Assert.True(File.Exists(Path.Combine(bundle, PlatformInfo.RunnerFileName(platform))));
         Assert.False(File.Exists(Path.Combine(bundle, "SenderNG.pdb")));
         Assert.False(File.Exists(Path.Combine(bundle, "Modules", "SenderNG.Modules.Excellon.dll")));
+        Assert.True(File.Exists(Path.Combine(bundle, "LICENSE")));
         Assert.False(Directory.Exists(Path.Combine(bundle, "Modules", "excellon")));
         Assert.True(File.Exists(Path.Combine(output, folder, $"SenderNG-0.1.0-{PlatformInfo.ZipSuffix(platform)}.zip")));
         Assert.True(File.Exists(Path.Combine(output, folder, "SHA256SUMS.txt")));
@@ -237,6 +238,23 @@ public class ReleaseEngineTests
             engine.ReleaseAsync(new ReleaseOptions { OutputDir = output, Platform = ReleasePlatform.Linux }));
     }
 
+    [Fact]
+    public async Task Release_without_the_repo_license_fails_loudly()
+    {
+        var (repo, output, cli) = Setup();
+        cli.AppPublishDir = CompleteAppPublish();
+        // The license is a release contract, not a nicety: staging must fail
+        // rather than produce a bundle that omits it.
+        File.Delete(Path.Combine(repo, "LICENSE"));
+
+        var engine = new ReleaseEngine(repo, cli, new SilentLog());
+        await Assert.ThrowsAsync<StagingException>(() =>
+            engine.ReleaseAsync(new ReleaseOptions { OutputDir = output }));
+
+        var platformRoot = Path.Combine(output, PlatformInfo.FolderName(PlatformInfo.Current));
+        Assert.Empty(Directory.GetFiles(platformRoot, "*.zip"));
+    }
+
     // The engine resolves these two files from the repo root, and the tests run
     // against a scratch repo, so Setup() seeds them for every test. The only
     // test that wants them absent deletes them again.
@@ -270,6 +288,9 @@ public class ReleaseEngineTests
         // Win64 and the linux staging never runs; on the Linux CI runner it is
         // Linux and the scratch repo must already look like the real one.
         StageLinuxDesktopSources(repo);
+        // The engine stages LICENSE from the repo root on the shared path, so
+        // the scratch repo must resemble the real one for every test.
+        File.WriteAllText(Path.Combine(repo, "LICENSE"), "BSD 3-Clause\n");
 
         return (repo, output, cli);
     }

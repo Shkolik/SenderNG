@@ -49,6 +49,7 @@ public sealed class ReleaseEngine
     private const string AppCsproj = "src/SenderNG/SenderNG.csproj";
     private const string LinuxDesktopScript = "tools/install-desktop.sh";
     private const string AppIconPng = "src/SenderNG/Assets/appIcon.png";
+    private const string LicenseFile = "LICENSE";
 
     private readonly string _repoRoot;
     private readonly ICli _cli;
@@ -96,6 +97,7 @@ public sealed class ReleaseEngine
             var appPublish = await _cli.PublishAppAsync(_repoRoot, platform, Path.Combine(tmp, "app"), ct);
             var bundleDir = Path.Combine(platformRoot, "SenderNG");
             Curation.CopyBundle(appPublish, bundleDir, _log);
+            StageLicense(bundleDir);
             Curation.StripModulesToSdk(Path.Combine(bundleDir, "Modules"));
             if (platform is ReleasePlatform.Linux or ReleasePlatform.LinuxArm64)
                 StageLinuxDesktopEntry(bundleDir);
@@ -158,6 +160,19 @@ public sealed class ReleaseEngine
     // and gated on the target platform, never on the build OS: a win64 zip must
     // not grow a .sh, and the linux zip must be identical whether it was built
     // on a Linux host or through WSL from Windows.
+    // BSD 3-Clause requires binary distributions to reproduce the license
+    // text, so every core bundle carries the repo-root LICENSE. Staged
+    // unconditionally on the shared path for all platforms; a release must
+    // fail rather than ship without it.
+    private void StageLicense(string bundleDir)
+    {
+        var source = Path.Combine(_repoRoot, LicenseFile);
+        if (!File.Exists(source))
+            throw new StagingException($"missing {LicenseFile}; a bundle cannot ship without the license text.");
+        File.Copy(source, Path.Combine(bundleDir, LicenseFile), overwrite: true);
+        _log.Info($"staged {LicenseFile}");
+    }
+
     private void StageLinuxDesktopEntry(string bundleDir)
     {
         foreach (var relative in new[] { LinuxDesktopScript, AppIconPng })
