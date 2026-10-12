@@ -1661,9 +1661,9 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         var profile = _settingsService.Load();
         var vm = new CNC.Core.ViewModels.ConnectViewModel(profile, _settingsService.Global, _comPorts, UiThread.Post,
-            profiles: _settingsService.AllProfiles());
+            localization: _localization, profiles: _settingsService.AllProfiles());
         // No fixed size: the dialog grows/shrinks with its tab content.
-        var result = await _dialogs.ShowDialogAsync("Connect", vm);
+        var result = await _dialogs.ShowDialogAsync(vm.Title, vm);
         if (result != true)
         {
             Status = LocText.Resolve("app.msg.connectCancelled", "Connect cancelled");

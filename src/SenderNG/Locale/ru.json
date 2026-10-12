@@ -394,6 +394,7 @@
     "connect.demoDisclaimer": "Демо-режим эмулирует контроллер локально, чтобы вы могли оценить приложение без оборудования. Движение станка не является реальным.",
     "connect.startDemo": "Запустить демо",
     "connect.connect": "Подключиться",
+    "connect.title": "Подключиться",
     "connect.profile": "Профиль станка",
     "connect.demoAxes": "Оси",
     "about.title": "О программе SenderNG",

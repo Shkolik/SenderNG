@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using CNC.Core.ViewModels;
+using SenderNG.Core.Localization;
 
 namespace SenderNG.Core.Tests;
 
@@ -603,6 +604,27 @@ public class ConnectViewModelTests
 
             Assert.True(result);
             Assert.Equal("B", vm.Result!.ProfileId);
+        }
+        finally
+        {
+            vm.Dispose();
+        }
+    }
+
+    [Fact]
+    public void Title_resolves_through_the_active_locale()
+    {
+        // The dialog's window title must come from the locale (the About dialog's
+        // `about.title` machinery), not from a hard-coded English literal.
+        var loc = LocalizationService.LoadFromDirectory(
+            Path.Combine(AppContext.BaseDirectory, "Locale"));
+        var vm = new ConnectViewModel(SettingsWith(), Global(), new StubComPorts(["COM3"]), localization: loc);
+        try
+        {
+            Assert.Equal("Connect", vm.Title);
+
+            loc.SetLocale("ru");
+            Assert.Equal("Подключиться", vm.Title);
         }
         finally
         {

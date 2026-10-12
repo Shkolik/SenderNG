@@ -37,6 +37,7 @@ using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.ViewModels;
+using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
 
 namespace SenderNG.Core.Tests;
@@ -193,6 +194,42 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public async Task Connect_dialog_title_is_the_localized_view_model_title()
+    {
+        // The About dialog's machinery: the window title is driven by the view
+        // model's locale-resolved Title, so it follows the selected language
+        // instead of the hard-coded English "Connect".
+        var settings = MakeSettings();
+        var localization = LocalizationService.LoadFromDirectory(
+            Path.Combine(AppContext.BaseDirectory, "Locale"));
+        localization.SetLocale("ru");
+        var services = new ServiceCollection();
+        services.AddSingleton(settings);
+        services.AddSingleton(_ => new DemoGrblService(settings.Load()));
+        services.AddSingleton<RealGrblService>();
+        services.AddSingleton(localization);
+        var provider = services.BuildServiceProvider();
+
+        var dialogs = new StubDialogService();
+        var vm = new MainViewModel(provider.GetRequiredService<RealGrblService>(), settings, provider, dialogs: dialogs);
+        try
+        {
+            var task = vm.ShowConnectDialogAsync();
+            var connectVm = Assert.IsType<CNC.Core.ViewModels.ConnectViewModel>(dialogs.LastVm);
+
+            Assert.Equal(connectVm.Title, dialogs.LastTitle);
+            Assert.Equal("Подключиться", dialogs.LastTitle);
+
+            connectVm.CancelCommand.Execute(null);
+            await task;
+        }
+        finally
+        {
+            vm.Dispose();
+        }
+    }
+
+    [Fact]
     public async Task Connect_dialog_network_choice_connects_over_tcp()
     {
         var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
@@ -229,9 +266,12 @@ public class MainViewModelTests
     {
         public object? LastVm { get; private set; }
 
+        public string? LastTitle { get; private set; }
+
         public Task<bool?> ShowDialogAsync(string title, object viewModel, (double Width, double Height)? preferredSize = null)
         {
             LastVm = viewModel;
+            LastTitle = title;
             var tcs = new TaskCompletionSource<bool?>(TaskCreationOptions.RunContinuationsAsynchronously);
             if (viewModel is IClosableDialog closable)
                 closable.CloseRequested += (_, r) => tcs.TrySetResult(r);

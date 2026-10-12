@@ -267,6 +267,10 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
         ? Resolve("connect.startDemo", "Start demo")
         : Resolve("connect.connect", "Connect");
 
+    /// <summary>Dialog window title, resolved through the active locale (the
+    /// About dialog's <c>about.title</c> pattern); English fallback.</summary>
+    public string Title => Resolve("connect.title", "Connect");
+
     public string NetworkEndpoint
     {
         get => _networkEndpoint;

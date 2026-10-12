@@ -304,6 +304,7 @@
     "connect.demoDisclaimer": "Der Demo-Modus simuliert einen Controller lokal, damit Sie die App ohne Hardware bewerten können. Maschinenbewegungen sind nicht echt.",
     "connect.startDemo": "Demo starten",
     "connect.connect": "Verbinden",
+    "connect.title": "Verbinden",
     "connect.profile": "Maschinenprofil",
     "connect.demoAxes": "Achsen",
     "about.title": "Über SenderNG",

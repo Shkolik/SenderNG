@@ -304,6 +304,7 @@
     "connect.demoDisclaimer": "Le mode démo simule un contrôleur en local pour évaluer l'application sans matériel. Les mouvements de la machine ne sont pas réels.",
     "connect.startDemo": "Démarrer la démo",
     "connect.connect": "Connecter",
+    "connect.title": "Connecter",
     "connect.profile": "Profil de machine",
     "connect.demoAxes": "Axes",
     "about.title": "À propos de SenderNG",
