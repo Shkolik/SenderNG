@@ -14,7 +14,7 @@ SenderNG is a diverged, focused fork of ioSender — stripped to foam cutting, C
 - Stepper-calibration wizard
 - USB serial + Ethernet (Telnet/WebSocket), YModem/SD
 - Program-view plotter plugins: 2D Skia plotter (isometric/flat projection on
-  Skia) + 3D Vulkan orbit plotter (`SenderNG.Modules.Plotter.Nex`, HelixToolkit.Nex)
+  Skia) + 3D OpenGL orbit plotter (`SenderNG.Modules.Plotter.GL`, OpenGL 3.1+ / GLES 3.0+)
   — design + lib comparison: `docs/machine-config-research.md`
 - Camera: deferred — if ever wanted, as a 3rd-party plugin (libs live in
   the decision tree: `docs/ROADMAP.md`)
@@ -32,8 +32,8 @@ SenderNG is a diverged, focused fork of ioSender — stripped to foam cutting, C
 2. ✅ `src/SenderNG` (`net9.0`) — Avalonia shell, probing UI, settings — done
 3. ✅ Program-view plotter plugins — 2D Skia plotter: isometric/flat quadrant
    views + two-carriage iso loft (design: `docs/machine-config-research.md`)
-   — done (2026-09-08). 3D Vulkan
-   orbit plotter: `src/SenderNG.Modules.Plotter.Nex` (HelixToolkit.Nex), "Plot 3D"
+   — done (2026-09-08). 3D OpenGL
+   orbit plotter: `src/SenderNG.Modules.Plotter.GL` (OpenGL 3.1+ / GLES 3.0+), "Plot 3D"
    center tab behind Skia's (order 23), hidden by default. Camera is
    deferred (possible future 3rd-party plugin — see `docs/ROADMAP.md`).
    Linux serial (`/dev/ttyUSB*` / `/dev/ttyACM*`) is already in the sender.
@@ -73,14 +73,14 @@ fallback. (To build the **Linux** zip from a Windows host, use
 writes `output\linux` and never reads, writes or deletes `output\win64`.)
 A release folder (`output/win64/` on Windows, `output/linux/` or
 `output/linux-arm64/` on Linux) looks like this. The example is an x64
-release; an arm64 folder omits the `SenderNG-plugin-plotter-nex-…` zip:
+release (arm64 ships the same plugin set — Plotter GL runs on Mesa):
 
 ```
 SenderNG-<ver>-<suffix>.zip                  ← core bundle: the whole app
 SenderNG-plugin-excellon-<ver>-<suffix>.zip
 SenderNG-plugin-hpgl-<ver>-<suffix>.zip
 SenderNG-plugin-plotter-<ver>-<suffix>.zip
-SenderNG-plugin-plotter-nex-<ver>-<suffix>.zip
+SenderNG-plugin-plotter-gl-<ver>-<suffix>.zip
 SenderNG-plugin-probing-<ver>-<suffix>.zip
 SHA256SUMS.txt                              ← <sha256> <relative path> per file
 ```
@@ -94,9 +94,9 @@ SHA256SUMS.txt                              ← <sha256> <relative path> per fil
 needed.
 
 **Plugin zips** — one per optional module (`excellon`, `hpgl`,
-`plotter`, `plotter-nex`, `probing`). Each contains the module's own assembly
+`plotter`, `plotter-gl`, `probing`). Each contains the module's own assembly
 (`SenderNG.Modules.<X>.dll`) plus an `<id>/` support folder (its locale
-catalog; `plotter-nex` also carries its HelixToolkit.Nex/Vulkan closure). The
+catalog; `plotter-gl` also carries its Silk.NET package closure). The
 app discovers modules by scanning `Modules/*.dll` at startup, so installing a
 module is a straight copy of the zip's contents into the extracted bundle's
 `Modules/` folder: the DLL lands flat next to the SDK, `<id>/` becomes
@@ -266,9 +266,8 @@ the child process, which may still be writing to `output\linux`.
 
 The target is 64-bit arm64 Linux (Raspberry Pi 4B); the bundle has been
 built, installed, and run on a Pi 4B — see the note below.
-**The Plot 3D tab is not available on arm64** — see the
-[module's platform table](src/SenderNG.Modules.Plotter.Nex/docs/README.md) for
-why. Every other module, including the 2D plotter, ships normally.
+**The Plot 3D tab runs on arm64** (OpenGL via Mesa) — every plugin ships on
+every platform.
 
 Build it from WSL2 on your Windows machine; no .NET SDK on the Pi is needed:
 
@@ -303,4 +302,4 @@ On the Pi:
 
 - Terje Io / Io Engineering for ioSender and grblHAL
 - AvaloniaUI community
-- HelixToolkit / HelixToolkit.Nex contributors for the 3D Vulkan plotter
+- Silk.NET contributors for the 3D plotter's OpenGL bindings

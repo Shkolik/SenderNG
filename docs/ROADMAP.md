@@ -17,7 +17,8 @@ and left only the delegate-based `IProgramTransformTarget` transform tap-point
 (`ApplyHeightMap`) in Core; the plugin ships its own Locale catalogs and
 `InternalsVisibleTo("SenderNG.Modules.Probing.Tests")`. The plugin boundary
 re-opened the **height-map 3D preview** gate — the "Avalonia host problem" no
-longer blocks a renderer, which is now a named P1 plugin item below. Design
+longer blocks a renderer, tracked as an open gap in
+`docs/iosender-gaps.md`. Design
 spec: `docs/superpowers/specs/2026-09-23-probing-plugin-design.md` (approved
 2026-09-23).
 
@@ -122,12 +123,10 @@ set was checked for parity defaults before finalizing.
   (foam: both carriages on one canvas, diagonal quadrants), two-carriage iso
   loft, live frontier coloring + tool glyph, vector render path (30fps
   throttle + interaction decimation — the M4 raster cache was reverted in M5).
-  **3D orbit LANDED (2026-09-09+):** `src/SenderNG.Modules.Plotter.Nex` — a
-  second external plugin implementing the true 3D orbit view the V1 decision
-  deferred: Vulkan-backed (HelixToolkit.Nex), "Plot 3D" center tab (order 23,
-  behind Skia's order 22), hidden by default (`IsVisibleByDefault=false`),
-  experimental/PoC (see
-  `src/SenderNG.Modules.Plotter.Nex/docs/README.md`).
+  **3D orbit LANDED (2026-10-08+):** `src/SenderNG.Modules.Plotter.GL` — the
+  OpenGL successor to the Vulkan proof-of-concept: OpenGL 3.1+ / GLES 3.0+,
+  "Plot 3D" center tab (order 23, behind Skia's order 22), hidden by default
+  (`IsVisibleByDefault=false`), ships on win-x64, linux-x64 and linux-arm64.
   **Storage prerequisite landed:**
   profiles replace the Mill/Foam "mode" split (one file per machine +
   `global.json`, profile manager in App Settings) — see
@@ -135,13 +134,6 @@ set was checked for parity defaults before finalizing.
   (2026-09-07):** Jog's layout derives from the preset's planes + controller
   letters (M2), fresh profiles seed demo axes from the preset (M3); the
   plotter (P2) and Wrap remain the open consumers.
-- **3D height-map renderer plugin (`SenderNG.Modules.Probing.Nex`,
-  HelixToolkit.Nex engine) — consumes `IHeightMapSource`.** P1 follow-up to the
-  probing-plugin extraction (P0 above): a renderer plugin implements the Core
-  `IHeightMapSource`/`HeightMapLayer` contract and registers an
-  `IHeightMap3DRenderer` so the probing module's "Preview in 3D" gate opens,
-  rendering the probed grid with the same Vulkan/HelixToolkit.Nex engine as
-  Plotter Nex.
 - **Continuous jog** — hold-to-jog with continuous motion (ioSender's
   Continuous mode), feedrate selection, and stop-on-release (0x85
   JogCancel). Axis layout comes from the existing jog pad, later from

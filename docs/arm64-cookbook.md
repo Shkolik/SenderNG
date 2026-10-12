@@ -18,9 +18,8 @@ throwaway/service account. `<pi-host>` is the Pi's hostname or IP.
 - `SenderNG-plugin-{excellon,hpgl,plotter,probing}-<version>-linux-arm64.zip`
 - `SHA256SUMS.txt` — hashes for the zips *and* the staged bundle files
 
-There is deliberately **no plotter-nex zip**: the 3D plotter has no
-linux-arm64 natives, so the arm64 build excludes it and the app shows no
-Plot 3D tab. Everything else, including the 2D plotter, ships normally.
+The arm64 build ships the full plugin set — Plotter GL renders through Mesa's
+OpenGL stack on the Pi.
 
 ## 1. Build (Windows + WSL2)
 
@@ -131,7 +130,7 @@ chmod +x ~/Desktop/SenderNG.desktop
 ```
 
 The plugin glob only matches zips the arm64 build actually produced —
-`excellon`, `hpgl`, `plotter`, `probing` — never `plotter-nex`.
+`excellon`, `hpgl`, `plotter`, `plotter-gl`, `probing`.
 
 ### Dependencies
 

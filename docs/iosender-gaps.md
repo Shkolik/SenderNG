@@ -259,9 +259,7 @@ Many already exist; the gaps are listed per widget.
 
 - [x] **3D program view** — the unified plotter: one layers+tool engine
       (2D affine projection on a plain canvas — isometric + flat views,
-      no 3D lib — HelixToolkit's Avalonia package exists but is
-      DX11/SharpDX (Windows-only, abandoned dep), see machine-config-
-      research.md) as the third center tab (Program / 3D /
+      no 3D lib) as the third center tab (Program / 3D /
       Console) or a flyout. Mill = XY flat + XYZ isometric (no XZ/YZ
       selector — side flats are CAM-verification views, deferred) with a
       cylinder+tip tool; laser/drag-knife = flat + tool glyph (dot /
@@ -272,10 +270,9 @@ Many already exist; the gaps are listed per widget.
       (`docs/machine-axis-schema.md`, 2026-09-07): the plotter's schema
       blocker is gone; it consumes `MachineType.Planes` (layer decomposition)
       and `GrblInfo.AxisLetters` (labels). **A true 3D orbit view LANDED
-      (2026-09-09+)** as the `SenderNG.Modules.Plotter.Nex` plugin — Vulkan
-      (HelixToolkit.Nex), hidden by default, experimental — so the 3D-view
-      gap is now "orbit exists, not yet the unified productized layer+tool
-      engine"; see `src/SenderNG.Modules.Plotter.Nex/docs/README.md`.
+      (2026-10-08+)** as the `SenderNG.Modules.Plotter.GL` plugin — OpenGL,
+      hidden by default — so the 3D-view gap is now "orbit exists, not yet
+      the unified productized layer+tool engine".
 - [ ] **Height-map 3D preview** — ioSender renders the probed grid as a mesh;
       SenderNG has the map data + XML save/load but no 3D visualization.
       **P0 (2026-09-23) unblocked the plugin boundary:** probing now ships as
@@ -283,18 +280,14 @@ Many already exist; the gaps are listed per widget.
       app-registered) and Core exposes the height-map contract
       (`HeightMapLayer` row-major samples, `IHeightMapSource` observable,
       `IHeightMap3DRenderer` presence marker), so a renderer can be a
-      first-party plugin instead of app-hosted code; the renderer is the
-      ROADMAP P1 `SenderNG.Modules.Probing.Nex` item (HelixToolkit.Nex)
-      consuming `IHeightMapSource`. The former engine gate — the **Avalonia
+      first-party plugin instead of app-hosted code, consuming Core's
+      `IHeightMapSource`. The former engine gate — the **Avalonia
       host problem** of getting GPU output into a control — is closed: the
-      Nex plugin renders offscreen on headless Vulkan on every OS and blits
-      the frame back with GPU→CPU readback
-      (`src/SenderNG.Modules.Plotter.Nex/Rendering/NexGpuReadback.cs`,
-      `PlotterNexView.axaml.cs` `RenderOffscreen`, `Rendering/NexPlotScene.cs`);
-      `docs/ROADMAP.md` records this gate as re-opened. The earlier
-      Windows-only alternative, HelixToolkit.Avalonia, would have needed a
-      hosted DX11/SharpDX swapchain (SharpDX is abandoned, though wrapped);
-      a cross-platform path could instead use a low-level engine with official
+      plotter renders offscreen on headless OpenGL on every OS and blits
+      the frame back with GPU+CPU readback
+      (`src/SenderNG.Modules.Plotter.GL/Rendering/GlReadback.cs`,
+      `PlotterGlView.axaml.cs`). `docs/ROADMAP.md` records this gate as
+      re-opened; a future renderer could use a low-level engine with official
       C# bindings (Diligent, Apache-2.0) rendering offscreen + GPU→CPU
       readback, or native island embedding (HWND/X11) only if the viewport
       becomes a core surface. The height map is small (one grid mesh) — engine
@@ -392,10 +385,9 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
       (the `EnumAndBoolConverter` guard didn't flow null-state into the indexer
       accesses — fixed by hoisting `values[0]` into the pattern local). The
       build is warning-free; keep it that way (architecture §9). Verified again
-      by full rebuild 2026-09-17 after sweeping the CS8601 in
-      `PlotterNexConfig.cs`, the CS8605 cluster in `PlotterLiveRunHeadlessTests.cs`,
-      the CS1998 in `ProbeViewModelTests.cs` and the xUnit2013 in
-      `ConnectViewModelTests.cs`.
+      by full rebuild 2026-09-17 after sweeping the CS8605 cluster in
+      `PlotterLiveRunHeadlessTests.cs`, the CS1998 in `ProbeViewModelTests.cs`
+      and the xUnit2013 in `ConnectViewModelTests.cs`.
 
 ## Reference matrix (ioSender → SenderNG)
 
@@ -422,7 +414,7 @@ Explicitly deferred per architecture §3.4. Tick when deliberately started.
 | WorkParametersControl | `Fixed/WorkParameters` flyout | done (read/select; editable write-back in `Fixed/Offsets`) |
 | FileActionControl | File → Open/Save/Close | P1: Save = picker pre-filled with current name (no implicit overwrite) |
 | StepperCalibrationWizard | `Settings-menu` stepper-calibration module | done (2026-09-19) |
-| GCodeViewer / RenderControl | `Modules/Plotter` plugin | done (2026-09-08) — flat quadrant views + iso loft, frontier coloring (P2); sibling `Modules/Plotter.Nex` adds an experimental Vulkan 3D orbit view (2026-09-09+, hidden by default) |
+| GCodeViewer / RenderControl | `Modules/Plotter` plugin | done (2026-09-08) — flat quadrant views + iso loft, frontier coloring (P2); sibling `Modules/Plotter.GL` adds a 3D OpenGL orbit view (2026-10-08+, hidden by default) |
 | ProbeVerify / ConfigControl / MacroDialog | — | **missing** (P2) |
 | SDCardView | — | deferred (P4) |
 | Camera | — | deferred (P4) |
