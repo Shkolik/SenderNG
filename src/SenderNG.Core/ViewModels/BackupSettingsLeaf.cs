@@ -282,6 +282,10 @@ public sealed class BackupSettingsLeaf : AppSettingsLeaf
         }
         else if (result.Written > 0)
         {
+            // A partial restore already replaced some files: protect the ones that DID
+            // land — the stale graph would otherwise rewrite them on the next save,
+            // before the user gets a chance to run the restore again.
+            _settings.MarkRestorePending();
             SetStatus(Localize("appSettings.backup.restorePartial",
                 "Restore incomplete after {0} files — run the restore again.", result.Written));
         }

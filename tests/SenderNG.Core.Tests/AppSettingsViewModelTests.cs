@@ -1183,7 +1183,7 @@ public class AppSettingsViewModelTests
     }
 
     /* -----------------------------------------------------------------------
-     * Restore-pending: blocked mutations (F11)
+     * Restore-pending: blocked mutations, partial restore (F11, F13)
      * --------------------------------------------------------------------- */
 
     [Fact]
@@ -1243,6 +1243,48 @@ public class AppSettingsViewModelTests
         finally
         {
             Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task A_partial_restore_marks_restore_pending_and_keeps_the_retry_wording()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        var target = TempBackupPath();
+        try
+        {
+            // global.json sorts first, so it lands and the locked profile fails: a
+            // genuinely partial restore.
+            WriteArchive(target,
+                ("global.json", "{\"ActiveProfileId\":\"default\",\"Profiles\":{\"default\":\"Default\"}}"),
+                ("profiles/default.json", "{\"Id\":\"default\",\"Name\":\"Restored\"}"));
+            var leaf = BackupLeafOf(CreateBackupVm(settings, dialogs));
+            dialogs.OpenPath = target;
+
+            await leaf.RestoreAsync();
+            Assert.True(leaf.HasRestorePlan);
+
+            var locked = Path.Combine(ProfileSettingsPaths.ProfilesDir(dir), "default.json");
+            using (new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                await leaf.ApplyRestoreAsync();
+            }
+
+            // The file that landed must be frozen too, or the stale graph's next save
+            // overwrites it before the user retries.
+            Assert.True(settings.RestorePending);
+            Assert.Equal(
+                Loc.T("appSettings.backup.restorePartial").Replace("{0}", "1"),
+                leaf.Status);
+            Assert.Contains("run the restore again", leaf.Status, StringComparison.Ordinal);
+            Assert.Equal("{\"ActiveProfileId\":\"default\",\"Profiles\":{\"default\":\"Default\"}}",
+                File.ReadAllText(Path.Combine(dir, "global.json")));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            if (File.Exists(target))
+                File.Delete(target);
         }
     }
 }
