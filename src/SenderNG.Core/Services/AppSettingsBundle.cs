@@ -334,10 +334,15 @@ public static class AppSettingsBundleValidator
         {
             if (!AppSettingsBundleLayout.IsProfileEntry(name))
                 continue;
-            // Companions (<id>.<suffix>.json) are validated too: a module-owned file
-            // that does not parse would be quarantined on the next load.
-            if (AppSettingsBundleLayout.ProfileIdOf(name) is { } id)
-                profileIds.Add(id);
+            // Companions (<id>.<suffix>.json) are opaque and restored verbatim: no loader
+            // ever parses one — ProfilesStore.Ids skips a dotted stem, and the only writer
+            // is ProfileSettingsPaths.CompanionPath — so their shape is module-owned. The
+            // probing companion is a JSON *array* (ProbingProfileStore.Save serializes
+            // List<ProbingProfile>), which is not a MachineProfile; validating it here
+            // would refuse a real user's own backup. Only profiles/<id>.json is a profile.
+            if (AppSettingsBundleLayout.ProfileIdOf(name) is not { } id)
+                continue;
+            profileIds.Add(id);
             if (!TryDeserialize<MachineProfile>(bundle.Files[name], out _, out var error))
                 errors.Add($"{name} is not valid settings: {error}");
         }

@@ -51,6 +51,13 @@ public class AppSettingsBundleTests
     private static string ProfileJson(string id) =>
         "{\n   \"Id\": \"" + id + "\",\n  \n      \"Name\": \"" + id + "\",\n  \"MachineTypeId\": \"Mill\"\n}\n";
 
+    /// <summary><c>profiles/&lt;id&gt;.probing.json</c> in the shape the probing module writes it:
+    /// <c>ProbingProfileStore.Save</c> serializes <c>List&lt;ProbingProfile&gt;</c> (PascalCase,
+    /// indented), so a companion is a JSON <b>array</b>, never a <c>MachineProfile</c>.</summary>
+    private const string ProbingCompanionJson =
+        "[\n  {\n    \"Name\": \"<Default>\",\n    \"ProbeDiameter\": 2,\n    \"TouchPlateHeight\": 1,\n" +
+        "    \"ProbeFeedRate\": 100\n  }\n]";
+
     /// <summary>The Task 2 fixture: global.json, three profile files (one a companion),
     /// a bystander non-JSON file and quarantine leftovers.</summary>
     private static string MakeLiveDir()
@@ -398,6 +405,17 @@ public class AppSettingsBundleTests
         Assert.True(validation.Ok);
         Assert.Empty(validation.Errors);
         Assert.Empty(validation.Warnings);
+    }
+
+    [Fact]
+    public void Validate_treats_a_module_companion_as_opaque_and_not_as_a_profile()
+    {
+        var validation = AppSettingsBundleValidator.Validate(BundleOf(
+            ("global.json", GlobalJsonText),
+            ("profiles/mill.json", ProfileJson("mill")),
+            ("profiles/mill.probing.json", ProbingCompanionJson)));
+
+        Assert.True(validation.Ok, string.Join("; ", validation.Errors));
     }
 
     [Fact]
