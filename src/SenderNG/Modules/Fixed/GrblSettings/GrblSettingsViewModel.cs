@@ -904,7 +904,7 @@ public sealed class GrblSettingsViewModel : ViewModelBase
 
         if (plan.ControllerMismatch)
             summary += " " + LocText.Format("module.grbl-settings.restoreMismatch",
-                "The backup came from a different controller ({0}).", plan.Items.Count);
+                "The backup came from a different controller ({0}).", plan.BackupController);
 
         var dirty = _allItems.Count(static i => i.IsDirty);
         if (dirty > 0)

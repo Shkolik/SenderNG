@@ -487,6 +487,28 @@ public class GrblSettingsViewModelBackupRestoreTests
     }
 
     [Fact]
+    public async Task The_plan_warns_about_a_mismatch_with_the_backups_identity_not_the_item_count()
+    {
+        var provider = new StubProvider { ValueLines = ["$0=10"] };
+        var grbl = new FakeGrbl();
+        await grbl.ConnectAsync("stub");
+        var dialogs = new StubDialogs();
+        var vm = CreateVm(provider, grbl, dialogs);
+        await vm.LoadAsync();
+
+        var path = TempFile(".json");
+        await File.WriteAllTextAsync(path, BackupJson(("0", "11")));
+        dialogs.OpenPath = path;
+        await vm.RestoreAsync();
+
+        // The file's fingerprint ("demo 1") differs from this board's, and the plan holds
+        // exactly one item — the warning must name the backup, not the count.
+        Assert.NotNull(vm.RestoreSummary);
+        Assert.Contains("different controller (demo 1)", vm.RestoreSummary);
+        Assert.DoesNotContain("different controller (1)", vm.RestoreSummary);
+    }
+
+    [Fact]
     public async Task CancelRestore_discards_the_plan_and_sends_nothing()
     {
         var provider = new StubProvider { ValueLines = ["$0=10"] };

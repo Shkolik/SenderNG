@@ -264,6 +264,35 @@ public class GrblRestorePlanTests
     }
 
     [Fact]
+    public void The_plan_carries_the_backups_readable_controller_identity()
+    {
+        var board = new[] { BoardItem(110, GrblSettingType.Integer, "800") };
+
+        var plan = GrblRestorePlan.Create(
+            Backup("other-board", BackupSetting(110, "900")), board, "this-board");
+
+        // What the mismatch warning shows the operator: firmware and version, not the
+        // raw $I fingerprint (and certainly not a count).
+        Assert.True(plan.ControllerMismatch);
+        Assert.Equal("grblHAL 1.1f", plan.BackupController);
+    }
+
+    [Fact]
+    public void A_backup_without_a_firmware_identity_falls_back_to_the_fingerprint_key()
+    {
+        var board = new[] { BoardItem(110, GrblSettingType.Integer, "800") };
+        var backup = new GrblSettingsBackup
+        {
+            Controller = new GrblBackupController("raw-key", "", " ", 0, 3, false, false),
+            Settings = [BackupSetting(110, "900")],
+        };
+
+        var plan = GrblRestorePlan.Create(backup, board, "this-board");
+
+        Assert.Equal("raw-key", plan.BackupController);
+    }
+
+    [Fact]
     public void An_empty_board_marks_every_setting_UnknownOnBoard()
     {
         var plan = GrblRestorePlan.Create(

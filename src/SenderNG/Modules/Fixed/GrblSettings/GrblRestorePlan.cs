@@ -80,10 +80,12 @@ internal sealed record GrblRestorePlanItem(int Id, GrblRestoreAction Action, str
 /// </summary>
 internal sealed class GrblRestorePlan
 {
-    private GrblRestorePlan(IReadOnlyList<GrblRestorePlanItem> items, bool controllerMismatch)
+    private GrblRestorePlan(IReadOnlyList<GrblRestorePlanItem> items, bool controllerMismatch,
+                            string backupController)
     {
         Items = items;
         ControllerMismatch = controllerMismatch;
+        BackupController = backupController;
         Writes = items.Where(static i => i.Action == GrblRestoreAction.Apply).ToList();
         ApplyCount = Writes.Count;
         UnchangedCount = items.Count(static i => i.Action == GrblRestoreAction.Unchanged);
@@ -98,6 +100,11 @@ internal sealed class GrblRestorePlan
     /// <summary>True when the file came from a different <c>$I</c> fingerprint. A warning
     /// only: restoring a known-good file onto a rebuilt board is the point of the feature.</summary>
     public bool ControllerMismatch { get; }
+
+    /// <summary>The backup's readable identity for the mismatch warning: its firmware and
+    /// version, or the raw <c>$I</c> fingerprint when the file carries neither. Never the
+    /// board's, and never a count — the warning exists to say WHICH controller it came from.</summary>
+    public string BackupController { get; }
 
     public int ApplyCount { get; }
     public int UnchangedCount { get; }
@@ -156,7 +163,22 @@ internal sealed class GrblRestorePlan
                 : new GrblRestorePlanItem(id, GrblRestoreAction.Invalid, fromFile.Value, reason));
         }
 
-        return new GrblRestorePlan(items, !string.Equals(backup.Controller.Key, controllerKey, StringComparison.Ordinal));
+        return new GrblRestorePlan(items,
+            !string.Equals(backup.Controller.Key, controllerKey, StringComparison.Ordinal),
+            DescribeController(backup.Controller));
+    }
+
+    /// <summary>
+    /// The backup's human-readable identity: "firmware version" when the file carries
+    /// either field, else the raw <c>$I</c> fingerprint (a file written by a foreign or
+    /// hand-edited tool). Never null or empty — the warning always names something.
+    /// </summary>
+    private static string DescribeController(GrblBackupController controller)
+    {
+        var readable = string.Join(" ", new[] { controller.Firmware, controller.Version }
+            .Where(static s => !string.IsNullOrWhiteSpace(s))
+            .Select(static s => s.Trim()));
+        return readable.Length > 0 ? readable : controller.Key;
     }
 
     /// <summary>
