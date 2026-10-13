@@ -131,7 +131,16 @@ jobs:
           git tag "$TAG" "$GITHUB_SHA"
           git push origin "$TAG"
           if [ "$STABLE" = "true" ]; then
-            gh release create "$TAG" release-assets/*.zip release-assets/SHA256SUMS.txt --title "$TAG" --generate-notes
+            # A stable release summarizes everything since the last STABLE release. Prereleases
+            # count as "the previous release" for --generate-notes (v0.1.0 was generated against
+            # v0.1.0-20261011), so without --notes-start-tag a stable published after a weekly
+            # would only cover that week and the feature work behind it would never appear.
+            PREV_STABLE=$(gh release list --exclude-pre-releases --limit 1 --json tagName -q '.[0].tagName // ""' 2>/dev/null || true)
+            if [ -n "$PREV_STABLE" ]; then
+              gh release create "$TAG" release-assets/*.zip release-assets/SHA256SUMS.txt --title "$TAG" --generate-notes --notes-start-tag "$PREV_STABLE"
+            else
+              gh release create "$TAG" release-assets/*.zip release-assets/SHA256SUMS.txt --title "$TAG" --generate-notes
+            fi
           else
             gh release create "$TAG" release-assets/*.zip release-assets/SHA256SUMS.txt --title "$TAG" --generate-notes --prerelease
           fi
