@@ -45,7 +45,8 @@ public static class FirstPartyPlugins
         new("hpgl", "src/SenderNG.Modules.Hpgl/SenderNG.Modules.Hpgl.csproj", null),
         new("plotter", "src/SenderNG.Modules.Plotter/SenderNG.Modules.Plotter.csproj", null),
         new("plotter-gl", "src/SenderNG.Modules.Plotter.GL/SenderNG.Modules.Plotter.GL.csproj", null),
-        new("probing", "src/SenderNG.Modules.Probing/SenderNG.Modules.Probing.csproj", null)
+        new("probing", "src/SenderNG.Modules.Probing/SenderNG.Modules.Probing.csproj", null),
+        new("heightmap-viewer", "src/SenderNG.Modules.HeightMapViewer/SenderNG.Modules.HeightMapViewer.csproj", null)
     ];
 
     public static PluginEntry First(string id)

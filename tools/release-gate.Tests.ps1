@@ -162,6 +162,7 @@ try {
     Assert-Equal $r.Tag "v0.1.0-20261010" "prerelease tag from the fixture version"
     Assert-Equal $r.Version "0.1.0-20261010" "version matches the tag minus v"
     Assert-Equal $r.Build $true "first run (no tags) builds"
+    Assert-Equal $r.Date "20261010" "gate exposes the UTC date it used"
 
     Add-ScratchTag -Repo $gateRepo -Tag "v0.1.0-20261010"
     $r = Invoke-ReleaseGate -RepoRoot $gateRepo -UtcDate "20261010"
@@ -180,11 +181,12 @@ try {
     $prevOut = $env:GITHUB_OUTPUT
     try {
         $env:GITHUB_OUTPUT = $outFile
-        Write-GateOutputs -Tag "v0.1.0-20261010" -Version "0.1.0-20261010" -Build $true
+        Write-GateOutputs -Tag "v0.1.0-20261010" -Version "0.1.0-20261010" -Build $true -Date "20261010"
         $content = Get-Content -LiteralPath $outFile -Raw
         Assert-Match $content 'tag=v0\.1\.0-20261010' "tag= written to GITHUB_OUTPUT"
         Assert-Match $content 'version=0\.1\.0-20261010' "version= written to GITHUB_OUTPUT"
         Assert-Match $content 'build=true' "build=true written to GITHUB_OUTPUT"
+        Assert-Match $content 'date=20261010' "date= written to GITHUB_OUTPUT"
     } finally {
         $env:GITHUB_OUTPUT = $prevOut
         Remove-Item -LiteralPath $outFile -Force -ErrorAction SilentlyContinue
@@ -193,7 +195,7 @@ try {
     $prevOut2 = $env:GITHUB_OUTPUT
     try {
         Remove-Item Env:GITHUB_OUTPUT -ErrorAction SilentlyContinue
-        Write-GateOutputs -Tag "v0.1.0" -Version "0.1.0" -Build $false
+        Write-GateOutputs -Tag "v0.1.0" -Version "0.1.0" -Build $false -Date "20261010"
         Assert-Equal $true $true "Write-GateOutputs survives without GITHUB_OUTPUT"
     } finally {
         $env:GITHUB_OUTPUT = $prevOut2

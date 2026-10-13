@@ -49,6 +49,7 @@ public static class Cli
           --plugins <id,id>        stage only the listed plugin ids (implies --include-plugins)
           --plugin <csproj>        add an ad-hoc 3rd-party plugin (repeatable)
           --version <ver>          override the app version read from the csproj
+          --date <yyyyMMdd>        date suffix for weekly builds; ignored with --stable
           --stable                 weekly builds get a date suffix; --stable omits it
           --out <dir>              output directory (default: ./output)
           --platform <name>        target: win64 | linux | linux-arm64
@@ -70,6 +71,7 @@ public static class Cli
 
         string outputDir = "output";
         string? versionOverride = null;
+        string? dateOverride = null;
         string? platformName = null;
         bool skipTests = false;
         bool noZip = false;
@@ -96,6 +98,9 @@ public static class Cli
                     break;
                 case "--version":
                     versionOverride = RequireValue(args, ref i, arg);
+                    break;
+                case "--date":
+                    dateOverride = RequireValue(args, ref i, arg);
                     break;
                 case "--stable":
                     stable = true;
@@ -139,7 +144,8 @@ public static class Cli
             PluginIds: pluginIds,
             AdHocPluginPaths: adHoc,
             OutputDir: outputDir,
-            Stable: stable);
+            Stable: stable,
+            DateOverride: dateOverride);
 
         return new CliResult(options, null);
     }

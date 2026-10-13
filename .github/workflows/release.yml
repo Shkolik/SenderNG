@@ -29,6 +29,7 @@ jobs:
       tag: ${{ steps.gate.outputs.tag }}
       version: ${{ steps.gate.outputs.version }}
       build: ${{ steps.gate.outputs.build }}
+      date: ${{ steps.gate.outputs.date }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,7 +58,7 @@ jobs:
           global-json-file: global.json
 
       - name: Build win64 release
-        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform win64 ${{ inputs.stable && '--stable' || '' }}
+        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform win64 --date ${{ needs.gate.outputs.date }} ${{ inputs.stable && '--stable' || '' }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -79,10 +80,10 @@ jobs:
           global-json-file: global.json
 
       - name: Build linux-x64 release
-        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform linux ${{ inputs.stable && '--stable' || '' }}
+        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform linux --date ${{ needs.gate.outputs.date }} ${{ inputs.stable && '--stable' || '' }}
 
       - name: Build linux-arm64 release
-        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform linux-arm64 --skip-tests ${{ inputs.stable && '--stable' || '' }}
+        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform linux-arm64 --skip-tests --date ${{ needs.gate.outputs.date }} ${{ inputs.stable && '--stable' || '' }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -174,6 +175,7 @@ jobs:
             * SenderNG-plugin-plotter - 2D/Isometric Gcode viewer/plotter (good for a weak hardware)
             * SenderNG-plugin-plotter-gl - 3D Gcode viewer/plotter (requires OpenGL 3.1+)
             * SenderNG-plugin-probing - Probing module
+            * SenderNG-plugin-heightmap-viewer - 3D height-map viewer (requires OpenGL 3.1+)
           - **SHA256SUMS.txt** — SHA-256 checksums for all zips above
           ---
 

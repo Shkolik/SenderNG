@@ -34,14 +34,17 @@ though WSLg supplies the display server.
 2. **Publish app** self-contained for the target RID (`win-x64`, `linux-x64`,
    `linux-arm64`; the host OS by default).
 3. **Curate** into `output/<platform>/SenderNG` — drops `*.pdb`, `*.xml`,
-   dev-only Avalonia diagnostic assemblies, and strips `Modules/` down to only
-   `SenderNG.Modules.Common.dll` (the SDK assembly).
+   dev-only Avalonia diagnostic assemblies, and strips `Modules/` down to the
+   SDK assemblies (`SenderNG.Modules.Common.dll`,
+   `SenderNG.Modules.Common.Render.dll` and the Silk.NET `Core`/`Maths`/`OpenGL`
+   DLLs).
 4. **Build plugins** (when included) — one `dotnet publish` per plugin.
 5. **Verify** the bundle: app exe, `SenderNG.dll`, `.deps.json`,
-   `.runtimeconfig.json`, `SenderNG.Core.dll`,
-   `Modules/SenderNG.Modules.Common.dll`, and the platform's native runtime
-   binaries. No `*.pdb`, no dev-only Avalonia assemblies, no module DLLs in the
-   core `Modules/` besides the SDK.
+   `.runtimeconfig.json`, `SenderNG.Core.dll`, the SDK assemblies in `Modules/`
+   (`SenderNG.Modules.Common.dll`, `SenderNG.Modules.Common.Render.dll`,
+   `Silk.NET.Core.dll`, `Silk.NET.Maths.dll`, `Silk.NET.OpenGL.dll`), and the
+   platform's native runtime binaries. No `*.pdb`, no dev-only Avalonia
+   assemblies, no plugin module DLLs in the core `Modules/`.
 6. **Package** — bundle zip, one zip per plugin, then `SHA256SUMS.txt` covering
    every shipped file. Skip zips with `--no-zip` (checksums still written).
 7. **Summary** — platform, app version, plugin ids, file count, artifacts.
@@ -58,6 +61,7 @@ dotnet run --project tools/ReleaseManager [options]
 | `--plugins <id,id>` | stage only the listed plugin ids (implies `--include-plugins`) |
 | `--plugin <csproj>` | add an ad-hoc 3rd-party plugin (repeatable) |
 | `--version <ver>` | override the app version read from the csproj |
+| `--date <yyyyMMdd>` | date suffix for weekly builds; ignored with `--stable` |
 | `--out <dir>` | output directory (default `./output`) |
 | `--platform <name>` | target `win64`, `linux` or `linux-arm64` (default: the host OS) |
 | `--skip-tests` | do not run the test suite first |
@@ -82,12 +86,15 @@ output/
 │   │   ├── SenderNG.exe, *.dll, .deps.json, .runtimeconfig.json
 │   │   ├── coreclr.dll, hostfxr.dll, …     ← natives hoisted flat (self-contained)
 │   │   ├── Locale/**                       ← app locale catalogs
-│   │   ├── Modules/SenderNG.Modules.Common.dll  ← SDK assembly, and ONLY it
+│   │   ├── Modules/                        ← SDK assemblies only (Model A):
+│   │   │   ├── SenderNG.Modules.Common.dll
+│   │   │   ├── SenderNG.Modules.Common.Render.dll
+│   │   │   └── Silk.NET.{Core,Maths,OpenGL}.dll
 │   │   └── LICENSE                          ← BSD 3-Clause text (from repo root)
 │   ├── plugins/<plugin-id>/                ← one folder per included plugin
 │   │   ├── SenderNG.Modules.<X>.dll        ← flat (the module's own assembly)
 │   │   ├── README.txt                      ← install mapping into SenderNG/Modules/
-│   │   └── <plugin-id>/                    ← Locale/<id>/ + any closure/native libs
+│   │   └── <plugin-id>/                    ← Locale/<id>/ + any plugin-private/native libs
 │   ├── SenderNG-<ver>-win64.zip
 │   ├── SenderNG-plugin-<id>-<ver>-win64.zip
 │   └── SHA256SUMS.txt                      ← <sha256>  <relative path> per file
@@ -124,9 +131,11 @@ output/
 | `plotter` | `src/SenderNG.Modules.Plotter` |
 | `plotter-gl` | `src/SenderNG.Modules.Plotter.GL` |
 | `probing` | `src/SenderNG.Modules.Probing` |
+| `heightmap-viewer` | `src/SenderNG.Modules.HeightMapViewer` |
 
-`plotter-gl` additionally ships its package closure (its assembly stays flat;
-`LoadFrom` probes the `plotter-gl/` subfolder for deps).
+The render SDK (`SenderNG.Modules.Common.Render.dll`) and the Silk.NET
+`Core`/`Maths`/`OpenGL` DLLs ship flat in the core bundle's `Modules/` (Model A),
+so `plotter-gl` no longer bundles its own private Silk.NET copy.
 
 **3rd-party** (`tools/ReleaseManager/plugins.json`, empty by default):
 
@@ -143,9 +152,11 @@ output/
 `version` is optional (defaults to the plugin csproj `<Version>`, else `1.0.0`).
 Missing/non-existent project, duplicate ids, or id collisions with the 1st-party
 set → exit 1. Staging rules: the module's own assembly DLL goes flat; everything
-else it owns goes under `<plugin-id>/` (locale + closure). Host-owned assemblies
-(`SenderNG.Core.dll`, `CNC.Core.dll`, `SenderNG.Modules.Common.dll`,
-`Avalonia*.dll`) are never re-bundled.
+else it owns goes under `<plugin-id>/` (locale + plugin-private dependencies).
+Host-owned assemblies (`SenderNG.Core.dll`, `CNC.Core.dll`, the SDK assemblies
+`SenderNG.Modules.Common.dll` / `SenderNG.Modules.Common.Render.dll`, the
+Silk.NET `Core`/`Maths`/`OpenGL` DLLs and `Avalonia*.dll`) are never re-bundled,
+so they only ever ship in the core `Modules/`.
 
 ## Runbook — Windows (win64 bundle)
 

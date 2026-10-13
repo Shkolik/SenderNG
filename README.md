@@ -206,6 +206,7 @@ SenderNG-plugin-hpgl-<ver>-<suffix>.zip
 SenderNG-plugin-plotter-<ver>-<suffix>.zip
 SenderNG-plugin-plotter-gl-<ver>-<suffix>.zip
 SenderNG-plugin-probing-<ver>-<suffix>.zip
+SenderNG-plugin-heightmap-viewer-<ver>-<suffix>.zip
 SHA256SUMS.txt                              ← <sha256> <relative path> per file
 ```
 
@@ -213,21 +214,23 @@ SHA256SUMS.txt                              ← <sha256> <relative path> per fil
 
 **Core bundle zip** — the complete self-contained app: `SenderNG.exe` /
 `SenderNG` runner, all .NET + platform natives, locale catalogs, and a
-`Modules/` folder holding only the SDK assembly
-`SenderNG.Modules.Common.dll`. Extract it anywhere and run; no .NET install
-needed.
+`Modules/` folder holding the SDK assemblies — `SenderNG.Modules.Common.dll`,
+`SenderNG.Modules.Common.Render.dll` and the Silk.NET `Core`/`Maths`/`OpenGL`
+DLLs. Extract it anywhere and run; no .NET install needed.
 
 **Plugin zips** — one per optional module (`excellon`, `hpgl`,
-`plotter`, `plotter-gl`, `probing`). Each contains the module's own assembly
-(`SenderNG.Modules.<X>.dll`) plus an `<id>/` support folder (its locale
-catalog; `plotter-gl` also carries its Silk.NET package closure). The
-app discovers modules by scanning `Modules/*.dll` at startup, so installing a
-module is a straight copy of the zip's contents into the extracted bundle's
-`Modules/` folder: the DLL lands flat next to the SDK, `<id>/` becomes
-`Modules/<id>/`. Skip the ones you don't want — the core bundle runs fine
-without them. `probing` is the in-tree first-party module
+`plotter`, `plotter-gl`, `probing`, `heightmap-viewer`). Each contains the
+module's own assembly (`SenderNG.Modules.<X>.dll`) plus an `<id>/` support
+folder (its locale catalog). The render SDK and Silk.NET DLLs ship flat in the
+core bundle's `Modules/` (Model A), so `plotter-gl` no longer bundles its own
+private Silk.NET copy. The app discovers modules by scanning `Modules/*.dll` at
+startup, so installing a module is a straight copy of the zip's contents into
+the extracted bundle's `Modules/` folder: the DLL lands flat next to the SDK,
+`<id>/` becomes `Modules/<id>/`. Skip the ones you don't want — the core bundle
+runs fine without them. `probing` is the in-tree first-party module
 (`src/SenderNG.Modules.Probing`) holding the Probing flyout — tool-length,
-edge, center, rotation and height-map probing cycles.
+edge, center, rotation and height-map probing cycles; `heightmap-viewer`
+(`src/SenderNG.Modules.HeightMapViewer`) is the in-tree 3D height-map dialog.
 
 Verify the downloads before installing: on Windows compare `Get-FileHash`
 against `SHA256SUMS.txt`; on Linux run `cd <platform dir> && sha256sum -c

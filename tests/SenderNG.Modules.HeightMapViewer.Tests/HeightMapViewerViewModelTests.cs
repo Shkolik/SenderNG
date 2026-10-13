@@ -36,6 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.ComponentModel;
 using System.Reactive.Subjects;
+using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
 using SenderNG.Modules.HeightMapViewer;
 
@@ -148,5 +149,63 @@ public class HeightMapViewerViewModelTests
         using var vm = new HeightMapViewerViewModel(null, null);
 
         Assert.False(string.IsNullOrWhiteSpace(vm.EmptyText));
+    }
+
+    [Fact]
+    public void Locale_change_raises_property_changed_for_empty_text()
+    {
+        var (loc, dir) = NewLocalization();
+        try
+        {
+            using var vm = new HeightMapViewerViewModel(null, loc);
+            var raised = new List<string?>();
+            vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+            loc.SetLocale("ru");
+
+            Assert.Contains(nameof(HeightMapViewerViewModel.EmptyText), raised);
+            Assert.Equal("RU empty", vm.EmptyText);
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Fact]
+    public void Dispose_unsubscribes_from_locale_changes()
+    {
+        var (loc, dir) = NewLocalization();
+        try
+        {
+            var vm = new HeightMapViewerViewModel(null, loc);
+            var raised = new List<string?>();
+            vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+            vm.Dispose();
+            loc.SetLocale("ru");
+
+            Assert.DoesNotContain(nameof(HeightMapViewerViewModel.EmptyText), raised);
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    private static (LocalizationService loc, string dir) NewLocalization()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "hmv-locale-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "en.json"), """{"strings":{}}""");
+        File.WriteAllText(
+            Path.Combine(dir, "ru.json"),
+            """{"strings":{"module.heightmap-viewer.empty":"RU empty"}}""");
+        return (LocalizationService.LoadFromDirectory(dir, "en"), dir);
+    }
+
+    private static void Cleanup(string dir)
+    {
+        try { Directory.Delete(dir, recursive: true); } catch { }
     }
 }

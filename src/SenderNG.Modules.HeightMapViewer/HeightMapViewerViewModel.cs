@@ -55,12 +55,21 @@ public sealed class HeightMapViewerViewModel : INotifyPropertyChanged, IDisposab
 
     private readonly LocalizationService? _localization;
     private readonly IDisposable? _subscription;
+    private readonly EventHandler? _localeChanged;
     private HeightMapLayer? _layer;
     private bool _disposed;
 
     public HeightMapViewerViewModel(IHeightMapSource? source, LocalizationService? localization)
     {
         _localization = localization;
+        if (_localization is not null)
+        {
+            // The empty-state text is resolved through the live localization
+            // service; re-raise it on a language switch so the dialog follows
+            // without a restart (same pattern as the view's code-behind texts).
+            _localeChanged = (_, _) => OnPropertyChanged(nameof(EmptyText));
+            _localization.Changed += _localeChanged;
+        }
         _subscription = source?.Snapshot.Subscribe(OnSnapshot);
     }
 
@@ -95,6 +104,8 @@ public sealed class HeightMapViewerViewModel : INotifyPropertyChanged, IDisposab
         if (_disposed)
             return;
         _disposed = true;
+        if (_localization is not null && _localeChanged is not null)
+            _localization.Changed -= _localeChanged;
         _subscription?.Dispose();
     }
 }

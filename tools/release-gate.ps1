@@ -60,9 +60,9 @@ function Test-HasChangesSinceLastTag {
 }
 
 function Write-GateOutputs {
-    param([string]$Tag, [string]$Version, [bool]$Build)
+    param([string]$Tag, [string]$Version, [bool]$Build, [string]$Date)
     $buildValue = if ($Build) { "true" } else { "false" }
-    $lines = @("tag=$Tag", "version=$Version", "build=$buildValue")
+    $lines = @("tag=$Tag", "version=$Version", "build=$buildValue", "date=$Date")
     foreach ($line in $lines) {
         Write-Host $line
     }
@@ -90,8 +90,9 @@ function Invoke-ReleaseGate {
         Tag     = $strings.Tag
         Version = $strings.Version
         Build   = $build
+        Date    = $UtcDate
     }
-    Write-GateOutputs -Tag $result.Tag -Version $result.Version -Build $result.Build
+    Write-GateOutputs -Tag $result.Tag -Version $result.Version -Build $result.Build -Date $result.Date
     return $result
 }
 

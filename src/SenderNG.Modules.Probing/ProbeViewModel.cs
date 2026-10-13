@@ -1563,22 +1563,26 @@ public class ProbeViewModel : ViewModelBase
         return true;
     }
 
-    private void OnPreview3D()
+    private async void OnPreview3D()
     {
-        if (_services?.GetService(typeof(SenderNG.Core.Modules.IHeightMap3DRenderer))
+        if (_services is not { } services ||
+            services.GetService(typeof(SenderNG.Core.Modules.IHeightMap3DRenderer))
                 is not SenderNG.Core.Modules.IHeightMap3DRenderer renderer)
             return;
 
         try
         {
-            _ = renderer.ShowAsync();
+            // Awaited, not fire-and-forget: the renderer's failure often surfaces
+            // after its first await, which a discarded Task would swallow.
+            await renderer.ShowAsync();
         }
         catch (Exception ex)
         {
-            // Error surfacing is host-owned: report through the module's
-            // IErrorReporter when a host registered one, otherwise fall back to
-            // the in-panel result line (tests / design mode have no reporter).
-            if (_services.GetService(typeof(IErrorReporter)) is IErrorReporter reporter)
+            // Error surfacing is host-owned: report through the module's keyed
+            // IErrorReporter (the container keys it by module id, so the unkeyed
+            // lookup is dead), otherwise fall back to the in-panel result line
+            // (tests / design mode have no reporter).
+            if (services.GetKeyedService<IErrorReporter>("probing") is IErrorReporter reporter)
                 reporter.Status(ex.Message);
             else
                 LastResult = ex.Message;

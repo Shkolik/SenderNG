@@ -97,6 +97,13 @@ public class ReleaseEngineTests
         Assert.True(File.Exists(Path.Combine(pluginsRoot, "excellon", "README.txt")));
         Assert.True(File.Exists(Path.Combine(output, PlatformInfo.FolderName(platform), $"SenderNG-plugin-excellon-0.1.0-{PlatformInfo.ZipSuffix(platform)}.zip")));
         Assert.Contains("excellon", report.PluginIds);
+
+        // The height-map viewer is a 1st-party plugin too: it must be staged and
+        // packaged, not dropped from the release because it lives in-solution.
+        Assert.True(File.Exists(Path.Combine(pluginsRoot, "heightmap-viewer", "SenderNG.Modules.HeightMapViewer.dll")));
+        Assert.True(File.Exists(Path.Combine(pluginsRoot, "heightmap-viewer", "heightmap-viewer", "Locale", "en.json")));
+        Assert.True(File.Exists(Path.Combine(output, PlatformInfo.FolderName(platform), $"SenderNG-plugin-heightmap-viewer-0.1.0-{PlatformInfo.ZipSuffix(platform)}.zip")));
+        Assert.Contains("heightmap-viewer", report.PluginIds);
     }
 
     [Theory]
@@ -122,6 +129,27 @@ public class ReleaseEngineTests
         var platformRoot = Path.Combine(output, PlatformInfo.FolderName(ReleasePlatform.Win64));
         Assert.True(File.Exists(Path.Combine(platformRoot, coreZip)));
         Assert.True(File.Exists(Path.Combine(platformRoot, pluginZip)));
+    }
+
+    [Fact]
+    public async Task Stable_release_ignores_the_date_override()
+    {
+        var (repo, output, cli) = Setup();
+        cli.AppPublishDir = CompleteAppPublish(ReleasePlatform.Win64);
+
+        var engine = new ReleaseEngine(repo, cli, new SilentLog());
+        var report = await engine.ReleaseAsync(new ReleaseOptions
+        {
+            OutputDir = output,
+            Platform = ReleasePlatform.Win64,
+            VersionOverride = "0.1.0",
+            Stable = true,
+            DateOverride = "20261012",
+            Selection = PluginSelection.All,
+        });
+
+        Assert.Equal("0.1.0", report.AppVersion);
+        Assert.DoesNotContain(report.Artifacts, a => a.Contains("20261012", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -300,17 +328,31 @@ public class ReleaseEngineTests
     {
         var repo = TempRepo.New();
         var output = TempDir.New();
-        var cli = new FakeCli { PluginVersions = { ["SenderNG.Modules.Excellon"] = "0.1.0" } };
-
-        foreach (var id in new[] { "Excellon", "Hpgl", "Plotter" })
+        var cli = new FakeCli
         {
-            var projectDir = Path.Combine(repo, "src", $"SenderNG.Modules.{id}");
+            PluginVersions =
+            {
+                ["SenderNG.Modules.Excellon"] = "0.1.0",
+                ["SenderNG.Modules.HeightMapViewer"] = "0.1.0",
+            },
+        };
+
+        foreach (var (project, pluginId) in new[]
+                 {
+                     ("Excellon", "excellon"),
+                     ("Hpgl", "hpgl"),
+                     ("Plotter", "plotter"),
+                     ("HeightMapViewer", "heightmap-viewer"),
+                 })
+        {
+            var projectDir = Path.Combine(repo, "src", $"SenderNG.Modules.{project}");
             Directory.CreateDirectory(projectDir);
-            File.WriteAllText(Path.Combine(projectDir, $"SenderNG.Modules.{id}.csproj"), "<Project/>");
-            Directory.CreateDirectory(Path.Combine(projectDir, "Locale", FirstPartyPlugins.First(id).Id));
+            File.WriteAllText(Path.Combine(projectDir, $"SenderNG.Modules.{project}.csproj"), "<Project/>");
+            Directory.CreateDirectory(Path.Combine(projectDir, "Locale", pluginId));
         }
 
         File.WriteAllText(Path.Combine(repo, "src", "SenderNG.Modules.Excellon", "Locale", "excellon", "en.json"), "{}");
+        File.WriteAllText(Path.Combine(repo, "src", "SenderNG.Modules.HeightMapViewer", "Locale", "heightmap-viewer", "en.json"), "{}");
 
         // Seed here rather than per-test: a test that leaves options.Platform
         // unset releases for PlatformInfo.Current, so which platform it actually

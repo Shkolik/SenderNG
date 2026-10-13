@@ -98,6 +98,19 @@ public class CliTests
     }
 
     [Fact]
+    public void Parse_date_sets_the_override()
+    {
+        var options = Cli.Parse(["--date", "20261012"]).Options!;
+        Assert.Equal("20261012", options.DateOverride);
+    }
+
+    [Fact]
+    public void Parse_leaves_date_override_null_when_absent()
+    {
+        Assert.Null(Cli.Parse([]).Options!.DateOverride);
+    }
+
+    [Fact]
     public void Parse_help_returns_usage()
     {
         var result = Cli.Parse(["--help"]);
@@ -110,6 +123,7 @@ public class CliTests
     [InlineData(new object[] { new[] { "--version" } })]
     [InlineData(new object[] { new[] { "--plugins" } })]
     [InlineData(new object[] { new[] { "--out" } })]
+    [InlineData(new object[] { new[] { "--date" } })]
     public void Parse_rejects_unknown_or_missing_value_flags(string[] args)
     {
         Assert.Throws<CliException>(() => Cli.Parse(args));

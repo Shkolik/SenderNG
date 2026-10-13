@@ -130,6 +130,29 @@ public class HeightMapSourceTests : IDisposable
     }
 
     [Fact]
+    public async Task Preview3D_async_failure_sets_the_in_panel_result()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IHeightMap3DRenderer>(new ThrowingRendererModule());
+        var provider = services.BuildServiceProvider();
+
+        var demo = new DemoGrblService(_settings.Load());
+        await demo.ConnectAsync("demo");
+        var vm = new ProbeViewModel(demo, _settings, provider);
+
+        vm.SelectedTool = ProbingType.HeightMap;
+        await vm.StartAsync();
+        Assert.True(vm.HasHeightMap, $"Height map probe failed: {vm.LastResult}");
+
+        vm.Preview3DCommand.Execute(null);
+
+        // ShowAsync faults asynchronously (a faulted Task). A fire-and-forget
+        // call would swallow it; the awaited call must surface it (no keyed
+        // reporter in the test host, so the result line is the fallback).
+        Assert.Contains("3D render failed", vm.LastResult);
+    }
+
+    [Fact]
     public void ProbingModule_publishes_snapshot_when_vm_reports_completion()
     {
         var module = new ProbingModule();
@@ -232,6 +255,22 @@ public class HeightMapSourceTests : IDisposable
         public string Id => "stub-renderer";
         public string Name => "Stub renderer";
         public string Description => "Test renderer stub.";
+        public int Order => 0;
+        public IReadOnlyList<HotKey> HotKeys => [];
+        public void RegisterServices(IServiceCollection services) { }
+        public object CreateViewModel(IServiceProvider serviceProvider) => new();
+        public object CreateView(object viewModel) => new();
+    }
+
+    /// <summary>Renderer stub whose <see cref="ShowAsync"/> faults asynchronously
+    /// (a faulted Task), the case a fire-and-forget call would swallow.</summary>
+    internal sealed class ThrowingRendererModule : IModule, IHeightMap3DRenderer
+    {
+        public Task ShowAsync() => Task.FromException(new InvalidOperationException("3D render failed"));
+
+        public string Id => "throwing-renderer";
+        public string Name => "Throwing renderer";
+        public string Description => "Test renderer stub that fails asynchronously.";
         public int Order => 0;
         public IReadOnlyList<HotKey> HotKeys => [];
         public void RegisterServices(IServiceCollection services) { }

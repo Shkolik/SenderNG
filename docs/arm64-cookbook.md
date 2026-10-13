@@ -15,11 +15,14 @@ throwaway/service account. `<pi-host>` is the Pi's hostname or IP.
 `output\linux-arm64\` after a build:
 
 - `SenderNG-<version>-linux-arm64.zip` — the app (self-contained .NET, **no SDK needed on the Pi**)
-- `SenderNG-plugin-{excellon,hpgl,plotter,plotter-gl,probing}-<version>-linux-arm64.zip`
+- `SenderNG-plugin-{excellon,hpgl,plotter,plotter-gl,probing,heightmap-viewer}-<version>-linux-arm64.zip`
 - `SHA256SUMS.txt` — hashes for the zips *and* the staged bundle files
 
 The arm64 build ships the full plugin set — Plotter GL renders through Mesa's
-OpenGL stack on the Pi.
+OpenGL stack on the Pi. The render SDK (`SenderNG.Modules.Common.Render.dll`)
+and the Silk.NET `Core`/`Maths`/`OpenGL` DLLs ship flat in the core bundle's
+`Modules/` (Model A), so plugin zips carry only their own assembly and locale —
+`plotter-gl` no longer bundles a private Silk.NET copy.
 
 ## 1. Build (Windows + WSL2)
 
@@ -49,7 +52,7 @@ Prefer the ReleaseManager CLI directly? Use the
 
 ### A. Thumb drive
 
-1. On the build machine, copy the six `.zip` files plus `SHA256SUMS.txt`
+1. On the build machine, copy the seven `.zip` files plus `SHA256SUMS.txt`
    from `output\linux-arm64\` onto any USB stick (FAT32/exFAT, ~45 MB total).
 2. On the Pi, plug it in — the desktop auto-mounts it under
    `/media/<user>/<LABEL>`. If it doesn't, find and mount it manually:
@@ -130,7 +133,7 @@ chmod +x ~/Desktop/SenderNG.desktop
 ```
 
 The plugin glob only matches zips the arm64 build actually produced —
-`excellon`, `hpgl`, `plotter`, `plotter-gl`, `probing`.
+`excellon`, `hpgl`, `plotter`, `plotter-gl`, `probing`, `heightmap-viewer`.
 
 ### Dependencies
 
