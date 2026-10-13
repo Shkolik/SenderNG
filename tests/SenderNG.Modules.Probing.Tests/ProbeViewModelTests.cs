@@ -310,6 +310,26 @@ public class ProbeViewModelTests : IDisposable
     }
 
     [Fact]
+    public void Profile_add_does_not_write_the_companion_while_a_restore_is_pending()
+    {
+        // The companion (profiles/<id>.probing.json) is part of the app-settings
+        // archive: after a restore the in-memory profile list is stale, so the
+        // Probing tab must not write it back over the restored file.
+        var vm = new ProbeViewModel(new StubGrbl(), _settings);
+        vm.NewProfileName = "p";
+        vm.ProfileAddCommand.Execute(null);
+        var companion = ProfileSettingsPaths.CompanionPath(_dir, "default", ProbingProfileStore.CompanionSuffix);
+        var before = File.ReadAllBytes(companion);
+
+        _settings.MarkRestorePending();
+
+        vm.NewProfileName = "q";
+        vm.ProfileAddCommand.Execute(null);
+
+        Assert.Equal(before, File.ReadAllBytes(companion));
+    }
+
+    [Fact]
     public void ProbeViewModel_repoints_its_companion_store_after_switch()
     {
         var vm = new ProbeViewModel(new StubGrbl(), _settings);

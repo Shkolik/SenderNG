@@ -189,6 +189,35 @@ public class ProbingProfileStoreTests : IDisposable
         Assert.Equal("<Default>", profiles.Profiles[0].Name);
     }
 
+    [Fact]
+    public void Save_is_refused_and_leaves_the_file_untouched_while_writes_are_blocked()
+    {
+        var path = Path.Combine(_dir, "probing.json");
+        var store = new ProbingProfileStore(path);
+        Assert.True(store.Save(store.Load())); // settle the file
+        var before = File.ReadAllBytes(path);
+
+        var blocked = new ProbingProfileStore(path, () => true);
+        var profiles = blocked.Load();
+        profiles.Add("v2", ProbingProfile.CreateDefault());
+
+        Assert.False(blocked.Save(profiles));
+        Assert.Equal(before, File.ReadAllBytes(path));
+    }
+
+    [Fact]
+    public void Save_writes_normally_when_the_predicate_reports_no_block()
+    {
+        var path = Path.Combine(_dir, "probing.json");
+        var store = new ProbingProfileStore(path, () => false);
+        var profiles = store.Load();
+        profiles.Add("v2", ProbingProfile.CreateDefault());
+
+        Assert.True(store.Save(profiles));
+
+        Assert.Equal(2, new ProbingProfileStore(path).Load().Profiles.Count);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_dir, recursive: true); } catch { }
