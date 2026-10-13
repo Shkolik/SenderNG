@@ -91,6 +91,13 @@ public class CliTests
     }
 
     [Fact]
+    public void Parse_stable_sets_flag()
+    {
+        Assert.True(Cli.Parse(["--stable"]).Options!.Stable);
+        Assert.False(Cli.Parse([]).Options!.Stable);
+    }
+
+    [Fact]
     public void Parse_help_returns_usage()
     {
         var result = Cli.Parse(["--help"]);

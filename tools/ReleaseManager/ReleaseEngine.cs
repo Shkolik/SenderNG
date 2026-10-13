@@ -79,9 +79,11 @@ public sealed class ReleaseEngine
         ct.ThrowIfCancellationRequested();
 
         var plugins = PluginLists.Resolve(_repoRoot, options, _log, platform);
-        var appVersion = options.VersionOverride
+        var appBaseVersion = options.VersionOverride
             ?? await _cli.ReadVersionAsync(_repoRoot, Path.Combine(_repoRoot, AppCsproj), ct)
             ?? throw new CliException($"No <Version> in {AppCsproj}; add one or pass --version.");
+        var suffix = options.Stable ? string.Empty : "-" + (options.DateOverride ?? DateTime.UtcNow.ToString("yyyyMMdd"));
+        var appVersion = appBaseVersion + suffix;
 
         var tmp = Path.Combine(Path.GetTempPath(), "ReleaseManager-" + Guid.NewGuid().ToString("N"));
         try
@@ -133,9 +135,10 @@ public sealed class ReleaseEngine
 
                 foreach (var plugin in plugins)
                 {
-                    var pluginVersion = plugin.Version
+                    var pluginBase = plugin.Version
                         ?? await _cli.ReadVersionAsync(_repoRoot, Path.Combine(_repoRoot, plugin.Project.Replace('/', Path.DirectorySeparatorChar)), ct)
                         ?? "1.0.0";
+                    var pluginVersion = pluginBase + suffix;
                     var pluginZip = Path.Combine(platformRoot, $"SenderNG-plugin-{plugin.Id}-{pluginVersion}-{PlatformInfo.ZipSuffix(platform)}.zip");
                     ReleasePackage.CreatePluginZip(Path.Combine(platformRoot, "plugins", plugin.Id), pluginZip);
                     artifacts.Add(Path.GetFileName(pluginZip));

@@ -66,7 +66,7 @@ public class ReleaseEngineTests
         cli.AppPublishDir = appPublish;
 
         var engine = new ReleaseEngine(repo, cli, new SilentLog());
-        var report = await engine.ReleaseAsync(new ReleaseOptions { OutputDir = output });
+        var report = await engine.ReleaseAsync(new ReleaseOptions { OutputDir = output, Stable = true });
 
         var bundle = Path.Combine(output, folder, "SenderNG");
         Assert.True(File.Exists(Path.Combine(bundle, PlatformInfo.RunnerFileName(platform))));
@@ -87,7 +87,7 @@ public class ReleaseEngineTests
         cli.AppPublishDir = appPublish;
 
         var engine = new ReleaseEngine(repo, cli, new SilentLog());
-        var options = new ReleaseOptions { OutputDir = output, Selection = PluginSelection.All };
+        var options = new ReleaseOptions { OutputDir = output, Stable = true, Selection = PluginSelection.All };
         var report = await engine.ReleaseAsync(options);
 
         var platform = PlatformInfo.Current;
@@ -97,6 +97,31 @@ public class ReleaseEngineTests
         Assert.True(File.Exists(Path.Combine(pluginsRoot, "excellon", "README.txt")));
         Assert.True(File.Exists(Path.Combine(output, PlatformInfo.FolderName(platform), $"SenderNG-plugin-excellon-0.1.0-{PlatformInfo.ZipSuffix(platform)}.zip")));
         Assert.Contains("excellon", report.PluginIds);
+    }
+
+    [Theory]
+    [InlineData(false, "SenderNG-0.1.0-20261012-win64.zip", "SenderNG-plugin-excellon-0.1.0-20261012-win64.zip")]
+    [InlineData(true, "SenderNG-0.1.0-win64.zip", "SenderNG-plugin-excellon-0.1.0-win64.zip")]
+    public async Task Zip_names_apply_date_only_for_weekly(bool stable, string coreZip, string pluginZip)
+    {
+        var (repo, output, cli) = Setup();
+        cli.AppPublishDir = CompleteAppPublish(ReleasePlatform.Win64);
+
+        var engine = new ReleaseEngine(repo, cli, new SilentLog());
+        var options = new ReleaseOptions
+        {
+            OutputDir = output,
+            Platform = ReleasePlatform.Win64,
+            VersionOverride = "0.1.0",
+            Stable = stable,
+            DateOverride = "20261012",
+            Selection = PluginSelection.All,
+        };
+        await engine.ReleaseAsync(options);
+
+        var platformRoot = Path.Combine(output, PlatformInfo.FolderName(ReleasePlatform.Win64));
+        Assert.True(File.Exists(Path.Combine(platformRoot, coreZip)));
+        Assert.True(File.Exists(Path.Combine(platformRoot, pluginZip)));
     }
 
     [Fact]
@@ -165,6 +190,7 @@ public class ReleaseEngineTests
         var report = await engine.ReleaseAsync(new ReleaseOptions
         {
             OutputDir = output,
+            Stable = true,
             Platform = ReleasePlatform.LinuxArm64,
         });
 

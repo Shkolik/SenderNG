@@ -57,7 +57,7 @@ jobs:
           global-json-file: global.json
 
       - name: Build win64 release
-        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform win64 --version ${{ needs.gate.outputs.version }}
+        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform win64 ${{ inputs.stable && '--stable' || '' }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -79,10 +79,10 @@ jobs:
           global-json-file: global.json
 
       - name: Build linux-x64 release
-        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform linux --version ${{ needs.gate.outputs.version }}
+        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform linux ${{ inputs.stable && '--stable' || '' }}
 
       - name: Build linux-arm64 release
-        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform linux-arm64 --skip-tests --version ${{ needs.gate.outputs.version }}
+        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform linux-arm64 --skip-tests ${{ inputs.stable && '--stable' || '' }}
 
       - uses: actions/upload-artifact@v4
         with:

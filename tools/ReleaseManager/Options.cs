@@ -53,7 +53,9 @@ public sealed record ReleaseOptions(
     PluginSelection Selection = PluginSelection.None,
     IReadOnlyList<string>? PluginIds = null,
     IReadOnlyList<string>? AdHocPluginPaths = null,
-    string OutputDir = "output")
+    string OutputDir = "output",
+    bool Stable = false,
+    string? DateOverride = null)
 {
     public IReadOnlyList<string> PluginIds { get; init; } = PluginIds ?? [];
     public IReadOnlyList<string> AdHocPluginPaths { get; init; } = AdHocPluginPaths ?? [];
