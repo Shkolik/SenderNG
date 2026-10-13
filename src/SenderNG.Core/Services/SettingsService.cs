@@ -67,6 +67,34 @@ public class SettingsService
     /// re-read or reset — a machine swap invalidates loaded state.</summary>
     public event System.Action<string>? ProfileSwitched;
 
+    /// <summary>Raised once when <see cref="MarkRestorePending"/> freezes writes after a
+    /// settings restore. The host surfaces this as "restart SenderNG to apply".</summary>
+    public event System.Action? RestorePendingChanged;
+
+    /// <summary>True once an app-settings restore has replaced the files in
+    /// <see cref="SettingsDir"/>: the in-memory graph still holds the pre-restore
+    /// data, so every mutator is a no-op until the app restarts. Without this, any
+    /// post-restore save would rewrite the stale in-memory graph over the freshly
+    /// restored files.</summary>
+    public bool RestorePending { get; private set; }
+
+    /// <summary>Freezes writes for the lifetime of this instance: called by the
+    /// app-settings restore immediately after it wrote the restored files, because a
+    /// post-restore save would rewrite the stale in-memory graph over them. Reads stay
+    /// live; restarting the app builds a fresh service and clears the guard. Raises
+    /// <see cref="RestorePendingChanged"/> at most once, and never <see cref="Changed"/>
+    /// — nothing has changed on disk.</summary>
+    public void MarkRestorePending()
+    {
+        if (RestorePending)
+            return;
+        RestorePending = true;
+        RestorePendingChanged?.Invoke();
+    }
+
+    /// <summary>Mutators return early while the restored files must not be overwritten.</summary>
+    private bool WritesBlocked => RestorePending;
+
     /// <summary>Creates a settings service rooted at <paramref name="dir"/> (default:
     /// the per-user settings directory). <paramref name="services"/> — when present —
     /// supplies module companion providers (<see cref="IProfileCompanionSuffixes"/>)
@@ -153,6 +181,8 @@ public class SettingsService
     /// <summary>Persist the active profile to <c>profiles/&lt;id&gt;.json</c>.</summary>
     public void Save(MachineProfile profile)
     {
+        if (WritesBlocked)
+            return;
         _current = profile ?? throw new ArgumentNullException(nameof(profile));
         Directory.CreateDirectory(_dir);
         ProfilesStore.Save(_dir, profile);
@@ -162,6 +192,8 @@ public class SettingsService
     /// <summary>Persist a (possibly inactive) profile file without touching the shared graph.</summary>
     public void SaveProfile(MachineProfile profile)
     {
+        if (WritesBlocked)
+            return;
         ArgumentNullException.ThrowIfNull(profile);
         ProfilesStore.Save(_dir, profile);
         if (_current?.Id == profile.Id)
@@ -186,6 +218,8 @@ public class SettingsService
     /// </summary>
     public MachineProfile CreateProfile(string name, string machineTypeId, string? copyFromId = null)
     {
+        if (WritesBlocked)
+            return _current ?? Load();
         var id = UniqueId(name);
         // Fresh profiles seed machine-coupled defaults from the type preset: the
         // demo controller simulates the type's axis count (Foam needs 4 so both
@@ -211,6 +245,8 @@ public class SettingsService
     /// <summary>Display-name rename: id and file untouched, registry updated, active graph re-raised.</summary>
     public void RenameProfile(string id, string name)
     {
+        if (WritesBlocked)
+            return;
         var profile = ProfilesStore.TryLoad(_dir, id, _onFallback)
             ?? throw new ArgumentException($"Unknown profile '{id}'", nameof(id));
         profile.Name = name;
@@ -229,6 +265,8 @@ public class SettingsService
     /// </summary>
     public bool DeleteProfile(string id)
     {
+        if (WritesBlocked)
+            return false;
         if (string.Equals(id, _global?.ActiveProfileId, System.StringComparison.Ordinal))
             return false;
         if (ProfilesStore.Ids(_dir).Count() <= 1)
@@ -255,6 +293,8 @@ public class SettingsService
     /// </summary>
     public MachineProfile Activate(string profileId)
     {
+        if (WritesBlocked)
+            return _current ?? Load();
         var profile = ProfilesStore.TryLoad(_dir, profileId, _onFallback)
             ?? throw new ArgumentException($"Unknown profile '{profileId}'", nameof(profileId));
         _current = profile;
@@ -269,6 +309,8 @@ public class SettingsService
     /// <summary>Changes a profile's machine type (confirmed + guarded by the UI).</summary>
     public void SetProfileMachineType(string id, string machineTypeId)
     {
+        if (WritesBlocked)
+            return;
         var profile = ProfilesStore.TryLoad(_dir, id, _onFallback)
             ?? throw new ArgumentException($"Unknown profile '{id}'", nameof(id));
         profile.MachineTypeId = machineTypeId;
@@ -317,6 +359,8 @@ public class SettingsService
     /// <summary>Persist <c>global.json</c>.</summary>
     public void SaveGlobal(GlobalSettings global)
     {
+        if (WritesBlocked)
+            return;
         _global = global ?? throw new ArgumentNullException(nameof(global));
         Directory.CreateDirectory(_dir);
         GlobalSettingsStore.Save(_dir, global);
