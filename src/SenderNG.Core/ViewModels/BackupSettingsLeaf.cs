@@ -184,7 +184,18 @@ public sealed class BackupSettingsLeaf : AppSettingsLeaf
             // Capture reads the disk, so this stays correct even while a restore is pending.
             var bundle = AppSettingsBundle.Capture(_settings.SettingsDir, AppVersion, now);
             bundle.WriteTo(path, now);
-            SetStatus(Localize("appSettings.backup.saved", "Backed up {0} files to {1}.", bundle.Files.Count, path));
+
+            // A backup is a safety net, so an archive that will not restore is still
+            // written — but the user has to hear it now, not when they need it. Capture
+            // copies the live files verbatim, so a truncated profile (non-atomic
+            // WriteAllText) lands in the archive unchecked; validate what was captured
+            // and report the errors instead of the plain "saved".
+            var validation = AppSettingsBundleValidator.Validate(bundle);
+            SetStatus(validation.Ok
+                ? Localize("appSettings.backup.saved", "Backed up {0} files to {1}.", bundle.Files.Count, path)
+                : Localize("appSettings.backup.savedWarning",
+                    "Backed up {0} files to {1}. Warning: this archive may not restore ({2}).",
+                    bundle.Files.Count, path, string.Join(" ", validation.Errors)));
         }
         catch (Exception ex)
         {

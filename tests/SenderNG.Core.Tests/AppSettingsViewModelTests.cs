@@ -1183,7 +1183,7 @@ public class AppSettingsViewModelTests
     }
 
     /* -----------------------------------------------------------------------
-     * Restore-pending: blocked mutations, partial restore (F11, F13)
+     * Restore-pending: blocked mutations and a warned-about archive (F11, F13, F15)
      * --------------------------------------------------------------------- */
 
     [Fact]
@@ -1279,6 +1279,49 @@ public class AppSettingsViewModelTests
             Assert.Contains("run the restore again", leaf.Status, StringComparison.Ordinal);
             Assert.Equal("{\"ActiveProfileId\":\"default\",\"Profiles\":{\"default\":\"Default\"}}",
                 File.ReadAllText(Path.Combine(dir, "global.json")));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            if (File.Exists(target))
+                File.Delete(target);
+        }
+    }
+
+    [Fact]
+    public async Task Backup_warns_when_the_captured_payload_cannot_restore()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        var target = TempBackupPath();
+        try
+        {
+            var leaf = BackupLeafOf(CreateBackupVm(settings, dialogs));
+            dialogs.SavePath = target;
+
+            // A truncated live profile (ProfilesStore writes non-atomically) is captured
+            // verbatim, so the archive the user just made is one Apply will always refuse.
+            // Written after the dialog is built: the profile manager loads every profile
+            // when it builds, which would quarantine an unparseable one as ".corrupt"
+            // before Capture ever saw it.
+            File.WriteAllText(Path.Combine(ProfileSettingsPaths.ProfilesDir(dir), "truncated.json"), "{ not json");
+
+            await leaf.BackupAsync();
+
+            // Still written: a backup is a safety net, corrupt payload and all.
+            Assert.True(File.Exists(target), leaf.Status);
+            var read = AppSettingsBundle.ReadFrom(target);
+            Assert.True(read.Ok, read.Error);
+            Assert.True(read.Bundle!.Files.ContainsKey("profiles/truncated.json"),
+                string.Join(",", read.Bundle.Files.Keys));
+            var validation = AppSettingsBundleValidator.Validate(read.Bundle);
+            Assert.False(validation.Ok);
+
+            // Asserted as fragments: true with the catalog key and with the inline
+            // fallback (the catalog stream adds the key in parallel).
+            Assert.Contains("Warning: this archive may not restore", leaf.Status, StringComparison.Ordinal);
+            Assert.Contains(validation.Errors[0], leaf.Status, StringComparison.Ordinal);
+            Assert.Contains($"{read.Bundle.Files.Count} files", leaf.Status, StringComparison.Ordinal);
+            Assert.Contains(target, leaf.Status, StringComparison.Ordinal);
         }
         finally
         {
