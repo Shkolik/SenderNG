@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using CNC.Core.Services;
 using SenderNG.Modules.Probing.Core;
 using Xunit;
 
@@ -187,6 +188,46 @@ public class ProbingProfileStoreTests : IDisposable
         var profiles = store.Load();
         Assert.Single(profiles.Profiles);
         Assert.Equal("<Default>", profiles.Profiles[0].Name);
+    }
+
+    [Fact]
+    public void An_archive_holding_a_companion_written_by_the_real_store_validates_and_restores()
+    {
+        // End-to-end regression for the companion-validation defect (F1): this store writes
+        // profiles/<id>.probing.json as a JSON ARRAY, so a validator that demanded
+        // MachineProfile for every profiles/*.json refused the user's OWN backup and, because
+        // Apply validates internally, wrote nothing. The companion here is the real writer's
+        // output rather than a hand-built fixture - the shape every unit fixture got wrong.
+        var source = Path.Combine(_dir, "source");
+        GlobalSettingsStore.Save(source, new GlobalSettings());
+        ProfilesStore.Save(source, new MachineProfile { Id = "mill", Name = "Mill" });
+
+        var companion = ProfileSettingsPaths.CompanionPath(
+            source, "mill", ProbingProfileStore.CompanionSuffix);
+        var store = new ProbingProfileStore(companion);
+        var profiles = new ProbingProfiles();
+        profiles.Add("ferrous", ProbingProfile.CreateDefault());
+        Assert.True(store.Save(profiles));
+
+        var written = File.ReadAllText(companion);
+        Assert.StartsWith("[", written.TrimStart()); // the array shape that used to be misread
+
+        // Capture -> archive -> read -> validate -> restore into a fresh directory.
+        var bundle = AppSettingsBundle.Capture(source, "test", DateTimeOffset.UtcNow);
+        var zip = Path.Combine(_dir, "settings.ngsettings.zip");
+        bundle.WriteTo(zip, DateTimeOffset.UtcNow);
+
+        var read = AppSettingsBundle.ReadFrom(zip);
+        Assert.True(read.Ok, read.Error);
+        var validation = AppSettingsBundleValidator.Validate(read.Bundle!);
+        Assert.True(validation.Ok, string.Join("; ", validation.Errors));
+
+        var result = AppSettingsRestore.Apply(Path.Combine(_dir, "target"), read.Bundle!);
+        Assert.True(result.Ok, string.Join("; ", result.Failed));
+
+        // The companion survives verbatim, and nothing tried to read it as a profile.
+        Assert.Equal(written, File.ReadAllText(ProfileSettingsPaths.CompanionPath(
+            Path.Combine(_dir, "target"), "mill", ProbingProfileStore.CompanionSuffix)));
     }
 
     [Fact]

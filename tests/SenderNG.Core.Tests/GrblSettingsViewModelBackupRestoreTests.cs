@@ -45,6 +45,7 @@ using SenderNG.Modules.Fixed;
 
 namespace SenderNG.Core.Tests;
 
+[Collection("LocalizationState")] // serializes with the tests that mutate LocalizationService.Current
 public class GrblSettingsViewModelBackupRestoreTests
 {
     private sealed class StubProvider : IGrblSettingsProvider
@@ -406,6 +407,41 @@ public class GrblSettingsViewModelBackupRestoreTests
         await vm.ApplyRestoreAsync();
 
         Assert.Contains("1 settings did not take the restored value", vm.Status);
+    }
+
+    [Fact]
+    public async Task The_verify_mismatch_message_names_the_settings_when_the_catalog_is_active()
+    {
+        // The real app always has LocalizationService.Current set (HostSetup), so the status
+        // text comes from the catalog, not the inline fallback. Regression for the catalog
+        // dropping the "{1}" the call site passes: the failed setting ids vanished for real
+        // users while every other test in this file (no Current => fallback) stayed green.
+        var prev = LocalizationService.Current;
+        LocalizationService.Current = TestLocalization.Locale;
+        try
+        {
+            var provider = new StubProvider { ValueLines = ["$0=10"] };
+            var grbl = new FakeGrbl();
+            await grbl.ConnectAsync("stub");
+            var dialogs = new StubDialogs();
+            var vm = CreateVm(provider, grbl, dialogs);
+            await vm.LoadAsync();
+
+            var path = TempFile(".json");
+            await File.WriteAllTextAsync(path, BackupJson(("0", "11")));
+            dialogs.OpenPath = path;
+            await vm.RestoreAsync();
+
+            provider.ValueLines = ["$0=10"]; // the write did not take
+            await vm.ApplyRestoreAsync();
+
+            Assert.Contains("did not take the restored value", vm.Status);
+            Assert.Contains("$0", vm.Status); // the id the catalog used to drop
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
     }
 
     [Fact]
