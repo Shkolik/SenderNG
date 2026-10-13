@@ -40,6 +40,7 @@
     <ProjectReference Include="..\SenderNG.Modules.Common\SenderNG.Modules.Common.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Common.Render\SenderNG.Modules.Common.Render.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Excellon\SenderNG.Modules.Excellon.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\SenderNG.Modules.HeightMapViewer\SenderNG.Modules.HeightMapViewer.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Hpgl\SenderNG.Modules.Hpgl.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Plotter\SenderNG.Modules.Plotter.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Plotter.GL\SenderNG.Modules.Plotter.GL.csproj" ReferenceOutputAssembly="false" />
@@ -96,6 +97,14 @@
     </None>
     <None Include="..\SenderNG.Modules.Hpgl\Locale\**\*.json">
       <Link>Modules\hpgl\Locale\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\SenderNG.Modules.HeightMapViewer\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.HeightMapViewer.dll">
+      <Link>Modules\SenderNG.Modules.HeightMapViewer.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\SenderNG.Modules.HeightMapViewer\Locale\**\*.json">
+      <Link>Modules\heightmap-viewer\Locale\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="..\SenderNG.Modules.Plotter\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.dll">
