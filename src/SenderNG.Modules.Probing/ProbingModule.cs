@@ -83,7 +83,7 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule,
             ["module.probing.tipTool"] = "Tool length",
             ["module.probing.edgeExternal"] = "Edge external",
             ["module.probing.edgeInternal"] = "Edge internal",
-            ["module.probing.preview3d"] = "Preview in 3D",
+            ["module.probing.preview3d"] = "3D View",
         };
 
     private SettingsService? _settingsService;

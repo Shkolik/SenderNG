@@ -408,12 +408,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                     VerticalContentAlignment="Center"
                                     ToolTip.Tip="{loc:Loc module.probing.applyRotationHint, DText=&quot;Rotates the loaded program's X/Y coordinates by the probed angle&quot;}" />
                             <!-- Height map: file IO + apply to the loaded program -->
-                            <Button Content="{loc:Loc module.probing.saveMap, DText='Save map'}"
+                            <Button Content="{loc:Loc module.probing.saveMap, DText='Save'}"
                                     Command="{Binding HeightMapSaveCommand}" IsVisible="{Binding IsHeightMap}"
                                     Padding="14,0" Height="30" MinHeight="30" Margin="12,0,0,0"
                                     CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1"
                                     VerticalContentAlignment="Center" />
-                            <Button Content="{loc:Loc module.probing.loadMap, DText='Load map'}"
+                            <Button Content="{loc:Loc module.probing.loadMap, DText='Load'}"
                                     Command="{Binding HeightMapLoadCommand}" IsVisible="{Binding IsHeightMap}"
                                     Padding="14,0" Height="30" MinHeight="30"
                                     CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1"
@@ -423,7 +423,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                     Padding="14,0" Height="30" MinHeight="30"
                                     CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1"
                                     VerticalContentAlignment="Center" />
-                            <Button Content="{loc:Loc module.probing.preview3d, DText='Preview in 3D'}"
+                            <Button Content="{loc:Loc module.probing.preview3d, DText='3D View'}"
                                     Command="{Binding Preview3DCommand}" IsVisible="{Binding IsPreview3DVisible}"
                                     Padding="14,0" Height="30" MinHeight="30"
                                     CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1"

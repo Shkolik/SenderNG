@@ -145,6 +145,12 @@ public class ProbeViewModel : ViewModelBase
             ApplyEnabledTools();
             OnPropertyChanged(nameof(ToolChoices));
             OnPropertyChanged(nameof(SelectedToolChoice));
+
+            // A module-visibility toggle (App Settings → Modules) can enable or
+            // disable the renderer: refresh the "3D View" gate live.
+            OnPropertyChanged(nameof(Has3DRenderer));
+            OnPropertyChanged(nameof(IsPreview3DVisible));
+            (Preview3DCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         });
     }
 
@@ -433,11 +439,23 @@ public class ProbeViewModel : ViewModelBase
     public bool IsRotation => SelectedTool == ProbingType.Rotation;
     public bool IsHeightMap => SelectedTool == ProbingType.HeightMap;
 
-    /// <summary>True while a height-map renderer module (any
-    /// <see cref="IHeightMap3DRenderer"/> implementation) is registered; gates
-    /// the "Preview in 3D" action.</summary>
-    public bool Has3DRenderer =>
-        _services?.GetService<SenderNG.Core.Modules.IHeightMap3DRenderer>() is not null;
+    /// <summary>True while a height-map renderer module is registered AND enabled
+    /// for the active profile: its per-profile Modules visibility flag (App
+    /// Settings → Modules) when set, else the module's own
+    /// <see cref="IModule.IsVisibleByDefault"/>. Gates the "3D View" action.</summary>
+    public bool Has3DRenderer => IsRendererEnabled();
+
+    private bool IsRendererEnabled()
+    {
+        if (_services?.GetService<IHeightMap3DRenderer>() is not { } renderer)
+            return false;
+        // A renderer plugin is a module; honour its visibility toggle. A renderer
+        // that is not a module has no toggle to consult — treat it as enabled.
+        if (renderer is not IModule module)
+            return true;
+        var modules = _settingsService.Load().Modules;
+        return modules.TryGetValue(module.Id, out var visible) ? visible : module.IsVisibleByDefault;
+    }
 
     /// <summary>Renders the "Preview in 3D" button only on the height-map tab
     /// while a renderer module is registered.</summary>
