@@ -53,7 +53,13 @@ public class GrblSettingsViewModelBackupRestoreTests
         public IReadOnlyList<string> DetailLines { get; set; } = [];
         public IReadOnlyList<string> GroupLines { get; set; } = [];
 
-        public Task<IReadOnlyList<string>> GetSettingLinesAsync() => Task.FromResult(ValueLines);
+        /// <summary>When true every value read throws — models a failed <c>$$</c> re-read.</summary>
+        public bool FailValueLines { get; set; }
+
+        public Task<IReadOnlyList<string>> GetSettingLinesAsync() =>
+            FailValueLines
+                ? Task.FromException<IReadOnlyList<string>>(new InvalidOperationException("$$ read failed"))
+                : Task.FromResult(ValueLines);
 
         public Task<IReadOnlyList<string>> GetSettingDetailLinesAsync() => Task.FromResult(DetailLines);
         public Task<IReadOnlyList<string>> GetSettingGroupLinesAsync() => Task.FromResult(GroupLines);
@@ -400,6 +406,33 @@ public class GrblSettingsViewModelBackupRestoreTests
         await vm.ApplyRestoreAsync();
 
         Assert.Contains("1 settings did not take the restored value", vm.Status);
+    }
+
+    [Fact]
+    public async Task ApplyRestore_reports_a_failed_verify_read_instead_of_claiming_a_mismatch()
+    {
+        var provider = new StubProvider { ValueLines = ["$0=10"] };
+        var grbl = new FakeGrbl();
+        await grbl.ConnectAsync("stub");
+        var dialogs = new StubDialogs();
+        var vm = CreateVm(provider, grbl, dialogs);
+        await vm.LoadAsync();
+
+        var path = TempFile(".json");
+        await File.WriteAllTextAsync(path, BackupJson(("0", "11")));
+        dialogs.OpenPath = path;
+        await vm.RestoreAsync();
+
+        // The write lands, but the verifying $$ re-read fails (dropped link, garbage reply).
+        provider.FailValueLines = true;
+        await vm.ApplyRestoreAsync();
+
+        Assert.Equal(["$0=11"], grbl.Sent);
+        Assert.Contains("Restored 1 settings", vm.Status); // the write did land
+        Assert.Contains("Load failed", vm.Status); // and the re-read failure is what is reported
+        // A failed re-read leaves the pre-reload values in the tree, so claiming the value
+        // "did not stick" would be a fabrication.
+        Assert.DoesNotContain("did not take the restored value", vm.Status);
     }
 
     [Fact]
