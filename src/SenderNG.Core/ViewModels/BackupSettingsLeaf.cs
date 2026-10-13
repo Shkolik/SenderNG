@@ -191,11 +191,18 @@ public sealed class BackupSettingsLeaf : AppSettingsLeaf
             // WriteAllText) lands in the archive unchecked; validate what was captured
             // and report the errors instead of the plain "saved".
             var validation = AppSettingsBundleValidator.Validate(bundle);
-            SetStatus(validation.Ok
+            // Validate inspects payloads; the archive-LEVEL refusals (entry count, size caps,
+            // case-folding collisions) live in the reader, and Capture can produce an archive the
+            // reader refuses. Reading back what was just written is the true predictor.
+            var problems = validation.Errors.ToList();
+            var reread = AppSettingsBundle.ReadFrom(path);
+            if (!reread.Ok)
+                problems.Add(reread.Error ?? "the archive could not be read back");
+            SetStatus(problems.Count == 0
                 ? Localize("appSettings.backup.saved", "Backed up {0} files to {1}.", bundle.Files.Count, path)
                 : Localize("appSettings.backup.savedWarning",
                     "Backed up {0} files to {1}. Warning: this archive may not restore ({2}).",
-                    bundle.Files.Count, path, string.Join(" ", validation.Errors)));
+                    bundle.Files.Count, path, string.Join(" ", problems)));
         }
         catch (Exception ex)
         {
@@ -277,6 +284,10 @@ public sealed class BackupSettingsLeaf : AppSettingsLeaf
         }
         catch (Exception ex)
         {
+            // Apply reports per-file failures itself, so an escaping exception is unexpected:
+            // treat it as "files may have landed" and freeze writes rather than let a later
+            // stale in-memory save rewrite them. (Written == 0 is only knowable from a result.)
+            _settings.MarkRestorePending();
             ClearPlan();
             SetStatus(Localize("appSettings.backup.restoreFailed", "Restore failed: {0}", ex.Message));
             return Task.CompletedTask;

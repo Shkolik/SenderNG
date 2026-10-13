@@ -590,4 +590,32 @@ public class AppSettingsBundleTests
         Assert.Empty(validation.Errors);
         Assert.Contains(validation.Warnings, w => w.Contains("ghost", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void Validate_warns_about_a_companion_that_is_not_valid_json()
+    {
+        // A companion's SHAPE is its module's business (the probing one is an array), so it is
+        // never refused — but a companion that is not even JSON is a truncated write, and its
+        // module's loader would silently fall back to defaults. That must be visible up front.
+        var validation = AppSettingsBundleValidator.Validate(BundleOf(
+            ("global.json", GlobalJsonText),
+            ("profiles/mill.json", ProfileJson("mill")),
+            ("profiles/mill.probing.json", "[ {\n  \"Name\": \"Trunc")));
+
+        Assert.True(validation.Ok, string.Join("; ", validation.Errors));
+        Assert.Contains(validation.Warnings,
+            w => w.Contains("mill.probing.json", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_does_not_warn_about_a_well_formed_companion()
+    {
+        var validation = AppSettingsBundleValidator.Validate(BundleOf(
+            ("global.json", GlobalJsonText),
+            ("profiles/mill.json", ProfileJson("mill")),
+            ("profiles/mill.probing.json", ProbingCompanionJson)));
+
+        Assert.True(validation.Ok, string.Join("; ", validation.Errors));
+        Assert.Empty(validation.Warnings);
+    }
 }

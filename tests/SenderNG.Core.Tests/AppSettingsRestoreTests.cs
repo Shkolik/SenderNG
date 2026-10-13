@@ -267,4 +267,26 @@ public class AppSettingsRestoreTests
         Assert.Equal(before, DiskState(dir));
         AssertNoTempFiles(dir);
     }
+
+    [Fact]
+    public void Apply_refuses_an_entry_that_escapes_the_settings_directory()
+    {
+        // F12: a hand-built bundle can name a key ReadFrom would never accept, so the WRITER is the
+        // last line of defence. Pin the behaviour rather than the mechanism: the escaping key is
+        // reported as a failure, nothing is created outside the directory, and the legitimate entry
+        // still lands.
+        var dir = TempDir();
+        Directory.CreateDirectory(dir);
+        var bundle = BundleOf(
+            ("global.json", "{ \"ActiveProfileId\": \"mill\", \"Profiles\": { \"mill\": \"Mill\" } }"),
+            ("profiles/../../evil.json", "{\"Id\":\"evil\"}"));
+
+        var result = AppSettingsRestore.Apply(dir, bundle);
+
+        Assert.Contains(result.Failed, f => f.Contains("evil.json", StringComparison.Ordinal));
+        // Airtight: the settings dir holds exactly the one legitimate file, so nothing escaped it.
+        Assert.Equal(["global.json"],
+            Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+                .Select(p => Path.GetFileName(p)!).OrderBy(n => n, StringComparer.Ordinal).ToArray());
+    }
 }

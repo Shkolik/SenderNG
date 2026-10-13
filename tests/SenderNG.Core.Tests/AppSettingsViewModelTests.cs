@@ -1330,4 +1330,35 @@ public class AppSettingsViewModelTests
                 File.Delete(target);
         }
     }
+
+    [Fact]
+    public async Task Backup_warns_when_the_archive_itself_would_be_refused()
+    {
+        // Validate inspects payloads only; the archive-LEVEL caps live in the reader, and Capture
+        // will happily archive a >4 MiB entry that ReadFrom then refuses. Without the read-back the
+        // leaf reported a clean "saved" for an archive that could never be restored.
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        try
+        {
+            var blob = new string('x', 5 * 1024 * 1024);
+            File.WriteAllText(
+                ProfileSettingsPaths.ProfilePath(dir, MachineProfile.DefaultId),
+                "{\"Id\":\"" + MachineProfile.DefaultId + "\",\"Name\":\"Default\",\"Blob\":\"" + blob + "\"}");
+
+            var vm = CreateBackupVm(settings, dialogs);
+            var leaf = BackupLeafOf(vm);
+            var target = TempBackupPath();
+            dialogs.SavePath = target;
+
+            await leaf.BackupAsync();
+
+            Assert.True(File.Exists(target)); // still written: a backup is a safety net
+            Assert.Contains("Warning", leaf.Status);
+            Assert.Contains("larger than", leaf.Status);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 }

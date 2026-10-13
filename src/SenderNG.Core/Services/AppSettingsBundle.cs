@@ -385,7 +385,15 @@ public static class AppSettingsBundleValidator
             // List<ProbingProfile>), which is not a MachineProfile; validating it here
             // would refuse a real user's own backup. Only profiles/<id>.json is a profile.
             if (AppSettingsBundleLayout.ProfileIdOf(name) is not { } id)
+            {
+                // Opaque, but not unexamined: a companion whose text is not even JSON is corrupt
+                // (a truncated write), and its owning module silently falls back to defaults —
+                // the very failure F15 exists to surface. Warn, never refuse: the module owns the
+                // file's shape, this validator does not.
+                if (!IsParseableJson(bundle.Files[name]))
+                    warnings.Add($"{name} is not valid JSON; the module that owns it will fall back to its defaults.");
                 continue;
+            }
             profileIds.Add(id);
             if (!TryDeserialize<MachineProfile>(bundle.Files[name], out var profile, out var error))
                 errors.Add($"{name} is not valid settings: {error}");
@@ -401,6 +409,27 @@ public static class AppSettingsBundleValidator
                 "the first profile on disk will be used.");
 
         return new AppSettingsBundleValidation(errors, warnings);
+    }
+
+    /// <summary>
+    /// True when the text parses as JSON. Used for module companions, whose SHAPE is owned by
+    /// their module (the probing companion is an array, not a <see cref="MachineProfile"/>) but
+    /// which are always <c>.json</c>: unparseable text means a truncated write, and the module's
+    /// own loader will swallow it and silently fall back to its defaults.
+    /// </summary>
+    private static bool IsParseableJson(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return false;
+        try
+        {
+            using var _ = JsonDocument.Parse(text);
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

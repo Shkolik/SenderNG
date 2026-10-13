@@ -137,6 +137,12 @@ public class SettingsService
         if (_current is not null)
             return _current;
 
+        // Never create files while the restored directory is frozen: the body below writes the
+        // default profile + global.json on a never-loaded service. An unloaded service has only
+        // defaults to offer anyway, so it answers with a throwaway profile instead.
+        if (WritesBlocked)
+            return new MachineProfile();
+
         // One-time migration of a legacy settings.json (inert once global.json
         // exists, or on a fresh directory).
         SettingsMigrator.MigrateIfNeeded(_dir);

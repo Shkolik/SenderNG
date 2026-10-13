@@ -213,4 +213,19 @@ public class SettingsRestoreGuardTests
 
         Assert.Equal(4, new SettingsService(dir).Load().DemoAxes);
     }
+
+    [Fact]
+    public void Load_does_not_write_on_a_never_loaded_service_while_pending()
+    {
+        // Load() is a public entry point with a write side effect (its fresh-install branch creates
+        // the default profile + global.json), so it honours the freeze too: the documented invariant
+        // is that every accessor with a write side effect is suppressed while pending.
+        var (dir, settings) = MakeSettings();
+        settings.MarkRestorePending();
+
+        var profile = settings.Load();
+
+        Assert.NotNull(profile);
+        Assert.Empty(Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories));
+    }
 }
