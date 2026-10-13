@@ -24,6 +24,7 @@
   - [Windows](#windows)
   - [Linux](#linux)
 - [Linux release build (WSL2)](#linux-release-build-wsl2)
+- [Linux CI test pass (WSL2)](#linux-ci-test-pass-wsl2)
 - [Linux arm64 (Raspberry Pi)](#linux-arm64-raspberry-pi)
 - [Contributing](#contributing)
 - [Acknowledgements](#acknowledgements)
@@ -444,6 +445,46 @@ On the Pi:
   useful over a bare SSH shell. Use a local desktop, or forward X11.
 - **Use 64-bit Raspberry Pi OS.** A 32-bit userland cannot run a `linux-arm64`
   bundle.
+
+## Linux CI test pass (WSL2)
+
+`tools/test-linux-ci.ps1` runs **CI's own build and test commands** inside WSL2 — the same
+`dotnet build … -t:Rebuild -warnaserror -m:1` and
+`dotnet test … --filter "Category!=Hardware&Category!=GPU&Category!=Timing"` that `ci.yml` runs — so a
+Linux-only failure can be root-caused on the development machine instead of in a red run.
+
+```powershell
+# mirror, build and test: the CI pass
+.\tools\test-linux-ci.ps1
+
+# resolve the SDK and mirror the tree, then report what it would run
+.\tools\test-linux-ci.ps1 -DryRun
+
+# a targeted run
+.\tools\test-linux-ci.ps1 -Filter "FullyQualifiedName~AppSettingsRestoreTests"
+```
+
+| Parameter | Default | Effect |
+|---|---|---|
+| `-Distro` | `Ubuntu` | WSL distribution to run in |
+| `-MirrorDir` | `~/.cache/senderng-linux-ci` in WSL | where the source is mirrored; wiped each run |
+| `-Filter` | `Category!=Hardware&Category!=GPU&Category!=Timing` | passes `--filter` to `dotnet test` |
+| `-Configuration` | `Release` | the configuration CI builds |
+| `-DryRun` | off | resolve the SDK and mirror the tree, then report the commands without running them |
+
+It keeps its own mirror (`~/.cache/senderng-linux-ci`, with its own ownership marker) so it can never
+wipe the release build's mirror or its `output\<platform>` folders. The mirror is the **working tree**, so
+uncommitted changes are what gets tested; it drops the real `.git` object store (large, and nothing here
+needs history) but plants an empty `.git` marker, because the localization suites locate the checkout by
+`.git` plus `src`. Exit codes: `1` precondition
+(missing SDK/rsync/WSL, or a mirror this script did not create), `2` build failed, `3` tests failed,
+`130` cancelled. Logs stay in the mirror as `ci-build.log` and `ci-test.log`, and the failing tests are
+printed at the end.
+
+Why it exists: Windows passes tests that fail on Linux. `FileShare.None`, for instance, blocks a
+replace on Windows but maps to an advisory lock on Unix, where `rename(2)` ignores it — so a test that
+"locks" a file to make a write fail proves nothing there, while a directory occupying the target path
+does.
 
 ## Contributing
 

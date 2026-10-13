@@ -13,6 +13,8 @@ Guidance for AI agents (and human contributors) making changes to SenderNG. This
 7. **Run the relevant checks.** At minimum:
    - Build: `dotnet build SenderNG.sln`
    - Tests: `dotnet test SenderNG.sln` (or `dotnet test --filter <name>` for a targeted run)
+   - Linux-only failures: `tools/test-linux-ci.ps1` runs CI's exact build and test steps in WSL2 (same filter). Some traps are Windows-only — `FileShare.None` blocks a replace on Windows but maps to an advisory lock on Unix, where `rename(2)` ignores it, so a test that "locks" a file to make a write fail proves nothing there. Run this for anything touching file I/O, paths, or permissions.
+   - Before a push (when the maintainer asks for one): the CI build verbatim — `dotnet build SenderNG.sln -c Release --nologo -t:Rebuild -warnaserror -m:1`. A direct push to `main` bypasses the required-PR rule, so nothing else gates the build before CI does.
 8. **Review the final diff.** Re-read the change (`git diff`) for correctness and unintended edits before finishing.
 9. **Leave the change uncommitted.** Do not `git commit`, merge, or push on your own. Keep finished work local in the working tree unless the maintainer explicitly asks for a commit/merge (and provide the exact commands they'd use). **When a commit is asked for, the message is one line — `<type>(<scope>): <imperative summary>`, 100 characters maximum, no body, no trailers, no lists.** Do not invent a longer format.
 10. **State verification honestly.** Re-run build and tests on the current state for any non-trivial change (or when binaries are not locked by a running app). Report exactly what was and wasn't verified; never imply a commit or merge happened when one did not.
