@@ -41,6 +41,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SenderNG.Modules.HeightMapV
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SenderNG.Modules.HeightMapViewer.Tests", "tests\SenderNG.Modules.HeightMapViewer.Tests\SenderNG.Modules.HeightMapViewer.Tests.csproj", "{11E42F57-5CE1-4042-8BD4-6DE984D55355}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SenderNG.Modules.Common.Render", "src\SenderNG.Modules.Common.Render\SenderNG.Modules.Common.Render.csproj", "{EC5ACDBF-E5FD-4482-8278-266FB7CACB40}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -243,6 +245,18 @@ Global
 		{11E42F57-5CE1-4042-8BD4-6DE984D55355}.Release|x64.Build.0 = Release|Any CPU
 		{11E42F57-5CE1-4042-8BD4-6DE984D55355}.Release|x86.ActiveCfg = Release|Any CPU
 		{11E42F57-5CE1-4042-8BD4-6DE984D55355}.Release|x86.Build.0 = Release|Any CPU
+		{EC5ACDBF-E5FD-4482-8278-266FB7CACB40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EC5ACDBF-E5FD-4482-8278-266FB7CACB40}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EC5ACDBF-E5FD-4482-8278-266FB7CACB40}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{EC5ACDBF-E5FD-4482-8278-266FB7CACB40}.Debug|x64.Build.0 = Debug|Any CPU
+		{EC5ACDBF-E5FD-4482-8278-266FB7CACB40}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{EC5ACDBF-E5FD-4482-8278-266FB7CACB40}.Debug|x86.Build.0 = Debug|Any CPU
+		{EC5ACDBF-E5FD-4482-8278-266FB7CACB40}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EC5ACDBF-E5FD-4482-8278-266FB7CACB40}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EC5ACDBF-E5FD-4482-8278-266FB7CACB40}.Release|x64.ActiveCfg = Release|Any CPU
+		{EC5ACDBF-E5FD-4482-8278-266FB7CACB40}.Release|x64.Build.0 = Release|Any CPU
+		{EC5ACDBF-E5FD-4482-8278-266FB7CACB40}.Release|x86.ActiveCfg = Release|Any CPU
+		{EC5ACDBF-E5FD-4482-8278-266FB7CACB40}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -264,6 +278,7 @@ Global
 		{3B466984-D168-4856-A6F7-0D81A33B5CBF} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{4557479F-AEA7-4662-AEEA-41ED70516466} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{11E42F57-5CE1-4042-8BD4-6DE984D55355} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{EC5ACDBF-E5FD-4482-8278-266FB7CACB40} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {62F52B7B-966A-46B4-96E4-86E22301A370}
