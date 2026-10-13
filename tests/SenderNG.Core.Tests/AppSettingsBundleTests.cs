@@ -451,6 +451,47 @@ public class AppSettingsBundleTests
     }
 
     [Fact]
+    public void Validate_rejects_a_global_json_that_only_binds_case_insensitively()
+    {
+        // The loaders (GlobalSettingsStore.Load) bind case-sensitively, so this file
+        // loads as defaults after a restore: the registry and the active-profile
+        // pointer silently vanish. Validation must refuse it up front.
+        var camelCase =
+            "{\n  \"activeProfileId\": \"mill\",\n  \"profiles\": { \"mill\": \"Mill\" },\n  \"language\": \"ru\"\n}\n";
+
+        var validation = AppSettingsBundleValidator.Validate(BundleOf(
+            ("global.json", camelCase),
+            ("profiles/mill.json", ProfileJson("mill"))));
+
+        Assert.False(validation.Ok);
+        Assert.Contains(validation.Errors, e => e.Contains("global.json", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_rejects_a_profile_whose_payload_id_is_missing()
+    {
+        // No Id: the loaded profile keeps Id "default" while the file is mill.json,
+        // so the next Save writes profiles/default.json and orphans the restored file.
+        var validation = AppSettingsBundleValidator.Validate(BundleOf(
+            ("global.json", GlobalJsonText),
+            ("profiles/mill.json", "{\n  \"Name\": \"Mill\"\n}\n")));
+
+        Assert.False(validation.Ok);
+        Assert.Contains(validation.Errors, e => e.Contains("profiles/mill.json", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_rejects_a_profile_whose_payload_id_disagrees_with_its_file_name()
+    {
+        var validation = AppSettingsBundleValidator.Validate(BundleOf(
+            ("global.json", GlobalJsonText),
+            ("profiles/mill.json", ProfileJson("other"))));
+
+        Assert.False(validation.Ok);
+        Assert.Contains(validation.Errors, e => e.Contains("profiles/mill.json", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Validate_warns_when_the_active_profile_is_absent()
     {
         var global = GlobalJsonText.Replace("\"mill\"", "\"ghost\"", StringComparison.Ordinal);

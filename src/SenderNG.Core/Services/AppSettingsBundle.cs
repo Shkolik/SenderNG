@@ -343,8 +343,12 @@ public static class AppSettingsBundleValidator
             if (AppSettingsBundleLayout.ProfileIdOf(name) is not { } id)
                 continue;
             profileIds.Add(id);
-            if (!TryDeserialize<MachineProfile>(bundle.Files[name], out _, out var error))
+            if (!TryDeserialize<MachineProfile>(bundle.Files[name], out var profile, out var error))
                 errors.Add($"{name} is not valid settings: {error}");
+            else if (!string.Equals(profile!.Id, id, StringComparison.Ordinal))
+                errors.Add(
+                    $"{name} holds profile id '{profile.Id}', not '{id}': the loaders read the id " +
+                    "from the payload, so the next save would write a different file.");
         }
 
         if (global is not null && !profileIds.Contains(global.ActiveProfileId, StringComparer.Ordinal))
@@ -355,16 +359,40 @@ public static class AppSettingsBundleValidator
         return new AppSettingsBundleValidation(errors, warnings);
     }
 
+    /// <summary>
+    /// Deserializes a payload the way its loader will — the loaders' own options
+    /// (<see cref="JsonSerializer.Deserialize{TValue}(string, JsonSerializerOptions?)"/>
+    /// with none, i.e. case-sensitive), not <see cref="JsonSerializerDefaults.Web"/>:
+    /// validation has to predict what <c>GlobalSettingsStore.Load</c> /
+    /// <c>ProfilesStore.TryLoad</c> actually read.
+    /// </summary>
     private static bool TryDeserialize<T>(string json, out T? value, out string error)
     {
         try
         {
-            value = JsonSerializer.Deserialize<T>(json, AppSettingsBundle.JsonOptions);
+            value = JsonSerializer.Deserialize<T>(json);
             if (value is null)
             {
                 error = "the payload is null";
                 return false;
             }
+
+            // Case-insensitive binding would silently fill in what the loader drops:
+            // a camelCase global.json reads as defaults, losing the profile registry
+            // and the active-profile pointer. Refuse a payload whose case-insensitive
+            // read differs from the case-sensitive one the loader performs.
+            var lenient = JsonSerializer.Deserialize<T>(json, AppSettingsBundle.JsonOptions);
+            if (!string.Equals(
+                    JsonSerializer.Serialize(value, AppSettingsBundle.JsonOptions),
+                    JsonSerializer.Serialize(lenient, AppSettingsBundle.JsonOptions),
+                    StringComparison.Ordinal))
+            {
+                value = default;
+                error = "the payload binds only case-insensitively, so the loader would read defaults " +
+                        "from it (property names must match the file format exactly)";
+                return false;
+            }
+
             error = string.Empty;
             return true;
         }
