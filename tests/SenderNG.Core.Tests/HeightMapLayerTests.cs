@@ -43,7 +43,7 @@ public class HeightMapLayerTests
         // 2 columns (X) x 3 rows (Y): values ordered
         // [row0:col0, row0:col1, row1:col0, ...].
         var layer = new HeightMapLayer("m", 0d, 0d, 1d, 1d, 2, 3,
-            System.Linq.Enumerable.Range(0, 6).Select(i => (double)i).ToList());
+            System.Linq.Enumerable.Range(0, 6).Select(i => (double)i).ToList(), 0d);
 
         Assert.Equal(0d, layer[0, 0]);
         Assert.Equal(1d, layer[0, 1]);
@@ -55,7 +55,7 @@ public class HeightMapLayerTests
     public void Nan_marks_unprobed_cells()
     {
         var layer = new HeightMapLayer("m", 0d, 0d, 1d, 1d, 2, 1,
-            [double.NaN, 3d]);
+            [double.NaN, 3d], 0d);
 
         Assert.True(double.IsNaN(layer[0, 0]));
         Assert.Equal(3d, layer[0, 1]);

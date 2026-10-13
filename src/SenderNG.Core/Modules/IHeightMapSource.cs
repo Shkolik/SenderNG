@@ -13,7 +13,8 @@ public sealed record HeightMapLayer(
     double OriginX, double OriginY,
     double CellX, double CellY,
     int Columns, int Rows,
-    IReadOnlyList<double> Z)
+    IReadOnlyList<double> Z,
+    double ZOffset)
 {
     /// <summary>Sample at grid column <paramref name="col"/>, row <paramref name="row"/> (row-major).</summary>
     public double this[int row, int col] => Z[row * Columns + col];
@@ -31,8 +32,13 @@ public interface IHeightMapSource
 }
 
 /// <summary>
-/// Presence marker: a registered height-map viewer (3D or otherwise). The
-/// probing module's "Preview in 3D" action offers itself only while such a
-/// renderer is available. Implemented by the renderer's own module.
+/// A registered height-map viewer (3D or otherwise). The probing module's
+/// "Preview in 3D" action invokes <see cref="ShowAsync"/> on the renderer and
+/// offers itself only while such a renderer is available. Implemented by the
+/// renderer's own module.
 /// </summary>
-public interface IHeightMap3DRenderer { }
+public interface IHeightMap3DRenderer
+{
+    /// <summary>Open the viewer (the probing module calls this from "Preview in 3D").</summary>
+    Task ShowAsync();
+}

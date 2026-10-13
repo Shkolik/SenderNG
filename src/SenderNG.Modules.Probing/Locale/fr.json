@@ -100,7 +100,6 @@
     "module.probing.loadMap": "Charger la carte",
     "module.probing.applyToProgram": "Appliquer au programme",
     "module.probing.preview3d": "Aperçu en 3D",
-    "module.probing.previewStarted": "Aperçu 3D démarré (module de rendu)",
     "module.probing.instr.toolLength": "Sondez la plaque de mesure / le dispositif pour définir le décalage de longueur d'outil.",
     "module.probing.instr.edge": "Cliquez sur une arête, un coin ou Z dans le schéma pour sélectionner l'action de sondage.\nDéplacez la sonde au-dessus de l'emplacement indiqué avant de démarrer.",
     "module.probing.instr.center": "Placez la sonde au-dessus du centre approximatif de la pièce avant de démarrer.\nSélectionnez d'abord l'axe et le sondage intérieur/extérieur.",

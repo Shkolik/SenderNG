@@ -1565,7 +1565,24 @@ public class ProbeViewModel : ViewModelBase
 
     private void OnPreview3D()
     {
-        LastResult = LocText.Resolve("module.probing.previewStarted", "3D preview started (renderer plugin)");
+        if (_services?.GetService(typeof(SenderNG.Core.Modules.IHeightMap3DRenderer))
+                is not SenderNG.Core.Modules.IHeightMap3DRenderer renderer)
+            return;
+
+        try
+        {
+            _ = renderer.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            // Error surfacing is host-owned: report through the module's
+            // IErrorReporter when a host registered one, otherwise fall back to
+            // the in-panel result line (tests / design mode have no reporter).
+            if (_services.GetService(typeof(IErrorReporter)) is IErrorReporter reporter)
+                reporter.Status(ex.Message);
+            else
+                LastResult = ex.Message;
+        }
     }
 
     private void ApplyHeightMapToProgram()

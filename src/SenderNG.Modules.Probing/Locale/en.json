@@ -100,7 +100,6 @@
     "module.probing.loadMap": "Load map",
     "module.probing.applyToProgram": "Apply to program",
     "module.probing.preview3d": "Preview in 3D",
-    "module.probing.previewStarted": "3D preview started (renderer plugin)",
     "module.probing.instr.toolLength": "Probe the touch plate/fixture to set the tool length offset.",
     "module.probing.instr.edge": "Click an edge, corner or Z in the diagram to select the probing action.\nMove the probe above the indicated position before Start.",
     "module.probing.instr.center": "Place the probe above the approximate center of the workpiece before Start.\nSelect the axis and inside/outside probing first.",

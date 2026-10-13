@@ -100,7 +100,6 @@
     "module.probing.loadMap": "Cargar mapa",
     "module.probing.applyToProgram": "Aplicar al programa",
     "module.probing.preview3d": "Vista previa en 3D",
-    "module.probing.previewStarted": "Vista previa 3D iniciada (complemento de renderizado)",
     "module.probing.instr.toolLength": "Sondee la placa de toque o el dispositivo para establecer el desplazamiento de longitud de herramienta.",
     "module.probing.instr.edge": "Haga clic en una arista, una esquina o Z en el diagrama para seleccionar la acción de sondeo.\nColoque la sonda sobre la posición indicada antes de pulsar Iniciar.",
     "module.probing.instr.center": "Coloque la sonda sobre el centro aproximado de la pieza antes de pulsar Iniciar.\nSeleccione primero el eje y el sondeo interior/exterior.",

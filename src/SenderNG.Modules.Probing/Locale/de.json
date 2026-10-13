@@ -100,7 +100,6 @@
     "module.probing.loadMap": "Karte laden",
     "module.probing.applyToProgram": "Auf das Programm anwenden",
     "module.probing.preview3d": "3D-Vorschau",
-    "module.probing.previewStarted": "3D-Vorschau gestartet (Plugin für die Darstellung)",
     "module.probing.instr.toolLength": "Tastplatte / Vorrichtung tasten, um den Werkzeuglängenversatz zu setzen.",
     "module.probing.instr.edge": "In der Zeichnung auf eine Kante, eine Ecke oder Z klicken, um die Tastaktion auszuwählen.\nDie Sonde vor dem Start über die angegebene Position bewegen.",
     "module.probing.instr.center": "Die Sonde vor dem Start über die ungefähre Mitte des Werkstücks positionieren.\nZuerst die Achse und das Tasten innen oder außen auswählen.",

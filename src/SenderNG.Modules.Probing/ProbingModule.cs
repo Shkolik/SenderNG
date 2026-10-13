@@ -84,7 +84,6 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule,
             ["module.probing.edgeExternal"] = "Edge external",
             ["module.probing.edgeInternal"] = "Edge internal",
             ["module.probing.preview3d"] = "Preview in 3D",
-            ["module.probing.previewStarted"] = "3D preview started (renderer plugin)",
         };
 
     private SettingsService? _settingsService;
@@ -112,7 +111,8 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule,
             OriginX: map.Min.X, OriginY: map.Min.Y,
             CellX: map.GridX, CellY: map.GridY,
             Columns: map.SizeX, Rows: map.SizeY,
-            Z: z);
+            Z: z,
+            ZOffset: map.ZOffset);
     }
 
     /// <summary>Push the latest map (null clears it). Called from the VM when a
@@ -123,6 +123,7 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule,
     {
         services.AddSingleton<ProbeRunner>();
         services.AddSingleton<ProbeViewModel>();
+        services.AddSingleton<IHeightMapSource>(this);
         services.AddSingleton<IProfileCompanionSuffixes>(this);
     }
 

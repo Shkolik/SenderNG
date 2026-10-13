@@ -99,6 +99,37 @@ public class HeightMapSourceTests : IDisposable
     }
 
     [Fact]
+    public void ToHeightMapLayer_carries_zoffset()
+    {
+        var map = new HeightMap(1, 1, new Vec2(0, 0), new Vec2(1, 1)) { ZOffset = 0.5 };
+        map.AddPoint(0, 0, 1);
+
+        Assert.Equal(0.5, ProbingModule.ToHeightMapLayer(map)!.ZOffset);
+    }
+
+    [Fact]
+    public async Task Preview3D_invokes_renderer_ShowAsync()
+    {
+        var stub = new StubRendererModule();
+        var services = new ServiceCollection();
+        services.AddSingleton<IHeightMap3DRenderer>(stub);
+        var provider = services.BuildServiceProvider();
+
+        var demo = new DemoGrblService(_settings.Load());
+        await demo.ConnectAsync("demo");
+        var vm = new ProbeViewModel(demo, _settings, provider);
+
+        // Drive a completed map through the VM (same path the apply test uses).
+        vm.SelectedTool = ProbingType.HeightMap;
+        await vm.StartAsync();
+        Assert.True(vm.HasHeightMap, $"Height map probe failed: {vm.LastResult}");
+
+        vm.Preview3DCommand.Execute(null);
+
+        Assert.Equal(1, stub.ShowCount);
+    }
+
+    [Fact]
     public void ProbingModule_publishes_snapshot_when_vm_reports_completion()
     {
         var module = new ProbingModule();
@@ -144,6 +175,14 @@ public class HeightMapSourceTests : IDisposable
     /// (how the future renderer plugin registers itself).</summary>
     internal sealed class StubRendererModule : IModule, IHeightMap3DRenderer
     {
+        public int ShowCount { get; private set; }
+
+        public Task ShowAsync()
+        {
+            ShowCount++;
+            return Task.CompletedTask;
+        }
+
         public string Id => "stub-renderer";
         public string Name => "Stub renderer";
         public string Description => "Test renderer stub.";
