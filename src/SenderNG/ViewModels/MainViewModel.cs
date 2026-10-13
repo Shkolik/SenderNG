@@ -295,6 +295,10 @@ public class MainViewModel : ViewModelBase, IDisposable
         // A machine swap invalidates the loaded program (different geometry ⇒
         // limits/jog semantics differ), so MainViewModel clears it on switch.
         _settingsService.ProfileSwitched += OnProfileSwitched;
+        // A restore rewrites every settings file while this instance keeps the
+        // pre-restore graph and stops writing, so the restored files only take
+        // effect on restart — the operator needs to be told that.
+        _settingsService.RestorePendingChanged += OnRestorePendingChanged;
         OnPropertyChanged(nameof(StatusBarJogStep));
         Hotkeys = _services.GetService<HotkeyService>();
         RegisterHotkeys();
@@ -360,6 +364,15 @@ public class MainViewModel : ViewModelBase, IDisposable
             Status = LocText.Format("app.msg.profileSwitched", "Profile switched: {0}", profileId);
             OnSettingsChanged();
         });
+    }
+
+    /// <summary>Raised once by the settings service after an app-settings restore
+    /// wrote the archive over the live files: the restored settings can only be
+    /// applied by restarting, so say so instead of leaving frozen saves unexplained.</summary>
+    private void OnRestorePendingChanged()
+    {
+        Status = LocText.Resolve("appSettings.backup.restartRequired",
+            "Settings were restored — restart SenderNG to apply them.");
     }
 
     /// <summary>
@@ -1401,6 +1414,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             _localization.Changed -= OnLocaleChanged;
         _settingsService.Changed -= OnSettingsChanged;
         _settingsService.ProfileSwitched -= OnProfileSwitched;
+        _settingsService.RestorePendingChanged -= OnRestorePendingChanged;
         Modules.CollectionChanged -= OnModulesChanged;
         // Nulling the field stops the Grbl setter re-homing the handler onto the
         // next controller: without it a swap after teardown re-subscribes.
