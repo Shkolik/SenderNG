@@ -67,7 +67,10 @@ public class GrblSettingsModule : IModule
         services.AddTransient(sp => new GrblSettingsViewModel(
             sp.GetRequiredService<IGrblSettingsProvider>(),
             sp.GetRequiredService<IGrblService>(),
-            sp.GetRequiredService<SenderNG.Core.Localization.LocalizationService>()));
+            sp.GetRequiredService<SenderNG.Core.Localization.LocalizationService>(),
+            // Nullable: a host without the file-dialog service (headless tests) must still
+            // build a view model — the backup/restore commands then act as cancelled.
+            sp.GetService<IFileDialogService>()));
 
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>

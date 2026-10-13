@@ -20,27 +20,60 @@ BSD 3-Clause License: see this file for the full license text.
 
     <DockPanel Background="#f6f6f6">
 
-        <!-- Status + actions (bottom, full width) -->
+        <!-- Status + restore confirm strip + actions (bottom, full width) -->
         <Border DockPanel.Dock="Bottom" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="10,8">
-            <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Status}" FontSize="10" Foreground="#888"
-                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                    <Rectangle Width="1" Height="16" Fill="#ccc" VerticalAlignment="Center"
-                               IsVisible="{Binding HasSelection}" />
-                    <TextBlock Text="{Binding SelectedEditSummary}" FontSize="10"
-                               Foreground="#666" VerticalAlignment="Center" IsVisible="{Binding HasSelection}" />
-                </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Button Content="{loc:Loc module.grbl-settings.load}" Command="{Binding LoadCommand}"
-                            Height="28" MinHeight="28" CornerRadius="0"
-                            Background="#eee" BorderBrush="#999" BorderThickness="1"
-                            Padding="14,0" VerticalContentAlignment="Center" />
-                    <Button Content="{loc:Loc module.grbl-settings.saveChanges}" Command="{Binding SaveCommand}"
-                            Height="28" MinHeight="28" CornerRadius="0"
-                            Background="#eee" BorderBrush="#999" BorderThickness="1"
-                            Padding="14,0" VerticalContentAlignment="Center" />
-                </StackPanel>
+            <Grid RowDefinitions="Auto,Auto">
+                <!-- Inline restore confirm: shown only while a parsed backup waits for Apply
+                     or Cancel. The text wraps so a long summary cannot push the buttons off
+                     the 660x520 dialog. -->
+                <Border Grid.Row="0" x:Name="RestoreStrip" Background="#fff8e1" BorderBrush="#e0c060" BorderThickness="1"
+                        Padding="8,6" Margin="0,0,0,8" IsVisible="{Binding HasRestorePlan}">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="{Binding RestoreSummary}" FontSize="11" Foreground="#5a4a00"
+                                   TextWrapping="Wrap" MaxWidth="440" VerticalAlignment="Center" />
+                        <Button Content="{Binding ApplyRestoreText}"
+                                Command="{Binding ApplyRestoreCommand}"
+                                Height="28" MinHeight="28" CornerRadius="0"
+                                Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                Padding="14,0" VerticalContentAlignment="Center" />
+                        <Button Content="{Binding CancelRestoreText}"
+                                Command="{Binding CancelRestoreCommand}"
+                                Height="28" MinHeight="28" CornerRadius="0"
+                                Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                Padding="14,0" VerticalContentAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Status}" FontSize="10" Foreground="#888"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <Rectangle Width="1" Height="16" Fill="#ccc" VerticalAlignment="Center"
+                                   IsVisible="{Binding HasSelection}" />
+                        <TextBlock Text="{Binding SelectedEditSummary}" FontSize="10"
+                                   Foreground="#666" VerticalAlignment="Center" IsVisible="{Binding HasSelection}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Content="{Binding BackupText}" Command="{Binding BackupCommand}"
+                                IsEnabled="{Binding CanTransfer}"
+                                Height="28" MinHeight="28" CornerRadius="0"
+                                Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                Padding="14,0" VerticalContentAlignment="Center" />
+                        <Button Content="{Binding RestoreText}" Command="{Binding RestoreCommand}"
+                                IsEnabled="{Binding CanTransfer}"
+                                Height="28" MinHeight="28" CornerRadius="0"
+                                Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                Padding="14,0" VerticalContentAlignment="Center" />
+                        <Button Content="{Binding LoadText}" Command="{Binding LoadCommand}"
+                                Height="28" MinHeight="28" CornerRadius="0"
+                                Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                Padding="14,0" VerticalContentAlignment="Center" />
+                        <Button Content="{Binding SaveText}" Command="{Binding SaveCommand}"
+                                Height="28" MinHeight="28" CornerRadius="0"
+                                Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                Padding="14,0" VerticalContentAlignment="Center" />
+                    </StackPanel>
+                </Grid>
             </Grid>
         </Border>
 
