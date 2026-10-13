@@ -12,13 +12,14 @@ scan exactly like the Excellon/Hpgl/Plotter/converter modules. Core no longer
 ships probing — users who don't probe get a smaller app, and plugins that want
 a probe-driven view gain a dependency they can declare. The extraction landed
 a slim Core contract (`HeightMapLayer`, `IHeightMapSource`, nullable-observable
-snapshot, `IHeightMap3DRenderer` presence marker, `IProfileCompanionSuffixes`)
+snapshot, `IHeightMap3DRenderer` (a `Task ShowAsync()` invocation contract),
+`IProfileCompanionSuffixes`)
 and left only the delegate-based `IProgramTransformTarget` transform tap-point
 (`ApplyHeightMap`) in Core; the plugin ships its own Locale catalogs and
 `InternalsVisibleTo("SenderNG.Modules.Probing.Tests")`. The plugin boundary
-re-opened the **height-map 3D preview** gate — the "Avalonia host problem" no
-longer blocks a renderer, tracked as an open gap in
-`docs/iosender-gaps.md`.
+re-opened the **height-map 3D preview** gate; it is now **landed** (2026-10-12)
+— the `SenderNG.Modules.HeightMapViewer` plugin plus the JSON height-map format,
+see `docs/iosender-gaps.md`.
 
 ## Controller capability detection (grbl handshake) — DONE
 

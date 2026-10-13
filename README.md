@@ -67,6 +67,10 @@ SenderNG is a focused fork of ioSender. The main differences are cross-platform 
 
 ![Plotter 3D widget](/docs/images/plot_3d.png)
 
+- Height map 3D. An interactive surface of the probed height map — orbit/pan/zoom, control-point markers, X/Y/Z axis arrows, and a live "points / max ΔZ" readout — opened from the Probing widget's **3D View** action.
+
+![Height map 3D viewer](/docs/images/height_map_preview.png)
+
 - Macros
 
 ![Macros widget](/docs/images/macros.png)
@@ -133,6 +137,7 @@ Limitations:
 The base app ships only core functionality; everything else is a plugin — a separate assembly discovered by scanning `Modules/*.dll` at startup. No DLL, no feature: the core bundle runs fine without any of them, and installing one is a straight copy of the plugin zip's contents into the bundle's `Modules/` folder (see [Running from release assets](#running-from-release-assets)). This repository includes:
 
 - Probing — tool-length, edge, center, rotation and height-map probing cycles
+- Height map 3D viewer — interactive 3D surface of the probed height map (opened from the Probing widget)
 - Plotter (2D/Isometric)
 - Plotter 3D (OpenGL orbit view)
 - Excellon converter

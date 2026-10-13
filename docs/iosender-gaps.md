@@ -270,18 +270,19 @@ Many already exist; the gaps are listed per widget.
       (2026-10-08+)** as the `SenderNG.Modules.Plotter.GL` plugin — OpenGL,
       hidden by default — so the 3D-view gap is now "orbit exists, not yet
       the unified productized layer+tool engine".
-- [ ] **Height-map 3D preview** — ioSender renders the probed grid as a mesh;
-      SenderNG has the map data + XML save/load but no 3D visualization.
-      **P0 (2026-09-23) unblocked the plugin boundary:** probing now ships as
-      the `SenderNG.Modules.Probing` module (discovered at runtime, not
-      app-registered) and Core exposes the height-map contract
-      (`HeightMapLayer` row-major samples, `IHeightMapSource` observable,
-      `IHeightMap3DRenderer` presence marker), so a renderer can be a
-      first-party plugin instead of app-hosted code, consuming Core's
-      `IHeightMapSource`. The former engine gate — the **Avalonia
-      host problem** of getting GPU output into a control — is closed: the
-      plotter renders offscreen on headless OpenGL on every OS and blits
-      the frame back with GPU+CPU readback
+- [x] **Height-map 3D preview** — **LANDED (2026-10-12).** The probing module
+      persists maps as JSON (`.hmap.json`; the legacy XML `.map` is retired) and
+      publishes them through Core's `IHeightMapSource` contract
+      (`HeightMapLayer` row-major samples, `NaN` = unprobed, `ZOffset`). The
+      first-party plugin `SenderNG.Modules.HeightMapViewer` consumes that stream
+      (never referencing Probing) and registers `IHeightMap3DRenderer`
+      (`Task ShowAsync()`); the Probing widget's **3D View** action opens it,
+      gated on the module's per-profile visibility. It renders the surface,
+      control-point markers and X/Y/Z arrows through the shared headless engine
+      `SenderNG.Modules.Common.Render` (extracted from the 3D plotter). The
+      former engine gate — the **Avalonia host problem** of getting GPU output
+      into a control — is closed: the plotter renders offscreen on headless
+      OpenGL on every OS and blits the frame back with GPU+CPU readback
       (`src/SenderNG.Modules.Plotter.GL/Rendering/GlReadback.cs`,
       `PlotterGlView.axaml.cs`). `docs/ROADMAP.md` records this gate as
       re-opened; a future renderer could use a low-level engine with official

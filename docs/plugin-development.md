@@ -34,7 +34,7 @@ The SDK is pre-1.0: nobody outside this repo consumes it yet, so **anything
 can change** — no versioning machinery, no compatibility promises. Two rules
 apply once the SDK is "alive" (public consumers exist):
 
-- **Versioning** — the SDK assembly gets a real version, and plugins target a
+- **Versioning** — the SDK assemblies get a real version, and plugins target a
   specific SDK version.
 - **Add-only, never change** — existing interfaces, members and semantics
   become frozen; new capability interfaces are added, existing ones are not
@@ -173,20 +173,34 @@ plugins that fail silently.
 
 ```text
 OutputDir/
-├── SenderNG.Core.dll                    ← app-owned, ships with the app
-└── Modules/                             ← plugin drop-in directory
-    ├── SenderNG.Modules.Common.dll      ← the SDK assembly, ships with the app
-    ├── SenderNG.Modules.Excellon.dll    ← built-in plugins staged on build
-    ├── excellon/Locale/en.json          ← plugin-owned locale catalogs
+├── SenderNG.Core.dll                     ← app-owned, ships with the app
+└── Modules/                              ← plugin drop-in directory
+    ├── SenderNG.Modules.Common.dll       ← the plugin SDK, ships with the app
+    ├── SenderNG.Modules.Common.Render.dll ← headless 3D/GL SDK, ships with the app
+    ├── Silk.NET.Core.dll                  ← the render SDK's dependencies (Silk.NET)
+    ├── Silk.NET.Maths.dll
+    ├── Silk.NET.OpenGL.dll
+    ├── SenderNG.Modules.Excellon.dll     ← built-in plugins staged on build
+    ├── excellon/Locale/en.json           ← plugin-owned locale catalogs
     ├── excellon/Locale/ru.json
     ├── SenderNG.Modules.Hpgl.dll
     └── hpgl/Locale/…
 ```
 
 **A plugin ships exactly two things: its own `.dll` and its `Locale/` files.**
-The SDK assembly (`SenderNG.Modules.Common`) is
-part of the app distribution, already present in `Modules/` — plugins
-reference it, never bundle it. The host registers each module's
+The SDK assemblies are part of the app distribution, already present in
+`Modules/` — plugins reference them, never bundle them. There are two:
+
+- **`SenderNG.Modules.Common`** — the generic, UI-free plugin SDK (settings
+  helpers such as `ModuleSettingsJson`). Any plugin can reference it.
+- **`SenderNG.Modules.Common.Render`** — the headless 3D/GL engine, for any
+  plugin that draws 3D. It depends on **Silk.NET** (`Core`, `Maths`, `OpenGL`),
+  so those three DLLs ship flat in `Modules/` next to it.
+
+Both ship **flat in the core bundle's `Modules/`** (Model A): the core bundle
+always carries them, so a plugin zip never includes an SDK or Silk.NET — only
+the plugin's own DLL and `Locale/`. (Historically `plotter-gl` carried a private
+Silk.NET copy; that is gone.) The host registers each module's
 `Modules/<id>/Locale` directory with `LocalizationService` at startup, so
 plugin strings resolve through the active locale without any app changes.
 
@@ -220,19 +234,41 @@ scratch, following the interfaces below.
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\SenderNG.Modules.Common\SenderNG.Modules.Common.csproj" />
+    <!-- Only for plugins that draw 3D: the headless GL engine. Brings Silk.NET
+         (Core/Maths/OpenGL) transitively — do NOT add a Silk.NET PackageReference. -->
+    <ProjectReference Include="..\SenderNG.Modules.Common.Render\SenderNG.Modules.Common.Render.csproj" />
   </ItemGroup>
 </Project>
 ```
 
-Plugins that don't build against the repo reference the **shipped**
-`SenderNG.Modules.Common.dll` (already present in `Modules/`) instead — same
-contract, and they must never copy the SDK into their own package.
+Plugins that don't build against the repo reference the **shipped** DLLs
+(`SenderNG.Modules.Common.dll`, and for 3D `SenderNG.Modules.Common.Render.dll`
+plus the Silk.NET DLLs), already present in `Modules/` — same contract, and they
+must never copy an SDK or Silk.NET into their own package.
 
 The SDK references Core and brings the contracts with it; it ships no UI.
 A plugin that needs its own dialog or settings view references Avalonia
 itself, pinned to the host's resolved version (12.0.0) — a floating `12.*`
 once resolved to a mismatched build and crashed startup with
 `TypeLoadException`.
+
+**3D machinery.** A plugin that draws 3D (like `SenderNG.Modules.Plotter.GL` and
+`SenderNG.Modules.HeightMapViewer`) uses `SenderNG.Modules.Common.Render`, which
+is **UI-free** — it brings no Avalonia. It provides an offscreen GL context
+(`GlContext`; hand-rolled WGL on Windows, surfaceless EGL on Linux), a frame
+readback (`GlReadback`: `BeginFrame(byte[])` clears, `CopyFrame(IntPtr, int)`
+lands the frame in your locked bitmap, `SetMsaa(MsaaMode)`), an orbit/pan/zoom
+camera (`GlCamera` + `CameraGestures`), shader helpers (`GlShaders`), mesh
+primitives (`GlMeshBuilder`, `ConeOrientation`), supersample sizing
+(`RenderSizing.Resolve`) and the failure taxonomy (`PlotGlFailures`/
+`PlotGlFailure`). The split is deliberate and is the whole point of the seam:
+the engine renders **raw RGBA**; the **plugin owns the UI toolkit** — its own
+Avalonia `UserControl`, `DispatcherTimer`, pointer input and `WriteableBitmap`
+mapping. `PlotterGlView.axaml.cs` and `HeightMapViewerView.axaml.cs` are the
+reference adapters. The engine (and Silk.NET) ships flat in `Modules/` (§4), so
+reference them, don't bundle them. `SenderNG.Modules.Common.Render` is not
+`SenderNG.Modules.Common`: the latter is generic plugin machinery, the former is
+specifically the GL stack.
 
 ### 5.2 The module class
 
@@ -377,14 +413,16 @@ module example (Excellon is the minimal one). It is the reference for the
   `None`/`Link`), exactly as for Excellon/Hpgl/Plotter above.
 - **Height-map contract** — the module implements Core's
   `IHeightMapSource` (`IObservable<HeightMapLayer?> Snapshot`; a null emission
-  means the map was cleared), publishing `HeightMapLayer` (a row-major
-  Z-sample record: `Z[row * Columns + col]`, with origin, cell spacing,
-  dimensions). A *renderer* plugin (e.g. a 3D viewer) consumes that stream and
-  **registers `IHeightMap3DRenderer`** — a presence marker Core-defined, so
-  the probing module can offer a renderer-gated action ("Preview in 3D") via
-  `GetService<IHeightMap3DRenderer>()` without knowing the renderer type.
-  This is the reference pattern for one first-party plugin exposing data the
-  plugin boundary lets another first-party plugin consume.
+  means the map was cleared, and the stream is a `BehaviorSubject` so a late
+  subscriber still receives the current map), publishing `HeightMapLayer` (a
+  row-major Z-sample record: `Z[row * Columns + col]`, with origin, cell
+  spacing, dimensions and `ZOffset`). A *renderer* plugin consumes that stream
+  and **registers `IHeightMap3DRenderer`** — a Core contract with a single
+  `Task ShowAsync()` — so the probing module can offer a renderer-gated action
+  ("3D View") via `GetService<IHeightMap3DRenderer>()` without knowing the
+  renderer type. `SenderNG.Modules.HeightMapViewer` is the reference renderer,
+  and the reference pattern for one first-party plugin consuming data another
+  first-party plugin exposes through Core.
 - **Testing** — `InternalsVisibleTo("SenderNG.Modules.Probing.Tests")` opens
   the module internals to its test assembly; see the "Testing your plugin"
   section below for the test-battery shape.
@@ -424,6 +462,7 @@ Test the module class directly — no host needed.
 | Locale catalog | `ILocalizedModule` + `Modules/<id>/Locale` | SenderNG.Core / host | implemented |
 | Converter dispatch | `IGCodeFileHandler` | SenderNG.Core | implemented |
 | SDK assembly | generic, UI-free machinery only (contracts via Core, settings helpers) | `SenderNG.Modules.Common` | implemented (renamed from `SenderNG.Converters.Common`) |
+| Render SDK | headless 3D/GL engine — context, readback, camera, shaders, mesh primitives, failure taxonomy; UI-free (brings Silk.NET) | `SenderNG.Modules.Common.Render` (flat in `Modules/` with Silk.NET) | implemented |
 | Converter sharing (built-in only) | `ConverterModuleBase`, `ConverterParameters`, `ConverterSettingsStore`, shared views | `SenderNG.Shared` — internal, not shipped | implemented (linked-source folder) |
 | Dialog hosting | `IViewFactory`, `IDialogService` | SenderNG.Core | implemented |
 | Discovery | `ModuleCatalog.ScanDirectory` | SenderNG.Core | implemented |
