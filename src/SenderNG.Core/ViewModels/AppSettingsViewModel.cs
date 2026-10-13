@@ -463,7 +463,10 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         }
     }
 
-    public bool CanSwitchProfiles => _switchAllowed?.Invoke() != false;
+    /// <summary>False while connected/running, and false once a restore is pending: the
+    /// service refuses every mutation then, so the leaf must not offer one — the UI would
+    /// otherwise report an add/rename/activate that never happened.</summary>
+    public bool CanSwitchProfiles => _switchAllowed?.Invoke() != false && !_settings.RestorePending;
 
     /// <summary>Inverse of <see cref="CanSwitchProfiles"/> — the caption shown when switching is blocked.</summary>
     public bool ShowSwitchBlocked => !CanSwitchProfiles;
@@ -476,8 +479,13 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         ? _resolve("appSettings.profiles.typeConfirm", "Change again to confirm")
         : _resolve("appSettings.profiles.typeChange", "Change type");
 
-    public string SwitchBlockedText => _resolve("appSettings.profiles.switchBlocked",
-        "Profile switching is disabled while connected or a session is running.");
+    /// <summary>The blocked caption: after a restore the connect/session wording is wrong
+    /// — switching is not blocked by the session but by the pending restart — so the
+    /// existing restart copy is shown instead.</summary>
+    public string SwitchBlockedText => _settings.RestorePending
+        ? _resolve("appSettings.backup.restartRequired", "Settings were restored — restart SenderNG to apply them.")
+        : _resolve("appSettings.profiles.switchBlocked",
+            "Profile switching is disabled while connected or a session is running.");
 
     public DelegateCommand AddCommand { get; private set; } = null!;
     public DelegateCommand DuplicateCommand { get; private set; } = null!;
@@ -505,8 +513,13 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
                 && SelectedMachineType != SelectedProfile.MachineTypeId);
     }
 
+    // Every mutator below re-checks the gate itself: a stale UI (or a direct Execute,
+    // which bypasses CanExecute) must not report a mutation the service is about to
+    // refuse — Add() would otherwise fire Activated for a profile that was never added.
     private void Add()
     {
+        if (!CanSwitchProfiles)
+            return;
         var profile = _settings.Activate(_settings.CreateProfile(NewName.Trim(), NewType).Id);
         NewName = string.Empty;
         Refresh();
@@ -515,6 +528,8 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
 
     private void Duplicate()
     {
+        if (!CanSwitchProfiles)
+            return;
         var selected = SelectedProfile!;
         var name = string.IsNullOrWhiteSpace(NewName) ? $"{selected.Name} copy" : NewName.Trim();
         _settings.CreateProfile(name, selected.MachineTypeId, copyFromId: selected.Id);
@@ -525,6 +540,8 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
 
     private void Rename()
     {
+        if (!CanSwitchProfiles)
+            return;
         var selected = SelectedProfile!;
         _settings.RenameProfile(selected.Id, RenameName.Trim());
         Refresh();
@@ -533,6 +550,8 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
 
     private void Remove()
     {
+        if (!CanSwitchProfiles)
+            return;
         if (!_confirmRemove)
         {
             _confirmRemove = true;
@@ -548,6 +567,8 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
 
     private void Activate()
     {
+        if (!CanSwitchProfiles)
+            return;
         var selected = SelectedProfile!;
         _settings.Activate(selected.Id);
         Refresh();
@@ -556,6 +577,8 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
 
     private void ApplyType()
     {
+        if (!CanSwitchProfiles)
+            return;
         if (!_confirmTypeChange)
         {
             _confirmTypeChange = true;
@@ -941,8 +964,10 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
     private readonly LocalizationService _localization;
     private readonly Dictionary<string, bool> _defaults = new();
     private readonly Dictionary<string, IModule> _moduleById;
+    private readonly IFileDialogService? _fileDialogs;
     private readonly List<AppSettingsLeaf> _globalLeaves = new();
     private ProfileSettingsLeaf? _profilesLeaf;
+    private BackupSettingsLeaf? _backupLeaf;
     private readonly HotkeyService? _hotkeys;
     private HotkeysSettingsLeaf? _hotkeysLeaf;
     private Func<bool>? _profileSwitchAllowed;
@@ -958,7 +983,8 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         IEnumerable<IModule> modules,
         LocalizationService? localization = null,
         Func<bool>? profileSwitchAllowed = null,
-        HotkeyService? hotkeys = null)
+        HotkeyService? hotkeys = null,
+        IFileDialogService? fileDialogs = null)
     {
         ArgumentNullException.ThrowIfNull(settingsService);
         ArgumentNullException.ThrowIfNull(modules);
@@ -974,6 +1000,7 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         _moduleById = modules.ToDictionary(m => m.Id);
         _profileSwitchAllowed = profileSwitchAllowed;
         _hotkeys = hotkeys;
+        _fileDialogs = fileDialogs;
         BuildModuleLeaves(modules);
         BuildTree();
 
@@ -993,7 +1020,9 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
     /// <summary>
     /// Host-provided gate for profile switching (blocked while the controller is
     /// connected or a session runs). Null = allowed. Applied live, so the dialog
-    /// honors a connect that happens while it is open.
+    /// honors a connect that happens while it is open. The backup leaf's restore
+    /// is gated by the same predicate — a mid-session restore invalidates the
+    /// running session's loaded state.
     /// </summary>
     public Func<bool>? ProfileSwitchAllowed
     {
@@ -1002,6 +1031,7 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         {
             _profileSwitchAllowed = value;
             _profilesLeaf?.SetSwitchGuard(value);
+            _backupLeaf?.SetSwitchGuard(value);
         }
     }
 
@@ -1092,6 +1122,13 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
                 LeafDescription("hotkeys", "Global keyboard shortcuts and their scopes."));
             _globalLeaves.Add(_hotkeysLeaf);
         }
+        // Appended last: existing tests address the profiles/language leaves by
+        // position (Children[0] / Children[1]) and the hotkeys leaf predates it.
+        _backupLeaf = new BackupSettingsLeaf(_settingsService, _fileDialogs, Resolve,
+            LeafName("backup", "Backup & restore"),
+            LeafDescription("backup", "Save every profile and app setting to one archive, or restore them from a backup."));
+        _backupLeaf.SetSwitchGuard(_profileSwitchAllowed);
+        _globalLeaves.Add(_backupLeaf);
         foreach (var leaf in _globalLeaves)
             global.Children.Add(leaf);
 
@@ -1164,6 +1201,8 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
                 OnPropertyChanged(nameof(SelectedModuleLeaf));
                 OnPropertyChanged(nameof(IsHotkeysLeaf));
                 OnPropertyChanged(nameof(SelectedHotkeysLeaf));
+                OnPropertyChanged(nameof(IsBackupLeaf));
+                OnPropertyChanged(nameof(SelectedBackupLeaf));
             }
         }
     }
@@ -1183,8 +1222,10 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
     public LanguageSettingsLeaf? SelectedLanguageLeaf => SelectedSetting as LanguageSettingsLeaf;
     public ModuleSettingsLeaf? SelectedModuleLeaf => SelectedSetting as ModuleSettingsLeaf;
     public HotkeysSettingsLeaf? SelectedHotkeysLeaf => SelectedSetting as HotkeysSettingsLeaf;
+    public BackupSettingsLeaf? SelectedBackupLeaf => SelectedSetting as BackupSettingsLeaf;
 
     public bool IsHotkeysLeaf => SelectedSetting is HotkeysSettingsLeaf;
+    public bool IsBackupLeaf => SelectedSetting is BackupSettingsLeaf;
 
     /* ---------- Locale ---------- */
 
@@ -1212,6 +1253,11 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
             LeafName("hotkeys", "Hotkeys"),
             LeafDescription("hotkeys", "Global keyboard shortcuts and their scopes."));
         _hotkeysLeaf?.RelocalizeAll();
+
+        _backupLeaf?.Relocalize(
+            LeafName("backup", "Backup & restore"),
+            LeafDescription("backup", "Save every profile and app setting to one archive, or restore them from a backup."));
+        _backupLeaf?.RelocalizeButtons();
     }
 
     /// <summary>

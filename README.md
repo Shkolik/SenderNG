@@ -116,6 +116,20 @@ Everything is configured from App Settings, scoped to the active machine profile
 
 ![App settings](/docs/images/settings.png)
 
+### Backing up and restoring settings
+
+Global → **Backup and restore** writes one `*.ngsettings.zip` archive holding the whole settings
+directory (`global.json`, every `profiles/<id>.json` and each module companion) in the same internal
+layout as on disk — so it can also be restored by hand: unzip it over the settings directory with
+SenderNG closed. Restoring replaces those files in one step and then asks for a restart, because the
+running session still holds the pre-restore values; until you restart, SenderNG refuses to save settings
+so it cannot overwrite what you just restored (a backup is still allowed while a restart is pending).
+
+The **Back up** / **Restore** buttons in the Grbl settings dialog do the same for the controller's own
+`$$` settings, as a JSON file carrying the controller's identity and a fingerprint of its settings.
+Restoring shows a confirm strip first and writes only the settings that differ; a value the controller's
+own metadata rejects is listed with its reason instead of being sent.
+
 ## Supported controllers and limitations
 
 SenderNG speaks the grbl / grblHAL protocol:

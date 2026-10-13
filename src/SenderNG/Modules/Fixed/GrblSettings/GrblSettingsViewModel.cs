@@ -40,6 +40,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CNC.Core.Abstractions;
+using CNC.Core.Services;
 using SenderNG.Localization;
 using SenderNG.ViewModels;
 using SenderNG.Core.Commands;
@@ -139,6 +140,9 @@ public sealed class GrblSettingItem : ViewModelBase
     public double? Min { get; }
     public double? Max { get; }
 
+    /// <summary>From the controller's metadata: the value only takes effect after a restart.</summary>
+    public bool RebootRequired { get; }
+
     /// <summary>Radio option labels or bitfield labels (axis letters for axis masks).</summary>
     public string[] Options { get; }
 
@@ -191,19 +195,27 @@ public sealed class GrblSettingItem : ViewModelBase
     public void ApplyText(string text) => Value = text;
 
     /// <summary>
+    /// Validate this setting's current <see cref="Value"/> — see <see cref="ValidateValue"/>.
+    /// </summary>
+    internal GrblSettingValidationError Validate() => ValidateValue(Value);
+
+    /// <summary>
     /// Reject text a controller write cannot carry: a partial numeric keystroke
     /// ("-", "1e"), a non-finite float, or a value outside Min/Max. Free-form types
     /// (Text, Password) and the non-text editors always pass. Never throws.
+    /// <paramref name="text"/> is checked against THIS item's metadata and nothing is
+    /// mutated, so a restore can validate a candidate value from a backup file before
+    /// the board is touched.
     /// </summary>
-    internal GrblSettingValidationError Validate()
+    internal GrblSettingValidationError ValidateValue(string text)
     {
         switch (Type)
         {
             case GrblSettingType.Integer:
-                return ValidateInteger();
+                return ValidateInteger(text);
 
             case GrblSettingType.Float:
-                return ValidateFloat();
+                return ValidateFloat(text);
 
             // A bit type whose Format yields no options has an empty Bits collection, so
             // IsBits is false and ShowTextBox is true: it renders as a text box holding a
@@ -212,10 +224,10 @@ public sealed class GrblSettingItem : ViewModelBase
             case GrblSettingType.Bitfield when !IsBits:
             case GrblSettingType.XBitfield when !IsBits:
             case GrblSettingType.AxisMask when !IsBits:
-                return ValidateInteger();
+                return ValidateInteger(text);
 
             case GrblSettingType.Ip4:
-                return IsDottedQuad(Value)
+                return IsDottedQuad(text)
                     ? GrblSettingValidationError.None
                     : GrblSettingValidationError.MalformedIp;
 
@@ -224,18 +236,18 @@ public sealed class GrblSettingItem : ViewModelBase
         }
     }
 
-    private GrblSettingValidationError ValidateInteger()
+    private GrblSettingValidationError ValidateInteger(string text)
     {
-        if (!int.TryParse(Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
+        if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
             return GrblSettingValidationError.NotNumeric;
         return InRange(n) ? GrblSettingValidationError.None : GrblSettingValidationError.OutOfRange;
     }
 
-    private GrblSettingValidationError ValidateFloat()
+    private GrblSettingValidationError ValidateFloat(string text)
     {
         // Since .NET Core 3.0 "NaN"/"Infinity" parse successfully, and every comparison
         // against NaN is false - so a bounds check alone would wave them through.
-        if (!double.TryParse(Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+        if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
             || !double.IsFinite(d))
             return GrblSettingValidationError.NotNumeric;
         return InRange(d) ? GrblSettingValidationError.None : GrblSettingValidationError.OutOfRange;
@@ -290,6 +302,7 @@ public sealed class GrblSettingItem : ViewModelBase
         Format = setting.Format;
         Min = setting.Min;
         Max = setting.Max;
+        RebootRequired = setting.RebootRequired;
         Description = setting.Description;
         _value = OriginalValue = setting.Value;
 
@@ -361,10 +374,14 @@ public sealed class GrblSettingsViewModel : ViewModelBase
     private readonly IGrblSettingsProvider _provider;
     private readonly IGrblService _grbl;
     private readonly LocalizationService _localization;
+    private readonly IFileDialogService? _dialogs;
     private readonly List<GrblSettingItem> _allItems = new();
     private readonly List<GrblSettingGroupItem> _allRoots = new();
+    private GrblRestorePlan? _restorePlan;
     private string _search = string.Empty;
     private string _status = string.Empty;
+    private string? _restoreSummary;
+    private string? _loadError;
     private object? _selectedNode;
 
     /// <summary>The visible (filtered) tree roots bound to the TreeView.</summary>
@@ -444,19 +461,51 @@ public sealed class GrblSettingsViewModel : ViewModelBase
 
     public DelegateCommand LoadCommand { get; }
     public DelegateCommand SaveCommand { get; }
+    public DelegateCommand BackupCommand { get; }
+    public DelegateCommand RestoreCommand { get; }
+    public DelegateCommand ApplyRestoreCommand { get; }
+    public DelegateCommand CancelRestoreCommand { get; }
 
-    public GrblSettingsViewModel(IGrblSettingsProvider provider, IGrblService grbl, LocalizationService localization)
+    /// <summary>
+    /// Back up / restore are only meaningful against a live controller. The dialog is
+    /// owner-modal and cannot observe a connection change while it is open, so this is a
+    /// snapshot the view uses for button enablement; the commands re-check at run time.
+    /// </summary>
+    public bool CanTransfer => _grbl.IsConnected;
+
+    /// <summary>A parsed backup is waiting for Apply / Cancel — shows the inline confirm strip.</summary>
+    public bool HasRestorePlan => _restorePlan is not null;
+
+    /// <summary>The confirm strip's summary line (counts + fingerprint and unsaved-edit warnings).</summary>
+    public string? RestoreSummary
+    {
+        get => _restoreSummary;
+        private set => SetField(ref _restoreSummary, value);
+    }
+
+    /// <param name="dialogs">
+    /// File picker for backup / restore. Optional trailing parameter: the module injects the
+    /// host's service, and every existing construction (tests, headless views) stays valid
+    /// without one — the commands then behave as if the picker was cancelled.
+    /// </param>
+    public GrblSettingsViewModel(IGrblSettingsProvider provider, IGrblService grbl,
+        LocalizationService localization, IFileDialogService? dialogs = null)
     {
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
+        _dialogs = dialogs;
 
         LoadCommand = new DelegateCommand(_ => _ = LoadAsync());
         SaveCommand = new DelegateCommand(_ => _ = SaveAsync());
+        BackupCommand = new DelegateCommand(_ => _ = BackupAsync());
+        RestoreCommand = new DelegateCommand(_ => _ = RestoreAsync());
+        ApplyRestoreCommand = new DelegateCommand(_ => _ = ApplyRestoreAsync());
+        CancelRestoreCommand = new DelegateCommand(_ => CancelRestore());
         _ = LoadAsync();
     }
 
-    public async Task LoadAsync()
+    public async Task<bool> LoadAsync()
     {
         // Reload builds brand-new item/group instances, so the current selection (a
         // reference into the old tree) would be detached — the tree would collapse and
@@ -483,10 +532,16 @@ public sealed class GrblSettingsViewModel : ViewModelBase
             var source = snapshot.MetadataFromController ? "(from controller)" : "(from catalog)";
             Status = LocText.Resolve("module.grbl-settings.loaded", "Loaded {0} settings")
                 .Replace("{0}", _allItems.Count.ToString(CultureInfo.InvariantCulture)) + " " + source;
+            _loadError = null;
+            return true;
         }
         catch (Exception ex)
         {
+            // False tells a caller that needs the fresh values (the restore verify) that
+            // _allItems still holds the pre-reload tree, so it must not compare against it.
+            _loadError = ex.Message;
             Status = LocText.Format("module.grbl-settings.loadFailed", "Load failed: {0}", ex.Message);
+            return false;
         }
     }
 
@@ -605,30 +660,300 @@ public sealed class GrblSettingsViewModel : ViewModelBase
     }
 
     /// <summary>One rejected setting as "$1 (must be a number)", ready for the status line.</summary>
-    private static string DescribeInvalid(GrblSettingItem item)
+    private static string DescribeInvalid(GrblSettingItem item) =>
+        DescribeInvalid(item, item.Key, item.Validate());
+
+    /// <summary>
+    /// One rejected setting as "$1 (must be a number)". <paramref name="board"/> supplies the
+    /// bounds for the message and may be null — a restore-plan row can name an id the freshly
+    /// reloaded board no longer reports.
+    /// </summary>
+    private static string DescribeInvalid(GrblSettingItem? board, string key, GrblSettingValidationError error)
     {
-        var reason = item.Validate() switch
+        var reason = error switch
         {
-            GrblSettingValidationError.OutOfRange when item.Min is not null && item.Max is not null =>
+            GrblSettingValidationError.OutOfRange when board?.Min is not null && board.Max is not null =>
                 LocText.Format("module.grbl-settings.reason.outOfRange", "must be between {0} and {1}",
-                    GrblSettingItem.FormatBound(item.Min), GrblSettingItem.FormatBound(item.Max)),
-            GrblSettingValidationError.OutOfRange when item.Min is not null =>
+                    GrblSettingItem.FormatBound(board.Min), GrblSettingItem.FormatBound(board.Max)),
+            GrblSettingValidationError.OutOfRange when board?.Min is not null =>
                 LocText.Format("module.grbl-settings.reason.minOnly", "must be at least {0}",
-                    GrblSettingItem.FormatBound(item.Min)),
+                    GrblSettingItem.FormatBound(board.Min)),
             GrblSettingValidationError.OutOfRange =>
                 LocText.Format("module.grbl-settings.reason.maxOnly", "must be at most {0}",
-                    GrblSettingItem.FormatBound(item.Max)),
+                    GrblSettingItem.FormatBound(board?.Max)),
             GrblSettingValidationError.MalformedIp =>
                 LocText.Resolve("module.grbl-settings.reason.invalidIp", "must be a dotted-quad address"),
             _ => LocText.Resolve("module.grbl-settings.reason.notNumber", "must be a number"),
         };
-        return $"{item.Key} ({reason})";
+        return $"{key} ({reason})";
     }
 
     /// <summary>
-    /// Land the operator on the first rejected setting: clear a search filter that
-    /// would hide it, expand its group chain, then select it.
+    /// Write the controller's <em>current</em> settings to a JSON backup file. The read is
+    /// always fresh (<see cref="GrblSettingsLoader"/>, never the loaded tree or its possibly
+    /// edited values) and nothing is auto-saved first — so unsaved editor edits are never in
+    /// the file and survive the backup untouched; the status line reports how many were left out.
     /// </summary>
+    public async Task BackupAsync()
+    {
+        if (!_grbl.IsConnected)
+        {
+            Status = LocText.Resolve("module.grbl-settings.notConnected", "Connect to a controller first.");
+            return;
+        }
+
+        if (_dialogs is null)
+            return; // no picker in this host (headless / tests): behaves as a cancelled dialog
+
+        try
+        {
+            var snapshot = await new GrblSettingsLoader(_provider, _localization).LoadAsync();
+            var backedUp = snapshot.Settings.Count;
+            if (backedUp == 0)
+            {
+                Status = LocText.Resolve("module.grbl-settings.backupEmpty", "The controller reported no settings.");
+                return;
+            }
+
+            // Counted (never saved) after the fresh read: a backup must not touch the
+            // editor tree, so the unsaved edits are reported, not reconciled.
+            var excluded = _allItems.Count(static i => i.IsDirty);
+
+            var path = await _dialogs.SaveFileAsync(
+                LocText.Resolve("module.grbl-settings.backup", "Back up"),
+                $"grbl-settings-{DateTime.Now:yyyy-MM-dd}.json",
+                "SenderNG grbl settings|*.json");
+            if (string.IsNullOrEmpty(path))
+                return; // cancelled — leave the status as it was
+
+            var json = GrblSettingsBackup.Create(
+                snapshot, _grbl.Capabilities, AppVersion, DateTimeOffset.UtcNow).ToJson();
+            await File.WriteAllTextAsync(path, json);
+
+            // No file path in the status: at 660x520 there is never room for one, and the
+            // status line ellipsises anyway. The path is the one the user just picked.
+            Status = LocText.Format("module.grbl-settings.backupSaved",
+                "Backed up {0} settings from the controller.", backedUp);
+            if (excluded > 0)
+                Status += " " + LocText.Format("module.grbl-settings.backupExcluded",
+                    "{0} unsaved edits were not included.", excluded);
+        }
+        catch (Exception ex)
+        {
+            Status = LocText.Format("module.grbl-settings.backupFailed", "Backup failed: {0}", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Read a backup file and show an inline plan (apply / unchanged / unknown / invalid).
+    /// Nothing reaches the controller here — the operator confirms with
+    /// <see cref="ApplyRestoreAsync"/> or discards the plan with <see cref="CancelRestore"/>.
+    /// </summary>
+    public async Task RestoreAsync()
+    {
+        if (!_grbl.IsConnected)
+        {
+            Status = LocText.Resolve("module.grbl-settings.notConnected", "Connect to a controller first.");
+            return;
+        }
+
+        if (_dialogs is null)
+            return;
+
+        try
+        {
+            var path = await _dialogs.OpenFileAsync(
+                LocText.Resolve("module.grbl-settings.restore", "Restore"), "SenderNG grbl settings|*.json");
+            if (string.IsNullOrEmpty(path))
+                return; // cancelled — leave the status as it was
+
+            var content = await File.ReadAllTextAsync(path);
+            var parsed = GrblSettingsBackup.Parse(content);
+            if (!parsed.Ok)
+            {
+                Status = LocText.Format("module.grbl-settings.restoreInvalidFile",
+                    "Not a SenderNG grbl settings backup: {0}", parsed.Error ?? path);
+                return;
+            }
+
+            _restorePlan = GrblRestorePlan.Create(parsed.Backup!, _allItems, _grbl.Capabilities.ControllerKey);
+            OnPropertyChanged(nameof(HasRestorePlan));
+            RestoreSummary = BuildRestoreSummary(_restorePlan);
+        }
+        catch (Exception ex)
+        {
+            _restorePlan = null;
+            OnPropertyChanged(nameof(HasRestorePlan));
+            RestoreSummary = null;
+            Status = LocText.Format("module.grbl-settings.restoreFailed", "Restore failed: {0}", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Send exactly the planned writes, ascending id, each in its own try/catch so one
+    /// rejected setting cannot abort the rest. A dropped link aborts the remaining writes
+    /// and reports how many landed; afterwards the board is re-read (which also refreshes
+    /// the tree and clears dirty state) and the applied ids are checked against their
+    /// intended values, and the applied set is checked for reboot-required settings.
+    /// </summary>
+    public async Task ApplyRestoreAsync()
+    {
+        if (_restorePlan is not { } plan)
+            return;
+
+        _restorePlan = null;
+        OnPropertyChanged(nameof(HasRestorePlan));
+
+        var applied = new List<GrblRestorePlanItem>();
+        var skipped = new List<string>();
+        var connectionLost = false;
+
+        foreach (var item in plan.Writes)
+        {
+            try
+            {
+                await _grbl.SendAsync($"${item.Id}={item.Value}");
+                applied.Add(item);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // The link dropped mid-restore: everything after this is unreachable.
+                skipped.Add($"${item.Id} ({ExplainError(ex.Message)})");
+                connectionLost = true;
+                break;
+            }
+            catch (Exception ex)
+            {
+                skipped.Add($"${item.Id} ({ExplainError(ex.Message)})");
+            }
+        }
+
+        RestoreSummary = null;
+
+        if (connectionLost)
+        {
+            // The board cannot be re-read on a dead link, so skip the verify step and
+            // report the real progress: what landed, and how far the restore got.
+            var summary = LocText.Format("module.grbl-settings.restoreFailed",
+                "Restore failed: {0}", skipped.Count > 0 ? skipped[0] : string.Empty);
+            Status = summary + " " + LocText.Format("module.grbl-settings.restored",
+                "Restored {0} settings.", applied.Count);
+            return;
+        }
+
+        // Capture the reboot flag from the LIVE board metadata before the reload replaces
+        // every item instance (the backup's own copy is informational, not the board's).
+        var rebootIds = applied
+            .Where(item => _allItems.FirstOrDefault(i => i.Id == item.Id)?.RebootRequired == true)
+            .Select(static item => item.Id)
+            .ToHashSet();
+
+        // Re-read the board: LoadAsync rebuilds the tree from $$, so the restored rows
+        // come back clean and show what the controller actually holds now.
+        var reloaded = await LoadAsync();
+
+        // Compare the board's fresh values against what the restore intended: a controller
+        // can accept a write and still not hold the value (or clamp it). A failed re-read
+        // leaves the pre-reload tree in place, so that comparison would mark every applied
+        // setting as "did not stick" — skip it and report the load failure instead.
+        var missed = reloaded
+            ? applied
+                .Where(item => _allItems.FirstOrDefault(i => i.Id == item.Id) is not { } board
+                    || !SameValue(board.Value, item.Value))
+                .Select(static item => $"${item.Id}")
+                .ToList()
+            : [];
+
+        var status = LocText.Format("module.grbl-settings.restored", "Restored {0} settings.", applied.Count);
+        if (skipped.Count > 0)
+            status += " " + LocText.Format("module.grbl-settings.restoreSkipped",
+                "{0} settings were not applied: {1}", skipped.Count, string.Join(", ", skipped));
+        if (!reloaded)
+            status += " " + LocText.Format("module.grbl-settings.loadFailed",
+                "Load failed: {0}", _loadError ?? string.Empty);
+        if (missed.Count > 0)
+            status += " " + LocText.Format("module.grbl-settings.restoreVerifyMismatch",
+                "{0} settings did not take the restored value: {1}", missed.Count, string.Join(", ", missed));
+        if (rebootIds.Count > 0)
+            status += " " + LocText.Resolve("module.grbl-settings.rebootRequired",
+                "Some restored settings need a controller restart to take effect.");
+        // Rows the plan refused are counted in the pre-apply strip; name them here too. Once the
+        // strip collapses, a skipped row would otherwise look like a successful restore.
+        var invalid = plan.Items.Where(static i => i.Action == GrblRestoreAction.Invalid).ToList();
+        if (invalid.Count > 0)
+            status += " " + LocText.Format("module.grbl-settings.restoreSkipped",
+                "{0} settings were not applied: {1}", invalid.Count,
+                string.Join(", ", invalid.Select(i => DescribeInvalid(
+                    _allItems.FirstOrDefault(b => b.Id == i.Id), $"${i.Id}",
+                    i.Reason ?? GrblSettingValidationError.None))));
+        Status = status;
+    }
+
+    /// <summary>
+    /// True when the board's freshly reported value matches what the restore wrote. A controller may
+    /// accept <c>$110=900</c> and report it back in its own format (<c>900.000</c>) — that is a landed
+    /// write, not a failure, and a cross-controller restore is the feature's headline case. Numbers
+    /// therefore compare numerically; anything else compares as text.
+    /// </summary>
+    private static bool SameValue(string boardValue, string? written)
+    {
+        if (double.TryParse(boardValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var reported) &&
+            double.TryParse(written, NumberStyles.Float, CultureInfo.InvariantCulture, out var intended))
+            return reported.Equals(intended);
+        return string.Equals(boardValue, written, StringComparison.Ordinal);
+    }
+
+    /// <summary>Discard a pending restore plan without sending anything.</summary>
+    public void CancelRestore()
+    {
+        if (_restorePlan is null)
+            return;
+        _restorePlan = null;
+        RestoreSummary = null;
+        OnPropertyChanged(nameof(HasRestorePlan));
+    }
+
+    /// <summary>
+    /// The confirm strip's summary: what a restore would write, what it skips, plus the
+    /// fingerprint and unsaved-edit warnings. The mismatch is a warning only — restoring a
+    /// known-good file onto a rebuilt board is the point of the feature.
+    /// </summary>
+    private string BuildRestoreSummary(GrblRestorePlan plan)
+    {
+        var summary = LocText.Format("module.grbl-settings.restorePending",
+            "Restore {0} of {1} settings? {2} unchanged · {3} not on this controller · {4} invalid.",
+            plan.ApplyCount, plan.Items.Count, plan.UnchangedCount, plan.UnknownCount, plan.InvalidCount);
+
+        if (plan.ControllerMismatch)
+            summary += " " + LocText.Format("module.grbl-settings.restoreMismatch",
+                "The backup came from a different controller ({0}).", plan.BackupController);
+
+        var dirty = _allItems.Count(static i => i.IsDirty);
+        if (dirty > 0)
+            summary += " " + LocText.Format("module.grbl-settings.restoreDiscardsEdits",
+                "{0} unsaved edits will be discarded.", dirty);
+
+        return summary;
+    }
+
+    /// <summary>
+    /// Explain a rejected <c>$N</c> write: the controller's own text from the shared
+    /// <see cref="GrblErrorCodes"/> table when the reply is an <c>error:NN</c>, else the raw
+    /// text. No second error table is introduced here.
+    /// </summary>
+    private static string ExplainError(string reply)
+    {
+        var match = GrblErrorCodes.ErrorReply.Match(reply);
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var code)
+            && GrblErrorCodes.Describe(code) is { } described)
+            return described;
+        return reply;
+    }
+
+    /// <summary>App version stamped into a backup file (same precedent as the About dialog).</summary>
+    private static string AppVersion =>
+        typeof(GrblSettingsViewModel).Assembly.GetName().Version?.ToString() ?? "0.0.0";
+
     private void SelectFirstInvalid(GrblSettingItem item)
     {
         if (FindVisible(item.Id) is null)

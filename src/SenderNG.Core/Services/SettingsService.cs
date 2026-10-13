@@ -67,6 +67,45 @@ public class SettingsService
     /// re-read or reset — a machine swap invalidates loaded state.</summary>
     public event System.Action<string>? ProfileSwitched;
 
+    /// <summary>Raised once when <see cref="MarkRestorePending"/> freezes writes after a
+    /// settings restore. The host surfaces this as "restart SenderNG to apply".</summary>
+    public event System.Action? RestorePendingChanged;
+
+    /// <summary>True once an app-settings restore has replaced the files in
+    /// <see cref="SettingsDir"/>: the in-memory graph still holds the pre-restore
+    /// data, so every mutator is a no-op until the app restarts. Without this, any
+    /// post-restore save would rewrite the stale in-memory graph over the freshly
+    /// restored files.</summary>
+    public bool RestorePending { get; private set; }
+
+    /// <summary>Freezes writes for the lifetime of this instance: called by the
+    /// app-settings restore immediately after it wrote the restored files, because a
+    /// post-restore save would rewrite the stale in-memory graph over them. Reads stay
+    /// live; restarting the app builds a fresh service and clears the guard. Raises
+    /// <see cref="RestorePendingChanged"/> at most once, and never <see cref="Changed"/>
+    /// — nothing has changed on disk.</summary>
+    /// <remarks>
+    /// <para>"No writes" means no <b>value</b> writes: nothing may persist the in-memory
+    /// graph over the restored files. One class of write is deliberately still possible —
+    /// the loaders' quarantine-on-read (<see cref="GlobalSettingsStore.Load"/>,
+    /// <see cref="ProfilesStore.TryLoad"/>), which moves a file aside only when its
+    /// content cannot be parsed. That repair cannot target a freshly restored file:
+    /// <c>AppSettingsRestore.Apply</c> validates every payload before it writes one.</para>
+    /// <para>Every accessor with a write side effect is suppressed while pending,
+    /// including <see cref="Global"/>'s lazy load, which creates the default profile and
+    /// <c>global.json</c> on a fresh directory.</para>
+    /// </remarks>
+    public void MarkRestorePending()
+    {
+        if (RestorePending)
+            return;
+        RestorePending = true;
+        RestorePendingChanged?.Invoke();
+    }
+
+    /// <summary>Mutators return early while the restored files must not be overwritten.</summary>
+    private bool WritesBlocked => RestorePending;
+
     /// <summary>Creates a settings service rooted at <paramref name="dir"/> (default:
     /// the per-user settings directory). <paramref name="services"/> — when present —
     /// supplies module companion providers (<see cref="IProfileCompanionSuffixes"/>)
@@ -97,6 +136,12 @@ public class SettingsService
     {
         if (_current is not null)
             return _current;
+
+        // Never create files while the restored directory is frozen: the body below writes the
+        // default profile + global.json on a never-loaded service. An unloaded service has only
+        // defaults to offer anyway, so it answers with a throwaway profile instead.
+        if (WritesBlocked)
+            return new MachineProfile();
 
         // One-time migration of a legacy settings.json (inert once global.json
         // exists, or on a fresh directory).
@@ -137,12 +182,23 @@ public class SettingsService
     /// same instance until <see cref="Save(MachineProfile)"/> or
     /// <see cref="SaveGlobal"/> replaces it.
     /// </summary>
+    /// <remarks>
+    /// The lazy path is suppressed while <see cref="RestorePending"/> because
+    /// <see cref="Load"/> is not a pure read: on a never-loaded service it creates the
+    /// default profile and <c>global.json</c> (see <see cref="Load"/>), which would write
+    /// over a restored settings directory. An unloaded service has nothing but defaults to
+    /// offer anyway, so it answers with a fresh <see cref="GlobalSettings"/> instead of
+    /// loading. In the app this path is unreachable while pending — the host reads
+    /// <see cref="Global"/> at startup, long before any restore can happen.
+    /// </remarks>
     public GlobalSettings Global
     {
         get
         {
             if (_global is null)
             {
+                if (WritesBlocked)
+                    return new GlobalSettings();
                 Load();
                 _global = GlobalSettingsStore.Load(_dir, _onFallback);
             }
@@ -153,6 +209,8 @@ public class SettingsService
     /// <summary>Persist the active profile to <c>profiles/&lt;id&gt;.json</c>.</summary>
     public void Save(MachineProfile profile)
     {
+        if (WritesBlocked)
+            return;
         _current = profile ?? throw new ArgumentNullException(nameof(profile));
         Directory.CreateDirectory(_dir);
         ProfilesStore.Save(_dir, profile);
@@ -162,6 +220,8 @@ public class SettingsService
     /// <summary>Persist a (possibly inactive) profile file without touching the shared graph.</summary>
     public void SaveProfile(MachineProfile profile)
     {
+        if (WritesBlocked)
+            return;
         ArgumentNullException.ThrowIfNull(profile);
         ProfilesStore.Save(_dir, profile);
         if (_current?.Id == profile.Id)
@@ -184,8 +244,18 @@ public class SettingsService
     /// <paramref name="copyFromId"/> — duplicate). Registers it, persists the
     /// registry, and returns it without activating.
     /// </summary>
+    /// <remarks>
+    /// While <see cref="RestorePending"/> nothing is written and nothing is
+    /// loaded: the call returns the live graph when one exists, otherwise a
+    /// fresh throwaway <see cref="MachineProfile"/> (which is never registered,
+    /// persisted or made current). It deliberately does <b>not</b> fall back to
+    /// <see cref="Load"/>, because that writes on a fresh directory and would
+    /// overwrite the freshly restored files.
+    /// </remarks>
     public MachineProfile CreateProfile(string name, string machineTypeId, string? copyFromId = null)
     {
+        if (WritesBlocked)
+            return _current ?? new MachineProfile();
         var id = UniqueId(name);
         // Fresh profiles seed machine-coupled defaults from the type preset: the
         // demo controller simulates the type's axis count (Foam needs 4 so both
@@ -211,6 +281,8 @@ public class SettingsService
     /// <summary>Display-name rename: id and file untouched, registry updated, active graph re-raised.</summary>
     public void RenameProfile(string id, string name)
     {
+        if (WritesBlocked)
+            return;
         var profile = ProfilesStore.TryLoad(_dir, id, _onFallback)
             ?? throw new ArgumentException($"Unknown profile '{id}'", nameof(id));
         profile.Name = name;
@@ -229,6 +301,8 @@ public class SettingsService
     /// </summary>
     public bool DeleteProfile(string id)
     {
+        if (WritesBlocked)
+            return false;
         if (string.Equals(id, _global?.ActiveProfileId, System.StringComparison.Ordinal))
             return false;
         if (ProfilesStore.Ids(_dir).Count() <= 1)
@@ -253,8 +327,18 @@ public class SettingsService
     /// graph to its file, persists the pointer, raises <see cref="Changed"/> and
     /// <see cref="ProfileSwitched"/>.
     /// </summary>
+    /// <remarks>
+    /// While <see cref="RestorePending"/> the switch is refused without writing:
+    /// the call returns the live graph when one exists, otherwise a fresh
+    /// throwaway <see cref="MachineProfile"/> (never made current). It
+    /// deliberately does <b>not</b> fall back to <see cref="Load"/>, because
+    /// that writes on a fresh directory and would overwrite the freshly
+    /// restored files.
+    /// </remarks>
     public MachineProfile Activate(string profileId)
     {
+        if (WritesBlocked)
+            return _current ?? new MachineProfile();
         var profile = ProfilesStore.TryLoad(_dir, profileId, _onFallback)
             ?? throw new ArgumentException($"Unknown profile '{profileId}'", nameof(profileId));
         _current = profile;
@@ -269,6 +353,8 @@ public class SettingsService
     /// <summary>Changes a profile's machine type (confirmed + guarded by the UI).</summary>
     public void SetProfileMachineType(string id, string machineTypeId)
     {
+        if (WritesBlocked)
+            return;
         var profile = ProfilesStore.TryLoad(_dir, id, _onFallback)
             ?? throw new ArgumentException($"Unknown profile '{id}'", nameof(id));
         profile.MachineTypeId = machineTypeId;
@@ -317,6 +403,8 @@ public class SettingsService
     /// <summary>Persist <c>global.json</c>.</summary>
     public void SaveGlobal(GlobalSettings global)
     {
+        if (WritesBlocked)
+            return;
         _global = global ?? throw new ArgumentNullException(nameof(global));
         Directory.CreateDirectory(_dir);
         GlobalSettingsStore.Save(_dir, global);

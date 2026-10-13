@@ -170,6 +170,70 @@ public class MainViewModelDisposeTests
     }
 
     [Fact]
+    public void MarkRestorePending_puts_the_restart_notice_in_the_status_bar()
+    {
+        var (settings, _, _, vm) = MakeHost();
+        Assert.False(settings.RestorePending);
+
+        settings.MarkRestorePending();
+
+        Assert.True(settings.RestorePending);
+        // The service only freezes writes; the operator has to be told that the
+        // restored files need a restart, or the frozen saves look like a bug.
+        Assert.Equal(
+            "Settings were restored — restart SenderNG to apply them.",
+            vm.Status);
+    }
+
+    [Fact]
+    public void MarkRestorePending_is_idempotent_and_keeps_the_restart_notice()
+    {
+        var (settings, _, _, vm) = MakeHost();
+        var raised = 0;
+        settings.RestorePendingChanged += () => raised++;
+
+        settings.MarkRestorePending();
+        var notice = vm.Status;
+        settings.MarkRestorePending(); // idempotent: raised once, and until restart
+
+        Assert.Equal(1, raised);
+        Assert.Equal(notice, vm.Status);
+        Assert.Equal("Settings were restored — restart SenderNG to apply them.", notice);
+    }
+
+    [Fact]
+    public void Dispose_detaches_the_restore_pending_handler()
+    {
+        var (settings, _, _, vm) = MakeHost();
+        // Sanity: the constructor subscribed exactly this view model's handler.
+        Assert.Equal(1, SubscriberCount(settings, "RestorePendingChanged"));
+
+        vm.Dispose();
+
+        // No handler left on the service, so a raise after teardown cannot reach
+        // the disposed view model: it neither throws nor moves the status bar.
+        Assert.Equal(0, SubscriberCount(settings, "RestorePendingChanged"));
+        var baseline = vm.Status;
+        Assert.Null(Record.Exception(settings.MarkRestorePending));
+        Assert.True(settings.RestorePending);       // the service did raise
+        Assert.Equal(baseline, vm.Status);          // the dead view model did not hear it
+    }
+
+    /// <summary>Field-like auto-events expose their invocation list through a
+    /// backing field of the same name (<c>SettingsViewSubscriptionLeakTests</c>
+    /// counts subscribers the same way). <c>Assert.NotNull</c> rather than
+    /// "return 0": an explicit add/remove would drop the field, and a silent 0
+    /// would then pass for the wrong reason.</summary>
+    private static int SubscriberCount(object source, string eventName)
+    {
+        var field = source.GetType().GetField(
+            eventName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        Assert.NotNull(field);
+        var handler = field!.GetValue(source) as Delegate;
+        return handler?.GetInvocationList().Length ?? 0;
+    }
+
+    [Fact]
     public void Dispose_detaches_the_modules_collection_handler()
     {
         var (_, _, _, vm) = MakeHost();

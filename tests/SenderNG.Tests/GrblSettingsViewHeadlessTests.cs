@@ -37,9 +37,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Themes.Fluent;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
@@ -69,6 +71,7 @@ public sealed class UiHeadlessApp : Application
     }
 }
 
+[Collection("LocalizationState")] // sets LocalizationService.Current and switches the live locale
 public class GrblSettingsViewHeadlessTests
 {
     private sealed class StubProvider : IGrblSettingsProvider
@@ -89,6 +92,17 @@ public class GrblSettingsViewHeadlessTests
         public void Disconnect() => IsConnected = false;
         public void SendRealtime(byte code) { }
         public Task SendAsync(string line) => Task.CompletedTask;
+    }
+
+    /// <summary>Dialog double handing back one scripted path (see MainViewModelTests.StubFileDialogs).</summary>
+    private sealed class StubDialogs : IFileDialogService
+    {
+        public string? SavePath { get; set; }
+        public string? OpenPath { get; set; }
+        public Task<string?> OpenFileAsync(string title, params string[] filters) => Task.FromResult(OpenPath);
+        public Task<string?> SaveFileAsync(string title, string suggestedFileName, params string[] filters) =>
+            Task.FromResult(SavePath);
+        public Task ShowErrorAsync(string title, string message) => Task.CompletedTask;
     }
 
     private static GrblSettingItem Find(IEnumerable<object> nodes, int id)
@@ -190,10 +204,175 @@ public class GrblSettingsViewHeadlessTests
         window.Close();
     }
 
-    /// <summary>Yield so the headless SynchronizationContext runs a pending layout/render.</summary>
+    /// <summary>
+    /// Yield so the headless SynchronizationContext runs a pending layout/render. `RunJobs` is
+    /// load-bearing, not tidiness: a `{loc:Loc}` binding delivers its first value through
+    /// `Dispatcher.UIThread.Post` (Localization/Loc.cs), so without draining the queue every
+    /// localized Button.Content in this view reads back as null and a label assertion would look
+    /// like "the markup extension does not work in this view" when it does.
+    /// </summary>
     private static async Task Pump()
     {
         AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+        Dispatcher.UIThread.RunJobs();
         await Task.Yield();
     }
+
+    [AvaloniaFact]
+    public async Task Backup_and_restore_buttons_render_and_the_strip_follows_the_plan()
+    {
+        // The buttons are labelled with {loc:Loc}, which resolves through
+        // LocalizationService.Current and follows a live locale switch — provided the pump drains
+        // the dispatcher (see Pump). Construct the view with the locale in place.
+        var prevLocale = LocalizationService.Current;
+        LocalizationService.Current = HeadlessTestCatalog.Locale;
+        var window = default(Window);
+        try
+        {
+            var provider = new StubProvider { ValueLines = ["$0=10"] };
+            var grbl = new FakeGrbl();
+            await grbl.ConnectAsync("stub");
+            var dialogs = new StubDialogs();
+            var vm = new GrblSettingsViewModel(provider, grbl, HeadlessTestCatalog.Locale, dialogs);
+            vm.LoadAsync().GetAwaiter().GetResult();
+
+            var view = new GrblSettingsView { DataContext = vm };
+            window = new Window { Width = 660, Height = 520, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var buttons = window.GetVisualDescendants().OfType<Button>().ToList();
+
+            // The transfer buttons render, carry localized labels, and are gated on the connection.
+            var backupButton = buttons.SingleOrDefault(b => Equals(b.Content, "Back up"));
+            var restoreButton = buttons.SingleOrDefault(b => Equals(b.Content, "Restore"));
+            Assert.NotNull(backupButton);
+            Assert.NotNull(restoreButton);
+            Assert.True(backupButton.Bounds.Width > 0, "the Back up button was not laid out");
+            Assert.True(restoreButton.Bounds.Width > 0, "the Restore button was not laid out");
+            Assert.True(backupButton.IsEnabled && restoreButton.IsEnabled);
+            Assert.True(vm.CanTransfer);
+            // The confirm strip is bound to HasRestorePlan: collapsed while no plan waits.
+            Assert.False(vm.HasRestorePlan);
+            var strip = FindStrip(window);
+            Assert.NotNull(strip);
+            Assert.False(strip.IsVisible, "the confirm strip must be hidden before a plan exists");
+
+            // Reading a backup builds the plan; the strip becomes visible and its buttons laid out.
+            var path = Path.Combine(Path.GetTempPath(), "senderng-headless-restore-" + Guid.NewGuid().ToString("N") + ".json");
+            await File.WriteAllTextAsync(path,
+                "{\"kind\":\"senderng-grbl-settings\",\"formatVersion\":1,\"createdUtc\":\"2026-10-13T00:00:00Z\","
+                + "\"appVersion\":\"test\",\"controller\":{\"key\":\"stub\",\"firmware\":\"demo\",\"version\":\"1\",\"build\":0,"
+                + "\"numAxes\":3,\"isGrblHAL\":true,\"metadataFromController\":true},"
+                + "\"settings\":[{\"id\":0,\"value\":\"11\",\"name\":\"n\",\"unit\":\"\",\"type\":6,\"format\":\"\","
+                + "\"min\":null,\"max\":null,\"rebootRequired\":false}]}");
+            dialogs.OpenPath = path;
+            await vm.RestoreAsync();
+
+            Assert.True(vm.HasRestorePlan);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            strip = FindStrip(window);
+            Assert.NotNull(strip);
+            Assert.True(strip.IsVisible, "the confirm strip must show once a plan exists");
+            // The strip's own controls exist in the tree with the localized labels. (Their
+            // Bounds stay empty in the headless renderer for a strip that was measured while
+            // collapsed; the binding and the labels are what this test can assert here.)
+            Assert.Contains(window.GetVisualDescendants().OfType<Button>(), b => Equals(b.Content, "Apply restore"));
+            Assert.Contains(window.GetVisualDescendants().OfType<Button>(), b => Equals(b.Content, "Cancel"));
+            Assert.Contains(window.GetVisualDescendants().OfType<Button>(), b => Equals(b.Content, "Cancel"));
+
+            // Cancelling discards the plan; the strip collapses again.
+            vm.CancelRestoreCommand.Execute(null);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            Assert.False(vm.HasRestorePlan);
+            Assert.False(FindStrip(window)!.IsVisible, "the confirm strip must collapse after Cancel");
+
+            // A {loc:Loc} label follows a LIVE locale switch. The VM-string variant this replaced did
+            // not, and the difference is only observable with a dispatcher-draining pump.
+            if (HeadlessTestCatalog.Locale.AvailableLocales.Contains("ru"))
+            {
+                HeadlessTestCatalog.Locale.SetLocale("ru");
+                for (var i = 0; i < 4; i++)
+                    await Pump();
+                Assert.Contains(window.GetVisualDescendants().OfType<Button>(),
+                    b => Equals(b.Content, "Резервная копия"));
+            }
+        }
+        finally
+        {
+            if (HeadlessTestCatalog.Locale.AvailableLocales.Contains("ru"))
+                HeadlessTestCatalog.Locale.SetLocale("en");
+            LocalizationService.Current = prevLocale;
+            window?.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Status_text_stays_inside_its_column_and_carries_the_full_text_as_a_tooltip()
+    {
+        // Regression: the status TextBlock used to sit in a horizontal StackPanel, which
+        // measures its children with INFINITE width — TextTrimming therefore never bit, and the
+        // status rendered underneath the transfer buttons. A status far longer than the 660px
+        // footer can hold is forced here (a failed restore names the missing file).
+        // The catalog must be in place: {loc:Loc} falls back to its raw KEY without it, which makes
+        // the buttons wide enough to squeeze the status column to zero width.
+        var prevLocale = LocalizationService.Current;
+        LocalizationService.Current = HeadlessTestCatalog.Locale;
+        var window = default(Window);
+        try
+        {
+            var provider = new StubProvider { ValueLines = ["$0=10"] };
+            var grbl = new FakeGrbl();
+            await grbl.ConnectAsync("stub");
+            var dialogs = new StubDialogs();
+            var vm = new GrblSettingsViewModel(provider, grbl, HeadlessTestCatalog.Locale, dialogs);
+            vm.LoadAsync().GetAwaiter().GetResult();
+
+            var view = new GrblSettingsView { DataContext = vm };
+            window = new Window { Width = 660, Height = 520, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            dialogs.OpenPath = Path.Combine(
+                Path.GetTempPath(), new string('x', 120), "does-not-exist.json");
+            await vm.RestoreAsync();
+            for (var i = 0; i < 8; i++)
+                await Pump();
+
+            Assert.Contains("Restore failed", vm.Status);
+            Assert.True(vm.Status.Length > 80, "the status must be long enough to need trimming");
+
+            var status = window.GetVisualDescendants().OfType<TextBlock>()
+                .First(t => t.Text == vm.Status);
+            // Identified by command, not by label: this test is about geometry, not localization.
+            var backupButton = window.GetVisualDescendants().OfType<Button>()
+                .First(b => ReferenceEquals(b.Command, vm.BackupCommand));
+
+            // Trimming is configured, and the untrimmed text stays reachable in the tooltip.
+            Assert.Equal(TextTrimming.CharacterEllipsis, status.TextTrimming);
+            Assert.Equal(vm.Status, ToolTip.GetTip(status));
+
+            // Bounded by its star column, so it can never reach the buttons to its right.
+            Assert.True(status.Bounds.Width > 0,
+                $"the status was not laid out (status={status.Bounds}, parent={(status.Parent as Visual)?.Bounds})");
+            var statusRight = status.TranslatePoint(new Point(status.Bounds.Width, 0), window)!.Value.X;
+            var buttonLeft = backupButton.TranslatePoint(new Point(0, 0), window)!.Value.X;
+            Assert.True(statusRight <= buttonLeft + 1,
+                $"the status runs under the buttons: status right={statusRight:F1}, Back up left={buttonLeft:F1}");
+        }
+        finally
+        {
+            LocalizationService.Current = prevLocale;
+            window?.Close();
+        }
+    }
+
+    private static Border? FindStrip(Window window) =>
+        window.GetVisualDescendants().OfType<Border>().FirstOrDefault(b => b.Name == "RestoreStrip");
 }
