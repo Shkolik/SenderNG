@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <!-- byte* row copy in GlReadback.CopyFrame. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

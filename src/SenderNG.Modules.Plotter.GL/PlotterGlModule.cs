@@ -81,7 +81,7 @@ public class PlotterGlModule : IModule, ILocalizedModule, IPluginInfo, IPluginDe
     public IReadOnlyList<HotKey> HotKeys { get; } = [];
 
     // Optional plugin metadata — shown on the About screen.
-    public string Version => "0.1.0";
+    public string Version => "0.2.0";
     public string Author => "Andrew Shkolik";
     public string License => "BSD-3-Clause";
 
