@@ -61,6 +61,12 @@ public class AppSettingsRestoreTests
     private static void AssertNoTempFiles(string dir) =>
         Assert.Empty(Directory.EnumerateFiles(dir, "*.tmp", SearchOption.AllDirectories));
 
+    /// <summary>Relative path + verbatim text of every file under the directory.</summary>
+    private static string DiskState(string dir) =>
+        string.Join("\n", Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+            .OrderBy(p => p, StringComparer.Ordinal)
+            .Select(p => Path.GetRelativePath(dir, p) + "=" + File.ReadAllText(p)));
+
     [Fact]
     public void Apply_overwrites_global_json_and_profiles()
     {
@@ -185,5 +191,50 @@ public class AppSettingsRestoreTests
         Assert.True(File.Exists(LocalPath(dir, "global.json")));
         Assert.True(File.Exists(LocalPath(dir, "profiles/mill.json")));
         Assert.Equal(GlobalJsonText, File.ReadAllText(LocalPath(dir, "global.json")));
+    }
+
+    [Fact]
+    public void Apply_validates_first_and_refuses_an_invalid_bundle_without_writing()
+    {
+        // The "validate before writing anything" guarantee is structural: Apply itself
+        // validates, so a caller that skipped the validator cannot half-write an archive.
+        var dir = TempDir();
+        Directory.CreateDirectory(Path.Combine(dir, "profiles"));
+        File.WriteAllText(LocalPath(dir, "global.json"), "original-global");
+        File.WriteAllText(LocalPath(dir, "profiles/mill.json"), "original-mill");
+        File.WriteAllText(LocalPath(dir, "profiles/other.json"), "original-other");
+        var before = DiskState(dir);
+        var bundle = BundleOf(
+            ("global.json", GlobalJsonText),
+            ("profiles/mill.json", "{ this is not valid json"),
+            ("profiles/other.json", ProfileJson("other")));
+
+        var result = AppSettingsRestore.Apply(dir, bundle);
+
+        Assert.False(result.Ok);
+        Assert.Equal(0, result.Written);
+        // Every validation error is reported, and the names are the archive's entries.
+        Assert.Contains("profiles/mill.json", result.Failed.Single());
+        Assert.Equal(before, DiskState(dir));
+        AssertNoTempFiles(dir);
+    }
+
+    [Fact]
+    public void Apply_refuses_a_bundle_with_no_global_json_without_writing()
+    {
+        // A missing global.json is a validation error, not a partial restore.
+        var dir = TempDir();
+        Directory.CreateDirectory(Path.Combine(dir, "profiles"));
+        File.WriteAllText(LocalPath(dir, "profiles/mill.json"), "original-mill");
+        var before = DiskState(dir);
+        var bundle = BundleOf(("profiles/mill.json", ProfileJson("mill")));
+
+        var result = AppSettingsRestore.Apply(dir, bundle);
+
+        Assert.False(result.Ok);
+        Assert.Equal(0, result.Written);
+        Assert.Contains("global.json", result.Failed.Single());
+        Assert.Equal(before, DiskState(dir));
+        AssertNoTempFiles(dir);
     }
 }
