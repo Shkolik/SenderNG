@@ -97,6 +97,12 @@ These run unattended against the board named by `SENDERNG_HW_PORT`:
 - **`Streams_modal_program_with_ok_replies_on_hardware`** — streams a tiny no-motion modal program
   (`G90\nG21`) through `GCodeProgramStreamer`, expecting per-line ok replies while the `?` poll
   continues during the run.
+- **`Settings_backup_and_restore_round_trips_110_on_hardware`** — the settings backup/restore feature's
+  own flow against the board: back up `$$` through the dialog, change `$110` (X max rate) **on the
+  board**, restore from the written file, and verify the board took the value back. It proves the
+  archive round-trips a real controller's `$$` text, and that the post-apply verify tolerates the
+  board's own formatting (`$110=600` is reported back as `600.000` — the grblHAL RP2040 does this).
+  `$110` is restored in a `finally`, so the board is left exactly as found.
 
 ## Interactive (human-in-the-loop) hardware tests
 

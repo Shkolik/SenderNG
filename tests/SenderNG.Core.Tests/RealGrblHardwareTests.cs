@@ -980,7 +980,7 @@ public class RealGrblHardwareTests
             .Where(m => m.GetCustomAttributes(typeof(HardwareFactAttribute), inherit: false).Length > 0)
             .ToArray();
 
-        Assert.Equal(8, hardwareFacts.Length);
+        Assert.Equal(9, hardwareFacts.Length);
         foreach (var method in hardwareFacts)
         {
             var hasTrait = method.CustomAttributes
@@ -1058,5 +1058,139 @@ public class RealGrblHardwareTests
         {
             Environment.SetEnvironmentVariable("SENDERNG_HW_PORT", previous);
         }
+    }
+
+    /// <summary>
+    /// The backup/restore feature's headline flow against real firmware: back the board's own
+    /// settings up through the dialog, change <c>$110</c> (X max rate) ON the board, restore from
+    /// the written file, and verify the board took the value back. Unit tests pin the format and the
+    /// planner; only hardware proves the board's own <c>$$</c> text survives the round trip, that a
+    /// real controller's own formatting does not trip the post-apply verify, and that the board
+    /// accepts what the planner sends. Nothing is wired to the bench boards, and <c>$110</c> is
+    /// restored in the <c>finally</c> whatever happens above.
+    /// </summary>
+    [HardwareFact]
+    [Trait("Category", "Hardware")]
+    public async Task Settings_backup_and_restore_round_trips_110_on_hardware()
+    {
+        var port = RequiredPort();
+        using var service = new RealGrblService();
+        string? backupPath = null;
+        string? original = null;
+        try
+        {
+            await service.ConnectAsync(port);
+            Assert.True(service.IsConnected);
+            Assert.True(service.Capabilities.IsKnown);
+            Console.WriteLine($"INFO   board key: {service.Capabilities.ControllerKey}");
+
+            // A board that booted locked/alarmed refuses setting writes; $X clears that.
+            await service.SendAsync("$X");
+
+            var dialogs = new HardwareDialogs();
+            var vm = new SenderNG.Modules.Fixed.GrblSettingsViewModel(
+                service, service, TestLocalization.Locale, dialogs);
+            Assert.True(await vm.LoadAsync(), $"load failed: {vm.Status}");
+
+            original = SettingValue(await service.GetSettingLinesAsync(), 110);
+            if (original is null)
+                Assert.Fail("this board's $$ does not report $110 (X max rate) - nothing to round trip");
+
+            backupPath = Path.Combine(
+                Path.GetTempPath(), "senderng-hw-grbl-" + Guid.NewGuid().ToString("N") + ".json");
+
+            // 1. Back up the board's own settings through the feature's own path.
+            dialogs.SavePath = backupPath;
+            await vm.BackupAsync();
+            Assert.True(File.Exists(backupPath), $"the backup was not written: {vm.Status}");
+
+            // The file a user would restore parses, and holds the board's own $110 text verbatim.
+            var read = SenderNG.Core.Settings.GrblSettingsBackup.Parse(
+                await File.ReadAllTextAsync(backupPath));
+            Assert.True(read.Ok, read.Error);
+            Assert.Equal(original, Assert.Single(read.Backup!.Settings, s => s.Id == 110).Value);
+            Assert.Equal(service.Capabilities.ControllerKey, read.Backup.Controller.Key);
+            Console.WriteLine($"INFO   backed up {read.Backup.Settings.Count} settings, controller '{read.Backup.Controller.Key}'");
+
+            // 2. Change $110 on the board itself, so the restore has real work to do. The probe must
+            // differ NUMERICALLY: this board reports "500.000", so a text probe of "500" would write
+            // what is already there and the restore would correctly have nothing to do.
+            var originalNumber = double.Parse(original, NumberStyles.Float, CultureInfo.InvariantCulture);
+            var probe = (originalNumber == 500d ? 600d : 500d).ToString("0.###", CultureInfo.InvariantCulture);
+            Assert.False(SameNumber(original, probe), "the probe must differ from the board's own value");
+            await service.SendAsync($"$110={probe}");
+            var afterWrite = SettingValue(await service.GetSettingLinesAsync(), 110);
+            Console.WriteLine($"INFO   $110 original='{original}' wrote='{probe}' board reports='{afterWrite}'");
+            // Numeric-tolerant on purpose: this board accepts "$110=500" and reports "500.000",
+            // which is exactly the reformatting the dialog's verify step has to tolerate.
+            Assert.True(SameNumber(probe, afterWrite),
+                $"the board did not take $110={probe} (it reports '{afterWrite}')");
+
+            // 3. Restore through the dialog: read the plan, apply it, verify against the board.
+            dialogs.OpenPath = backupPath;
+            await vm.RestoreAsync();
+            Assert.True(vm.HasRestorePlan, $"no restore plan was built: {vm.Status}");
+            await vm.ApplyRestoreAsync();
+            Console.WriteLine($"INFO   restore status: {vm.Status}");
+
+            Assert.Contains("Restored", vm.Status, StringComparison.Ordinal);
+            Assert.DoesNotContain("Restored 0 settings", vm.Status, StringComparison.Ordinal);
+            Assert.DoesNotContain("did not take the restored value", vm.Status, StringComparison.Ordinal);
+            var restored = SettingValue(await service.GetSettingLinesAsync(), 110);
+            Console.WriteLine($"INFO   $110 after restore='{restored}'");
+            Assert.True(SameNumber(original, restored), $"$110 was not restored: '{restored}' != '{original}'");
+        }
+        finally
+        {
+            // Leave the board exactly as it was found, even if an assertion threw mid-way.
+            if (original is not null && service.IsConnected)
+            {
+                await service.SendAsync($"$110={original}");
+                var left = SettingValue(await service.GetSettingLinesAsync(), 110);
+                Assert.True(SameNumber(original, left), $"$110 was left at {left}, expected {original}");
+            }
+
+            if (backupPath is not null && File.Exists(backupPath))
+                File.Delete(backupPath);
+            service.Disconnect();
+        }
+    }
+
+    /// <summary>$110's value straight from the board's own <c>$$</c> output — the oracle for this
+    /// test, deliberately not the code under test — or null when the board does not report it.</summary>
+    private static string? SettingValue(IReadOnlyList<string> settingLines, int id)
+    {
+        foreach (var line in settingLines)
+        {
+            var match = Regex.Match(line, @"^\$(\d+)=(.*)$");
+            if (match.Success && int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) == id)
+                return match.Groups[2].Value.Trim();
+        }
+
+        return null;
+    }
+
+    /// <summary>Numeric-tolerant compare for the oracle: a real controller may accept
+    /// <c>$110=500</c> and report it back in its own format (<c>500.000</c>).</summary>
+    private static bool SameNumber(string expected, string? actual) =>
+        actual is not null &&
+        double.TryParse(expected, NumberStyles.Float, CultureInfo.InvariantCulture, out var a) &&
+        double.TryParse(actual, NumberStyles.Float, CultureInfo.InvariantCulture, out var b) &&
+        a.Equals(b);
+
+    /// <summary>File dialogs that answer with paths a test sets, so the real dialog's backup and
+    /// restore paths can run unattended against hardware.</summary>
+    private sealed class HardwareDialogs : IFileDialogService
+    {
+        public string? SavePath { get; set; }
+        public string? OpenPath { get; set; }
+
+        public Task<string?> OpenFileAsync(string title, params string[] filters) =>
+            Task.FromResult(OpenPath);
+
+        public Task<string?> SaveFileAsync(string title, string suggestedFileName, params string[] filters) =>
+            Task.FromResult(SavePath);
+
+        public Task ShowErrorAsync(string title, string message) => Task.CompletedTask;
     }
 }
