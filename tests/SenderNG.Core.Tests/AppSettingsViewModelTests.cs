@@ -1265,10 +1265,12 @@ public class AppSettingsViewModelTests
             Assert.True(leaf.HasRestorePlan);
 
             var locked = Path.Combine(ProfileSettingsPaths.ProfilesDir(dir), "default.json");
-            using (new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
-            {
-                await leaf.ApplyRestoreAsync();
-            }
+            // A directory where the profile file must land: the same portable simulation as
+            // AppSettingsRestoreTests — FileShare.None blocks a replace on Windows only, because
+            // .NET maps it to an advisory lock on Unix and rename(2) ignores those.
+            File.Delete(locked);
+            Directory.CreateDirectory(locked);
+            await leaf.ApplyRestoreAsync();
 
             // The file that landed must be frozen too, or the stale graph's next save
             // overwrites it before the user retries.

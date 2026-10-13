@@ -188,23 +188,23 @@ public class AppSettingsRestoreTests
     }
 
     [Fact]
-    public void Apply_does_not_write_a_partial_file_when_the_source_is_unwritable()
+    public void Apply_does_not_write_a_partial_file_when_the_target_cannot_be_replaced()
     {
         var dir = TempDir();
         Directory.CreateDirectory(Path.Combine(dir, "profiles"));
         var target = LocalPath(dir, "global.json");
-        File.WriteAllText(target, "original");
+        // A directory occupying the target path: portable, and immune to being run as root.
+        // Holding the file open with FileShare.None only blocks the replace on Windows — .NET
+        // maps FileShare to advisory locks on Unix and rename(2) ignores those, so there the write
+        // simply succeeded and this test asserted the wrong thing (found on the Linux CI run).
+        Directory.CreateDirectory(target);
         var bundle = MakeBundle();
 
-        AppSettingsRestoreResult result;
-        using (new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.None))
-        {
-            result = AppSettingsRestore.Apply(dir, bundle);
-        }
+        var result = AppSettingsRestore.Apply(dir, bundle);
 
         Assert.False(result.Ok);
         Assert.Contains("global.json", result.Failed);
-        Assert.Equal("original", File.ReadAllText(target));
+        Assert.True(Directory.Exists(target), "the blocked target is left untouched");
         Assert.Equal(bundle.Files.Count - 1, result.Written);
         AssertNoTempFiles(dir);
     }
