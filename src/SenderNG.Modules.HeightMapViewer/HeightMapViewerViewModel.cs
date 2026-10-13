@@ -39,6 +39,7 @@ using System.Runtime.CompilerServices;
 using CNC.Core.Abstractions;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
+using SenderNG.Modules.HeightMapViewer.Settings;
 
 namespace SenderNG.Modules.HeightMapViewer;
 
@@ -53,6 +54,8 @@ public sealed class HeightMapViewerViewModel : INotifyPropertyChanged, IDisposab
 {
     private const string EmptyTextKey = "module.heightmap-viewer.empty";
     private const string EmptyTextFallback = "No height map loaded. Probe or load a map first.";
+    private const string StatsTextKey = "module.heightmap-viewer.stats";
+    private const string StatsTextFallback = "Points: {0}   Max ΔZ: {1} {2}";
 
     private readonly LocalizationService? _localization;
     private readonly IDisposable? _subscription;
@@ -61,16 +64,22 @@ public sealed class HeightMapViewerViewModel : INotifyPropertyChanged, IDisposab
     private bool _disposed;
 
     public HeightMapViewerViewModel(IHeightMapSource? source, LocalizationService? localization,
-        IFileDialogService? fileDialogs = null)
+        IFileDialogService? fileDialogs = null, HeightMapViewerSettingsViewModel? settings = null)
     {
         _localization = localization;
         FileDialogs = fileDialogs;
+        Settings = settings;
         if (_localization is not null)
         {
-            // The empty-state text is resolved through the live localization
-            // service; re-raise it on a language switch so the dialog follows
-            // without a restart (same pattern as the view's code-behind texts).
-            _localeChanged = (_, _) => OnPropertyChanged(nameof(EmptyText));
+            // The empty-state and stats texts are resolved through the live
+            // localization service; re-raise them on a language switch so the
+            // dialog follows without a restart (same pattern as the view's
+            // code-behind texts).
+            _localeChanged = (_, _) =>
+            {
+                OnPropertyChanged(nameof(EmptyText));
+                OnPropertyChanged(nameof(StatsText));
+            };
             _localization.Changed += _localeChanged;
         }
         _subscription = source?.Snapshot.Subscribe(OnSnapshot);
@@ -89,9 +98,50 @@ public sealed class HeightMapViewerViewModel : INotifyPropertyChanged, IDisposab
     /// factory, so the service travels on the view model instead.</summary>
     public IFileDialogService? FileDialogs { get; }
 
+    /// <summary>The shared render-settings view model (supersample + MSAA). Null
+    /// for a headless construction without a settings service; the view falls
+    /// back to its defaults when null.</summary>
+    public HeightMapViewerSettingsViewModel? Settings { get; }
+
     /// <summary>Localized empty-state message the view binds.</summary>
     public string EmptyText =>
         _localization?.Resolve(EmptyTextKey, EmptyTextFallback) ?? EmptyTextFallback;
+
+    /// <summary>Localized stats overlay — finite measured-point count and the
+    /// max-min Z deviation over those points. Empty while no layer is loaded.</summary>
+    public string StatsText
+    {
+        get
+        {
+            var layer = _layer;
+            if (layer is null)
+                return "";
+            var count = 0;
+            var min = double.PositiveInfinity;
+            var max = double.NegativeInfinity;
+            foreach (var z in layer.Z)
+            {
+                if (!double.IsFinite(z))
+                    continue;
+                count++;
+                if (z < min) min = z;
+                if (z > max) max = z;
+            }
+            var deviation = count == 0 ? 0.0 : max - min;
+            var format = _localization?.Resolve(StatsTextKey, StatsTextFallback) ?? StatsTextFallback;
+            // The distance unit comes from the core catalog (common.mm), like the
+            // probing module — not hardcoded, so it localizes with the app.
+            var unit = _localization?.Resolve("common.mm", "mm") ?? "mm";
+            try
+            {
+                return string.Format(format, count, deviation.ToString("0.###"), unit);
+            }
+            catch (FormatException)
+            {
+                return StatsTextFallback;
+            }
+        }
+    }
 
     private void OnSnapshot(HeightMapLayer? layer) => UiThread.Post(() => Apply(layer));
 
@@ -102,6 +152,7 @@ public sealed class HeightMapViewerViewModel : INotifyPropertyChanged, IDisposab
         _layer = layer;
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(Layer));
+        OnPropertyChanged(nameof(StatsText));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? name = null)

@@ -127,6 +127,10 @@ public partial class HeightMapViewerView : UserControl
         ToolTip.SetTip(ReframeButton, loc?.Resolve(
             "module.heightmap-viewer.reset", "Reset view")
             ?? "Reset view");
+        ToolTip.SetTip(ZoomInButton, loc?.Resolve(
+            "module.heightmap-viewer.zoomIn", "Zoom in") ?? "Zoom in");
+        ToolTip.SetTip(ZoomOutButton, loc?.Resolve(
+            "module.heightmap-viewer.zoomOut", "Zoom out") ?? "Zoom out");
     }
 
     private static string GenericHint()
@@ -275,13 +279,18 @@ public partial class HeightMapViewerView : UserControl
             return;
         var pw = (uint)Math.Max(1, Math.Round(wDip * scale));
         var ph = (uint)Math.Max(1, Math.Round(hDip * scale));
+        var r = RenderSizing.Resolve(pw, ph, _vm?.Settings?.Supersample ?? true);
 
-        scene.SetViewportSize((int)pw, (int)ph);
-        _wPx = pw;
-        _hPx = ph;
+        // Navigation viewport stays in on-screen (panel) px: cursor px and the
+        // pan/zoom math divide by these, so they must equal what the user points
+        // at, not the supersampled render target.
+        scene.SetViewportSize((int)r.PanelW, (int)r.PanelH);
+        _wPx = r.PanelW;
+        _hPx = r.PanelH;
         scene.SetLayer(_vm?.Layer);
+        scene.SetShowOrigin(_vm?.Settings?.ShowOrigin ?? true);
 
-        if (!SetupReadback(pw, ph))
+        if (!SetupReadback(r))
             return;
 
         try
@@ -293,7 +302,7 @@ public partial class HeightMapViewerView : UserControl
             using (var fb = _bitmap!.Lock())
             {
                 _readback.CopyFrame(fb.Address, fb.RowBytes);
-                CaptureScreenshot(fb, pw, ph);
+                CaptureScreenshot(fb, r.RtW, r.RtH);
             }
             GpuImage.InvalidateVisual();
             UpdateZoomLabel(scene);
@@ -305,36 +314,56 @@ public partial class HeightMapViewerView : UserControl
     }
 
     /// <summary>Create (or resize) the readback target and its bitmap for this
-    /// tick's pixel size. A failure is logged and retried next tick — usually
-    /// transient host-memory pressure, not a verdict.</summary>
-    private bool SetupReadback(uint w, uint h)
+    /// tick's render size, and apply the configured MSAA mode. A failure is
+    /// logged and retried next tick — usually transient host-memory pressure,
+    /// not a verdict.</summary>
+    private bool SetupReadback(in RenderSize r)
     {
         try
         {
+            // MSAA rides the same tick as the render size, but on its own axis
+            // (sample count vs supersample scale). The first create takes the
+            // configured mode straight to the ctor — no default-then-rebuild
+            // double allocation on the first tick.
+            var msaa = _vm?.Settings?.MsaaMode ?? MsaaMode.None;
             var created = false;
             if (_readback is null)
             {
-                _readback = new GlReadback(_gl!, w, h);
+                _readback = new GlReadback(_gl!, r.RtW, r.RtH, msaa);
                 created = true;
             }
-            else if (w != _rtW || h != _rtH)
+            else if (r.RtW != _rtW || r.RtH != _rtH)
             {
-                _readback.Resize(w, h);
+                _readback.Resize(r.RtW, r.RtH);
                 created = true;
+            }
+
+            if (_readback.Msaa != msaa)
+            {
+                try
+                {
+                    _readback.SetMsaa(msaa);
+                }
+                catch (Exception ex) when (msaa != MsaaMode.None)
+                {
+                    System.Diagnostics.Trace.WriteLine(
+                        $"[HeightMapViewer] MSAA {msaa} unavailable, falling back to None: {ex.Message}");
+                    _readback.SetMsaa(MsaaMode.None);
+                }
             }
 
             if (created)
             {
                 _bitmap = new WriteableBitmap(
-                    new PixelSize((int)w, (int)h),
+                    new PixelSize((int)r.RtW, (int)r.RtH),
                     new Avalonia.Vector(96, 96),
                     PixelFormats.Rgba8888,
                     AlphaFormat.Opaque);
                 GpuImage.Source = _bitmap;
             }
 
-            _rtW = w;
-            _rtH = h;
+            _rtW = r.RtW;
+            _rtH = r.RtH;
             return true;
         }
         catch (Exception ex)

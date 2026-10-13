@@ -71,6 +71,7 @@ internal sealed class HeightMapScene : IDisposable
 
     private const float PlaneAlpha = 0.25f;
     private const float EnvelopeWidthPx = 1.6f;
+    private const float AxisWidthPx = 2.4f;
     private const float OrbitSensitivity = 0.005f;
 
     /// <summary>Per-vertex-color mesh program. The shared
@@ -104,7 +105,10 @@ internal sealed class HeightMapScene : IDisposable
     private readonly int _lineWidthPx;
     private readonly ColorMesh _surface;
     private readonly ColorMesh _plane;
+    private readonly ColorMesh _controlPoints;
     private readonly LineMesh _envelope;
+    private readonly LineMesh _axes;
+    private readonly ColorMesh _axisHeads;
 
     private readonly GlCamera _ortho = new();
     private readonly GlCamera _persp = new() { IsPerspective = true };
@@ -117,6 +121,7 @@ internal sealed class HeightMapScene : IDisposable
     private float _navH = 1f;
     private Vector3? _orbitPivot;
     private ViewPreset _preset = ViewPreset.Isometric3D;
+    private bool _showOrigin = true;
 
     private HeightMapLayer? _layer;
     private bool _framed;
@@ -150,7 +155,10 @@ internal sealed class HeightMapScene : IDisposable
 
         _surface = new ColorMesh(context);
         _plane = new ColorMesh(context);
+        _controlPoints = new ColorMesh(context);
         _envelope = new LineMesh(context);
+        _axes = new LineMesh(context);
+        _axisHeads = new ColorMesh(context);
 
         _gl.Enable(EnableCap.DepthTest);
         _gl.DepthFunc(DepthFunction.Lequal);
@@ -248,6 +256,9 @@ internal sealed class HeightMapScene : IDisposable
     /// (the zoom cluster's middle button).</summary>
     public void Reframe() => SetViewPreset(_preset);
 
+    /// <summary>Show/hide the X/Y/Z origin axis arrows (App Settings toggle).</summary>
+    public void SetShowOrigin(bool show) => _showOrigin = show;
+
     public void PanByScreenDelta(Vector2 screenDeltaPx)
     {
         // ScreenPanDelta returns the MODEL-follows-cursor delta; the camera moves
@@ -303,6 +314,23 @@ internal sealed class HeightMapScene : IDisposable
         _gl.Uniform1(_surfaceAlpha, 1f);
         _surface.Draw();
 
+        // Control-point markers share the per-vertex-color program; opaque, so
+        // they ride the same pass as the surface (drawn after it so a marker
+        // half-buried in the surface still reads).
+        if (_controlPoints.HasGeometry)
+        {
+            _gl.Uniform1(_surfaceAlpha, 1f);
+            _controlPoints.Draw();
+        }
+
+        // Axis-arrowheads share the per-vertex-color program; opaque, drawn
+        // after the markers so the heads read over the surface.
+        if (_showOrigin && _axisHeads.HasGeometry)
+        {
+            _gl.Uniform1(_surfaceAlpha, 1f);
+            _axisHeads.Draw();
+        }
+
         if (_plane.HasGeometry)
         {
             _gl.Uniform1(_surfaceAlpha, PlaneAlpha);
@@ -318,6 +346,12 @@ internal sealed class HeightMapScene : IDisposable
         {
             UseLineProgram(in vp, rtW, rtH, EnvelopeWidthPx);
             _envelope.Draw();
+        }
+
+        if (_showOrigin && _axes.HasGeometry)
+        {
+            UseLineProgram(in vp, rtW, rtH, AxisWidthPx);
+            _axes.Draw();
         }
     }
 
@@ -375,26 +409,46 @@ internal sealed class HeightMapScene : IDisposable
         {
             _surface.Upload([], []);
             _plane.Upload([], []);
+            _controlPoints.Upload([], []);
             _envelope.Upload([]);
+            _axes.Upload([]);
+            _axisHeads.Upload([], []);
             return;
         }
 
         var mesh = HeightSurfaceMesh.Build(layer, ZScale);
-        var vertexCount = mesh.Positions.Length / 3;
-        var interleaved = new float[vertexCount * 6];
-        for (var i = 0; i < vertexCount; i++)
-        {
-            interleaved[i * 6 + 0] = mesh.Positions[i * 3 + 0];
-            interleaved[i * 6 + 1] = mesh.Positions[i * 3 + 1];
-            interleaved[i * 6 + 2] = mesh.Positions[i * 3 + 2];
-            interleaved[i * 6 + 3] = mesh.Colors[i * 3 + 0];
-            interleaved[i * 6 + 4] = mesh.Colors[i * 3 + 1];
-            interleaved[i * 6 + 5] = mesh.Colors[i * 3 + 2];
-        }
-        _surface.Upload(interleaved, mesh.Indices);
+        _surface.Upload(Interleave(mesh.Positions, mesh.Colors), mesh.Indices);
+
+        var markers = ControlPointMesh.Build(layer, ZScale);
+        _controlPoints.Upload(Interleave(markers.Positions, markers.Colors), markers.Indices);
+
         _envelope.Upload(BuildEnvelope(layer));
         var (planeVerts, planeIdx) = BuildOffsetPlane(layer);
         _plane.Upload(planeVerts, planeIdx);
+
+        var origin = new Vector3((float)layer.OriginX, (float)layer.OriginY, MinZ(layer));
+        var (_, _, span) = ContentMetrics();
+        var (shaftVerts, headVerts, headIndices) = AxisArrows.Build(origin, span);
+        _axes.Upload(shaftVerts);
+        _axisHeads.Upload(headVerts, headIndices);
+    }
+
+    /// <summary>Zip separate <c>pos(3)</c>/<c>color(3)</c> arrays into the
+    /// interleaved stride-24 layout the color mesh uploads.</summary>
+    private static float[] Interleave(float[] positions, float[] colors)
+    {
+        var vertexCount = positions.Length / 3;
+        var interleaved = new float[vertexCount * 6];
+        for (var i = 0; i < vertexCount; i++)
+        {
+            interleaved[i * 6 + 0] = positions[i * 3 + 0];
+            interleaved[i * 6 + 1] = positions[i * 3 + 1];
+            interleaved[i * 6 + 2] = positions[i * 3 + 2];
+            interleaved[i * 6 + 3] = colors[i * 3 + 0];
+            interleaved[i * 6 + 4] = colors[i * 3 + 1];
+            interleaved[i * 6 + 5] = colors[i * 3 + 2];
+        }
+        return interleaved;
     }
 
     private float MinZ(HeightMapLayer layer)
@@ -478,7 +532,10 @@ internal sealed class HeightMapScene : IDisposable
         _ctx.MakeCurrent();
         _surface.Dispose();
         _plane.Dispose();
+        _controlPoints.Dispose();
         _envelope.Dispose();
+        _axes.Dispose();
+        _axisHeads.Dispose();
         _gl.DeleteProgram(_surfaceProg);
         _gl.DeleteProgram(_lineProg);
     }

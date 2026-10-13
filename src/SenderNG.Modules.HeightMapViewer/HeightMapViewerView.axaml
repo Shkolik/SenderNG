@@ -104,6 +104,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                            Foreground="#555" FontSize="14"
                            TextWrapping="Wrap" TextAlignment="Center" />
 
+                <!-- Top-left stats overlay: measured-point count and max Z
+                     deviation, or hidden while no layer is loaded. -->
+                <TextBlock x:Name="StatsTextBlock"
+                           Text="{Binding StatsText}"
+                           IsVisible="{Binding StatsText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                           HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"
+                           Foreground="#777" FontSize="12" />
+
                 <!-- Bottom-left: save the current view (the readback frame at its
                      native size) as a PNG through the standard save dialog. -->
                 <Button x:Name="SaveScreenshotButton" Classes="navBtn"

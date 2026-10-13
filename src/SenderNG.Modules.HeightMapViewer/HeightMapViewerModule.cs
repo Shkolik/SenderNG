@@ -35,9 +35,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using CNC.Core.Abstractions;
+using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
+using SenderNG.Modules.HeightMapViewer.Settings;
 
 namespace SenderNG.Modules.HeightMapViewer;
 
@@ -45,6 +47,8 @@ public sealed class HeightMapViewerModule : IModule, IHeightMap3DRenderer,
     ILocalizedModule, IPluginInfo, IPluginDependencies, IModuleSettingsProvider
 {
     private IServiceProvider? _services;
+    private HeightMapViewerSettingsViewModel? _sharedSettingsVm;
+    private bool _profileSwitchedSubscribed;
     private bool _dialogViewRegistered;
 
     public string Id => "heightmap-viewer";
@@ -52,7 +56,7 @@ public sealed class HeightMapViewerModule : IModule, IHeightMap3DRenderer,
     public string Description => "3D view of the probed height map.";
     public int Order => 51;
     public PanelHint Panel => PanelHint.Dialog;
-    public bool IsVisibleByDefault => false;
+    public bool IsVisibleByDefault => true;
     public bool IsEnabledByDefault => true;
     public bool CanHide => true;
     public IReadOnlyList<HotKey> HotKeys => [];
@@ -76,6 +80,12 @@ public sealed class HeightMapViewerModule : IModule, IHeightMap3DRenderer,
                 "No OpenGL context could be created.",
             ["module.heightmap-viewer.saveScreenshot"] = "Save screenshot (PNG)",
             ["module.heightmap-viewer.saveScreenshotErrorTitle"] = "Save screenshot",
+            ["module.heightmap-viewer.settings.supersample"] = "2x supersample (AA at 2x render)",
+            ["module.heightmap-viewer.settings.msaa"] = "MSAA (edge AA)",
+            ["module.heightmap-viewer.settings.showOrigin"] = "Show origin",
+            ["module.heightmap-viewer.zoomIn"] = "Zoom in",
+            ["module.heightmap-viewer.zoomOut"] = "Zoom out",
+            ["module.heightmap-viewer.stats"] = "Points: {0}   Max ΔZ: {1} {2}",
         };
 
     public void RegisterServices(IServiceCollection services)
@@ -85,14 +95,51 @@ public sealed class HeightMapViewerModule : IModule, IHeightMap3DRenderer,
         => new HeightMapViewerViewModel(
             sp.GetService<IHeightMapSource>(),
             sp.GetService<LocalizationService>(),
-            sp.GetService<IFileDialogService>());
+            sp.GetService<IFileDialogService>(),
+            SharedSettingsVm());
 
     public object CreateView(object vm) => new HeightMapViewerView { DataContext = vm };
 
     public (double, double)? DialogPreferredSize => (900, 640);
 
     public SettingsScope Scope => SettingsScope.Profile;
-    public object? CreateSettingsView() => null;
+
+    public object? CreateSettingsView() =>
+        _services is null
+            ? null
+            : new HeightMapViewerSettingsView { DataContext = SharedSettingsVm() };
+
+    /// <summary>The SINGLE <see cref="HeightMapViewerSettingsViewModel"/> both
+    /// surfaces bind: the App Settings leaf (<see cref="CreateSettingsView"/>) and
+    /// the 3D view (passed into <see cref="HeightMapViewerViewModel"/>). One shared
+    /// VM on the app's DI <see cref="SettingsService"/> — a flip on either surface
+    /// persists through the shared service and both stay live on the SAME model.
+    /// A profile switch rebuilds it fresh (<see cref="OnProfileSwitched"/>).</summary>
+    private HeightMapViewerSettingsViewModel? SharedSettingsVm()
+    {
+        if (_sharedSettingsVm is not null)
+            return _sharedSettingsVm;
+        try
+        {
+            var settings = _services!.GetRequiredService<SettingsService>();
+            if (!_profileSwitchedSubscribed)
+            {
+                settings.ProfileSwitched += OnProfileSwitched;
+                _profileSwitchedSubscribed = true;
+            }
+            _sharedSettingsVm = new HeightMapViewerSettingsViewModel(
+                settings, _services!.GetService<LocalizationService>());
+            return _sharedSettingsVm;
+        }
+        catch
+        {
+            // A settings read failure must never take down the App Settings
+            // dialog or the 3D viewport: both surfaces simply stay unbound.
+            return null;
+        }
+    }
+
+    private void OnProfileSwitched(string _) => _sharedSettingsVm = null;
 
     /// <summary>
     /// Host hook, run on the UI thread before any view is realized. Captures the
@@ -119,7 +166,7 @@ public sealed class HeightMapViewerModule : IModule, IHeightMap3DRenderer,
             return;
         var source = _services?.GetService<IHeightMapSource>();
         var vm = new HeightMapViewerViewModel(source, _services?.GetService<LocalizationService>(),
-            _services?.GetService<IFileDialogService>());
+            _services?.GetService<IFileDialogService>(), SharedSettingsVm());
         try
         {
             await dialogs.ShowDialogAsync(

@@ -11,4 +11,7 @@
     <ProjectReference Include="..\SenderNG.Core\SenderNG.Core.csproj" />
     <ProjectReference Include="..\SenderNG.Modules.Common.Render\SenderNG.Modules.Common.Render.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="SenderNG.Modules.HeightMapViewer.Tests" />
+  </ItemGroup>
 </Project>

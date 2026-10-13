@@ -1,0 +1,19 @@
+{
+  "strings": {
+    "module.heightmap-viewer.name": "Карта высот 3D",
+    "module.heightmap-viewer.description": "3D-просмотр измеренной карты высот.",
+    "module.heightmap-viewer.empty": "Карта высот не загружена. Сначала измерьте или загрузите карту.",
+    "module.heightmap-viewer.title": "Карта высот 3D",
+    "module.heightmap-viewer.reset": "Сбросить вид",
+    "module.heightmap-viewer.zoomIn": "Увеличить",
+    "module.heightmap-viewer.zoomOut": "Уменьшить",
+    "module.heightmap-viewer.renderUnavailable": "3D-просмотр недоступен",
+    "module.heightmap-viewer.renderUnavailableHint": "Не удалось создать контекст OpenGL.",
+    "module.heightmap-viewer.saveScreenshot": "Сохранить снимок (PNG)",
+    "module.heightmap-viewer.saveScreenshotErrorTitle": "Сохранить снимок",
+    "module.heightmap-viewer.settings.supersample": "2x суперсэмплинг (AA при 2x)",
+    "module.heightmap-viewer.settings.msaa": "MSAA (сглаживание краёв)",
+    "module.heightmap-viewer.settings.showOrigin": "Показать начало координат",
+    "module.heightmap-viewer.stats": "Точек: {0}   Макс ΔZ: {1} {2}"
+  }
+}

@@ -173,6 +173,72 @@ public class HeightMapViewerViewModelTests
     }
 
     [Fact]
+    public void Stats_is_empty_without_a_layer()
+    {
+        using var vm = new HeightMapViewerViewModel(null, null);
+
+        Assert.Equal("", vm.StatsText);
+    }
+
+    [Fact]
+    public void Stats_reports_finite_point_count_and_max_deviation()
+    {
+        var source = new FakeSource();
+        using var vm = new HeightMapViewerViewModel(source, null);
+
+        source.Bus.OnNext(Map(1, 2, 3, 4));
+
+        Assert.Equal("Points: 4   Max ΔZ: 3 mm", vm.StatsText);
+    }
+
+    [Fact]
+    public void Stats_counts_only_finite_samples()
+    {
+        var source = new FakeSource();
+        using var vm = new HeightMapViewerViewModel(source, null);
+
+        source.Bus.OnNext(Map(1, double.NaN, 3, 4));
+
+        Assert.Equal("Points: 3   Max ΔZ: 3 mm", vm.StatsText);
+    }
+
+    [Fact]
+    public void Stats_raises_property_changed_on_a_layer_change()
+    {
+        var source = new FakeSource();
+        using var vm = new HeightMapViewerViewModel(source, null);
+        var raised = new List<string?>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        source.Bus.OnNext(Map(1, 2, 3, 4));
+
+        Assert.Contains(nameof(HeightMapViewerViewModel.StatsText), raised);
+    }
+
+    [Fact]
+    public void Stats_relocalizes_on_a_locale_switch()
+    {
+        var (loc, dir) = NewLocalization();
+        try
+        {
+            var source = new FakeSource();
+            using var vm = new HeightMapViewerViewModel(source, loc);
+            source.Bus.OnNext(Map(1, 2, 3, 4));
+            var raised = new List<string?>();
+            vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+            loc.SetLocale("ru");
+
+            Assert.Contains(nameof(HeightMapViewerViewModel.StatsText), raised);
+            Assert.Equal("RU 4/3", vm.StatsText);
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Fact]
     public void Dispose_unsubscribes_from_locale_changes()
     {
         var (loc, dir) = NewLocalization();
@@ -200,7 +266,7 @@ public class HeightMapViewerViewModelTests
         File.WriteAllText(Path.Combine(dir, "en.json"), """{"strings":{}}""");
         File.WriteAllText(
             Path.Combine(dir, "ru.json"),
-            """{"strings":{"module.heightmap-viewer.empty":"RU empty"}}""");
+            """{"strings":{"module.heightmap-viewer.empty":"RU empty","module.heightmap-viewer.stats":"RU {0}/{1}"}}""");
         return (LocalizationService.LoadFromDirectory(dir, "en"), dir);
     }
 

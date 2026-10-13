@@ -1,0 +1,19 @@
+{
+  "strings": {
+    "module.heightmap-viewer.name": "Carte de hauteur 3D",
+    "module.heightmap-viewer.description": "Vue 3D de la carte de hauteur mesurée.",
+    "module.heightmap-viewer.empty": "Aucune carte de hauteur chargée. Mesurez ou chargez d'abord une carte.",
+    "module.heightmap-viewer.title": "Carte de hauteur 3D",
+    "module.heightmap-viewer.reset": "Réinitialiser la vue",
+    "module.heightmap-viewer.zoomIn": "Zoom avant",
+    "module.heightmap-viewer.zoomOut": "Zoom arrière",
+    "module.heightmap-viewer.renderUnavailable": "Vue 3D indisponible",
+    "module.heightmap-viewer.renderUnavailableHint": "Impossible de créer un contexte OpenGL.",
+    "module.heightmap-viewer.saveScreenshot": "Enregistrer la capture (PNG)",
+    "module.heightmap-viewer.saveScreenshotErrorTitle": "Enregistrer la capture",
+    "module.heightmap-viewer.settings.supersample": "Superéchantillonnage 2x (AA en 2x)",
+    "module.heightmap-viewer.settings.msaa": "MSAA (AA des bords)",
+    "module.heightmap-viewer.settings.showOrigin": "Afficher l'origine",
+    "module.heightmap-viewer.stats": "Points : {0}   ΔZ max : {1} {2}"
+  }
+}

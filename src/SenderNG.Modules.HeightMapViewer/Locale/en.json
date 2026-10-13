@@ -5,9 +5,15 @@
     "module.heightmap-viewer.empty": "No height map loaded. Probe or load a map first.",
     "module.heightmap-viewer.title": "Height map 3D",
     "module.heightmap-viewer.reset": "Reset view",
+    "module.heightmap-viewer.zoomIn": "Zoom in",
+    "module.heightmap-viewer.zoomOut": "Zoom out",
     "module.heightmap-viewer.renderUnavailable": "3D view unavailable",
     "module.heightmap-viewer.renderUnavailableHint": "No OpenGL context could be created.",
     "module.heightmap-viewer.saveScreenshot": "Save screenshot (PNG)",
-    "module.heightmap-viewer.saveScreenshotErrorTitle": "Save screenshot"
+    "module.heightmap-viewer.saveScreenshotErrorTitle": "Save screenshot",
+    "module.heightmap-viewer.settings.supersample": "2x supersample (AA at 2x render)",
+    "module.heightmap-viewer.settings.msaa": "MSAA (edge AA)",
+    "module.heightmap-viewer.settings.showOrigin": "Show origin",
+    "module.heightmap-viewer.stats": "Points: {0}   Max ΔZ: {1} {2}"
   }
 }

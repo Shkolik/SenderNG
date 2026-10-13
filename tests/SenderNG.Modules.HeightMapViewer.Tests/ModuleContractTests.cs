@@ -12,7 +12,9 @@ public class ModuleContractTests
         var m = new HeightMapViewerModule();
         Assert.Equal("heightmap-viewer", m.Id);
         Assert.Equal(PanelHint.Dialog, m.Panel);
-        Assert.False(m.IsVisibleByDefault);
+        // Visible by default so the probing module's "3D View" gate is on for a
+        // fresh profile (see ProbeViewModel.IsRendererEnabled).
+        Assert.True(m.IsVisibleByDefault);
         Assert.True(m.CanHide);
         Assert.False(string.IsNullOrWhiteSpace(m.Version));
         Assert.False(string.IsNullOrWhiteSpace(m.Author));
