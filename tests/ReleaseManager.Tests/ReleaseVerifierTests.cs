@@ -88,13 +88,17 @@ public class ReleaseVerifierTests
         Assert.Contains("native runtime", ex.Message);
     }
 
-    [Fact]
-    public void Verify_rejects_missing_common_render()
+    [Theory]
+    [InlineData("SenderNG.Modules.Common.Render.dll")]
+    [InlineData("Silk.NET.Core.dll")]
+    [InlineData("Silk.NET.Maths.dll")]
+    [InlineData("Silk.NET.OpenGL.dll")]
+    public void Verify_rejects_missing_render_sdk_file(string fileName)
     {
         var bundle = CompleteBundle(ReleasePlatform.Win64);
-        File.Delete(Path.Combine(bundle, "Modules", "SenderNG.Modules.Common.Render.dll"));
+        File.Delete(Path.Combine(bundle, "Modules", fileName));
         var ex = Assert.Throws<StagingException>(() => ReleaseVerifier.Verify(bundle, ReleasePlatform.Win64));
-        Assert.Contains("SenderNG.Modules.Common.Render.dll", ex.Message);
+        Assert.Contains(fileName, ex.Message);
     }
 
     [Fact]
@@ -117,6 +121,8 @@ public class ReleaseVerifierTests
         File.WriteAllText(Path.Combine(dir, "SenderNG.Core.dll"), "core");
         File.WriteAllText(Path.Combine(dir, "Modules", "SenderNG.Modules.Common.dll"), "sdk");
         File.WriteAllText(Path.Combine(dir, "Modules", "SenderNG.Modules.Common.Render.dll"), "render");
+        File.WriteAllText(Path.Combine(dir, "Modules", "Silk.NET.Core.dll"), "silk");
+        File.WriteAllText(Path.Combine(dir, "Modules", "Silk.NET.Maths.dll"), "silk");
         File.WriteAllText(Path.Combine(dir, "Modules", "Silk.NET.OpenGL.dll"), "silk");
         File.WriteAllText(Path.Combine(dir, platform == ReleasePlatform.Win64 ? "coreclr.dll" : "libcoreclr.so"), "native");
         File.WriteAllText(Path.Combine(dir, "LICENSE"), "BSD 3-Clause\n");

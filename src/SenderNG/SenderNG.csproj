@@ -62,6 +62,26 @@
       <Link>Modules\SenderNG.Modules.Common.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- Render SDK: Common.Render + its Silk.NET closure ship flat in Modules/
+         (Model A), referenced by plugins, never bundled per plugin. Declared as
+         None items rather than a copy target so `dotnet publish -o` carries them
+         (publish is driven by project items, not by files in the build output). -->
+    <None Include="..\SenderNG.Modules.Common.Render\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Common.Render.dll">
+      <Link>Modules\SenderNG.Modules.Common.Render.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\SenderNG.Modules.Common.Render\bin\$(Configuration)\$(TargetFramework)\Silk.NET.Core.dll">
+      <Link>Modules\Silk.NET.Core.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\SenderNG.Modules.Common.Render\bin\$(Configuration)\$(TargetFramework)\Silk.NET.Maths.dll">
+      <Link>Modules\Silk.NET.Maths.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\SenderNG.Modules.Common.Render\bin\$(Configuration)\$(TargetFramework)\Silk.NET.OpenGL.dll">
+      <Link>Modules\Silk.NET.OpenGL.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="..\SenderNG.Modules.Excellon\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Excellon.dll">
       <Link>Modules\SenderNG.Modules.Excellon.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -108,14 +128,4 @@
     <InternalsVisibleTo Include="SenderNG.Core.Tests" />
     <InternalsVisibleTo Include="SenderNG.Tests" />
   </ItemGroup>
-
-  <Target Name="StageRenderSdk" AfterTargets="Build">
-    <ItemGroup>
-      <_RenderSdk Include="..\SenderNG.Modules.Common.Render\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Common.Render.dll;
-                       ..\SenderNG.Modules.Common.Render\bin\$(Configuration)\$(TargetFramework)\Silk.NET.Core.dll;
-                       ..\SenderNG.Modules.Common.Render\bin\$(Configuration)\$(TargetFramework)\Silk.NET.Maths.dll;
-                       ..\SenderNG.Modules.Common.Render\bin\$(Configuration)\$(TargetFramework)\Silk.NET.OpenGL.dll" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_RenderSdk)" DestinationFolder="$(OutputPath)Modules" SkipUnchangedFiles="true" />
-  </Target>
 </Project>

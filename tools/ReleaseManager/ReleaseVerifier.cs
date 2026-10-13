@@ -52,6 +52,9 @@ public static class ReleaseVerifier
             "SenderNG.Core.dll",
             Path.Combine("Modules", "SenderNG.Modules.Common.dll"),
             Path.Combine("Modules", "SenderNG.Modules.Common.Render.dll"),
+            Path.Combine("Modules", "Silk.NET.Core.dll"),
+            Path.Combine("Modules", "Silk.NET.Maths.dll"),
+            Path.Combine("Modules", "Silk.NET.OpenGL.dll"),
             "LICENSE"
         };
         foreach (var relative in required)
