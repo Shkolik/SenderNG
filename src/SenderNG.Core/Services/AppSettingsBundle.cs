@@ -147,7 +147,10 @@ public sealed class AppSettingsBundle
                 return new AppSettingsBundleReadResult(
                     null, $"The archive has {entries.Count} entries; at most {AppSettingsBundleLayout.MaxEntries} are allowed.");
 
-            var seen = new HashSet<string>(StringComparer.Ordinal);
+            // Case-insensitive: profile ids are lowercase slugs by construction, so two
+            // entries differing only in case are a duplicate, not two files. With an
+            // ordinal set the second one would silently overwrite the first on Windows.
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var entry in entries)
             {
                 if (!AppSettingsBundleLayout.IsAllowedEntryName(entry.FullName))

@@ -382,6 +382,25 @@ public class AppSettingsBundleTests
     }
 
     [Fact]
+    public void ReadFrom_rejects_entry_names_that_collide_case_insensitively()
+    {
+        // profile ids are lowercase slugs, so no legitimate archive holds both; on
+        // Windows the second file would silently overwrite the first while the
+        // restore still reported two files written.
+        var path = WriteZip(ZipPath("casecollision"),
+            (".senderng-backup.json", ManifestJson()),
+            ("global.json", GlobalJsonText),
+            ("profiles/Mill.json", ProfileJson("Mill")),
+            ("profiles/mill.json", ProfileJson("mill")));
+
+        var result = AppSettingsBundle.ReadFrom(path);
+
+        Assert.False(result.Ok);
+        Assert.Contains("profiles/mill.json", result.Error!, StringComparison.Ordinal);
+        Assert.Contains("more than once", result.Error!, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ReadFrom_rejects_too_many_entries()
     {
         var entries = new List<(string, string)> { (".senderng-backup.json", ManifestJson()), ("global.json", GlobalJsonText) };
