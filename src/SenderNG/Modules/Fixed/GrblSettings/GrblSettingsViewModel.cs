@@ -477,8 +477,9 @@ public sealed class GrblSettingsViewModel : ViewModelBase
     // returns a binding is not applied to Button.Content in this Avalonia version — the
     // binding object lands as the content and never resolves. Resolving here keeps the
     // labels localized and directly assertable. The keys already exist in all catalogs.
-    public string BackupText => _localization.Resolve("module.grbl-settings.backup", "Back up…");
-    public string RestoreText => _localization.Resolve("module.grbl-settings.restore", "Restore…");
+    // No trailing ellipsis: these are buttons, not menu items that open a dialog.
+    public string BackupText => _localization.Resolve("module.grbl-settings.backup", "Back up");
+    public string RestoreText => _localization.Resolve("module.grbl-settings.restore", "Restore");
     public string ApplyRestoreText => _localization.Resolve("module.grbl-settings.restoreApply", "Apply restore");
     public string CancelRestoreText => _localization.Resolve("module.grbl-settings.restoreCancel", "Cancel");
     public string LoadText => _localization.Resolve("module.grbl-settings.load", "Load");
@@ -733,8 +734,10 @@ public sealed class GrblSettingsViewModel : ViewModelBase
                 snapshot, _grbl.Capabilities, AppVersion, DateTimeOffset.UtcNow).ToJson();
             await File.WriteAllTextAsync(path, json);
 
+            // No file path in the status: at 660x520 there is never room for one, and the
+            // status line ellipsises anyway. The path is the one the user just picked.
             Status = LocText.Format("module.grbl-settings.backupSaved",
-                "Backed up {0} settings from the controller to {1}.", backedUp, path);
+                "Backed up {0} settings from the controller.", backedUp);
             if (excluded > 0)
                 Status += " " + LocText.Format("module.grbl-settings.backupExcluded",
                     "{0} unsaved edits were not included.", excluded);

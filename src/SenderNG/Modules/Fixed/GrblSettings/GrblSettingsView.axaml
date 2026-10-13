@@ -28,31 +28,44 @@ BSD 3-Clause License: see this file for the full license text.
                      the 660x520 dialog. -->
                 <Border Grid.Row="0" x:Name="RestoreStrip" Background="#fff8e1" BorderBrush="#e0c060" BorderThickness="1"
                         Padding="8,6" Margin="0,0,0,8" IsVisible="{Binding HasRestorePlan}">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Text="{Binding RestoreSummary}" FontSize="11" Foreground="#5a4a00"
-                                   TextWrapping="Wrap" MaxWidth="440" VerticalAlignment="Center" />
-                        <Button Content="{Binding ApplyRestoreText}"
-                                Command="{Binding ApplyRestoreCommand}"
-                                Height="28" MinHeight="28" CornerRadius="0"
-                                Background="#eee" BorderBrush="#999" BorderThickness="1"
-                                Padding="14,0" VerticalContentAlignment="Center" />
-                        <Button Content="{Binding CancelRestoreText}"
-                                Command="{Binding CancelRestoreCommand}"
-                                Height="28" MinHeight="28" CornerRadius="0"
-                                Background="#eee" BorderBrush="#999" BorderThickness="1"
-                                Padding="14,0" VerticalContentAlignment="Center" />
-                    </StackPanel>
+                    <!-- Grid, not a horizontal StackPanel: a StackPanel measures children with
+                         infinite width, so the wrapping summary would not be constrained and the
+                         buttons could be pushed out of the 660x520 dialog. -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding RestoreSummary}" FontSize="11"
+                                   Foreground="#5a4a00" TextWrapping="Wrap" VerticalAlignment="Center"
+                                   Margin="0,0,10,0" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
+                                    VerticalAlignment="Center">
+                            <Button Content="{Binding ApplyRestoreText}"
+                                    Command="{Binding ApplyRestoreCommand}"
+                                    Height="28" MinHeight="28" CornerRadius="0"
+                                    Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                    Padding="14,0" VerticalContentAlignment="Center" />
+                            <Button Content="{Binding CancelRestoreText}"
+                                    Command="{Binding CancelRestoreCommand}"
+                                    Height="28" MinHeight="28" CornerRadius="0"
+                                    Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                    Padding="14,0" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
                 </Border>
 
                 <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Status}" FontSize="10" Foreground="#888"
-                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                        <Rectangle Width="1" Height="16" Fill="#ccc" VerticalAlignment="Center"
-                                   IsVisible="{Binding HasSelection}" />
-                        <TextBlock Text="{Binding SelectedEditSummary}" FontSize="10"
-                                   Foreground="#666" VerticalAlignment="Center" IsVisible="{Binding HasSelection}" />
-                    </StackPanel>
+                    <!-- Bounded star column so TextTrimming actually trims. A horizontal
+                         StackPanel measured the status with infinite width, which is why the text
+                         rendered underneath the buttons; the full text stays reachable in the
+                         tooltip. -->
+                    <Grid Grid.Column="0" ColumnDefinitions="*,Auto,Auto" ClipToBounds="True" Margin="0,0,8,0">
+                        <TextBlock Grid.Column="0" Text="{Binding Status}" FontSize="10" Foreground="#888"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding Status}" />
+                        <Rectangle Grid.Column="1" Width="1" Height="16" Fill="#ccc" VerticalAlignment="Center"
+                                   Margin="8,0" IsVisible="{Binding HasSelection}" />
+                        <TextBlock Grid.Column="2" Text="{Binding SelectedEditSummary}" FontSize="10"
+                                   Foreground="#666" VerticalAlignment="Center" IsVisible="{Binding HasSelection}"
+                                   TextTrimming="CharacterEllipsis" />
+                    </Grid>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <Button Content="{Binding BackupText}" Command="{Binding BackupCommand}"
                                 IsEnabled="{Binding CanTransfer}"

@@ -171,7 +171,10 @@ public class GrblSettingsViewModelBackupRestoreTests
         Assert.Equal("10", backup.Settings.Single(s => s.Id == 0).Value);
         Assert.Equal("800.000", backup.Settings.Single(s => s.Id == 110).Value);
         Assert.Contains("2 settings", vm.Status);
-        Assert.Contains(path, vm.Status);
+        // The status must NOT carry the file path: at 660x520 the footer never has room for one
+        // (it ellipsised mid-path before), and the user just chose the file.
+        Assert.DoesNotContain(path, vm.Status);
+        Assert.DoesNotContain(".json", vm.Status);
     }
 
     [Fact]
@@ -612,8 +615,8 @@ public class GrblSettingsViewModelBackupRestoreTests
         var vm = CreateVm(new StubProvider { ValueLines = ["$0=10"] }, new FakeGrbl(), new StubDialogs());
         await vm.LoadAsync();
 
-        Assert.Equal("Back up…", vm.BackupText);
-        Assert.Equal("Restore…", vm.RestoreText);
+        Assert.Equal("Back up", vm.BackupText);
+        Assert.Equal("Restore", vm.RestoreText);
         Assert.Equal("Apply restore", vm.ApplyRestoreText);
         Assert.Equal("Cancel", vm.CancelRestoreText);
         Assert.Equal("Load", vm.LoadText);

@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Themes.Fluent;
@@ -233,15 +234,14 @@ public class GrblSettingsViewHeadlessTests
             var buttons = window.GetVisualDescendants().OfType<Button>().ToList();
 
             // The transfer buttons render, carry localized labels, and are gated on the connection.
-            var backupButton = buttons.SingleOrDefault(b => Equals(b.Content, "Back up…"));
-            var restoreButton = buttons.SingleOrDefault(b => Equals(b.Content, "Restore…"));
+            var backupButton = buttons.SingleOrDefault(b => Equals(b.Content, "Back up"));
+            var restoreButton = buttons.SingleOrDefault(b => Equals(b.Content, "Restore"));
             Assert.NotNull(backupButton);
             Assert.NotNull(restoreButton);
             Assert.True(backupButton.Bounds.Width > 0, "the Back up button was not laid out");
             Assert.True(restoreButton.Bounds.Width > 0, "the Restore button was not laid out");
             Assert.True(backupButton.IsEnabled && restoreButton.IsEnabled);
             Assert.True(vm.CanTransfer);
-
             // The confirm strip is bound to HasRestorePlan: collapsed while no plan waits.
             Assert.False(vm.HasRestorePlan);
             var strip = FindStrip(window);
@@ -280,6 +280,60 @@ public class GrblSettingsViewHeadlessTests
 
             Assert.False(vm.HasRestorePlan);
             Assert.False(FindStrip(window)!.IsVisible, "the confirm strip must collapse after Cancel");
+        }
+        finally
+        {
+            window?.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Status_text_stays_inside_its_column_and_carries_the_full_text_as_a_tooltip()
+    {
+        // Regression: the status TextBlock used to sit in a horizontal StackPanel, which
+        // measures its children with INFINITE width — TextTrimming therefore never bit, and the
+        // status rendered underneath the transfer buttons. A status far longer than the 660px
+        // footer can hold is forced here (a failed restore names the missing file).
+        var window = default(Window);
+        try
+        {
+            var provider = new StubProvider { ValueLines = ["$0=10"] };
+            var grbl = new FakeGrbl();
+            await grbl.ConnectAsync("stub");
+            var dialogs = new StubDialogs();
+            var vm = new GrblSettingsViewModel(provider, grbl, HeadlessTestCatalog.Locale, dialogs);
+            vm.LoadAsync().GetAwaiter().GetResult();
+
+            var view = new GrblSettingsView { DataContext = vm };
+            window = new Window { Width = 660, Height = 520, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            dialogs.OpenPath = Path.Combine(
+                Path.GetTempPath(), new string('x', 120), "does-not-exist.json");
+            await vm.RestoreAsync();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            Assert.Contains("Restore failed", vm.Status);
+            Assert.True(vm.Status.Length > 80, "the status must be long enough to need trimming");
+
+            var status = window.GetVisualDescendants().OfType<TextBlock>()
+                .First(t => t.Text == vm.Status);
+            var backupButton = window.GetVisualDescendants().OfType<Button>()
+                .First(b => Equals(b.Content, "Back up"));
+
+            // Trimming is configured, and the untrimmed text stays reachable in the tooltip.
+            Assert.Equal(TextTrimming.CharacterEllipsis, status.TextTrimming);
+            Assert.Equal(vm.Status, ToolTip.GetTip(status));
+
+            // Bounded by its star column, so it can never reach the buttons to its right.
+            Assert.True(status.Bounds.Width > 0, "the status was not laid out");
+            var statusRight = status.TranslatePoint(new Point(status.Bounds.Width, 0), window)!.Value.X;
+            var buttonLeft = backupButton.TranslatePoint(new Point(0, 0), window)!.Value.X;
+            Assert.True(statusRight <= buttonLeft + 1,
+                $"the status runs under the buttons: status right={statusRight:F1}, Back up left={buttonLeft:F1}");
         }
         finally
         {
