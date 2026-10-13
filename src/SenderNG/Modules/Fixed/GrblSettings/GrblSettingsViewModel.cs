@@ -473,18 +473,6 @@ public sealed class GrblSettingsViewModel : ViewModelBase
     /// </summary>
     public bool CanTransfer => _grbl.IsConnected;
 
-    // Button labels are view-model strings (not {loc:Loc} markup): a markup extension that
-    // returns a binding is not applied to Button.Content in this Avalonia version — the
-    // binding object lands as the content and never resolves. Resolving here keeps the
-    // labels localized and directly assertable. The keys already exist in all catalogs.
-    // No trailing ellipsis: these are buttons, not menu items that open a dialog.
-    public string BackupText => _localization.Resolve("module.grbl-settings.backup", "Back up");
-    public string RestoreText => _localization.Resolve("module.grbl-settings.restore", "Restore");
-    public string ApplyRestoreText => _localization.Resolve("module.grbl-settings.restoreApply", "Apply restore");
-    public string CancelRestoreText => _localization.Resolve("module.grbl-settings.restoreCancel", "Cancel");
-    public string LoadText => _localization.Resolve("module.grbl-settings.load", "Load");
-    public string SaveText => _localization.Resolve("module.grbl-settings.saveChanges", "Save changes");
-
     /// <summary>A parsed backup is waiting for Apply / Cancel — shows the inline confirm strip.</summary>
     public bool HasRestorePlan => _restorePlan is not null;
 
@@ -672,24 +660,32 @@ public sealed class GrblSettingsViewModel : ViewModelBase
     }
 
     /// <summary>One rejected setting as "$1 (must be a number)", ready for the status line.</summary>
-    private static string DescribeInvalid(GrblSettingItem item)
+    private static string DescribeInvalid(GrblSettingItem item) =>
+        DescribeInvalid(item, item.Key, item.Validate());
+
+    /// <summary>
+    /// One rejected setting as "$1 (must be a number)". <paramref name="board"/> supplies the
+    /// bounds for the message and may be null — a restore-plan row can name an id the freshly
+    /// reloaded board no longer reports.
+    /// </summary>
+    private static string DescribeInvalid(GrblSettingItem? board, string key, GrblSettingValidationError error)
     {
-        var reason = item.Validate() switch
+        var reason = error switch
         {
-            GrblSettingValidationError.OutOfRange when item.Min is not null && item.Max is not null =>
+            GrblSettingValidationError.OutOfRange when board?.Min is not null && board.Max is not null =>
                 LocText.Format("module.grbl-settings.reason.outOfRange", "must be between {0} and {1}",
-                    GrblSettingItem.FormatBound(item.Min), GrblSettingItem.FormatBound(item.Max)),
-            GrblSettingValidationError.OutOfRange when item.Min is not null =>
+                    GrblSettingItem.FormatBound(board.Min), GrblSettingItem.FormatBound(board.Max)),
+            GrblSettingValidationError.OutOfRange when board?.Min is not null =>
                 LocText.Format("module.grbl-settings.reason.minOnly", "must be at least {0}",
-                    GrblSettingItem.FormatBound(item.Min)),
+                    GrblSettingItem.FormatBound(board.Min)),
             GrblSettingValidationError.OutOfRange =>
                 LocText.Format("module.grbl-settings.reason.maxOnly", "must be at most {0}",
-                    GrblSettingItem.FormatBound(item.Max)),
+                    GrblSettingItem.FormatBound(board?.Max)),
             GrblSettingValidationError.MalformedIp =>
                 LocText.Resolve("module.grbl-settings.reason.invalidIp", "must be a dotted-quad address"),
             _ => LocText.Resolve("module.grbl-settings.reason.notNumber", "must be a number"),
         };
-        return $"{item.Key} ({reason})";
+        return $"{key} ({reason})";
     }
 
     /// <summary>
@@ -724,7 +720,7 @@ public sealed class GrblSettingsViewModel : ViewModelBase
             var excluded = _allItems.Count(static i => i.IsDirty);
 
             var path = await _dialogs.SaveFileAsync(
-                LocText.Resolve("module.grbl-settings.backup", "Back up…"),
+                LocText.Resolve("module.grbl-settings.backup", "Back up"),
                 $"grbl-settings-{DateTime.Now:yyyy-MM-dd}.json",
                 "SenderNG grbl settings|*.json");
             if (string.IsNullOrEmpty(path))
@@ -767,7 +763,7 @@ public sealed class GrblSettingsViewModel : ViewModelBase
         try
         {
             var path = await _dialogs.OpenFileAsync(
-                LocText.Resolve("module.grbl-settings.restore", "Restore…"), "SenderNG grbl settings|*.json");
+                LocText.Resolve("module.grbl-settings.restore", "Restore"), "SenderNG grbl settings|*.json");
             if (string.IsNullOrEmpty(path))
                 return; // cancelled — leave the status as it was
 
@@ -863,7 +859,7 @@ public sealed class GrblSettingsViewModel : ViewModelBase
         var missed = reloaded
             ? applied
                 .Where(item => _allItems.FirstOrDefault(i => i.Id == item.Id) is not { } board
-                    || !string.Equals(board.Value, item.Value, StringComparison.Ordinal))
+                    || !SameValue(board.Value, item.Value))
                 .Select(static item => $"${item.Id}")
                 .ToList()
             : [];
@@ -881,7 +877,30 @@ public sealed class GrblSettingsViewModel : ViewModelBase
         if (rebootIds.Count > 0)
             status += " " + LocText.Resolve("module.grbl-settings.rebootRequired",
                 "Some restored settings need a controller restart to take effect.");
+        // Rows the plan refused are counted in the pre-apply strip; name them here too. Once the
+        // strip collapses, a skipped row would otherwise look like a successful restore.
+        var invalid = plan.Items.Where(static i => i.Action == GrblRestoreAction.Invalid).ToList();
+        if (invalid.Count > 0)
+            status += " " + LocText.Format("module.grbl-settings.restoreSkipped",
+                "{0} settings were not applied: {1}", invalid.Count,
+                string.Join(", ", invalid.Select(i => DescribeInvalid(
+                    _allItems.FirstOrDefault(b => b.Id == i.Id), $"${i.Id}",
+                    i.Reason ?? GrblSettingValidationError.None))));
         Status = status;
+    }
+
+    /// <summary>
+    /// True when the board's freshly reported value matches what the restore wrote. A controller may
+    /// accept <c>$110=900</c> and report it back in its own format (<c>900.000</c>) — that is a landed
+    /// write, not a failure, and a cross-controller restore is the feature's headline case. Numbers
+    /// therefore compare numerically; anything else compares as text.
+    /// </summary>
+    private static bool SameValue(string boardValue, string? written)
+    {
+        if (double.TryParse(boardValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var reported) &&
+            double.TryParse(written, NumberStyles.Float, CultureInfo.InvariantCulture, out var intended))
+            return reported.Equals(intended);
+        return string.Equals(boardValue, written, StringComparison.Ordinal);
     }
 
     /// <summary>Discard a pending restore plan without sending anything.</summary>

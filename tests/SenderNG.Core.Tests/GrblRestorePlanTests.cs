@@ -354,4 +354,51 @@ public class GrblRestorePlanTests
         Assert.Equal("800", item.OriginalValue);
         Assert.False(item.IsDirty);
     }
+
+    /// <summary>$14's real catalog format: positions 0, 4 and 5 are labelled "N/A" (those signals
+    /// are driver dependent) and are SKIPPED when GrblSettingItem builds its checkbox set.</summary>
+    private const string ControlInvertFormat = "N/A,Feed hold,Cycle start,Safety door,N/A,N/A,EStop";
+
+    [Fact]
+    public void A_bit_value_using_a_declared_but_unrendered_N_A_position_is_still_Apply()
+    {
+        // The board itself holds bit 0 (an N/A position) and the editor deliberately preserves such
+        // bits when a checkbox is toggled, so a backup of the board's own value must not be refused
+        // merely because that position has no visible checkbox.
+        var board = new[] { BoardItem(14, GrblSettingType.Bitfield, "1", format: ControlInvertFormat) };
+        Assert.DoesNotContain(board[0].Bits, b => b.Mask == 1); // the rendered bits really skip it
+
+        var plan = GrblRestorePlan.Create(Backup("k", BackupSetting(14, "3")), board, "k");
+
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(GrblRestoreAction.Apply, item.Action);
+        Assert.Equal("3", item.Value);
+    }
+
+    [Fact]
+    public void A_bit_value_beyond_every_declared_position_is_still_Invalid()
+    {
+        // Seven declared positions, so bit 7 is outside the domain the metadata declares.
+        var board = new[] { BoardItem(14, GrblSettingType.Bitfield, "0", format: ControlInvertFormat) };
+
+        var plan = GrblRestorePlan.Create(Backup("k", BackupSetting(14, "128")), board, "k");
+
+        Assert.Equal(GrblRestoreAction.Invalid, Assert.Single(plan.Items).Action);
+    }
+
+    [Fact]
+    public void A_padded_or_negative_candidate_is_rejected_rather_than_forwarded_verbatim()
+    {
+        var board = new[] { BoardItem(32, GrblSettingType.Bool, "0") };
+
+        // AllowLeadingSign: padding is refused instead of being sent as "$32= 1 ".
+        var padded = Assert.Single(GrblRestorePlan.Create(Backup("k", BackupSetting(32, " 1 ")), board, "k").Items);
+        Assert.Equal(GrblRestoreAction.Invalid, padded.Action);
+        Assert.Equal(GrblSettingValidationError.NotNumeric, padded.Reason!.Value);
+
+        // A sign still parses, so it reports as out of range rather than "not a number".
+        var negative = Assert.Single(GrblRestorePlan.Create(Backup("k", BackupSetting(32, "-1")), board, "k").Items);
+        Assert.Equal(GrblRestoreAction.Invalid, negative.Action);
+        Assert.Equal(GrblSettingValidationError.OutOfRange, negative.Reason!.Value);
+    }
 }

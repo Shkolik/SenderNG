@@ -610,17 +610,16 @@ public class GrblSettingsViewModelBackupRestoreTests
     }
 
     [Fact]
-    public async Task The_transfer_button_labels_come_from_the_locale_catalog()
+    public void The_transfer_button_labels_come_from_the_locale_catalog()
     {
-        var vm = CreateVm(new StubProvider { ValueLines = ["$0=10"] }, new FakeGrbl(), new StubDialogs());
-        await vm.LoadAsync();
-
-        Assert.Equal("Back up", vm.BackupText);
-        Assert.Equal("Restore", vm.RestoreText);
-        Assert.Equal("Apply restore", vm.ApplyRestoreText);
-        Assert.Equal("Cancel", vm.CancelRestoreText);
-        Assert.Equal("Load", vm.LoadText);
-        Assert.Equal("Save changes", vm.SaveText);
+        // The view labels those six buttons with {loc:Loc}; this pins the catalog values they
+        // resolve to (the rendered result is asserted in the headless view test).
+        Assert.Equal("Back up", Loc.T("module.grbl-settings.backup"));
+        Assert.Equal("Restore", Loc.T("module.grbl-settings.restore"));
+        Assert.Equal("Apply restore", Loc.T("module.grbl-settings.restoreApply"));
+        Assert.Equal("Cancel", Loc.T("module.grbl-settings.restoreCancel"));
+        Assert.Equal("Load", Loc.T("module.grbl-settings.load"));
+        Assert.Equal("Save changes", Loc.T("module.grbl-settings.saveChanges"));
     }
 
     [Fact]
@@ -666,5 +665,36 @@ public class GrblSettingsViewModelBackupRestoreTests
         return "{\"kind\":\"senderng-grbl-settings\",\"formatVersion\":1,\"createdUtc\":\"2026-10-13T00:00:00Z\","
             + "\"appVersion\":\"test\",\"controller\":{\"key\":\"demo\",\"firmware\":\"demo\",\"version\":\"1\",\"build\":0,"
             + "\"numAxes\":3,\"isGrblHAL\":true,\"metadataFromController\":true},\"settings\":[" + entries + "]}";
+    }
+
+    [Fact]
+    public async Task ApplyRestore_names_the_settings_it_refused_to_write()
+    {
+        // A row the plan refused is counted in the pre-apply strip; once that strip collapses it
+        // must not look like a successful restore, so the final status names it and the reason.
+        var provider = new StubProvider
+        {
+            ValueLines = ["$32=0"],
+            DetailLines = ["[SETTING:32|1|Mode|mm|3|Left,Right,Both|0|2|0|0]"], // 3 options => 0..2
+            GroupLines = ["[SETTINGGROUP:1|0|General]"],
+        };
+        var grbl = new FakeGrbl();
+        await grbl.ConnectAsync("stub");
+        var dialogs = new StubDialogs();
+        var vm = CreateVm(provider, grbl, dialogs);
+        await vm.LoadAsync();
+
+        var path = TempFile(".json");
+        await File.WriteAllTextAsync(path, BackupJson(("32", "9"))); // outside the option domain
+        dialogs.OpenPath = path;
+        await vm.RestoreAsync();
+
+        Assert.True(vm.HasRestorePlan);
+        await vm.ApplyRestoreAsync();
+
+        Assert.Empty(grbl.Sent);                   // nothing was written…
+        Assert.Contains("not applied", vm.Status); // …and the user is told which one, and why
+        Assert.Contains("$32", vm.Status);
+        Assert.Contains("between 0 and 2", vm.Status); // the bonded-range message for the 0..2 domain
     }
 }

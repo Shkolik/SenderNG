@@ -225,22 +225,37 @@ internal sealed class GrblRestorePlan
 
     private static GrblSettingValidationError ValidateDomain(string value, int min, int max)
     {
-        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
+        // AllowLeadingSign only: a padded or hex-ish hand edit (" 1 ", "0x1") is refused rather
+        // than forwarded to the controller verbatim, while "-1" still reports as out of range.
+        if (!int.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var n))
             return GrblSettingValidationError.NotNumeric;
         return n >= min && n <= max ? GrblSettingValidationError.None : GrblSettingValidationError.OutOfRange;
     }
 
     private static GrblSettingValidationError ValidateBitMask(string value, GrblSettingItem board)
     {
-        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var mask))
+        if (!int.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var mask))
             return GrblSettingValidationError.NotNumeric;
+        if (mask < 0)
+            return GrblSettingValidationError.OutOfRange;
 
-        var allowed = 0;
-        foreach (var bit in board.Bits)
-            allowed |= bit.Mask;
+        // The domain is every DECLARED bit position — not just the rendered checkboxes.
+        // GrblSettingItem SKIPS placeholder ("N/A") labels when it builds Bits, and its editor
+        // deliberately preserves those bits when a checkbox is toggled: they are unnamed
+        // ("driver dependent" in the catalog), not provably unused, and the board itself can
+        // hold one. Ranging against the rendered masks alone would refuse a backup of the
+        // board's own value (e.g. $14 "N/A,Feed hold,Cycle start,Safety door,N/A,N/A,EStop").
+        var width = board.Options.Length;
+        var allowed = width >= 31 ? int.MaxValue : width > 0 ? (1 << width) - 1 : 0;
+        // Plus whatever the board holds, so a catalog that under-declares its positions cannot
+        // refuse the board's own value.
+        allowed |= HeldBits(board.OriginalValue);
 
-        return mask >= 0 && (mask & ~allowed) == 0
-            ? GrblSettingValidationError.None
-            : GrblSettingValidationError.OutOfRange;
+        return (mask & ~allowed) == 0 ? GrblSettingValidationError.None : GrblSettingValidationError.OutOfRange;
     }
+
+    private static int HeldBits(string value) =>
+        int.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var held) && held > 0
+            ? held
+            : 0;
 }

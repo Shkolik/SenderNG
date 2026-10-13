@@ -41,6 +41,7 @@ using Avalonia.Media;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Themes.Fluent;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
@@ -70,6 +71,7 @@ public sealed class UiHeadlessApp : Application
     }
 }
 
+[Collection("LocalizationState")] // sets LocalizationService.Current and switches the live locale
 public class GrblSettingsViewHeadlessTests
 {
     private sealed class StubProvider : IGrblSettingsProvider
@@ -202,19 +204,28 @@ public class GrblSettingsViewHeadlessTests
         window.Close();
     }
 
-    /// <summary>Yield so the headless SynchronizationContext runs a pending layout/render.</summary>
+    /// <summary>
+    /// Yield so the headless SynchronizationContext runs a pending layout/render. `RunJobs` is
+    /// load-bearing, not tidiness: a `{loc:Loc}` binding delivers its first value through
+    /// `Dispatcher.UIThread.Post` (Localization/Loc.cs), so without draining the queue every
+    /// localized Button.Content in this view reads back as null and a label assertion would look
+    /// like "the markup extension does not work in this view" when it does.
+    /// </summary>
     private static async Task Pump()
     {
         AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+        Dispatcher.UIThread.RunJobs();
         await Task.Yield();
     }
 
     [AvaloniaFact]
     public async Task Backup_and_restore_buttons_render_and_the_strip_follows_the_plan()
     {
-        // The labels are view-model strings (Button.Content from a {loc:Loc} markup
-        // extension does not resolve in this Avalonia version), so the view model's own
-        // catalog is the source. Construct the view after the locale is in place.
+        // The buttons are labelled with {loc:Loc}, which resolves through
+        // LocalizationService.Current and follows a live locale switch — provided the pump drains
+        // the dispatcher (see Pump). Construct the view with the locale in place.
+        var prevLocale = LocalizationService.Current;
+        LocalizationService.Current = HeadlessTestCatalog.Locale;
         var window = default(Window);
         try
         {
@@ -280,9 +291,23 @@ public class GrblSettingsViewHeadlessTests
 
             Assert.False(vm.HasRestorePlan);
             Assert.False(FindStrip(window)!.IsVisible, "the confirm strip must collapse after Cancel");
+
+            // A {loc:Loc} label follows a LIVE locale switch. The VM-string variant this replaced did
+            // not, and the difference is only observable with a dispatcher-draining pump.
+            if (HeadlessTestCatalog.Locale.AvailableLocales.Contains("ru"))
+            {
+                HeadlessTestCatalog.Locale.SetLocale("ru");
+                for (var i = 0; i < 4; i++)
+                    await Pump();
+                Assert.Contains(window.GetVisualDescendants().OfType<Button>(),
+                    b => Equals(b.Content, "Резервная копия"));
+            }
         }
         finally
         {
+            if (HeadlessTestCatalog.Locale.AvailableLocales.Contains("ru"))
+                HeadlessTestCatalog.Locale.SetLocale("en");
+            LocalizationService.Current = prevLocale;
             window?.Close();
         }
     }
@@ -294,6 +319,10 @@ public class GrblSettingsViewHeadlessTests
         // measures its children with INFINITE width — TextTrimming therefore never bit, and the
         // status rendered underneath the transfer buttons. A status far longer than the 660px
         // footer can hold is forced here (a failed restore names the missing file).
+        // The catalog must be in place: {loc:Loc} falls back to its raw KEY without it, which makes
+        // the buttons wide enough to squeeze the status column to zero width.
+        var prevLocale = LocalizationService.Current;
+        LocalizationService.Current = HeadlessTestCatalog.Locale;
         var window = default(Window);
         try
         {
@@ -313,7 +342,7 @@ public class GrblSettingsViewHeadlessTests
             dialogs.OpenPath = Path.Combine(
                 Path.GetTempPath(), new string('x', 120), "does-not-exist.json");
             await vm.RestoreAsync();
-            for (var i = 0; i < 4; i++)
+            for (var i = 0; i < 8; i++)
                 await Pump();
 
             Assert.Contains("Restore failed", vm.Status);
@@ -321,15 +350,17 @@ public class GrblSettingsViewHeadlessTests
 
             var status = window.GetVisualDescendants().OfType<TextBlock>()
                 .First(t => t.Text == vm.Status);
+            // Identified by command, not by label: this test is about geometry, not localization.
             var backupButton = window.GetVisualDescendants().OfType<Button>()
-                .First(b => Equals(b.Content, "Back up"));
+                .First(b => ReferenceEquals(b.Command, vm.BackupCommand));
 
             // Trimming is configured, and the untrimmed text stays reachable in the tooltip.
             Assert.Equal(TextTrimming.CharacterEllipsis, status.TextTrimming);
             Assert.Equal(vm.Status, ToolTip.GetTip(status));
 
             // Bounded by its star column, so it can never reach the buttons to its right.
-            Assert.True(status.Bounds.Width > 0, "the status was not laid out");
+            Assert.True(status.Bounds.Width > 0,
+                $"the status was not laid out (status={status.Bounds}, parent={(status.Parent as Visual)?.Bounds})");
             var statusRight = status.TranslatePoint(new Point(status.Bounds.Width, 0), window)!.Value.X;
             var buttonLeft = backupButton.TranslatePoint(new Point(0, 0), window)!.Value.X;
             Assert.True(statusRight <= buttonLeft + 1,
@@ -337,6 +368,7 @@ public class GrblSettingsViewHeadlessTests
         }
         finally
         {
+            LocalizationService.Current = prevLocale;
             window?.Close();
         }
     }
