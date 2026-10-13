@@ -36,7 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Globalization;
 using System.IO;
-using System.Xml;
+using System.Text.Json;
 
 namespace SenderNG.Modules.Probing.Core;
 
@@ -50,13 +50,10 @@ public readonly struct Vec2(double x, double y)
 /// <summary>
 /// Rectangular Z-height grid over a workpiece area. Ported from ioSender's
 /// <c>HeightMap</c> (originally from OpenCNCPilot, MIT) with the 3D-visual
-/// parts dropped; the XML <c>.map</c> file format is preserved so maps are
-/// interchangeable with ioSender.
+/// parts dropped; persisted as sparse JSON (<c>.hmap.json</c>).
 /// </summary>
 public class HeightMap
 {
-    private static readonly NumberFormatInfo DecimalFormat = new() { NumberDecimalSeparator = "." };
-
     public double?[,] Points { get; private set; } = new double?[0, 0];
     public int SizeX { get; private set; }
     public int SizeY { get; private set; }
@@ -157,90 +154,55 @@ public class HeightMap
 
     public static HeightMap Load(string path)
     {
-        var map = new HeightMap();
-        var foundHeightMap = false;
+        var dto = JsonSerializer.Deserialize(File.ReadAllText(path), HeightMapJsonContext.Default.HeightMapDto)
+            ?? throw new InvalidDataException("Height map file is empty or invalid.");
 
-        using var r = XmlReader.Create(path);
-        while (r.Read())
-        {
-            if (!r.IsStartElement())
-                continue;
-
-            switch (r.Name)
-            {
-                case "heightmap":
-                    map.Min = new Vec2(Parse(r["MinX"]), Parse(r["MinY"]));
-                    map.Max = new Vec2(Parse(r["MaxX"]), Parse(r["MaxY"]));
-                    map.SizeX = int.Parse(r["SizeX"]!, CultureInfo.InvariantCulture);
-                    map.SizeY = int.Parse(r["SizeY"]!, CultureInfo.InvariantCulture);
-                    map.ZOffset = Parse(r["ZOffset"]);
-                    if (map.SizeX < 2 || map.SizeY < 2)
-                        throw new InvalidDataException($"Height map grid is too small (minimum 2x2 points): {map.SizeX}x{map.SizeY}.");
-                    if (map.Min.X == map.Max.X || map.Min.Y == map.Max.Y)
-                        throw new InvalidDataException("Height map area must have non-zero width and height.");
-                    map.Points = new double?[map.SizeX, map.SizeY];
-                    foundHeightMap = true;
-                    break;
-                case "point":
-                    var x = int.Parse(r["X"]!, CultureInfo.InvariantCulture);
-                    var y = int.Parse(r["Y"]!, CultureInfo.InvariantCulture);
-                    if (x < 0 || x >= map.SizeX || y < 0 || y >= map.SizeY)
-                        throw new InvalidDataException($"Height map point ({x},{y}) is outside the {map.SizeX}x{map.SizeY} grid.");
-                    if (r.IsEmptyElement)
-                        break;
-                    // ReadInnerXml() leaves the reader on the node *after*
-                    // </point>, so the loop's Read() would skip one node and
-                    // silently drop every second point in minified
-                    // (whitespace-free) .map files. Step onto the text node
-                    // ourselves and let the loop do the advancing.
-                    r.Read();
-                    var height = Parse(r.Value);
-                    map.Points[x, y] = height;
-                    map.MaxHeight = Math.Max(map.MaxHeight, height);
-                    map.MinHeight = Math.Min(map.MinHeight, height);
-                    break;
-            }
-        }
-
-        if (!foundHeightMap)
-            throw new InvalidDataException("Height map file does not contain a <heightmap> element.");
-        if (map.MaxHeight == double.MinValue)
+        if (dto.SizeX < 2 || dto.SizeY < 2)
+            throw new InvalidDataException($"Height map grid is too small (minimum 2x2 points): {dto.SizeX}x{dto.SizeY}.");
+        if (dto.MinX == dto.MaxX || dto.MinY == dto.MaxY)
+            throw new InvalidDataException("Height map area must have non-zero width and height.");
+        if (dto.Points is null || dto.Points.Count == 0)
             throw new InvalidDataException("Height map does not contain any probed points.");
+
+        // The public ctor derives the grid dimensions from a cell size; the file
+        // stores the dimensions directly, so build via the private parameterless
+        // ctor and set the fields (all accessible from within HeightMap).
+        var map = new HeightMap();
+        map.Min = new Vec2(dto.MinX, dto.MinY);
+        map.Max = new Vec2(dto.MaxX, dto.MaxY);
+        map.SizeX = dto.SizeX;
+        map.SizeY = dto.SizeY;
+        map.ZOffset = dto.ZOffset;
+        map.Points = new double?[dto.SizeX, dto.SizeY];
+
+        foreach (var p in dto.Points)
+        {
+            if (p is null || p.Length != 3)
+                throw new InvalidDataException("Height map point tuple must be [col, row, z].");
+            var x = (int)p[0];
+            var y = (int)p[1];
+            if (x < 0 || x >= map.SizeX || y < 0 || y >= map.SizeY)
+                throw new InvalidDataException($"Height map point ({x},{y}) is outside the {map.SizeX}x{map.SizeY} grid.");
+            map.AddPoint(x, y, p[2]);
+        }
 
         return map;
     }
 
     public void Save(string path)
     {
-        var settings = new XmlWriterSettings { Indent = true };
-        using var w = XmlWriter.Create(path, settings);
-        w.WriteStartDocument();
-        w.WriteStartElement("heightmap");
-        w.WriteAttributeString("MinX", Fmt(Min.X));
-        w.WriteAttributeString("MinY", Fmt(Min.Y));
-        w.WriteAttributeString("MaxX", Fmt(Max.X));
-        w.WriteAttributeString("MaxY", Fmt(Max.Y));
-        w.WriteAttributeString("SizeX", SizeX.ToString(CultureInfo.InvariantCulture));
-        w.WriteAttributeString("SizeY", SizeY.ToString(CultureInfo.InvariantCulture));
-        w.WriteAttributeString("ZOffset", Fmt(ZOffset));
-        for (var x = 0; x < SizeX; x++)
+        var dto = new HeightMapDto
         {
+            Version = 1,
+            MinX = Min.X, MinY = Min.Y, MaxX = Max.X, MaxY = Max.Y,
+            SizeX = SizeX, SizeY = SizeY, ZOffset = ZOffset,
+            Points = new List<double[]>(),
+        };
+        for (var x = 0; x < SizeX; x++)
             for (var y = 0; y < SizeY; y++)
-            {
-                if (!Points[x, y].HasValue)
-                    continue;
-                w.WriteStartElement("point");
-                w.WriteAttributeString("X", x.ToString(CultureInfo.InvariantCulture));
-                w.WriteAttributeString("Y", y.ToString(CultureInfo.InvariantCulture));
-                w.WriteString(Fmt(Points[x, y]!.Value));
-                w.WriteEndElement();
-            }
-        }
-        w.WriteEndElement();
+                if (Points[x, y].HasValue)
+                    dto.Points!.Add([x, y, Points[x, y]!.Value]);
+
+        File.WriteAllText(path, JsonSerializer.Serialize(dto, HeightMapJsonContext.Default.HeightMapDto));
     }
-
-    private static double Parse(string? s) =>
-        double.TryParse(s, NumberStyles.Float, DecimalFormat, out var v) ? v : 0d;
-
-    private static string Fmt(double v) => v.ToString(DecimalFormat);
 }

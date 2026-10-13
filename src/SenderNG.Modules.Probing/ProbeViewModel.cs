@@ -1403,8 +1403,8 @@ public class ProbeViewModel : ViewModelBase
         // Prefer a native save dialog; fall back to the settings dir when no UI is available.
         var dialogs = _services?.GetService(typeof(IFileDialogService)) as IFileDialogService;
         var path = dialogs is null
-            ? Path.Combine(SettingsService.DefaultDir(), "heightmap.map")
-            : await dialogs.SaveFileAsync(LocText.Resolve("module.probing.saveMap", "Save map"), "heightmap.map", "Height map (*.map)|*.map");
+            ? Path.Combine(SettingsService.DefaultDir(), "heightmap.hmap.json")
+            : await dialogs.SaveFileAsync(LocText.Resolve("module.probing.saveMap", "Save map"), "heightmap.hmap.json", "Height map (*.hmap.json)|*.hmap.json");
         if (string.IsNullOrEmpty(path))
             return; // cancelled
 
@@ -1424,8 +1424,8 @@ public class ProbeViewModel : ViewModelBase
         // Prefer a native open dialog; fall back to the settings dir when no UI is available.
         var dialogs = _services?.GetService(typeof(IFileDialogService)) as IFileDialogService;
         var path = dialogs is null
-            ? Path.Combine(SettingsService.DefaultDir(), "heightmap.map")
-            : await dialogs.OpenFileAsync(LocText.Resolve("module.probing.loadMap", "Load map"), "Height map (*.map)|*.map");
+            ? Path.Combine(SettingsService.DefaultDir(), "heightmap.hmap.json")
+            : await dialogs.OpenFileAsync(LocText.Resolve("module.probing.loadMap", "Load map"), "Height map (*.hmap.json)|*.hmap.json");
         if (string.IsNullOrEmpty(path))
             return; // cancelled
 

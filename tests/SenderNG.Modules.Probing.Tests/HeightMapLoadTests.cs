@@ -36,11 +36,9 @@ using SenderNG.Modules.Probing.Core;
 namespace SenderNG.Modules.Probing.Tests;
 
 /// <summary>
-/// <c>HeightMap.Load</c> builds through the private parameterless constructor,
-/// so it never sees the public constructor's area/grid guards — and
-/// <c>InterpolateZ</c> used <c>MaxHeight</c> (initialised to
-/// <c>double.MinValue</c>) as its out-of-bounds "no data" answer, turning an
-/// empty <c>.map</c> into a ~-1.8e308 Z word downstream.
+/// Round-trip and interpolation behaviour of <c>HeightMap</c>. Format
+/// validation (bad dimensions/area/indices, missing points) now lives against
+/// the JSON writer in <see cref="HeightMapJsonTests"/>.
 /// </summary>
 public class HeightMapLoadTests : IDisposable
 {
@@ -55,44 +53,6 @@ public class HeightMapLoadTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_dir, recursive: true); } catch { }
-    }
-
-    private string WriteMap(string body)
-    {
-        var path = Path.Combine(_dir, "heightmap.map");
-        File.WriteAllText(path, body);
-        return path;
-    }
-
-    private static string Map(string attributes, string points = "")
-        => $"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<heightmap {attributes}>{points}</heightmap>";
-
-    private const string Valid2x2 = "MinX=\"0\" MinY=\"0\" MaxX=\"10\" MaxY=\"10\" SizeX=\"2\" SizeY=\"2\" ZOffset=\"0\"";
-
-    [Fact]
-    public void Load_rejects_a_map_with_no_points()
-    {
-        var path = WriteMap(Map(Valid2x2));
-
-        Assert.Throws<InvalidDataException>(() => HeightMap.Load(path));
-    }
-
-    [Fact]
-    public void Load_rejects_a_grid_smaller_than_two_by_two()
-    {
-        var path = WriteMap(Map("MinX=\"0\" MinY=\"0\" MaxX=\"10\" MaxY=\"10\" SizeX=\"1\" SizeY=\"1\" ZOffset=\"0\"",
-            "<point X=\"0\" Y=\"0\">1.5</point>"));
-
-        Assert.Throws<InvalidDataException>(() => HeightMap.Load(path));
-    }
-
-    [Fact]
-    public void Load_rejects_a_map_with_no_area()
-    {
-        var path = WriteMap(Map("MinX=\"5\" MinY=\"5\" MaxX=\"5\" MaxY=\"5\" SizeX=\"2\" SizeY=\"2\" ZOffset=\"0\"",
-            "<point X=\"0\" Y=\"0\">1.5</point>"));
-
-        Assert.Throws<InvalidDataException>(() => HeightMap.Load(path));
     }
 
     [Fact]
@@ -121,45 +81,6 @@ public class HeightMapLoadTests : IDisposable
     }
 
     [Fact]
-    public void Load_rejects_a_point_outside_the_declared_grid()
-    {
-        var path = WriteMap(Map(Valid2x2,
-            "<point X=\"0\" Y=\"0\">1.5</point><point X=\"7\" Y=\"0\">2.5</point>"));
-
-        Assert.Throws<InvalidDataException>(() => HeightMap.Load(path));
-    }
-
-    [Fact]
-    public void Load_rejects_a_file_without_a_heightmap_element()
-    {
-        var path = WriteMap("<notamap />");
-
-        Assert.Throws<InvalidDataException>(() => HeightMap.Load(path));
-    }
-
-    [Fact]
-    public void Load_reads_a_complete_map()
-    {
-        // Deliberately minified (no whitespace between points): ReadInnerXml()
-        // used to leave the reader past </point>, so the loop's Read() skipped
-        // the following node and every second point was silently dropped.
-        var path = WriteMap(Map(Valid2x2,
-            "<point X=\"0\" Y=\"0\">1.5</point><point X=\"0\" Y=\"1\">2.5</point>"
-            + "<point X=\"1\" Y=\"0\">3.5</point><point X=\"1\" Y=\"1\">4.5</point>"));
-
-        var map = HeightMap.Load(path);
-
-        Assert.Equal(2, map.SizeX);
-        Assert.Equal(2, map.SizeY);
-        Assert.Equal(4.5, map.MaxHeight);
-        Assert.Equal(1.5, map.MinHeight);
-        for (var x = 0; x < map.SizeX; x++)
-            for (var y = 0; y < map.SizeY; y++)
-                Assert.True(map.Points[x, y].HasValue, $"Point ({x},{y}) was dropped on load.");
-        Assert.Equal(3.5, map.InterpolateZ(10, 0));
-    }
-
-    [Fact]
     public void Load_survives_a_save_and_reload_round_trip()
     {
         var original = new HeightMap(10, 10, new Vec2(0, 0), new Vec2(30, 20));
@@ -167,7 +88,7 @@ public class HeightMapLoadTests : IDisposable
             for (var y = 0; y < original.SizeY; y++)
                 original.AddPoint(x, y, x + y * 0.5);
 
-        var path = Path.Combine(_dir, "roundtrip.map");
+        var path = Path.Combine(_dir, "roundtrip.hmap.json");
         original.Save(path);
         var reloaded = HeightMap.Load(path);
 
