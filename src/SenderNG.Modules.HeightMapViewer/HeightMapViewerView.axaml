@@ -1,17 +1,93 @@
+<!--
+HeightMapViewerView.axaml - Avalonia host for the height-map GL surface
+
+Copyright (c) 2026 Andrew Shkolik
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+· Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+
+· Redistributions in binary form must reproduce the above copyright notice, this
+list of conditions and the following disclaimer in the documentation and/or
+other materials provided with the distribution.
+
+· Neither the name of the copyright holder nor the names of its contributors may
+be used to endorse or promote products derived from this software without
+specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+-->
+
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:SenderNG.Modules.HeightMapViewer"
              x:Class="SenderNG.Modules.HeightMapViewer.HeightMapViewerView"
              x:DataType="vm:HeightMapViewerViewModel"
              x:CompileBindings="False">
-    <!-- Task C2 placeholder: a localized empty state only. Task C4 replaces the
-         body with the shared GL surface viewport and live updates. -->
+    <!-- GL context + viewport client live on the code-behind (concrete types);
+         the view model stays headless. The scene renders offscreen and is read
+         back into a WriteableBitmap by a DispatcherTimer tick; GpuImage shows
+         the result. The empty-state TextBlock overlays the viewport while no
+         layer has been published; the fallback panel replaces the viewport when
+         no GL context could be created. -->
     <Border BorderBrush="#aaa" BorderThickness="1" Background="White">
-        <TextBlock Text="{Binding EmptyText}"
-                   IsVisible="{Binding IsEmpty}"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                   Margin="24" MaxWidth="460"
-                   Foreground="#555" FontSize="14"
-                   TextWrapping="Wrap" TextAlignment="Center" />
+        <DockPanel>
+            <Border DockPanel.Dock="Top" Background="#e8e8e8" Height="26">
+                <DockPanel Margin="8,0,6,0">
+                    <Button x:Name="ResetViewButton" DockPanel.Dock="Right"
+                            Content="Reset view" FontSize="11" Padding="8,1"
+                            VerticalAlignment="Center" Click="OnResetView" />
+                    <TextBlock x:Name="HeaderText" Text="Height map 3D"
+                               VerticalAlignment="Center" FontSize="11"
+                               FontWeight="SemiBold" Foreground="#333" />
+                </DockPanel>
+            </Border>
+
+            <Panel x:Name="ScenePanel">
+                <Image x:Name="GpuImage" Stretch="UniformToFill"
+                       RenderOptions.BitmapInterpolationMode="HighQuality" />
+
+                <Panel x:Name="PlotInput"
+                       Background="Transparent"
+                       PointerPressed="OnPlotInputPointerPressed"
+                       PointerMoved="OnPlotInputPointerMoved"
+                       PointerReleased="OnPlotInputPointerReleased"
+                       PointerCaptureLost="OnPlotInputPointerCaptureLost"
+                       PointerWheelChanged="OnPlotInputPointerWheelChanged">
+                    <TextBlock x:Name="EmptyTextBlock"
+                               Text="{Binding EmptyText}"
+                               IsVisible="{Binding IsEmpty, Mode=OneWay}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Margin="24" MaxWidth="460"
+                               Foreground="#555" FontSize="14"
+                               TextWrapping="Wrap" TextAlignment="Center" />
+                </Panel>
+            </Panel>
+
+            <Border x:Name="FallbackPanel" Background="Transparent" IsVisible="False">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Spacing="6" MaxWidth="460">
+                    <TextBlock x:Name="FallbackTitle" Text=""
+                               FontSize="16" FontWeight="SemiBold"
+                               Foreground="#222" HorizontalAlignment="Center" />
+                    <TextBlock x:Name="FallbackHint" Text=""
+                               Foreground="#555" TextWrapping="Wrap"
+                               HorizontalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </DockPanel>
     </Border>
 </UserControl>
