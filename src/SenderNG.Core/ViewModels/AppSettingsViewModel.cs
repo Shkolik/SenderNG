@@ -463,7 +463,10 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         }
     }
 
-    public bool CanSwitchProfiles => _switchAllowed?.Invoke() != false;
+    /// <summary>False while connected/running, and false once a restore is pending: the
+    /// service refuses every mutation then, so the leaf must not offer one — the UI would
+    /// otherwise report an add/rename/activate that never happened.</summary>
+    public bool CanSwitchProfiles => _switchAllowed?.Invoke() != false && !_settings.RestorePending;
 
     /// <summary>Inverse of <see cref="CanSwitchProfiles"/> — the caption shown when switching is blocked.</summary>
     public bool ShowSwitchBlocked => !CanSwitchProfiles;
@@ -476,8 +479,13 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         ? _resolve("appSettings.profiles.typeConfirm", "Change again to confirm")
         : _resolve("appSettings.profiles.typeChange", "Change type");
 
-    public string SwitchBlockedText => _resolve("appSettings.profiles.switchBlocked",
-        "Profile switching is disabled while connected or a session is running.");
+    /// <summary>The blocked caption: after a restore the connect/session wording is wrong
+    /// — switching is not blocked by the session but by the pending restart — so the
+    /// existing restart copy is shown instead.</summary>
+    public string SwitchBlockedText => _settings.RestorePending
+        ? _resolve("appSettings.backup.restartRequired", "Settings were restored — restart SenderNG to apply them.")
+        : _resolve("appSettings.profiles.switchBlocked",
+            "Profile switching is disabled while connected or a session is running.");
 
     public DelegateCommand AddCommand { get; private set; } = null!;
     public DelegateCommand DuplicateCommand { get; private set; } = null!;
@@ -505,8 +513,13 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
                 && SelectedMachineType != SelectedProfile.MachineTypeId);
     }
 
+    // Every mutator below re-checks the gate itself: a stale UI (or a direct Execute,
+    // which bypasses CanExecute) must not report a mutation the service is about to
+    // refuse — Add() would otherwise fire Activated for a profile that was never added.
     private void Add()
     {
+        if (!CanSwitchProfiles)
+            return;
         var profile = _settings.Activate(_settings.CreateProfile(NewName.Trim(), NewType).Id);
         NewName = string.Empty;
         Refresh();
@@ -515,6 +528,8 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
 
     private void Duplicate()
     {
+        if (!CanSwitchProfiles)
+            return;
         var selected = SelectedProfile!;
         var name = string.IsNullOrWhiteSpace(NewName) ? $"{selected.Name} copy" : NewName.Trim();
         _settings.CreateProfile(name, selected.MachineTypeId, copyFromId: selected.Id);
@@ -525,6 +540,8 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
 
     private void Rename()
     {
+        if (!CanSwitchProfiles)
+            return;
         var selected = SelectedProfile!;
         _settings.RenameProfile(selected.Id, RenameName.Trim());
         Refresh();
@@ -533,6 +550,8 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
 
     private void Remove()
     {
+        if (!CanSwitchProfiles)
+            return;
         if (!_confirmRemove)
         {
             _confirmRemove = true;
@@ -548,6 +567,8 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
 
     private void Activate()
     {
+        if (!CanSwitchProfiles)
+            return;
         var selected = SelectedProfile!;
         _settings.Activate(selected.Id);
         Refresh();
@@ -556,6 +577,8 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
 
     private void ApplyType()
     {
+        if (!CanSwitchProfiles)
+            return;
         if (!_confirmTypeChange)
         {
             _confirmTypeChange = true;

@@ -1181,4 +1181,68 @@ public class AppSettingsViewModelTests
             Directory.Delete(dir, recursive: true);
         }
     }
+
+    /* -----------------------------------------------------------------------
+     * Restore-pending: blocked mutations (F11)
+     * --------------------------------------------------------------------- */
+
+    [Fact]
+    public void Restore_pending_disables_profile_mutations_and_shows_the_restart_copy()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var vm = CreateVm(settings);
+            var leaf = (ProfileSettingsLeaf)((AppSettingsGroupItem)vm.Groups[0]).Children[0];
+            settings.CreateProfile("other", MachineTypes.Mill); // not activated: default stays active
+            leaf.Refresh();
+            leaf.SelectedProfile = leaf.Profiles.Single(p => p.Id == "other");
+            leaf.NewName = "third";
+            leaf.RenameName = "Renamed";
+            leaf.SelectedMachineType = MachineTypes.Foam;
+
+            // Control: with the gate open every mutation is offered, so the asserts below
+            // fail for the restore guard, not because a condition was already false.
+            Assert.True(leaf.CanSwitchProfiles);
+            Assert.True(leaf.AddCommand.CanExecute(null));
+            Assert.True(leaf.DuplicateCommand.CanExecute(null));
+            Assert.True(leaf.RenameCommand.CanExecute(null));
+            Assert.True(leaf.RemoveCommand.CanExecute(null));
+            Assert.True(leaf.ActivateCommand.CanExecute(null));
+            Assert.True(leaf.ApplyTypeCommand.CanExecute(null));
+
+            settings.MarkRestorePending();
+
+            Assert.False(leaf.CanSwitchProfiles);
+            Assert.True(leaf.ShowSwitchBlocked);
+            Assert.False(leaf.AddCommand.CanExecute(null));
+            Assert.False(leaf.DuplicateCommand.CanExecute(null));
+            Assert.False(leaf.RenameCommand.CanExecute(null));
+            Assert.False(leaf.RemoveCommand.CanExecute(null));
+            Assert.False(leaf.ActivateCommand.CanExecute(null));
+            Assert.False(leaf.ApplyTypeCommand.CanExecute(null));
+
+            // The blocked caption is the restart copy: switching is not blocked by the
+            // session here, it is blocked by the pending restart.
+            Assert.Equal(Loc.T("appSettings.backup.restartRequired"), leaf.SwitchBlockedText);
+            Assert.NotEqual(Loc.T("appSettings.profiles.switchBlocked"), leaf.SwitchBlockedText);
+
+            // A stale UI can still call Execute (DelegateCommand.Execute bypasses
+            // CanExecute): the leaf itself must refuse — no Activated for an add that
+            // never happened, and nothing written.
+            var activated = 0;
+            leaf.Activated += _ => activated++;
+            var before = DiskState(dir);
+
+            leaf.AddCommand.Execute(null);
+            leaf.ActivateCommand.Execute(null);
+
+            Assert.Equal(0, activated);
+            Assert.Equal(before, DiskState(dir));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 }
