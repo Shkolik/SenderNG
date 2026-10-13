@@ -111,6 +111,8 @@ internal sealed class HeightMapScene : IDisposable
     private GlCamera _active;
     private bool _perspectiveActive;
     private float _orthoZoom = 1f;
+    private float _fitOrthoWidth = 1f;
+    private float _fitDist = 1f;
     private float _navW = 1f;
     private float _navH = 1f;
     private Vector3? _orbitPivot;
@@ -189,6 +191,7 @@ internal sealed class HeightMapScene : IDisposable
         _orbitPivot = null;
         var (center, radius, span) = ContentMetrics();
         _orthoZoom = MathF.Max(span.Length() * 1.1f, 1f);
+        _fitOrthoWidth = _orthoZoom;
         switch (preset)
         {
             case ViewPreset.XY:
@@ -216,6 +219,7 @@ internal sealed class HeightMapScene : IDisposable
                 _perspectiveActive = false;
                 break;
             default:
+                _fitDist = radius * 2.2f;
                 _persp.Position = center
                     + Vector3.Normalize(new Vector3(-1f, -1f, 1f)) * (radius * 2.2f);
                 _persp.Target = center;
@@ -226,9 +230,29 @@ internal sealed class HeightMapScene : IDisposable
         }
     }
 
+    /// <summary>Percent readout for the zoom cluster — 100 = fitted. Orthographic
+    /// uses the fit-seeded width; perspective uses the fit-seeded target
+    /// distance (same convention as the plotter's readout).</summary>
+    public float ZoomPercent
+    {
+        get
+        {
+            if (!_perspectiveActive)
+                return _ortho.Width <= 0f ? 100f : 100f * _fitOrthoWidth / _ortho.Width;
+            var dist = (_persp.Target - _persp.Position).Length();
+            return dist <= 0f ? 100f : 100f * _fitDist / dist;
+        }
+    }
+
+    /// <summary>Re-run the current preset — reset pan and reseed the fit zoom
+    /// (the zoom cluster's middle button).</summary>
+    public void Reframe() => SetViewPreset(_preset);
+
     public void PanByScreenDelta(Vector2 screenDeltaPx)
     {
-        var v = CameraGestures.ScreenPanDelta(_active, screenDeltaPx, _navW, _navH);
+        // ScreenPanDelta returns the MODEL-follows-cursor delta; the camera moves
+        // opposite it (same convention as the plotter's Pan, which negates).
+        var v = -CameraGestures.ScreenPanDelta(_active, screenDeltaPx, _navW, _navH);
         _persp.Position += v;
         _persp.Target += v;
         _ortho.Position += v;

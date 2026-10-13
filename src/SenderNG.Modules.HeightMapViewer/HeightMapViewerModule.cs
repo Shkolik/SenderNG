@@ -74,6 +74,8 @@ public sealed class HeightMapViewerModule : IModule, IHeightMap3DRenderer,
             ["module.heightmap-viewer.renderUnavailable"] = "3D view unavailable",
             ["module.heightmap-viewer.renderUnavailableHint"] =
                 "No OpenGL context could be created.",
+            ["module.heightmap-viewer.saveScreenshot"] = "Save screenshot (PNG)",
+            ["module.heightmap-viewer.saveScreenshotErrorTitle"] = "Save screenshot",
         };
 
     public void RegisterServices(IServiceCollection services)
@@ -82,7 +84,8 @@ public sealed class HeightMapViewerModule : IModule, IHeightMap3DRenderer,
     public object CreateViewModel(IServiceProvider sp)
         => new HeightMapViewerViewModel(
             sp.GetService<IHeightMapSource>(),
-            sp.GetService<LocalizationService>());
+            sp.GetService<LocalizationService>(),
+            sp.GetService<IFileDialogService>());
 
     public object CreateView(object vm) => new HeightMapViewerView { DataContext = vm };
 
@@ -115,7 +118,8 @@ public sealed class HeightMapViewerModule : IModule, IHeightMap3DRenderer,
         if (dialogs is null)
             return;
         var source = _services?.GetService<IHeightMapSource>();
-        var vm = new HeightMapViewerViewModel(source, _services?.GetService<LocalizationService>());
+        var vm = new HeightMapViewerViewModel(source, _services?.GetService<LocalizationService>(),
+            _services?.GetService<IFileDialogService>());
         try
         {
             await dialogs.ShowDialogAsync(

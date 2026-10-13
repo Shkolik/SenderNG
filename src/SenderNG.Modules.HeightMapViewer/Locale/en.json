@@ -6,6 +6,8 @@
     "module.heightmap-viewer.title": "Height map 3D",
     "module.heightmap-viewer.reset": "Reset view",
     "module.heightmap-viewer.renderUnavailable": "3D view unavailable",
-    "module.heightmap-viewer.renderUnavailableHint": "No OpenGL context could be created."
+    "module.heightmap-viewer.renderUnavailableHint": "No OpenGL context could be created.",
+    "module.heightmap-viewer.saveScreenshot": "Save screenshot (PNG)",
+    "module.heightmap-viewer.saveScreenshotErrorTitle": "Save screenshot"
   }
 }

@@ -36,6 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using CNC.Core.Abstractions;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
 
@@ -59,9 +60,11 @@ public sealed class HeightMapViewerViewModel : INotifyPropertyChanged, IDisposab
     private HeightMapLayer? _layer;
     private bool _disposed;
 
-    public HeightMapViewerViewModel(IHeightMapSource? source, LocalizationService? localization)
+    public HeightMapViewerViewModel(IHeightMapSource? source, LocalizationService? localization,
+        IFileDialogService? fileDialogs = null)
     {
         _localization = localization;
+        FileDialogs = fileDialogs;
         if (_localization is not null)
         {
             // The empty-state text is resolved through the live localization
@@ -80,6 +83,11 @@ public sealed class HeightMapViewerViewModel : INotifyPropertyChanged, IDisposab
 
     /// <summary>The latest published height map, or null when cleared/not probed.</summary>
     public HeightMapLayer? Layer => _layer;
+
+    /// <summary>Native file dialogs, surfaced for the view's "Save screenshot"
+    /// action. The dialog view is created with a parameterless ctor by the view
+    /// factory, so the service travels on the view model instead.</summary>
+    public IFileDialogService? FileDialogs { get; }
 
     /// <summary>Localized empty-state message the view binds.</summary>
     public string EmptyText =>

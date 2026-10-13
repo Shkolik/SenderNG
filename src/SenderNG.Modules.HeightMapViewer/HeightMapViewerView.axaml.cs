@@ -34,7 +34,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.IO;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -75,6 +77,13 @@ public partial class HeightMapViewerView : UserControl
     private PlotGlFailure? _glVerdict;
     private uint _rtW;
     private uint _rtH;
+    // Navigation viewport in panel px — the zoom cluster's center-zoom target.
+    private uint _wPx;
+    private uint _hPx;
+    // Latest displayed frame (RGBA, native readback size) for "Save screenshot".
+    private byte[]? _shotRgba;
+    private int _shotW;
+    private int _shotH;
 
     private bool _panActive;
     private bool _orbitActive;
@@ -108,14 +117,16 @@ public partial class HeightMapViewerView : UserControl
     private void ApplyLocalizedTexts()
     {
         var loc = LocalizationService.Current;
-        HeaderText.Text = loc?.Resolve("module.heightmap-viewer.title", "Height map 3D")
-            ?? "Height map 3D";
-        ResetViewButton.Content = loc?.Resolve("module.heightmap-viewer.reset", "Reset view")
-            ?? "Reset view";
         FallbackTitle.Text = loc?.Resolve(
             "module.heightmap-viewer.renderUnavailable", "3D view unavailable")
             ?? "3D view unavailable";
         FallbackHint.Text = GenericHint();
+        ToolTip.SetTip(SaveScreenshotButton, loc?.Resolve(
+            "module.heightmap-viewer.saveScreenshot", "Save screenshot (PNG)")
+            ?? "Save screenshot (PNG)");
+        ToolTip.SetTip(ReframeButton, loc?.Resolve(
+            "module.heightmap-viewer.reset", "Reset view")
+            ?? "Reset view");
     }
 
     private static string GenericHint()
@@ -266,6 +277,8 @@ public partial class HeightMapViewerView : UserControl
         var ph = (uint)Math.Max(1, Math.Round(hDip * scale));
 
         scene.SetViewportSize((int)pw, (int)ph);
+        _wPx = pw;
+        _hPx = ph;
         scene.SetLayer(_vm?.Layer);
 
         if (!SetupReadback(pw, ph))
@@ -278,8 +291,12 @@ public partial class HeightMapViewerView : UserControl
             scene.RenderFrame(_readback.Width, _readback.Height);
             // CopyFrame's glReadPixels synchronizes with the draws above.
             using (var fb = _bitmap!.Lock())
+            {
                 _readback.CopyFrame(fb.Address, fb.RowBytes);
+                CaptureScreenshot(fb, pw, ph);
+            }
             GpuImage.InvalidateVisual();
+            UpdateZoomLabel(scene);
         }
         catch (Exception ex)
         {
@@ -333,8 +350,95 @@ public partial class HeightMapViewerView : UserControl
 
     private static Vector2 ToPx(Point dip, float scale) => new((float)(dip.X * scale), (float)(dip.Y * scale));
 
-    private void OnResetView(object? sender, RoutedEventArgs e)
-        => _scene?.SetViewPreset(ViewPreset.Isometric3D);
+    private void OnReframe(object? sender, RoutedEventArgs e) => _scene?.Reframe();
+
+    private void OnZoomIn(object? sender, RoutedEventArgs e) => CenterZoom(1.25);
+
+    private void OnZoomOut(object? sender, RoutedEventArgs e) => CenterZoom(1.0 / 1.25);
+
+    private void CenterZoom(double factor)
+    {
+        var scene = _scene;
+        if (scene is null)
+            return;
+        scene.ZoomAround(new Vector2(_wPx * 0.5f, _hPx * 0.5f), factor);
+    }
+
+    /// <summary>Percent readout above the zoom cluster — hidden while the view is
+    /// effectively at the fitted 100%.</summary>
+    private void UpdateZoomLabel(HeightMapScene scene)
+    {
+        var pct = scene.ZoomPercent;
+        if (Math.Abs(pct - 100.0) < 0.5)
+        {
+            if (ZoomPctText.IsVisible)
+                ZoomPctText.IsVisible = false;
+            return;
+        }
+        ZoomPctText.Text = $"{pct:0}%";
+        if (!ZoomPctText.IsVisible)
+            ZoomPctText.IsVisible = true;
+    }
+
+    /// <summary>Keep a copy of the displayed frame so the save button can export
+    /// the current view at its native readback size.</summary>
+    private void CaptureScreenshot(ILockedFramebuffer fb, uint w, uint h)
+    {
+        var len = checked((int)w * (int)h * 4);
+        if (_shotRgba is null || _shotRgba.Length != len)
+        {
+            _shotRgba = new byte[len];
+            _shotW = (int)w;
+            _shotH = (int)h;
+        }
+        Marshal.Copy(fb.Address, _shotRgba, 0, len);
+    }
+
+    /// <summary>Write the latest readback frame (native size, pixel-aligned) to a
+    /// PNG through the standard save dialog. Cancelled dialog is silent; a write
+    /// failure surfaces a modal error.</summary>
+    private async void OnSaveScreenshot(object? sender, RoutedEventArgs e)
+    {
+        var dialogs = _vm?.FileDialogs;
+        if (dialogs is null)
+            return;
+        var rgba = _shotRgba;
+        if (rgba is null || _shotW <= 0 || _shotH <= 0)
+            return;
+        try
+        {
+            var loc = LocalizationService.Current;
+            var saveTitle = loc?.Resolve(
+                "module.heightmap-viewer.saveScreenshot", "Save screenshot (PNG)")
+                ?? "Save screenshot (PNG)";
+            var suggested = $"SenderNG_heightmap_{DateTime.Now:yyyyMMdd_HHmmss_fff}_{_shotW}x{_shotH}.png";
+            var path = await dialogs.SaveFileAsync(saveTitle, suggested, "PNG image|*.png");
+            if (path is null)
+                return;
+            using (var shot = new WriteableBitmap(
+                new PixelSize(_shotW, _shotH), new Avalonia.Vector(96, 96),
+                PixelFormats.Rgba8888, AlphaFormat.Opaque))
+            {
+                using (var fb = shot.Lock())
+                {
+                    var rowBytes = checked(_shotW * 4);
+                    for (var y = 0; y < _shotH; y++)
+                        Marshal.Copy(rgba, y * rowBytes,
+                            IntPtr.Add(fb.Address, y * fb.RowBytes), rowBytes);
+                }
+                using var file = new FileStream(path, FileMode.Create, FileAccess.Write);
+                shot.Save(file);
+            }
+        }
+        catch (Exception ex)
+        {
+            var loc = LocalizationService.Current;
+            var errorTitle = loc?.Resolve(
+                "module.heightmap-viewer.saveScreenshotErrorTitle", "Save screenshot")
+                ?? "Save screenshot";
+            await dialogs.ShowErrorAsync(errorTitle, $"Save failed: {ex.Message}");
+        }
+    }
 
     private void OnPlotInputPointerPressed(object? sender, PointerPressedEventArgs e)
     {
