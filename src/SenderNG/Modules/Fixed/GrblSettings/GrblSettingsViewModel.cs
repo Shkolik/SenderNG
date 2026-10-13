@@ -191,19 +191,27 @@ public sealed class GrblSettingItem : ViewModelBase
     public void ApplyText(string text) => Value = text;
 
     /// <summary>
+    /// Validate this setting's current <see cref="Value"/> — see <see cref="ValidateValue"/>.
+    /// </summary>
+    internal GrblSettingValidationError Validate() => ValidateValue(Value);
+
+    /// <summary>
     /// Reject text a controller write cannot carry: a partial numeric keystroke
     /// ("-", "1e"), a non-finite float, or a value outside Min/Max. Free-form types
     /// (Text, Password) and the non-text editors always pass. Never throws.
+    /// <paramref name="text"/> is checked against THIS item's metadata and nothing is
+    /// mutated, so a restore can validate a candidate value from a backup file before
+    /// the board is touched.
     /// </summary>
-    internal GrblSettingValidationError Validate()
+    internal GrblSettingValidationError ValidateValue(string text)
     {
         switch (Type)
         {
             case GrblSettingType.Integer:
-                return ValidateInteger();
+                return ValidateInteger(text);
 
             case GrblSettingType.Float:
-                return ValidateFloat();
+                return ValidateFloat(text);
 
             // A bit type whose Format yields no options has an empty Bits collection, so
             // IsBits is false and ShowTextBox is true: it renders as a text box holding a
@@ -212,10 +220,10 @@ public sealed class GrblSettingItem : ViewModelBase
             case GrblSettingType.Bitfield when !IsBits:
             case GrblSettingType.XBitfield when !IsBits:
             case GrblSettingType.AxisMask when !IsBits:
-                return ValidateInteger();
+                return ValidateInteger(text);
 
             case GrblSettingType.Ip4:
-                return IsDottedQuad(Value)
+                return IsDottedQuad(text)
                     ? GrblSettingValidationError.None
                     : GrblSettingValidationError.MalformedIp;
 
@@ -224,18 +232,18 @@ public sealed class GrblSettingItem : ViewModelBase
         }
     }
 
-    private GrblSettingValidationError ValidateInteger()
+    private GrblSettingValidationError ValidateInteger(string text)
     {
-        if (!int.TryParse(Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
+        if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
             return GrblSettingValidationError.NotNumeric;
         return InRange(n) ? GrblSettingValidationError.None : GrblSettingValidationError.OutOfRange;
     }
 
-    private GrblSettingValidationError ValidateFloat()
+    private GrblSettingValidationError ValidateFloat(string text)
     {
         // Since .NET Core 3.0 "NaN"/"Infinity" parse successfully, and every comparison
         // against NaN is false - so a bounds check alone would wave them through.
-        if (!double.TryParse(Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+        if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
             || !double.IsFinite(d))
             return GrblSettingValidationError.NotNumeric;
         return InRange(d) ? GrblSettingValidationError.None : GrblSettingValidationError.OutOfRange;
