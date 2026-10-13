@@ -1181,4 +1181,153 @@ public class AppSettingsViewModelTests
             Directory.Delete(dir, recursive: true);
         }
     }
+
+    /* -----------------------------------------------------------------------
+     * Restore-pending: blocked mutations and a warned-about archive (F11, F13, F15)
+     * --------------------------------------------------------------------- */
+
+    [Fact]
+    public void Restore_pending_disables_profile_mutations_and_shows_the_restart_copy()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var vm = CreateVm(settings);
+            var leaf = (ProfileSettingsLeaf)((AppSettingsGroupItem)vm.Groups[0]).Children[0];
+            settings.CreateProfile("other", MachineTypes.Mill); // not activated: default stays active
+            leaf.Refresh();
+            leaf.SelectedProfile = leaf.Profiles.Single(p => p.Id == "other");
+            leaf.NewName = "third";
+            leaf.RenameName = "Renamed";
+            leaf.SelectedMachineType = MachineTypes.Foam;
+
+            // Control: with the gate open every mutation is offered, so the asserts below
+            // fail for the restore guard, not because a condition was already false.
+            Assert.True(leaf.CanSwitchProfiles);
+            Assert.True(leaf.AddCommand.CanExecute(null));
+            Assert.True(leaf.DuplicateCommand.CanExecute(null));
+            Assert.True(leaf.RenameCommand.CanExecute(null));
+            Assert.True(leaf.RemoveCommand.CanExecute(null));
+            Assert.True(leaf.ActivateCommand.CanExecute(null));
+            Assert.True(leaf.ApplyTypeCommand.CanExecute(null));
+
+            settings.MarkRestorePending();
+
+            Assert.False(leaf.CanSwitchProfiles);
+            Assert.True(leaf.ShowSwitchBlocked);
+            Assert.False(leaf.AddCommand.CanExecute(null));
+            Assert.False(leaf.DuplicateCommand.CanExecute(null));
+            Assert.False(leaf.RenameCommand.CanExecute(null));
+            Assert.False(leaf.RemoveCommand.CanExecute(null));
+            Assert.False(leaf.ActivateCommand.CanExecute(null));
+            Assert.False(leaf.ApplyTypeCommand.CanExecute(null));
+
+            // The blocked caption is the restart copy: switching is not blocked by the
+            // session here, it is blocked by the pending restart.
+            Assert.Equal(Loc.T("appSettings.backup.restartRequired"), leaf.SwitchBlockedText);
+            Assert.NotEqual(Loc.T("appSettings.profiles.switchBlocked"), leaf.SwitchBlockedText);
+
+            // A stale UI can still call Execute (DelegateCommand.Execute bypasses
+            // CanExecute): the leaf itself must refuse — no Activated for an add that
+            // never happened, and nothing written.
+            var activated = 0;
+            leaf.Activated += _ => activated++;
+            var before = DiskState(dir);
+
+            leaf.AddCommand.Execute(null);
+            leaf.ActivateCommand.Execute(null);
+
+            Assert.Equal(0, activated);
+            Assert.Equal(before, DiskState(dir));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task A_partial_restore_marks_restore_pending_and_keeps_the_retry_wording()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        var target = TempBackupPath();
+        try
+        {
+            // global.json sorts first, so it lands and the locked profile fails: a
+            // genuinely partial restore.
+            WriteArchive(target,
+                ("global.json", "{\"ActiveProfileId\":\"default\",\"Profiles\":{\"default\":\"Default\"}}"),
+                ("profiles/default.json", "{\"Id\":\"default\",\"Name\":\"Restored\"}"));
+            var leaf = BackupLeafOf(CreateBackupVm(settings, dialogs));
+            dialogs.OpenPath = target;
+
+            await leaf.RestoreAsync();
+            Assert.True(leaf.HasRestorePlan);
+
+            var locked = Path.Combine(ProfileSettingsPaths.ProfilesDir(dir), "default.json");
+            using (new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                await leaf.ApplyRestoreAsync();
+            }
+
+            // The file that landed must be frozen too, or the stale graph's next save
+            // overwrites it before the user retries.
+            Assert.True(settings.RestorePending);
+            Assert.Equal(
+                Loc.T("appSettings.backup.restorePartial").Replace("{0}", "1"),
+                leaf.Status);
+            Assert.Contains("run the restore again", leaf.Status, StringComparison.Ordinal);
+            Assert.Equal("{\"ActiveProfileId\":\"default\",\"Profiles\":{\"default\":\"Default\"}}",
+                File.ReadAllText(Path.Combine(dir, "global.json")));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            if (File.Exists(target))
+                File.Delete(target);
+        }
+    }
+
+    [Fact]
+    public async Task Backup_warns_when_the_captured_payload_cannot_restore()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        var target = TempBackupPath();
+        try
+        {
+            var leaf = BackupLeafOf(CreateBackupVm(settings, dialogs));
+            dialogs.SavePath = target;
+
+            // A truncated live profile (ProfilesStore writes non-atomically) is captured
+            // verbatim, so the archive the user just made is one Apply will always refuse.
+            // Written after the dialog is built: the profile manager loads every profile
+            // when it builds, which would quarantine an unparseable one as ".corrupt"
+            // before Capture ever saw it.
+            File.WriteAllText(Path.Combine(ProfileSettingsPaths.ProfilesDir(dir), "truncated.json"), "{ not json");
+
+            await leaf.BackupAsync();
+
+            // Still written: a backup is a safety net, corrupt payload and all.
+            Assert.True(File.Exists(target), leaf.Status);
+            var read = AppSettingsBundle.ReadFrom(target);
+            Assert.True(read.Ok, read.Error);
+            Assert.True(read.Bundle!.Files.ContainsKey("profiles/truncated.json"),
+                string.Join(",", read.Bundle.Files.Keys));
+            var validation = AppSettingsBundleValidator.Validate(read.Bundle);
+            Assert.False(validation.Ok);
+
+            // Asserted as fragments: true with the catalog key and with the inline
+            // fallback (the catalog stream adds the key in parallel).
+            Assert.Contains("Warning: this archive may not restore", leaf.Status, StringComparison.Ordinal);
+            Assert.Contains(validation.Errors[0], leaf.Status, StringComparison.Ordinal);
+            Assert.Contains($"{read.Bundle.Files.Count} files", leaf.Status, StringComparison.Ordinal);
+            Assert.Contains(target, leaf.Status, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            if (File.Exists(target))
+                File.Delete(target);
+        }
+    }
 }
