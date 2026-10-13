@@ -106,7 +106,7 @@ public class SettingsRestoreGuardTests
         global.Language = "ru";
 
         Assert.True(File.Exists(Path.Combine(dir, "global.json")));
-        Assert.True(File.Exists(ProfilesStore.Ids(dir) is not null ? ProfileSettingsPaths.ProfilePath(dir, MachineProfile.DefaultId) : ""));
+        Assert.True(File.Exists(ProfileSettingsPaths.ProfilePath(dir, MachineProfile.DefaultId)));
     }
 
     [Fact]
