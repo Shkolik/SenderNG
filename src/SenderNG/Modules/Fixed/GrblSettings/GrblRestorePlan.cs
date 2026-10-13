@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Globalization;
 using SenderNG.Core.Settings;
 
 namespace SenderNG.Modules.Fixed;
@@ -79,10 +80,12 @@ internal sealed record GrblRestorePlanItem(int Id, GrblRestoreAction Action, str
 /// </summary>
 internal sealed class GrblRestorePlan
 {
-    private GrblRestorePlan(IReadOnlyList<GrblRestorePlanItem> items, bool controllerMismatch)
+    private GrblRestorePlan(IReadOnlyList<GrblRestorePlanItem> items, bool controllerMismatch,
+                            string backupController)
     {
         Items = items;
         ControllerMismatch = controllerMismatch;
+        BackupController = backupController;
         Writes = items.Where(static i => i.Action == GrblRestoreAction.Apply).ToList();
         ApplyCount = Writes.Count;
         UnchangedCount = items.Count(static i => i.Action == GrblRestoreAction.Unchanged);
@@ -97,6 +100,11 @@ internal sealed class GrblRestorePlan
     /// <summary>True when the file came from a different <c>$I</c> fingerprint. A warning
     /// only: restoring a known-good file onto a rebuilt board is the point of the feature.</summary>
     public bool ControllerMismatch { get; }
+
+    /// <summary>The backup's readable identity for the mismatch warning: its firmware and
+    /// version, or the raw <c>$I</c> fingerprint when the file carries neither. Never the
+    /// board's, and never a count — the warning exists to say WHICH controller it came from.</summary>
+    public string BackupController { get; }
 
     public int ApplyCount { get; }
     public int UnchangedCount { get; }
@@ -149,12 +157,90 @@ internal sealed class GrblRestorePlan
             }
 
             // The board's own metadata wins — the file's is informational.
-            var reason = board.ValidateValue(fromFile.Value);
+            var reason = ValidateRestoreValue(board, fromFile.Value);
             items.Add(reason == GrblSettingValidationError.None
                 ? new GrblRestorePlanItem(id, GrblRestoreAction.Apply, fromFile.Value, null)
                 : new GrblRestorePlanItem(id, GrblRestoreAction.Invalid, fromFile.Value, reason));
         }
 
-        return new GrblRestorePlan(items, !string.Equals(backup.Controller.Key, controllerKey, StringComparison.Ordinal));
+        return new GrblRestorePlan(items,
+            !string.Equals(backup.Controller.Key, controllerKey, StringComparison.Ordinal),
+            DescribeController(backup.Controller));
+    }
+
+    /// <summary>
+    /// The backup's human-readable identity: "firmware version" when the file carries
+    /// either field, else the raw <c>$I</c> fingerprint (a file written by a foreign or
+    /// hand-edited tool). Never null or empty — the warning always names something.
+    /// </summary>
+    private static string DescribeController(GrblBackupController controller)
+    {
+        var readable = string.Join(" ", new[] { controller.Firmware, controller.Version }
+            .Where(static s => !string.IsNullOrWhiteSpace(s))
+            .Select(static s => s.Trim()));
+        return readable.Length > 0 ? readable : controller.Key;
+    }
+
+    /// <summary>
+    /// The restore-path verdict for one candidate value: the board's own rules first, then
+    /// the domain rules for the editors the save path can trust. <see cref="GrblSettingItem.ValidateValue"/>
+    /// deliberately waves Bool / RadioButtons / bit types with options through — their UI
+    /// editors cannot produce an out-of-domain value — but a backup file can, so the
+    /// stricter domain check lives here and <c>ValidateValue</c> keeps its documented
+    /// behaviour for the save path.
+    /// </summary>
+    private static GrblSettingValidationError ValidateRestoreValue(GrblSettingItem board, string value)
+    {
+        var reason = board.ValidateValue(value);
+        if (reason != GrblSettingValidationError.None)
+            return reason;
+
+        switch (board.Type)
+        {
+            // Bool: the checkbox is "1"/"0" only.
+            case GrblSettingType.Bool:
+                return ValidateDomain(value, 0, 1);
+
+            // RadioButtons: the combobox can only select an existing option — but only when
+            // the board actually reported a Format. A radio setting with no options has an
+            // UNKNOWABLE domain, so it falls through to ValidateValue rather than being
+            // judged against an invented empty range (0..-1), which would mark every value
+            // Invalid and silently block a legitimate restore. Same rule as everywhere else
+            // here: only reject what the board's metadata proves wrong.
+            case GrblSettingType.RadioButtons when board.Options.Length > 0:
+                return ValidateDomain(value, 0, board.Options.Length - 1);
+
+            // A bit type WITH options renders as a checkbox set, whose bits are exactly
+            // the item's masks — so no other bit may be set. Without options it is a raw
+            // integer mask and ValidateValue already ranged it.
+            case GrblSettingType.Bitfield when board.IsBits:
+            case GrblSettingType.XBitfield when board.IsBits:
+            case GrblSettingType.AxisMask when board.IsBits:
+                return ValidateBitMask(value, board);
+
+            default:
+                return GrblSettingValidationError.None;
+        }
+    }
+
+    private static GrblSettingValidationError ValidateDomain(string value, int min, int max)
+    {
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
+            return GrblSettingValidationError.NotNumeric;
+        return n >= min && n <= max ? GrblSettingValidationError.None : GrblSettingValidationError.OutOfRange;
+    }
+
+    private static GrblSettingValidationError ValidateBitMask(string value, GrblSettingItem board)
+    {
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var mask))
+            return GrblSettingValidationError.NotNumeric;
+
+        var allowed = 0;
+        foreach (var bit in board.Bits)
+            allowed |= bit.Mask;
+
+        return mask >= 0 && (mask & ~allowed) == 0
+            ? GrblSettingValidationError.None
+            : GrblSettingValidationError.OutOfRange;
     }
 }

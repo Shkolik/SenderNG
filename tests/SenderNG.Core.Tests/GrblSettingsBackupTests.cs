@@ -208,6 +208,29 @@ public class GrblSettingsBackupTests
         Assert.Contains("id", result.Error!, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void Parse_rejects_a_null_setting_value()
+    {
+        // JSON null binds to a null Value, which the plan would otherwise send as an
+        // empty "$N=" write. The file is malformed, not a valid empty setting.
+        var result = GrblSettingsBackup.Parse(BackupJson(
+            "[{\"id\":110,\"value\":null,\"name\":\"N110\",\"unit\":\"mm\",\"type\":7,"
+            + "\"format\":\"\",\"min\":null,\"max\":null,\"rebootRequired\":false}]"));
+
+        Assert.False(result.Ok);
+        Assert.Contains("value", result.Error!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Parse_keeps_an_empty_string_value_legal()
+    {
+        // Unlike null, "" is a real value: an AllowNull text setting may legitimately carry one.
+        var result = GrblSettingsBackup.Parse(BackupJson($"[{Element(110, "")}]"));
+
+        Assert.True(result.Ok, result.Error);
+        Assert.Equal("", result.Backup!.Settings.Single().Value);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("null")]

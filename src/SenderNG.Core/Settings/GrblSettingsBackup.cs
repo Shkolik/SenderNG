@@ -160,6 +160,11 @@ public sealed class GrblSettingsBackup
             if (payload.Settings.Any(static s => s is null || s.Id < 0))
                 return Fail("it holds an invalid setting id");
 
+            // A JSON null value binds to null and would be sent as an empty "$N=" write.
+            // A genuinely empty string stays legal: an AllowNull setting may carry one.
+            if (payload.Settings.Any(static s => s.Value is null))
+                return Fail("it holds a setting with no value");
+
             if (payload.Settings.Select(static s => s.Id).Distinct().Count() != payload.Settings.Count)
                 return Fail("it holds duplicate setting ids");
 

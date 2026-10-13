@@ -381,6 +381,7 @@ public sealed class GrblSettingsViewModel : ViewModelBase
     private string _search = string.Empty;
     private string _status = string.Empty;
     private string? _restoreSummary;
+    private string? _loadError;
     private object? _selectedNode;
 
     /// <summary>The visible (filtered) tree roots bound to the TreeView.</summary>
@@ -515,7 +516,7 @@ public sealed class GrblSettingsViewModel : ViewModelBase
         _ = LoadAsync();
     }
 
-    public async Task LoadAsync()
+    public async Task<bool> LoadAsync()
     {
         // Reload builds brand-new item/group instances, so the current selection (a
         // reference into the old tree) would be detached — the tree would collapse and
@@ -542,10 +543,16 @@ public sealed class GrblSettingsViewModel : ViewModelBase
             var source = snapshot.MetadataFromController ? "(from controller)" : "(from catalog)";
             Status = LocText.Resolve("module.grbl-settings.loaded", "Loaded {0} settings")
                 .Replace("{0}", _allItems.Count.ToString(CultureInfo.InvariantCulture)) + " " + source;
+            _loadError = null;
+            return true;
         }
         catch (Exception ex)
         {
+            // False tells a caller that needs the fresh values (the restore verify) that
+            // _allItems still holds the pre-reload tree, so it must not compare against it.
+            _loadError = ex.Message;
             Status = LocText.Format("module.grbl-settings.loadFailed", "Load failed: {0}", ex.Message);
+            return false;
         }
     }
 
@@ -844,20 +851,27 @@ public sealed class GrblSettingsViewModel : ViewModelBase
 
         // Re-read the board: LoadAsync rebuilds the tree from $$, so the restored rows
         // come back clean and show what the controller actually holds now.
-        await LoadAsync();
+        var reloaded = await LoadAsync();
 
         // Compare the board's fresh values against what the restore intended: a controller
-        // can accept a write and still not hold the value (or clamp it).
-        var missed = applied
-            .Where(item => _allItems.FirstOrDefault(i => i.Id == item.Id) is not { } board
-                || !string.Equals(board.Value, item.Value, StringComparison.Ordinal))
-            .Select(static item => $"${item.Id}")
-            .ToList();
+        // can accept a write and still not hold the value (or clamp it). A failed re-read
+        // leaves the pre-reload tree in place, so that comparison would mark every applied
+        // setting as "did not stick" — skip it and report the load failure instead.
+        var missed = reloaded
+            ? applied
+                .Where(item => _allItems.FirstOrDefault(i => i.Id == item.Id) is not { } board
+                    || !string.Equals(board.Value, item.Value, StringComparison.Ordinal))
+                .Select(static item => $"${item.Id}")
+                .ToList()
+            : [];
 
         var status = LocText.Format("module.grbl-settings.restored", "Restored {0} settings.", applied.Count);
         if (skipped.Count > 0)
             status += " " + LocText.Format("module.grbl-settings.restoreSkipped",
                 "{0} settings were not applied: {1}", skipped.Count, string.Join(", ", skipped));
+        if (!reloaded)
+            status += " " + LocText.Format("module.grbl-settings.loadFailed",
+                "Load failed: {0}", _loadError ?? string.Empty);
         if (missed.Count > 0)
             status += " " + LocText.Format("module.grbl-settings.restoreVerifyMismatch",
                 "{0} settings did not take the restored value: {1}", missed.Count, string.Join(", ", missed));
@@ -890,7 +904,7 @@ public sealed class GrblSettingsViewModel : ViewModelBase
 
         if (plan.ControllerMismatch)
             summary += " " + LocText.Format("module.grbl-settings.restoreMismatch",
-                "The backup came from a different controller ({0}).", plan.Items.Count);
+                "The backup came from a different controller ({0}).", plan.BackupController);
 
         var dirty = _allItems.Count(static i => i.IsDirty);
         if (dirty > 0)

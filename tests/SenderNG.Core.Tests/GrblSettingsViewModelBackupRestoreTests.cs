@@ -53,7 +53,13 @@ public class GrblSettingsViewModelBackupRestoreTests
         public IReadOnlyList<string> DetailLines { get; set; } = [];
         public IReadOnlyList<string> GroupLines { get; set; } = [];
 
-        public Task<IReadOnlyList<string>> GetSettingLinesAsync() => Task.FromResult(ValueLines);
+        /// <summary>When true every value read throws — models a failed <c>$$</c> re-read.</summary>
+        public bool FailValueLines { get; set; }
+
+        public Task<IReadOnlyList<string>> GetSettingLinesAsync() =>
+            FailValueLines
+                ? Task.FromException<IReadOnlyList<string>>(new InvalidOperationException("$$ read failed"))
+                : Task.FromResult(ValueLines);
 
         public Task<IReadOnlyList<string>> GetSettingDetailLinesAsync() => Task.FromResult(DetailLines);
         public Task<IReadOnlyList<string>> GetSettingGroupLinesAsync() => Task.FromResult(GroupLines);
@@ -403,6 +409,33 @@ public class GrblSettingsViewModelBackupRestoreTests
     }
 
     [Fact]
+    public async Task ApplyRestore_reports_a_failed_verify_read_instead_of_claiming_a_mismatch()
+    {
+        var provider = new StubProvider { ValueLines = ["$0=10"] };
+        var grbl = new FakeGrbl();
+        await grbl.ConnectAsync("stub");
+        var dialogs = new StubDialogs();
+        var vm = CreateVm(provider, grbl, dialogs);
+        await vm.LoadAsync();
+
+        var path = TempFile(".json");
+        await File.WriteAllTextAsync(path, BackupJson(("0", "11")));
+        dialogs.OpenPath = path;
+        await vm.RestoreAsync();
+
+        // The write lands, but the verifying $$ re-read fails (dropped link, garbage reply).
+        provider.FailValueLines = true;
+        await vm.ApplyRestoreAsync();
+
+        Assert.Equal(["$0=11"], grbl.Sent);
+        Assert.Contains("Restored 1 settings", vm.Status); // the write did land
+        Assert.Contains("Load failed", vm.Status); // and the re-read failure is what is reported
+        // A failed re-read leaves the pre-reload values in the tree, so claiming the value
+        // "did not stick" would be a fabrication.
+        Assert.DoesNotContain("did not take the restored value", vm.Status);
+    }
+
+    [Fact]
     public async Task ApplyRestore_reports_reboot_required_settings()
     {
         // A hand-built $ES line: reboot flag in field 8 (see GrblSettingsParser.ParseSettingLine).
@@ -451,6 +484,28 @@ public class GrblSettingsViewModelBackupRestoreTests
         Assert.Equal("11", Find(vm.Groups, 0).Value);
         Assert.Equal("900.000", Find(vm.Groups, 110).Value);
         Assert.All(Flatten(vm.Groups), static i => Assert.False(i.IsDirty));
+    }
+
+    [Fact]
+    public async Task The_plan_warns_about_a_mismatch_with_the_backups_identity_not_the_item_count()
+    {
+        var provider = new StubProvider { ValueLines = ["$0=10"] };
+        var grbl = new FakeGrbl();
+        await grbl.ConnectAsync("stub");
+        var dialogs = new StubDialogs();
+        var vm = CreateVm(provider, grbl, dialogs);
+        await vm.LoadAsync();
+
+        var path = TempFile(".json");
+        await File.WriteAllTextAsync(path, BackupJson(("0", "11")));
+        dialogs.OpenPath = path;
+        await vm.RestoreAsync();
+
+        // The file's fingerprint ("demo 1") differs from this board's, and the plan holds
+        // exactly one item — the warning must name the backup, not the count.
+        Assert.NotNull(vm.RestoreSummary);
+        Assert.Contains("different controller (demo 1)", vm.RestoreSummary);
+        Assert.DoesNotContain("different controller (1)", vm.RestoreSummary);
     }
 
     [Fact]
