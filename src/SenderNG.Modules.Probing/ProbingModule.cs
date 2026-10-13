@@ -91,7 +91,11 @@ public class ProbingModule : IModule, IModuleSettingsProvider, ILocalizedModule,
     /// <summary>Per-profile companion file (<c>profiles/&lt;id&gt;.probing.json</c>).</summary>
     public IReadOnlyList<string> Suffixes => [ProbingProfileStore.CompanionSuffix];
 
-    private readonly Subject<HeightMapLayer?> _heightMap = new();
+    /// <summary>Latest published height map. A <see cref="BehaviorSubject{T}"/>
+    /// (seeded with <c>null</c>) so a viewer that subscribes <em>after</em> a map
+    /// was probed or loaded still receives it immediately — a plain
+    /// <see cref="Subject{T}"/> would leave the freshly opened 3D dialog empty.</summary>
+    private readonly BehaviorSubject<HeightMapLayer?> _heightMap = new(null);
 
     /// <inheritdoc />
     public IObservable<HeightMapLayer?> Snapshot => _heightMap;

@@ -146,6 +146,52 @@ public class HeightMapSourceTests : IDisposable
     }
 
     [Fact]
+    public void Snapshot_replays_latest_map_to_a_late_subscriber()
+    {
+        var module = new ProbingModule();
+
+        // Publish BEFORE anyone subscribes — the dialog's fresh view model
+        // subscribes only when it opens.
+        var map = new HeightMap(1, 1, new Vec2(0, 0), new Vec2(1, 1));
+        map.AddPoint(0, 0, 7);
+        module.PublishHeightMap(ProbingModule.ToHeightMapLayer(map));
+
+        var received = false;
+        HeightMapLayer? seen = null;
+        using var sub = module.Snapshot.Subscribe(layer =>
+        {
+            received = true;
+            seen = layer;
+        });
+
+        Assert.True(received, "a late subscriber must receive the current map immediately");
+        Assert.NotNull(seen);
+        Assert.Equal(7d, seen![0, 0]);
+    }
+
+    [Fact]
+    public void Snapshot_replays_null_to_a_late_subscriber_after_clear()
+    {
+        var module = new ProbingModule();
+
+        var map = new HeightMap(1, 1, new Vec2(0, 0), new Vec2(1, 1));
+        map.AddPoint(0, 0, 7);
+        module.PublishHeightMap(ProbingModule.ToHeightMapLayer(map));
+        module.PublishHeightMap(null);
+
+        var received = false;
+        HeightMapLayer? latest = null;
+        using var sub = module.Snapshot.Subscribe(layer =>
+        {
+            received = true;
+            latest = layer;
+        });
+
+        Assert.True(received, "a late subscriber must still receive the current (cleared) state");
+        Assert.Null(latest);
+    }
+
+    [Fact]
     public void Has3DRenderer_reflects_registered_renderer_module()
     {
         var services = new ServiceCollection();
