@@ -50,10 +50,19 @@ public class ProbingProfileStore
     public const string CompanionSuffix = ".probing.json";
 
     private readonly string _filePath;
+    private readonly Func<bool>? _writesBlocked;
 
-    public ProbingProfileStore(string? filePath = null)
+    /// <param name="filePath">Companion file to read/write (default:
+    /// <c>probing.json</c> in the default settings directory).</param>
+    /// <param name="writesBlocked">Optional predicate consumed at the top of
+    /// <see cref="Save"/>: when it returns true (an app-settings restore has
+    /// replaced this file on disk and the in-memory list is stale) the save is
+    /// refused without touching the file. Null means always writable, which
+    /// preserves the behaviour of every existing construction.</param>
+    public ProbingProfileStore(string? filePath = null, Func<bool>? writesBlocked = null)
     {
         _filePath = filePath ?? Path.Combine(SettingsService.DefaultDir(), "probing.json");
+        _writesBlocked = writesBlocked;
     }
 
     /// <summary>Path of the profiles file (the value persisted in the module settings).</summary>
@@ -85,9 +94,13 @@ public class ProbingProfileStore
         return profiles;
     }
 
-    /// <summary>Saves the profiles; best-effort (a read-only location must not crash the UI).</summary>
+    /// <summary>Saves the profiles; best-effort (a read-only location must not crash the UI).
+    /// Returns false without touching the file while the <c>writesBlocked</c>
+    /// predicate reports a settings restore is pending.</summary>
     public bool Save(ProbingProfiles profiles)
     {
+        if (_writesBlocked?.Invoke() == true)
+            return false;
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);

@@ -98,6 +98,53 @@ public class SettingsRestoreGuardTests
     }
 
     [Fact]
+    public void Global_read_initializes_a_never_loaded_service_when_not_pending()
+    {
+        var (dir, settings) = MakeSettings();
+
+        var global = settings.Global;
+        global.Language = "ru";
+
+        Assert.True(File.Exists(Path.Combine(dir, "global.json")));
+        Assert.True(File.Exists(ProfilesStore.Ids(dir) is not null ? ProfileSettingsPaths.ProfilePath(dir, MachineProfile.DefaultId) : ""));
+    }
+
+    [Fact]
+    public void Global_read_does_not_load_or_write_on_a_never_loaded_service_while_pending()
+    {
+        var (dir, settings) = MakeSettings();
+
+        // Same hazard as the mutators: the lazy Global getter runs Load(), which
+        // writes profiles/default.json + global.json on a fresh directory. While
+        // pending it must hand back an empty graph instead of creating files.
+        settings.MarkRestorePending();
+
+        var global = settings.Global;
+        global.Language = "ru"; // touch the returned graph
+
+        Assert.Empty(Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public void Blocked_mutators_never_load_so_a_fresh_service_writes_nothing()
+    {
+        var (dir, settings) = MakeSettings();
+
+        // The guard is set before the graph was ever loaded. Falling back to
+        // Load() here would create profiles/default.json and global.json over
+        // the files the restore just wrote, so the blocked path must not read
+        // the graph through Load().
+        settings.MarkRestorePending();
+
+        var activated = settings.Activate("x");
+        var created = settings.CreateProfile("n", MachineTypes.Mill);
+
+        Assert.NotNull(activated);
+        Assert.NotNull(created);
+        Assert.Empty(Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories));
+    }
+
+    [Fact]
     public void SaveGlobal_SaveProfile_Activate_CreateProfile_RenameProfile_DeleteProfile_SetProfileMachineType_are_no_ops_while_pending()
     {
         var (dir, settings) = MakeSettings();

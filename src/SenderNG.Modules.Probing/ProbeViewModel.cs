@@ -80,7 +80,9 @@ public class ProbeViewModel : ViewModelBase
         // companion path (profiles/<id>.probing.json) derives from the profile id.
         var filePath = ProfileSettingsPaths.CompanionPath(_settingsService.SettingsDir, _profile.Id, ProbingProfileStore.CompanionSuffix);
         _enabledTools = ReadEnabledTools();
-        _store = new ProbingProfileStore(filePath);
+        // The companion is in the app-settings archive: after a restore the
+        // in-memory list is stale, so the store must not write it back.
+        _store = new ProbingProfileStore(filePath, () => _settingsService.RestorePending);
         _runner = new ProbeRunner(grbl);
 
         foreach (var p in _store.Load().Profiles)
@@ -125,7 +127,8 @@ public class ProbeViewModel : ViewModelBase
             {
                 _profile = active;
                 _store = new ProbingProfileStore(
-                    ProfileSettingsPaths.CompanionPath(_settingsService.SettingsDir, active.Id, ProbingProfileStore.CompanionSuffix));
+                    ProfileSettingsPaths.CompanionPath(_settingsService.SettingsDir, active.Id, ProbingProfileStore.CompanionSuffix),
+                    () => _settingsService.RestorePending);
                 Profiles.Clear();
                 foreach (var p in _store.Load().Profiles)
                     Profiles.Add(p);
