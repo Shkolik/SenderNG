@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Collections.ObjectModel;
 using CNC.Core.Services;
 using SenderNG.Core.Localization;
+using SenderNG.Modules.Common.Render;
 
 namespace SenderNG.Modules.Plotter.GL.Settings;
 

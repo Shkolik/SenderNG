@@ -34,6 +34,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Numerics;
 using CNC.Core.Services;
 
+using SenderNG.Modules.Common.Render;
+
 namespace SenderNG.Modules.Plotter.GL.Scene;
 
 /// <summary>Headless scene factory that assembles carriage planes, loft, and

@@ -40,6 +40,7 @@ using System.Runtime.CompilerServices;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Localization;
+using SenderNG.Modules.Common.Render;
 using SenderNG.Modules.Plotter.GL.Model;
 using SenderNG.Modules.Plotter.GL.Rendering;
 using SenderNG.Modules.Plotter.GL.Scene;

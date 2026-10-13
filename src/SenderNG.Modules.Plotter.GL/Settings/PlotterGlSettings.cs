@@ -30,6 +30,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using SenderNG.Modules.Common.Render;
+
 namespace SenderNG.Modules.Plotter.GL.Settings;
 
 /// <summary>Per-profile Plot GL rendering config (<c>MachineProfile.ModuleSettings["plotter-gl"]</c>).</summary>
@@ -72,27 +74,6 @@ public sealed class PlotterGlSettings
     /// world position of the plane's origin. Length must equal the schema plane's
     /// role count / 3 respectively (enforced by <see cref="PlotterGlConfig"/>).</summary>
     public List<GlPlaneGeometry> Planes { get; set; } = [];
-}
-
-/// <summary>Multisampling of the readback FBO: sample count per pixel for the
-/// edges, independent of <see cref="PlotterGlSettings.Supersample"/>'s render
-/// size. Serializes as the raw number through the module's JSON section;
-/// <see cref="PlotterGlConfig"/> clamps a value outside these members back to
-/// <see cref="None"/>.</summary>
-public enum MsaaMode
-{
-    /// <summary>No multisampling — the plain single-sample path.</summary>
-    None = 0,
-
-    /// <summary>Two samples per pixel.</summary>
-    X2 = 1,
-
-    /// <summary>Four samples per pixel.</summary>
-    X4 = 2,
-
-    /// <summary>Eight samples per pixel (checkpoint-5 item 4), clamped to the
-    /// driver's <c>GL_MAX_SAMPLES</c> at framebuffer build time.</summary>
-    X8 = 3,
 }
 
 /// <summary>One machine carriage plane's world mapping.</summary>

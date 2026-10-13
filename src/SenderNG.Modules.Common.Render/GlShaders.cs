@@ -37,7 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using Silk.NET.OpenGL;
 using GlApi = Silk.NET.OpenGL.GL;
 
-namespace SenderNG.Modules.Plotter.GL.Rendering;
+namespace SenderNG.Modules.Common.Render;
 
 /// <summary>Compile/link the plot scene's two shader programs.
 /// <para>
@@ -46,7 +46,7 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// <see cref="Preamble(bool)"/> is the only thing a GLES context (Task 8)
 /// swaps in. Keep the bodies free of version-specific syntax.
 /// </para></summary>
-internal static class GlShaders
+public static class GlShaders
 {
     /// <summary>Desktop GL 3.3 core vs GLES 3.0 — the whole portability
     /// strategy, precision qualifier included (ES has no default float
@@ -62,7 +62,7 @@ internal static class GlShaders
     /// the glGetString(GL_VERSION) string ("OpenGL ES 3.1 Mesa …" → minor 1);
     /// an unparseable GLES version reports false — the conservative answer,
     /// since we cannot claim a capability the driver did not state.</summary>
-    internal static bool SupportsGeometryShaders(string version, bool isGles)
+    public static bool SupportsGeometryShaders(string version, bool isGles)
     {
         if (!isGles)
             return true;

@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Usage: PlotterGlBench [--width 1280] [--height 720] [--frames 120]
 //                        [--sizes 10000,50000,100000,500000,1000000]
 
+using SenderNG.Modules.Common.Render;
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;

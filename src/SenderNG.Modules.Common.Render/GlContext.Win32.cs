@@ -40,9 +40,9 @@ using System.Runtime.InteropServices;
 using Silk.NET.OpenGL;
 using GlApi = Silk.NET.OpenGL.GL;
 
-namespace SenderNG.Modules.Plotter.GL.Rendering;
+namespace SenderNG.Modules.Common.Render;
 
-internal sealed unsafe partial class GlContext
+public sealed unsafe partial class GlContext
 {
     private const int WsOverlapped = 0;
     private const uint CsHredraw = 0x0002, CsVredraw = 0x0001;

@@ -47,6 +47,7 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using CNC.Core.Abstractions;
 using SenderNG.Core.Localization;
+using SenderNG.Modules.Common.Render;
 using SenderNG.Modules.Plotter.GL.Rendering;
 using SenderNG.Modules.Plotter.GL.Scene;
 using SenderNG.Modules.Plotter.GL.Settings;

@@ -47,9 +47,9 @@ using System.Runtime.InteropServices;
 using Silk.NET.OpenGL;
 using GlApi = Silk.NET.OpenGL.GL;
 
-namespace SenderNG.Modules.Plotter.GL.Rendering;
+namespace SenderNG.Modules.Common.Render;
 
-internal sealed unsafe partial class GlContext
+public sealed unsafe partial class GlContext
 {
     // EGL 1.5 / platform enums (egl.h, EGL_KHR_surfaceless_context,
     // EGL_MESA_platform_surfaceless). Hand-rolled per the Task 8 ruling:

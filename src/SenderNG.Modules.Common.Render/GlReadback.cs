@@ -35,9 +35,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using Silk.NET.OpenGL;
-using SenderNG.Modules.Plotter.GL.Settings;
 
-namespace SenderNG.Modules.Plotter.GL.Rendering;
+namespace SenderNG.Modules.Common.Render;
 
 /// <summary>The offscreen target the view tick renders into: the FBO the scene
 /// draws into (single-sample RGBA8 + depth24 by default; multisampled color +
@@ -53,7 +52,7 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// Every member runs on the thread that owns the context (the UI thread — see
 /// PlotterGlView.OnTick); there is no cross-thread use to guard.
 /// </para></summary>
-internal sealed unsafe class GlReadback : IDisposable
+public sealed unsafe class GlReadback : IDisposable
 {
     private readonly GlContext _ctx;
     private uint _w;

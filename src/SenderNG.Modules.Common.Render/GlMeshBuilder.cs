@@ -36,7 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Numerics;
 
-namespace SenderNG.Modules.Plotter.GL.Rendering;
+namespace SenderNG.Modules.Common.Render;
 
 /// <summary>Static triangle meshes for the chrome heads and the plot tool.
 /// <para>
@@ -45,7 +45,7 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// interleaved <c>pos(3)+normal(3)</c> float buffer plus a triangle-list
 /// index array.
 /// </para></summary>
-internal static class GlMeshBuilder
+public static class GlMeshBuilder
 {
     /// <summary>Shared cone dimensions. The axis-arrowhead scale divides by these, so the
     /// axis cone must be built at exactly this size.</summary>

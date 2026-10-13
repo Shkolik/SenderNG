@@ -34,6 +34,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using SenderNG.Modules.Common.Render;
+
 namespace SenderNG.Modules.Plotter.GL.Scene;
 
 /// <summary>A plot tool in the scene: position updates and shape management.</summary>

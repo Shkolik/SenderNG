@@ -13,22 +13,11 @@
     <!-- Pinned to the host app's resolved version (floating versions caused
          TypeLoadException crashes historically). -->
     <PackageReference Include="Avalonia" Version="12.0.0" />
-    <!-- OpenGL bindings. Managed-only: loads the OS-provided opengl32.dll /
-         libGL / libGLESv2 at runtime — no native NuGet assets, so no
-         linux-arm64 deployment gap. 2.x stable line per the due-diligence
-         research; 3.0 is still prerelease. -->
-    <PackageReference Include="Silk.NET.OpenGL" Version="2.23.0" />
   </ItemGroup>
-
-  <PropertyGroup>
-    <!-- Stage the full .deps graph into bin so SenderNG.csproj can copy it
-         into Modules\plotter-gl\ (the plugin's AssemblyResolve probe serves
-         dependencies from that folder). -->
-    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SenderNG.Core\SenderNG.Core.csproj" />
+    <ProjectReference Include="..\SenderNG.Modules.Common.Render\SenderNG.Modules.Common.Render.csproj" />
   </ItemGroup>
 
   <ItemGroup>

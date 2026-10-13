@@ -36,6 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using SenderNG.Modules.Common.Render;
 using System.Text.Json.Nodes;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;

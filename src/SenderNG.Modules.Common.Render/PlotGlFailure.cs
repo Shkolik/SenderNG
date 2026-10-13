@@ -36,7 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-namespace SenderNG.Modules.Plotter.GL.Rendering;
+namespace SenderNG.Modules.Common.Render;
 
 /// <summary>The named reason a GL context could not be brought up. Carried by
 /// <see cref="PlotGlUnavailableException"/> so the caller can map it to a
@@ -45,7 +45,7 @@ public enum GlFailureCause { None, ContextCreate, VersionTooLow, Runtime, Other 
 
 /// <summary>Why Plot GL cannot start. Module-local so the view model keeps
 /// referencing no OpenGL binding types at all.</summary>
-internal enum PlotGlFailure
+public enum PlotGlFailure
 {
     /// <summary>Nothing reported; the tab is healthy.</summary>
     None,
@@ -97,7 +97,7 @@ internal sealed class PlotGlUnavailableException : Exception
 
 /// <summary>The single place a GL failure cause becomes a user-facing failure
 /// kind.</summary>
-internal static class PlotGlFailures
+public static class PlotGlFailures
 {
     /// <summary>Map an exception + named cause onto a failure kind.
     /// <para>An exception that already knows its cause (a

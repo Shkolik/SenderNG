@@ -36,14 +36,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Numerics;
 
-namespace SenderNG.Modules.Plotter.GL.Rendering;
+namespace SenderNG.Modules.Common.Render;
 
 /// <summary>Shortest-arc rotation carrying the shared cone mesh's local +Z
 /// (its opening direction) onto <paramref name="target"/>. The ±Z poles are
 /// handled explicitly because the cross product degenerates there.</summary>
-internal static class ConeOrientation
+public static class ConeOrientation
 {
-    internal static Quaternion FromUnitZTo(Vector3 target)
+    public static Quaternion FromUnitZTo(Vector3 target)
     {
         target = Vector3.Normalize(target);
         var dot = Vector3.Dot(Vector3.UnitZ, target);

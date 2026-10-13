@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Text.Json;
 using CNC.Core.Services;
+using SenderNG.Modules.Common.Render;
 
 namespace SenderNG.Modules.Plotter.GL.Settings;
 

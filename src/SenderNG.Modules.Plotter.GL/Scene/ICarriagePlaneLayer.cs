@@ -34,6 +34,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using SenderNG.Modules.Common.Render;
+
 namespace SenderNG.Modules.Plotter.GL.Scene;
 
 /// <summary>A layer in the carriage plane that holds plot segments and their run states.</summary>

@@ -39,7 +39,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using Silk.NET.OpenGL;
 using GlApi = Silk.NET.OpenGL.GL;
 
-namespace SenderNG.Modules.Plotter.GL.Rendering;
+namespace SenderNG.Modules.Common.Render;
 
 /// <summary>The checkpoint-3 line-width evidence, shared: a core driver
 /// answered <c>glLineWidth(w &gt; 1.0)</c> with <c>GL_INVALID_VALUE</c> while
@@ -49,7 +49,7 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// (<see cref="GlShaders.LineGeometry"/>) and never read driver acceptance
 /// back: the probe stays on as per-context EVIDENCE, logged once by the
 /// scene constructor for the due-diligence doc (checkpoint-4 item 4).</summary>
-internal static class GlLineWidths
+public static class GlLineWidths
 {
     /// <summary>The probe order: the toolpath thickness (3.2), the plan-era
     /// chrome width (1.5), plus the integers checkpoint 3 left unverified.</summary>
@@ -64,7 +64,7 @@ internal static class GlLineWidths
     /// from unrelated work must not condemn a width) and after it (the trial's
     /// own error must not condemn the next one). Evidence only — no draw path
     /// picks a width from the result.</summary>
-    internal static float[] Probe(GlApi gl)
+    public static float[] Probe(GlApi gl)
     {
         var accepted = new List<float>(Candidates.Length);
         Drain(gl);

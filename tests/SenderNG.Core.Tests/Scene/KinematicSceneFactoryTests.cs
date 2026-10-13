@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using SenderNG.Modules.Common.Render;
 using System.Numerics;
 using CNC.Core.Services;
 using SenderNG.Modules.Plotter.GL.Scene;

@@ -37,7 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System;
 
-namespace SenderNG.Modules.Plotter.GL.Rendering;
+namespace SenderNG.Modules.Common.Render;
 
 /// <summary>Coalescing gate for the swap-pump: a fresh STATIC geometry is
 /// rebuilt + re-uploaded (a full-toolpath O(n) copy plus an engine device
@@ -46,7 +46,7 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// gate collapses bursts (repeat mutations arrive far faster than pixels absorb
 /// them) into a bounded refresh cadence while still flushing immediately when a
 /// large change storm — e.g. a full program load — queues a lot of mutations.</summary>
-internal sealed class RebuildGate
+public sealed class RebuildGate
 {
     /// <summary>Minimum wall time between two rebuilds (keeps steady-state
     /// coloring smooth while cutting per-tick rebuild cost on large toolpaths).</summary>

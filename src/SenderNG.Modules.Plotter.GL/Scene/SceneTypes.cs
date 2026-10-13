@@ -34,12 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-using System.Numerics;
-
 namespace SenderNG.Modules.Plotter.GL.Scene;
-
-/// <summary>Camera view presets: XY/XZ/YZ are locked ortho; Isometric3D enables orbit.</summary>
-public enum ViewPreset { XY, XZ, YZ, Isometric3D }
 
 /// <summary>Motion classification for plot segments.</summary>
 public enum MotionType { Rapid, Cut }
@@ -49,18 +44,3 @@ public enum RunState { Pending, Executed, InFlight, Error }
 
 /// <summary>Tool tip shapes. POC only uses Cone; others reserved for future.</summary>
 public enum ToolShape { Cone, Cylinder, Sphere, Crosshair }
-
-/// <summary>Axis-aligned bounding box.</summary>
-public record struct BoundingBox(double MinX, double MinY, double MinZ, double MaxX, double MaxY, double MaxZ);
-
-/// <summary>A straight line between two 3D points.</summary>
-public record struct LineSegment(Vector3 From, Vector3 To);
-
-/// <summary>Endpoints of a tool position: 1 point (single-point tool) or 2 (wire).</summary>
-public record struct Endpoint(Vector3[] Points);
-
-/// <summary>
-/// World-space pan delta. The interface is headless/kinematic — the UI/view-model
-/// computes the world-space delta and the adapter applies it; no camera types leak in.
-/// </summary>
-public record struct PanDelta(Vector3 WorldDelta);

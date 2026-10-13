@@ -40,7 +40,7 @@ using Silk.NET.Core.Contexts;
 using Silk.NET.OpenGL;
 using GlApi = Silk.NET.OpenGL.GL;
 
-namespace SenderNG.Modules.Plotter.GL.Rendering;
+namespace SenderNG.Modules.Common.Render;
 
 /// <summary>Offscreen GL context: GL 3.3 core on Windows (never-shown
 /// top-level window + WGL, GlContext.Win32.cs) and surfaceless EGL on Linux
@@ -56,7 +56,7 @@ namespace SenderNG.Modules.Plotter.GL.Rendering;
 /// driver is below 3.3), so the view's catch maps it through
 /// <see cref="PlotGlFailures.Classify"/>.
 /// </para></summary>
-internal sealed unsafe partial class GlContext : IDisposable, INativeContext
+public sealed unsafe partial class GlContext : IDisposable, INativeContext
 {
     private GlApi? _gl;
     private bool _disposed;
@@ -115,9 +115,9 @@ internal sealed unsafe partial class GlContext : IDisposable, INativeContext
 
     /// <summary>The loaded GL API. Throws once disposed, so a stray frame
     /// after teardown fails loudly instead of calling into a dead loader.</summary>
-    internal GlApi Api => _gl ?? throw new ObjectDisposedException(nameof(GlContext));
+    public GlApi Api => _gl ?? throw new ObjectDisposedException(nameof(GlContext));
 
-    internal bool IsDisposed => _disposed;
+    public bool IsDisposed => _disposed;
 
     /// <summary>ARM64 selects the GLES 3.0 flavor of the EGL path; the WGL
     /// path is desktop GL regardless.</summary>

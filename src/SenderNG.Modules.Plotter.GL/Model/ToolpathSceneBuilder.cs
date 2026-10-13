@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Numerics;
 using CNC.Core.Services;
+using SenderNG.Modules.Common.Render;
 using SenderNG.Modules.Plotter.GL.Scene;
 using SenderNG.Modules.Plotter.GL.Settings;
 

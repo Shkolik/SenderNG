@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Managed-only: loads the OS opengl32.dll / libGL / libGLESv2 at runtime. -->
+    <PackageReference Include="Silk.NET.OpenGL" Version="2.23.0" />
+  </ItemGroup>
+  <PropertyGroup>
+    <!-- Stage the Silk.NET closure into bin so SenderNG.csproj can copy it flat
+         into Modules/ (Task B2). -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Headless tests (camera/failure verdicts) + the offscreen bench. -->
+    <InternalsVisibleTo Include="SenderNG.Core.Tests" />
+    <InternalsVisibleTo Include="PlotterGlBench" />
+  </ItemGroup>
+</Project>

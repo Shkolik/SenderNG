@@ -35,14 +35,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Numerics;
-using SenderNG.Modules.Plotter.GL.Rendering;
 
-namespace SenderNG.Modules.Plotter.GL.Scene;
+namespace SenderNG.Modules.Common.Render;
 
 /// <summary>Pure screen↔world navigation math for the plotter cameras.
 /// No GPU, no scene — operates directly on <see cref="GlCamera"/> objects so the
 /// pixel-scale and orbit conventions are unit-testable headless.</summary>
-internal static class CameraGestures
+public static class CameraGestures
 {
     /// <summary>Camera-side basis from direction of view: forward toward the
     /// target, right, and planar up (perpendicular to forward). Degenerate
