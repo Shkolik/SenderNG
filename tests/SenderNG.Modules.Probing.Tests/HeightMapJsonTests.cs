@@ -86,6 +86,7 @@ public class HeightMapJsonTests
     [InlineData("{\"version\":1,\"minX\":0,\"minY\":0,\"maxX\":2,\"maxY\":2,\"sizeX\":1,\"sizeY\":3,\"zOffset\":0,\"points\":[[0,0,1]]}")] // sizeX<2
     [InlineData("{\"version\":1,\"minX\":0,\"minY\":0,\"maxX\":2,\"maxY\":2,\"sizeX\":3,\"sizeY\":3,\"zOffset\":0,\"points\":[[9,0,1]]}")] // out of range
     [InlineData("{\"version\":1,\"minX\":0,\"minY\":0,\"maxX\":2,\"maxY\":2,\"sizeX\":3,\"sizeY\":3,\"zOffset\":0,\"points\":[[0,0]]}")]   // bad tuple
+    [InlineData("{ not json")]                            // syntactically malformed
     public void Invalid_files_throw(string json)
     {
         var path = TempFile();

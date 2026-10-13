@@ -154,8 +154,18 @@ public class HeightMap
 
     public static HeightMap Load(string path)
     {
-        var dto = JsonSerializer.Deserialize(File.ReadAllText(path), HeightMapJsonContext.Default.HeightMapDto)
-            ?? throw new InvalidDataException("Height map file is empty or invalid.");
+        HeightMapDto? dto;
+        try
+        {
+            dto = JsonSerializer.Deserialize(File.ReadAllText(path), HeightMapJsonContext.Default.HeightMapDto);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException($"Height map file is not valid JSON: {ex.Message}", ex);
+        }
+
+        if (dto is null)
+            throw new InvalidDataException("Height map file is empty or invalid.");
 
         if (dto.SizeX < 2 || dto.SizeY < 2)
             throw new InvalidDataException($"Height map grid is too small (minimum 2x2 points): {dto.SizeX}x{dto.SizeY}.");
