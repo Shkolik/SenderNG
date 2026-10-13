@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Globalization;
 using SenderNG.Core.Settings;
 
 namespace SenderNG.Modules.Fixed;
@@ -149,12 +150,70 @@ internal sealed class GrblRestorePlan
             }
 
             // The board's own metadata wins — the file's is informational.
-            var reason = board.ValidateValue(fromFile.Value);
+            var reason = ValidateRestoreValue(board, fromFile.Value);
             items.Add(reason == GrblSettingValidationError.None
                 ? new GrblRestorePlanItem(id, GrblRestoreAction.Apply, fromFile.Value, null)
                 : new GrblRestorePlanItem(id, GrblRestoreAction.Invalid, fromFile.Value, reason));
         }
 
         return new GrblRestorePlan(items, !string.Equals(backup.Controller.Key, controllerKey, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The restore-path verdict for one candidate value: the board's own rules first, then
+    /// the domain rules for the editors the save path can trust. <see cref="GrblSettingItem.ValidateValue"/>
+    /// deliberately waves Bool / RadioButtons / bit types with options through — their UI
+    /// editors cannot produce an out-of-domain value — but a backup file can, so the
+    /// stricter domain check lives here and <c>ValidateValue</c> keeps its documented
+    /// behaviour for the save path.
+    /// </summary>
+    private static GrblSettingValidationError ValidateRestoreValue(GrblSettingItem board, string value)
+    {
+        var reason = board.ValidateValue(value);
+        if (reason != GrblSettingValidationError.None)
+            return reason;
+
+        switch (board.Type)
+        {
+            // Bool: the checkbox is "1"/"0" only.
+            case GrblSettingType.Bool:
+                return ValidateDomain(value, 0, 1);
+
+            // RadioButtons: the combobox can only select an existing option.
+            case GrblSettingType.RadioButtons:
+                return ValidateDomain(value, 0, board.Options.Length - 1);
+
+            // A bit type WITH options renders as a checkbox set, whose bits are exactly
+            // the item's masks — so no other bit may be set. Without options it is a raw
+            // integer mask and ValidateValue already ranged it.
+            case GrblSettingType.Bitfield when board.IsBits:
+            case GrblSettingType.XBitfield when board.IsBits:
+            case GrblSettingType.AxisMask when board.IsBits:
+                return ValidateBitMask(value, board);
+
+            default:
+                return GrblSettingValidationError.None;
+        }
+    }
+
+    private static GrblSettingValidationError ValidateDomain(string value, int min, int max)
+    {
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
+            return GrblSettingValidationError.NotNumeric;
+        return n >= min && n <= max ? GrblSettingValidationError.None : GrblSettingValidationError.OutOfRange;
+    }
+
+    private static GrblSettingValidationError ValidateBitMask(string value, GrblSettingItem board)
+    {
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var mask))
+            return GrblSettingValidationError.NotNumeric;
+
+        var allowed = 0;
+        foreach (var bit in board.Bits)
+            allowed |= bit.Mask;
+
+        return mask >= 0 && (mask & ~allowed) == 0
+            ? GrblSettingValidationError.None
+            : GrblSettingValidationError.OutOfRange;
     }
 }

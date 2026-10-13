@@ -169,6 +169,69 @@ public class GrblRestorePlanTests
     }
 
     [Fact]
+    public void An_out_of_domain_bool_value_is_Invalid()
+    {
+        // The checkbox editor can only ever produce 0/1; a file can hold anything.
+        var board = new[] { BoardItem(110, GrblSettingType.Bool, "0") };
+
+        var plan = GrblRestorePlan.Create(Backup("k", BackupSetting(110, "42")), board, "k");
+
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(GrblRestoreAction.Invalid, item.Action);
+        Assert.Equal(GrblSettingValidationError.OutOfRange, item.Reason!.Value);
+        Assert.Equal(0, plan.ApplyCount);
+        Assert.Empty(plan.Writes);
+    }
+
+    [Fact]
+    public void A_radio_value_outside_the_option_range_is_Invalid()
+    {
+        // Two options: only 0 and 1 are reachable from the combobox.
+        var board = new[] { BoardItem(110, GrblSettingType.RadioButtons, "0", format: "Left,Right") };
+
+        var plane = GrblRestorePlan.Create(Backup("k", BackupSetting(110, "9")), board, "k");
+
+        var item = Assert.Single(plane.Items);
+        Assert.Equal(GrblRestoreAction.Invalid, item.Action);
+        Assert.Equal(GrblSettingValidationError.OutOfRange, item.Reason!.Value);
+        Assert.Empty(plane.Writes);
+
+        // The last real option is still writable: the check is the domain, not a blanket refusal.
+        var inDomain = GrblRestorePlan.Create(Backup("k", BackupSetting(110, "1")), board, "k");
+        Assert.Equal(GrblRestoreAction.Apply, Assert.Single(inDomain.Items).Action);
+    }
+
+    [Fact]
+    public void A_bitfield_bit_outside_the_allowed_mask_is_Invalid()
+    {
+        // "A,B" yields the two bits 0b01 and 0b10, so the union of the item's masks is 0b11.
+        var board = new[] { BoardItem(110, GrblSettingType.Bitfield, "1", format: "A,B") };
+
+        var invalid = GrblRestorePlan.Create(Backup("k", BackupSetting(110, "7")), board, "k");
+        var item = Assert.Single(invalid.Items);
+        Assert.Equal(GrblRestoreAction.Invalid, item.Action);
+        Assert.Equal(GrblSettingValidationError.OutOfRange, item.Reason!.Value);
+        Assert.Empty(invalid.Writes);
+
+        // A value the checkbox set can actually produce is written.
+        var valid = GrblRestorePlan.Create(Backup("k", BackupSetting(110, "3")), board, "k");
+        Assert.Equal(GrblRestoreAction.Apply, Assert.Single(valid.Items).Action);
+        Assert.Equal(new[] { "3" }, valid.Writes.Select(static w => w.Value));
+    }
+
+    [Fact]
+    public void ValidateValue_keeps_waving_a_bitfield_with_options_through()
+    {
+        // The save path's rule is deliberately unchanged: the UI editors cannot produce an
+        // out-of-domain value there, so only the restore planner got the stricter domain
+        // check (see GrblSettingsViewModelTests for the same expectation on the item itself).
+        var item = BoardItem(110, GrblSettingType.Bitfield, "1", format: "A,B");
+
+        Assert.Equal(GrblSettingValidationError.None, item.ValidateValue("7"));
+        Assert.Equal(GrblSettingValidationError.None, item.ValidateValue("abc"));
+    }
+
+    [Fact]
     public void Writes_are_in_ascending_id_order()
     {
         var board = new[]
