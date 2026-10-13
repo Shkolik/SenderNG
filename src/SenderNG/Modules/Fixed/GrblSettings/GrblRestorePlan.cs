@@ -201,8 +201,13 @@ internal sealed class GrblRestorePlan
             case GrblSettingType.Bool:
                 return ValidateDomain(value, 0, 1);
 
-            // RadioButtons: the combobox can only select an existing option.
-            case GrblSettingType.RadioButtons:
+            // RadioButtons: the combobox can only select an existing option — but only when
+            // the board actually reported a Format. A radio setting with no options has an
+            // UNKNOWABLE domain, so it falls through to ValidateValue rather than being
+            // judged against an invented empty range (0..-1), which would mark every value
+            // Invalid and silently block a legitimate restore. Same rule as everywhere else
+            // here: only reject what the board's metadata proves wrong.
+            case GrblSettingType.RadioButtons when board.Options.Length > 0:
                 return ValidateDomain(value, 0, board.Options.Length - 1);
 
             // A bit type WITH options renders as a checkbox set, whose bits are exactly

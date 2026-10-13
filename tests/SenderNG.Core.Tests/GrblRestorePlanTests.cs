@@ -202,6 +202,24 @@ public class GrblRestorePlanTests
     }
 
     [Fact]
+    public void A_radio_setting_with_no_options_is_not_rejected_by_an_invented_domain()
+    {
+        // A board that reported no Format leaves the option set UNKNOWABLE. Judging such a
+        // setting against the empty range 0..-1 would mark every value Invalid and silently
+        // block a legitimate restore, so it falls through to the shared validation and the
+        // controller gets the final say — the same "only reject what the metadata proves
+        // wrong" rule the rest of the planner follows.
+        var board = new[] { BoardItem(110, GrblSettingType.RadioButtons, "0", format: "") };
+
+        var plan = GrblRestorePlan.Create(Backup("k", BackupSetting(110, "3")), board, "k");
+
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(GrblRestoreAction.Apply, item.Action);
+        Assert.Null(item.Reason);
+        Assert.Equal(1, plan.ApplyCount);
+    }
+
+    [Fact]
     public void A_bitfield_bit_outside_the_allowed_mask_is_Invalid()
     {
         // "A,B" yields the two bits 0b01 and 0b10, so the union of the item's masks is 0b11.
