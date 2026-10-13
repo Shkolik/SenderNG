@@ -42,11 +42,16 @@ namespace CNC.Core.Services;
 public sealed record AppSettingsBundleManifest(string Kind, int FormatVersion, string CreatedUtc, string AppVersion, int FileCount);
 
 /// <summary>
-/// An app-settings snapshot: settings-dir-relative path → verbatim file text.
+/// An app-settings snapshot: settings-dir-relative path → the file's text.
 /// The archive layout <b>is</b> the live layout (<c>global.json</c> +
 /// <c>profiles/&lt;id&gt;.json</c>), so unzipping it into the settings directory
 /// reproduces the live directory by hand; the only extra entry is the
 /// dot-prefixed manifest, which the loaders ignore.
+/// <para>
+/// The text is what round-trips, not the raw bytes: a file is decoded as UTF-8
+/// (BOM detection included) and written back as UTF-8 without a BOM, so a source
+/// BOM is normalised away and the text is otherwise unchanged.
+/// </para>
 /// </summary>
 public sealed class AppSettingsBundle
 {
@@ -68,11 +73,14 @@ public sealed class AppSettingsBundle
     public AppSettingsBundleManifest Manifest { get; init; } =
         new(Kind, CurrentFormatVersion, string.Empty, string.Empty, 0);
 
-    /// <summary>Entry name → verbatim file text. Entry names are settings-dir-relative
+    /// <summary>Entry name → the file's text (UTF-8; a source BOM is normalised away on
+    /// write). Entry names are settings-dir-relative
     /// with forward slashes: <c>global.json</c>, <c>profiles/mill.json</c>, …</summary>
     public IReadOnlyDictionary<string, string> Files { get; init; } = new Dictionary<string, string>();
 
-    /// <summary>Reads the live settings dir into an archive model. Throws on IO failure.</summary>
+    /// <summary>Reads the live settings dir into an archive model. Throws on IO failure.
+    /// Each file is stored as its text (UTF-8, BOM detected and stripped); the write side
+    /// emits UTF-8 with no BOM, so the text round-trips even though the bytes need not.</summary>
     public static AppSettingsBundle Capture(string settingsDir, string appVersion, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(settingsDir);
@@ -147,7 +155,10 @@ public sealed class AppSettingsBundle
                 return new AppSettingsBundleReadResult(
                     null, $"The archive has {entries.Count} entries; at most {AppSettingsBundleLayout.MaxEntries} are allowed.");
 
-            var seen = new HashSet<string>(StringComparer.Ordinal);
+            // Case-insensitive: profile ids are lowercase slugs by construction, so two
+            // entries differing only in case are a duplicate, not two files. With an
+            // ordinal set the second one would silently overwrite the first on Windows.
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var entry in entries)
             {
                 if (!AppSettingsBundleLayout.IsAllowedEntryName(entry.FullName))
@@ -233,12 +244,45 @@ public sealed class AppSettingsBundle
     /// <summary>Copies an entry into memory, refusing to read past <paramref name="cap"/> bytes.</summary>
     private static bool TryReadEntry(ZipArchiveEntry entry, long cap, out string text, out long bytes, out string? error)
     {
-        text = string.Empty;
-        bytes = 0;
-        error = null;
         try
         {
             using var source = entry.Open();
+            if (TryReadBounded(source, cap, out text, out bytes, out var reason))
+            {
+                error = null;
+                return true;
+            }
+            error = $"'{entry.FullName}' {reason}.";
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException)
+        {
+            text = string.Empty;
+            bytes = 0;
+            error = $"'{entry.FullName}' could not be read: {ex.Message}";
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Copies <paramref name="source"/> into memory as UTF-8 text, refusing to read past
+    /// <paramref name="limit"/> bytes — a zip entry's declared length is not trustworthy,
+    /// so the cap is enforced as the bytes arrive. Split out of the entry path so that cap
+    /// is testable without a <see cref="ZipArchiveEntry"/>.
+    /// </summary>
+    /// <param name="source">Stream to drain.</param>
+    /// <param name="limit">Maximum number of bytes to accept.</param>
+    /// <param name="text">The decoded text, or empty when the read is refused.</param>
+    /// <param name="bytes">Bytes read, or zero when the read is refused.</param>
+    /// <param name="reason">Why the read was refused, as a phrase the caller turns into a
+    /// sentence about the entry ("is larger than N bytes", "could not be read: …").</param>
+    internal static bool TryReadBounded(Stream source, long limit, out string text, out long bytes, out string? reason)
+    {
+        text = string.Empty;
+        bytes = 0;
+        reason = null;
+        try
+        {
             using var buffer = new MemoryStream();
             var chunk = new byte[81920];
             long total = 0;
@@ -246,9 +290,9 @@ public sealed class AppSettingsBundle
             while ((read = source.Read(chunk, 0, chunk.Length)) > 0)
             {
                 total += read;
-                if (total > cap)
+                if (total > limit)
                 {
-                    error = $"'{entry.FullName}' is larger than {cap} bytes.";
+                    reason = $"is larger than {limit} bytes";
                     return false;
                 }
                 buffer.Write(chunk, 0, read);
@@ -259,7 +303,7 @@ public sealed class AppSettingsBundle
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException)
         {
-            error = $"'{entry.FullName}' could not be read: {ex.Message}";
+            reason = "could not be read: " + ex.Message;
             return false;
         }
     }
@@ -334,12 +378,21 @@ public static class AppSettingsBundleValidator
         {
             if (!AppSettingsBundleLayout.IsProfileEntry(name))
                 continue;
-            // Companions (<id>.<suffix>.json) are validated too: a module-owned file
-            // that does not parse would be quarantined on the next load.
-            if (AppSettingsBundleLayout.ProfileIdOf(name) is { } id)
-                profileIds.Add(id);
-            if (!TryDeserialize<MachineProfile>(bundle.Files[name], out _, out var error))
+            // Companions (<id>.<suffix>.json) are opaque and restored verbatim: no loader
+            // ever parses one — ProfilesStore.Ids skips a dotted stem, and the only writer
+            // is ProfileSettingsPaths.CompanionPath — so their shape is module-owned. The
+            // probing companion is a JSON *array* (ProbingProfileStore.Save serializes
+            // List<ProbingProfile>), which is not a MachineProfile; validating it here
+            // would refuse a real user's own backup. Only profiles/<id>.json is a profile.
+            if (AppSettingsBundleLayout.ProfileIdOf(name) is not { } id)
+                continue;
+            profileIds.Add(id);
+            if (!TryDeserialize<MachineProfile>(bundle.Files[name], out var profile, out var error))
                 errors.Add($"{name} is not valid settings: {error}");
+            else if (!string.Equals(profile!.Id, id, StringComparison.Ordinal))
+                errors.Add(
+                    $"{name} holds profile id '{profile.Id}', not '{id}': the loaders read the id " +
+                    "from the payload, so the next save would write a different file.");
         }
 
         if (global is not null && !profileIds.Contains(global.ActiveProfileId, StringComparer.Ordinal))
@@ -350,16 +403,40 @@ public static class AppSettingsBundleValidator
         return new AppSettingsBundleValidation(errors, warnings);
     }
 
+    /// <summary>
+    /// Deserializes a payload the way its loader will — the loaders' own options
+    /// (<see cref="JsonSerializer.Deserialize{TValue}(string, JsonSerializerOptions?)"/>
+    /// with none, i.e. case-sensitive), not <see cref="JsonSerializerDefaults.Web"/>:
+    /// validation has to predict what <c>GlobalSettingsStore.Load</c> /
+    /// <c>ProfilesStore.TryLoad</c> actually read.
+    /// </summary>
     private static bool TryDeserialize<T>(string json, out T? value, out string error)
     {
         try
         {
-            value = JsonSerializer.Deserialize<T>(json, AppSettingsBundle.JsonOptions);
+            value = JsonSerializer.Deserialize<T>(json);
             if (value is null)
             {
                 error = "the payload is null";
                 return false;
             }
+
+            // Case-insensitive binding would silently fill in what the loader drops:
+            // a camelCase global.json reads as defaults, losing the profile registry
+            // and the active-profile pointer. Refuse a payload whose case-insensitive
+            // read differs from the case-sensitive one the loader performs.
+            var lenient = JsonSerializer.Deserialize<T>(json, AppSettingsBundle.JsonOptions);
+            if (!string.Equals(
+                    JsonSerializer.Serialize(value, AppSettingsBundle.JsonOptions),
+                    JsonSerializer.Serialize(lenient, AppSettingsBundle.JsonOptions),
+                    StringComparison.Ordinal))
+            {
+                value = default;
+                error = "the payload binds only case-insensitively, so the loader would read defaults " +
+                        "from it (property names must match the file format exactly)";
+                return false;
+            }
+
             error = string.Empty;
             return true;
         }

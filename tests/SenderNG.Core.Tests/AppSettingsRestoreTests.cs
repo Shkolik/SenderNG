@@ -55,6 +55,12 @@ public class AppSettingsRestoreTests
         ("profiles/mill.json", ProfileJson("mill")),
         ("profiles/mill.probing.json", "{\n  \"Enabled\": true\n}\n"));
 
+    /// <summary><c>profiles/&lt;id&gt;.probing.json</c> in the shape the probing module writes it:
+    /// <c>ProbingProfileStore.Save</c> serializes <c>List&lt;ProbingProfile&gt;</c>, so the real
+    /// companion is a JSON <b>array</b>, never a <c>MachineProfile</c>.</summary>
+    private const string ProbingCompanionJson =
+        "[\n  {\n    \"Name\": \"<Default>\",\n    \"ProbeDiameter\": 2,\n    \"ProbeFeedRate\": 100\n  }\n]";
+
     private static string LocalPath(string dir, string key) =>
         Path.Combine(dir, key.Replace('/', Path.DirectorySeparatorChar));
 
@@ -81,6 +87,30 @@ public class AppSettingsRestoreTests
         Assert.True(result.Ok, string.Join("; ", result.Failed));
         foreach (var (key, text) in bundle.Files)
             Assert.Equal(text, File.ReadAllText(LocalPath(dir, key)));
+    }
+
+    [Fact]
+    public void A_captured_archive_with_a_real_probing_companion_validates_and_restores()
+    {
+        // The user's own backup: a live dir whose probing companion is written by the
+        // probing module (a JSON array). Capture → ReadFrom → Apply must succeed and
+        // the companion must land verbatim.
+        var source = TempDir();
+        Directory.CreateDirectory(Path.Combine(source, "profiles"));
+        File.WriteAllText(LocalPath(source, "global.json"), GlobalJsonText);
+        File.WriteAllText(LocalPath(source, "profiles/mill.json"), ProfileJson("mill"));
+        File.WriteAllText(LocalPath(source, "profiles/mill.probing.json"), ProbingCompanionJson);
+        var archive = Path.Combine(TempDir(), "settings" + AppSettingsBundle.Extension);
+        AppSettingsBundle.Capture(source, "1.2.3", DateTimeOffset.UtcNow).WriteTo(archive, DateTimeOffset.UtcNow);
+        var read = AppSettingsBundle.ReadFrom(archive);
+        Assert.True(read.Ok, read.Error);
+
+        var target = TempDir();
+        var result = AppSettingsRestore.Apply(target, read.Bundle!);
+
+        Assert.True(result.Ok, string.Join("; ", result.Failed));
+        Assert.Equal(3, result.Written);
+        Assert.Equal(ProbingCompanionJson, File.ReadAllText(LocalPath(target, "profiles/mill.probing.json")));
     }
 
     [Fact]
