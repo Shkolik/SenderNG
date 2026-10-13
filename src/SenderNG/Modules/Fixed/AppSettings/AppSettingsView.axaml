@@ -109,6 +109,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                           x:DataType="vm:HotkeysSettingsLeaf">
                                 <TextBlock Text="{Binding Name}" FontSize="11" Foreground="#222" Margin="2,2" />
                             </DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:BackupSettingsLeaf}"
+                                          x:DataType="vm:BackupSettingsLeaf">
+                                <TextBlock Text="{Binding Name}" FontSize="11" Foreground="#222" Margin="2,2" />
+                            </DataTemplate>
                         </TreeView.DataTemplates>
                     </TreeView>
                 </ScrollViewer>
@@ -364,6 +368,60 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </DataTemplate>
+
+                            <!-- Backup & restore: archive the whole app config, or restore one -->
+                            <DataTemplate DataType="{x:Type vm:BackupSettingsLeaf}"
+                                          x:DataType="vm:BackupSettingsLeaf">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Orientation="Vertical" Spacing="10" Margin="0,2,10,4">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="#222" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Description}" FontSize="11" Foreground="#666"
+                                                   TextWrapping="Wrap" IsVisible="{Binding HasDescription}" />
+                                        <Rectangle Height="1" Fill="#ddd" IsVisible="{Binding HasDescription}" />
+
+                                        <TextBlock Text="{Binding FolderText}" FontSize="11" Foreground="#333"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Summary}" FontSize="11" Foreground="#666"
+                                                   TextWrapping="Wrap" />
+
+                                        <TextBlock Text="{Binding BlockedText}" FontSize="11"
+                                                   Foreground="#a33" TextWrapping="Wrap"
+                                                   IsVisible="{Binding ShowBlocked}" />
+
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Button Content="{loc:Loc appSettings.backup.save}" FontSize="11"
+                                                    Command="{Binding BackupCommand}"
+                                                    Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
+                                            <Button Content="{Binding RestoreButtonText}" FontSize="11"
+                                                    Command="{Binding RestoreCommand}"
+                                                    Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
+                                        </StackPanel>
+
+                                        <!-- Two-step confirm: nothing is written until Restore now -->
+                                        <Border Background="#fff8e1" BorderBrush="#e0c060" BorderThickness="1"
+                                                Padding="8" IsVisible="{Binding HasRestorePlan}">
+                                            <StackPanel Orientation="Vertical" Spacing="8">
+                                                <TextBlock Text="{Binding PlanSummary}" FontSize="11"
+                                                           Foreground="#664d00" TextWrapping="Wrap" />
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <Button Content="{Binding RestoreNowText}" FontSize="11"
+                                                            Command="{Binding ApplyRestoreCommand}"
+                                                            Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
+                                                    <Button Content="{loc:Loc appSettings.backup.cancel}" FontSize="11"
+                                                            Command="{Binding CancelRestoreCommand}"
+                                                            Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <TextBlock Text="{Binding Status}" IsVisible="{Binding HasStatus}"
+                                                   FontSize="11" Foreground="#080" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </ScrollViewer>
                             </DataTemplate>

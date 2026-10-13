@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using CNC.Core.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,11 +58,14 @@ public class AppSettingsModule : IModule
     public void RegisterServices(IServiceCollection services) =>
         // Transient: each dialog open builds fresh cards and fresh module settings
         // views (a view instance cannot be attached to a new visual parent twice).
+        // The dialog service is optional: the dialog must still build without it
+        // (headless tests do not register one) — its backup commands just stay disabled.
         services.AddTransient(sp => new AppSettingsViewModel(
             sp.GetRequiredService<SettingsService>(),
             sp.GetServices<IModule>(),
             sp.GetRequiredService<SenderNG.Core.Localization.LocalizationService>(),
-            hotkeys: sp.GetService<SenderNG.Core.Services.HotkeyService>()));
+            hotkeys: sp.GetService<SenderNG.Core.Services.HotkeyService>(),
+            fileDialogs: sp.GetService<IFileDialogService>()));
 
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>

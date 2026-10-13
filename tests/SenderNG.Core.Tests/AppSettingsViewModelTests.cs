@@ -34,6 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using CNC.Core.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -135,6 +136,76 @@ public class AppSettingsViewModelTests
 
     private static AppSettingsViewModel CreateVm(SettingsService settings) =>
         new(settings, Modules, Loc);
+
+    /// <summary>Dialog double: hands back a scripted path and records the suggested name
+    /// and the filter lists the backup leaf passes (pattern: MainViewModelTests.StubFileDialogs).</summary>
+    private sealed class RecordingFileDialogs : IFileDialogService
+    {
+        public string? SavePath { get; set; }
+        public string? OpenPath { get; set; }
+        public string? LastSuggestedName { get; private set; }
+        public string[] LastOpenFilters { get; private set; } = [];
+        public string[] LastSaveFilters { get; private set; } = [];
+        public int OpenCalls { get; private set; }
+        public int SaveCalls { get; private set; }
+
+        public Task<string?> OpenFileAsync(string title, params string[] filters)
+        {
+            OpenCalls++;
+            LastOpenFilters = filters;
+            return Task.FromResult(OpenPath);
+        }
+
+        public Task<string?> SaveFileAsync(string title, string suggestedFileName, params string[] filters)
+        {
+            SaveCalls++;
+            LastSuggestedName = suggestedFileName;
+            LastSaveFilters = filters;
+            return Task.FromResult(SavePath);
+        }
+
+        public Task ShowErrorAsync(string title, string message) => Task.CompletedTask;
+    }
+
+    /// <summary>A live settings fixture: global.json, two profiles and one companion.</summary>
+    private static (string Dir, SettingsService Service, RecordingFileDialogs Dialogs) MakeBackupFixture()
+    {
+        var (dir, settings) = MakeSettings();
+        settings.Load();                                    // global.json + the default profile
+        settings.CreateProfile("foam", MachineTypes.Foam);  // a second profile file
+        File.WriteAllText(
+            Path.Combine(ProfileSettingsPaths.ProfilesDir(dir), MachineProfile.DefaultId + ".probing.json"), "{}");
+        return (dir, settings, new RecordingFileDialogs());
+    }
+
+    private static AppSettingsViewModel CreateBackupVm(SettingsService settings, RecordingFileDialogs dialogs,
+        Func<bool>? gate = null) =>
+        new(settings, Modules, Loc, gate, null, dialogs);
+
+    private static BackupSettingsLeaf BackupLeafOf(AppSettingsViewModel vm) =>
+        ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<BackupSettingsLeaf>().Single();
+
+    private static string TempBackupPath() =>
+        Path.Combine(Path.GetTempPath(), "senderng-backup-" + Guid.NewGuid().ToString("N") + AppSettingsBundle.Extension);
+
+    /// <summary>Relative path + verbatim text of every file under the settings dir, so a
+    /// refusal can be shown to have left the directory byte-identical.</summary>
+    private static string DiskState(string dir) =>
+        string.Join("\n", Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+            .OrderBy(p => p, StringComparer.Ordinal)
+            .Select(p => Path.GetRelativePath(dir, p) + "=" + File.ReadAllText(p)));
+
+    /// <summary>A readable archive written from <paramref name="files"/> (any payload text).</summary>
+    private static string WriteArchive(string path, params (string Name, string Text)[] files)
+    {
+        new AppSettingsBundle
+        {
+            Manifest = new AppSettingsBundleManifest(
+                AppSettingsBundle.Kind, AppSettingsBundle.CurrentFormatVersion, "2026-10-13T12:00:00Z", "1.0", files.Length),
+            Files = files.ToDictionary(f => f.Name, f => f.Text, StringComparer.Ordinal),
+        }.WriteTo(path, DateTimeOffset.UtcNow);
+        return path;
+    }
 
     // Field-like auto-events expose their invocation list through a backing field of the
     // same name. Assert.NotNull rather than "return 0": if an event is ever rewritten with
@@ -673,5 +744,441 @@ public class AppSettingsViewModelTests
         Assert.True(prop is { GetMethod.IsPublic: true, SetMethod.IsPublic: true },
             $"{node.GetType().Name} must expose a public IsExpanded accessor");
         return node;
+    }
+
+    /* -----------------------------------------------------------------------
+     * Backup & restore leaf
+     * --------------------------------------------------------------------- */
+
+    [Fact]
+    public void The_backup_leaf_is_the_last_child_of_the_global_group()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var vm = CreateVm(settings);
+            var global = (AppSettingsGroupItem)vm.Groups[0];
+
+            // The positional assumptions existing tests rely on are load-bearing.
+            Assert.IsType<ProfileSettingsLeaf>(global.Children[0]);
+            Assert.IsType<LanguageSettingsLeaf>(global.Children[1]);
+            var leaf = Assert.IsType<BackupSettingsLeaf>(global.Children[global.Children.Count - 1]);
+            Assert.Equal("backup", leaf.Id);
+
+            // With the optional Hotkeys leaf present the backup leaf is still appended last.
+            var hotkeys = new HotkeyService(settings);
+            var withHotkeys = new AppSettingsViewModel(settings, Modules, Loc, null, hotkeys);
+            try
+            {
+                var hotkeysGlobal = (AppSettingsGroupItem)withHotkeys.Groups[0];
+                Assert.IsType<LanguageSettingsLeaf>(hotkeysGlobal.Children[1]);
+                var last = Assert.IsType<BackupSettingsLeaf>(hotkeysGlobal.Children[hotkeysGlobal.Children.Count - 1]);
+                Assert.Equal(3, hotkeysGlobal.Children.IndexOf(last));
+            }
+            finally
+            {
+                withHotkeys.Dispose();
+            }
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void The_leaf_reports_the_settings_folder_and_file_counts()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        try
+        {
+            var leaf = BackupLeafOf(CreateBackupVm(settings, dialogs));
+
+            Assert.Equal(dir, leaf.SettingsFolder);
+            Assert.Equal(Loc.T("appSettings.backup.folder").Replace("{0}", dir), leaf.FolderText);
+            Assert.Equal(
+                Loc.T("appSettings.backup.summary").Replace("{0}", "4").Replace("{1}", "2"),
+                leaf.Summary);
+
+            // The counts come from the disk, not the in-memory graph: a profile file dropped
+            // in behind the service's back shows up without the registry ever knowing.
+            File.WriteAllText(Path.Combine(ProfileSettingsPaths.ProfilesDir(dir), "ghost.json"), "{}");
+            Assert.DoesNotContain("ghost", settings.Global.Profiles.Keys);
+
+            leaf.Refresh();
+
+            Assert.Equal(
+                Loc.T("appSettings.backup.summary").Replace("{0}", "5").Replace("{1}", "3"),
+                leaf.Summary);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Backup_writes_a_zip_into_the_chosen_path()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        var target = TempBackupPath();
+        try
+        {
+            var leaf = BackupLeafOf(CreateBackupVm(settings, dialogs));
+            dialogs.SavePath = target;
+
+            await leaf.BackupAsync();
+
+            Assert.True(File.Exists(target), leaf.Status);
+            Assert.EndsWith(AppSettingsBundle.Extension, target);
+            Assert.NotNull(dialogs.LastSuggestedName);
+            Assert.EndsWith(AppSettingsBundle.Extension, dialogs.LastSuggestedName!);
+            Assert.Contains(AppSettingsBundle.Extension, string.Join(";", dialogs.LastSaveFilters));
+
+            // The archive reads back as a SenderNG app-settings bundle holding the live file set.
+            var read = AppSettingsBundle.ReadFrom(target);
+            Assert.True(read.Ok, read.Error);
+            Assert.Equal(
+                new[] { "global.json", "profiles/default.json", "profiles/default.probing.json", "profiles/foam.json" },
+                read.Bundle!.Files.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
+            Assert.Equal(File.ReadAllText(Path.Combine(dir, "global.json")), read.Bundle.Files["global.json"]);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            if (File.Exists(target))
+                File.Delete(target);
+        }
+    }
+
+    [Fact]
+    public async Task Backup_reports_the_file_count_and_destination()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        var target = TempBackupPath();
+        try
+        {
+            var leaf = BackupLeafOf(CreateBackupVm(settings, dialogs));
+            dialogs.SavePath = target;
+
+            await leaf.BackupAsync();
+
+            Assert.True(leaf.HasStatus);
+            Assert.Equal(
+                Loc.T("appSettings.backup.saved").Replace("{0}", "4").Replace("{1}", target),
+                leaf.Status);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            if (File.Exists(target))
+                File.Delete(target);
+        }
+    }
+
+    [Fact]
+    public async Task A_cancelled_backup_writes_nothing()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        try
+        {
+            var leaf = BackupLeafOf(CreateBackupVm(settings, dialogs));
+            var before = DiskState(dir);
+            dialogs.SavePath = null;
+
+            await leaf.BackupAsync();
+
+            Assert.Equal(1, dialogs.SaveCalls);
+            Assert.Equal(before, DiskState(dir));
+            Assert.False(leaf.HasStatus); // a cancel is not a state change
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Restore_shows_a_confirm_step_before_writing_anything()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        var target = TempBackupPath();
+        try
+        {
+            var archived = AppSettingsBundle.Capture(dir, "test", DateTimeOffset.UtcNow);
+            archived.WriteTo(target, DateTimeOffset.UtcNow);
+            var leaf = BackupLeafOf(CreateBackupVm(settings, dialogs));
+            // The live files diverge from the archive after the backup was taken.
+            File.WriteAllText(Path.Combine(dir, "global.json"), "stale");
+            var before = DiskState(dir);
+            dialogs.OpenPath = target;
+
+            await leaf.RestoreAsync();
+
+            Assert.True(leaf.HasRestorePlan);
+            Assert.Contains(archived.Files.Count.ToString(), leaf.PlanSummary);
+            Assert.Equal(Loc.T("appSettings.backup.restoreNow"), leaf.RestoreNowText);
+            Assert.Equal(Loc.T("appSettings.backup.restoreNow"), leaf.RestoreButtonText);
+            Assert.Contains(AppSettingsBundle.Extension, string.Join(";", dialogs.LastOpenFilters));
+            Assert.Equal(before, DiskState(dir)); // nothing is written before the confirm
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            if (File.Exists(target))
+                File.Delete(target);
+        }
+    }
+
+    [Fact]
+    public async Task ApplyRestore_writes_the_archive_and_marks_the_service_restore_pending()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        var target = TempBackupPath();
+        try
+        {
+            var archived = AppSettingsBundle.Capture(dir, "test", DateTimeOffset.UtcNow);
+            archived.WriteTo(target, DateTimeOffset.UtcNow);
+            var leaf = BackupLeafOf(CreateBackupVm(settings, dialogs));
+            File.WriteAllText(Path.Combine(dir, "global.json"), "stale");
+            File.WriteAllText(Path.Combine(ProfileSettingsPaths.ProfilesDir(dir), "default.json"), "stale");
+            dialogs.OpenPath = target;
+
+            await leaf.RestoreAsync();
+            await leaf.ApplyRestoreAsync();
+
+            Assert.True(settings.RestorePending);
+            Assert.False(leaf.HasRestorePlan);
+            foreach (var (key, text) in archived.Files)
+                Assert.Equal(text, File.ReadAllText(Path.Combine(dir, key.Replace('/', Path.DirectorySeparatorChar))));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            if (File.Exists(target))
+                File.Delete(target);
+        }
+    }
+
+    [Fact]
+    public async Task ApplyRestore_reports_the_restart_requirement()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        var target = TempBackupPath();
+        try
+        {
+            var archived = AppSettingsBundle.Capture(dir, "test", DateTimeOffset.UtcNow);
+            archived.WriteTo(target, DateTimeOffset.UtcNow);
+            var leaf = BackupLeafOf(CreateBackupVm(settings, dialogs));
+            dialogs.OpenPath = target;
+
+            await leaf.RestoreAsync();
+            await leaf.ApplyRestoreAsync();
+
+            Assert.Equal(
+                Loc.T("appSettings.backup.restored").Replace("{0}", archived.Files.Count.ToString()),
+                leaf.Status);
+            Assert.Contains("Restart", leaf.Status, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            if (File.Exists(target))
+                File.Delete(target);
+        }
+    }
+
+    [Fact]
+    public async Task ApplyRestore_leaves_bystander_files_alone()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        var target = TempBackupPath();
+        try
+        {
+            AppSettingsBundle.Capture(dir, "test", DateTimeOffset.UtcNow).WriteTo(target, DateTimeOffset.UtcNow);
+            var leaf = BackupLeafOf(CreateBackupVm(settings, dialogs));
+            // A profile created after the archive was taken: restore must not delete it.
+            var bystander = Path.Combine(ProfileSettingsPaths.ProfilesDir(dir), "liveonly.json");
+            File.WriteAllText(bystander, "{\"Id\":\"liveonly\",\"Name\":\"Live only\"}");
+            dialogs.OpenPath = target;
+
+            await leaf.RestoreAsync();
+            await leaf.ApplyRestoreAsync();
+
+            Assert.True(settings.RestorePending);
+            Assert.True(File.Exists(bystander));
+            Assert.Equal("{\"Id\":\"liveonly\",\"Name\":\"Live only\"}", File.ReadAllText(bystander));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            if (File.Exists(target))
+                File.Delete(target);
+        }
+    }
+
+    [Fact]
+    public async Task A_foreign_or_broken_archive_is_rejected_with_a_message_and_writes_nothing()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        var foreign = TempBackupPath();
+        var brokenZip = TempBackupPath();
+        var brokenPayload = TempBackupPath();
+        try
+        {
+            // (a) a well-formed zip from another tool: right shape, wrong manifest kind.
+            new AppSettingsBundle
+            {
+                Manifest = new AppSettingsBundleManifest("something-else", AppSettingsBundle.CurrentFormatVersion,
+                    "2026-10-13T12:00:00Z", "1.0", 1),
+                Files = new Dictionary<string, string> { ["global.json"] = "{}" },
+            }.WriteTo(foreign, DateTimeOffset.UtcNow);
+
+            // (b) not a zip at all.
+            File.WriteAllText(brokenZip, "this is not a zip archive");
+
+            // (c) a readable archive whose profile payload does not parse.
+            WriteArchive(brokenPayload,
+                ("global.json", "{\"ActiveProfileId\":\"mill\",\"Profiles\":{\"mill\":\"Mill\"}}"),
+                ("profiles/mill.json", "{ not json"));
+
+            var leaf = BackupLeafOf(CreateBackupVm(settings, dialogs));
+            var before = DiskState(dir);
+
+            foreach (var (path, fragment) in new[]
+                     {
+                         (foreign, "something-else"),
+                         (brokenZip, "not a readable settings archive"),
+                         (brokenPayload, "profiles/mill.json"),
+                     })
+            {
+                dialogs.OpenPath = path;
+
+                await leaf.RestoreAsync();
+
+                Assert.False(leaf.HasRestorePlan);
+                Assert.True(leaf.HasStatus);
+                Assert.Contains("Restore failed", leaf.Status);
+                Assert.Contains(fragment, leaf.Status);
+                Assert.Equal(before, DiskState(dir));
+            }
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            foreach (var path in new[] { foreign, brokenZip, brokenPayload })
+                if (File.Exists(path))
+                    File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Validate_warnings_are_shown_before_the_restore()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        var target = TempBackupPath();
+        try
+        {
+            // The archive's active profile is not among its own profiles: a warning, not an error.
+            WriteArchive(target,
+                ("global.json", "{\"ActiveProfileId\":\"ghost\",\"Profiles\":{\"ghost\":\"Ghost\"}}"),
+                ("profiles/mill.json", "{\"Id\":\"mill\",\"Name\":\"Mill\"}"));
+            var leaf = BackupLeafOf(CreateBackupVm(settings, dialogs));
+            var before = DiskState(dir);
+            dialogs.OpenPath = target;
+
+            await leaf.RestoreAsync();
+
+            Assert.True(leaf.HasRestorePlan); // a warning never blocks the restore
+            Assert.Contains("active profile", leaf.PlanSummary);
+            Assert.Equal(before, DiskState(dir));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            if (File.Exists(target))
+                File.Delete(target);
+        }
+    }
+
+    [Fact]
+    public async Task The_restore_is_blocked_by_the_gate()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        var target = TempBackupPath();
+        try
+        {
+            AppSettingsBundle.Capture(dir, "test", DateTimeOffset.UtcNow).WriteTo(target, DateTimeOffset.UtcNow);
+            var vm = CreateBackupVm(settings, dialogs);
+            var leaf = BackupLeafOf(vm);
+            dialogs.OpenPath = target;
+            await leaf.RestoreAsync(); // plan while switching is still allowed
+            Assert.True(leaf.HasRestorePlan);
+
+            File.WriteAllText(Path.Combine(dir, "global.json"), "stale");
+            var before = DiskState(dir);
+            vm.ProfileSwitchAllowed = () => false; // pushes the gate into the leaf
+
+            Assert.False(leaf.CanRestore);
+            Assert.True(leaf.ShowBlocked);
+            Assert.False(leaf.RestoreCommand.CanExecute(null));
+            Assert.False(leaf.ApplyRestoreCommand.CanExecute(null));
+
+            // Executing anyway (a stale UI) must still refuse: nothing is written.
+            await leaf.ApplyRestoreAsync();
+
+            Assert.Equal(before, DiskState(dir));
+            Assert.Equal(Loc.T("appSettings.backup.blocked"), leaf.Status);
+            Assert.False(settings.RestorePending);
+
+            // The gate passed to the constructor reaches the leaf too.
+            var gatedInCtor = CreateBackupVm(settings, dialogs, () => false);
+            Assert.False(BackupLeafOf(gatedInCtor).CanRestore);
+            Assert.True(BackupLeafOf(gatedInCtor).ShowBlocked);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            if (File.Exists(target))
+                File.Delete(target);
+        }
+    }
+
+    [Fact]
+    public void RelocalizeButtons_refreshes_the_labels()
+    {
+        var (dir, settings, dialogs) = MakeBackupFixture();
+        try
+        {
+            var vm = CreateBackupVm(settings, dialogs);
+            var leaf = BackupLeafOf(vm);
+            var before = leaf.RestoreButtonText;
+            var notified = new List<string?>();
+            leaf.PropertyChanged += (_, e) => notified.Add(e.PropertyName);
+
+            if (Loc.AvailableLocales.Contains("ru"))
+            {
+                try
+                {
+                    Loc.SetLocale("ru");
+
+                    // The VM's OnLocaleChanged must ask the leaf to re-raise its labels.
+                    Assert.Contains(nameof(BackupSettingsLeaf.RestoreButtonText), notified);
+                    Assert.Contains(nameof(BackupSettingsLeaf.RestoreNowText), notified);
+                    Assert.NotEqual(before, leaf.RestoreButtonText);
+                    Assert.Equal(Loc.T("appSettings.backup.restore"), leaf.RestoreButtonText);
+                    Assert.Equal(Loc.T("appSettings.backup.restoreNow"), leaf.RestoreNowText);
+                    Assert.Equal(Loc.T("appSettings.backup.folder").Replace("{0}", dir), leaf.FolderText);
+                }
+                finally
+                {
+                    Loc.SetLocale("en");
+                }
+            }
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
     }
 }
