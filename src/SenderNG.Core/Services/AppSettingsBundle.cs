@@ -42,11 +42,16 @@ namespace CNC.Core.Services;
 public sealed record AppSettingsBundleManifest(string Kind, int FormatVersion, string CreatedUtc, string AppVersion, int FileCount);
 
 /// <summary>
-/// An app-settings snapshot: settings-dir-relative path → verbatim file text.
+/// An app-settings snapshot: settings-dir-relative path → the file's text.
 /// The archive layout <b>is</b> the live layout (<c>global.json</c> +
 /// <c>profiles/&lt;id&gt;.json</c>), so unzipping it into the settings directory
 /// reproduces the live directory by hand; the only extra entry is the
 /// dot-prefixed manifest, which the loaders ignore.
+/// <para>
+/// The text is what round-trips, not the raw bytes: a file is decoded as UTF-8
+/// (BOM detection included) and written back as UTF-8 without a BOM, so a source
+/// BOM is normalised away and the text is otherwise unchanged.
+/// </para>
 /// </summary>
 public sealed class AppSettingsBundle
 {
@@ -68,11 +73,14 @@ public sealed class AppSettingsBundle
     public AppSettingsBundleManifest Manifest { get; init; } =
         new(Kind, CurrentFormatVersion, string.Empty, string.Empty, 0);
 
-    /// <summary>Entry name → verbatim file text. Entry names are settings-dir-relative
+    /// <summary>Entry name → the file's text (UTF-8; a source BOM is normalised away on
+    /// write). Entry names are settings-dir-relative
     /// with forward slashes: <c>global.json</c>, <c>profiles/mill.json</c>, …</summary>
     public IReadOnlyDictionary<string, string> Files { get; init; } = new Dictionary<string, string>();
 
-    /// <summary>Reads the live settings dir into an archive model. Throws on IO failure.</summary>
+    /// <summary>Reads the live settings dir into an archive model. Throws on IO failure.
+    /// Each file is stored as its text (UTF-8, BOM detected and stripped); the write side
+    /// emits UTF-8 with no BOM, so the text round-trips even though the bytes need not.</summary>
     public static AppSettingsBundle Capture(string settingsDir, string appVersion, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(settingsDir);
@@ -236,12 +244,45 @@ public sealed class AppSettingsBundle
     /// <summary>Copies an entry into memory, refusing to read past <paramref name="cap"/> bytes.</summary>
     private static bool TryReadEntry(ZipArchiveEntry entry, long cap, out string text, out long bytes, out string? error)
     {
-        text = string.Empty;
-        bytes = 0;
-        error = null;
         try
         {
             using var source = entry.Open();
+            if (TryReadBounded(source, cap, out text, out bytes, out var reason))
+            {
+                error = null;
+                return true;
+            }
+            error = $"'{entry.FullName}' {reason}.";
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException)
+        {
+            text = string.Empty;
+            bytes = 0;
+            error = $"'{entry.FullName}' could not be read: {ex.Message}";
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Copies <paramref name="source"/> into memory as UTF-8 text, refusing to read past
+    /// <paramref name="limit"/> bytes — a zip entry's declared length is not trustworthy,
+    /// so the cap is enforced as the bytes arrive. Split out of the entry path so that cap
+    /// is testable without a <see cref="ZipArchiveEntry"/>.
+    /// </summary>
+    /// <param name="source">Stream to drain.</param>
+    /// <param name="limit">Maximum number of bytes to accept.</param>
+    /// <param name="text">The decoded text, or empty when the read is refused.</param>
+    /// <param name="bytes">Bytes read, or zero when the read is refused.</param>
+    /// <param name="reason">Why the read was refused, as a phrase the caller turns into a
+    /// sentence about the entry ("is larger than N bytes", "could not be read: …").</param>
+    internal static bool TryReadBounded(Stream source, long limit, out string text, out long bytes, out string? reason)
+    {
+        text = string.Empty;
+        bytes = 0;
+        reason = null;
+        try
+        {
             using var buffer = new MemoryStream();
             var chunk = new byte[81920];
             long total = 0;
@@ -249,9 +290,9 @@ public sealed class AppSettingsBundle
             while ((read = source.Read(chunk, 0, chunk.Length)) > 0)
             {
                 total += read;
-                if (total > cap)
+                if (total > limit)
                 {
-                    error = $"'{entry.FullName}' is larger than {cap} bytes.";
+                    reason = $"is larger than {limit} bytes";
                     return false;
                 }
                 buffer.Write(chunk, 0, read);
@@ -262,7 +303,7 @@ public sealed class AppSettingsBundle
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException)
         {
-            error = $"'{entry.FullName}' could not be read: {ex.Message}";
+            reason = "could not be read: " + ex.Message;
             return false;
         }
     }

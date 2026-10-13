@@ -108,6 +108,12 @@ public class AppSettingsBundleTests
         return Path.Combine(dir, stem + AppSettingsBundle.Extension);
     }
 
+    private static readonly byte[] Utf8Bom = [0xEF, 0xBB, 0xBF];
+
+    /// <summary>Writes a UTF-8 file with a byte-order mark, as some editors do.</summary>
+    private static void WriteWithBom(string path, string text) =>
+        File.WriteAllBytes(path, [.. Utf8Bom, .. Encoding.UTF8.GetBytes(text)]);
+
     private static string ReadEntryText(string zipPath, string name)
     {
         using var archive = ZipFile.OpenRead(zipPath);
@@ -167,6 +173,38 @@ public class AppSettingsBundleTests
         // The odd whitespace in the fixture survived: this is a byte copy, not a re-serialize.
         Assert.Equal(ProfileJson("mill"), bundle.Files["profiles/mill.json"]);
         Assert.Contains("\n  \n", bundle.Files["profiles/mill.json"], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Capture_and_restore_keep_a_BOMd_non_ASCII_file_as_the_same_text()
+    {
+        // What round-trips is the file's text as UTF-8, not its raw bytes: the BOM is
+        // normalised away (Capture's ReadAllText detects and strips it; the write side
+        // emits UTF-8 with no BOM). This pins both halves of that claim.
+        const string globalText =
+            "{\"ActiveProfileId\":\"default\",\"Profiles\":{\"default\":\"Мельница\"},\"Language\":\"ru\"}";
+        const string profileText = "{\"Id\":\"default\",\"Name\":\"Станок\"}";
+        var source = TempDir();
+        Directory.CreateDirectory(Path.Combine(source, "profiles"));
+        WriteWithBom(Path.Combine(source, "global.json"), globalText);
+        WriteWithBom(Path.Combine(source, "profiles", "default.json"), profileText);
+
+        var bundle = AppSettingsBundle.Capture(source, "1.2.3", Stamp);
+        Assert.Equal(globalText, bundle.Files["global.json"]);
+        Assert.Equal(profileText, bundle.Files["profiles/default.json"]);
+
+        var archive = ZipPath("bom");
+        bundle.WriteTo(archive, Stamp);
+        var read = AppSettingsBundle.ReadFrom(archive);
+        Assert.True(read.Ok, read.Error);
+        Assert.Equal(globalText, read.Bundle!.Files["global.json"]);
+
+        var target = TempDir();
+        var result = AppSettingsRestore.Apply(target, read.Bundle);
+        Assert.True(result.Ok, string.Join("; ", result.Failed));
+        Assert.Equal(globalText, File.ReadAllText(Path.Combine(target, "global.json")));
+        Assert.Equal(profileText, File.ReadAllText(Path.Combine(target, "profiles", "default.json")));
+        Assert.False(File.ReadAllBytes(Path.Combine(target, "global.json")).AsSpan().StartsWith(Utf8Bom));
     }
 
     [Fact]
@@ -398,6 +436,35 @@ public class AppSettingsBundleTests
         Assert.False(result.Ok);
         Assert.Contains("profiles/mill.json", result.Error!, StringComparison.Ordinal);
         Assert.Contains("more than once", result.Error!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryReadBounded_refuses_a_stream_that_exceeds_the_limit()
+    {
+        // The cap enforced while copying, independent of any zip entry's declared
+        // length: the stream holds one byte more than the limit.
+        const long limit = 64;
+
+        using var source = new MemoryStream(Encoding.UTF8.GetBytes(new string('a', (int)limit + 1)));
+
+        Assert.False(AppSettingsBundle.TryReadBounded(source, limit, out var text, out var bytes, out var reason));
+        Assert.Equal(string.Empty, text);
+        Assert.Equal(0, bytes);
+        Assert.Contains("larger than", reason!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryReadBounded_reads_a_non_ASCII_stream_up_to_the_limit()
+    {
+        var expected = new string('ы', 40); // two bytes per character in UTF-8
+        var limit = Encoding.UTF8.GetByteCount(expected);
+
+        using var source = new MemoryStream(Encoding.UTF8.GetBytes(expected));
+
+        Assert.True(AppSettingsBundle.TryReadBounded(source, limit, out var text, out var bytes, out var reason));
+        Assert.Null(reason);
+        Assert.Equal(expected, text);
+        Assert.Equal(limit, bytes);
     }
 
     [Fact]
