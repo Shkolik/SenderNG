@@ -1,0 +1,17 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:SenderNG.Modules.HeightMapViewer"
+             x:Class="SenderNG.Modules.HeightMapViewer.HeightMapViewerView"
+             x:DataType="vm:HeightMapViewerViewModel"
+             x:CompileBindings="False">
+    <!-- Task C2 placeholder: a localized empty state only. Task C4 replaces the
+         body with the shared GL surface viewport and live updates. -->
+    <Border BorderBrush="#aaa" BorderThickness="1" Background="White">
+        <TextBlock Text="{Binding EmptyText}"
+                   IsVisible="{Binding IsEmpty}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Margin="24" MaxWidth="460"
+                   Foreground="#555" FontSize="14"
+                   TextWrapping="Wrap" TextAlignment="Center" />
+    </Border>
+</UserControl>
