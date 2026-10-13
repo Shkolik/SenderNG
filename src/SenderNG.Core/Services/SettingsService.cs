@@ -216,10 +216,18 @@ public class SettingsService
     /// <paramref name="copyFromId"/> — duplicate). Registers it, persists the
     /// registry, and returns it without activating.
     /// </summary>
+    /// <remarks>
+    /// While <see cref="RestorePending"/> nothing is written and nothing is
+    /// loaded: the call returns the live graph when one exists, otherwise a
+    /// fresh throwaway <see cref="MachineProfile"/> (which is never registered,
+    /// persisted or made current). It deliberately does <b>not</b> fall back to
+    /// <see cref="Load"/>, because that writes on a fresh directory and would
+    /// overwrite the freshly restored files.
+    /// </remarks>
     public MachineProfile CreateProfile(string name, string machineTypeId, string? copyFromId = null)
     {
         if (WritesBlocked)
-            return _current ?? Load();
+            return _current ?? new MachineProfile();
         var id = UniqueId(name);
         // Fresh profiles seed machine-coupled defaults from the type preset: the
         // demo controller simulates the type's axis count (Foam needs 4 so both
@@ -291,10 +299,18 @@ public class SettingsService
     /// graph to its file, persists the pointer, raises <see cref="Changed"/> and
     /// <see cref="ProfileSwitched"/>.
     /// </summary>
+    /// <remarks>
+    /// While <see cref="RestorePending"/> the switch is refused without writing:
+    /// the call returns the live graph when one exists, otherwise a fresh
+    /// throwaway <see cref="MachineProfile"/> (never made current). It
+    /// deliberately does <b>not</b> fall back to <see cref="Load"/>, because
+    /// that writes on a fresh directory and would overwrite the freshly
+    /// restored files.
+    /// </remarks>
     public MachineProfile Activate(string profileId)
     {
         if (WritesBlocked)
-            return _current ?? Load();
+            return _current ?? new MachineProfile();
         var profile = ProfilesStore.TryLoad(_dir, profileId, _onFallback)
             ?? throw new ArgumentException($"Unknown profile '{profileId}'", nameof(profileId));
         _current = profile;

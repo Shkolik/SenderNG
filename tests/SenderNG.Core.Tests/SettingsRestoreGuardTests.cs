@@ -98,6 +98,25 @@ public class SettingsRestoreGuardTests
     }
 
     [Fact]
+    public void Blocked_mutators_never_load_so_a_fresh_service_writes_nothing()
+    {
+        var (dir, settings) = MakeSettings();
+
+        // The guard is set before the graph was ever loaded. Falling back to
+        // Load() here would create profiles/default.json and global.json over
+        // the files the restore just wrote, so the blocked path must not read
+        // the graph through Load().
+        settings.MarkRestorePending();
+
+        var activated = settings.Activate("x");
+        var created = settings.CreateProfile("n", MachineTypes.Mill);
+
+        Assert.NotNull(activated);
+        Assert.NotNull(created);
+        Assert.Empty(Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories));
+    }
+
+    [Fact]
     public void SaveGlobal_SaveProfile_Activate_CreateProfile_RenameProfile_DeleteProfile_SetProfileMachineType_are_no_ops_while_pending()
     {
         var (dir, settings) = MakeSettings();
