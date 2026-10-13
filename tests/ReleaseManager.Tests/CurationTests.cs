@@ -46,6 +46,8 @@ public class CurationTests
     [InlineData("SenderNG.runtimeconfig.json")]
     [InlineData("SenderNG.Core.dll")]
     [InlineData("Modules/SenderNG.Modules.Common.dll")]
+    [InlineData("Modules/SenderNG.Modules.Common.Render.dll")]
+    [InlineData("Modules/Silk.NET.OpenGL.dll")]
     [InlineData("Locale/en.json")]
     [InlineData("runtimes/win-x64/native/something.dll")]
     public void IsExcluded_false_for_shipped_files(string path)
@@ -72,6 +74,10 @@ public class CurationTests
     [InlineData("SenderNG.Core.dll", true)]
     [InlineData("CNC.Core.dll", true)]
     [InlineData("SenderNG.Modules.Common.dll", true)]
+    [InlineData("SenderNG.Modules.Common.Render.dll", true)]
+    [InlineData("Silk.NET.Core.dll", true)]
+    [InlineData("Silk.NET.Maths.dll", true)]
+    [InlineData("Silk.NET.OpenGL.dll", true)]
     [InlineData("Avalonia.dll", true)]
     [InlineData("Avalonia.Win32.dll", true)]
     [InlineData("SenderNG.Modules.Excellon.dll", false)]
@@ -111,6 +117,10 @@ public class CurationTests
     {
         var modules = TempDir.New();
         File.WriteAllText(Path.Combine(modules, "SenderNG.Modules.Common.dll"), "sdk");
+        File.WriteAllText(Path.Combine(modules, "SenderNG.Modules.Common.Render.dll"), "render");
+        File.WriteAllText(Path.Combine(modules, "Silk.NET.Core.dll"), "silk");
+        File.WriteAllText(Path.Combine(modules, "Silk.NET.Maths.dll"), "silk");
+        File.WriteAllText(Path.Combine(modules, "Silk.NET.OpenGL.dll"), "silk");
         File.WriteAllText(Path.Combine(modules, "SenderNG.Modules.Excellon.dll"), "mod");
         Directory.CreateDirectory(Path.Combine(modules, "excellon", "Locale"));
         File.WriteAllText(Path.Combine(modules, "excellon", "Locale", "en.json"), "{}");
@@ -120,6 +130,10 @@ public class CurationTests
         Curation.StripModulesToSdk(modules);
 
         Assert.True(File.Exists(Path.Combine(modules, "SenderNG.Modules.Common.dll")));
+        Assert.True(File.Exists(Path.Combine(modules, "SenderNG.Modules.Common.Render.dll")));
+        Assert.True(File.Exists(Path.Combine(modules, "Silk.NET.Core.dll")));
+        Assert.True(File.Exists(Path.Combine(modules, "Silk.NET.Maths.dll")));
+        Assert.True(File.Exists(Path.Combine(modules, "Silk.NET.OpenGL.dll")));
         Assert.False(File.Exists(Path.Combine(modules, "SenderNG.Modules.Excellon.dll")));
         Assert.False(Directory.Exists(Path.Combine(modules, "excellon")));
         Assert.False(Directory.Exists(Path.Combine(modules, "hpgl")));

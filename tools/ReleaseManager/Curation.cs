@@ -63,11 +63,20 @@ public static class Curation
 
     public static bool IsHostOwned(string fileName)
     {
-        if (fileName == "SenderNG.Core.dll" ||
-            fileName == "CNC.Core.dll" ||
-            fileName == "SenderNG.Modules.Common.dll")
+        if (IsSdkAssembly(fileName) ||
+            fileName == "SenderNG.Core.dll" ||
+            fileName == "CNC.Core.dll")
             return true;
         return fileName.StartsWith("Avalonia", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsSdkAssembly(string fileName)
+    {
+        if (fileName == "SenderNG.Modules.Common.dll" ||
+            fileName == "SenderNG.Modules.Common.Render.dll")
+            return true;
+        return fileName.StartsWith("Silk.NET.", StringComparison.OrdinalIgnoreCase) &&
+               fileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
     }
 
     public static void CopyBundle(string publishDir, string bundleDir, ILog log)
@@ -102,7 +111,7 @@ public static class Curation
                     Directory.Delete(child, recursive: true);
                 }
             }
-            else if (name != "SenderNG.Modules.Common.dll")
+            else if (!IsSdkAssembly(name))
             {
                 File.Delete(child);
             }

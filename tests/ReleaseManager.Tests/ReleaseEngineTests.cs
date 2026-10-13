@@ -55,6 +55,8 @@ public class ReleaseEngineTests
         File.WriteAllText(Path.Combine(appPublish, "SenderNG.Core.dll"), "core");
         File.WriteAllText(Path.Combine(appPublish, "SenderNG.pdb"), "pdb");
         File.WriteAllText(Path.Combine(appPublish, "Modules", "SenderNG.Modules.Common.dll"), "sdk");
+        File.WriteAllText(Path.Combine(appPublish, "Modules", "SenderNG.Modules.Common.Render.dll"), "render");
+        File.WriteAllText(Path.Combine(appPublish, "Modules", "Silk.NET.OpenGL.dll"), "silk");
         File.WriteAllText(Path.Combine(appPublish, "Modules", "SenderNG.Modules.Excellon.dll"), "mod");
         Directory.CreateDirectory(Path.Combine(appPublish, "Modules", "excellon", "Locale"));
         File.WriteAllText(Path.Combine(appPublish, "Modules", "excellon", "Locale", "en.json"), "{}");
@@ -309,6 +311,8 @@ public class ReleaseEngineTests
         File.WriteAllText(Path.Combine(publish, "SenderNG.runtimeconfig.json"), "{}");
         File.WriteAllText(Path.Combine(publish, "SenderNG.Core.dll"), "core");
         File.WriteAllText(Path.Combine(publish, "Modules", "SenderNG.Modules.Common.dll"), "sdk");
+        File.WriteAllText(Path.Combine(publish, "Modules", "SenderNG.Modules.Common.Render.dll"), "render");
+        File.WriteAllText(Path.Combine(publish, "Modules", "Silk.NET.OpenGL.dll"), "silk");
         File.WriteAllText(Path.Combine(publish, "Modules", "excellon", "Locale", "en.json"), "{}");
         File.WriteAllText(Path.Combine(publish, NativeLib(platform)), "n");
         return publish;

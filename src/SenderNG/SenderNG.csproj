@@ -38,6 +38,7 @@
          (SenderNG.Modules.Common) ships the same way: present in Modules/ for
          plugin assembly resolution, never referenced by app code. -->
     <ProjectReference Include="..\SenderNG.Modules.Common\SenderNG.Modules.Common.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\SenderNG.Modules.Common.Render\SenderNG.Modules.Common.Render.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Excellon\SenderNG.Modules.Excellon.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Hpgl\SenderNG.Modules.Hpgl.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SenderNG.Modules.Plotter\SenderNG.Modules.Plotter.csproj" ReferenceOutputAssembly="false" />
@@ -108,16 +109,13 @@
     <InternalsVisibleTo Include="SenderNG.Tests" />
   </ItemGroup>
 
-  <Target Name="StageGlPluginClosure" AfterTargets="Build">
+  <Target Name="StageRenderSdk" AfterTargets="Build">
     <ItemGroup>
-      <_GlClosure Include="..\SenderNG.Modules.Plotter.GL\bin\$(Configuration)\$(TargetFramework)\*.dll"
-                   Exclude="..\SenderNG.Modules.Plotter.GL\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Plotter.GL.dll;
-                            ..\SenderNG.Modules.Plotter.GL\bin\$(Configuration)\$(TargetFramework)\SenderNG.Core.dll;
-                            ..\SenderNG.Modules.Plotter.GL\bin\$(Configuration)\$(TargetFramework)\CNC.Core.dll;
-                            ..\SenderNG.Modules.Plotter.GL\bin\$(Configuration)\$(TargetFramework)\Avalonia*.dll" />
+      <_RenderSdk Include="..\SenderNG.Modules.Common.Render\bin\$(Configuration)\$(TargetFramework)\SenderNG.Modules.Common.Render.dll;
+                       ..\SenderNG.Modules.Common.Render\bin\$(Configuration)\$(TargetFramework)\Silk.NET.Core.dll;
+                       ..\SenderNG.Modules.Common.Render\bin\$(Configuration)\$(TargetFramework)\Silk.NET.Maths.dll;
+                       ..\SenderNG.Modules.Common.Render\bin\$(Configuration)\$(TargetFramework)\Silk.NET.OpenGL.dll" />
     </ItemGroup>
-    <Copy SourceFiles="@(_GlClosure)"
-          DestinationFolder="$(OutputPath)Modules\plotter-gl"
-          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_RenderSdk)" DestinationFolder="$(OutputPath)Modules" SkipUnchangedFiles="true" />
   </Target>
 </Project>

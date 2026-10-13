@@ -51,6 +51,7 @@ public static class ReleaseVerifier
             "SenderNG.runtimeconfig.json",
             "SenderNG.Core.dll",
             Path.Combine("Modules", "SenderNG.Modules.Common.dll"),
+            Path.Combine("Modules", "SenderNG.Modules.Common.Render.dll"),
             "LICENSE"
         };
         foreach (var relative in required)
@@ -81,7 +82,7 @@ public static class ReleaseVerifier
             foreach (var file in Directory.EnumerateFiles(modulesDir, "*.dll", SearchOption.TopDirectoryOnly))
             {
                 var name = Path.GetFileName(file);
-                if (name != "SenderNG.Modules.Common.dll")
+                if (!Curation.IsSdkAssembly(name))
                     failures.Add($"forbidden: Modules/{name}");
             }
         }
