@@ -60,7 +60,7 @@ function New-LinuxCiBash {
     # A fixed literal, piped over stdin to `bash -s`: every parameter arrives as a
     # SENDENG_* environment variable, so nothing is substituted into this text and
     # there is no cross-shell quoting hazard (wsl.exe eats quotes in argv).
-    return @'
+    $payload = @'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -155,6 +155,10 @@ echo ""
 echo "OK: Linux CI test pass is green. Log: $TEST_LOG"
 # end of script
 '@
+    # A CR at the end of a bash line breaks `set -euo pipefail` ("$'\r': command not
+    # found"), and core.autocrlf=true checks this file out with CRLF. Normalising here
+    # makes the payload identical whatever the checkout's line endings are.
+    return $payload -replace "`r`n", "`n"
 }
 
 function Invoke-LinuxCiTests {
