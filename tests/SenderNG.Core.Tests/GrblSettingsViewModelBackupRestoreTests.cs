@@ -697,4 +697,32 @@ public class GrblSettingsViewModelBackupRestoreTests
         Assert.Contains("$32", vm.Status);
         Assert.Contains("between 0 and 2", vm.Status); // the bonded-range message for the 0..2 domain
     }
+
+    [Fact]
+    public async Task Restore_plans_against_the_boards_current_values_not_the_models_last_load()
+    {
+        // Found on hardware (grblHAL RP2040, $110): the dialog's model is only as fresh as its last
+        // load, so with the setting changed behind it the plan called the row "unchanged" and the
+        // restore silently wrote nothing at all.
+        var provider = new StubProvider { ValueLines = ["$0=10"] };
+        var grbl = new FakeGrbl();
+        await grbl.ConnectAsync("stub");
+        var dialogs = new StubDialogs();
+        var vm = CreateVm(provider, grbl, dialogs);
+        await vm.LoadAsync(); // the model holds $0=10
+
+        var path = TempFile(".json");
+        await File.WriteAllTextAsync(path, BackupJson(("0", "10"))); // the backup holds 10 as well
+        dialogs.OpenPath = path;
+
+        provider.ValueLines = ["$0=11"]; // the board moved on behind the dialog
+        await vm.RestoreAsync();
+        Assert.True(vm.HasRestorePlan);
+
+        provider.ValueLines = ["$0=10"]; // the board takes the restored value
+        await vm.ApplyRestoreAsync();
+
+        Assert.Equal(["$0=10"], grbl.Sent); // without the re-read this is empty: planned "unchanged"
+        Assert.Contains("Restored 1 settings", vm.Status);
+    }
 }

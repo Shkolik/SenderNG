@@ -185,6 +185,19 @@ public sealed class GrblSettingItem : ViewModelBase
         OnPropertyChanged(nameof(IsDirty));
     }
 
+    /// <summary>
+    /// Move the board-held baseline to what the controller reports now, leaving the user's own edit
+    /// (<see cref="Value"/>) untouched. Used before planning a restore: "unchanged" has to mean
+    /// "unchanged on the board", not "unchanged since this dialog was opened".
+    /// </summary>
+    public void Rebaseline(string boardValue)
+    {
+        if (boardValue == OriginalValue)
+            return;
+        OriginalValue = boardValue;
+        OnPropertyChanged(nameof(IsDirty));
+    }
+
     /// <summary>Apply a bool editor change (checkbox toggle).</summary>
     public void ApplyBool(bool value) => Value = value ? "1" : "0";
 
@@ -776,16 +789,52 @@ public sealed class GrblSettingsViewModel : ViewModelBase
                 return;
             }
 
+            // A plan's "unchanged" rows must mean "unchanged on the board NOW": the model is only as
+            // fresh as its last load, and a setting can change behind the dialog (the console,
+            // another sender, a module reset). Found on hardware: the board held $110=600.000 while
+            // the model still said 500.000, so the restore reported "Restored 0 settings" and
+            // silently left the board alone. The user's unsaved edits are preserved — only the
+            // board-held baseline they are compared against moves.
+            if (!await RebaselineBoardValuesAsync())
+                return;
+
             _restorePlan = GrblRestorePlan.Create(parsed.Backup!, _allItems, _grbl.Capabilities.ControllerKey);
             OnPropertyChanged(nameof(HasRestorePlan));
-            RestoreSummary = BuildRestoreSummary(_restorePlan);
-        }
+            RestoreSummary = BuildRestoreSummary(_restorePlan);        }
         catch (Exception ex)
         {
             _restorePlan = null;
             OnPropertyChanged(nameof(HasRestorePlan));
             RestoreSummary = null;
             Status = LocText.Format("module.grbl-settings.restoreFailed", "Restore failed: {0}", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Re-read the board and move every item's board-held baseline (<see cref="GrblSettingItem.OriginalValue"/>)
+    /// to what the controller reports now. The restore plan diffs the backup against that baseline,
+    /// and the dialog's model is only as fresh as its last load, so without this a setting changed
+    /// behind the dialog would be planned as "unchanged" and silently skipped. The user's own unsaved
+    /// edits are deliberately untouched: only the baseline they are compared against moves.
+    /// </summary>
+    /// <returns>False (with the status set) when the board could not be read, so no plan is built
+    /// against values that are only half known.</returns>
+    private async Task<bool> RebaselineBoardValuesAsync()
+    {
+        try
+        {
+            var snapshot = await new GrblSettingsLoader(_provider, _localization).LoadAsync();
+            var onBoard = snapshot.Settings.ToDictionary(static setting => setting.Id);
+            foreach (var item in _allItems)
+                if (onBoard.TryGetValue(item.Id, out var setting))
+                    item.Rebaseline(setting.Value);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message;
+            Status = LocText.Format("module.grbl-settings.loadFailed", "Load failed: {0}", ex.Message);
+            return false;
         }
     }
 
