@@ -84,6 +84,17 @@ public class SettingsService
     /// live; restarting the app builds a fresh service and clears the guard. Raises
     /// <see cref="RestorePendingChanged"/> at most once, and never <see cref="Changed"/>
     /// — nothing has changed on disk.</summary>
+    /// <remarks>
+    /// <para>"No writes" means no <b>value</b> writes: nothing may persist the in-memory
+    /// graph over the restored files. One class of write is deliberately still possible —
+    /// the loaders' quarantine-on-read (<see cref="GlobalSettingsStore.Load"/>,
+    /// <see cref="ProfilesStore.TryLoad"/>), which moves a file aside only when its
+    /// content cannot be parsed. That repair cannot target a freshly restored file:
+    /// <c>AppSettingsRestore.Apply</c> validates every payload before it writes one.</para>
+    /// <para>Every accessor with a write side effect is suppressed while pending,
+    /// including <see cref="Global"/>'s lazy load, which creates the default profile and
+    /// <c>global.json</c> on a fresh directory.</para>
+    /// </remarks>
     public void MarkRestorePending()
     {
         if (RestorePending)
@@ -165,12 +176,23 @@ public class SettingsService
     /// same instance until <see cref="Save(MachineProfile)"/> or
     /// <see cref="SaveGlobal"/> replaces it.
     /// </summary>
+    /// <remarks>
+    /// The lazy path is suppressed while <see cref="RestorePending"/> because
+    /// <see cref="Load"/> is not a pure read: on a never-loaded service it creates the
+    /// default profile and <c>global.json</c> (see <see cref="Load"/>), which would write
+    /// over a restored settings directory. An unloaded service has nothing but defaults to
+    /// offer anyway, so it answers with a fresh <see cref="GlobalSettings"/> instead of
+    /// loading. In the app this path is unreachable while pending — the host reads
+    /// <see cref="Global"/> at startup, long before any restore can happen.
+    /// </remarks>
     public GlobalSettings Global
     {
         get
         {
             if (_global is null)
             {
+                if (WritesBlocked)
+                    return new GlobalSettings();
                 Load();
                 _global = GlobalSettingsStore.Load(_dir, _onFallback);
             }
