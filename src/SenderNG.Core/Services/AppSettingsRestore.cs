@@ -46,6 +46,12 @@ public sealed record AppSettingsRestoreResult(int Written, IReadOnlyList<string>
 /// exactly as they are (manual unzip-and-copy parity — extra profiles survive), and
 /// every file is written as <c>&lt;path&gt;.tmp</c> then moved over the target, so a
 /// crash or a full disk cannot leave a truncated JSON file behind.
+/// <para>
+/// "Validate before writing anything" is structural, not a caller obligation:
+/// <see cref="Apply"/> validates the bundle itself and refuses an invalid one without
+/// touching the disk, so a caller that skipped
+/// <see cref="AppSettingsBundleValidator.Validate"/> cannot half-write an archive.
+/// </para>
 /// </summary>
 public static class AppSettingsRestore
 {
@@ -54,6 +60,12 @@ public static class AppSettingsRestore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(settingsDir);
         ArgumentNullException.ThrowIfNull(bundle);
+
+        // Structural guarantee: an archive that does not validate is never written,
+        // in whole or in part. The reported failures are the validation errors.
+        var validation = AppSettingsBundleValidator.Validate(bundle);
+        if (!validation.Ok)
+            return new AppSettingsRestoreResult(0, validation.Errors);
 
         var root = Path.GetFullPath(settingsDir);
         var written = 0;

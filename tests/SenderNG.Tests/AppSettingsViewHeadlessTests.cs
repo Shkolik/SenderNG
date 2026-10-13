@@ -42,6 +42,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using CNC.Core.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -304,6 +305,59 @@ public class AppSettingsViewHeadlessTests
         Dispatcher.UIThread.RunJobs();
         AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
         await Task.Yield();
+    }
+
+    [AvaloniaFact]
+    public async Task Backup_leaf_renders_its_localized_buttons()
+    {
+        // Regression guard: without a DataTemplate for BackupSettingsLeaf the detail pane
+        // stays empty even though the leaf is selected.
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var vm = new AppSettingsViewModel(settings, Array.Empty<IModule>(), Loc,
+                fileDialogs: new StubFileDialogs());
+            var leaf = ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<BackupSettingsLeaf>().Single();
+            vm.SelectedNode = leaf;
+
+            var view = new AppSettingsView { DataContext = vm };
+            var window = new Window { Width = 920, Height = 560, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var buttons = window.GetVisualDescendants().OfType<Button>().ToList();
+            var dump = string.Join(" | ", buttons.Select(b => b.Content is null ? "<null>" : $"\"{b.Content}\""));
+            var backup = buttons.SingleOrDefault(b => Equals(b.Content, Loc.T("appSettings.backup.save")))
+                ?? throw new InvalidOperationException($"Backup button not found. Buttons: {dump}");
+            var restore = buttons.SingleOrDefault(b => Equals(b.Content, Loc.T("appSettings.backup.restore")))
+                ?? throw new InvalidOperationException($"Restore button not found. Buttons: {dump}");
+            Assert.True(backup.IsEnabled);
+            Assert.True(restore.IsEnabled);
+
+            // The folder path and the on-disk counts are rendered too.
+            var summary = window.GetVisualDescendants().OfType<TextBlock>()
+                .SingleOrDefault(t => Equals(t.Text, leaf.Summary))
+                ?? throw new InvalidOperationException("Backup summary not rendered.");
+            Assert.Contains(settings.SettingsDir, leaf.FolderText);
+            Assert.True(summary.IsVisible);
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    private sealed class StubFileDialogs : IFileDialogService
+    {
+        public Task<string?> OpenFileAsync(string title, params string[] filters) => Task.FromResult<string?>(null);
+        public Task<string?> SaveFileAsync(string title, string suggestedFileName, params string[] filters)
+            => Task.FromResult<string?>(null);
+        public Task ShowErrorAsync(string title, string message) => Task.CompletedTask;
     }
 
     private class StubModule : IModule
