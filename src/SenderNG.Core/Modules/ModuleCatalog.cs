@@ -145,8 +145,17 @@ public static class ModuleCatalog
             if (!seenIds.Add(instance.Id))
                 continue;
 
-            services.AddSingleton(type);
-            services.AddSingleton<IModule>(sp => (IModule)sp.GetRequiredService(type));
+            // Register the SAME instance for the concrete type and IModule. The
+            // catalog constructs it, calls RegisterServices on it (which binds any
+            // capability interface to `this` — e.g. IHeightMap3DRenderer or
+            // IHeightMapSource), and the host later calls AttachServices on the
+            // IModule instance. Registering the *type* instead makes the container
+            // build a second instance, so AttachServices state is invisible to the
+            // interfaces: a scanned plugin's dialog never opens (ShowAsync sees a
+            // null services provider) and its published data never reaches
+            // subscribers.
+            services.AddSingleton(type, instance);
+            services.AddSingleton<IModule>(instance);
 
             // Per-module error reporter keyed by the module's Id: a plugin
             // resolves its own reporter via

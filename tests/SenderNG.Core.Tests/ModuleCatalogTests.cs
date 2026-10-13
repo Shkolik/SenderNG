@@ -73,7 +73,12 @@ public class ModuleCatalogTests
         ModuleCatalog.Scan(sc, typeof(TestModule).Assembly);
 
         var descriptor = Assert.Single(sc, sd => sd.ServiceType == typeof(TestModule));
-        Assert.Equal(typeof(TestModule), descriptor.ImplementationType);
+        // The catalog registers the instance it constructed (and called
+        // RegisterServices on) — not the type. Registering the type would let the
+        // container build a second instance, splitting AttachServices state from
+        // the capability interfaces RegisterServices binds to `this`.
+        Assert.IsType<TestModule>(descriptor.ImplementationInstance);
+        Assert.Null(descriptor.ImplementationType);
         Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
     }
 
