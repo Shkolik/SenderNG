@@ -81,6 +81,13 @@ public partial class HeightMapViewerView : UserControl
     private Vector2 _lastPanPx;
     private Vector2 _lastOrbitPx;
 
+    // The locale listener is owned by the view and (un)subscribed symmetrically
+    // with attach/detach. The host builds a NEW view per dialog open while
+    // LocalizationService.Current is an app-lifetime singleton, so a listener
+    // left subscribed would root every abandoned view.
+    private LocalizationService? _localization;
+    private EventHandler? _localeChanged;
+
     public HeightMapViewerView()
     {
         InitializeComponent();
@@ -89,12 +96,9 @@ public partial class HeightMapViewerView : UserControl
             _vm = DataContext as HeightMapViewerViewModel;
             EnsureScene();
         };
-        AttachedToVisualTree += (_, _) => EnsureScene();
+        AttachedToVisualTree += (_, _) => OnAttachedToVisualTree();
         DetachedFromVisualTree += OnDetachedFromVisualTree;
         ApplyLocalizedTexts();
-        var loc = LocalizationService.Current;
-        if (loc is not null)
-            loc.Changed += (_, _) => ApplyLocalizedTexts();
     }
 
     /// <summary>Resolve the header, reset-button and fallback strings in the
@@ -146,10 +150,45 @@ public partial class HeightMapViewerView : UserControl
         EnableTick();
     }
 
+    private void OnAttachedToVisualTree()
+    {
+        SubscribeLocale();
+        EnsureScene();
+    }
+
     private void OnDetachedFromVisualTree(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
     {
+        UnsubscribeLocale();
         DisableTick();
         FreeRenderResources();
+    }
+
+    /// <summary>Idempotently listen for locale changes while the view is
+    /// attached. Re-attach re-subscribes; a one-shot dialog is torn down by
+    /// <see cref="UnsubscribeLocale"/> on detach.</summary>
+    private void SubscribeLocale()
+    {
+        if (_localeChanged is not null)
+            return;
+        var loc = LocalizationService.Current;
+        if (loc is null)
+            return;
+        _localeChanged = (_, _) => ApplyLocalizedTexts();
+        _localization = loc;
+        loc.Changed += _localeChanged;
+    }
+
+    /// <summary>Idempotently drop the locale listener so the singleton does not
+    /// root this view after the dialog closes.</summary>
+    private void UnsubscribeLocale()
+    {
+        if (_localeChanged is null)
+            return;
+        var loc = _localization;
+        if (loc is not null)
+            loc.Changed -= _localeChanged;
+        _localization = null;
+        _localeChanged = null;
     }
 
     private void ReportRenderFailure(PlotGlFailure failure, Exception ex)

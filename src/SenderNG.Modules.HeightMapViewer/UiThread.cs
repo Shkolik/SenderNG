@@ -57,10 +57,6 @@ internal static class UiThread
     /// <summary>Bind to the Avalonia UI dispatcher. Call once from the UI thread.</summary>
     internal static void Initialize() => _uiDispatcher = Dispatcher.UIThread;
 
-    /// <summary>Test seam: clears the captured dispatcher so each test starts
-    /// uninitialised, matching the headless contract.</summary>
-    internal static void ResetForTests() => _uiDispatcher = null;
-
     /// <summary>
     /// Runs <paramref name="action"/> on the UI thread, or inline when already
     /// there (or when no dispatcher was initialized, e.g. unit tests).

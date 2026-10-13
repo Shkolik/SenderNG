@@ -297,8 +297,6 @@ internal sealed class HeightMapScene : IDisposable
         }
     }
 
-    private static ref float Unsafe(ref Matrix4x4 m) => ref m.M11;
-
     private void UseLineProgram(in Matrix4x4 vp, uint rtW, uint rtH, float widthPx)
     {
         _gl.UseProgram(_lineProg);
