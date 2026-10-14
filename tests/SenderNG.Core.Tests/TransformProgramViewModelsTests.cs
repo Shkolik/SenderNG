@@ -156,4 +156,84 @@ public class TransformProgramViewModelsTests
 
         Assert.Equal(GCodeCommentMode.StripAll, ProgramConfigStore.Load(profile).CompressCommentMode);
     }
+
+    [Fact]
+    public void WrapDialog_offers_linear_sources_and_available_rotary_target()
+    {
+        var vm = new WrapProgramViewModel(WrapDirection.Wrap, "XYZABC", 4);
+
+        Assert.Equal([0, 1], vm.SourceAxes.Select(a => a.Index));
+        Assert.Equal([3], vm.TargetAxes.Select(a => a.Index));
+        Assert.Equal(1, vm.SourceAxis!.Index); // defaults to Y
+        Assert.Equal(3, vm.TargetAxis!.Index); // defaults to A
+        Assert.True(vm.IsWrap);
+    }
+
+    [Fact]
+    public void UnwrapDialog_offers_rotary_sources_and_linear_targets()
+    {
+        var vm = new WrapProgramViewModel(WrapDirection.Unwrap, "XYZABC", 4);
+
+        Assert.Equal([3], vm.SourceAxes.Select(a => a.Index));
+        Assert.Equal([0, 1], vm.TargetAxes.Select(a => a.Index));
+        Assert.Equal(3, vm.SourceAxis!.Index);
+        Assert.Equal(0, vm.TargetAxis!.Index);
+        Assert.False(vm.IsWrap);
+    }
+
+    [Fact]
+    public void WrapDialog_targets_b_only_when_the_controller_reports_five_axes()
+    {
+        var four = new WrapProgramViewModel(WrapDirection.Wrap, "XYZABC", 4);
+        var five = new WrapProgramViewModel(WrapDirection.Wrap, "XYZABC", 5);
+
+        Assert.Equal([3], four.TargetAxes.Select(a => a.Index));
+        Assert.Equal([3, 4], five.TargetAxes.Select(a => a.Index));
+    }
+
+    [Fact]
+    public void WrapDialog_ok_closes_true_and_cancel_closes_false()
+    {
+        var vm = new WrapProgramViewModel(WrapDirection.Wrap, "XYZABC", 4);
+        bool? result = null;
+
+        vm.CloseRequested += (_, r) => result = r;
+        vm.OkCommand.Execute(null);
+        Assert.True(result);
+
+        vm.CancelCommand.Execute(null);
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void WrapDialog_ok_is_disabled_until_the_diameter_is_positive()
+    {
+        var vm = new WrapProgramViewModel(WrapDirection.Wrap, "XYZABC", 4);
+
+        Assert.True(vm.OkCommand.CanExecute(null)); // defaults to 50
+
+        vm.Diameter = 0d;
+        Assert.False(vm.OkCommand.CanExecute(null));
+
+        vm.Diameter = -12.5d;
+        Assert.False(vm.OkCommand.CanExecute(null));
+
+        vm.Diameter = 25d;
+        Assert.True(vm.OkCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void WrapDialog_builds_axis_labels_through_the_injected_formatter()
+    {
+        var localized = new WrapProgramViewModel(WrapDirection.Wrap, "XYZABC", 5,
+            letter => "axis:" + letter);
+
+        Assert.Equal(["axis:X", "axis:Y"], localized.SourceAxes.Select(a => a.Label));
+        Assert.Equal(["axis:A", "axis:B"], localized.TargetAxes.Select(a => a.Label));
+
+        // No formatter (tests, non-localized hosts): the English default.
+        var fallback = new WrapProgramViewModel(WrapDirection.Unwrap, "XYZABC", 4);
+        Assert.Equal("A-axis", fallback.SourceAxes.Single().Label);
+        Assert.Equal(["X-axis", "Y-axis"], fallback.TargetAxes.Select(a => a.Label));
+    }
 }

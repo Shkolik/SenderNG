@@ -125,6 +125,10 @@ public class NumericInputFilterPresenceTests
         AssertAllRejectLetters(new ArcsToLinesProgramView());
 
     [AvaloniaFact]
+    public void Wrap_view_boxes_reject_letters() =>
+        AssertAllRejectLetters(new WrapProgramView());
+
+    [AvaloniaFact]
     public void Outline_feed_rate_rejects_letters()
     {
         var (window, boxes) = ShowAndGetFilteredBoxes(new OutlineView());

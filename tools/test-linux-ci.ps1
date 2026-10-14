@@ -100,7 +100,7 @@ rm -rf "$MIRROR"
 mkdir -p "$MIRROR"
 : > "$MARKER"
 rsync -a \
-    --exclude '.git/' --exclude 'bin/' --exclude 'obj/' \
+    --exclude '.git' --exclude 'bin/' --exclude 'obj/' \
     --exclude 'output/' --exclude '.vs/' --exclude '.debug-repro/' \
     --exclude '.worktrees/' --exclude 'TestResults/' --exclude '.superpowers/' \
     "$SRC/" "$MIRROR/"

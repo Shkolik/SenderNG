@@ -864,4 +864,279 @@ public static class GCodeTransformers
             (double[])drill.Values.Clone(), drill.AxisFlags, drill.R, drill.L, drill.P, drill.Q),
         _ => token,
     };
+
+    /// <summary>
+    /// Remaps one axis onto another — the engine behind the rotary Wrap / Unwrap
+    /// transforms. The value on <paramref name="fromAxis"/> moves to
+    /// <paramref name="toAxis"/> scaled by the cylinder size
+    /// (<paramref name="mmPerDegree"/> = π·D/360): wrap scales by 1/mmPerDegree
+    /// (linear → rotary), unwrap by mmPerDegree (rotary → linear). Only motions
+    /// carrying the source axis are remapped. Feed is preserved across the
+    /// conversion: a move whose only remapped axis is the target — or whose
+    /// remaining linear path is zero — uses units/min (G94) with the feed
+    /// converted to target-axis units; a mixed rotary + linear move uses inverse
+    /// time (G93) with `F = programFeed / dist`, over the remaining X/Y/Z axes
+    /// only. A move that is not remapped (including G0 rapids) restores the
+    /// program's feed mode and value, so a converted F never leaks onwards.
+    /// <paramref name="zShift"/> is added to Z on every motion carrying Z. Arc,
+    /// spline and canned-cycle tokens are refused, as is a G95 (units/rev) feed
+    /// mode — the model assumes a distance-based feed. Inputs are never mutated:
+    /// an untouched motion is passed through by reference, a changed one is a new
+    /// instance with a cloned values array.
+    /// </summary>
+    /// <param name="tokens">Engine token stream (caller-owned, never mutated).</param>
+    /// <param name="fromAxis">Source axis index whose value is moved.</param>
+    /// <param name="toAxis">Target axis index that receives the scaled value.</param>
+    /// <param name="mmPerDegree">Surface mm per degree at the chosen diameter (π·D/360).</param>
+    /// <param name="toAxisIsRotary">true for wrap (target A/B is rotary); false for unwrap (source A/B is rotary).</param>
+    /// <param name="decimals">Coordinate rounding precision (use <see cref="GCodeProgram.Decimals"/>).</param>
+    /// <param name="zShift">Offset added to Z on every motion that carries Z (wrap +D/2, unwrap −D/2).</param>
+    /// <param name="header">Leading comment placed at the top of the result.</param>
+    /// <param name="startX">Current position X (relative-mode seeding).</param>
+    /// <param name="startY">Current position Y.</param>
+    /// <param name="startZ">Current position Z.</param>
+    /// <exception cref="InvalidOperationException">An arc, spline or canned-cycle token is present, or the program sets G95.</exception>
+    public static List<string> AxisRemap(
+        IReadOnlyList<GCodeToken> tokens,
+        int fromAxis, int toAxis,
+        double mmPerDegree,
+        bool toAxisIsRotary,
+        int decimals = 3,
+        double zShift = 0d,
+        string header = "Axis remap applied",
+        double startX = 0d, double startY = 0d, double startZ = 0d)
+    {
+        var scale = toAxisIsRotary ? 1d / mmPerDegree : mmPerDegree;
+        var fromFlag = (AxisFlags)(1 << fromAxis);
+        var toFlag = (AxisFlags)(1 << toAxis);
+
+        var pos = new double[9];
+        pos[0] = startX;
+        pos[1] = startY;
+        // The Z0-at-center shift translates every Z in the program, INCLUDING the
+        // position it starts from: seeding the unshifted startZ would make that
+        // constant offset look like travel on the first Z-carrying move and
+        // mis-feed it (upstream's artifact — a pure rotary move became a 5x-slow
+        // G93 in the reviewed trace).
+        pos[2] = startZ + zShift;
+
+        var distanceMode = DistanceMode.Absolute;
+        var programFeedMode = FeedRateMode.UnitsPerMin;
+        var outputFeedMode = FeedRateMode.UnitsPerMin;
+        var programFeed = 0d;
+        var currentFeed = 0d;
+        var hasPendingF = false;
+        uint pendingFLine = 0;
+
+        uint lastLineNumber = 0;
+        var inMachineCoords = false;
+
+        var toolPath = new List<GCodeToken>
+        {
+            new GCComment(Commands.Comment, 0, header),
+        };
+
+        void FlushPendingFeed()
+        {
+            if (!hasPendingF)
+                return;
+            toolPath.Add(new GCFeedrate(pendingFLine, programFeed));
+            currentFeed = programFeed;
+            hasPendingF = false;
+        }
+
+        foreach (var token in tokens)
+        {
+            if (token.LineNumber != lastLineNumber)
+            {
+                FlushPendingFeed();
+                inMachineCoords = false;
+                lastLineNumber = token.LineNumber;
+            }
+
+            switch (token.Command)
+            {
+                case Commands.G0:
+                case Commands.G1:
+                    {
+                        var motion = (GCLinearMotion)token;
+                        var remapped = !inMachineCoords && motion.AxisFlags.HasFlag(fromFlag);
+                        var shifted = zShift != 0d && motion.AxisFlags.HasFlag(AxisFlags.Z);
+
+                        // Untouched motions pass through by reference; anything the
+                        // transform writes is a new token with a cloned array.
+                        var values = remapped || shifted ? (double[])motion.Values.Clone() : motion.Values;
+                        var flags = motion.AxisFlags;
+
+                        if (remapped)
+                        {
+                            values[toAxis] = Math.Round(values[fromAxis] * scale, decimals);
+                            flags |= toFlag;
+                            flags &= ~fromFlag;
+                        }
+
+                        if (shifted)
+                            values[2] = Math.Round(values[2] + zShift, decimals);
+
+                        var lnr = motion.LineNumber;
+                        var output = remapped || shifted
+                            ? new GCLinearMotion(motion.Command, lnr, values, flags)
+                            : motion;
+
+                        if (remapped && motion.Command == Commands.G1)
+                        {
+                            // dist covers the remaining X/Y/Z axes — the remapped
+                            // axis is excluded (upstream parity).
+                            var dist = LinearDistance(pos, values, flags, toFlag, distanceMode);
+                            // A G93 source F is a DURATION (1/min); a G94 source F is
+                            // a speed. The move's geometry is only re-expressed, so an
+                            // inverse-time source keeps its duration.
+                            var inverseTimeSource = programFeedMode == FeedRateMode.InverseTime;
+
+                            if (flags == toFlag || dist == 0d) // only the target axis moves
+                            {
+                                SetFeedMode(ref outputFeedMode, ref currentFeed, toolPath, lnr, FeedRateMode.UnitsPerMin);
+                                if (inverseTimeSource)
+                                {
+                                    // targetUnits / minutes = |Δtarget| × F.
+                                    var targetDelta = distanceMode == DistanceMode.Incremental
+                                        ? values[toAxis]
+                                        : values[toAxis] - pos[toAxis];
+                                    EmitFeed(toolPath, ref currentFeed, lnr, Math.Abs(targetDelta) * programFeed);
+                                }
+                                else
+                                    EmitFeed(toolPath, ref currentFeed, lnr, programFeed * scale);
+                            }
+                            else // mixed rotary + linear: inverse time
+                            {
+                                SetFeedMode(ref outputFeedMode, ref currentFeed, toolPath, lnr, FeedRateMode.InverseTime);
+                                // Already a duration: verbatim, never re-derived.
+                                EmitFeed(toolPath, ref currentFeed, lnr,
+                                    inverseTimeSource ? programFeed : programFeed / dist);
+                            }
+                            hasPendingF = false; // the source F is superseded
+                        }
+                        else
+                        {
+                            // Rapids and non-remapped moves keep the program's feed:
+                            // restore the MODE and the VALUE, so a converted or
+                            // inverse-time F never leaks into the next move.
+                            SetFeedMode(ref outputFeedMode, ref currentFeed, toolPath, lnr, programFeedMode);
+                            FlushPendingFeed();
+                            if (programFeed > 0d)
+                                EmitFeed(toolPath, ref currentFeed, lnr, programFeed);
+                        }
+
+                        toolPath.Add(output);
+                        // A G53 block moves in MACHINE coordinates: letting it seed
+                        // the work-coordinate tracker would feed a bogus distance to
+                        // the next move's inverse-time math (Rotate skips it too).
+                        if (!inMachineCoords)
+                            UpdatePosition(pos, values, flags, distanceMode);
+                        inMachineCoords = false;
+                    }
+                    break;
+
+                case Commands.G2:
+                case Commands.G3:
+                case Commands.G5:
+                case Commands.G5_1:
+                case Commands.G73:
+                case Commands.G81:
+                case Commands.G82:
+                case Commands.G83:
+                case Commands.G85:
+                case Commands.G86:
+                case Commands.G89:
+                    throw new InvalidOperationException(
+                        "Wrap/unwrap does not support arcs, splines or canned cycles. Run File → Transform → Arcs to lines first.");
+
+                case Commands.G53:
+                    inMachineCoords = true;
+                    toolPath.Add(token);
+                    break;
+
+                case Commands.G90:
+                case Commands.G91:
+                    distanceMode = (token as GCDistanceMode)?.DistanceMode ?? distanceMode;
+                    toolPath.Add(token);
+                    break;
+
+                case Commands.G93:
+                case Commands.G94:
+                    programFeedMode = (token as GCFeedRateMode)?.FeedRateMode ?? programFeedMode;
+                    outputFeedMode = programFeedMode; // the token is emitted as-is
+                    currentFeed = 0d;
+                    toolPath.Add(token);
+                    break;
+
+                case Commands.G95:
+                    throw new InvalidOperationException(
+                        "Wrap/unwrap does not support G95 (units per revolution) feeds. Convert the program to G94 first.");
+
+                case Commands.Feedrate:
+                    programFeed = (token as GCFeedrate)?.Feedrate ?? programFeed;
+                    hasPendingF = true;
+                    pendingFLine = token.LineNumber;
+                    break;
+
+                default:
+                    toolPath.Add(token);
+                    break;
+            }
+        }
+
+        FlushPendingFeed();
+
+        return GCodeParser.TokensToGCode(toolPath);
+    }
+
+    // Emits a feed-mode change only when the emitted stream's mode differs, and
+    // resets the cached feed because the F word's meaning changes with the mode.
+    private static void SetFeedMode(ref FeedRateMode outputMode, ref double currentFeed,
+        List<GCodeToken> toolPath, uint lineNumber, FeedRateMode desired)
+    {
+        if (outputMode == desired)
+            return;
+        toolPath.Add(new GCFeedRateMode(lineNumber, desired));
+        outputMode = desired;
+        currentFeed = 0d;
+    }
+
+    private static void EmitFeed(List<GCodeToken> toolPath, ref double currentFeed,
+        uint lineNumber, double feed)
+    {
+        var rounded = Math.Round(feed, 1);
+        if (currentFeed == rounded)
+            return;
+        toolPath.Add(new GCFeedrate(lineNumber, rounded));
+        currentFeed = rounded;
+    }
+
+    // Length of the move over the linear axes only; the remapped target axis is
+    // excluded (ioSender's approximation for the inverse-time feed).
+    private static double LinearDistance(double[] pos, double[] values, AxisFlags flags,
+        AxisFlags targetFlag, DistanceMode mode)
+    {
+        var sum = 0d;
+        for (var i = 0; i < 3; i++)
+        {
+            var flag = (AxisFlags)(1 << i);
+            if (flag == targetFlag || !flags.HasFlag(flag))
+                continue;
+            var delta = mode == DistanceMode.Incremental ? values[i] : values[i] - pos[i];
+            sum += delta * delta;
+        }
+        return Math.Sqrt(sum);
+    }
+
+    private static void UpdatePosition(double[] pos, double[] values, AxisFlags flags, DistanceMode mode)
+    {
+        for (var i = 0; i < pos.Length; i++)
+        {
+            if (!flags.HasFlag((AxisFlags)(1 << i)))
+                continue;
+            pos[i] = mode == DistanceMode.Incremental ? pos[i] + values[i] : values[i];
+        }
+    }
 }

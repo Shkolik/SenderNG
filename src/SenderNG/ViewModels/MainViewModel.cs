@@ -214,6 +214,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         RotateProgramCommand = new DelegateCommand(_ => _ = RotateProgramAsync(), _ => HasProgram && !SessionActive);
         ArcsToLinesProgramCommand = new DelegateCommand(_ => _ = ArcsToLinesProgramAsync(), _ => HasProgram && !SessionActive);
         CompressProgramCommand = new DelegateCommand(_ => _ = CompressProgramAsync(), _ => HasProgram && !SessionActive);
+        WrapProgramCommand = new DelegateCommand(_ => _ = WrapProgramAsync(CNC.Core.ViewModels.WrapDirection.Wrap), _ => HasProgram && !SessionActive);
+        UnwrapProgramCommand = new DelegateCommand(_ => _ = WrapProgramAsync(CNC.Core.ViewModels.WrapDirection.Unwrap), _ => HasProgram && !SessionActive);
         SelectRecentCommand = new DelegateCommand(p => _ = LoadGCodeFileAsync(p as string));
         // Cycle bar — the only run controls (the program pane shows no transport
         // bar). The machine runs at most one streaming session at a time, so the
@@ -564,6 +566,85 @@ public class MainViewModel : ViewModelBase, IDisposable
             (r, before) => LocText.Format("app.msg.compressed", "Compressed: {0} → {1} lines", before, r.Entries.Count));
     }
 
+    /// <summary>
+    /// File → Transform → Wrap / Unwrap. Wrap remaps a linear axis (X/Y) onto a
+    /// rotary one (A/B); Unwrap does the reverse. Both go through the shared
+    /// <see cref="ApplyTransformAsync"/> gate; a localized precondition rejects
+    /// programs with arcs/splines/drills before the engine throws, and a G95
+    /// (units/rev) program is reported through the gate's own error path.
+    /// </summary>
+    private async Task WrapProgramAsync(CNC.Core.ViewModels.WrapDirection direction)
+    {
+        if (!HasProgram || SessionActive)
+            return;
+        if (_dialogs is null)
+        {
+            Status = LocText.Resolve("app.msg.transformNoDialog", "Transform: no dialog service available");
+            return;
+        }
+        if (_info.NumAxes <= 3)
+        {
+            var message = LocText.Resolve("app.transform.wrap.noRotaryAxis",
+                "Wrap/unwrap needs a rotary axis (A/B) reported by the controller.");
+            Status = message;
+            if (_fileDialogs is not null)
+                await _fileDialogs.ShowErrorAsync(Resolve("app.transform.failedTitle", "Transform failed"), message);
+            return;
+        }
+
+        var vm = new CNC.Core.ViewModels.WrapProgramViewModel(direction, _info.AxisLetters, _info.NumAxes,
+            letter => LocText.Format("app.transform.wrap.axisLabel", "{0}-axis", letter));
+        var title = Resolve(
+            direction == CNC.Core.ViewModels.WrapDirection.Wrap ? "app.transform.wrap.title" : "app.transform.unwrap.title",
+            "Wrap / Unwrap");
+        if (await _dialogs.ShowDialogAsync(title, vm) != true)
+            return;
+        // Defensive: the dialog disables OK for a non-positive diameter and only
+        // offers axes that exist, so the guards below only fire on a forced close.
+        if (vm.SourceAxis is null || vm.TargetAxis is null || vm.Diameter <= 0d)
+            return;
+
+        var program = _program;
+        if (program is not null)
+        {
+            var parsed = GCodeProgram.Parse(program.LoadedText ?? string.Empty);
+            if (!parsed.HasErrors && parsed.Tokens.Any(UnsupportedByWrap))
+            {
+                var message = LocText.Resolve("app.transform.wrap.arcsUnsupported",
+                    "Wrap/unwrap does not support arcs, splines or canned cycles. Run Arcs to lines first.");
+                Status = message;
+                if (_fileDialogs is not null)
+                    await _fileDialogs.ShowErrorAsync(Resolve("app.transform.failedTitle", "Transform failed"), message);
+                return;
+            }
+        }
+
+        var diameter = vm.Diameter;
+        var mmPerDegree = diameter * Math.PI / 360d;
+        var fromAxis = vm.SourceAxis.Index;
+        var toAxis = vm.TargetAxis.Index;
+        var wrap = direction == CNC.Core.ViewModels.WrapDirection.Wrap;
+        var zShift = vm.Z0AtCenter ? (wrap ? diameter / 2d : -diameter / 2d) : 0d;
+        var diameterText = diameter.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+        var header = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+            "{0} applied, diameter: {1}, {2}-axis to {3}-axis",
+            wrap ? "Wrap" : "Unwrap",
+            diameterText,
+            _info.AxisIndexToLetter(fromAxis),
+            _info.AxisIndexToLetter(toAxis));
+
+        await ApplyTransformAsync(
+            p => GCodeTransformers.AxisRemap(p.Tokens, fromAxis, toAxis, mmPerDegree, wrap, p.Decimals, zShift, header),
+            (r, before) => wrap
+                ? LocText.Format("app.msg.wrapped", "Wrapped: {0} → {1} lines", before, r.Entries.Count)
+                : LocText.Format("app.msg.unwrapped", "Unwrapped: {0} → {1} lines", before, r.Entries.Count));
+    }
+
+    private static bool UnsupportedByWrap(GCodeToken token) =>
+        token.Command is Commands.G2 or Commands.G3 or Commands.G5 or Commands.G5_1
+            or Commands.G73 or Commands.G81 or Commands.G82 or Commands.G83
+            or Commands.G85 or Commands.G86 or Commands.G89;
+
     public SettingsService SettingsService { get; }
 
     /// <summary>Hosted DRO module view (per-axis position rows + zero buttons).</summary>
@@ -906,6 +987,14 @@ public class MainViewModel : ViewModelBase, IDisposable
     /// <summary>File → Transform → Compress: canonical re-serialization (modal
     /// motion words merge; comments per the profile's Program setting).</summary>
     public ICommand CompressProgramCommand { get; }
+
+    /// <summary>File → Transform → Wrap to rotary…: linear X/Y toolpaths wrapped
+    /// onto a rotary A/B axis around a cylinder.</summary>
+    public ICommand WrapProgramCommand { get; }
+
+    /// <summary>File → Transform → Unwrap from rotary…: rotary A/B toolpaths
+    /// flattened back onto a linear X/Y axis.</summary>
+    public ICommand UnwrapProgramCommand { get; }
 
     public ICommand CycleStartCommand { get; }
 
@@ -1519,6 +1608,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         (RotateProgramCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (ArcsToLinesProgramCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (CompressProgramCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        (WrapProgramCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        (UnwrapProgramCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         OnPropertyChanged(nameof(StatusBarBlocks));
     }
 

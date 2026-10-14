@@ -130,7 +130,11 @@ public class AvaloniaFileDialogService : IFileDialogService
             CornerRadius = new CornerRadius(0),
             Background = new SolidColorBrush(Color.Parse("#eee")),
             BorderBrush = new SolidColorBrush(Color.Parse("#999")),
+            // The button is wider than its label (MinWidth), so the content must be
+            // centred explicitly — the default leaves "OK" hugging the left edge.
             HorizontalAlignment = HorizontalAlignment.Right,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
         };
         okButton.Click += (_, _) => dialog.Close();
 

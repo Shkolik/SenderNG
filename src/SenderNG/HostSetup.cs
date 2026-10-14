@@ -101,6 +101,7 @@ public static class HostSetup
         viewFactory.Register<CNC.Core.ViewModels.AppSettingsViewModel, Modules.Fixed.AppSettingsView>();
         viewFactory.Register<CNC.Core.ViewModels.RotateProgramViewModel, Views.RotateProgramView>();
         viewFactory.Register<CNC.Core.ViewModels.ArcsToLinesProgramViewModel, Views.ArcsToLinesProgramView>();
+        viewFactory.Register<CNC.Core.ViewModels.WrapProgramViewModel, Views.WrapProgramView>();
         viewFactory.Register<Modules.Fixed.GrblSettingsViewModel, Modules.Fixed.GrblSettingsView>();
         viewFactory.Register<Modules.Plugins.StepperCalibrationViewModel, Modules.Plugins.StepperCalibrationView>();
         builder.Services.AddSingleton<IViewFactory>(viewFactory);

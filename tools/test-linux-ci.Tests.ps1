@@ -76,7 +76,7 @@ Assert-Equal ($bash -notmatch 'rsync -a --delete') $true "avoids rsync --delete,
 Assert-Equal ($bash -match [regex]::Escape("'obj/'")) $true "mirror excludes obj/"
 Assert-Equal ($bash -match [regex]::Escape("'bin/'")) $true "mirror excludes bin/"
 Assert-Equal ($bash -match [regex]::Escape("'.worktrees/'")) $true "mirror excludes inert worktrees"
-Assert-Equal ($bash -match [regex]::Escape("--exclude '.git/'")) $true "mirror drops the real .git object store"
+Assert-Equal ($bash -match [regex]::Escape("--exclude '.git'")) $true "mirror drops the real .git object store (and a worktree's .git file)"
 Assert-Equal ($bash -match [regex]::Escape('mkdir -p "$MIRROR/.git"')) $true "plants the .git marker the localization suites find the checkout by"
 Assert-Equal ($bash -match 'cd "\$MIRROR"') $true "runs from the mirror root so SenderNG.sln is the cwd"
 # CI parity: these two command lines must stay byte-compatible with ci.yml's steps.

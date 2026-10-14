@@ -37,6 +37,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System;
 using System.Windows.Input;
+using System.Collections.Generic;
+using System.Linq;
 using CNC.Core.Abstractions;
 using SenderNG.Core.Commands;
 
@@ -114,4 +116,133 @@ public class ArcsToLinesProgramViewModel : ViewModelBase, IClosableDialog
     public ICommand CancelCommand { get; }
 
     private void RequestClose(bool result) => CloseRequested?.Invoke(this, result);
+}
+
+/// <summary>Direction of the rotary wrap transform.</summary>
+public enum WrapDirection
+{
+    /// <summary>Linear toolpath → rotary axis (X/Y → A/B).</summary>
+    Wrap,
+    /// <summary>Rotary toolpath → linear axis (A/B → X/Y).</summary>
+    Unwrap,
+}
+
+/// <summary>A selectable axis in the wrap/unwrap dialog (index + display label).</summary>
+public sealed class WrapAxisOption
+{
+    public WrapAxisOption(int index, string label)
+    {
+        Index = index;
+        Label = label;
+    }
+
+    public int Index { get; }
+    public string Label { get; }
+
+    public override string ToString() => Label;
+}
+
+/// <summary>
+/// Wrap / Unwrap dialog: source and target axis (filtered by direction and the
+/// controller's axis count), the cylinder diameter and the Z0-at-center option.
+/// Wrap and Unwrap share this model; only the option lists and defaults differ.
+/// </summary>
+public class WrapProgramViewModel : ViewModelBase, IClosableDialog
+{
+    private readonly Func<string, string> _axisLabel;
+    private WrapAxisOption? _sourceAxis;
+    private WrapAxisOption? _targetAxis;
+    private double _diameter = 50d;
+    private bool _z0AtCenter;
+
+    /// <param name="axisLabel">Formats one axis letter into the label shown in the
+    /// dialog. Supplied by the UI (this assembly cannot reach the app's
+    /// localization service); the default keeps the tests and any non-localized
+    /// host working.</param>
+    public WrapProgramViewModel(WrapDirection direction, string axisLetters, int numAxes,
+        Func<string, string>? axisLabel = null)
+    {
+        Direction = direction;
+        _axisLabel = axisLabel ?? (letter => letter + "-axis");
+        var wrap = direction == WrapDirection.Wrap;
+
+        SourceAxes = BuildAxes(linear: wrap, axisLetters, numAxes);
+        TargetAxes = BuildAxes(linear: !wrap, axisLetters, numAxes);
+
+        _sourceAxis = Pick(SourceAxes, wrap ? new[] { 1, 0 } : new[] { 3, 4 });
+        _targetAxis = Pick(TargetAxes, wrap ? new[] { 3, 4 } : new[] { 0, 1 });
+
+        OkCommand = new DelegateCommand(_ => RequestClose(true), _ => _diameter > 0d);
+        CancelCommand = new DelegateCommand(_ => RequestClose(false));
+    }
+
+    public event EventHandler<bool>? CloseRequested;
+
+    public WrapDirection Direction { get; }
+    public bool IsWrap => Direction == WrapDirection.Wrap;
+
+    public IReadOnlyList<WrapAxisOption> SourceAxes { get; }
+    public IReadOnlyList<WrapAxisOption> TargetAxes { get; }
+
+    public WrapAxisOption? SourceAxis
+    {
+        get => _sourceAxis;
+        set => SetField(ref _sourceAxis, value);
+    }
+
+    public WrapAxisOption? TargetAxis
+    {
+        get => _targetAxis;
+        set => SetField(ref _targetAxis, value);
+    }
+
+    /// <summary>Cylinder diameter in mm. A non-positive value disables OK —
+    /// the transform is meaningless without a positive diameter, and silently
+    /// ignoring the click would give the user no feedback.</summary>
+    public double Diameter
+    {
+        get => _diameter;
+        set
+        {
+            if (SetField(ref _diameter, value))
+                (OkCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        }
+    }
+
+    public bool Z0AtCenter
+    {
+        get => _z0AtCenter;
+        set => SetField(ref _z0AtCenter, value);
+    }
+
+    public ICommand OkCommand { get; }
+    public ICommand CancelCommand { get; }
+
+    private void RequestClose(bool result) => CloseRequested?.Invoke(this, result);
+
+    private IReadOnlyList<WrapAxisOption> BuildAxes(bool linear, string letters, int numAxes)
+    {
+        var count = Math.Clamp(numAxes, 0, letters.Length);
+        var axes = new List<WrapAxisOption>();
+        if (linear)
+        {
+            if (count > 0) axes.Add(new WrapAxisOption(0, _axisLabel(letters[0].ToString())));
+            if (count > 1) axes.Add(new WrapAxisOption(1, _axisLabel(letters[1].ToString())));
+        }
+        else
+        {
+            if (count > 3) axes.Add(new WrapAxisOption(3, _axisLabel(letters[3].ToString())));
+            if (count > 4) axes.Add(new WrapAxisOption(4, _axisLabel(letters[4].ToString())));
+        }
+        return axes;
+    }
+
+    private static WrapAxisOption? Pick(IReadOnlyList<WrapAxisOption> axes, int[] preferred)
+    {
+        foreach (var index in preferred)
+            foreach (var axis in axes)
+                if (axis.Index == index)
+                    return axis;
+        return axes.Count > 0 ? axes[0] : null;
+    }
 }

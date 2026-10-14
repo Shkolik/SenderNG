@@ -160,16 +160,21 @@ set was checked for parity defaults before finalizing.
   re-enable from settings). App knowledge is a single Core interface
   (`IGCodeFileHandler`); `IViewFactory` lets any plugin host dialogs. Output
   is byte-faithful to ioSender v0.47 incl. documented quirks. 46 tests.
-- **G-code transforms (Rotate / ArcsToLines / Compress / Wrap)** —
+- **G-code transforms (Rotate / ArcsToLines / Compress / Wrap / Unwrap)** —
   token-level rewrites over the existing parser/emulator machinery, per
   the verified mechanics in `docs/iosender-gaps.md`. **LANDED (M1–M3):**
   Rotate, ArcsToLines and Compress are in Core (`GCodeTransformers`,
   26 tests) behind the File → Transform menu (dialogs, profile-scoped
   compress comment setting, en/ru).
-  **Remaining:** Wrap (rotary mapping X/Y → A/B, diameter, Z0-at-center with
-  G93 inverse-time feed switching) — **P1, takeable now**: the earlier gate
-  ("until the machine physical-configuration presets land") is gone — the
-  schema and presets landed 2026-09-07. Probing migration **LANDED (2026-09-05)**:
+  **LANDED (2026-10-14):** Wrap / Unwrap (`GCodeTransformers.AxisRemap`) — a
+  direction-agnostic axis remap (X/Y ↔ A/B) scaled by the cylinder diameter,
+  one shared dialog (localized axis labels, Z0-at-center offset), and feed
+  preservation: the G94 (pure) / G93 (mixed inverse-time) split, the program
+  feed restored whenever a move is not remapped, a duration-preserving pass for
+  programs already in G93, G53 blocks kept out of the work-coordinate tracker,
+  and G95 refused; 27 engine tests + 6 dialog-VM tests, two File → Transform
+  entries, en/ru/fr/es/de catalogs.
+  Probing migration **LANDED (2026-09-05)**:
   height-map apply
   and rotation rebuilt on the token machinery (the line-based
   `ProgramTransform` is deleted), closing the documented G91/arc-Z,
