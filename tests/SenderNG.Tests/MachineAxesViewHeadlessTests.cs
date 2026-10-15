@@ -157,7 +157,9 @@ public class MachineAxesViewHeadlessTests
             // preset's value.
             var separation = Assert.Single(SeparationBoxes(window, editor));
             Assert.True(separation.IsEffectivelyVisible);
-            Assert.Equal("0", separation.Text);
+            // The foam preset's own default (200 mm); pinned in
+            // MachineAxisSchemaTests as the canonical golden value.
+            Assert.Equal("200", separation.Text);
 
             window.Close();
         }
@@ -259,7 +261,7 @@ public class MachineAxesViewHeadlessTests
             Assert.Equal(new[] { 0, 1, 2, 3 },
                 foamOnDisk.Planes.SelectMany(p => p.Axes).Select(a => a.Index).ToArray());
             Assert.Empty(foamOnDisk.OptionalAxes);
-            Assert.Equal(0d, foamOnDisk.Separation);
+            Assert.Equal(200d, foamOnDisk.Separation);
 
             window.Close();
         }

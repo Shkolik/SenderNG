@@ -377,7 +377,11 @@ public static class MachineTypeCatalog
                 [AxisDirection.Length, AxisDirection.Height],
             ],
             SeparationDirection = AxisDirection.Width,
-            DefaultSeparation = 0,
+            // A sane out-of-the-box tower separation: a fresh foam profile must not
+            // render the two towers coincident (0 is physically impossible for a
+            // hot-wire machine), and the GL loft's own historical default was 100.
+            // The machine card's plane-to-plane field overwrites it per profile.
+            DefaultSeparation = 200,
             DefaultDemoAxes = 4,
         });
     }

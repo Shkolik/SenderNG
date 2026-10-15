@@ -1713,7 +1713,7 @@ public class MachineAxesEditorTests
             settings.Activate(foam.Id);
             var foamEditor = CreateEditor(settings, foam.Id);
             Assert.True(foamEditor.HasSeparation);
-            Assert.Equal(0d, foamEditor.Separation); // the preset's default, carried not absent
+            Assert.Equal(200d, foamEditor.Separation); // the preset's default, carried not absent
 
             foamEditor.Separation = 300;
             Assert.Equal(300d, new SettingsService(dir).Load().Separation);

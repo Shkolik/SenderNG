@@ -67,9 +67,8 @@ public class MachineAxisSchemaTests
         Assert.All(foam.BasePlanes, p =>
             Assert.Equal(new[] { AxisDirection.Length, AxisDirection.Height }, p));
         Assert.Equal(AxisDirection.Width, foam.SeparationDirection);
-        // Zero keeps today's behaviour: the plotter's per-plane origin defaulted to 0,
-        // so plane 2 sat on plane 1 until the user moved it.
-        Assert.Equal(0, foam.DefaultSeparation);
+        // A sane non-zero default: the two towers must not start coincident.
+        Assert.Equal(200, foam.DefaultSeparation);
         Assert.Equal(4, foam.DefaultDemoAxes);
     }
 

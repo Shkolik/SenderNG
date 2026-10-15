@@ -573,7 +573,7 @@ public class MachineProfileKinematicsSeedingTests
         Assert.All(foam.Planes, p => Assert.Equal(
             new[] { AxisDirection.Length, AxisDirection.Height }, p.Axes.Select(a => a.Direction)));
         Assert.Empty(foam.OptionalAxes);
-        Assert.Equal(0, foam.Separation);          // the preset's DefaultSeparation
+        Assert.Equal(MachineTypeCatalog.Resolve(MachineTypes.Foam).DefaultSeparation, foam.Separation);
         Assert.Equal(4, foam.DemoAxes);
 
         Assert.Single(mill.Planes);
