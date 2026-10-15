@@ -127,9 +127,24 @@ public static class HostSetup
         // a singleton — it subscribes to connect and profile-switch once and every
         // consumer reads the same resolved object.
         builder.Services.AddSingleton<IMachineKinematicsProvider>(sp =>
-            new MachineKinematicsProvider(
+        {
+            var provider = new MachineKinematicsProvider(
                 sp.GetRequiredService<SettingsService>(),
-                sp.GetRequiredService<IGrblService>()));
+                sp.GetRequiredService<IGrblService>());
+
+            // The parser reads its CAM aliases from the same ambient state it reads
+            // the board's letters from, so keep that in step with the resolved
+            // kinematics: a program whose axis naming differs from the board's (the
+            // "my CAM writes U" case) resolves through the profile's
+            // MachineAxis.Alias entries. Current merges stored profile state with
+            // live controller state, so this must follow every change to it.
+            void PushAliases() =>
+                CNC.Core.GrblInfo.Current.AxisAliases = provider.Current.AliasMap;
+
+            provider.Changed += (_, _) => PushAliases();
+            PushAliases();
+            return provider;
+        });
 
         // Built-in fixed modules (no assembly scan).
         RegisterModule(builder.Services, new Modules.Fixed.DroModule());

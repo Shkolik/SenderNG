@@ -126,6 +126,9 @@ namespace CNC.Core
         // reports no [AXS:] letters.
         public const string DefaultAxisLetters = "XYZABCUVW";
         public static string AxisLetters => Current.AxisLetters;
+
+        /// <summary>The active profile's CAM letter aliases (letter → axis index).</summary>
+        public static IReadOnlyDictionary<char, int> AxisAliases => Current.AxisAliases;
         public static string SignalLetters { get; private set; } = "XYZABCUVWEPRDHSBTOMF";
         public static string PositionFormatString { get; private set; } = string.Empty;
         public static string Version { get; private set; } = string.Empty;

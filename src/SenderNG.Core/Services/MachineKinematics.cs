@@ -124,6 +124,35 @@ public sealed class KinematicPlane
 /// </summary>
 public sealed class MachineKinematics
 {
+    private IReadOnlyDictionary<char, int>? aliasMap;
+
+    /// <summary>
+    /// The profile's CAM letter aliases as the letter → axis-index map a program
+    /// parser takes (<c>AxisLetters.TryResolve</c>'s alias argument): every
+    /// declared axis's <see cref="MachineAxis.Alias"/>, planes and optional axes
+    /// alike. Empty when the user declared none.
+    /// <para>The resolver has already rejected an alias that collides with the
+    /// board's letters or with another alias (invariant 8), so this map is safe to
+    /// hand straight to the parser. Inbound only — never displayed.</para>
+    /// </summary>
+    public IReadOnlyDictionary<char, int> AliasMap => aliasMap ??= BuildAliasMap();
+
+    private IReadOnlyDictionary<char, int> BuildAliasMap()
+    {
+        var map = new Dictionary<char, int>();
+        foreach (var axis in Planes.SelectMany(p => p.Axes).Concat(OptionalAxes))
+        {
+            if (axis.Alias is not { } alias)
+                continue;
+            // Both cases: the resolver normalises the letter it is handed, and
+            // which side it normalises is an implementation detail this map must
+            // not depend on. A lowercase alias stores the same value twice.
+            map[alias] = axis.Index;
+            map[char.ToUpperInvariant(alias)] = axis.Index;
+        }
+        return map;
+    }
+
     internal MachineKinematics(
         string profileId,
         string machineTypeId,

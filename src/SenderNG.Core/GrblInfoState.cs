@@ -46,6 +46,18 @@ public class GrblInfoState
     private int _numAxes = 3;
 
     public string AxisLetters { get; set; } = GrblInfo.DefaultAxisLetters;
+
+    /// <summary>
+    /// CAM letter aliases for the active profile (letter → grbl axis index),
+    /// pushed by the kinematics provider from <c>MachineKinematics.AliasMap</c>.
+    /// A program letter the controller's <see cref="AxisLetters"/> does not know is
+    /// resolved through this map before being reported as unknown — it exists
+    /// because a CAM may name an axis the board names differently. Inbound only:
+    /// it never affects how an axis is displayed, and it never overrides a letter
+    /// the board does report.
+    /// </summary>
+    public IReadOnlyDictionary<char, int> AxisAliases { get; set; } =
+        new Dictionary<char, int>();
     public bool IsGrblHAL { get; set; }
     public int NumAxes
     {

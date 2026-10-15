@@ -1,4 +1,4 @@
-﻿/*
+/*
  * GCodeParser.cs - part of CNC Controls library
  *
  * v0.44 / 2023-12-16 / Io Engineering (Terje Io)
@@ -408,6 +408,10 @@ namespace CNC.GCode
             // The connect's [AXS:] letters drive axis-letter resolution for this
             // program; a letter nobody knows is recorded, not guessed.
             boardLetters = GrblInfo.AxisLetters;
+            // The profile's CAM aliases ride the same ambient instance and the
+            // same reset point as the letters, so a parser started after a profile
+            // switch or a reconnect resolves against that machine's aliases.
+            AxisAliases = GrblInfo.AxisAliases;
             unknownAxisLetters.Clear();
         }
 
