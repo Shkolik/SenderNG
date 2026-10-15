@@ -535,7 +535,7 @@ public sealed class MachineAxesViewModel : ViewModelBase
     public bool HasNoOptionalAxes => OptionalAxes.Count == 0;
 
     /// <summary>True for a multi-plane machine — the only kind that carries a separation.</summary>
-    public bool IsMultiPlane => _preset.EffectiveBasePlanes.Count > 1;
+    public bool IsMultiPlane => _preset.BasePlanes.Count > 1;
 
     /// <summary>Plane-to-plane distance (the foam's wire length), in machine coordinates.</summary>
     public bool HasSeparation => IsMultiPlane;
@@ -610,7 +610,7 @@ public sealed class MachineAxesViewModel : ViewModelBase
         // rewrite a profile file; the seed reaches disk with the user's first edit, and a
         // newly created profile is seeded by SettingsService.CreateProfile already.
         // Optional axes are left alone: a hand-edited file may carry them without planes.
-        if (_profile.Planes.Count == 0 && _preset.EffectiveBasePlanes.Count > 0)
+        if (_profile.Planes.Count == 0 && _preset.BasePlanes.Count > 0)
         {
             _profile.Planes = _preset.CreateDefaultPlanes();
             _profile.Separation = _preset.DefaultSeparation;

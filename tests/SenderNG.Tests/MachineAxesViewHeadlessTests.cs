@@ -535,7 +535,7 @@ public class MachineAxesViewHeadlessTests
             // The role bindings too, not just the indices: a recycled direction combo
             // would have moved an axis out of the mill's base plane.
             Assert.Equal(
-                MachineTypeCatalog.Resolve(MachineTypes.Mill).EffectiveBasePlanes[0],
+                MachineTypeCatalog.Resolve(MachineTypes.Mill).BasePlanes[0],
                 mill.Planes.Single().Axes.Select(a => a.Direction).ToArray());
             // …and no recycled Inverted checkbox flipped a mill axis's sign.
             Assert.All(mill.Planes.Single().Axes, a => Assert.Equal(1, a.Sign));

@@ -187,17 +187,6 @@ public class ToolpathBuilderTests
     }
 
     [Fact]
-    public void PlaneAxisIndices_match_the_foam_carriage_decomposition()
-    {
-        var foam = MachineTypeCatalog.Resolve(MachineTypes.Foam);
-        Assert.Equal([0, 1], foam.PlaneAxisIndices(0));
-        Assert.Equal([2, 3], foam.PlaneAxisIndices(1));
-
-        var mill = MachineTypeCatalog.Resolve(MachineTypes.Mill);
-        Assert.Equal([0, 1, 2], mill.PlaneAxisIndices(0));
-    }
-
-    [Fact]
     public void Frame_agrees_with_the_limits_calculator_on_a_G54_program()
     {
         // The frame check from the plan: regular moves carry the program

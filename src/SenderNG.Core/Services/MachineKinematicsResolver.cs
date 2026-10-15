@@ -75,7 +75,7 @@ public static class MachineKinematicsResolver
         ArgumentNullException.ThrowIfNull(preset);
 
         var problems = new List<KinematicsProblem>();
-        var basePlanes = preset.EffectiveBasePlanes;
+        var basePlanes = preset.BasePlanes;
 
         // The profile's planes, or the preset's defaults when it carries none — a
         // profile file created before the axis model must not crash and must behave

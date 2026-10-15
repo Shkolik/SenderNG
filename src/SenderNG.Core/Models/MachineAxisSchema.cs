@@ -36,46 +36,6 @@ using System.Collections.Concurrent;
 namespace CNC.Core.Services;
 
 /// <summary>
-/// LEGACY SHIM — T8 deletes this once jog/plotter/outline stop referencing it.
-/// Role of one axis inside its carriage plane. Roles are <b>positional</b>: a
-/// machine type is an ordered list of carriage planes, each plane an ordered
-/// list of roles, and the flattened position is the grbl axis index (grbl's
-/// internal axis order is fixed — index 0 = first axis — and grblHAL letter
-/// remaps never reorder axes).
-/// <para>
-/// The real model is <see cref="AxisDirection"/> + <see cref="ProfilePlane"/>.
-/// The legacy view is <b>derived</b> from <see cref="MachineType.BasePlanes"/>
-/// over the slot convention "slot 0 = horizontal, slot 1 = vertical, slot 2 =
-/// depth", which reproduces today's presets exactly (mill [H,V,Depth]; foam
-/// plane 2 = indices [2,3] = Z,A).
-/// </para>
-/// </summary>
-public enum AxisRoleKind
-{
-    /// <summary>In-plane horizontal axis of the carriage plane (the plotter's X per layer).</summary>
-    Horizontal,
-
-    /// <summary>In-plane vertical axis of the carriage plane (the plotter's Y per layer).</summary>
-    Vertical,
-
-    /// <summary>Axis perpendicular to the plane (the mill's depth; the plotter's vertical).
-    /// Multi-plane machines (foam) have none — the two towers are planes, not depths.</summary>
-    Depth,
-}
-
-/// <summary>
-/// LEGACY SHIM — T8 deletes this. One ordered carriage plane: its roles map
-/// positionally to consecutive axis indices (e.g. <c>(Horizontal, Vertical)</c>
-/// starting at index 2 = axes 2,3 = a foam machine's second tower).
-/// </summary>
-/// <param name="Roles">Ordered role list; order is the axis-index order.</param>
-public sealed record CarriagePlane(IReadOnlyList<AxisRoleKind> Roles)
-{
-    /// <summary>True when the plane carries a perpendicular (depth) axis.</summary>
-    public bool HasDepth => Roles.Contains(AxisRoleKind.Depth);
-}
-
-/// <summary>
 /// Physical kind of an axis. A rotary axis is <b>not</b> a position in a plane's
 /// 2D frame, so it never lives inside a <see cref="ProfilePlane"/> — it is an
 /// optional axis (invariant 3).
@@ -180,8 +140,6 @@ public sealed class ProfilePlane
 /// </summary>
 public sealed class MachineType
 {
-    private IReadOnlyList<CarriagePlane>? _legacyPlanes;
-
     /// <summary>Preset id referenced by <c>MachineProfile.MachineTypeId</c>
     /// (built-ins: <see cref="MachineTypes"/>; plugin ids later).</summary>
     public required string Id { get; init; }
@@ -204,46 +162,9 @@ public sealed class MachineType
     public AxisDirection? SeparationDirection { get; init; }
 
     /// <summary>Plane-to-plane distance (mm) seeded into a fresh profile's
-    /// <c>MachineProfile.Separation</c>. Zero keeps today's behaviour (the plotter's
-    /// per-plane origin defaulted to 0).</summary>
+    /// <c>MachineProfile.Separation</c>. Only a multi-plane machine consumes it;
+    /// Foam ships 200 mm so its two towers do not start coincident.</summary>
     public double DefaultSeparation { get; init; }
-
-    /// <summary>
-    /// LEGACY SHIM — T8 deletes this. Ordered carriage planes; flattened role
-    /// positions are axis indices. <b>Derived</b> from <see cref="BasePlanes"/> over
-    /// the default conventional indices ("slot 0 = horizontal, slot 1 = vertical,
-    /// slot 2 = depth") when not set explicitly, so today's behaviour is preserved
-    /// bit-for-bit while T3–T6 migrate (foam plane 2 stays indices [2,3] = Z,A).
-    /// Setting it explicitly keeps a preset registered against the old surface
-    /// (a plugin type) working: <see cref="EffectiveBasePlanes"/> then derives the
-    /// new view back.
-    /// </summary>
-    public IReadOnlyList<CarriagePlane> Planes
-    {
-        get => _legacyPlanes ??= DeriveLegacyPlanes();
-        init => _legacyPlanes = value;
-    }
-
-    /// <summary>
-    /// The preset's base structure, falling back to the legacy <see cref="Planes"/>
-    /// view (Horizontal→Width, Vertical→Length, Depth→Height) for a type registered
-    /// against the pre-directions surface. Never null; empty means "no declared
-    /// topology" (the catalog's presets always declare one).
-    /// </summary>
-    public IReadOnlyList<IReadOnlyList<AxisDirection>> EffectiveBasePlanes
-    {
-        get
-        {
-            if (BasePlanes.Count > 0)
-                return BasePlanes;
-            var legacy = _legacyPlanes;
-            if (legacy is null || legacy.Count == 0)
-                return [];
-            return legacy
-                .Select(p => (IReadOnlyList<AxisDirection>)p.Roles.Select(DirectionForRole).ToArray())
-                .ToArray();
-        }
-    }
 
     /// <summary>Axis count the demo controller defaults to for new profiles of this type
     /// (seeded via the profile-creation hook; e.g. Foam → 4 so both towers exist).</summary>
@@ -252,36 +173,6 @@ public sealed class MachineType
     /// <summary>Conventional grbl axis order — the fallback letter set when the
     /// controller did not report <c>[AXS:]</c> letters.</summary>
     public const string ConventionalLetters = "XYZABCUVW";
-
-    /// <summary>True when the machine has more than one carriage plane (drives
-    /// jog's second cross + Together coupling; the foam flag without the string).</summary>
-    public bool IsMultiPlane => Planes.Count > 1;
-
-    /// <summary>Total axes the preset's planes project onto.</summary>
-    public int AxisCount => Planes.Sum(p => p.Roles.Count);
-
-    /// <summary>Conventional letter for a flattened axis index — the fallback
-    /// display when the controller's handshake did not remap letters.
-    /// Returns <c>'?'</c> beyond the conventional order (never expected; grbl
-    /// supports 9 axes).</summary>
-    public char ConventionalLetter(int axisIndex) =>
-        axisIndex >= 0 && axisIndex < ConventionalLetters.Length
-            ? ConventionalLetters[axisIndex]
-            : '?';
-
-    /// <summary>Axis indices (flattened role positions) backing carriage plane
-    /// <paramref name="plane"/> — e.g. foam plane 1 → [2, 3]. Consumers slice
-    /// per-axis data (toolpath segments, limits rows) with these instead of
-    /// keeping any letter→index dictionaries.</summary>
-    public int[] PlaneAxisIndices(int plane)
-    {
-        if (plane < 0 || plane >= Planes.Count)
-            throw new ArgumentOutOfRangeException(nameof(plane));
-        var offset = 0;
-        for (var p = 0; p < plane; p++)
-            offset += Planes[p].Roles.Count;
-        return Enumerable.Range(offset, Planes[plane].Roles.Count).ToArray();
-    }
 
     /// <summary>
     /// The profile planes a fresh profile of this type starts from: the preset's
@@ -293,7 +184,7 @@ public sealed class MachineType
     {
         var planes = new List<ProfilePlane>();
         var index = 0;
-        foreach (var basePlane in EffectiveBasePlanes)
+        foreach (var basePlane in BasePlanes)
         {
             var plane = new ProfilePlane();
             foreach (var direction in basePlane)
@@ -310,33 +201,6 @@ public sealed class MachineType
         }
         return planes;
     }
-
-    private IReadOnlyList<CarriagePlane> DeriveLegacyPlanes()
-    {
-        var basePlanes = EffectiveBasePlanes;
-        if (basePlanes.Count == 0)
-            return [];
-        return basePlanes
-            .Select(p => new CarriagePlane(p.Select((_, slot) => RoleForSlot(slot)).ToArray()))
-            .ToArray();
-    }
-
-    // The legacy view's slot convention; the inverse of DirectionForRole. Positional
-    // (slot 0 IS the plane's horizontal), because the legacy surface defines a role
-    // by where it sits in the flattened axis order.
-    private static AxisRoleKind RoleForSlot(int slot) => slot switch
-    {
-        0 => AxisRoleKind.Horizontal,
-        1 => AxisRoleKind.Vertical,
-        _ => AxisRoleKind.Depth,
-    };
-
-    private static AxisDirection DirectionForRole(AxisRoleKind role) => role switch
-    {
-        AxisRoleKind.Horizontal => AxisDirection.Width,
-        AxisRoleKind.Vertical => AxisDirection.Length,
-        _ => AxisDirection.Height,
-    };
 }
 
 /// <summary>

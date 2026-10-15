@@ -36,11 +36,9 @@ using CNC.Core.Services;
 namespace SenderNG.Core.Tests;
 
 /// <summary>
-/// Machine-type presets: the new direction/base-plane model (BasePlanes,
-/// SeparationDirection, DefaultSeparation, CreateDefaultPlanes) <b>and</b> the derived
-/// legacy view (Planes / PlaneAxisIndices / HasDepth / AxisCount / ConventionalLetter)
-/// that T3–T6 still compile against. The legacy assertions are what protects them
-/// during the migration — today's flattened indices must not move.
+/// Machine-type presets: the direction/base-plane model (BasePlanes,
+/// SeparationDirection, DefaultSeparation, CreateDefaultPlanes) and the catalog
+/// that resolves and registers them.
 /// </summary>
 public class MachineAxisSchemaTests
 {
@@ -101,77 +99,6 @@ public class MachineAxisSchemaTests
                 p.Axes.Select(a => a.Direction)));
     }
 
-    [Fact]
-    public void Legacy_planes_only_registration_still_derives_the_direction_model()
-    {
-        // A plugin type registered against the pre-directions surface (Planes only) must
-        // keep working: the new view is derived back from the legacy roles.
-        var legacy = new MachineType
-        {
-            Id = "TestLegacy2D",
-            Name = "2D",
-            Planes = [new CarriagePlane([AxisRoleKind.Horizontal, AxisRoleKind.Vertical])],
-            DefaultDemoAxes = 2,
-        };
-
-        var plane = Assert.Single(legacy.EffectiveBasePlanes);
-        Assert.Equal(new[] { AxisDirection.Width, AxisDirection.Length }, plane);
-        var seeded = Assert.Single(legacy.CreateDefaultPlanes());
-        Assert.Equal(new[] { 0, 1 }, seeded.Axes.Select(a => a.Index));
-    }
-
-    /* ------------------------------ legacy shim ------------------------------ */
-
-    [Fact]
-    public void Mill_preset_is_one_plane_with_depth()
-    {
-        var mill = MachineTypeCatalog.Resolve(MachineTypes.Mill);
-        Assert.Equal(MachineTypes.Mill, mill.Id);
-        var plane = Assert.Single(mill.Planes);
-        Assert.Equal(new[] { AxisRoleKind.Horizontal, AxisRoleKind.Vertical, AxisRoleKind.Depth }, plane.Roles);
-        Assert.True(plane.HasDepth);
-        Assert.False(mill.IsMultiPlane);
-        Assert.Equal(3, mill.AxisCount);
-        Assert.Equal(3, mill.DefaultDemoAxes);
-        // Conventional fallback letters (the controller's [AXS:] letters override them).
-        Assert.Equal('X', mill.ConventionalLetter(0));
-        Assert.Equal('Y', mill.ConventionalLetter(1));
-        Assert.Equal('Z', mill.ConventionalLetter(2));
-    }
-
-    [Fact]
-    public void Foam_preset_is_two_coupled_planes_without_depth()
-    {
-        var foam = MachineTypeCatalog.Resolve(MachineTypes.Foam);
-        Assert.Equal(MachineTypes.Foam, foam.Id);
-        Assert.Equal(2, foam.Planes.Count);
-        Assert.All(foam.Planes, p => Assert.Equal(
-            new[] { AxisRoleKind.Horizontal, AxisRoleKind.Vertical }, p.Roles));
-        Assert.All(foam.Planes, p => Assert.False(p.HasDepth));
-        Assert.True(foam.IsMultiPlane);
-        Assert.Equal(4, foam.AxisCount);
-        Assert.Equal(4, foam.DefaultDemoAxes);
-        // Conventional fallback: tower 2 is Z/A — a controller reporting
-        // [AXS:4:XYUV] overrides the display, not the schema (decision #1).
-        Assert.Equal('Z', foam.ConventionalLetter(2));
-        Assert.Equal('A', foam.ConventionalLetter(3));
-    }
-
-    [Fact]
-    public void Preset_plane_axis_indices_keep_the_conventional_flattening()
-    {
-        // The golden table of the pre-directions model: foam plane 2 = indices [2,3] =
-        // Z,A. T3–T6 slice per-axis data with these while they migrate, so they must
-        // not move.
-        var mill = MachineTypeCatalog.Resolve(MachineTypes.Mill);
-        Assert.Equal([0, 1, 2], mill.PlaneAxisIndices(0));
-
-        var foam = MachineTypeCatalog.Resolve(MachineTypes.Foam);
-        Assert.Equal([0, 1], foam.PlaneAxisIndices(0));
-        Assert.Equal([2, 3], foam.PlaneAxisIndices(1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => foam.PlaneAxisIndices(2));
-    }
-
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -214,11 +141,6 @@ public class MachineAxisSchemaTests
     [Fact]
     public void Conventional_letters_follow_the_bare_axis_order()
     {
-        var mill = MachineTypeCatalog.Resolve(MachineTypes.Mill);
         Assert.Equal("XYZABCUVW", MachineType.ConventionalLetters);
-        Assert.Equal('A', mill.ConventionalLetter(3));
-        Assert.Equal('W', mill.ConventionalLetter(8));
-        Assert.Equal('?', mill.ConventionalLetter(9));
-        Assert.Equal('?', mill.ConventionalLetter(-1));
     }
 }
