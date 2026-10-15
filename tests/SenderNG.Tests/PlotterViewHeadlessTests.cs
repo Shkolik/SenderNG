@@ -95,6 +95,29 @@ public class PlotterViewHeadlessTests
         return sb.ToString();
     }
 
+    /// <summary>The bug-report foam machine, written into the MACHINE: plane 2's
+    /// slots are machine indices <c>[3, 2]</c> — A horizontal, Z vertical —
+    /// which the old flattened role positions could not express at all. The
+    /// profile's planes must exist before they can be rebound (a profile created
+    /// through <c>SettingsService.CreateProfile</c> is seeded the same way);
+    /// only the BINDINGS are the user's — the counts stay the preset's.</summary>
+    private static void UseBugReportFoamLayout(MachineProfile profile)
+    {
+        profile.Planes = MachineTypeCatalog.Resolve(MachineTypes.Foam).CreateDefaultPlanes();
+        profile.Planes[1].Axes[0].Index = 3;
+        profile.Planes[1].Axes[1].Index = 2;
+    }
+
+    /// <summary>A plane with a single slot: the machine model reports the count
+    /// mismatch as data (invariant 5) and still resolves, and the plotter must
+    /// draw what it can rather than throw. Such a plane has world X and no world
+    /// Y, which is the flat pane's "no extent" case.</summary>
+    private static void UseSingleSlotSecondPlane(MachineProfile profile)
+    {
+        profile.Planes = MachineTypeCatalog.Resolve(MachineTypes.Foam).CreateDefaultPlanes();
+        profile.Planes[1].Axes.RemoveAt(1);
+    }
+
     [AvaloniaFact]
     public async Task Flat_canvas_renders_the_toolpath()
     {
@@ -287,11 +310,10 @@ public class PlotterViewHeadlessTests
     }
 
     /// <summary>The view model owns the per-plane data the union is read from,
-    /// so it owns the loop that assembles it: the machine type knows how many
-    /// planes exist and which flattened axis indices back each, and
-    /// <c>GeometryFor</c> sanitises the stored mapping. Written here, once,
-    /// because the two renderer canvases must not each resolve the same inputs
-    /// differently.
+    /// so it owns the loop that assembles it: the resolved machine knows how
+    /// many planes exist and which axis indices back each (in plane order).
+    /// Written here, once, because the two renderer canvases must not each
+    /// resolve the same inputs differently.
     /// <para>The program is the spec's worked example in real data: foam plane 0
     /// (X,Y) spans 0..100 by 0..30 and plane 1 (Z,A) spans 0..50 by 0..20 — Z
     /// runs from the program's own start at 0, not from an offset — so the job
@@ -460,23 +482,20 @@ public class PlotterViewHeadlessTests
             $"live updates must survive a tab switch, found {green} green pixels");
     }
 
-    /// <summary>The header must name the WORLD axes each plane feeds — the
-    /// same mapping the pane below it draws — so the letters can never
-    /// describe a different picture than the one on screen. Identity maps every
-    /// plane's roles onto world X and Y in turn, hence "XY | XY" for a foam
-    /// machine whose second carriage is mechanically Z/A.</summary>
+    /// <summary>The header must name each plane's OWN machine axes, in the
+    /// plane's slot order — the same indices the pane below it slices — so the
+    /// letters can never describe a different picture than the one on screen.
+    /// A foam machine reads "XY | ZA" from the conventional controller letters,
+    /// and the bug-report layout's plane 2 (slots bound to indices [3, 2]) reads
+    /// "AZ": the plane's ORIENTATION, never a sorted set.</summary>
     [AvaloniaFact]
-    public async Task Header_letters_name_the_world_axes_each_plane_feeds()
+    public async Task Header_letters_name_each_planes_machine_axes_in_slot_order()
     {
         var source = new StubProgramSource();
         // G21 + a feed word: a G1 with no feed in effect is a parse error, and
         // the program would carry no geometry at all.
         source.Load("G21\nG1 X10 Y10 F240");
         var vm = MakeVm(source, MachineTypes.Foam);
-        vm.SetPlaneGeometries([
-            PlotterPlaneMapper.Identity(2),
-            PlotterPlaneMapper.Identity(2),
-        ]);
         Assert.True(vm.HasGeometry);
 
         var view = new PlotterView { DataContext = vm };
@@ -484,39 +503,43 @@ public class PlotterViewHeadlessTests
         window.Show();
         await Pump();
 
-        // Foam plane 1's roles are Z and A; identity maps them onto world X and Y.
-        Assert.Equal("XY | XY", view.HeaderLettersForTest);
+        // Plane 0 is machine X,Y; plane 1 is machine Z,A of the same controller.
+        Assert.Equal("XY | ZA", view.HeaderLettersForTest);
 
-        // The letters FOLLOW the mapping: plane 1 fed by world Y then X reads
-        // "YX" — not its machine roles' letters, which never move.
-        vm.SetPlaneGeometries([
-            PlotterPlaneMapper.Identity(2),
-            new PlotterPlaneGeometry { WorldAxes = [1, 0] },
-        ]);
+        // The letters FOLLOW the layout: bind plane 1's slots to [3, 2] and it
+        // reads "AZ" — the firmware's own A-horizontal / Z-vertical convention.
+        var bugSource = new StubProgramSource();
+        bugSource.Load("G21\nG1 X10 Y10 F240");
+        var bugVm = MakeVm(bugSource, MachineTypes.Foam, UseBugReportFoamLayout);
+        var bugView = new PlotterView { DataContext = bugVm };
+        var bugWindow = new Window { Width = 920, Height = 560, Content = bugView };
+        bugWindow.Show();
         await Pump();
-        Assert.Equal("XY | YX", view.HeaderLettersForTest);
+
+        Assert.Equal("XY | AZ", bugView.HeaderLettersForTest);
     }
 
-    /// <summary>The whole point of routing the panes through one mapping: a
-    /// swap must TRANSPOSE the pane (a new tile extent, therefore a new fit
-    /// zoom), not merely relabel the header. The program is anisotropic on
-    /// purpose — plane 0 spans 100 in its first role and 20 in its second,
-    /// plane 1 spans 20 then 100 — so the two compositions differ and the
-    /// assertion cannot pass on a cancelled-out change.</summary>
+    /// <summary>The pane is driven by the layout, not by the label: binding plane
+    /// 1's slots to the NON-MONOTONIC [3, 2] transposes what that carriage draws,
+    /// so the two compositions differ (a new tile extent, therefore a new fit
+    /// zoom) rather than merely relabelling the header. The program is
+    /// anisotropic on purpose — plane 0 spans 100 in its first slot and 20 in its
+    /// second, plane 1 spans 20 then 100 — so the assertion cannot pass on a
+    /// cancelled-out change.</summary>
     [AvaloniaFact]
-    public async Task Swapping_a_planes_feeds_transposes_that_pane()
+    public async Task Binding_a_planes_slots_to_a_non_monotonic_pair_transposes_that_pane()
     {
         var source = new StubProgramSource();
         source.Load("G21\nG1 X100 Y20 Z20 A100 F240");
         var vm = MakeVm(source, MachineTypes.Foam);
-        vm.SetPlaneGeometries([
-            PlotterPlaneMapper.Identity(2),
-            PlotterPlaneMapper.Identity(2),
-        ]);
-        // Both carriages carry motion, so both tiles are drawn before the swap.
+        // Both carriages carry motion, so both tiles are drawn.
         Assert.Equal(2, vm.Planes.Count);
         Assert.True(vm.Planes[0].Count > 0);
         Assert.True(vm.Planes[1].Count > 0);
+        // Default: plane 1's slots are [2, 3], so it spans Z 0..20 by A 0..100.
+        var defaultSlice = Assert.Single(vm.Planes[1]).To;
+        Assert.Equal(20, defaultSlice[0]);
+        Assert.Equal(100, defaultSlice[1]);
 
         var view = new PlotterView { DataContext = vm };
         var window = new Window { Width = 920, Height = 560, Content = view };
@@ -528,40 +551,45 @@ public class PlotterViewHeadlessTests
         // One canvas carries the whole stacked composition (both foam tiles).
         Assert.Single(before);
         Assert.Equal([0, 1], view.DrawableSlotsForTest.ToArray());
-        // The fit must have run: an unfitted (NaN) zoom would satisfy the
+        // The fit must have run: an unfitted (NaN) zoom would satisfy a
         // NotEqual below for the wrong reason (NaN != NaN).
         Assert.False(double.IsNaN(before[0].Zoom));
 
-        // Swap plane 1's feeds: its wide axis now feeds world Y, so the shared
-        // composition's vertical extent grows and the fit zoom must change.
-        vm.SetPlaneGeometries([
-            PlotterPlaneMapper.Identity(2),
-            new PlotterPlaneGeometry { WorldAxes = [1, 0] },
-        ]);
-        await Pump();
+        // The same program on the bug-report layout: plane 1's wide axis now
+        // feeds world X, so the shared composition's extents change and the fit
+        // zoom must move with them.
+        var bugSource = new StubProgramSource();
+        bugSource.Load("G21\nG1 X100 Y20 Z20 A100 F240");
+        var bugVm = MakeVm(bugSource, MachineTypes.Foam, UseBugReportFoamLayout);
+        var bugSlice = Assert.Single(bugVm.Planes[1]).To;
+        Assert.Equal(100, bugSlice[0]); // A on the slice's first slot
+        Assert.Equal(20, bugSlice[1]);  // Z on its second
 
-        var after = view.CompositionForTest;
+        var bugView = new PlotterView { DataContext = bugVm };
+        var bugWindow = new Window { Width = 920, Height = 560, Content = bugView };
+        bugWindow.Show();
+        for (var i = 0; i < 4; i++)
+            await Pump();
+
+        var after = bugView.CompositionForTest;
         Assert.Single(after);
-        Assert.Equal([0, 1], view.DrawableSlotsForTest.ToArray());
+        Assert.Equal([0, 1], bugView.DrawableSlotsForTest.ToArray());
         Assert.NotEqual(before[0].Zoom, after[0].Zoom, 6);
     }
 
-    /// <summary>A plane feeding only X and Z has no 2D extent: the flat pane
-    /// must refuse to draw it instead of plotting its first two roles as if
-    /// they were world X and Y. The program moves BOTH carriages, so the only
-    /// reason plane 1 is missing is its mapping — an empty plane would pass
-    /// this test vacuously.</summary>
+    /// <summary>A plane with fewer than two slots has no world Y, so the flat
+    /// pane must refuse to draw it instead of plotting its one slot as if it were
+    /// a face. The machine model permits the shape (a hand-edited profile whose
+    /// plane does not match the preset is reported as data, not thrown on), and
+    /// the program moves BOTH carriages, so the only reason plane 1 is missing is
+    /// its slot count — an empty plane would pass this test vacuously.</summary>
     [AvaloniaFact]
     public async Task A_plane_with_no_world_Y_is_not_drawn_in_the_flat_view()
     {
         var source = new StubProgramSource();
         source.Load("G21\nG1 X10 Y10 Z10 A10 F240");
-        var vm = MakeVm(source, MachineTypes.Foam);
-        vm.SetPlaneGeometries([
-            PlotterPlaneMapper.Identity(2),
-            new PlotterPlaneGeometry { WorldAxes = [0, 2] },
-        ]);
-        // The second carriage HAS motion — it is the mapping that removes it.
+        var vm = MakeVm(source, MachineTypes.Foam, UseSingleSlotSecondPlane);
+        // The second carriage HAS motion — the missing slot is what removes it.
         Assert.True(vm.Planes[1].Count > 0);
 
         var view = new PlotterView { DataContext = vm };
@@ -569,13 +597,10 @@ public class PlotterViewHeadlessTests
         window.Show();
         await Pump();
 
-        // The header still names what plane 1 feeds (world X and Z): the
-        // mapping is live and reported, the pane simply has no extent for it.
-        Assert.Equal("XY | XZ", view.HeaderLettersForTest);
-        // Only plane 0 is drawable, so the composition holds a single tile.
-        var frame = PlotterPixels.Snapshot(PlotterViewHeadlessTests.CaptureFrame(window));
-        Assert.True(PlotterPixels.Count(frame, PlotterViewHeadlessTests.IsPathGrey) > 0);
-        Assert.Single(view.DrawableSlotsForTest);
+        // The header still names what plane 1 is built from (machine Z): the
+        // layout is live and reported, the pane simply has no extent for it.
+        Assert.Equal("XY | Z", view.HeaderLettersForTest);
+        Assert.Equal([0], view.DrawableSlotsForTest.ToArray());
     }
 
     [AvaloniaFact]
@@ -1956,10 +1981,6 @@ public class PlotterViewHeadlessTests
         Assert.Equal(2, vm.PlaneCount);
         Assert.True(vm.Planes[0].Count > 0);
         Assert.True(vm.Planes[1].Count > 0);
-        vm.SetPlaneGeometries([
-            PlotterPlaneMapper.Identity(2),
-            PlotterPlaneMapper.Identity(2),
-        ]);
 
         var view = new PlotterView { DataContext = vm };
         var window = new Window { Width = 920, Height = 560, Content = view };
@@ -2072,10 +2093,6 @@ public class PlotterViewHeadlessTests
         var vm = MakeVm(source, MachineTypes.Foam);
         source.Load("G21\r\nG1 X100 Y20 Z20 A100 F600");
         Assert.True(vm.PlaneCount > 1);
-        vm.SetPlaneGeometries([
-            PlotterPlaneMapper.Identity(2),
-            PlotterPlaneMapper.Identity(2),
-        ]);
 
         var view = new PlotterView { DataContext = vm };
         var window = new Window { Width = 920, Height = 560, Content = view };
@@ -2238,10 +2255,6 @@ public class PlotterViewHeadlessTests
         var vm = MakeVm(source, MachineTypes.Foam);
         source.Load("G21\r\nG1 X100 Y20 Z20 A100 F600");
         Assert.True(vm.PlaneCount > 1);
-        vm.SetPlaneGeometries([
-            PlotterPlaneMapper.Identity(2),
-            PlotterPlaneMapper.Identity(2),
-        ]);
 
         var view = new PlotterView { DataContext = vm };
         var window = new Window { Width = 920, Height = 560, Content = view };
@@ -2527,13 +2540,13 @@ public class PlotterViewHeadlessTests
     }
 
     /// <summary>One drawable plane is a different SHAPE, not a half: it takes
-    /// the whole canvas, centered — the mill view's own layout. A foam program
-    /// whose plane 1 feeds X and Z has a carriage that moves but nothing to
+    /// the whole canvas, centered — the mill view's own layout. A foam machine
+    /// whose plane 1 has a single slot has a carriage that moves but nothing to
     /// draw, and it must not be left reserving half a screen.
-    /// <para>The mapping, not an empty plane, is what removes it — plane 1 does
-    /// carry motion, asserted below — so this cannot pass vacuously. And it is
-    /// the reason <c>SlotViewport</c> has to move with the composition: a
-    /// centered single tile under a half-height clip is cut in half.</para>
+    /// <para>The plane's slot COUNT, not an empty plane, is what removes it —
+    /// plane 1 does carry motion, asserted below — so this cannot pass vacuously.
+    /// And it is the reason <c>SlotViewport</c> has to move with the composition:
+    /// a centered single tile under a half-height clip is cut in half.</para>
     /// <para>Centered is the discriminator. In the diagonal layout the lone tile
     /// sits in the top-LEFT quadrant, so its middle is a third of the way down
     /// the canvas, not halfway.</para></summary>
@@ -2541,13 +2554,9 @@ public class PlotterViewHeadlessTests
     public async Task A_single_drawable_plane_is_centered_in_the_flat_view()
     {
         var source = new StubProgramSource();
-        var vm = MakeVm(source, MachineTypes.Foam);
+        var vm = MakeVm(source, MachineTypes.Foam, UseSingleSlotSecondPlane);
         source.Load("G21\r\nG1 X100 Y100 Z20 A100 F600");
-        vm.SetPlaneGeometries([
-            PlotterPlaneMapper.Identity(2),
-            new PlotterPlaneGeometry { WorldAxes = [0, 2] },
-        ]);
-        // The second carriage HAS motion — it is the mapping that removes it.
+        // The second carriage HAS motion — the missing slot is what removes it.
         Assert.True(vm.Planes[1].Count > 0);
         Assert.True(vm.PlaneCount > 1);
 
@@ -2601,10 +2610,6 @@ public class PlotterViewHeadlessTests
         var vm = MakeVm(source, MachineTypes.Foam);
         source.Load("G21\r\nG1 X100 Y20 Z20 A100 F600");
         Assert.True(vm.PlaneCount > 1);
-        vm.SetPlaneGeometries([
-            PlotterPlaneMapper.Identity(2),
-            PlotterPlaneMapper.Identity(2),
-        ]);
 
         var view = new PlotterView { DataContext = vm };
         var window = new Window { Width = 920, Height = 560, Content = view };
@@ -3154,10 +3159,6 @@ public class PlotterViewHeadlessTests
         Assert.Equal(2, vm.PlaneCount);
         Assert.True(vm.Planes[0].Count > 0);
         Assert.True(vm.Planes[1].Count > 0);
-        vm.SetPlaneGeometries([
-            PlotterPlaneMapper.Identity(2),
-            PlotterPlaneMapper.Identity(2),
-        ]);
 
         var view = new PlotterView { DataContext = vm };
         var window = new Window { Width = 920, Height = 560, Content = view };
@@ -3251,20 +3252,24 @@ public class PlotterViewHeadlessTests
     }
 
     /// <summary>The four visibility toggles go through the shared settings
-    /// model, and the module re-applies the WHOLE settings section on any one
-    /// of them — plane mappings included. The geometry has not changed, so the
-    /// re-apply must be a no-op: a GeometryVersion bump is the "the toolpath
-    /// moved, drop the view and re-fit" signal, and the visible effect of
-    /// misreading it is the user's zoom snapping back to the fitted view the
-    /// moment they toggle grid, origin, envelope or run-state.</summary>
+    /// model, and the module pushes the flags onto the live canvases on any one
+    /// of them. The geometry has not changed, so the push must be a no-op: a
+    /// GeometryVersion bump is the "the toolpath moved, drop the view and re-fit"
+    /// signal, and the visible effect of misreading it is the user's zoom
+    /// snapping back to the fitted view the moment they toggle grid, origin,
+    /// envelope or run-state.
+    /// <para>This used to drive the deleted plane-mapping push
+    /// (<c>SetPlaneGeometries</c>); the re-apply the module actually performs now
+    /// is <see cref="PlotterView.PushChromeFlags"/>, which is what this drives —
+    /// the regression it guards (a chrome toggle re-fitting the view) is
+    /// unchanged.</para></summary>
     [AvaloniaFact]
-    public async Task Reapplying_identical_plane_geometries_does_not_reset_the_view()
+    public async Task Reapplying_the_chrome_flags_does_not_reset_the_view()
     {
         var source = new StubProgramSource();
         var vm = MakeVm(source, MachineTypes.Mill);
         source.Load(SpiralProgram(600));
         Assert.True(vm.HasGeometry);
-        var geometries = vm.PlaneGeometries;
 
         var view = new PlotterView { DataContext = vm };
         var window = new Window { Width = 920, Height = 560, Content = view };
@@ -3280,7 +3285,7 @@ public class PlotterViewHeadlessTests
         var zoomBefore = view.CompositionForTest[0].Zoom;
         var versionBefore = vm.GeometryVersion;
 
-        vm.SetPlaneGeometries(geometries);
+        view.PushChromeFlags(ChromeFlags.Default);
         for (var i = 0; i < 8; i++)
             await Pump();
 
@@ -3294,10 +3299,10 @@ public class PlotterViewHeadlessTests
     /// set. A rebuilt canvas starts un-fitted (NaN zoom), so without the
     /// rebuild preserving the live transform every settings change (any chrome
     /// toggle) snaps the user's zoom back to the fitted view. This is the
-    /// SECOND path to that reset: the first was the SetPlaneGeometries
-    /// GeometryVersion bump, now fixed — hence the guard test above that no
-    /// geometry version changes, and this test proving the view still keeps its
-    /// zoom through the attach/rebuild.
+    /// SECOND path to that reset: the first was the deleted plane-mapping push,
+    /// whose GeometryVersion bump never comes back — hence the guard test above
+    /// that no geometry version changes, and this test proving the view still
+    /// keeps its zoom through the attach/rebuild.
     /// <para>The host here is a plain ContentControl reparenting the view,
     /// which fires the same <c>AttachedToVisualTree</c> the real tab host does
     /// when it re-binds its cached views.</para></summary>

@@ -58,15 +58,13 @@ public class PlotterGlMsaaTests
 
     public PlotterGlMsaaTests() => Directory.CreateDirectory(_dir);
 
-    private static readonly MachineType Mill = MachineTypeCatalog.Resolve(MachineTypes.Mill);
-
     [Fact]
     public void Msaa_mode_defaults_to_none_and_round_trips_through_the_profile()
     {
         var settings = new SettingsService(_dir);
         var profile = MakeMill(settings);
 
-        var loaded = PlotterGlConfig.Load(profile, Mill);
+        var loaded = PlotterGlConfig.Load(profile);
         Assert.Equal(MsaaMode.None, loaded.MsaaMode); // default: proven first
 
         loaded.MsaaMode = MsaaMode.X4;
@@ -75,7 +73,7 @@ public class PlotterGlMsaaTests
 
         Assert.Equal(
             MsaaMode.X4,
-            PlotterGlConfig.Load(settings.Load(), Mill).MsaaMode);
+            PlotterGlConfig.Load(settings.Load()).MsaaMode);
     }
 
     /// <summary>System.Text.Json deserializes ANY integer into an enum (no
@@ -87,7 +85,7 @@ public class PlotterGlMsaaTests
         var settings = new SettingsService(_dir);
         var profile = MakeMill(settings);
 
-        var s = PlotterGlConfig.Load(profile, Mill);
+        var s = PlotterGlConfig.Load(profile);
         s.MsaaMode = MsaaMode.X4;
         PlotterGlConfig.Save(profile, s);
 
@@ -96,7 +94,7 @@ public class PlotterGlMsaaTests
         section["MsaaMode"] = 9;
         profile.ModuleSettings[PlotterGlConfig.SectionKey] = section.ToJsonString();
 
-        Assert.Equal(MsaaMode.None, PlotterGlConfig.Load(profile, Mill).MsaaMode);
+        Assert.Equal(MsaaMode.None, PlotterGlConfig.Load(profile).MsaaMode);
 
         // ...and the clamp tracks the enum as it grows: with X8 defined, 4 is
         // the first value past the members — still a forward-dated profile
@@ -104,7 +102,7 @@ public class PlotterGlMsaaTests
         section["MsaaMode"] = 4;
         profile.ModuleSettings[PlotterGlConfig.SectionKey] = section.ToJsonString();
 
-        Assert.Equal(MsaaMode.None, PlotterGlConfig.Load(profile, Mill).MsaaMode);
+        Assert.Equal(MsaaMode.None, PlotterGlConfig.Load(profile).MsaaMode);
     }
 
     /// <summary>Checkpoint-5 item 4: 8x must survive the module's JSON section
@@ -115,14 +113,14 @@ public class PlotterGlMsaaTests
         var settings = new SettingsService(_dir);
         var profile = MakeMill(settings);
 
-        var loaded = PlotterGlConfig.Load(profile, Mill);
+        var loaded = PlotterGlConfig.Load(profile);
         loaded.MsaaMode = MsaaMode.X8;
         PlotterGlConfig.Save(profile, loaded);
         settings.Save(profile);
 
         Assert.Equal(
             MsaaMode.X8,
-            PlotterGlConfig.Load(settings.Load(), Mill).MsaaMode);
+            PlotterGlConfig.Load(settings.Load()).MsaaMode);
     }
 
     [Fact]
@@ -146,7 +144,7 @@ public class PlotterGlMsaaTests
         Assert.Contains(nameof(PlotterGlSettingsViewModel.MsaaIndex), changed);
         Assert.Equal(
             MsaaMode.X4,
-            PlotterGlConfig.Load(settings.Load(), Mill).MsaaMode);
+            PlotterGlConfig.Load(settings.Load()).MsaaMode);
 
         // 8x rides the same binding: the fourth choice, the fourth member.
         vm.MsaaIndex = 3;
@@ -154,7 +152,7 @@ public class PlotterGlMsaaTests
         Assert.Equal(MsaaMode.X8, vm.MsaaMode);
         Assert.Equal(
             MsaaMode.X8,
-            PlotterGlConfig.Load(settings.Load(), Mill).MsaaMode);
+            PlotterGlConfig.Load(settings.Load()).MsaaMode);
 
         // Out-of-range writes — the ComboBox's transient -1 while it has no
         // matching selection, or junk from a stale binding — are ignored: no
@@ -168,7 +166,7 @@ public class PlotterGlMsaaTests
         Assert.Equal(MsaaMode.X8, vm.MsaaMode);
         Assert.Equal(
             MsaaMode.X8,
-            PlotterGlConfig.Load(settings.Load(), Mill).MsaaMode);
+            PlotterGlConfig.Load(settings.Load()).MsaaMode);
     }
 
     private static MachineProfile MakeMill(SettingsService settings)

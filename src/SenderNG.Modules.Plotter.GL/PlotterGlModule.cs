@@ -129,7 +129,11 @@ public class PlotterGlModule : IModule, ILocalizedModule, IPluginInfo, IPluginDe
             serviceProvider.GetRequiredService<ILoadedProgramSource>(),
             serviceProvider.GetRequiredService<IGrblService>(),
             serviceProvider.GetRequiredService<SettingsService>(),
-            serviceProvider.GetRequiredService<LocalizationService>());
+            serviceProvider.GetRequiredService<LocalizationService>(),
+            // The machine seam: one resolved object (preset ⊕ profile ⊕ board)
+            // shared by every consumer, instead of each module re-resolving the
+            // preset at its own trigger point. Registered by HostSetup.
+            kinematics: serviceProvider.GetRequiredService<IMachineKinematicsProvider>());
     }
 
     // Settings fields must work before the module's own view is opened (App Settings dialog).
@@ -150,13 +154,19 @@ public class PlotterGlModule : IModule, ILocalizedModule, IPluginInfo, IPluginDe
             return _sharedSettingsVm;
         try
         {
-            var settings = _services!.GetRequiredService<SettingsService>();
+            var services = _services!;
+            var settings = services.GetRequiredService<SettingsService>();
             if (!_profileSwitchedSubscribed)
             {
                 settings.ProfileSwitched += OnProfileSwitched;
                 _profileSwitchedSubscribed = true;
             }
-            _sharedSettingsVm = new PlotterGlSettingsViewModel(settings, _services!.GetService<LocalizationService>());
+            _sharedSettingsVm = new PlotterGlSettingsViewModel(
+                settings,
+                services.GetService<LocalizationService>(),
+                // The loft gate needs the machine's plane count; the provider is
+                // the app's one authority on it.
+                services.GetService<IMachineKinematicsProvider>());
             return _sharedSettingsVm;
         }
         catch

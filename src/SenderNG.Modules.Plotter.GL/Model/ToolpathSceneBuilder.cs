@@ -53,8 +53,9 @@ public static class ToolpathSceneBuilder
     /// <summary>
     /// Adds every non-degenerate segment as a <see cref="LineSegment"/> into the
     /// given plane layer, mapping each endpoint through
-    /// <see cref="PlaneWorldMapper.ToWorld"/> per <c>geometry</c>. The degenerate
-    /// filter still runs on the raw machine-axis positions
+    /// <see cref="PlaneWorldMapper.ToWorld"/> with the plane's resolved
+    /// <paramref name="placement"/> (slot <c>k</c> feeds world axis <c>k</c>).
+    /// The degenerate filter still runs on the raw machine-axis positions
     /// (<c>planeAxisIndices</c>).
     /// </summary>
     /// <returns>Count of segments added (for run-state indexing).</returns>
@@ -62,13 +63,13 @@ public static class ToolpathSceneBuilder
         ICarriagePlaneLayer layer,
         IReadOnlyList<ToolpathSegment> segments,
         int[] planeAxisIndices,
-        GlPlaneGeometry geometry)
+        Vector3 placement)
     {
         var count = 0;
         foreach (var seg in segments)
         {
-            var from = PlaneWorldMapper.ToWorld(geometry, seg.From, planeAxisIndices);
-            var to = PlaneWorldMapper.ToWorld(geometry, seg.To, planeAxisIndices);
+            var from = PlaneWorldMapper.ToWorld(placement, seg.From, planeAxisIndices);
+            var to = PlaneWorldMapper.ToWorld(placement, seg.To, planeAxisIndices);
 
             var moves = false;
             for (var k = 0; k < planeAxisIndices.Length; k++)

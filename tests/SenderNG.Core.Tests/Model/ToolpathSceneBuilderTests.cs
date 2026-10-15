@@ -55,12 +55,7 @@ public class ToolpathSceneBuilderTests
             new ToolpathSegment(new[]{10.0,5,0}, new[]{20.0,5,0}, Rapid:true,  LineNumber:2),
             new ToolpathSegment(new[]{20.0,5,0}, new[]{20.0,5,0}, Rapid:false, LineNumber:3),
         };
-        var n = ToolpathSceneBuilder.PopulatePlane(layer, segs, new[]{0,1},
-            new SenderNG.Modules.Plotter.GL.Settings.GlPlaneGeometry
-            {
-                WorldAxes = [0, 1],
-                Origin = [0, 0, 0],
-            });
+        var n = ToolpathSceneBuilder.PopulatePlane(layer, segs, new[]{0,1}, Vector3.Zero);
         Assert.Equal(2, n);
         Assert.Equal(2, layer.Added.Count);
         Assert.Equal(new Vector3(0,0,0), layer.Added[0].From);
@@ -82,8 +77,11 @@ public class ToolpathSceneBuilderTests
         Assert.Equal(new[]{0.0,10.0}, b[1]);
     }
 
+    /// <summary>Foam plane 1: machine slots [2,3] = [Z,A] map POSITIONALLY onto
+    /// world X and Y (slot 0 → X, slot 1 → Y), and the plane's placement puts it
+    /// at the separation on the world axis its slots do not span — world Z.</summary>
     [Fact]
-    public void Foam_populate_separates_plane_one_by_wire_length_on_world_x()
+    public void Foam_populate_offsets_plane_one_by_the_separation_on_the_unspanned_axis()
     {
         var layer = new RecorderPlaneLayer();
         var segs = new[]
@@ -91,19 +89,36 @@ public class ToolpathSceneBuilderTests
             new ToolpathSegment(new[]{0.0,0,0,0}, new[]{10.0,5,20,24}, Rapid:false, LineNumber:1),
         };
 
-        // Foam plane 1: machine slots [2,3] = [Z,A] -> world Y,Z; world X = wire position (+50).
-        var geometry = new SenderNG.Modules.Plotter.GL.Settings.GlPlaneGeometry
-        {
-            WorldAxes = [1, 2],
-            Origin = [50, 0, 0],
-        };
-
-        var n = ToolpathSceneBuilder.PopulatePlane(layer, segs, new[] { 2, 3 }, geometry);
+        var placement = new Vector3(0, 0, 50);
+        var n = ToolpathSceneBuilder.PopulatePlane(layer, segs, new[] { 2, 3 }, placement);
 
         Assert.Equal(1, n);
         var seg = Assert.Single(layer.Added);
-        Assert.Equal(new System.Numerics.Vector3(50, 0, 0), seg.From); // From=[0,0,0,0] maps to the origin with machine slots zeroed
-        Assert.Equal(new System.Numerics.Vector3(50, 20, 24), seg.To);
+        Assert.Equal(new Vector3(0, 0, 50), seg.From); // From=[0,0,0,0] on world X/Y, displaced on Z
+        Assert.Equal(new Vector3(20, 24, 50), seg.To);
+    }
+
+    /// <summary>The bug-report foam layout: plane 2's slots are machine indices
+    /// [3, 2] (A horizontal, Z vertical), so slot 0 must read A into world X and
+    /// slot 1 must read Z into world Y. Sorting the indices — which
+    /// <c>indices[^1]</c> and every sorted assumption did — puts Z on the
+    /// horizontal and A on the vertical, i.e. the exact inverse of the firmware's
+    /// convention.</summary>
+    [Fact]
+    public void Foam_populate_slices_a_non_monotonic_plane_in_slot_order()
+    {
+        var layer = new RecorderPlaneLayer();
+        var segs = new[]
+        {
+            new ToolpathSegment(new[]{0.0,0,0,0}, new[]{10.0,5,20,24}, Rapid:false, LineNumber:1),
+        };
+
+        var n = ToolpathSceneBuilder.PopulatePlane(layer, segs, new[] { 3, 2 }, Vector3.Zero);
+
+        Assert.Equal(1, n);
+        var seg = Assert.Single(layer.Added);
+        Assert.Equal(new Vector3(0, 0, 0), seg.From);
+        Assert.Equal(new Vector3(24, 20, 0), seg.To); // A=24 on X, Z=20 on Y
     }
 }
 

@@ -202,27 +202,33 @@ public class PlotterModuleTests
     }
 
     private static (PlotterViewModel Vm, StubProgramSource Source) MakeVm(
-        string machineTypeId = MachineTypes.Mill, string axisLetters = "XYZA")
+        string machineTypeId = MachineTypes.Mill, string axisLetters = "XYZA",
+        System.Action<MachineProfile>? configure = null)
     {
         var source = new StubProgramSource();
-        return (MakeVmAround(source, machineTypeId, axisLetters), source);
+        return (MakeVmAround(source, machineTypeId, axisLetters, configure: configure), source);
     }
 
     /// <summary>Builds a plotter view model around a caller-supplied program
     /// surface — the live-overlay tests drive the real app <see cref="ProgramViewModel"/>
-    /// (the ILoadedProgramSource implementation) instead of the stub.</summary>
+    /// (the ILoadedProgramSource implementation) instead of the stub.
+    /// <paramref name="configure"/> runs against the saved profile before the view
+    /// model resolves it, which is how a test writes an axis layout into the
+    /// machine model (rather than into a per-plotter mapping, which is gone).</summary>
     private static PlotterViewModel MakeVmAround(
         ILoadedProgramSource source,
         string machineTypeId = MachineTypes.Mill,
         string axisLetters = "XYZA",
         IGrblService? grbl = null,
-        LocalizationService? localization = null)
+        LocalizationService? localization = null,
+        System.Action<MachineProfile>? configure = null)
     {
         var settingsDir = Path.Combine(Path.GetTempPath(), "plotter-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(settingsDir);
         var settings = new SettingsService(settingsDir);
         var profile = settings.Load();
         profile.MachineTypeId = machineTypeId;
+        configure?.Invoke(profile);
         settings.Save(profile);
 
         return new PlotterViewModel(source, grbl ?? new StubGrbl(axisLetters), settings,
@@ -271,11 +277,12 @@ public class PlotterModuleTests
         Assert.Equal(2, seg0.To[1]);
         Assert.Equal(8, seg1.To[0]);
         Assert.Equal(2, seg1.To[1]);
-        // Letters name the WORLD axes each plane feeds, not its machine roles:
-        // identity maps both foam planes' roles onto world X and Y, so the
-        // second carriage reads "XY" even though its roles are Z/A.
+        // Letters name each plane's OWN machine axes, in plane order: plane 0 is
+        // machine X,Y and plane 1 is machine Z,A of the stub controller. Slot
+        // order carries the orientation, so a bug-report [3, 2] layout would read
+        // "AZ" — never a sorted "ZA".
         Assert.Equal("XY", vm.PlaneLetters[0]);
-        Assert.Equal("XY", vm.PlaneLetters[1]);
+        Assert.Equal("ZA", vm.PlaneLetters[1]);
     }
 
     [Fact]
@@ -752,7 +759,7 @@ public class PlotterModuleTests
         var vm = MakeVmAround(source);
         var initial = vm.GeometryVersion; // 1: the ctor's empty state counts as a geometry
         // Pinned, because it is only 1 if the ctor assigned the field instead
-        // of calling the notifying ResetPlaneGeometries (that would start at 2).
+        // of bumping it a second time on the way in.
         Assert.Equal(1, initial);
 
         source.LoadGCode("G1 X10 F100");
@@ -771,29 +778,125 @@ public class PlotterModuleTests
         Assert.Equal(afterLoad + 1, vm.GeometryVersion);
     }
 
-    /// <summary>A program change must NOT revert the mapping the settings leaf
-    /// pushed. ProgramChanged fires on every load — and a profile switch clears
-    /// the program, so it fires on that too — while the leaf only pushes on its
-    /// own change events: a mapping reset here would be lost for the session.
-    /// Re-deriving on a genuine machine-type change is the settings layer's
-    /// job, and a stale entry is already harmless (GeometryFor validates it
-    /// against the plane's role count and falls back to identity).</summary>
-    [Fact]
-    public void Program_change_keeps_the_pushed_plane_mapping()
+    /// <summary>Writes the bug-report foam layout into the MACHINE: plane 2's
+    /// slots are machine indices <c>[3, 2]</c> (A horizontal, Z vertical) —
+    /// NON-MONOTONIC, which the old flattened role positions could not express.
+    /// The profile's planes must exist first (a fresh profile seeds them the same
+    /// way <c>SettingsService.CreateProfile</c> does); only the BINDINGS are the
+    /// user's, the counts stay the preset's.</summary>
+    private static void UseBugReportFoamLayout(MachineProfile profile)
     {
-        var (vm, source) = MakeVm(MachineTypes.Foam);
+        profile.Planes = MachineTypeCatalog.Resolve(MachineTypes.Foam).CreateDefaultPlanes();
+        profile.Planes[1].Axes[0].Index = 3; // slot 0 = A, the plane's horizontal
+        profile.Planes[1].Axes[1].Index = 2; // slot 1 = Z, its vertical
+    }
+
+    /// <summary>The regression the whole model exists for: with plane 2 bound to
+    /// <c>[3, 2]</c> the slice must follow SLOT order — A (index 3) on the
+    /// plane's first slot, Z (index 2) on its second — and the header must read
+    /// "AZ", not a sorted "ZA".</summary>
+    [Fact]
+    public void A_non_monotonic_plane_slices_in_slot_order_and_labels_in_slot_order()
+    {
+        var (vm, source) = MakeVm(
+            MachineTypes.Foam, configure: UseBugReportFoamLayout);
+        source.Load("G1 X10 Y2 Z8 A2 F100");
+
+        Assert.Equal([3, 2], vm.PlaneAxisIndices(1));
+        Assert.Equal("XY", vm.PlaneLetters[0]);
+        Assert.Equal("AZ", vm.PlaneLetters[1]);
+
+        var seg = Assert.Single(vm.Planes[1]);
+        // Slot 0 = A = 2 on the slice's first entry, slot 1 = Z = 8 on its second.
+        // The old `indices[^1]`-as-highest assumption and any sorted slice put Z
+        // first and A second — the exact inverse.
+        Assert.Equal(2, seg.To[0]);
+        Assert.Equal(8, seg.To[1]);
+    }
+
+    /// <summary>The other half of the same assumption lives on the GL side (see
+    /// <c>PlotterGlModuleTests.A_short_controller_report...</c>): a live
+    /// controller report can be SHORTER than the plane's highest index, which is
+    /// the only place the old <c>indices[^1]</c> availability check could bite —
+    /// the program frame is always the emulator's nine slots.</summary>
+    [Fact]
+    public void A_non_monotonic_plane_still_slices_a_four_axis_program()
+    {
+        var (vm, source) = MakeVm(
+            MachineTypes.Foam, configure: UseBugReportFoamLayout);
+        source.Load("G1 X1 Y2 Z3 A4 F100");
+
+        Assert.Equal([3, 2], vm.PlaneAxisIndices(1));
+        var seg = Assert.Single(vm.Planes[1]);
+        // Slot order: A=4 first (world X), Z=3 second (world Y).
+        Assert.Equal(4, seg.To[0]);
+        Assert.Equal(3, seg.To[1]);
+    }
+
+    /// <summary>The layout is re-read when the provider publishes, and the
+    /// toolpath is re-sliced from the new machine's planes. The per-plotter
+    /// mapping this used to assert against is deleted, so what a profile switch
+    /// changes is the machine itself: the plane count, the slices and the
+    /// letters.</summary>
+    [Fact]
+    public void A_profile_switch_re_slices_from_the_new_machines_planes()
+    {
+        var settingsDir = Path.Combine(Path.GetTempPath(), "plotter-switch-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(settingsDir);
+        var settings = new SettingsService(settingsDir);
+        var foam = settings.Load();
+        foam.MachineTypeId = MachineTypes.Foam;
+        settings.Save(foam);
+        // CreateProfile persists the second profile WITHOUT activating it, so the
+        // foam profile is still the live one here (`Save` is the call that swaps
+        // the shared graph, and it is not made).
+        var mill = settings.CreateProfile("mill", MachineTypes.Mill);
+
+        var source = new StubProgramSource();
+        var vm = new PlotterViewModel(source, new StubGrbl("XYZA"), settings,
+            new LocalizationService(new MemoryStream("{ \"strings\": {} }"u8.ToArray())));
         source.Load("G21\nG1 X10 Y2 Z8 A2 F100");
-        vm.SetPlaneGeometries([
-            PlotterPlaneMapper.Identity(2),
-            new PlotterPlaneGeometry { WorldAxes = [1, 0] },
-        ]);
-        Assert.Equal("XY | YX", string.Join(" | ", vm.PlaneLetters));
+        Assert.Equal(2, vm.PlaneCount);
+        Assert.Equal("ZA", vm.PlaneLetters[1]);
 
-        source.Load("G21\nG1 X4 Y2 Z8 A2 F100"); // any later load, or a profile switch's clear
+        settings.Activate(mill.Id);
 
-        Assert.Equal(2, vm.PlaneGeometries.Count);
-        Assert.Equal([1, 0], vm.PlaneGeometries[1].WorldAxes);
-        Assert.Equal("XY | YX", string.Join(" | ", vm.PlaneLetters));
+        Assert.Equal(1, vm.PlaneCount);
+        Assert.Equal("XYZ", vm.PlaneLetters[0]);
+        Assert.Single(vm.Planes);
+    }
+
+    /// <summary>A rotary axis is never a plane slot (invariant 3), so it must not
+    /// appear in any pane: the plane count, the slices and the letters come from
+    /// the machine's PLANES, and the rotary lives in the optional axes. A program
+    /// that turns A must plot exactly as it would without the rotary, because the
+    /// plotter has no rotary projection — the axis is absent, not mislabelled into
+    /// a spare slot.</summary>
+    [Fact]
+    public void A_rotary_optional_axis_is_absent_from_every_pane()
+    {
+        var (vm, source) = MakeVm(MachineTypes.Mill, configure: p =>
+        {
+            p.Planes = MachineTypeCatalog.Resolve(MachineTypes.Mill).CreateDefaultPlanes();
+            p.OptionalAxes.Add(new MachineAxis
+            {
+                Index = 3,
+                Kind = AxisKind.Rotary,
+                Direction = AxisDirection.Width,
+                RotationOrigin = [0, 0],
+            });
+        });
+        source.Load("G1 X10 Y10 Z5 A90 F100");
+
+        Assert.Equal([3], vm.Machine.RotaryAxes);
+        Assert.Equal(1, vm.PlaneCount);
+        Assert.Equal([0, 1, 2], vm.PlaneAxisIndices(0));
+        Assert.DoesNotContain(3, Enumerable.Range(0, vm.PlaneCount).SelectMany(vm.PlaneAxisIndices));
+        Assert.Equal("XYZ", vm.PlaneLetters[0]);
+
+        // The slice's third slot is world Z (5), not the rotary's 90.
+        var seg = Assert.Single(Assert.Single(vm.Planes));
+        Assert.Equal(5, seg.To[2]);
     }
 
     // ---- App Settings provider (Task 9) ----
@@ -840,6 +943,12 @@ public class PlotterModuleTests
         sc.AddSingleton(Localizable(dir));
         sc.AddSingleton<ILoadedProgramSource>(new StubProgramSource());
         sc.AddSingleton<IGrblService>(new StubGrbl());
+        // The machine seam the module resolves its view model through, wired the
+        // same way HostSetup does it (one singleton over this profile + controller).
+        sc.AddSingleton<IMachineKinematicsProvider>(
+            sp => new MachineKinematicsProvider(
+                sp.GetRequiredService<SettingsService>(),
+                sp.GetRequiredService<IGrblService>()));
         return (settings, sc.BuildServiceProvider(), foam.Id, mill.Id);
     }
 
@@ -884,7 +993,7 @@ public class PlotterModuleTests
         module.AttachServices(services);
 
         var vm = LeafOf((IModuleSettingsProvider)module);
-        Assert.Equal(2, vm.PlaneRows.Count);              // the foam profile's two planes
+        Assert.True(vm.ShowGrid);                         // a fresh profile's defaults
         Assert.Equal("Show grid", vm.ShowGridLabel);
     }
 

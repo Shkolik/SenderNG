@@ -53,8 +53,8 @@ namespace SenderNG.Modules.Plotter;
 /// Contract surface: the module resolves only Core types — the program comes
 /// through <see cref="ILoadedProgramSource"/> (implemented by the app's
 /// ProgramViewModel and registered in DI alongside it), machine geometry
-/// through <see cref="MachineTypeCatalog"/> and controller letters through
-/// <see cref="IGrblService.Capabilities"/>. No app-assembly type is referenced,
+/// through <see cref="IMachineKinematicsProvider"/> and controller letters
+/// through the same resolved object. No app-assembly type is referenced,
 /// so the plugin stays swappable by any third-party visualizer.
 /// </para>
 /// </summary>
@@ -162,15 +162,12 @@ public class PlotterModule : IModule, ILocalizedModule, IPluginInfo, IModuleSett
         }
     }
 
-    /// <summary>Pushes the live settings into the plot view. An empty plane list
-    /// is not "no mapping": <c>PlotterViewModel.GeometryFor</c> falls back to
-    /// <c>PlotterPlaneMapper.For(null, roles)</c> per plane, which IS identity
-    /// for that plane's role count — so a missing or short mapping degrades one
-    /// plane at a time, and a machine-type change that alters the plane count
-    /// cannot leave the view reporting no planes at all.</summary>
+    /// <summary>Pushes the live view toggles into the plot view. The plane
+    /// mapping is no longer pushed anywhere: the plot view reads the machine's
+    /// axis layout from <see cref="IMachineKinematicsProvider"/> itself, so
+    /// there is nothing for this module to copy onto it on a toggle.</summary>
     private void ApplySettings()
     {
-        _plotVm?.SetPlaneGeometries(_sharedSettingsVm?.Model.Planes ?? []);
         _plotView?.PushChromeFlags(_sharedSettingsVm?.Flags);
     }
 
@@ -223,7 +220,11 @@ public class PlotterModule : IModule, ILocalizedModule, IPluginInfo, IModuleSett
             serviceProvider.GetRequiredService<ILoadedProgramSource>(),
             serviceProvider.GetRequiredService<IGrblService>(),
             serviceProvider.GetRequiredService<SettingsService>(),
-            serviceProvider.GetRequiredService<LocalizationService>());
+            serviceProvider.GetRequiredService<LocalizationService>(),
+            // The machine seam: one resolved object (preset ⊕ profile ⊕ board)
+            // shared by every consumer, instead of each module re-resolving the
+            // preset at its own trigger point. Registered by HostSetup.
+            serviceProvider.GetRequiredService<IMachineKinematicsProvider>());
         _plotVm = vm;
         // The shared model FIRST: ApplySettings reads it, so calling ApplySettings
         // before this would push an EMPTY mapping list and silently ignore

@@ -2009,6 +2009,24 @@ public partial class PlotterView : UserControl
     /// accessible type.</summary>
     internal readonly record struct WorldSeg(double X0, double Y0, double X1, double Y1, uint Line, bool Rapid);
 
+    /// <summary>A plane's highest machine axis index, or <c>-1</c> for a plane
+    /// with no axes. <c>PlotterViewModel.PlaneAxisIndices</c> is in PLANE order
+    /// and may be NON-MONOTONIC — the bug-report foam firmware's plane 2 is
+    /// <c>[3, 2]</c> (slot 0 is A, slot 1 is Z) — so "does this plane fit the
+    /// program frame / the live position" is a MAX over the list. The
+    /// <c>indices[^1]</c> this replaces answered for the wrong axis on exactly
+    /// that layout, which is the bug the whole model exists to fix.</summary>
+    private static int HighestAxisIndex(int[] planeAxisIndices)
+    {
+        var max = -1;
+        foreach (var index in planeAxisIndices)
+        {
+            if (index > max)
+                max = index;
+        }
+        return max;
+    }
+
     /// <summary>Flat canvas: single-plane machines fill the whole surface
     /// with their raw coordinates; foam machines draw both carriage planes as
     /// TRUE-SCALE STACKED tiles of the same canvas — plane 1 in the top half,
@@ -2080,10 +2098,11 @@ public partial class PlotterView : UserControl
 
         private bool PlaneDrawable(int slot)
         {
-            if (slot >= Vm.PlaneCount || Vm.Planes[slot].Count == 0 || Vm.Bounds.Length == 0)
+            if (slot >= Vm.PlaneCount || slot >= Vm.Planes.Count || Vm.Planes[slot].Count == 0
+                || Vm.Bounds.Length == 0)
                 return false;
             var indices = Vm.PlaneAxisIndices(slot);
-            if (indices.Length < 2 || Vm.Bounds.Length <= indices[^1])
+            if (indices.Length < 2 || Vm.Bounds.Length <= HighestAxisIndex(indices))
                 return false;
             var (sx, sy) = PaneFeeds(slot);
             return sx >= 0 && sy >= 0;
@@ -2101,11 +2120,19 @@ public partial class PlotterView : UserControl
             (PlaneDrawable(0) ? 1 : 0) + (PlaneDrawable(1) ? 1 : 0);
 
         /// <summary>The plane slots feeding world X and world Y. This is the ONLY
-        /// place the flat view turns a plane mapping into slots — bounds, the baked
+        /// place the flat view turns a plane layout into slots — bounds, the baked
         /// segments, the vector overlay, the glyph and the chrome painters all read
-        /// these two numbers, so they cannot drift apart.</summary>
-        private (int X, int Y) PaneFeeds(int slot) =>
-            PlotterPlaneMapper.Feeds(Vm.GeometryFor(slot));
+        /// these two numbers, so they cannot drift apart.
+        /// <para>The mapping is POSITIONAL: slot <c>k</c> feeds world axis
+        /// <c>k</c>, so a plane that spans the world XY face is always (0, 1) and
+        /// the only question left is whether the plane HAS those two slots — a
+        /// one-slot plane has no world Y and the flat pane must refuse to draw
+        /// it.</para></summary>
+        private (int X, int Y) PaneFeeds(int slot)
+        {
+            var indices = Vm.PlaneAxisIndices(slot);
+            return (indices.Length > 0 ? 0 : -1, indices.Length > 1 ? 1 : -1);
+        }
 
         /// <summary>The JOB's world XY extent — every plane's own, unioned. The
         /// envelope belongs to the job, not to a carriage, so both foam planes
@@ -2321,7 +2348,7 @@ public partial class PlotterView : UserControl
                     return;
                 var indices = Vm.PlaneAxisIndices(0);
                 var (sx, sy) = PaneFeeds(0);
-                if (pos.Length <= indices[^1])
+                if (pos.Length <= HighestAxisIndex(indices))
                     return;
                 var m = _maps[0];
                 var p = WorldToScreen(m.Wx(pos[indices[sx]]), m.Wy(pos[indices[sy]]), _zoom, _pan);
@@ -2345,7 +2372,7 @@ public partial class PlotterView : UserControl
                 return;
             var (sx, sy) = PaneFeeds(slot);
             var pos = ToolGlyphPosition();
-            if (pos is null || pos.Length <= indices[^1])
+            if (pos is null || pos.Length <= HighestAxisIndex(indices))
                 return;
             var m = _maps[slot];
             ctx.DrawEllipse(PlotterPens.ToolBrush, PlotterPens.Tool,
@@ -2411,7 +2438,7 @@ public partial class PlotterView : UserControl
 
         private bool PlaneDrawable(int slot) =>
             Loft && slot < Vm.Planes.Count && Vm.Planes[slot].Count > 0
-            && Vm.Bounds.Length > Vm.PlaneAxisIndices(slot)[^1];
+            && Vm.Bounds.Length > HighestAxisIndex(Vm.PlaneAxisIndices(slot));
 
         /// <summary>The JOB's world XY extent — every plane's own, unioned. The
         /// envelope belongs to the job, not to a carriage, so both loft planes
@@ -2443,14 +2470,32 @@ public partial class PlotterView : UserControl
                 if (p.Y > maxY) maxY = p.Y;
             }
 
+            var indices = Vm.PlaneAxisIndices(0);
             foreach (var s in Vm.SourceSegments)
             {
-                var zFrom = s.From.Length > 2 ? s.From[2] : 0;
-                var zTo = s.To.Length > 2 ? s.To[2] : 0;
-                Add(PlotterProjection.Project(s.From[0], s.From[1], zFrom));
-                Add(PlotterProjection.Project(s.To[0], s.To[1], zTo));
+                var p = IsoPoint(s.From, indices);
+                var q = IsoPoint(s.To, indices);
+                Add(PlotterProjection.Project(p.X, p.Y, p.Z));
+                Add(PlotterProjection.Project(q.X, q.Y, q.Z));
             }
             return (minX, minY, maxX, maxY);
+        }
+
+        /// <summary>The mill's projected world point for one machine position.
+        /// Slot <c>k</c> of plane 0 feeds world axis <c>k</c>, so the projection
+        /// reads the plane's OWN indices rather than assuming the first three
+        /// machine axes: a profile that binds the mill's slots to other indices
+        /// (the axis list is the user's) must project the same axes the flat pane
+        /// slices, or the two views of one machine disagree. A slot the plane does
+        /// not have — or an axis the reported position stops short of — reads 0,
+        /// the flat-on-the-missing-axis answer the old length guard produced.</summary>
+        private static (double X, double Y, double Z) IsoPoint(double[] machinePos, int[] indices)
+        {
+            double At(int slot) =>
+                slot < indices.Length && indices[slot] >= 0 && indices[slot] < machinePos.Length
+                    ? machinePos[indices[slot]]
+                    : 0;
+            return (At(0), At(1), At(2));
         }
 
         /// <summary>Builds the shared composition. Loft: each plane becomes a
@@ -2538,10 +2583,11 @@ public partial class PlotterView : UserControl
             if (!Loft)
             {
                 var s = Vm.SourceSegments[index];
-                var zFrom = s.From.Length > 2 ? s.From[2] : 0;
-                var zTo = s.To.Length > 2 ? s.To[2] : 0;
-                var a = PlotterProjection.Project(s.From[0], s.From[1], zFrom);
-                var b = PlotterProjection.Project(s.To[0], s.To[1], zTo);
+                var indices = Vm.PlaneAxisIndices(0);
+                var from = IsoPoint(s.From, indices);
+                var to = IsoPoint(s.To, indices);
+                var a = PlotterProjection.Project(from.X, from.Y, from.Z);
+                var b = PlotterProjection.Project(to.X, to.Y, to.Z);
                 return new WorldSeg(a.X, a.Y, b.X, b.Y, s.LineNumber, s.Rapid);
             }
             var p = Vm.Planes[slot][index];
@@ -2555,13 +2601,14 @@ public partial class PlotterView : UserControl
             if (!Loft)
             {
                 var segments = Vm.SourceSegments;
+                var indices = Vm.PlaneAxisIndices(0);
                 for (var i = 0; i < segments.Count; i++)
                 {
                     var s = segments[i];
-                    var zFrom = s.From.Length > 2 ? s.From[2] : 0;
-                    var zTo = s.To.Length > 2 ? s.To[2] : 0;
-                    var a = PlotterProjection.Project(s.From[0], s.From[1], zFrom);
-                    var b = PlotterProjection.Project(s.To[0], s.To[1], zTo);
+                    var p = IsoPoint(s.From, indices);
+                    var q = IsoPoint(s.To, indices);
+                    var a = PlotterProjection.Project(p.X, p.Y, p.Z);
+                    var b = PlotterProjection.Project(q.X, q.Y, q.Z);
                     var pen = BakePenFor(pens, s.Rapid, RowStateFor(s.LineNumber));
                     ctx.DrawLine(pen, new Point(a.X, a.Y), new Point(b.X, b.Y));
                 }
@@ -2624,7 +2671,7 @@ public partial class PlotterView : UserControl
                 return;
             }
             if (!PlotterPlaneMapper.TryWorldFootprint(
-                Vm.GeometryFor(0), Vm.PlaneAxisIndices(0), Vm.Bounds, out var footprint))
+                Vm.PlaneAxisIndices(0), Vm.Bounds, out var footprint))
                 return;
             var (floorZ, _) = JobZRange();
             PlotterIsoChrome.DrawGrid(ctx, footprint, floorZ, zoom, pan);
@@ -2845,14 +2892,13 @@ public partial class PlotterView : UserControl
             var clip = new Rect(Bounds.Size);
             // Everything the arrows and the box have in common is the drawn plane's
             // world XY extent, so it is resolved ONCE here. A
-            // plane that feeds no world X or no world Y has no extent to
+            // plane with fewer than two slots has no world XY extent to
             // measure: the extent-derived chrome is skipped rather than wrapped
-            // around a default. The mill's built-in mapping is a permutation of
-            // world X/Y/Z and so always has a footprint; this guard is for a
-            // mapping that does not, which is a legal (and user-settable) plane
-            // mapping elsewhere in this file.
+            // around a default. The mill's single plane always has three slots,
+            // so it always has a footprint; this guard is for a machine whose
+            // plane does not, which the axis model permits.
             var hasFootprint = PlotterPlaneMapper.TryWorldFootprint(
-                Vm.GeometryFor(0), Vm.PlaneAxisIndices(0), Vm.Bounds, out var footprint);
+                Vm.PlaneAxisIndices(0), Vm.Bounds, out var footprint);
 
             // The job box's Z span, read ONCE here and again in the behind pass.
             // The lattice stands on the same floor the envelope is extruded from,
@@ -2886,7 +2932,7 @@ public partial class PlotterView : UserControl
         private (double Min, double Max) JobZRange()
         {
             if (!PlotterPlaneMapper.TryWorldSpan(
-                Vm.GeometryFor(0), Vm.PlaneAxisIndices(0), Vm.Bounds, 2, out var z))
+                Vm.PlaneAxisIndices(0), Vm.Bounds, 2, out var z))
                 return (0, 0);
             return (Math.Min(z.Min, 0), Math.Max(z.Max, 0));
         }
@@ -2904,7 +2950,7 @@ public partial class PlotterView : UserControl
             var idx0 = Vm.PlaneAxisIndices(0);
             var idx1 = Vm.PlaneAxisIndices(1);
             if (segments.Count == 0 || !PlaneDrawable(0) || !PlaneDrawable(1)
-                || segments[0].From.Length <= idx1[^1])
+                || segments[0].From.Length <= HighestAxisIndex(idx1))
                 return;
             var step = WireStep(segments.Count);
             var m0 = _maps[0];
@@ -2937,10 +2983,10 @@ public partial class PlotterView : UserControl
             }
             else
             {
-                var z = pos.Length > 2 ? pos[2] : 0;
-                var (px, py) = PlotterProjection.Project(pos[0], pos[1], z);
-                var p = WorldToScreen(px, py, _zoom, _pan);
-                ctx.DrawEllipse(PlotterPens.ToolBrush, PlotterPens.Tool, p, 4, 4);
+                var p = IsoPoint(pos, Vm.PlaneAxisIndices(0));
+                var (px, py) = PlotterProjection.Project(p.X, p.Y, p.Z);
+                var point = WorldToScreen(px, py, _zoom, _pan);
+                ctx.DrawEllipse(PlotterPens.ToolBrush, PlotterPens.Tool, point, 4, 4);
             }
         }
     }

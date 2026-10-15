@@ -53,14 +53,21 @@ public sealed record PlotSegment(double[] From, double[] To, bool Rapid, uint Li
 /// <summary>
 /// Plotter view model: subscribes to the program surface and rebuilds the
 /// toolpath geometry on program change (ToolpathBuilder), slices it into the
-/// machine's carriage planes (MachineType.Planes — positional axis indices),
-/// and tracks the run frontier (row states) plus the live tool position for
-/// the overlay. UI-agnostic data; the view draws.
+/// machine's carriage planes (the resolved <see cref="MachineKinematics"/> —
+/// axis indices and plane order), and tracks the run frontier (row states) plus
+/// the live tool position for the overlay. UI-agnostic data; the view draws.
 /// <para>
 /// Nothing here throws on degenerate input: no program, a program without
-/// motion, or a machine type whose planes reach beyond the axes the program
+/// motion, or a machine whose planes reach beyond the axes the program
 /// actually moves all degrade to <see cref="StatusText"/> + empty geometry —
 /// the view refuses to render instead of crashing.
+/// </para>
+/// <para>
+/// The kinematics is a JOIN of the stored profile with live controller state
+/// (the <c>[AXS:]</c> letters and the reported axis count), so it is re-read
+/// when <see cref="IMachineKinematicsProvider.Changed"/> fires — a profile
+/// switch, a connect, or a committed axis edit — rather than resolved once at
+/// construction.
 /// </para>
 /// <para>
 /// UI marshaling: the app's UiThread helper is app-assembly code a plugin
@@ -79,17 +86,19 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
 
     private readonly ILoadedProgramSource _programSource;
     private readonly IGrblService _grbl;
-    private readonly SettingsService _settings;
     private readonly LocalizationService _localization;
+    private readonly IMachineKinematicsProvider _kinematics;
+    /// <summary>True when this view model built the provider itself (a direct
+    /// construction: a unit test, or a third-party embedder). An injected
+    /// provider belongs to the caller — the app's DI singleton — and must not be
+    /// disposed here.</summary>
+    private readonly bool _ownsKinematics;
     private readonly IDisposable _stateSubscription;
     private int _generation;
 
-    private MachineType _machineType;
-
-    /// <summary>Per-plane axis→world mapping. Identity until the settings VM
-    /// (Task 8) pushes a stored section in — which is exactly what the renderer
-    /// assumed before this section existed.</summary>
-    private List<PlotterPlaneGeometry> _planeGeometries = [];
+    /// <summary>The resolved machine: plane count, plane slices, letters and the
+    /// separation all come from here, re-read on every provider change.</summary>
+    private MachineKinematics _machine;
 
     private double[][] _bounds = [];
     private Dictionary<uint, int> _lineToRow = new();
@@ -105,20 +114,20 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         ILoadedProgramSource programSource,
         IGrblService grbl,
         SettingsService settings,
-        LocalizationService localization)
+        LocalizationService localization,
+        IMachineKinematicsProvider? kinematics = null)
     {
         _programSource = programSource;
         _grbl = grbl;
-        _settings = settings;
         _localization = localization;
-        _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
-        // The mapping is indexed by plane, so it must match the resolved type
-        // before anything can read it. Assigned, NOT SetPlaneGeometries: no
-        // subscriber exists yet, so the setter's three notifications would be
-        // pure noise, and GeometryVersion would start at 2 instead of 1 (the
-        // ctor's own empty state) — a geometry event for a state that never
-        // existed, which the version's contract does not allow.
-        _planeGeometries = IdentityMappings(_machineType);
+        // Optional in the signature so a direct construction (tests, an
+        // embedder) stays possible; the module always injects the app's DI
+        // singleton. The fallback is built from the SAME settings and controller
+        // this view model was handed, so it resolves the same machine.
+        _ownsKinematics = kinematics is null;
+        _kinematics = kinematics ?? new MachineKinematicsProvider(settings, grbl);
+        _machine = _kinematics.Current;
+        _kinematics.Changed += OnKinematicsChanged;
 
         _programSource.ProgramChanged += OnProgramChanged;
         _programSource.RowsChanged += OnRowsChanged;
@@ -139,8 +148,8 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>Toolpath per carriage plane, rebuilt on program change. Plane k
-    /// maps onto MachineType.Planes[k]'s axis indices (<see cref="PlaneAxisIndices"/>).
-    /// The list length matches <see cref="PlaneCount"/>; a plane whose axis
+    /// slices <see cref="PlaneAxisIndices"/>(k) of the resolved machine. The
+    /// list length matches <see cref="PlaneCount"/>; a plane whose axis
     /// indices reach beyond the program's available axes stays empty (dropped)
     /// and <see cref="StatusText"/> explains why.</summary>
     public IReadOnlyList<IReadOnlyList<PlotSegment>> Planes { get; private set; } = [];
@@ -151,121 +160,46 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
     /// independently, breaking point pairing).</summary>
     public IReadOnlyList<ToolpathSegment> SourceSegments { get; private set; } = [];
 
-    /// <summary>Carriage-plane count of the active machine type (1 = mill-style,
+    /// <summary>Carriage-plane count of the resolved machine (1 = mill-style,
     /// 2 = foam) — drives the view's one-canvas vs two-canvas layout.</summary>
-    public int PlaneCount => _machineType.Planes.Count;
+    public int PlaneCount => _machine.Planes.Count;
 
-    /// <summary>Axis indices (controller axis order) backing plane <paramref name="plane"/> —
-    /// the view maps segment/LivePosition slots through these.</summary>
-    public int[] PlaneAxisIndices(int plane) => _machineType.PlaneAxisIndices(plane);
+    /// <summary>Axis indices (controller axis order) backing plane <paramref name="plane"/>,
+    /// in the plane's own order — the view maps segment/LivePosition slots through
+    /// these. May be NON-MONOTONIC (the bug-report foam layout's plane 2 is
+    /// <c>[3, 2]</c>), so "does the plane fit the program frame" is a MAX over the
+    /// list, never its last entry.</summary>
+    public int[] PlaneAxisIndices(int plane) => [.. _machine.PlaneIndices(plane)];
 
-    /// <summary>The active per-plane mappings, in plane order.</summary>
-    public IReadOnlyList<PlotterPlaneGeometry> PlaneGeometries => _planeGeometries;
-
-    /// <summary>Plane <paramref name="plane"/>'s mapping, falling back to identity
-    /// for that plane's role count when none is set or the stored one is
-    /// malformed.</summary>
-    public PlotterPlaneGeometry GeometryFor(int plane)
-    {
-        var roles = plane >= 0 && plane < _machineType.Planes.Count
-            ? _machineType.Planes[plane].Roles.Count
-            : 2;
-        var stored = plane >= 0 && plane < _planeGeometries.Count ? _planeGeometries[plane] : null;
-        return PlotterPlaneMapper.For(stored, roles);
-    }
+    /// <summary>The resolved kinematics this view model is drawing (diagnostics
+    /// and the tests' handle on the plane layout).</summary>
+    public MachineKinematics Machine => _machine;
 
     /// <summary>The JOB's world XY envelope: every plane's extent, read through
-    /// its own mapping and UNIONED. Both foam carriage planes work inside the
+    /// its own slot order and UNIONED. Both foam carriage planes work inside the
     /// same envelope, so the two tiles must measure the same rectangle — see
     /// <see cref="PlotterPlaneMapper.TryJobExtent"/>, which does the arithmetic
     /// and owns the rules about which planes may contribute.
-    /// <para>The per-plane inputs are resolved HERE, in one place, because the
-    /// machine type owns the plane/axis split and the stored mappings are
-    /// untrusted input: <see cref="GeometryFor"/> degrades a missing or
-    /// malformed mapping to identity per plane, so a settings file can neither
-    /// widen the envelope nor narrow it to nothing.
     /// <para>False means no plane could be read, never a fabricated envelope;
     /// the caller substitutes its own fallback, as it did before this
     /// existed.</summary>
     public bool TryJobEnvelope(out (double MinX, double MinY, double MaxX, double MaxY) envelope)
     {
         var planes = PlaneCount;
-        var geometries = new PlotterPlaneGeometry?[planes];
         var indices = new int[planes][];
         for (var p = 0; p < planes; p++)
-        {
-            geometries[p] = GeometryFor(p);
             indices[p] = PlaneAxisIndices(p);
-        }
-        return PlotterPlaneMapper.TryJobExtent(geometries, indices, Bounds, out envelope);
+        return PlotterPlaneMapper.TryJobExtent(indices, Bounds, out envelope);
     }
 
-    /// <summary>Replaces the mapping set and repaints. The App Settings leaf and the
-    /// plot view share this one list, so a change in either is visible in both.
-    /// <para>A set that already matches what is applied is a NO-OP. The module
-    /// pushes the whole settings section on every chrome toggle (grid, origin,
-    /// envelope, run-state), and GeometryVersion is the "the toolpath moved,
-    /// drop the view and re-fit" signal: bumping it for an identical mapping is
-    /// the zoom snapping back to fitted the moment the user toggles a visibility
-    /// button. Nothing has changed, so nothing bumps.</para>
-    /// <para>The copy must be a SNAPSHOT, not a reference into
-    /// <paramref name="planes"/>: the settings leaf edits its geometry objects
-    /// IN PLACE (<c>PlotterSettingsViewModel.ApplyRow</c> replaces the stored
-    /// plane's <c>WorldAxes</c> array, <c>ApplyOrigin</c> writes into the stored
-    /// array), so aliasing them would make a later in-place edit read as
-    /// "already applied" here and never reach the view.</para></summary>
-    public void SetPlaneGeometries(IReadOnlyList<PlotterPlaneGeometry> planes)
-    {
-        if (SameMappings(_planeGeometries, planes))
-            return;
-        _planeGeometries = [.. planes.Select(p => new PlotterPlaneGeometry
-        {
-            WorldAxes = [.. p.WorldAxes],
-            Origin = [.. p.Origin],
-        })];
-        // The letters are a header read, the geometry version the re-fit
-        // (Bounds moved, so the fit zoom must move with it), the plane letters
-        // also the slot layout rebuild (a plane can lose its world Y and stop
-        // being drawable) and Bump the plain redraw tick.
-        OnPropertyChanged(nameof(PlaneLetters));
-        GeometryVersion++;
-        OnPropertyChanged(nameof(GeometryVersion));
-        Bump();
-    }
-
-    /// <summary>Two mapping sets are the same iff every plane maps the same
-    /// world axes to the same origin offsets. Arrays compare BY VALUE, not by
-    /// reference — the snapshot above and the settings list are deliberately
-    /// different objects with the same content.</summary>
-    private static bool SameMappings(
-        IReadOnlyList<PlotterPlaneGeometry> a, IReadOnlyList<PlotterPlaneGeometry> b)
-    {
-        if (ReferenceEquals(a, b))
-            return true;
-        if (a.Count != b.Count)
-            return false;
-        for (var i = 0; i < a.Count; i++)
-            if (!a[i].WorldAxes.SequenceEqual(b[i].WorldAxes)
-                || !a[i].Origin.SequenceEqual(b[i].Origin))
-                return false;
-        return true;
-    }
-
-    /// <summary>Every plane back to identity — the pre-section mapping.</summary>
-    public void ResetPlaneGeometries() => SetPlaneGeometries(IdentityMappings(_machineType));
-
-    /// <summary>The identity mapping for each plane of <paramref name="type"/> —
-    /// the state a machine type's mapping starts in, and the fallback
-    /// <see cref="GeometryFor"/> degrades to.</summary>
-    private static List<PlotterPlaneGeometry> IdentityMappings(MachineType type) =>
-        [.. type.Planes.Select(p => PlotterPlaneMapper.Identity(p.Roles.Count))];
-
-    /// <summary>Display letters per plane, naming the <em>world</em> axes that
-    /// plane feeds — the same mapping the panes draw, so the header cannot
-    /// disagree with the picture.</summary>
-    public string[] PlaneLetters => _machineType.Planes
-        .Select((plane, p) => new string(
-            GeometryFor(p).WorldAxes.Select(AxisLetter).ToArray()))
+    /// <summary>Display letters per plane: the plane's own MACHINE axes, named
+    /// through the controller's letters (conventional fallback) — the same
+    /// indices the panes slice, so the header cannot disagree with the picture.
+    /// A default foam machine reads "XY | ZA"; the bug-report layout's plane 2
+    /// reads "AZ", which is the whole point of showing plane order rather than a
+    /// sorted set.</summary>
+    public string[] PlaneLetters => _machine.Planes
+        .Select((_, p) => new string(PlaneAxisIndices(p).Select(_machine.LetterFor).ToArray()))
         .ToArray();
 
     /// <summary>Per-axis bounds [min,max] over the whole toolpath (program frame).</summary>
@@ -370,15 +304,24 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnProgramChanged() => PostUi(() =>
     {
-        // Profile may have changed since construction (a machine switch clears
-        // the program; the type rides the active profile).
-        _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
-        // The stored mapping is deliberately NOT reset here: this fires on
-        // every program change, and the settings leaf (Task 8) only pushes a
-        // mapping on its own change events — resetting would silently drop a
-        // stored mapping on the next program load. A mapping from the previous
-        // type is harmless anyway: GeometryFor validates each entry against
-        // that plane's role count and falls back to identity.
+        // The machine may have changed since construction (a machine switch
+        // clears the program; the layout rides the active profile). Re-reading
+        // the provider is cheap when nothing changed — it is the same snapshot.
+        _machine = _kinematics.Current;
+        OnPropertyChanged(nameof(PlaneCount));
+        OnPropertyChanged(nameof(PlaneLetters));
+        Rebuild();
+    });
+
+    /// <summary>The machine's layout changed under us: a profile switch, a
+    /// connect/disconnect (the <c>[AXS:]</c> letters and the reported count), or
+    /// a committed axis edit. The new snapshot is picked up and the toolpath is
+    /// re-sliced, because the plane slices themselves may differ — not just the
+    /// header letters. Raised on the thread that triggered it, so it marshals
+    /// like every other controller-driven event.</summary>
+    private void OnKinematicsChanged(object? sender, EventArgs e) => PostUi(() =>
+    {
+        _machine = _kinematics.Current;
         OnPropertyChanged(nameof(PlaneCount));
         OnPropertyChanged(nameof(PlaneLetters));
         Rebuild();
@@ -409,7 +352,7 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         // CPU-bound walk would complicate ToolpathBuilder for no visible gain.
         if (program.Tokens.Count <= AsyncBuildThreshold)
         {
-            ApplyBuild(BuildGeometry(program, _machineType), generation);
+            ApplyBuild(BuildGeometry(program, _machine), generation);
             return;
         }
 
@@ -420,12 +363,12 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         SetStatus("module.plotter.building", "Plotting…");
         Bump();
 
-        var machineType = _machineType;
+        var machine = _machine;
         _ = Task.Run(() =>
         {
             try
             {
-                var geometry = BuildGeometry(program, machineType);
+                var geometry = BuildGeometry(program, machine);
                 PostUi(() =>
                 {
                     // A newer rebuild superseded this one (rapid program
@@ -482,9 +425,9 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         Dictionary<uint, int> LineToRow,
         (string Key, string Fallback, object?[] Args)? Status);
 
-    private Geometry BuildGeometry(GCodeProgram program, MachineType type)
+    private Geometry BuildGeometry(GCodeProgram program, MachineKinematics machine)
     {
-        var emptyPlanes = new IReadOnlyList<PlotSegment>[type.Planes.Count];
+        var emptyPlanes = new IReadOnlyList<PlotSegment>[machine.Planes.Count];
         for (var i = 0; i < emptyPlanes.Length; i++)
             emptyPlanes[i] = Array.Empty<PlotSegment>();
 
@@ -493,22 +436,23 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
             return new Geometry(emptyPlanes, segments, [], new Dictionary<uint, int>(),
                 Status: ("module.plotter.noMotion", "Program contains no motion.", []));
 
-        // A machine type whose planes reach beyond the axes the program (via
+        // A machine whose planes reach beyond the axes the program (via
         // the controller's axis count) actually provides must not be sliced —
         // the slice would index out of range. Drop those planes and say why;
-        // planes that fit still render.
+        // planes that fit still render. The test is the plane's HIGHEST index,
+        // because a plane's indices are in plane order and may be non-monotonic.
         var available = segments[0].From.Length;
-        var dropped = type.Planes
-            .Select((_, p) => type.PlaneAxisIndices(p)[^1])
+        var dropped = Enumerable.Range(0, machine.Planes.Count)
+            .Select(p => HighestIndex(machine.PlaneIndices(p)))
             .Any(maxIndex => maxIndex >= available);
         (string Key, string Fallback, object?[] Args)? status = dropped
             ? ("module.plotter.axisMismatch",
                 "Machine needs {0} axes; program has {1}. Unrenderable planes are hidden.",
-                new object?[] { type.AxisCount, available })
+                new object?[] { machine.DeclaredAxes, available })
             : null;
 
         var bounds = ComputeBounds(segments);
-        var planes = SlicePlanes(segments, type, available);
+        var planes = SlicePlanes(segments, machine, available);
 
         // Line → row: rows are index-aligned with the program entries, but the
         // KEY is the parser's block counter — what token/segment LineNumbers
@@ -528,31 +472,39 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         return new Geometry(planes, segments, bounds, lineToRow, status);
     }
 
-    /// <summary>Controller letter for a flattened axis index — the controller's
-    /// handshake letters win, the preset's conventional letters are the fallback.</summary>
-    private char AxisLetter(int axisIndex)
+    /// <summary>A plane's highest machine axis index, or <c>-1</c> for a plane
+    /// with no axes. <see cref="MachineKinematics.PlaneIndices"/> is in plane
+    /// order and may be NON-MONOTONIC (the bug-report foam layout's plane 2 is
+    /// <c>[3, 2]</c>), so "does this plane fit the program frame" is a MAX over
+    /// the list — <c>indices[^1]</c> silently answered for the wrong axis.</summary>
+    private static int HighestIndex(IReadOnlyList<int> planeAxisIndices)
     {
-        var letters = _grbl.Capabilities.AxisLetters;
-        if (!string.IsNullOrEmpty(letters) && axisIndex < letters.Length)
-            return letters[axisIndex];
-        return _machineType.ConventionalLetter(axisIndex);
+        var max = -1;
+        foreach (var index in planeAxisIndices)
+        {
+            if (index > max)
+                max = index;
+        }
+        return max;
     }
 
     private static IReadOnlyList<IReadOnlyList<PlotSegment>> SlicePlanes(
-        IReadOnlyList<ToolpathSegment> segments, MachineType type, int availableAxes)
+        IReadOnlyList<ToolpathSegment> segments, MachineKinematics machine, int availableAxes)
     {
-        var planes = new List<PlotSegment>[type.Planes.Count];
+        var planes = new List<PlotSegment>[machine.Planes.Count];
         for (var p = 0; p < planes.Length; p++)
             planes[p] = [];
 
-        var indices = type.Planes.Select((_, p) => type.PlaneAxisIndices(p)).ToArray();
+        var indices = Enumerable.Range(0, planes.Length)
+            .Select(p => machine.PlaneIndices(p).ToArray())
+            .ToArray();
 
         foreach (var s in segments)
         {
             for (var p = 0; p < planes.Length; p++)
             {
                 var idx = indices[p];
-                if (idx[^1] >= availableAxes)
+                if (idx.Length == 0 || HighestIndex(idx) >= availableAxes)
                     continue; // plane needs axes the program does not provide
                 var from = new double[idx.Length];
                 var to = new double[idx.Length];
@@ -604,6 +556,11 @@ public class PlotterViewModel : INotifyPropertyChanged, IDisposable
         _programSource.ProgramChanged -= OnProgramChanged;
         _programSource.RowsChanged -= OnRowsChanged;
         _localization.Changed -= OnLocalizationChanged;
+        _kinematics.Changed -= OnKinematicsChanged;
+        // Only the provider this view model built: an injected one is the app's
+        // DI singleton and outlives every view.
+        if (_ownsKinematics && _kinematics is IDisposable disposable)
+            disposable.Dispose();
         _stateSubscription.Dispose();
     }
 }

@@ -38,6 +38,10 @@ using SenderNG.Modules.Plotter.Settings;
 
 namespace SenderNG.Core.Tests;
 
+/// <summary>The plotter settings leaf after the world-mapping deletion: the four
+/// view toggles, persistence, and the localization contract. The plane-row cases
+/// (per-slot axis combos, origin offsets, permutation round trips) encode the
+/// deleted model.</summary>
 public class PlotterSettingsViewModelTests : IDisposable
 {
     private readonly string _dir = Path.Combine(
@@ -92,115 +96,16 @@ public class PlotterSettingsViewModelTests : IDisposable
         Assert.True(vm.Flags.Grid);
     }
 
+    /// <summary>The plane layout is the machine model's, not the section's: a
+    /// foam profile and a mill profile produce the SAME editor surface — four
+    /// toggles — because there is no per-plane mapping left to edit.</summary>
     [Fact]
-    public void There_is_one_row_per_plane()
+    public void The_editor_is_the_same_for_every_machine_type()
     {
-        var vm = Build(MachineTypes.Foam);
-        Assert.Equal(2, vm.PlaneRows.Count);
-        Assert.Equal("Plane 1", vm.PlaneRows[0].PlaneLabel);
-        Assert.Equal("Plane 2", vm.PlaneRows[1].PlaneLabel);
-    }
-
-    [Fact]
-    public void A_mill_plane_offers_one_world_axis_choice_per_slot()
-    {
-        var vm = Build();
-        Assert.Equal(3, vm.PlaneRows[0].Slots.Count);
-        Assert.Equal(["X", "Y", "Z"], vm.PlaneRows[0].Slots[0].Choices);
-        Assert.Equal([0, 1, 2], vm.PlaneRows[0].Slots.Select(s => s.Axis));
-    }
-
-    [Fact]
-    public void A_foam_plane_offers_one_world_axis_choice_per_slot()
-    {
-        var vm = Build(MachineTypes.Foam);
-        Assert.Equal(2, vm.PlaneRows[0].Slots.Count);
-        Assert.Equal(["X", "Y", "Z"], vm.PlaneRows[0].Slots[0].Choices);
-        Assert.Equal([0, 1], vm.PlaneRows[0].Slots.Select(s => s.Axis));
-    }
-
-    [Fact]
-    public void Selecting_a_slot_axis_round_trips()
-    {
-        var vm = Build(MachineTypes.Foam);
-        // Slot 0 takes Y; slot 1 keeps Z, its pick is distinct so nothing moves.
-        vm.PlaneRows[1].Slots[0].Axis = 1;
-        Assert.Equal([1, 0], vm.Model.Planes[1].WorldAxes);
-
-        var reread = new PlotterSettingsViewModel(new SettingsService(_dir), null);
-        Assert.Equal([1, 0], reread.Model.Planes[1].WorldAxes);
-        Assert.Equal([1, 0], reread.PlaneRows[1].Slots.Select(s => s.Axis));
-    }
-
-    [Fact]
-    public void A_stored_mapping_reads_into_the_slot_rows()
-    {
-        // A stored [1, 0] must SHOW as slot 0 = Y, slot 1 = X. The old combined
-        // combo indexed permutations, and `List<int[]>.IndexOf` compared the
-        // arrays by REFERENCE, so a saved non-identity mapping displayed as
-        // identity in the UI; the per-slot rows read the stored indices directly.
-        var settings = new SettingsService(_dir);
-        var profile = settings.CreateProfile("p1", MachineTypes.Foam);
-        PlotterConfig.Save(profile, new PlotterSettings
-        {
-            Planes = [new PlotterPlaneGeometry { WorldAxes = [0, 1] },
-                      new PlotterPlaneGeometry { WorldAxes = [1, 0] }],
-        });
-        // The bag must reach the DISK before `Activate`: Activate reloads the
-        // shared graph from the file (ProfilesStore.TryLoad), and SaveProfile
-        // does not refresh it — so a bag written only in memory is invisible to
-        // the view model's ctor `Load()` and the combo stays at index 0.
-        settings.SaveProfile(profile);
-        settings.Activate(profile.Id);
-
-        var vm = new PlotterSettingsViewModel(settings, null);
-        Assert.Equal([1, 0], vm.PlaneRows[1].Slots.Select(s => s.Axis));
-    }
-
-    [Fact]
-    public void A_duplicate_slot_pick_nudges_the_other_slot_onto_the_free_axis()
-    {
-        // Slot 1 (currently Y) is given X — slot 0's axis. The user's pick
-        // sticks and slot 0 is moved to the free axis (Y), mirroring the
-        // editor's constraint that each carriage feeds a different world axis.
-        var vm = Build(MachineTypes.Foam);
-        vm.PlaneRows[0].Slots[1].Axis = 0;
-        Assert.Equal([1, 0], vm.PlaneRows[0].Slots.Select(s => s.Axis));
-
-        var reread = new PlotterSettingsViewModel(new SettingsService(_dir), null);
-        Assert.Equal([1, 0], reread.Model.Planes[0].WorldAxes);
-    }
-
-    [Fact]
-    public void An_origin_offset_round_trips()
-    {
-        var vm = Build();
-        vm.PlaneRows[0].Origins[2].Value = 12.5;
-        Assert.Equal(12.5, vm.Model.Planes[0].Origin[2]);
-
-        var reread = new PlotterSettingsViewModel(new SettingsService(_dir), null);
-        Assert.Equal(12.5, reread.Model.Planes[0].Origin[2]);
-    }
-
-    [Fact]
-    public void A_malformed_stored_mapping_reads_back_as_identity()
-    {
-        var settings = new SettingsService(_dir);
-        var profile = settings.CreateProfile("p1", MachineTypes.Mill);
-        // Written straight into the profile's bag, because `PlotterConfig.Save`
-        // calls `Normalize` and would coerce [7,7,7] to identity on the way IN —
-        // the stored JSON would never contain it and `Load`'s rejection path
-        // would never run. This bypasses Save to reach the loader. As with
-        // `A_stored_permutation_is_selected_in_the_combo`, the bag must reach
-        // the DISK before `Activate`, or the reloaded graph is section-less and
-        // this test passes without ever entering the loader.
-        profile.ModuleSettings[PlotterConfig.SectionKey] =
-            """{"Planes":[{"WorldAxes":[7,7,7]}]}""";
-        settings.SaveProfile(profile);
-        settings.Activate(profile.Id);
-
-        var vm = new PlotterSettingsViewModel(settings, null);
-        Assert.Equal([0, 1, 2], vm.Model.Planes[0].WorldAxes);
+        var foam = Build(MachineTypes.Foam);
+        Assert.True(foam.ShowGrid);
+        Assert.True(foam.ShowRunState);
+        Assert.Equal(ChromeFlags.Default, foam.Flags);
     }
 
     [Fact]
@@ -248,9 +153,8 @@ public class PlotterSettingsViewModelTests : IDisposable
         // stream ctor leaves `_localeDirectory` null and SetLocale returns before
         // the raise (LocalizationService.cs:161): SetLocale() is a no-op for
         // stream-built services. And `ru.json` must exist too — a missing locale
-        // file also
-        // returns without the raise (:172). Do NOT invent a test-only raiser on
-        // LocalizationService — that is a file this task must not touch.
+        // file also returns without the raise (:172). Do NOT invent a test-only
+        // raiser on LocalizationService — that is a file this task must not touch.
         var locDir = Path.Combine(_dir, "loc");
         Directory.CreateDirectory(locDir);
         File.WriteAllText(Path.Combine(locDir, "en.json"),
@@ -269,8 +173,7 @@ public class PlotterSettingsViewModelTests : IDisposable
         {
             nameof(PlotterSettingsViewModel.ViewLabel), nameof(PlotterSettingsViewModel.ShowGridLabel),
             nameof(PlotterSettingsViewModel.ShowOriginLabel), nameof(PlotterSettingsViewModel.ShowEnvelopeLabel),
-            nameof(PlotterSettingsViewModel.ShowRunStateLabel), nameof(PlotterSettingsViewModel.WorldAxesLabel),
-            nameof(PlotterSettingsViewModel.OriginLabel), nameof(PlotterSettingsViewModel.ZoomInLabel),
+            nameof(PlotterSettingsViewModel.ShowRunStateLabel), nameof(PlotterSettingsViewModel.ZoomInLabel),
             nameof(PlotterSettingsViewModel.ZoomOutLabel), nameof(PlotterSettingsViewModel.ZoomFitLabel),
             nameof(PlotterSettingsViewModel.SavePngLabel),
         })

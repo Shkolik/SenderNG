@@ -3,7 +3,7 @@
  */
 
 /*
- 
+
 Copyright (c) 2026 Andrew Shkolik
  
 All rights reserved.
@@ -35,34 +35,40 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  
 */
 
-using System.Collections.ObjectModel;
 using CNC.Core.Services;
 using SenderNG.Core.Localization;
 using SenderNG.Modules.Common.Render;
 
 namespace SenderNG.Modules.Plotter.GL.Settings;
 
-/// <summary>AppSettings editor for the <c>plotter-gl</c> section: wire length
-/// (2+ planes), per-slot world-axis selection, per-plane origin offsets, scene
-/// view toggles, and render supersampling.</summary>
+/// <summary>AppSettings editor for the <c>plotter-gl</c> section: the scene view
+/// toggles, the loft toggle (gated by the machine's plane count) and render
+/// quality (supersampling + MSAA).
+/// <para>The wire-length field, the per-slot world-axis selectors and the origin
+/// rows that used to live here are <b>deleted</b>: the plane layout and the
+/// plane-to-plane separation are machine-model facts now
+/// (<c>IMachineKinematicsProvider</c> / the profile's <c>Separation</c>), not a
+/// per-plotter rendering choice. Within a plane slot <c>k</c> feeds world axis
+/// <c>k</c>, so there was never a mapping to pick.</para></summary>
 public sealed class PlotterGlSettingsViewModel : CNC.Core.ViewModelBase
 {
     private readonly SettingsService _settingsService;
     private readonly LocalizationService? _loc;
     private readonly MachineProfile _profile;
-    private PlotterGlSettings _settings;
+    private readonly IMachineKinematicsProvider? _kinematics;
+    private readonly PlotterGlSettings _settings;
     private bool _saving;
 
-    public PlotterGlSettingsViewModel(SettingsService settingsService, LocalizationService? localization = null)
+    public PlotterGlSettingsViewModel(
+        SettingsService settingsService,
+        LocalizationService? localization = null,
+        IMachineKinematicsProvider? kinematics = null)
     {
         _settingsService = settingsService;
         _loc = localization;
+        _kinematics = kinematics;
         _profile = _settingsService.Load();
-        var type = MachineTypeCatalog.Resolve(_profile.MachineTypeId);
-        _settings = PlotterGlConfig.Load(_profile, type);
-        PlaneRows = new ObservableCollection<PlotterGlPlaneRow>(
-            _settings.Planes.Select((_, p) => new PlotterGlPlaneRow(this, p)));
-        SyncRows();
+        _settings = PlotterGlConfig.Load(_profile);
 
         // Re-resolve the code-side labels on every locale switch (Language picker
         // changes are applied immediately, without restarting the app).
@@ -72,7 +78,6 @@ public sealed class PlotterGlSettingsViewModel : CNC.Core.ViewModelBase
 
     private void RelocalizeLabels()
     {
-        OnPropertyChanged(nameof(WireLengthLabel));
         OnPropertyChanged(nameof(ViewLabel));
         OnPropertyChanged(nameof(ShowOriginLabel));
         OnPropertyChanged(nameof(ShowEnvelopeLabel));
@@ -83,35 +88,20 @@ public sealed class PlotterGlSettingsViewModel : CNC.Core.ViewModelBase
         OnPropertyChanged(nameof(MsaaLabel));
     }
 
-    /// <summary>True when the machine has more than one plane (wire length applies).</summary>
-    public bool ShowWireLength => _settings.Planes.Count > 1;
+    /// <summary>The active machine's plane count: the resolved kinematics when
+    /// the module injected its provider, otherwise the profile's own resolution
+    /// (the editor is built with the module's DI, so the provider is the normal
+    /// path; the fallback keeps a directly constructed editor working, and both
+    /// answer the same number for the active profile).</summary>
+    private int PlaneCount =>
+        (_kinematics?.Current ?? MachineKinematicsResolver.Resolve(_profile, null, 0)).Planes.Count;
 
     /// <summary>True when the machine has at least two planes — a sheet
     /// spans the space BETWEEN planes, so a single-plane mill has nothing to
-    /// show and neither toolbar nor settings carry the loft toggle. Same
-    /// shape and refresh semantics as <see cref="ShowWireLength"/>: the
+    /// show and neither toolbar nor settings carry the loft toggle. The
     /// profile switch rebuilds this VM, so no PropertyChanged refresh is
     /// raised here.</summary>
-    public bool HasLoft => _settings.Planes.Count >= 2;
-
-    public double WireLength
-    {
-        get => _settings.WireLength;
-        set
-        {
-            if (Math.Abs(_settings.WireLength - value) < 1e-9)
-                return;
-            _settings.WireLength = value;
-            PlotterGlConfig.RecenterOnWire(_settings);
-            SyncRows();
-            Save();
-            OnPropertyChanged();
-        }
-    }
-
-    /// <summary>Localized "Wire length (tower distance)" label (plugin views
-    /// cannot use the app-only {Loc} markup, so labels resolve code-side).</summary>
-    public string WireLengthLabel => Resolve("module.plotter-gl.settings.wireLength", "Wire length (tower distance)");
+    public bool HasLoft => PlaneCount >= 2;
 
     public bool ShowOrigin
     {
@@ -249,8 +239,6 @@ public sealed class PlotterGlSettingsViewModel : CNC.Core.ViewModelBase
     /// <summary>Localized label for the MSAA mode selector row.</summary>
     public string MsaaLabel => Resolve("module.plotter-gl.settings.msaa", "MSAA (edge AA)");
 
-    public ObservableCollection<PlotterGlPlaneRow> PlaneRows { get; }
-
     /// <summary>Writes the section to the active profile and saves it (profile-save cadence).</summary>
     public void Save()
     {
@@ -272,161 +260,5 @@ public sealed class PlotterGlSettingsViewModel : CNC.Core.ViewModelBase
         }
     }
 
-    /// <summary>Applies one edited row back into the settings object and persists.</summary>
-    internal void ApplyRow(PlotterGlPlaneRow row)
-    {
-        _settings.Planes[row.PlaneIndex] = row.ToGeometry();
-        Save();
-    }
-
-    private void SyncRows()
-    {
-        for (var p = 0; p < PlaneRows.Count && p < _settings.Planes.Count; p++)
-            PlaneRows[p].Apply(_settings.Planes[p]);
-    }
-
     internal string Resolve(string key, string fallback) => _loc?.Resolve(key, fallback) ?? fallback;
-
-    internal string ResolveFormat(string key, string fallback, params object?[] args)
-    {
-        try
-        {
-            return string.Format(Resolve(key, fallback), args);
-        }
-        catch (FormatException)
-        {
-            return fallback;
-        }
-    }
-
-    /// <summary>Number of machine slots (roles) a schema plane maps.</summary>
-    internal int PlaneRowRoleCount(int plane)
-    {
-        var type = MachineTypeCatalog.Resolve(_profile.MachineTypeId);
-        return plane >= 0 && plane < type.Planes.Count ? type.Planes[plane].Roles.Count : 0;
-    }
-}
-
-/// <summary>One plane's editor row: per-slot world axis + origin (X/Y/Z) editors.</summary>
-public sealed class PlotterGlPlaneRow : CNC.Core.ViewModelBase
-{
-    private readonly PlotterGlSettingsViewModel _owner;
-    private bool _resolving;
-    private double _originX;
-    private double _originY;
-    private double _originZ;
-
-    public PlotterGlPlaneRow(PlotterGlSettingsViewModel owner, int planeIndex)
-    {
-        _owner = owner;
-        PlaneIndex = planeIndex;
-        Slots = new ObservableCollection<WorldAxisRow>(
-            Enumerable.Range(0, owner.PlaneRowRoleCount(planeIndex))
-                .Select(s => new WorldAxisRow(this, s)));
-    }
-
-    public int PlaneIndex { get; }
-
-    public string Title => _owner.ResolveFormat("module.plotter-gl.settings.plane", "Plane {0}", PlaneIndex + 1);
-
-    public string WorldAxesLabel => _owner.Resolve("module.plotter-gl.settings.worldAxes", "World axes");
-
-    public string OriginLabel => _owner.Resolve("module.plotter-gl.settings.origin", "Origin");
-
-    public ObservableCollection<WorldAxisRow> Slots { get; }
-
-    public double OriginX { get => _originX; set => SetOrigin(0, value, ref _originX); }
-    public double OriginY { get => _originY; set => SetOrigin(1, value, ref _originY); }
-    public double OriginZ { get => _originZ; set => SetOrigin(2, value, ref _originZ); }
-
-    internal void Apply(GlPlaneGeometry g)
-    {
-        _originX = g.Origin.Length > 0 ? g.Origin[0] : 0;
-        _originY = g.Origin.Length > 1 ? g.Origin[1] : 0;
-        _originZ = g.Origin.Length > 2 ? g.Origin[2] : 0;
-        for (var s = 0; s < Slots.Count && s < g.WorldAxes.Length; s++)
-            Slots[s].Axis = g.WorldAxes[s];
-        OnPropertyChanged(nameof(OriginX));
-        OnPropertyChanged(nameof(OriginY));
-        OnPropertyChanged(nameof(OriginZ));
-    }
-
-    internal GlPlaneGeometry ToGeometry() => new()
-    {
-        WorldAxes = [.. Slots.Select(s => s.Axis)],
-        Origin = [OriginX, OriginY, OriginZ],
-    };
-
-    internal void OnAxisChanged()
-    {
-        EnforceDistinct();
-    }
-
-    private void EnforceDistinct()
-    {
-        if (_resolving)
-            return;
-        _resolving = true;
-        try
-        {
-            var used = new bool[3];
-            for (var i = 0; i < Slots.Count; i++)
-            {
-                if (used[Slots[i].Axis])
-                {
-                    for (var f = 0; f < 3; f++)
-                    {
-                        if (used[f] || Slots.Any(s => s.Axis == f))
-                            continue;
-                        Slots[i].Axis = f; // triggers OnAxisChanged -> re-entered (guarded)
-                        Slots[i].Notify();
-                        break;
-                    }
-                }
-                used[Slots[i].Axis] = true;
-            }
-        }
-        finally
-        {
-            _resolving = false;
-        }
-        _owner.ApplyRow(this);
-    }
-
-    private void SetOrigin(int index, double value, ref double field)
-    {
-        if (SetField(ref field, value))
-        {
-            _owner.ApplyRow(this);
-        }
-    }
-}
-
-/// <summary>One slot's world-axis selection (0=X, 1=Y, 2=Z).</summary>
-public sealed class WorldAxisRow : CNC.Core.ViewModelBase
-{
-    private readonly PlotterGlPlaneRow _row;
-    private int _axis;
-
-    public WorldAxisRow(PlotterGlPlaneRow row, int slotIndex)
-    {
-        _row = row;
-        SlotIndex = slotIndex;
-    }
-
-    public int SlotIndex { get; }
-
-    public int Axis
-    {
-        get => _axis;
-        set
-        {
-            if (SetField(ref _axis, Math.Clamp(value, 0, 2)))
-                _row.OnAxisChanged();
-        }
-    }
-
-    public string[] Choices => ["X", "Y", "Z"];
-
-    internal void Notify() => OnPropertyChanged(nameof(Axis));
 }

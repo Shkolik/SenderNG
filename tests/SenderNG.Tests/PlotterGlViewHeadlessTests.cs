@@ -117,6 +117,10 @@ public class PlotterGlViewHeadlessTests
                 .AddSingleton(settings)
                 .AddSingleton(new LocalizationService(
                     new MemoryStream("{ \"strings\": {} }"u8.ToArray())))
+                .AddSingleton<IMachineKinematicsProvider>(
+                    sp => new MachineKinematicsProvider(
+                        sp.GetRequiredService<SettingsService>(),
+                        sp.GetRequiredService<IGrblService>()))
                 .BuildServiceProvider();
             var vm = (PlotterGlViewModel)new PlotterGlModule().CreateViewModel(services);
 
@@ -187,6 +191,10 @@ public class PlotterGlViewHeadlessTests
                 .AddSingleton(settings)
                 .AddSingleton(new LocalizationService(
                     new MemoryStream("{ \"strings\": {} }"u8.ToArray())))
+                .AddSingleton<IMachineKinematicsProvider>(
+                    sp => new MachineKinematicsProvider(
+                        sp.GetRequiredService<SettingsService>(),
+                        sp.GetRequiredService<IGrblService>()))
                 .BuildServiceProvider();
             var vm = (PlotterGlViewModel)new PlotterGlModule().CreateViewModel(services);
 
@@ -260,6 +268,10 @@ public class PlotterGlViewHeadlessTests
                 .AddSingleton(settings)
                 .AddSingleton(new LocalizationService(
                     new MemoryStream("{ \"strings\": {} }"u8.ToArray())))
+                .AddSingleton<IMachineKinematicsProvider>(
+                    sp => new MachineKinematicsProvider(
+                        sp.GetRequiredService<SettingsService>(),
+                        sp.GetRequiredService<IGrblService>()))
                 .BuildServiceProvider();
             var vm = (PlotterGlViewModel)new PlotterGlModule().CreateViewModel(services);
 

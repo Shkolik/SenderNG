@@ -34,18 +34,34 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using SenderNG.Modules.Common.Render;
 using System.Numerics;
 using CNC.Core.Services;
+using SenderNG.Modules.Plotter.GL.Model;
 using SenderNG.Modules.Plotter.GL.Scene;
 
 namespace SenderNG.Core.Tests;
 
 public class KinematicSceneFactoryTests
 {
+    /// <summary>Resolve a freshly created profile of <paramref name="machineTypeId"/>
+    /// — the same path the app takes (the profile's planes are seeded from the
+    /// preset inside the resolver), with no controller attached.</summary>
+    private static MachineKinematics Resolve(string machineTypeId, double separation = 0)
+    {
+        var profile = new MachineProfile
+        {
+            Id = "scene-" + machineTypeId,
+            Name = machineTypeId,
+            MachineTypeId = machineTypeId,
+            Separation = separation,
+        };
+        return MachineKinematicsResolver.Resolve(profile, null, 0);
+    }
+
     [Fact]
     public void Mill_creates_one_plane_layer_and_a_single_point_tool()
     {
         var fake = new FakePlotScene();
         var f = new KinematicSceneFactory(fake);
-        f.BuildScene(MachineTypeCatalog.Resolve(MachineTypes.Mill));
+        f.BuildScene(Resolve(MachineTypes.Mill));
         Assert.Equal(1, f.PlaneCount);
         Assert.NotNull(f.PlaneLayer(0));
         Assert.NotNull(f.Tool);
@@ -63,7 +79,7 @@ public class KinematicSceneFactoryTests
     {
         var fake = new FakePlotScene();
         var f = new KinematicSceneFactory(fake);
-        f.BuildScene(MachineTypeCatalog.Resolve(MachineTypes.Foam));
+        f.BuildScene(Resolve(MachineTypes.Foam));
         Assert.Equal(2, f.PlaneCount);
         Assert.NotNull(f.PlaneLayer(0));
         Assert.NotNull(f.PlaneLayer(1));
@@ -77,12 +93,71 @@ public class KinematicSceneFactoryTests
         Assert.Equal(2, ((FakePlotTool)f.Tool!).Positions[0].Points.Length);
     }
 
+    /// <summary>The initial tool wire spans the machine's own separation, on the
+    /// world axis the two-slot planes do NOT span (world Z) — the machine-model
+    /// placement, not an invented UnitZ. A separation of 0 (the shipped foam
+    /// default) degenerates to the same wire the mill case uses.</summary>
     [Fact]
-    public void Empty_planes_creates_empty_scene_without_crash()
+    public void Foam_initial_tool_wire_spans_the_separation_on_the_unspanned_axis()
     {
         var fake = new FakePlotScene();
         var f = new KinematicSceneFactory(fake);
-        f.BuildScene(new MachineType { Id = "proto", Name = "Proto", Planes = [] });
+        f.BuildScene(Resolve(MachineTypes.Foam, separation: 25));
+        Assert.Equal(2, f.PlaneCount);
+        Assert.NotNull(f.Loft);
+
+        var points = ((FakePlotTool)f.Tool!).Positions[0].Points;
+        Assert.Equal(2, points.Length);
+        Assert.Equal(Vector3.Zero, points[0]);
+        // Two-slot planes leave world Z free, and plane 1 sits at the separation.
+        Assert.Equal(new Vector3(0, 0, 25), points[1]);
+    }
+
+    /// <summary>A rotary axis is never a plane slot, so it must not conjure a
+    /// carriage layer or a loft: the plane count comes from the machine's planes
+    /// alone, and the rotary lives in the optional axes (invariant 3).</summary>
+    [Fact]
+    public void A_rotary_axis_adds_no_plane_and_no_loft()
+    {
+        var profile = new MachineProfile
+        {
+            Id = "rotary-mill",
+            Name = "Rotary mill",
+            MachineTypeId = MachineTypes.Mill,
+        };
+        profile.OptionalAxes.Add(new MachineAxis
+        {
+            Index = 3,
+            Kind = AxisKind.Rotary,
+            Direction = AxisDirection.Width,
+            RotationOrigin = [0, 0],
+        });
+        var kinematics = MachineKinematicsResolver.Resolve(profile, null, 0);
+        Assert.Equal([3], kinematics.RotaryAxes);
+
+        var fake = new FakePlotScene();
+        var f = new KinematicSceneFactory(fake);
+        f.BuildScene(kinematics);
+
+        Assert.Equal(1, f.PlaneCount);
+        Assert.Null(f.Loft);
+        Assert.Single(fake.CarriagePlanes);
+        Assert.Empty(fake.LoftSurfaces);
+    }
+
+    [Fact]
+    public void Empty_planes_creates_empty_scene_without_crash()
+    {
+        // A preset that declares no topology at all: the resolver seeds nothing,
+        // so the machine genuinely has zero planes.
+        var preset = new MachineType { Id = "proto-" + Guid.NewGuid().ToString("N"), Name = "Proto" };
+        var kinematics = MachineKinematicsResolver.Resolve(
+            new MachineProfile { Id = "proto", Name = "Proto", MachineTypeId = preset.Id }, preset, null, 0);
+        Assert.Empty(kinematics.Planes);
+
+        var fake = new FakePlotScene();
+        var f = new KinematicSceneFactory(fake);
+        f.BuildScene(kinematics);
         Assert.Equal(0, f.PlaneCount);
         Assert.NotNull(f.Tool);
         Assert.Null(f.Loft);
