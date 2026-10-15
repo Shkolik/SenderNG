@@ -107,8 +107,6 @@ public class PlotterModule : IModule, ILocalizedModule, IPluginInfo, IModuleSett
             ["module.plotter.settings.showOrigin"] = "Show origin",
             ["module.plotter.settings.showEnvelope"] = "Show envelope",
             ["module.plotter.settings.showRunState"] = "Show run state",
-            ["module.plotter.settings.worldAxes"] = "World axes",
-            ["module.plotter.settings.origin"] = "Origin",
             ["module.plotter.settings.plane"] = "Plane {0}",
             ["module.plotter.zoomIn"] = "Zoom in",
             ["module.plotter.zoomOut"] = "Zoom out",

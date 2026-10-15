@@ -12,8 +12,6 @@
     "module.plotter.settings.showOrigin": "Afficher l'origine",
     "module.plotter.settings.showEnvelope": "Afficher l'enveloppe",
     "module.plotter.settings.showRunState": "Afficher l'état d'exécution",
-    "module.plotter.settings.worldAxes": "Axes monde",
-    "module.plotter.settings.origin": "Origine",
     "module.plotter.settings.plane": "Plan {0}",
     "module.plotter.zoomIn": "Zoom avant",
     "module.plotter.zoomOut": "Zoom arrière",

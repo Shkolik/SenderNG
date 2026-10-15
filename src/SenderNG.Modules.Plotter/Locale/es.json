@@ -12,8 +12,6 @@
     "module.plotter.settings.showOrigin": "Mostrar origen",
     "module.plotter.settings.showEnvelope": "Mostrar envolvente",
     "module.plotter.settings.showRunState": "Mostrar estado de ejecución",
-    "module.plotter.settings.worldAxes": "Ejes globales",
-    "module.plotter.settings.origin": "Origen",
     "module.plotter.settings.plane": "Plano {0}",
     "module.plotter.zoomIn": "Acercar",
     "module.plotter.zoomOut": "Alejar",

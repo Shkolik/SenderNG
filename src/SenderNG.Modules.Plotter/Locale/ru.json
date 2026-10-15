@@ -12,8 +12,6 @@
     "module.plotter.settings.showOrigin": "Показать начало координат",
     "module.plotter.settings.showEnvelope": "Показать габарит заготовки",
     "module.plotter.settings.showRunState": "Показать состояние обработки",
-    "module.plotter.settings.worldAxes": "Мировые оси",
-    "module.plotter.settings.origin": "Начало",
     "module.plotter.settings.plane": "Плоскость {0}",
     "module.plotter.zoomIn": "Приблизить",
     "module.plotter.zoomOut": "Отдалить",

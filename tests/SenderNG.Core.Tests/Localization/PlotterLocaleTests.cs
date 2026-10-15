@@ -43,8 +43,11 @@ namespace SenderNG.Core.Tests.Localization;
 
 public class PlotterLocaleTests
 {
-    /// <summary>The 12 keys the view chrome resolves: 11 label properties on
-    /// <c>PlotterSettingsViewModel</c> plus the per-row plane placeholder.
+    /// <summary>The 10 keys the view chrome still resolves: 9 label properties on
+    /// <c>PlotterSettingsViewModel</c> plus the per-row plane placeholder. The
+    /// per-plane world-axes / origin rows went with the per-plotter axis mapping
+    /// (2026-10-14 — the machine profile owns it now), so their two keys are gone
+    /// from here and from the catalog.
     /// Listed here rather than reflected out of the VM so that deleting a label
     /// from the VM without adding its key still fails the build.</summary>
     private static readonly string[] ViewChromeKeys =
@@ -54,8 +57,6 @@ public class PlotterLocaleTests
         "module.plotter.settings.showOrigin",
         "module.plotter.settings.showEnvelope",
         "module.plotter.settings.showRunState",
-        "module.plotter.settings.worldAxes",
-        "module.plotter.settings.origin",
         "module.plotter.settings.plane",
         "module.plotter.zoomIn",
         "module.plotter.zoomOut",
