@@ -40,6 +40,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -59,6 +61,16 @@ public class MachineAxesViewHeadlessTests
     // card renders must resolve from the real catalog without touching a shared static.
     private static readonly LocalizationService Loc =
         LocalizationService.LoadFromDirectory(Path.Combine(AppContext.BaseDirectory, "Locale"));
+
+    /// <summary>The five table columns, in the order the header must render them.</summary>
+    private static readonly string[] HeaderKeys =
+    [
+        "appSettings.axes.index",
+        "appSettings.axes.type",
+        "appSettings.axes.role",
+        "appSettings.axes.direction",
+        "appSettings.axes.alias",
+    ];
 
     private static SettingsService MakeSettings()
     {
@@ -101,16 +113,286 @@ public class MachineAxesViewHeadlessTests
 
             // The picture resolves through avares://SenderNG/Assets/... — the one thing
             // that proves the asset registration works at runtime (docs/images/ would not
-            // load at all). The rotary reference art beside the optional list loads too.
-            var images = view.GetVisualDescendants().OfType<Image>().ToList();
-            Assert.Equal(2, images.Count);
-            foreach (var image in images)
-            {
-                var bitmap = Assert.IsType<Bitmap>(image.Source);
-                Assert.True(bitmap.PixelSize.Width > 0 && bitmap.PixelSize.Height > 0,
-                    "the topology art decoded to an empty bitmap");
-            }
+            // load at all) — and it is the card's ONLY picture and a small one: the rotary
+            // reference art is gone from the optional list, and the machine-type art no
+            // longer dominates the card.
+            var image = Assert.Single(view.GetVisualDescendants().OfType<Image>());
+            var bitmap = Assert.IsType<Bitmap>(image.Source);
+            Assert.True(bitmap.PixelSize.Width > 0 && bitmap.PixelSize.Height > 0,
+                "the topology art decoded to an empty bitmap");
+            Assert.True(image.MaxWidth <= 240 && image.MaxHeight <= 200,
+                $"the topology picture must stay small, not {image.MaxWidth}x{image.MaxHeight}");
             Assert.EndsWith("machine-topology-mill.png", editor.TopologyImage!);
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task The_axis_table_header_reads_index_type_role_direction_cam_alias()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var profile = settings.Load();
+            var editor = new MachineAxesViewModel(settings, Loc.Resolve, profile.Id);
+
+            // The exact English wording the header must carry…
+            Assert.Equal(
+                new[] { "Index", "Type", "Role", "Direction", "CAM Alias" },
+                HeaderKeys.Select(Loc.T).ToArray());
+
+            var view = new MachineAxesView { DataContext = editor };
+            var window = new Window { Width = 900, Height = 900, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            // …and the rendered order, left to right. The card draws the header over every
+            // plane and over the optional list, so each column label appears more than once:
+            // group by position and require one distinct x per column, ascending.
+            var rendered = view.GetVisualDescendants().OfType<TextBlock>()
+                .Where(t => t.Text is not null && HeaderKeys.Select(Loc.T).Contains(t.Text))
+                .Select(t => (Text: t.Text!, X: Position(t, view).X))
+                .GroupBy(h => Math.Round(h.X, 1))
+                .OrderBy(g => g.Key)
+                .Select(g => g.First().Text)
+                .ToList();
+            Assert.Equal(HeaderKeys.Select(Loc.T).ToArray(), rendered);
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Every_axis_row_lines_up_under_the_shared_column_header()
+    {
+        // The rows drift when a cell is not stretched: Fluent leaves a ComboBox
+        // HorizontalAlignment=Left, so it sized itself to its own text and every row's
+        // controls ended at a different x. The columns are shared now, and the editors fill
+        // them, so each column has exactly one left edge and one width across the card.
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var foam = settings.CreateProfile("foam", MachineTypes.Foam);
+            settings.Activate(foam.Id);
+            var editor = new MachineAxesViewModel(settings, Loc.Resolve, foam.Id);
+            editor.AddAxisCommand.Execute(null);              // an optional row…
+            editor.OptionalAxes[0].ApplyKind(AxisKind.Rotary); // …with its pivot row, too
+
+            var view = new MachineAxesView { DataContext = editor };
+            var window = new Window { Width = 1000, Height = 1000, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            // One cell of each row's own axis-table grid, by column: the row grid is the
+            // first Grid above the row's index picker, so a control from a picker's own
+            // template can never be mistaken for a cell.
+            var rows = editor.Planes.SelectMany(p => p.Axes).Concat(editor.OptionalAxes).ToList();
+            Assert.Equal(5, rows.Count);
+            var cells = new List<(int Column, Control Control)>();
+            foreach (var row in rows)
+            {
+                var grid = GridOf(view, row, editor.IndexChoices);
+                cells.AddRange(grid.Children.Select(c => (Grid.GetColumn(c), c)));
+            }
+
+            (int Column, string Key, Type Editor)[] columns =
+            [
+                (1, "appSettings.axes.index", typeof(ComboBox)),
+                (2, "appSettings.axes.type", typeof(ComboBox)),
+                (3, "appSettings.axes.role", typeof(ComboBox)),
+                (4, "appSettings.axes.direction", typeof(CheckBox)),
+                (5, "appSettings.axes.alias", typeof(TextBox)),
+            ];
+
+            var previousX = double.NegativeInfinity;
+            foreach (var (column, key, editorType) in columns)
+            {
+                var editors = cells.Where(c => c.Column == column).Select(c => c.Control).ToList();
+                Assert.Equal(5, editors.Count);
+                Assert.All(editors, c => Assert.IsType(editorType, c));
+
+                var edges = editors.Select(c => Math.Round(Position(c, view).X, 1)).Distinct().ToList();
+                var edge = Assert.Single(edges);
+
+                // Every header copy sits over the same edge, so the labels sit over the controls.
+                var headers = view.GetVisualDescendants().OfType<TextBlock>()
+                    .Where(t => t.Text == Loc.T(key)).ToList();
+                Assert.NotEmpty(headers);
+                Assert.All(headers, h => Assert.Equal(edge, Math.Round(Position(h, view).X, 1)));
+
+                // …and the column is one width, not one width per row.
+                Assert.Single(editors.Select(c => Math.Round(c.Bounds.Width, 1)).Distinct());
+
+                Assert.True(edge > previousX, $"column {key} is not to the right of the previous one");
+                previousX = edge;
+            }
+
+            // The delete button shares the row's baseline column arithmetic: it sits in the
+            // column right after the CAM alias, not out at the card's far edge.
+            var optional = GridOf(view, editor.OptionalAxes[0], editor.IndexChoices);
+            var aliasRight = Math.Round(Position(
+                optional.Children.Single(c => Grid.GetColumn(c) == 5), view).X, 1);
+            var del = view.GetVisualDescendants().OfType<Button>()
+                .Single(b => ReferenceEquals(b.Content, editor.OptionalAxes[0].RemoveText));
+            Assert.True(Position(del, view).X > aliasRight);
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task The_optional_axes_area_renders_no_rotary_picture()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var foam = settings.CreateProfile("foam", MachineTypes.Foam);
+            settings.Activate(foam.Id);
+            var editor = new MachineAxesViewModel(settings, Loc.Resolve, foam.Id);
+            editor.AddAxisCommand.Execute(null);
+            editor.OptionalAxes[0].ApplyKind(AxisKind.Rotary);
+
+            var view = new MachineAxesView { DataContext = editor };
+            var window = new Window { Width = 900, Height = 1000, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            // The optional-axis section is the block that owns the "Optional axes" title:
+            // no image may live in it (the rotary art was unreadable at that size and it
+            // squeezed the axis table). The machine-type picture stays, above the list.
+            var section = view.GetVisualDescendants().OfType<TextBlock>()
+                .First(t => t.Text == Loc.T("appSettings.axes.optional"))
+                .GetVisualAncestors().OfType<StackPanel>().First();
+            Assert.Empty(section.GetVisualDescendants().OfType<Image>());
+            Assert.Single(view.GetVisualDescendants().OfType<Image>());
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task The_inverted_checkbox_reflects_and_commits_the_sign()
+    {
+        // The Direction column's checkbox replaces the old [+]/[−] toggle: checked means the
+        // axis counts negative. The stored Sign keeps its +1/−1 semantics.
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var dir = settings.SettingsDir;
+            var profile = settings.Load();
+            var editor = new MachineAxesViewModel(settings, Loc.Resolve, profile.Id);
+            editor.AddAxisCommand.Execute(null);
+            var row = Assert.Single(editor.OptionalAxes);
+            Assert.Equal(1, row.Sign);
+
+            var view = new MachineAxesView { DataContext = editor };
+            var window = new Window { Width = 900, Height = 900, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var box = Assert.Single(view.GetVisualDescendants().OfType<CheckBox>(),
+                c => ReferenceEquals(c.DataContext, row));
+
+            // Localized label, and the state it reflects today.
+            Assert.Equal(Loc.T("appSettings.axes.inverted"), box.Content);
+            Assert.False(box.IsChecked);
+
+            // Click it: the gesture's state is committed to Sign and persisted.
+            box.IsChecked = true;
+            box.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, box));
+            for (var i = 0; i < 3; i++)
+                await Pump();
+
+            Assert.Equal(-1, row.Sign);
+            Assert.True(box.IsChecked);
+            Assert.Equal(-1, new SettingsService(dir).Load().OptionalAxes[0].Sign);
+
+            // …and back: unchecked means +1 again.
+            box.IsChecked = false;
+            box.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, box));
+            for (var i = 0; i < 3; i++)
+                await Pump();
+
+            Assert.Equal(1, row.Sign);
+            Assert.False(box.IsChecked);
+            Assert.Equal(1, new SettingsService(dir).Load().OptionalAxes[0].Sign);
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Changing_a_rotary_rows_role_re_letters_the_pivot_labels_live()
+    {
+        // Invariant 7's labels follow the row's role without a reload. The mill plane maps
+        // Width/Length/Height to X/Y/Z, so a rotary axis on Width shows the letters of
+        // Length and Height (Y, Z); moving it to Length must re-letter the pair (X, Z).
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var profile = settings.Load();
+            var editor = new MachineAxesViewModel(settings, Loc.Resolve, profile.Id);
+            editor.AddAxisCommand.Execute(null);
+            var row = Assert.Single(editor.OptionalAxes);
+            row.ApplyKind(AxisKind.Rotary);
+            row.ApplyDirection(AxisDirection.Width);
+            Assert.Equal(new[] { "Y", "Z" }, row.Pivots.Select(p => p.Label).ToArray());
+
+            var view = new MachineAxesView { DataContext = editor };
+            var window = new Window { Width = 900, Height = 900, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            Assert.Equal(new[] { "Y", "Z" }, PivotLabels(view));
+
+            // Through the Role picker, exactly as the user changes it.
+            var role = view.GetVisualDescendants().OfType<ComboBox>().First(c =>
+                ReferenceEquals(c.DataContext, row)
+                && ReferenceEquals(c.ItemsSource, editor.DirectionChoices));
+            role.SelectedItem = editor.DirectionChoices.Single(c => c.Value == AxisDirection.Length);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            Assert.Equal(AxisDirection.Length, row.Direction);
+            Assert.Equal(new[] { "X", "Z" }, row.Pivots.Select(p => p.Label).ToArray());
+            // The rendered labels followed — no reload, no re-selection of the profile.
+            Assert.Equal(new[] { "X", "Z" }, PivotLabels(view));
 
             window.Close();
         }
@@ -255,6 +537,8 @@ public class MachineAxesViewHeadlessTests
             Assert.Equal(
                 MachineTypeCatalog.Resolve(MachineTypes.Mill).EffectiveBasePlanes[0],
                 mill.Planes.Single().Axes.Select(a => a.Direction).ToArray());
+            // …and no recycled Inverted checkbox flipped a mill axis's sign.
+            Assert.All(mill.Planes.Single().Axes, a => Assert.Equal(1, a.Sign));
 
             var foamOnDisk = profiles.Single(p => p.Id == foam.Id);
             Assert.Equal(new[] { 2, 2 }, foamOnDisk.Planes.Select(p => p.Axes.Count).ToArray());
@@ -325,6 +609,24 @@ public class MachineAxesViewHeadlessTests
             LocalizationService.Current = prev;
         }
     }
+
+    /// <summary>The row's own axis-table grid: the first Grid above its index picker.</summary>
+    private static Grid GridOf(Visual root, MachineAxisRowViewModel row, IReadOnlyList<AxisIndexChoice> choices) =>
+        root.GetVisualDescendants().OfType<ComboBox>()
+            .First(c => ReferenceEquals(c.DataContext, row) && ReferenceEquals(c.ItemsSource, choices))
+            .GetVisualAncestors().OfType<Grid>().First();
+
+    /// <summary>A control's top-left in the view's coordinate space.</summary>
+    private static Point Position(Visual visual, Visual root) =>
+        visual.TranslatePoint(new Point(0, 0), root) ?? new Point(0, 0);
+
+    /// <summary>The rendered pivot labels: the semibold direction letters of a rotary row,
+    /// left to right (the value boxes' internal text blocks carry no weight).</summary>
+    private static List<string> PivotLabels(Visual root) =>
+        root.GetVisualDescendants().OfType<TextBlock>()
+            .Where(t => t.DataContext is AxisPivotRowViewModel && t.FontWeight == FontWeight.SemiBold)
+            .Select(t => t.Text ?? string.Empty)
+            .ToList();
 
     private static List<TextBox> PivotBoxes(Visual root) =>
         root.GetVisualDescendants().OfType<TextBox>()

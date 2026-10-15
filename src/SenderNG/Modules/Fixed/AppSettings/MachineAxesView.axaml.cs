@@ -48,7 +48,7 @@ namespace SenderNG.Modules.Fixed;
 
 /// <summary>
 /// The machine card's axis editor view: the machine-type topology picture, one row per
-/// axis grouped by plane, the optional-axis list and the rotary reference art.
+/// axis grouped by plane and the optional-axis list.
 /// <para>
 /// The editors are <c>OneWay</c>-bound and write only from the explicit, type-guarded,
 /// deferred handlers below. The rows live in recycled <see cref="ItemsControl"/>
@@ -80,13 +80,12 @@ public partial class MachineAxesView : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(MachineAxesViewModel.TopologyImage)
-            or nameof(MachineAxesViewModel.RotaryImage))
+        if (e.PropertyName is nameof(MachineAxesViewModel.TopologyImage))
             UpdateImages();
     }
 
     /// <summary>
-    /// Load the machine-type and rotary reference art from the app's own assets
+    /// Load the machine-type reference art from the app's own assets
     /// (<c>avares://SenderNG/Assets/machine-topology/…</c> — <c>docs/images/</c> is not
     /// loadable at runtime). A type that ships no art, or an asset that cannot be read,
     /// leaves the slot empty instead of throwing: the axis list is the truth.
@@ -94,7 +93,6 @@ public partial class MachineAxesView : UserControl
     private void UpdateImages()
     {
         TopologyImage.Source = LoadImage(_vm?.TopologyImage);
-        RotaryImage.Source = LoadImage(_vm?.RotaryImage);
     }
 
     private static IImage? LoadImage(string? uri)
@@ -171,12 +169,20 @@ public partial class MachineAxesView : UserControl
         }, DispatcherPriority.Input);
     }
 
-    /// <summary>Sign is a Click, not a bound checkbox: a gesture-only event, and the
-    /// guard keeps a recycled container from flipping a row it no longer shows.</summary>
-    private static void OnSignClick(object? sender, RoutedEventArgs e)
+    /// <summary>Sign is the Direction column's checkbox, driven by a Click, not by
+    /// IsCheckedChanged: the state is captured from the gesture and committed through the
+    /// deferred, DataContext-guarded shape the combo handlers use, and a recycled container
+    /// whose DataContext has moved on writes nothing.</summary>
+    private static void OnInvertedClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is Control { DataContext: MachineAxisRowViewModel row })
-            row.ToggleSign();
+        if (sender is not CheckBox box || box.DataContext is not MachineAxisRowViewModel row)
+            return;
+        var inverted = box.IsChecked == true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (ReferenceEquals(box.DataContext, row))
+                row.SetInverted(inverted);
+        }, DispatcherPriority.Input);
     }
 
     private static void OnAliasTextChanged(object? sender, TextChangedEventArgs e)
