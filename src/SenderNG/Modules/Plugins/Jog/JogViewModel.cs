@@ -67,6 +67,7 @@ public class JogViewModel : ViewModelBase
     // reported axis count change (see ResolveKinematics).
     private MachineKinematics _kinematics = null!;
     private bool _suppressReload;
+    private SenderNG.Core.Services.HotkeyService? _subscribedHotkeys;
 
     public JogViewModel(IGrblService grbl, SettingsService settingsService, CNC.Core.GrblInfoState? info = null)
     {
@@ -97,6 +98,12 @@ public class JogViewModel : ViewModelBase
         _grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
         _grbl.ConnectionChanged += OnConnectionChanged;
         _settingsService.Changed += OnSettingsChanged;
+        // The plane-2 hotkey labels carry the live letter, so a language switch or a
+        // hotkey remap must re-read them (the tooltip also carries the gesture).
+        if (SenderNG.Core.Localization.LocalizationService.Current is { } localization)
+            localization.Changed += OnLocaleChanged;
+        AppHotkeys.Changed += OnAppHotkeysChanged;
+        SubscribeToHotkeys(AppHotkeys.Current);
     }
 
     public JogConfig Config { get; private set; }
@@ -263,6 +270,78 @@ public class JogViewModel : ViewModelBase
     // clamped foam machine and a non-parallel second plane all tag single-part).
     private string CrossTag(string plane1, string plane2) => TogetherVisible ? $"{plane1}|{plane2}" : plane1;
 
+    // ---- Plane-2 direction hotkey labels ----
+    // The action IDs are frozen (saved keymaps key on them), but the LETTERS are
+    // not machine-invariant: with plane 2's slots bound to [3, 2] the "horizontal"
+    // key jogs A and the "vertical" one Z, on conventional foam [2, 3] they jog Z/A,
+    // and on a mill the same two keys jog the depth and the next reported axis. No
+    // static catalog value can be right for every machine, so both the App Settings
+    // row and the pad tooltip format the letter the key ACTUALLY jogs right now.
+    private static readonly Dictionary<string, string> Plane2HotkeyKeys = new(StringComparer.Ordinal)
+    {
+        ["jog.z.plus"] = "module.jog.hotkey.jog.z.plus",
+        ["jog.z.minus"] = "module.jog.hotkey.jog.z.minus",
+        ["jog.a.plus"] = "module.jog.hotkey.jog.a.plus",
+        ["jog.a.minus"] = "module.jog.hotkey.jog.a.minus",
+    };
+
+    /// <summary>Live, localized label for a plane-2 direction action on this machine
+    /// ("Jog A+"); the id itself for an action this VM does not own.</summary>
+    public string HotkeyLabel(string actionId)
+        => Plane2HotkeyKeys.TryGetValue(actionId, out var key)
+            ? LocText.Format(key, Plane2English(actionId), Plane2Letter(actionId))
+            : actionId;
+
+    /// <summary>The same label plus the gesture currently bound to the action
+    /// ("Jog A+ [PageUp]") — the pad tooltip's text.</summary>
+    public string HotkeyTip(string actionId)
+        => HotkeyTipSource.Compose(HotkeyLabel(actionId), AppHotkeys.Current?.GestureFor(actionId));
+
+    public string HotkeyTipPlane2Right => HotkeyTip("jog.z.plus");
+    public string HotkeyTipPlane2Left => HotkeyTip("jog.z.minus");
+    public string HotkeyTipPlane2Up => HotkeyTip("jog.a.plus");
+    public string HotkeyTipPlane2Down => HotkeyTip("jog.a.minus");
+
+    private static string Plane2English(string actionId)
+        => actionId.EndsWith(".minus", StringComparison.Ordinal) ? "Jog {0}-" : "Jog {0}+";
+
+    // The horizontal keys drive the plane's slot 0, the vertical keys slot 1 — the
+    // same P2H/P2V the on-screen cross shows and the tags it sends, so the label and
+    // the motion can never disagree.
+    private string Plane2Letter(string actionId)
+        => actionId.Contains(".z.", StringComparison.Ordinal) ? P2H : P2V;
+
+    private void RefreshHotkeyTips()
+    {
+        OnPropertyChanged(nameof(HotkeyTipPlane2Right));
+        OnPropertyChanged(nameof(HotkeyTipPlane2Left));
+        OnPropertyChanged(nameof(HotkeyTipPlane2Up));
+        OnPropertyChanged(nameof(HotkeyTipPlane2Down));
+    }
+
+    private void OnLocaleChanged(object? sender, EventArgs e) => UiThread.Post(RefreshHotkeyTips);
+    private void OnHotkeysChanged(object? sender, EventArgs e) => UiThread.Post(RefreshHotkeyTips);
+
+    /// <summary>Owns the single <see cref="SenderNG.Core.Services.HotkeyService"/>
+    /// subscription, moving it to <paramref name="service"/> and releasing the previous
+    /// one (the reference check keeps it idempotent).</summary>
+    private void SubscribeToHotkeys(SenderNG.Core.Services.HotkeyService? service)
+    {
+        if (ReferenceEquals(_subscribedHotkeys, service))
+            return;
+        if (_subscribedHotkeys is not null)
+            _subscribedHotkeys.Changed -= OnHotkeysChanged;
+        _subscribedHotkeys = service;
+        if (service is not null)
+            service.Changed += OnHotkeysChanged;
+    }
+
+    private void OnAppHotkeysChanged(object? sender, EventArgs e)
+    {
+        SubscribeToHotkeys(AppHotkeys.Current);
+        RefreshHotkeyTips();
+    }
+
     private void RefreshGeometry()
     {
         OnPropertyChanged(nameof(IsMultiPlane));
@@ -281,6 +360,7 @@ public class JogViewModel : ViewModelBase
                      nameof(SecondDownTag), nameof(SecondDownRightTag),
                  })
             OnPropertyChanged(property);
+        RefreshHotkeyTips();   // the plane-2 labels carry the letters re-laid here
     }
 
     public bool ShowDiagonals => Config.Diagonals;

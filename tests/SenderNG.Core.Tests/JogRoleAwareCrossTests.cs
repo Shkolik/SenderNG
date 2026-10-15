@@ -37,6 +37,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using CNC.Core.Services;
+using Microsoft.Extensions.DependencyInjection;
+using SenderNG.Core.Localization;
 using SenderNG.Modules.Plugins;
 
 namespace SenderNG.Core.Tests;
@@ -181,5 +183,55 @@ public class JogRoleAwareCrossTests
 
         Assert.Equal(["Z", "A"], vm.LinearAxisLetters.Select(r => r.Letter));
         Assert.Equal("A+", vm.LinearAxisLetters[1].PlusTag);
+    }
+
+    [Fact]
+    public void Plane2_hotkey_labels_follow_the_letter_the_key_actually_jogs()
+    {
+        // The plane-2 direction keys are labelled with the letter they jog on THIS
+        // machine: the same action must read "Jog A+" on the [3, 2] layout and
+        // "Jog Z+" on a mill, so no saved keymap and no static catalog string can lie.
+        var previousLocale = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = TestLocalization.Locale;   // English, deterministic
+
+            var bugLayout = new JogViewModel(
+                new JogViewModelTests.RecordingGrbl([], numAxes: 4),
+                FoamSettings(plane2Horizontal: 3, plane2Vertical: 2), Info("XYZA"));
+            Assert.Equal("Jog A+", bugLayout.HotkeyLabel("jog.z.plus"));
+            Assert.Equal("Jog A-", bugLayout.HotkeyLabel("jog.z.minus"));
+            Assert.Equal("Jog Z+", bugLayout.HotkeyLabel("jog.a.plus"));
+            Assert.Equal("Jog Z-", bugLayout.HotkeyLabel("jog.a.minus"));
+            // The pad tooltips carry the same live text (plus any bound gesture).
+            Assert.StartsWith("Jog A+", bugLayout.HotkeyTipPlane2Right);
+            Assert.StartsWith("Jog Z+", bugLayout.HotkeyTipPlane2Up);
+
+            // The App Settings row reads it through the live-label action, and the
+            // action ID stays the frozen keymap contract.
+            var services = new ServiceCollection();
+            services.AddSingleton(bugLayout);
+            using var provider = services.BuildServiceProvider();
+            var action = JogHotkeyProvider.Create(provider).Single(a => a.ActionId == "jog.z.plus");
+            Assert.Equal("Jog A+", action.DisplayName);
+
+            // Conventional foam [2, 3] and a mill keep their historical letters: on a
+            // mill the hidden second cross makes these keys jog depth then next axis.
+            var conventional = new JogViewModel(
+                new JogViewModelTests.RecordingGrbl([], numAxes: 4),
+                JogViewModelTests.MakeSettings("Foam"), Info("XYZA"));
+            Assert.Equal("Jog Z+", conventional.HotkeyLabel("jog.z.plus"));
+            Assert.Equal("Jog A+", conventional.HotkeyLabel("jog.a.plus"));
+
+            var mill = new JogViewModel(
+                new JogViewModelTests.RecordingGrbl([], numAxes: 4),
+                JogViewModelTests.MakeSettings(), Info("XYZA"));
+            Assert.Equal("Jog Z+", mill.HotkeyLabel("jog.z.plus"));
+            Assert.Equal("Jog A+", mill.HotkeyLabel("jog.a.plus"));
+        }
+        finally
+        {
+            LocalizationService.Current = previousLocale;
+        }
     }
 }

@@ -196,18 +196,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <Button Grid.Row="0" Grid.Column="0" Classes="jog diag" Content="↖" Command="{Binding JogCommand}" CommandParameter="{Binding SecondUpLeftTag}"
                     IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
             <Button Grid.Row="0" Grid.Column="1" Classes="jog" Content="{Binding P2VPlus}" Command="{Binding JogCommand}" CommandParameter="{Binding SecondUpTag}"
-                    IsEnabled="{Binding ZaCrossEnabled}" ToolTip.Tip="{loc:HotkeyTip module.jog.hotkey.jog.a.plus, jog.a.plus}" />
+                    IsEnabled="{Binding ZaCrossEnabled}" ToolTip.Tip="{Binding HotkeyTipPlane2Up}" />
             <Button Grid.Row="0" Grid.Column="2" Classes="jog diag" Content="↗" Command="{Binding JogCommand}" CommandParameter="{Binding SecondUpRightTag}"
                     IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
             <Button Grid.Row="1" Grid.Column="0" Classes="jog" Content="{Binding P2HMinus}" Command="{Binding JogCommand}" CommandParameter="{Binding SecondLeftTag}"
-                    IsEnabled="{Binding ZaCrossEnabled}" ToolTip.Tip="{loc:HotkeyTip module.jog.hotkey.jog.z.minus, jog.z.minus}" />
+                    IsEnabled="{Binding ZaCrossEnabled}" ToolTip.Tip="{Binding HotkeyTipPlane2Left}" />
             <Button Grid.Row="1" Grid.Column="1" Classes="jog" Content="•" IsEnabled="False" />
             <Button Grid.Row="1" Grid.Column="2" Classes="jog" Content="{Binding P2HPlus}" Command="{Binding JogCommand}" CommandParameter="{Binding SecondRightTag}"
-                    IsEnabled="{Binding ZaCrossEnabled}" ToolTip.Tip="{loc:HotkeyTip module.jog.hotkey.jog.z.plus, jog.z.plus}" />
+                    IsEnabled="{Binding ZaCrossEnabled}" ToolTip.Tip="{Binding HotkeyTipPlane2Right}" />
             <Button Grid.Row="2" Grid.Column="0" Classes="jog diag" Content="↙" Command="{Binding JogCommand}" CommandParameter="{Binding SecondDownLeftTag}"
                     IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
             <Button Grid.Row="2" Grid.Column="1" Classes="jog" Content="{Binding P2VMinus}" Command="{Binding JogCommand}" CommandParameter="{Binding SecondDownTag}"
-                    IsEnabled="{Binding ZaCrossEnabled}" ToolTip.Tip="{loc:HotkeyTip module.jog.hotkey.jog.a.minus, jog.a.minus}" />
+                    IsEnabled="{Binding ZaCrossEnabled}" ToolTip.Tip="{Binding HotkeyTipPlane2Down}" />
             <Button Grid.Row="2" Grid.Column="2" Classes="jog diag" Content="↘" Command="{Binding JogCommand}" CommandParameter="{Binding SecondDownRightTag}"
                     IsEnabled="{Binding ZaCrossEnabled}" IsVisible="{Binding ShowDiagonals}" />
         </Grid>
