@@ -71,8 +71,40 @@ public class MachineProfile
     /// <summary>Connection prefill + last-successful state for this machine.</summary>
     public MachineConnection Connection { get; set; } = new();
 
-    /// <summary>Axis count the Demo controller simulates for this machine (was the per-mode DemoAxes).</summary>
+    /// <summary>Axis count the Demo controller simulates for this machine (was the per-mode DemoAxes).
+    /// Also the lever for simulating a reduced board (invariant 10's superset tolerance).</summary>
     public int DemoAxes { get; set; } = 3;
+
+    private List<ProfilePlane> _planes = [];
+    private List<MachineAxis> _optionalAxes = [];
+
+    /// <summary>
+    /// This machine's planes, seeded from the preset's <c>BasePlanes</c> with the
+    /// default conventional indices. Plane order is the machine's plane order and an
+    /// axis's slot in a plane is its role (horizontal, vertical, optional depth); the
+    /// axis <b>index</b> is the stored truth, so a plane's indices may be
+    /// non-monotonic. Empty means "not migrated/seeded yet" — the resolver seeds it
+    /// from the preset, so a profile file written before this field existed still
+    /// resolves. Never null (a hand-edited <c>"Planes": null</c> reads as empty).
+    /// </summary>
+    public List<ProfilePlane> Planes
+    {
+        get => _planes;
+        set => _planes = value ?? [];
+    }
+
+    /// <summary>Extra axes outside every plane — rotary axes always live here, plus any
+    /// additional linear axis the machine carries. Never in a plane (invariants 3, 5).</summary>
+    public List<MachineAxis> OptionalAxes
+    {
+        get => _optionalAxes;
+        set => _optionalAxes = value ?? [];
+    }
+
+    /// <summary>Plane-to-plane distance in mm for a multi-plane (foam) machine — the one
+    /// degree of freedom two parallel planes leave (their shared unspanned direction).
+    /// Seeded from the preset's <c>DefaultSeparation</c>; single-plane machines ignore it.</summary>
+    public double Separation { get; set; }
 
     /// <summary>Tool slots the Offsets/WorkParameters/Probe grids show (was the per-mode VisibleTools).</summary>
     public int VisibleTools { get; set; } = 8;

@@ -121,6 +121,15 @@ public static class HostSetup
         // Settings route through the proxy to whichever inner service is active.
         builder.Services.AddSingleton<IGrblSettingsProvider>(sp =>
             (IGrblSettingsProvider)sp.GetRequiredService<IGrblService>());
+        // The one kinematics seam: modules resolve this instead of each re-resolving
+        // the machine-type preset at their own trigger point. It merges the active
+        // profile with the live controller (letters/count from [AXS:]), so it must be
+        // a singleton — it subscribes to connect and profile-switch once and every
+        // consumer reads the same resolved object.
+        builder.Services.AddSingleton<IMachineKinematicsProvider>(sp =>
+            new MachineKinematicsProvider(
+                sp.GetRequiredService<SettingsService>(),
+                sp.GetRequiredService<IGrblService>()));
 
         // Built-in fixed modules (no assembly scan).
         RegisterModule(builder.Services, new Modules.Fixed.DroModule());

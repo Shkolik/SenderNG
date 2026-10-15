@@ -259,18 +259,30 @@ public class SettingsService
         var id = UniqueId(name);
         // Fresh profiles seed machine-coupled defaults from the type preset: the
         // demo controller simulates the type's axis count (Foam needs 4 so both
-        // towers exist). Duplicates keep the
-        // source machine's configured values — a copy is that machine, not a
-        // fresh template.
-        var profile = copyFromId is null
-            ? new MachineProfile
+        // towers exist), and the axis layout seeds from the preset's base planes
+        // bound to the default conventional indices (an empty layout means "seed me"
+        // to the resolver, so this only makes the file self-describing). Duplicates
+        // keep the source machine's configured values — a copy is that machine, not a
+        // fresh template, so its planes are copied rather than re-seeded.
+        MachineProfile profile;
+        if (copyFromId is null)
+        {
+            var preset = MachineTypeCatalog.Resolve(machineTypeId);
+            profile = new MachineProfile
             {
                 Id = id,
                 Name = name,
                 MachineTypeId = machineTypeId,
-                DemoAxes = MachineTypeCatalog.Resolve(machineTypeId).DefaultDemoAxes,
-            }
-            : Clone(ProfilesStore.TryLoad(_dir, copyFromId, _onFallback), id, name);
+                DemoAxes = preset.DefaultDemoAxes,
+                Planes = preset.CreateDefaultPlanes(),
+                OptionalAxes = [],
+                Separation = preset.DefaultSeparation,
+            };
+        }
+        else
+        {
+            profile = Clone(ProfilesStore.TryLoad(_dir, copyFromId, _onFallback), id, name);
+        }
         ProfilesStore.Save(_dir, profile);
         _global ??= GlobalSettingsStore.Load(_dir, _onFallback);
         _global.Profiles[profile.Id] = profile.Name;
@@ -350,14 +362,26 @@ public class SettingsService
         return profile;
     }
 
-    /// <summary>Changes a profile's machine type (confirmed + guarded by the UI).</summary>
+    /// <summary>Changes a profile's machine type (confirmed + guarded by the UI).
+    /// <b>Destructive by ruling</b>: the new type's defaults replace the profile's
+    /// planes, optional axes and separation outright — there is no merge path and
+    /// nothing carried over, because a half-migrated layout is worse than a reset the
+    /// UI has already confirmed. When the profile is the active one the <b>live</b>
+    /// graph is the instance edited (not a fresh disk copy), so every consumer that
+    /// already holds it sees the new layout instead of the old type until a restart.</summary>
     public void SetProfileMachineType(string id, string machineTypeId)
     {
         if (WritesBlocked)
             return;
-        var profile = ProfilesStore.TryLoad(_dir, id, _onFallback)
-            ?? throw new ArgumentException($"Unknown profile '{id}'", nameof(id));
+        var profile = _current?.Id == id
+            ? _current
+            : ProfilesStore.TryLoad(_dir, id, _onFallback)
+                ?? throw new ArgumentException($"Unknown profile '{id}'", nameof(id));
+        var preset = MachineTypeCatalog.Resolve(machineTypeId);
         profile.MachineTypeId = machineTypeId;
+        profile.Planes = preset.CreateDefaultPlanes();
+        profile.OptionalAxes = [];
+        profile.Separation = preset.DefaultSeparation;
         ProfilesStore.Save(_dir, profile);
         if (_current?.Id == id)
             Changed?.Invoke();
