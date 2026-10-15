@@ -69,7 +69,11 @@ namespace CNC.GCode
         XY = 0x03,
         XZ = 0x05,
         XYZ = 0x07,
-        All = 0x3F
+        // All nine axes, matching ioSender's 0x1FF. This port had narrowed it to
+        // 0x3F (XYZABC), so every All.ToIndices() walk silently skipped U/V/W:
+        // Machine.Reset, the tool-offset copies/clears, and the emulator's G28/G30
+        // "no axis words" fallback plus its G54..G59.3 offset copy.
+        All = 0x1FF
     }
 
     [Flags]
