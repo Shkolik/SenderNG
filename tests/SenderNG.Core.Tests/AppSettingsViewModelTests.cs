@@ -1363,4 +1363,493 @@ public class AppSettingsViewModelTests
             Directory.Delete(dir, recursive: true);
         }
     }
+}
+
+/// <summary>
+/// The machine card's axis editor (T6): the profile is where the user expresses their
+/// machine, so these cover the edit primitives, the resolver's invariants rendered as
+/// data, the destructive machine-type switch, and the bug-report layout round-tripping
+/// through disk.
+/// </summary>
+public class MachineAxesEditorTests
+{
+    // A private instance: the one locale test below calls SetLocale and must never race
+    // another class that reads the shared static catalog.
+    private static readonly LocalizationService Loc =
+        LocalizationService.LoadFromDirectory(Path.Combine(AppContext.BaseDirectory, "Locale"));
+
+    private static (string Dir, SettingsService Settings) MakeSettings()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-axes-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        return (dir, new SettingsService(dir));
+    }
+
+    private static MachineAxesViewModel CreateEditor(SettingsService settings, string profileId,
+        IMachineKinematicsProvider? machines = null) =>
+        new(settings, Loc.Resolve, profileId, machines);
+
+    /// <summary>A kinematic provider double: the editor only reads the board's letters and
+    /// the reported axis count from it.</summary>
+    private sealed class StubProvider : IMachineKinematicsProvider
+    {
+        private readonly Func<MachineKinematics> _resolve;
+        private EventHandler? _changed;
+
+        public StubProvider(Func<MachineKinematics> resolve) => _resolve = resolve;
+
+        public MachineKinematics Current => _resolve();
+
+        public event EventHandler? Changed { add => _changed += value; remove => _changed -= value; }
+
+        public void Refresh() => _changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static readonly IModule[] NoModules = [];
+
+    private static ProfileSettingsLeaf ProfilesLeafOf(AppSettingsViewModel vm) =>
+        ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<ProfileSettingsLeaf>().Single();
+
+    private static string ProblemText(string code, int number) =>
+        Loc.T("appSettings.axes.problem." + code).Replace("{0}", number.ToString());
+
+    [Fact]
+    public void Adding_an_optional_axis_appends_a_removable_row_and_persists()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var profile = settings.Load(); // Mill: indices 0,1,2 are the base plane
+            var editor = CreateEditor(settings, profile.Id);
+
+            Assert.True(editor.AddAxisCommand.CanExecute(null));
+            editor.AddAxisCommand.Execute(null);
+
+            var row = Assert.Single(editor.OptionalAxes);
+            Assert.False(row.IsBase);
+            Assert.True(row.CanRemove);
+            Assert.Equal(3, row.Index); // the lowest free grbl index
+
+            // Base rows are locked: the plane rows are all there and none is removable.
+            var baseRows = editor.Planes.SelectMany(p => p.Axes).ToList();
+            Assert.Equal(3, baseRows.Count);
+            Assert.All(baseRows, r => Assert.True(r.IsBase));
+            Assert.All(baseRows, r => Assert.False(r.CanRemove));
+            Assert.False(editor.HasNoOptionalAxes);
+
+            // Persisted, not just in memory.
+            var reloaded = new SettingsService(dir).Load();
+            Assert.Equal(3, Assert.Single(reloaded.OptionalAxes).Index);
+            Assert.Equal(AxisKind.Linear, reloaded.OptionalAxes[0].Kind);
+
+            row.RemoveCommand.Execute(null);
+            Assert.Empty(editor.OptionalAxes);
+            Assert.True(editor.HasNoOptionalAxes);
+            Assert.Empty(new SettingsService(dir).Load().OptionalAxes);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Duplicate_index_surfaces_as_a_localized_problem()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var profile = settings.Load();
+            var editor = CreateEditor(settings, profile.Id);
+            editor.AddAxisCommand.Execute(null);
+            Assert.True(editor.IsValid); // control: a fresh optional axis is clean
+
+            editor.OptionalAxes[0].ApplyIndex(1); // plane slot 1 already uses index 1
+
+            Assert.False(editor.IsValid);
+            Assert.Contains(editor.Problems, p => p.IsError && p.Text == ProblemText("axis.indexDuplicate", 1));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Problem_messages_follow_the_locale()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var profile = settings.Load();
+            var editor = CreateEditor(settings, profile.Id);
+            editor.AddAxisCommand.Execute(null);
+            editor.OptionalAxes[0].ApplyIndex(0);
+
+            var english = editor.Problems.Single(p => p.IsError).Text;
+
+            if (!Loc.AvailableLocales.Contains("ru"))
+                return;
+            try
+            {
+                Loc.SetLocale("ru");
+                editor.Relocalize();
+
+                var russian = editor.Problems.Single(p => p.IsError).Text;
+                Assert.NotEqual(english, russian);
+                Assert.Equal(Loc.T("appSettings.axes.problem.axis.indexDuplicate").Replace("{0}", "0"), russian);
+                // No raw key ever leaks: a missing translation falls back to the resolver's
+                // English developer text, not to "appSettings.axes.problem.…".
+                Assert.DoesNotContain("appSettings.axes", russian, StringComparison.Ordinal);
+            }
+            finally
+            {
+                Loc.SetLocale("en");
+            }
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Rotary_row_shows_exactly_the_two_perpendicular_pivots()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var profile = settings.Load(); // Mill plane: index 0 = Width, 1 = Length, 2 = Height
+            var editor = CreateEditor(settings, profile.Id);
+            editor.AddAxisCommand.Execute(null);
+            var row = editor.OptionalAxes[0];
+
+            // A linear row has no pivot inputs at all.
+            Assert.Empty(row.Pivots);
+
+            row.ApplyKind(AxisKind.Rotary);
+            row.ApplyDirection(AxisDirection.Height);
+
+            // Exactly two, in canonical Width/Length order of the perpendicular pair, and
+            // the editor's own write satisfies invariant 7 rather than violating it.
+            Assert.Equal(2, row.Pivots.Count);
+            Assert.Equal(new[] { AxisDirection.Width, AxisDirection.Length },
+                row.Pivots.Select(p => p.Direction).ToArray());
+            var stored = Assert.IsType<double[]>(row.Model.RotationOrigin);
+            Assert.Equal(2, stored.Length);
+
+            // Each label is the board letter of an axis occupying that direction
+            // (conventional when no controller reported any).
+            Assert.Equal("X", row.Pivots[0].Label);
+            Assert.Equal("Y", row.Pivots[1].Label);
+
+            row.Pivots[0].ApplyValue(12.5);
+            Assert.Equal(12.5, row.Model.RotationOrigin![0]);
+            Assert.Equal(12.5, new SettingsService(dir).Load().OptionalAxes[0].RotationOrigin![0]);
+
+            // Back to linear: the pivot is gone (a linear axis must not carry one).
+            row.ApplyKind(AxisKind.Linear);
+            Assert.Empty(row.Pivots);
+            Assert.Null(row.Model.RotationOrigin);
+            Assert.True(editor.IsValid);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Pivot_label_is_the_bare_direction_name_when_no_axis_occupies_it()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var profile = settings.CreateProfile("foam", MachineTypes.Foam);
+            settings.Activate(profile.Id);
+            var editor = CreateEditor(settings, profile.Id);
+
+            // Foam spans Length/Height in both planes, so Width has no axis — and so no letter.
+            Assert.Null(editor.LetterForDirection(AxisDirection.Width));
+
+            editor.AddAxisCommand.Execute(null);
+            var row = editor.OptionalAxes[0];
+            row.ApplyKind(AxisKind.Rotary);
+            row.ApplyDirection(AxisDirection.Height);
+
+            Assert.Equal(new[] { AxisDirection.Width, AxisDirection.Length },
+                row.Pivots.Select(p => p.Direction).ToArray());
+            Assert.Equal(Loc.T("appSettings.axes.direction.width"), row.Pivots[0].Label);
+            Assert.Equal(editor.Planes[0].Axes[0].BoardLetterText, row.Pivots[1].Label);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Hand_edited_pivot_arity_is_reported_as_data_not_thrown()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var profile = settings.Load();
+            profile.OptionalAxes.Add(new MachineAxis
+            {
+                Index = 3,
+                Kind = AxisKind.Rotary,
+                Direction = AxisDirection.Height,
+                RotationOrigin = [1, 2, 3], // three values: impossible, must be reported
+            });
+            profile.OptionalAxes.Add(new MachineAxis
+            {
+                Index = 4,
+                Kind = AxisKind.Linear,
+                Direction = AxisDirection.Width,
+                RotationOrigin = [1, 2], // a pivot on a linear axis: also impossible
+            });
+            settings.Save(profile);
+
+            var editor = CreateEditor(settings, profile.Id);
+
+            Assert.False(editor.IsValid);
+            Assert.Contains(editor.Problems,
+                p => p.Text == ProblemText("rotary.originArity", 3));
+            Assert.Contains(editor.Problems,
+                p => p.Text == ProblemText("linear.originPresent", 4));
+
+            // Still editable, and the row shows the two inputs arity requires.
+            var rotary = editor.OptionalAxes.Single(r => r.Index == 3);
+            Assert.Equal(2, rotary.Pivots.Count);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Foam_fix_plane2_slot0_index3_round_trips_through_save_and_load()
+    {
+        // The bug report: on a conventional XYZA board foam plane 2's horizontal is the
+        // axis the board calls A (index 3) and its vertical is Z (index 2). Expressed by
+        // moving the axis at index 3 into plane 2's first slot.
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var profile = settings.CreateProfile("foam", MachineTypes.Foam);
+            settings.Activate(profile.Id);
+            var editor = CreateEditor(settings, profile.Id);
+            Assert.True(editor.IsMultiPlane);
+
+            editor.Planes[1].Axes[0].ApplyIndex(3);
+            editor.Planes[1].Axes[1].ApplyIndex(2);
+
+            var reloaded = new SettingsService(dir).Load();
+            Assert.Equal(new[] { 3, 2 }, reloaded.Planes[1].Axes.Select(a => a.Index).ToArray());
+
+            var kinematics = MachineKinematicsResolver.Resolve(reloaded, null, 0);
+            Assert.True(kinematics.IsValid, string.Join("; ", kinematics.Problems.Select(p => p.Message)));
+            // Plane order, deliberately non-monotonic — the slots carry the orientation.
+            Assert.Equal(new[] { 3, 2 }, kinematics.PlaneIndices(1));
+            Assert.Equal("A (3)", editor.Planes[1].Axes[0].SelectedIndex!.Display);
+            Assert.Equal("Z (2)", editor.Planes[1].Axes[1].SelectedIndex!.Display);
+            Assert.Equal('A', kinematics.LetterFor(kinematics.IndexAt(1, 0)));
+            Assert.Equal('Z', kinematics.LetterFor(kinematics.IndexAt(1, 1)));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Board_letters_follow_the_controller_not_the_picker()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var profile = settings.Load(); // Mill: indices 0,1,2 are the base plane
+            var editor = CreateEditor(settings, profile.Id,
+                new StubProvider(() => MachineKinematicsResolver.Resolve(settings.Load(), "XYUV", 4)));
+
+            editor.AddAxisCommand.Execute(null);
+            var row = Assert.Single(editor.OptionalAxes);
+
+            // The picker offers the conventional letter (A means index 3) and the profile
+            // stores the index — while the row displays the letter the board uses.
+            Assert.Equal(3, row.Index);
+            Assert.Equal("A (3)", row.SelectedIndex!.Display);
+            Assert.Equal("V", row.BoardLetterText);
+
+            // And on a remapped board the foam layout needs no edit at all: plane 2's
+            // slots are indices 2 and 3, which the board calls U and V.
+            var foam = settings.CreateProfile("foam", MachineTypes.Foam);
+            settings.Activate(foam.Id);
+            var foamEditor = CreateEditor(settings, foam.Id,
+                new StubProvider(() => MachineKinematicsResolver.Resolve(settings.Load(), "XYUV", 4)));
+            Assert.Equal("U", foamEditor.Planes[1].Axes[0].BoardLetterText);
+            Assert.Equal("V", foamEditor.Planes[1].Axes[1].BoardLetterText);
+            Assert.Equal("Z (2)", foamEditor.Planes[1].Axes[0].SelectedIndex!.Display);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Separation_is_multi_plane_only_and_persists()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var mill = settings.Load();
+            var millEditor = CreateEditor(settings, mill.Id);
+            Assert.False(millEditor.HasSeparation);
+
+            var foam = settings.CreateProfile("foam", MachineTypes.Foam);
+            settings.Activate(foam.Id);
+            var foamEditor = CreateEditor(settings, foam.Id);
+            Assert.True(foamEditor.HasSeparation);
+            Assert.Equal(0d, foamEditor.Separation); // the preset's default, carried not absent
+
+            foamEditor.Separation = 300;
+            Assert.Equal(300d, new SettingsService(dir).Load().Separation);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Machine_type_switch_is_warned_and_destructive()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var vm = new AppSettingsViewModel(settings, NoModules, Loc);
+            var leaf = ProfilesLeafOf(vm);
+            leaf.MachineAxes.AddAxisCommand.Execute(null);
+            Assert.Single(leaf.MachineAxes.OptionalAxes);
+
+            // The draft only warns: nothing is replaced until the confirming click.
+            leaf.SelectedMachineType = MachineTypes.Foam;
+            Assert.True(leaf.IsTypeChangePending);
+            Assert.Contains("layout", leaf.TypeChangeWarning, StringComparison.OrdinalIgnoreCase);
+
+            leaf.ApplyTypeCommand.Execute(null);
+            Assert.Equal("Change again to confirm", leaf.TypeButtonText);
+            Assert.Equal(MachineTypes.Mill, settings.Load().MachineTypeId);
+
+            leaf.ApplyTypeCommand.Execute(null);
+
+            // Destructive by ruling: the new type's defaults replace planes, optional
+            // axes and separation outright — no merge, nothing carried over.
+            Assert.Equal(MachineTypes.Foam, settings.Load().MachineTypeId);
+            Assert.Equal(new[] { 2, 2 }, settings.Load().Planes.Select(p => p.Axes.Count).ToArray());
+            Assert.Empty(settings.Load().OptionalAxes);
+            Assert.Equal(MachineTypeCatalog.Resolve(MachineTypes.Foam).DefaultSeparation, settings.Load().Separation);
+
+            // The card followed the switch.
+            Assert.Equal(MachineTypes.Foam, leaf.MachineAxes.MachineTypeId);
+            Assert.Equal(2, leaf.MachineAxes.Planes.Count);
+            Assert.Empty(leaf.MachineAxes.OptionalAxes);
+            Assert.True(leaf.MachineAxes.HasSeparation);
+            Assert.EndsWith("machine-topology-foam.png", leaf.MachineAxes.TopologyImage!);
+            Assert.False(leaf.IsTypeChangePending);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Mill_to_foam_switch_surfaces_the_hidden_demo_plane()
+    {
+        // T1 leaves DemoAxes alone on a type switch, so a Mill→Foam switch leaves the demo
+        // simulating 3 axes and the second plane never appears. The card says so.
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var profile = settings.Load();
+            Assert.Equal(3, profile.DemoAxes);
+            var millEditor = CreateEditor(settings, profile.Id);
+            Assert.False(millEditor.HasDemoAxesHint);
+
+            settings.SetProfileMachineType(profile.Id, MachineTypes.Foam);
+
+            var foamEditor = CreateEditor(settings, profile.Id);
+            Assert.True(foamEditor.HasDemoAxesHint);
+            Assert.Contains("3", foamEditor.DemoAxesHint!);
+            Assert.Contains("4", foamEditor.DemoAxesHint!);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Profile_written_before_the_axis_model_shows_the_seeded_layout()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var profile = settings.Load();
+            profile.Planes = [];
+            profile.Separation = 0;
+            settings.Save(profile);
+
+            var editor = CreateEditor(settings, profile.Id);
+
+            // The editor seeds the preset's base planes in memory (the resolver treats an
+            // empty layout the same way), so the card shows a machine rather than nothing.
+            Assert.Single(editor.Planes);
+            Assert.Equal(3, editor.Planes[0].Axes.Count);
+
+            // Opening the card writes nothing: a profile file is not rewritten just because
+            // the dialog was opened. The seed reaches disk with the first edit.
+            Assert.Empty(new SettingsService(dir).Load().Planes);
+
+            editor.AddAxisCommand.Execute(null);
+            var reloaded = new SettingsService(dir).Load();
+            Assert.Equal(new[] { 0, 1, 2 }, reloaded.Planes[0].Axes.Select(a => a.Index).ToArray());
+            Assert.Equal(3, Assert.Single(reloaded.OptionalAxes).Index);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void The_editor_follows_the_selected_profile()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var vm = new AppSettingsViewModel(settings, NoModules, Loc);
+            var leaf = ProfilesLeafOf(vm);
+            var foam = settings.CreateProfile("foam", MachineTypes.Foam);
+            leaf.Refresh();
+
+            var millEditor = leaf.MachineAxes;
+            Assert.Equal(MachineTypes.Mill, millEditor.MachineTypeId);
+
+            leaf.SelectedProfile = leaf.Profiles.Single(p => p.Id == foam.Id);
+
+            Assert.Same(millEditor, leaf.MachineAxes); // one card, re-pointed at the selection
+            Assert.Equal(MachineTypes.Foam, leaf.MachineAxes.MachineTypeId);
+            Assert.Equal(2, leaf.MachineAxes.Planes.Count);
+            Assert.EndsWith("machine-topology-foam.png", leaf.MachineAxes.TopologyImage!);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 }

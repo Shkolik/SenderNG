@@ -403,13 +403,22 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
     public event System.Action? ProfilesChanged;
 
     public ProfileSettingsLeaf(SettingsService settings, Func<string, string, string> resolve,
-        string name, string description) : base("profiles", name, description)
+        string name, string description, IMachineKinematicsProvider? machines = null)
+        : base("profiles", name, description)
     {
         _settings = settings;
         _resolve = resolve;
+        // The machine card's axis editor follows the selection (one card, whichever
+        // profile is selected) — the same master/detail shape as the settings tree.
+        MachineAxes = new MachineAxesViewModel(
+            settings, resolve, settings.Global.ActiveProfileId, machines);
         WireCommands();
         Refresh();
     }
+
+    /// <summary>The selected profile's axis editor: topology picture, per-plane axis
+    /// rows, the optional-axis list, the separation and the validation problems.</summary>
+    public MachineAxesViewModel MachineAxes { get; }
 
     public ObservableCollection<ProfileItem> Profiles { get; } = new();
 
@@ -428,6 +437,9 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
                 _confirmTypeChange = false;
                 OnPropertyChanged(nameof(RenameName));
                 OnPropertyChanged(nameof(SelectedMachineType));
+                // The axis card always edits the selected profile, so it re-reads here.
+                if (value is not null)
+                    MachineAxes.Load(value.Id);
                 RefreshCommands();
             }
         }
@@ -459,9 +471,23 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         set
         {
             if (SetField(ref _machineTypeDraft, value))
+            {
+                OnPropertyChanged(nameof(IsTypeChangePending));
                 RefreshCommands();
+            }
         }
     }
+
+    /// <summary>True while the draft type differs from the profile's: the change is
+    /// destructive (the new type's defaults replace the layout), so the warning shows and
+    /// the button needs a second click.</summary>
+    public bool IsTypeChangePending =>
+        SelectedProfile is not null && SelectedMachineType != SelectedProfile.MachineTypeId;
+
+    /// <summary>The destructive-switch warning, shown while a type change is pending.</summary>
+    public string TypeChangeWarning => _resolve("appSettings.profiles.typeWarning",
+        "Changing the machine type replaces this profile's axis layout, optional axes and " +
+        "plane-to-plane distance with the new type's defaults — nothing is carried over.");
 
     /// <summary>False while connected/running, and false once a restore is pending: the
     /// service refuses every mutation then, so the leaf must not offer one — the UI would
@@ -623,6 +649,15 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         OnPropertyChanged(nameof(SwitchBlockedText));
         OnPropertyChanged(nameof(CanSwitchProfiles));
         OnPropertyChanged(nameof(ShowSwitchBlocked));
+        OnPropertyChanged(nameof(TypeChangeWarning));
+    }
+
+    /// <summary>Re-localize everything the leaf renders itself (computed labels plus the
+    /// machine card's axis editor).</summary>
+    public void RelocalizeCard()
+    {
+        RelocalizeButtons();
+        MachineAxes.Relocalize();
     }
 
     private void RefreshCommands()
@@ -638,6 +673,8 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         OnPropertyChanged(nameof(SwitchBlockedText));
         OnPropertyChanged(nameof(CanSwitchProfiles));
         OnPropertyChanged(nameof(ShowSwitchBlocked));
+        OnPropertyChanged(nameof(IsTypeChangePending));
+        OnPropertyChanged(nameof(TypeChangeWarning));
     }
 }
 
@@ -970,6 +1007,7 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
     private BackupSettingsLeaf? _backupLeaf;
     private readonly HotkeyService? _hotkeys;
     private HotkeysSettingsLeaf? _hotkeysLeaf;
+    private readonly IMachineKinematicsProvider? _machines;
     private Func<bool>? _profileSwitchAllowed;
     private bool _preselectProfiles;
     private bool _updatingSections;
@@ -984,7 +1022,8 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         LocalizationService? localization = null,
         Func<bool>? profileSwitchAllowed = null,
         HotkeyService? hotkeys = null,
-        IFileDialogService? fileDialogs = null)
+        IFileDialogService? fileDialogs = null,
+        IMachineKinematicsProvider? machines = null)
     {
         ArgumentNullException.ThrowIfNull(settingsService);
         ArgumentNullException.ThrowIfNull(modules);
@@ -1001,6 +1040,10 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         _profileSwitchAllowed = profileSwitchAllowed;
         _hotkeys = hotkeys;
         _fileDialogs = fileDialogs;
+        // Optional: the machine card reads the live board letters from it. Without one
+        // (headless tests, a host that did not register it) the conventional fallback
+        // letters apply, exactly as they do for a disconnected controller.
+        _machines = machines;
         BuildModuleLeaves(modules);
         BuildTree();
 
@@ -1106,7 +1149,8 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         // CRUD below.
         _profilesLeaf = new ProfileSettingsLeaf(_settingsService, Resolve,
             LeafName("profiles", "Profiles"),
-            LeafDescription("profiles", "Machines and their settings — one profile per machine."));
+            LeafDescription("profiles", "Machines and their settings — one profile per machine."),
+            _machines);
         _profilesLeaf.SetSwitchGuard(_profileSwitchAllowed);
         _profilesLeaf.Activated += _ => ReloadProfile();
         _globalLeaves.Add(_profilesLeaf);
@@ -1248,7 +1292,7 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         _profilesLeaf?.Relocalize(
             LeafName("profiles", "Profiles"),
             LeafDescription("profiles", "Machines and their settings — one profile per machine."));
-        _profilesLeaf?.RelocalizeButtons();
+        _profilesLeaf?.RelocalizeCard();
         _hotkeysLeaf?.Relocalize(
             LeafName("hotkeys", "Hotkeys"),
             LeafDescription("hotkeys", "Global keyboard shortcuts and their scopes."));

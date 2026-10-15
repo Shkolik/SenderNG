@@ -60,12 +60,16 @@ public class AppSettingsModule : IModule
         // views (a view instance cannot be attached to a new visual parent twice).
         // The dialog service is optional: the dialog must still build without it
         // (headless tests do not register one) — its backup commands just stay disabled.
+        // The kinematics provider is optional too: the machine card's axis editor shows
+        // the board's own letters through it, and falls back to the conventional ones
+        // when it is absent.
         services.AddTransient(sp => new AppSettingsViewModel(
             sp.GetRequiredService<SettingsService>(),
             sp.GetServices<IModule>(),
             sp.GetRequiredService<SenderNG.Core.Localization.LocalizationService>(),
             hotkeys: sp.GetService<SenderNG.Core.Services.HotkeyService>(),
-            fileDialogs: sp.GetService<IFileDialogService>()));
+            fileDialogs: sp.GetService<IFileDialogService>(),
+            machines: sp.GetService<IMachineKinematicsProvider>()));
 
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>

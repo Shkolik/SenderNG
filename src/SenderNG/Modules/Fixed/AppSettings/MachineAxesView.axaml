@@ -1,0 +1,280 @@
+<!--
+MachineAxesView.axaml - machine card: topology picture, per-plane axis rows, optional axes
+
+Copyright (c) 2026 Andrew Shkolik
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+· Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+
+· Redistributions in binary form must reproduce the above copyright notice, this
+list of conditions and the following disclaimer in the documentation and/or
+other materials provided with the distribution.
+
+· Neither the name of the copyright holder nor the names of its contributors may
+be used to endorse or promote products derived from this software without
+specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+-->
+
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:CNC.Core.ViewModels;assembly=SenderNG.Core"
+             xmlns:loc="clr-namespace:SenderNG.Localization;assembly=SenderNG"
+             mc:Ignorable="d" d:DesignWidth="620" d:DesignHeight="420"
+             x:Class="SenderNG.Modules.Fixed.MachineAxesView"
+             x:DataType="vm:MachineAxesViewModel">
+
+    <!-- Every editor below is OneWay-bound (display only) and writes from an explicit,
+         type-guarded, deferred handler in the code-behind: the axis rows sit in
+         ItemsControls whose containers are reused when the selected profile changes, the
+         machine type is switched, or a row is added/removed, and a recycled control raises
+         a Change event carrying the previous row's state. -->
+    <UserControl.Styles>
+        <!-- Gotcha: a single-line TextBox's internal ScrollViewer shows a phantom overlay
+             scrollbar on hover unless auto-hide is off. -->
+        <Style Selector="TextBox">
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Hidden" />
+            <Setter Property="ScrollViewer.AllowAutoHide" Value="False" />
+        </Style>
+    </UserControl.Styles>
+
+    <UserControl.Resources>
+        <!-- The editable fields of one axis row. The remove button is NOT part of it: a
+             locked base row must not render one at all (an invisible button is both dead
+             weight and a trap for anything that searches the pane for a "Remove" button). -->
+        <DataTemplate x:Key="AxisFields" x:DataType="vm:MachineAxisRowViewModel">
+            <StackPanel Orientation="Vertical">
+                <Grid ColumnDefinitions="22,92,92,100,32,52">
+                    <!-- The derived letter: the controller's own, never a stored one. -->
+                    <TextBlock Grid.Column="0" Text="{Binding BoardLetterText}" FontSize="12"
+                               FontWeight="SemiBold" Foreground="#1c5f8a" VerticalAlignment="Center"
+                               ToolTip.Tip="{loc:Loc appSettings.axes.boardLetterHint}" />
+
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding IndexChoices}"
+                              SelectedItem="{Binding SelectedIndex, Mode=OneWay}"
+                              SelectionChanged="OnIndexSelectionChanged"
+                              Height="24" MinHeight="24" FontSize="11" CornerRadius="0"
+                              BorderBrush="#999" BorderThickness="1" VerticalContentAlignment="Center"
+                              ToolTip.Tip="{Binding RowHint}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AxisIndexChoice">
+                                <TextBlock Text="{Binding Display}" FontSize="11" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <ComboBox Grid.Column="2" ItemsSource="{Binding KindChoices}"
+                              SelectedItem="{Binding SelectedKind, Mode=OneWay}"
+                              SelectionChanged="OnKindSelectionChanged"
+                              Height="24" MinHeight="24" FontSize="11" CornerRadius="0"
+                              BorderBrush="#999" BorderThickness="1" VerticalContentAlignment="Center">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AxisKindChoice">
+                                <TextBlock Text="{Binding Display}" FontSize="11" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <ComboBox Grid.Column="3" ItemsSource="{Binding DirectionChoices}"
+                              SelectedItem="{Binding SelectedDirection, Mode=OneWay}"
+                              SelectionChanged="OnDirectionSelectionChanged"
+                              Height="24" MinHeight="24" FontSize="11" CornerRadius="0"
+                              BorderBrush="#999" BorderThickness="1" VerticalContentAlignment="Center">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AxisDirectionChoice">
+                                <TextBlock Text="{Binding Display}" FontSize="11" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <Button Grid.Column="4" Content="{Binding SignText}" Click="OnSignClick"
+                            ToolTip.Tip="{loc:Loc appSettings.axes.sign}"
+                            Height="24" MinHeight="24" FontSize="12" FontWeight="SemiBold"
+                            CornerRadius="0" Padding="0" HorizontalContentAlignment="Center" />
+
+                    <TextBox Grid.Column="5" Classes="alias" Text="{Binding AliasText, Mode=OneWay}"
+                             TextChanged="OnAliasTextChanged" MaxLength="1"
+                             Height="24" MinHeight="24" FontSize="11" CornerRadius="0"
+                             BorderBrush="#999" BorderThickness="1" VerticalContentAlignment="Center"
+                             Padding="4,0" PlaceholderText="—"
+                             ToolTip.Tip="{loc:Loc appSettings.axes.aliasHint}" />
+                </Grid>
+
+                <!-- Invariant 7: a rotary axis shows exactly two pivot inputs, labelled by
+                     the two directions perpendicular to its own; a linear row shows none. -->
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="22,2,0,0"
+                            IsVisible="{Binding IsRotary}">
+                    <TextBlock Text="{loc:Loc appSettings.axes.pivot}" FontSize="10" Foreground="#666"
+                               VerticalAlignment="Center"
+                               ToolTip.Tip="{loc:Loc appSettings.axes.pivotHint}" />
+                    <ItemsControl ItemsSource="{Binding Pivots}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="8" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AxisPivotRowViewModel">
+                                <StackPanel Orientation="Horizontal" Spacing="3">
+                                    <TextBlock Text="{Binding Label}" FontSize="11" Foreground="#333"
+                                               FontWeight="SemiBold" VerticalAlignment="Center"
+                                               ToolTip.Tip="{Binding LabelHint}" />
+                                    <TextBox Classes="num" Text="{Binding ValueText, Mode=OneWay}"
+                                             TextChanged="OnPivotTextChanged"
+                                             Width="66" Height="24" MinHeight="24" FontSize="11"
+                                             CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                             VerticalContentAlignment="Center" Padding="4,0" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- A locked base row: the preset fixes its count and order, so no remove button. -->
+        <DataTemplate x:Key="AxisRow" x:DataType="vm:MachineAxisRowViewModel">
+            <ContentControl Content="{Binding}" ContentTemplate="{StaticResource AxisFields}"
+                            Margin="0,1,0,1" />
+        </DataTemplate>
+
+        <!-- An optional row is removable. -->
+        <DataTemplate x:Key="OptionalAxisRow" x:DataType="vm:MachineAxisRowViewModel">
+            <Grid ColumnDefinitions="*,Auto" Margin="0,1,0,1">
+                <ContentControl Grid.Column="0" Content="{Binding}"
+                                ContentTemplate="{StaticResource AxisFields}" />
+                <Button Grid.Column="1" Content="{Binding RemoveText}" Command="{Binding RemoveCommand}"
+                        VerticalAlignment="Top" Margin="6,0,0,0"
+                        Height="24" MinHeight="24" FontSize="11" CornerRadius="0" Padding="8,0" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <StackPanel Orientation="Vertical" Spacing="8" IsEnabled="{Binding IsEditable}">
+
+        <!-- Machine type + its topology art: roles only, never letters. -->
+        <TextBlock Text="{Binding MachineTypeName}" FontSize="11" FontWeight="SemiBold" Foreground="#333" />
+        <Image x:Name="TopologyImage" Stretch="Uniform" MaxWidth="620" HorizontalAlignment="Left"
+               IsVisible="{Binding HasTopologyImage}" />
+
+        <!-- A machine-type switch replaces the layout but deliberately leaves DemoAxes
+             alone: warn when the demo now simulates fewer axes than the type needs. -->
+        <Border Background="#fff8e1" BorderBrush="#e0c060" BorderThickness="1" Padding="6"
+                IsVisible="{Binding HasDemoAxesHint}">
+            <TextBlock Text="{Binding DemoAxesHint}" FontSize="11" Foreground="#664d00"
+                       TextWrapping="Wrap" />
+        </Border>
+
+        <!-- Validation: the resolver's invariants, as data. -->
+        <Border Background="#fff4f4" BorderBrush="#e0a0a0" BorderThickness="1" Padding="6"
+                IsVisible="{Binding HasProblems}">
+            <StackPanel Orientation="Vertical" Spacing="2">
+                <TextBlock Text="{loc:Loc appSettings.axes.problems}" FontSize="11"
+                           FontWeight="SemiBold" Foreground="#a33" />
+                <ItemsControl ItemsSource="{Binding Problems}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:MachineAxisProblem">
+                            <Grid ColumnDefinitions="12,*">
+                                <TextBlock Grid.Column="0" Text="!" FontSize="11" FontWeight="Bold"
+                                           Foreground="#c00" IsVisible="{Binding IsError}" />
+                                <TextBlock Grid.Column="0" Text="·" FontSize="12" FontWeight="Bold"
+                                           Foreground="#b8860b" IsVisible="{Binding IsWarning}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="11"
+                                           Foreground="#822" TextWrapping="Wrap" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <!-- One block per plane, in machine order (the picture's columns). -->
+        <ItemsControl ItemsSource="{Binding Planes}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:MachinePlaneViewModel">
+                    <StackPanel Orientation="Vertical" Spacing="2" Margin="0,4,0,2">
+                        <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="#333" />
+                        <Rectangle Height="1" Fill="#ddd" />
+                        <Grid ColumnDefinitions="22,92,92,100,32,52,*" Margin="0,0,0,1">
+                            <TextBlock Grid.Column="1" Text="{loc:Loc appSettings.axes.index}"
+                                       FontSize="10" Foreground="#888" />
+                            <TextBlock Grid.Column="2" Text="{loc:Loc appSettings.axes.kind}"
+                                       FontSize="10" Foreground="#888" />
+                            <TextBlock Grid.Column="3" Text="{loc:Loc appSettings.axes.direction}"
+                                       FontSize="10" Foreground="#888" />
+                            <TextBlock Grid.Column="5" Text="{loc:Loc appSettings.axes.alias}"
+                                       FontSize="10" Foreground="#888" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Axes}"
+                                      ItemTemplate="{StaticResource AxisRow}" />
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Multi-plane machines carry the plane-to-plane distance (the foam's wire length). -->
+        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasSeparation}"
+                    Margin="0,4,0,0">
+            <TextBlock Text="{loc:Loc appSettings.axes.separation}" FontSize="11"
+                       VerticalAlignment="Center"
+                       ToolTip.Tip="{loc:Loc appSettings.axes.separationHint}" />
+            <TextBox Classes="num" Text="{Binding SeparationText, Mode=OneWay}"
+                     TextChanged="OnSeparationTextChanged"
+                     Width="90" Height="24" MinHeight="24" FontSize="11" CornerRadius="0"
+                     BorderBrush="#999" BorderThickness="1" VerticalContentAlignment="Center" Padding="4,0" />
+        </StackPanel>
+
+        <Rectangle Height="1" Fill="#ddd" Margin="0,4,0,0" />
+
+        <!-- Optional axes: rotaries and extra linears, never inside a plane. -->
+        <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0" Orientation="Vertical" Spacing="2">
+                <TextBlock Text="{loc:Loc appSettings.axes.optional}" FontSize="12" FontWeight="SemiBold"
+                           Foreground="#333" />
+                <TextBlock Text="{loc:Loc appSettings.axes.optionalHint}" FontSize="10"
+                           Foreground="#888" TextWrapping="Wrap" />
+                <Grid ColumnDefinitions="22,92,92,100,32,52,*" Margin="0,2,0,1">
+                    <TextBlock Grid.Column="1" Text="{loc:Loc appSettings.axes.index}"
+                               FontSize="10" Foreground="#888" />
+                    <TextBlock Grid.Column="2" Text="{loc:Loc appSettings.axes.kind}"
+                               FontSize="10" Foreground="#888" />
+                    <TextBlock Grid.Column="3" Text="{loc:Loc appSettings.axes.direction}"
+                               FontSize="10" Foreground="#888" />
+                    <TextBlock Grid.Column="5" Text="{loc:Loc appSettings.axes.alias}"
+                               FontSize="10" Foreground="#888" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding OptionalAxes}"
+                              ItemTemplate="{StaticResource OptionalAxisRow}" />
+                <TextBlock Text="{loc:Loc appSettings.axes.optionalEmpty}" FontSize="11" Foreground="#999"
+                           IsVisible="{Binding HasNoOptionalAxes}" />
+                <Button Content="{loc:Loc appSettings.axes.add}" Command="{Binding AddAxisCommand}"
+                        HorizontalAlignment="Left" Margin="0,3,0,0"
+                        Height="24" MinHeight="24" FontSize="11" CornerRadius="0" Padding="10,0" />
+            </StackPanel>
+
+            <!-- Rotary is a kind, not a machine type: its reference art sits here, not in
+                 the machine-type slot. -->
+            <Image Grid.Column="1" x:Name="RotaryImage" Stretch="Uniform" MaxWidth="250"
+                   HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8,0,0,0" />
+        </Grid>
+    </StackPanel>
+</UserControl>
