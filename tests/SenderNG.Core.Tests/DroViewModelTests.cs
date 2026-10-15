@@ -291,3 +291,155 @@ public class DroProxyInitialStateTests
         Assert.Equal(6, vm.Axes.Count);
     }
 }
+
+/// <summary>
+/// The DRO against the resolved kinematics (invariant 10): every axis the controller
+/// reports keeps a row — including one the profile never declared, which reads as an
+/// unknown linear axis and is warned about exactly once — the rows are labelled with
+/// the board's own letters, and a rotary axis reads in degrees instead of millimetres.
+/// </summary>
+public class DroKinematicsTests : IDisposable
+{
+    private readonly List<string> _dirs = new();
+
+    public void Dispose()
+    {
+        foreach (var dir in _dirs)
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    private SettingsService MakeSettings(bool withRotaryAxis)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-dro-kin-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        _dirs.Add(dir);
+        var settings = new SettingsService(dir);
+        var preset = MachineTypeCatalog.Resolve(MachineTypes.Mill);
+        var profile = settings.Load();
+        profile.MachineTypeId = MachineTypes.Mill;
+        profile.Planes = preset.CreateDefaultPlanes();
+        profile.OptionalAxes = [];
+        if (withRotaryAxis)
+        {
+            profile.OptionalAxes.Add(new MachineAxis
+            {
+                Index = 3,
+                Kind = AxisKind.Rotary,
+                Direction = AxisDirection.Length,
+                RotationOrigin = [0d, 0d],
+            });
+        }
+        settings.Save(profile);
+        return settings;
+    }
+
+    private sealed class CapabilityGrbl : IGrblService
+    {
+        private readonly BehaviorSubject<MachineState> _subject;
+
+        public CapabilityGrbl(BehaviorSubject<MachineState> subject, ControllerCapabilities capabilities)
+        {
+            _subject = subject;
+            Capabilities = capabilities;
+        }
+
+        public bool IsConnected => true;
+        public IObservable<MachineState> State => _subject;
+        public ControllerCapabilities Capabilities { get; set; }
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public Task SendAsync(string line) => Task.CompletedTask;
+        public void SendRealtime(byte code) { }
+    }
+
+    private static ControllerCapabilities Board(int numAxes, string letters) =>
+        new() { IsKnown = true, NumAxes = numAxes, AxisLetters = letters };
+
+    [Fact]
+    public void An_undeclared_reported_axis_still_renders_as_an_unknown_linear_axis()
+    {
+        // The profile declares three axes; the board reports four. The fourth row is
+        // not hidden — it shows, labelled with the board's letter, as linear (mm).
+        var settings = MakeSettings(withRotaryAxis: false);
+        var subject = new BehaviorSubject<MachineState>(
+            new MachineState { NumAxes = 4, Positions = [1, 2, 3, 4] });
+        var grbl = new CapabilityGrbl(subject, Board(4, "XYZA"));
+        using var kinematics = new MachineKinematicsProvider(settings, grbl);
+
+        var vm = new DroViewModel(grbl, kinematics);
+
+        Assert.Equal(4, vm.Axes.Count);
+        Assert.Equal(["X", "Y", "Z", "A"], vm.Axes.Select(a => a.Letter));
+        Assert.False(vm.Axes[3].IsRotary);
+        Assert.Equal(string.Empty, vm.Axes[3].Unit);
+        Assert.Equal(4, vm.Axes[3].Position);
+        Assert.Contains("not declared", vm.Status);
+    }
+
+    [Fact]
+    public void A_rotary_axis_reads_in_degrees()
+    {
+        var settings = MakeSettings(withRotaryAxis: true); // optional rotary at index 3
+        var subject = new BehaviorSubject<MachineState>(
+            new MachineState { NumAxes = 4, Positions = [1, 2, 3, 45] });
+        var grbl = new CapabilityGrbl(subject, Board(4, "XYZA"));
+        using var kinematics = new MachineKinematicsProvider(settings, grbl);
+
+        var vm = new DroViewModel(grbl, kinematics);
+
+        Assert.Equal(4, vm.Axes.Count);
+        Assert.True(vm.Axes[3].IsRotary);
+        Assert.Equal("°", vm.Axes[3].Unit);
+        Assert.False(vm.Axes[0].IsRotary);
+        Assert.Equal(string.Empty, vm.Axes[0].Unit);
+        Assert.Equal(string.Empty, vm.Status); // declared on both sides: nothing to warn about
+    }
+
+    [Fact]
+    public void Rows_are_labelled_with_the_boards_letters()
+    {
+        // A remapped board: index 2 is U and index 3 is V, so the DRO's zero button
+        // addresses the axis the board actually answers to.
+        var settings = MakeSettings(withRotaryAxis: false);
+        var subject = new BehaviorSubject<MachineState>(
+            new MachineState { NumAxes = 4, Positions = [1, 2, 3, 4] });
+        var grbl = new CapabilityGrbl(subject, Board(4, "XYUV"));
+        using var kinematics = new MachineKinematicsProvider(settings, grbl);
+
+        var vm = new DroViewModel(grbl, kinematics);
+
+        Assert.Equal(["X", "Y", "U", "V"], vm.Axes.Select(a => a.Letter));
+    }
+
+    [Fact]
+    public void The_undeclared_axes_warning_fires_once_across_repeated_updates()
+    {
+        var settings = MakeSettings(withRotaryAxis: false);
+        var subject = new BehaviorSubject<MachineState>(
+            new MachineState { NumAxes = 3, Positions = [1, 2, 3] });
+        var grbl = new CapabilityGrbl(subject, Board(3, "XYZ"));
+        using var kinematics = new MachineKinematicsProvider(settings, grbl);
+        var vm = new DroViewModel(grbl, kinematics);
+        Assert.Equal(string.Empty, vm.Status); // three declared, three reported
+
+        var warnings = 0;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(DroViewModel.Status) && vm.Status.Contains("not declared"))
+                warnings++;
+        };
+
+        // The board reveals a fourth axis: one warning, then no repeat however many
+        // status reports this continuously-refreshing view consumes.
+        grbl.Capabilities = Board(4, "XYZA");
+        kinematics.Refresh();
+        subject.OnNext(new MachineState { NumAxes = 4, Positions = [1, 2, 3, 4] });
+        subject.OnNext(new MachineState { NumAxes = 4, Positions = [1, 2, 3, 5] });
+        subject.OnNext(new MachineState { NumAxes = 4, Positions = [1, 2, 3, 6] });
+
+        Assert.Equal(1, warnings);
+        Assert.Equal(4, vm.Axes.Count);
+    }
+}

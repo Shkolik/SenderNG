@@ -157,12 +157,41 @@ public class TransformProgramViewModelsTests
         Assert.Equal(GCodeCommentMode.StripAll, ProgramConfigStore.Load(profile).CompressCommentMode);
     }
 
-    [Fact]
-    public void WrapDialog_offers_linear_sources_and_available_rotary_target()
+    /// <summary>Resolved kinematics for a machine type with the given optional axes —
+    /// a rotary axis is an OPTIONAL axis (it never sits in a plane), which is exactly
+    /// why a foam profile's fourth axis is not one.</summary>
+    private static MachineKinematics Kinematics(string machineTypeId, int reportedAxes,
+        string boardLetters, params MachineAxis[] optionalAxes)
     {
-        var vm = new WrapProgramViewModel(WrapDirection.Wrap, "XYZABC", 4);
+        var preset = MachineTypeCatalog.Resolve(machineTypeId);
+        var profile = new MachineProfile
+        {
+            Id = "wrap-" + machineTypeId,
+            MachineTypeId = machineTypeId,
+            Planes = preset.CreateDefaultPlanes(),
+            OptionalAxes = [.. optionalAxes],
+        };
+        return MachineKinematicsResolver.Resolve(profile, preset, boardLetters, reportedAxes);
+    }
 
-        Assert.Equal([0, 1], vm.SourceAxes.Select(a => a.Index));
+    private static MachineKinematics Kinematics(string machineTypeId, int reportedAxes = 5,
+        params MachineAxis[] optionalAxes) =>
+        Kinematics(machineTypeId, reportedAxes, MachineType.ConventionalLetters, optionalAxes);
+
+    private static MachineAxis Rotary(int index) => new()
+    {
+        Index = index,
+        Kind = AxisKind.Rotary,
+        Direction = AxisDirection.Length,
+        RotationOrigin = [0d, 0d],
+    };
+
+    [Fact]
+    public void WrapDialog_offers_the_declared_linear_axes_and_the_rotary_target()
+    {
+        var vm = new WrapProgramViewModel(WrapDirection.Wrap, Kinematics(MachineTypes.Mill, 4, Rotary(3)));
+
+        Assert.Equal([0, 1, 2], vm.SourceAxes.Select(a => a.Index));
         Assert.Equal([3], vm.TargetAxes.Select(a => a.Index));
         Assert.Equal(1, vm.SourceAxis!.Index); // defaults to Y
         Assert.Equal(3, vm.TargetAxis!.Index); // defaults to A
@@ -170,31 +199,66 @@ public class TransformProgramViewModelsTests
     }
 
     [Fact]
-    public void UnwrapDialog_offers_rotary_sources_and_linear_targets()
+    public void UnwrapDialog_offers_the_rotary_sources_and_the_declared_linear_targets()
     {
-        var vm = new WrapProgramViewModel(WrapDirection.Unwrap, "XYZABC", 4);
+        var vm = new WrapProgramViewModel(WrapDirection.Unwrap, Kinematics(MachineTypes.Mill, 4, Rotary(3)));
 
         Assert.Equal([3], vm.SourceAxes.Select(a => a.Index));
-        Assert.Equal([0, 1], vm.TargetAxes.Select(a => a.Index));
+        Assert.Equal([0, 1, 2], vm.TargetAxes.Select(a => a.Index));
         Assert.Equal(3, vm.SourceAxis!.Index);
         Assert.Equal(0, vm.TargetAxis!.Index);
         Assert.False(vm.IsWrap);
     }
 
     [Fact]
-    public void WrapDialog_targets_b_only_when_the_controller_reports_five_axes()
+    public void WrapDialog_offers_exactly_the_declared_rotaries_not_the_reported_count()
     {
-        var four = new WrapProgramViewModel(WrapDirection.Wrap, "XYZABC", 4);
-        var five = new WrapProgramViewModel(WrapDirection.Wrap, "XYZABC", 5);
+        var one = new WrapProgramViewModel(WrapDirection.Wrap, Kinematics(MachineTypes.Mill, 5, Rotary(3)));
+        var two = new WrapProgramViewModel(WrapDirection.Wrap, Kinematics(MachineTypes.Mill, 5, Rotary(3), Rotary(4)));
+        // Declared but not reported: still the profile's rotary axis, offered by kind
+        // (the reported count is a presence fact, never a kind fact).
+        var declaredPastTheBoard = new WrapProgramViewModel(WrapDirection.Wrap, Kinematics(MachineTypes.Mill, 3, Rotary(3)));
 
-        Assert.Equal([3], four.TargetAxes.Select(a => a.Index));
-        Assert.Equal([3, 4], five.TargetAxes.Select(a => a.Index));
+        Assert.Equal([3], one.TargetAxes.Select(a => a.Index));
+        Assert.Equal([3, 4], two.TargetAxes.Select(a => a.Index));
+        Assert.Equal([3], declaredPastTheBoard.TargetAxes.Select(a => a.Index));
+    }
+
+    [Fact]
+    public void Foam_profile_offers_no_rotary_axis_to_wrap_onto_or_unwrap_from()
+    {
+        // The live bug: foam runs 4 axes, but all four are linear tower axes.
+        var foam = Kinematics(MachineTypes.Foam, 4);
+        Assert.Empty(foam.RotaryAxes);
+
+        var wrap = new WrapProgramViewModel(WrapDirection.Wrap, foam);
+        Assert.Empty(wrap.TargetAxes);
+        Assert.Equal([0, 1, 2, 3], wrap.SourceAxes.Select(a => a.Index));
+        Assert.Null(wrap.TargetAxis);
+
+        var unwrap = new WrapProgramViewModel(WrapDirection.Unwrap, foam);
+        Assert.Empty(unwrap.SourceAxes);
+        Assert.Equal([0, 1, 2, 3], unwrap.TargetAxes.Select(a => a.Index));
+        Assert.Null(unwrap.SourceAxis);
+    }
+
+    [Fact]
+    public void WrapDialog_axis_labels_follow_the_boards_letters()
+    {
+        // A remapped board: index 2 is the board's U and index 3 its V, so the
+        // labels are the board's, never the conventional XYZABC order.
+        var kinematics = Kinematics(MachineTypes.Mill, 4, "XYUV", Rotary(3));
+
+        var vm = new WrapProgramViewModel(WrapDirection.Wrap, kinematics);
+
+        Assert.Equal(["X-axis", "Y-axis", "U-axis"], vm.SourceAxes.Select(a => a.Label));
+        Assert.Equal(["V-axis"], vm.TargetAxes.Select(a => a.Label));
     }
 
     [Fact]
     public void WrapDialog_ok_closes_true_and_cancel_closes_false()
     {
-        var vm = new WrapProgramViewModel(WrapDirection.Wrap, "XYZABC", 4);
+        var vm = new WrapProgramViewModel(WrapDirection.Wrap, Kinematics(MachineTypes.Mill, 4, Rotary(3)));
         bool? result = null;
 
         vm.CloseRequested += (_, r) => result = r;
@@ -208,7 +272,7 @@ public class TransformProgramViewModelsTests
     [Fact]
     public void WrapDialog_ok_is_disabled_until_the_diameter_is_positive()
     {
-        var vm = new WrapProgramViewModel(WrapDirection.Wrap, "XYZABC", 4);
+        var vm = new WrapProgramViewModel(WrapDirection.Wrap, Kinematics(MachineTypes.Mill, 4, Rotary(3)));
 
         Assert.True(vm.OkCommand.CanExecute(null)); // defaults to 50
 
@@ -225,15 +289,17 @@ public class TransformProgramViewModelsTests
     [Fact]
     public void WrapDialog_builds_axis_labels_through_the_injected_formatter()
     {
-        var localized = new WrapProgramViewModel(WrapDirection.Wrap, "XYZABC", 5,
+        var localized = new WrapProgramViewModel(WrapDirection.Wrap,
+            Kinematics(MachineTypes.Mill, 5, Rotary(3), Rotary(4)),
             letter => "axis:" + letter);
 
-        Assert.Equal(["axis:X", "axis:Y"], localized.SourceAxes.Select(a => a.Label));
+        Assert.Equal(["axis:X", "axis:Y", "axis:Z"], localized.SourceAxes.Select(a => a.Label));
         Assert.Equal(["axis:A", "axis:B"], localized.TargetAxes.Select(a => a.Label));
 
         // No formatter (tests, non-localized hosts): the English default.
-        var fallback = new WrapProgramViewModel(WrapDirection.Unwrap, "XYZABC", 4);
+        var fallback = new WrapProgramViewModel(WrapDirection.Unwrap,
+            Kinematics(MachineTypes.Mill, 4, Rotary(3)));
         Assert.Equal("A-axis", fallback.SourceAxes.Single().Label);
-        Assert.Equal(["X-axis", "Y-axis"], fallback.TargetAxes.Select(a => a.Label));
+        Assert.Equal(["X-axis", "Y-axis", "Z-axis"], fallback.TargetAxes.Select(a => a.Label));
     }
 }

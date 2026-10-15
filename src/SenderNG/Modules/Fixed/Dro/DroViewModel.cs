@@ -54,9 +54,21 @@ public sealed class AxisPosition : ViewModelBase
 {
     private double _position;
 
-    public AxisPosition(string letter) => Letter = letter;
+    public AxisPosition(string letter, bool isRotary = false)
+    {
+        Letter = letter;
+        IsRotary = isRotary;
+    }
 
     public string Letter { get; }
+
+    /// <summary>True when the profile declares this axis rotary. A physical axis-kind
+    /// fact (never "index ≥ 3"), so the row can read in degrees.</summary>
+    public bool IsRotary { get; }
+
+    /// <summary>Read-out unit: degrees for a rotary axis, blank for a linear one —
+    /// the compact rows stay uncluttered in the ordinary millimetre case.</summary>
+    public string Unit => IsRotary ? "°" : string.Empty;
 
     public double Position
     {
@@ -80,18 +92,22 @@ public sealed class AxisPosition : ViewModelBase
 
 public class DroViewModel : ViewModelBase
 {
-    private static readonly string[] Letters = ["X", "Y", "Z", "A", "B", "C", "U", "V", "W"];
-
     private readonly IGrblService _grbl;
+    private readonly IMachineKinematicsProvider? _kinematics;
     private string _status = string.Empty;
     private HotkeyService? _subscribedHotkeys;
+    /// <summary>Signature of the undeclared-axes warning already surfaced, so a
+    /// continuously refreshed read-out warns once per resolution instead of once per
+    /// status poll (invariant 10).</summary>
+    private string? _warnedUndeclaredAxes;
 
     public ObservableCollection<AxisPosition> Axes { get; } = new();
 
-    public DroViewModel(IGrblService grbl)
+    public DroViewModel(IGrblService grbl, IMachineKinematicsProvider? kinematics = null)
     {
         ArgumentNullException.ThrowIfNull(grbl);
         _grbl = grbl;
+        _kinematics = kinematics;
         grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
 
         ZeroAxisCommand = new DelegateCommand(p => _ = ZeroAxisAsync(p as string));
@@ -200,14 +216,67 @@ public class DroViewModel : ViewModelBase
         if (state is null)
             return;
 
-        while (Axes.Count > state.NumAxes)
-            Axes.RemoveAt(Axes.Count - 1);
+        // One row per axis the CONTROLLER reports (invariant 10: an axis the profile
+        // does not declare is still shown), labelled with the board's own letter and
+        // marked rotary from the resolved axis kind — not from the index.
+        var kinematics = _kinematics?.Current;
+        var letters = kinematics?.BoardLetters ?? MachineType.ConventionalLetters;
+        var count = Math.Min(state.NumAxes, letters.Length);
+        if (!RowsMatch(letters, count, kinematics))
+            RebuildRows(letters, count, kinematics);
 
-        while (Axes.Count < state.NumAxes && Axes.Count < Letters.Length)
-            Axes.Add(new AxisPosition(Letters[Axes.Count]));
-
-        var count = Math.Min(Axes.Count, state.Positions.Length);
-        for (var i = 0; i < count; i++)
+        var positions = Math.Min(Axes.Count, state.Positions.Length);
+        for (var i = 0; i < positions; i++)
             Axes[i].Position = state.Positions[i];
+
+        WarnUndeclaredAxesOnce(kinematics);
+    }
+
+    private bool RowsMatch(string letters, int count, MachineKinematics? kinematics)
+    {
+        if (Axes.Count != count)
+            return false;
+        for (var i = 0; i < count; i++)
+        {
+            if (Axes[i].Letter != letters[i].ToString())
+                return false;
+            if (Axes[i].IsRotary != IsRotary(kinematics, i))
+                return false;
+        }
+        return true;
+    }
+
+    private void RebuildRows(string letters, int count, MachineKinematics? kinematics)
+    {
+        Axes.Clear();
+        for (var i = 0; i < count; i++)
+            Axes.Add(new AxisPosition(letters[i].ToString(), IsRotary(kinematics, i)));
+    }
+
+    private static bool IsRotary(MachineKinematics? kinematics, int index) =>
+        kinematics is not null && kinematics.RotaryAxes.Contains(index);
+
+    /// <summary>
+    /// Surfaces the resolver's superset-tolerance warning (invariant 10) once per
+    /// resolution. The controller may report axes the profile never declared: they are
+    /// shown as unknown linear axes above, and the operator hears about it exactly
+    /// once — not on every status report this view consumes.
+    /// </summary>
+    private void WarnUndeclaredAxesOnce(MachineKinematics? kinematics)
+    {
+        var warning = kinematics?.Problems.FirstOrDefault(p =>
+            p.Severity == KinematicsSeverity.Warning &&
+            p.Code == KinematicsProblemCodes.ControllerUndeclaredAxes);
+        if (warning is null)
+        {
+            _warnedUndeclaredAxes = null;
+            return;
+        }
+
+        var signature = $"{kinematics!.ReportedAxes}|{warning.Message}";
+        if (signature == _warnedUndeclaredAxes)
+            return;
+        _warnedUndeclaredAxes = signature;
+        Status = warning.Message;
     }
 }

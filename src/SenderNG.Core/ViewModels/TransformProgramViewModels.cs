@@ -40,6 +40,7 @@ using System.Windows.Input;
 using System.Collections.Generic;
 using System.Linq;
 using CNC.Core.Abstractions;
+using CNC.Core.Services;
 using SenderNG.Core.Commands;
 
 namespace CNC.Core.ViewModels;
@@ -143,9 +144,10 @@ public sealed class WrapAxisOption
 }
 
 /// <summary>
-/// Wrap / Unwrap dialog: source and target axis (filtered by direction and the
-/// controller's axis count), the cylinder diameter and the Z0-at-center option.
-/// Wrap and Unwrap share this model; only the option lists and defaults differ.
+/// Wrap / Unwrap dialog: source and target axis (both lists come from the resolved
+/// kinematics — linear axes on one side, <see cref="MachineKinematics.RotaryAxes"/> on
+/// the other), the cylinder diameter and the Z0-at-center option. Wrap and Unwrap
+/// share this model; only the option lists and defaults differ.
 /// </summary>
 public class WrapProgramViewModel : ViewModelBase, IClosableDialog
 {
@@ -155,19 +157,26 @@ public class WrapProgramViewModel : ViewModelBase, IClosableDialog
     private double _diameter = 50d;
     private bool _z0AtCenter;
 
+    /// <param name="kinematics">The resolved machine: which axes are rotary is an axis
+    /// <b>kind</b> fact, never "index ≥ 3" — a foam profile's fourth axis is a linear
+    /// tower axis, so offering it as a wrap target is nonsense.</param>
     /// <param name="axisLabel">Formats one axis letter into the label shown in the
     /// dialog. Supplied by the UI (this assembly cannot reach the app's
     /// localization service); the default keeps the tests and any non-localized
     /// host working.</param>
-    public WrapProgramViewModel(WrapDirection direction, string axisLetters, int numAxes,
+    public WrapProgramViewModel(WrapDirection direction, MachineKinematics kinematics,
         Func<string, string>? axisLabel = null)
     {
+        ArgumentNullException.ThrowIfNull(kinematics);
         Direction = direction;
         _axisLabel = axisLabel ?? (letter => letter + "-axis");
         var wrap = direction == WrapDirection.Wrap;
 
-        SourceAxes = BuildAxes(linear: wrap, axisLetters, numAxes);
-        TargetAxes = BuildAxes(linear: !wrap, axisLetters, numAxes);
+        var linear = DeclaredLinearAxes(kinematics);
+        var rotary = kinematics.RotaryAxes;
+
+        SourceAxes = BuildAxes(wrap ? linear : rotary, kinematics);
+        TargetAxes = BuildAxes(wrap ? rotary : linear, kinematics);
 
         _sourceAxis = Pick(SourceAxes, wrap ? new[] { 1, 0 } : new[] { 3, 4 });
         _targetAxis = Pick(TargetAxes, wrap ? new[] { 3, 4 } : new[] { 0, 1 });
@@ -220,22 +229,22 @@ public class WrapProgramViewModel : ViewModelBase, IClosableDialog
 
     private void RequestClose(bool result) => CloseRequested?.Invoke(this, result);
 
-    private IReadOnlyList<WrapAxisOption> BuildAxes(bool linear, string letters, int numAxes)
-    {
-        var count = Math.Clamp(numAxes, 0, letters.Length);
-        var axes = new List<WrapAxisOption>();
-        if (linear)
-        {
-            if (count > 0) axes.Add(new WrapAxisOption(0, _axisLabel(letters[0].ToString())));
-            if (count > 1) axes.Add(new WrapAxisOption(1, _axisLabel(letters[1].ToString())));
-        }
-        else
-        {
-            if (count > 3) axes.Add(new WrapAxisOption(3, _axisLabel(letters[3].ToString())));
-            if (count > 4) axes.Add(new WrapAxisOption(4, _axisLabel(letters[4].ToString())));
-        }
-        return axes;
-    }
+    /// <summary>The declared linear axes, ascending: every plane axis plus any optional
+    /// linear axis. Rotaries are never in a plane, so this is exactly "not rotary" —
+    /// the lists are driven by the axis kind, not by an index threshold.</summary>
+    private static int[] DeclaredLinearAxes(MachineKinematics kinematics) =>
+        kinematics.Planes.SelectMany(p => p.Axes)
+            .Concat(kinematics.OptionalAxes)
+            .Where(a => a.Kind == AxisKind.Linear)
+            .Select(a => a.Index)
+            .Distinct()
+            .OrderBy(i => i)
+            .ToArray();
+
+    /// <summary>One dialog option per axis index, labelled with the board's own letter
+    /// (the conventional fallback when the controller reported none).</summary>
+    private IReadOnlyList<WrapAxisOption> BuildAxes(IReadOnlyList<int> indices, MachineKinematics kinematics) =>
+        indices.Select(i => new WrapAxisOption(i, _axisLabel(kinematics.LetterFor(i).ToString()))).ToList();
 
     private static WrapAxisOption? Pick(IReadOnlyList<WrapAxisOption> axes, int[] preferred)
     {
