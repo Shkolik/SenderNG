@@ -1178,6 +1178,66 @@ public class RealGrblHardwareTests
         double.TryParse(actual, NumberStyles.Float, CultureInfo.InvariantCulture, out var b) &&
         a.Equals(b);
 
+    /// <summary>The connect handshake's own axis letters and count are what the
+    /// kinematics model reads, so a program is parsed against the controller's own
+    /// letters rather than a guess. Also pins the two ways a board can disagree with
+    /// the profile: the foam preset's two-tower layout resolving on the real letters,
+    /// and invariant 10's superset tolerance in both directions: fewer reported axes
+    /// leaves the declared extras simply absent (not an error), while more reported
+    /// axes is surfaced once as indices that belong to no plane.</summary>
+    [HardwareFact]
+    [Trait("Category", "Hardware")]
+    public async Task The_reported_letters_reach_the_kinematics_model_on_hardware()
+    {
+        var port = RequiredPort();
+        using var svc = new RealGrblService();
+        await svc.ConnectAsync(port);
+
+        var capabilities = svc.Capabilities;
+        Assert.True(capabilities.IsKnown, "$I handshake should identify the controller");
+        Assert.False(string.IsNullOrEmpty(capabilities.AxisLetters),
+            "this board reports [AXS:] letters; without them the model can only fall back");
+        var letters = capabilities.AxisLetters;
+        var axes = capabilities.NumAxes;
+        Console.WriteLine($"OK  board reports [AXS:{axes}:{letters}]");
+
+        var profile = new MachineProfile
+        {
+            Id = "hardware-kinematics",
+            Name = "hardware",
+            MachineTypeId = MachineTypes.Foam,
+        };
+
+        var kinematics = MachineKinematicsResolver.Resolve(profile, letters, axes);
+
+        // The controller's letters, not the conventional fallback, and the display
+        // letter comes from them.
+        Assert.Equal(letters, kinematics.BoardLetters);
+        Assert.Equal(letters[0], kinematics.LetterFor(0));
+        for (var index = 0; index < letters.Length; index++)
+            Assert.Equal(letters[index], kinematics.LetterFor(index));
+
+        // The foam preset's layout round-trips on this board: two towers, the second
+        // on its own two indices.
+        Assert.Equal(2, kinematics.Planes.Count);
+        Assert.True(kinematics.IsMultiPlane);
+        Assert.Equal(new[] { 0, 1 }, kinematics.PlaneIndices(0));
+        Assert.Equal(new[] { 2, 3 }, kinematics.PlaneIndices(1));
+
+        // Invariant 10, both directions. Fewer reported axes than the profile declares
+        // is NOT a problem: the declared axes past the count are simply absent. More
+        // reported axes is surfaced once, as indices that belong to no plane.
+        var fewer = MachineKinematicsResolver.Resolve(profile, letters, axes - 1);
+        Assert.DoesNotContain(fewer.Problems, p => p.Severity == KinematicsSeverity.Error);
+        Assert.True(fewer.IsPresent(axes - 2));
+        Assert.False(fewer.IsPresent(axes - 1));
+
+        var more = MachineKinematicsResolver.Resolve(profile, letters, axes + 1);
+        Assert.Contains(more.Problems,
+            p => p.Code == KinematicsProblemCodes.ControllerUndeclaredAxes);
+        Assert.True(more.IsPresent(axes));
+    }
+
     /// <summary>File dialogs that answer with paths a test sets, so the real dialog's backup and
     /// restore paths can run unattended against hardware.</summary>
     private sealed class HardwareDialogs : IFileDialogService
