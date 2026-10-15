@@ -58,19 +58,20 @@ public class OutlineViewModel : ViewModelBase
     private readonly SettingsService _settings;
     private readonly ProgramViewModel _program;
     private readonly CNC.Core.GrblInfoState _info;
+    private readonly IMachineKinematicsProvider? _kinematics;
     private int _feedRate;
     private string _status = string.Empty;
-    private MachineType _machineType;
 
-    public OutlineViewModel(IGrblService grbl, SettingsService settings, ProgramViewModel program, CNC.Core.GrblInfoState? info = null)
+    public OutlineViewModel(IGrblService grbl, SettingsService settings, ProgramViewModel program, CNC.Core.GrblInfoState? info = null,
+        IMachineKinematicsProvider? kinematics = null)
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _program = program ?? throw new ArgumentNullException(nameof(program));
         _info = info ?? CNC.Core.GrblInfo.Current;
+        _kinematics = kinematics;
 
         _feedRate = ReadFeedRate(_settings);
-        _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
         GoCommand = new DelegateCommand(_ => _ = GoAsync(), _ => HasProgramLimits);
 
         // Enable/disable the Go button as programs load and unload.
@@ -84,12 +85,13 @@ public class OutlineViewModel : ViewModelBase
 
         // The feed rate is a per-profile module setting: follow profile switches
         // so the cached value never lingers from the previously active machine.
+        // (The plane layout is re-read from the kinematics on every Go, so a
+        // machine-type switch needs no cache here.)
         _settings.Changed += OnSettingsChanged;
     }
 
     private void OnSettingsChanged()
     {
-        _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
         var value = ReadFeedRate(_settings);
         if (value != _feedRate)
         {
@@ -193,37 +195,31 @@ public class OutlineViewModel : ViewModelBase
 
     private sealed record SweepPlane(string HLetter, ProgramLimitRow H, string VLetter, ProgramLimitRow V);
 
-    /// <summary>Controller letter for a flattened axis index — the handshake letters
-    /// when reported, the preset's conventional order otherwise (jog LetterFor).</summary>
-    private string LetterFor(int axisIndex)
-    {
-        var letters = _info.AxisLetters;
-        return axisIndex < letters.Length
-            ? letters.Substring(axisIndex, 1)
-            : MachineType.ConventionalLetters.Substring(axisIndex, 1);
-    }
+    /// <summary>The resolved machine the sweep reads: the shared provider's snapshot when
+    /// one is injected, else a direct resolve of the active profile (minimal test hosts).</summary>
+    private MachineKinematics Kinematics =>
+        _kinematics?.Current
+        ?? MachineKinematicsResolver.Resolve(_settings.Load(), _info.AxisLetters,
+            _grbl.IsConnected ? _grbl.Capabilities.NumAxes : 0);
 
     /// <summary>The machine's carriage planes whose in-plane axes both have program
-    /// limits (per-plane letters from the controller, in-plane = Horizontal+Vertical).</summary>
+    /// limits. The slices come from the resolved kinematics — slot 0 is the plane's
+    /// horizontal and slot 1 its vertical, so a non-monotonic plane (the bug-report
+    /// firmware's <c>[A, Z]</c> = indices <c>[3, 2]</c>) is sliced the way it is
+    /// declared instead of by flattened index order.</summary>
     private List<SweepPlane> BuildSweepPlanes()
     {
         var rows = _program.LimitRows;
+        var kinematics = Kinematics;
         var result = new List<SweepPlane>();
-        for (var p = 0; p < _machineType.Planes.Count; p++)
+        for (var p = 0; p < kinematics.Planes.Count; p++)
         {
-            var plane = _machineType.Planes[p];
-            var indices = _machineType.PlaneAxisIndices(p);
-            var hIndex = -1;
-            var vIndex = -1;
-            for (var i = 0; i < plane.Roles.Count; i++)
-            {
-                if (plane.Roles[i] == AxisRoleKind.Horizontal) hIndex = indices[i];
-                else if (plane.Roles[i] == AxisRoleKind.Vertical) vIndex = indices[i];
-            }
+            var hIndex = kinematics.IndexAt(p, 0);
+            var vIndex = kinematics.IndexAt(p, 1);
             if (hIndex < 0 || vIndex < 0)
                 continue;
-            var hLetter = LetterFor(hIndex);
-            var vLetter = LetterFor(vIndex);
+            var hLetter = kinematics.LetterFor(hIndex).ToString();
+            var vLetter = kinematics.LetterFor(vIndex).ToString();
             var hRow = rows.FirstOrDefault(r => r.Letter == hLetter);
             var vRow = rows.FirstOrDefault(r => r.Letter == vLetter);
             if (hRow is null || vRow is null)

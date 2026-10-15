@@ -433,6 +433,43 @@ public class OutlinePlaneAwareTests : IDisposable
         Assert.Equal("Outline: program has no limits for the loaded machine's planes", vm.Status);
     }
 
+    // The bug-report firmware's foam layout: plane 2 is declared [A, Z] = indices
+    // [3, 2], so its horizontal is A and its vertical Z. Slicing by flattened index
+    // order (the old legacy-role lookup) inverted exactly these two.
+    [Fact]
+    public void Foam_plane_two_follows_the_declared_slots_not_the_index_order()
+    {
+        var settings = MakeSettings(MachineTypes.Foam);
+        var preset = MachineTypeCatalog.Resolve(MachineTypes.Foam);
+        var profile = settings.Load();
+        profile.Planes = preset.CreateDefaultPlanes();
+        profile.Planes[1].Axes[0].Index = 3; // slot 0 (horizontal) = A
+        profile.Planes[1].Axes[1].Index = 2; // slot 1 (vertical)   = Z
+        settings.Save(profile);
+
+        var spy = new SpyGrbl();
+        var program = new ProgramViewModel();
+        program.LoadGCode("G1 F100 X10 Y20 Z10 A30\r\nG1 X40 Y30 Z40 A50\r\n");
+        // Through the shared provider — the seam the app injects.
+        using var kinematics = new MachineKinematicsProvider(settings, spy);
+        var vm = new OutlineViewModel(spy, settings, program, kinematics: kinematics);
+
+        vm.GoCommand.Execute(null);
+
+        var expected = string.Join(Environment.NewLine,
+        [
+            "G90G21G1F500",
+            "X10Y20A30Z10",
+            "Y30Z40",
+            "X40A50",
+            "Y20Z10",
+            "X10A30",
+            "",
+        ]);
+        Assert.Equal(expected, Assert.Single(spy.Sent));
+        Assert.Equal("Outline sent: X/Y + A/Z", vm.Status);
+    }
+
     // A profile switch (MachineTypeId Mill -> Foam) refreshes the sweep set.
     [Fact]
     public void Profile_switch_refreshes_the_machine_type()
@@ -447,7 +484,7 @@ public class OutlinePlaneAwareTests : IDisposable
         Assert.Equal("Outline sent: X/Y", vm.Status); // Mill: one sweepable plane
 
         var second = settings.CreateProfile("second", MachineTypes.Foam);
-        settings.Activate(second.Id); // fires Changed -> the VM re-resolves
+        settings.Activate(second.Id); // fires Changed -> the next Go re-reads the kinematics
 
         vm.GoCommand.Execute(null);
         Assert.Equal("Outline sent: X/Y + Z/A", vm.Status);

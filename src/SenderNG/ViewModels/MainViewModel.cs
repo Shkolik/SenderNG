@@ -135,6 +135,10 @@ public class MainViewModel : ViewModelBase, IDisposable
     private readonly Func<WorkParameters?>? _workParametersProvider;
     private readonly StatusSink? _statusSink;
     private readonly Action<string>? _statusSinkHandler;
+    /// <summary>The machine-kinematics seam (registered by <c>HostSetup</c>). Null in
+    /// minimal test hosts, where <see cref="CurrentKinematics"/> resolves the active
+    /// profile directly.</summary>
+    private readonly IMachineKinematicsProvider? _kinematics;
 
     public MainViewModel(
         IGrblService grbl,
@@ -157,6 +161,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         _settingsService = settings;
         SettingsService = settings;
         _services = services;
+        _kinematics = services.GetService<IMachineKinematicsProvider>();
         _comPorts = comPorts;
         _fileDialogs = fileDialogs;
         _dialogs = dialogs;
@@ -582,7 +587,8 @@ public class MainViewModel : ViewModelBase, IDisposable
             Status = LocText.Resolve("app.msg.transformNoDialog", "Transform: no dialog service available");
             return;
         }
-        if (_info.NumAxes <= 3)
+        var kinematics = CurrentKinematics();
+        if (kinematics.RotaryAxes.Count == 0)
         {
             var message = LocText.Resolve("app.transform.wrap.noRotaryAxis",
                 "Wrap/unwrap needs a rotary axis (A/B) reported by the controller.");
@@ -592,7 +598,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var vm = new CNC.Core.ViewModels.WrapProgramViewModel(direction, _info.AxisLetters, _info.NumAxes,
+        var vm = new CNC.Core.ViewModels.WrapProgramViewModel(direction, kinematics,
             letter => LocText.Format("app.transform.wrap.axisLabel", "{0}-axis", letter));
         var title = Resolve(
             direction == CNC.Core.ViewModels.WrapDirection.Wrap ? "app.transform.wrap.title" : "app.transform.unwrap.title",
@@ -630,8 +636,8 @@ public class MainViewModel : ViewModelBase, IDisposable
             "{0} applied, diameter: {1}, {2}-axis to {3}-axis",
             wrap ? "Wrap" : "Unwrap",
             diameterText,
-            _info.AxisIndexToLetter(fromAxis),
-            _info.AxisIndexToLetter(toAxis));
+            kinematics.LetterFor(fromAxis),
+            kinematics.LetterFor(toAxis));
 
         await ApplyTransformAsync(
             p => GCodeTransformers.AxisRemap(p.Tokens, fromAxis, toAxis, mmPerDegree, wrap, p.Decimals, zShift, header),
@@ -644,6 +650,14 @@ public class MainViewModel : ViewModelBase, IDisposable
         token.Command is Commands.G2 or Commands.G3 or Commands.G5 or Commands.G5_1
             or Commands.G73 or Commands.G81 or Commands.G82 or Commands.G83
             or Commands.G85 or Commands.G86 or Commands.G89;
+
+    /// <summary>The resolved machine for the wrap gate: the shared provider's snapshot
+    /// when one is registered, else a direct resolve of the active profile (minimal
+    /// test hosts). Either way "which axis is rotary" is an axis-kind fact, so a
+    /// 4-axis foam profile with no rotary axis is correctly refused.</summary>
+    private MachineKinematics CurrentKinematics() =>
+        _kinematics?.Current
+        ?? MachineKinematicsResolver.Resolve(_settingsService.Load(), _info.AxisLetters, _info.NumAxes);
 
     public SettingsService SettingsService { get; }
 
