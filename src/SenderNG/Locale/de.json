@@ -414,6 +414,7 @@
     "app.msg.mdiFailed": "MDI fehlgeschlagen: {0}",
     "app.msg.validationFailed": "Validierung fehlgeschlagen: {0} ({1} Fehler)",
     "app.msg.loaded": "{0} geladen ({1} Zeilen)",
+    "app.msg.unknownAxisLetters": "{0} geladen ({1} Zeilen), aber das Programm verwendet Achsenbuchstaben, die diese Maschine nicht kennt: {2}",
     "app.msg.saved": "{0} gespeichert",
     "app.msg.saveFailed": "Speichern fehlgeschlagen: {0}",
     "app.msg.settingsCorruptMoved": "Die Einstellungsdatei {0} war beschädigt, daher wurden die Standardwerte geladen; das Original wurde im selben Ordner unter einem Namen mit der Endung .corrupt aufbewahrt",

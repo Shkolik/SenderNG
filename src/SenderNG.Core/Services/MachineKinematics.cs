@@ -31,6 +31,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Globalization;
+
 namespace CNC.Core.Services;
 
 /// <summary>How serious a <see cref="KinematicsProblem"/> is. Errors mean the profile
@@ -95,6 +97,45 @@ public sealed record KinematicsProblem(
     int AxisIndex = -1);
 
 /// <summary>
+/// The one place a <see cref="KinematicsProblem"/> becomes user-visible text. The
+/// locale key is derived from <see cref="KinematicsProblem.Code"/> — never by parsing
+/// <see cref="KinematicsProblem.Message"/>, which is developer-facing English — and
+/// that message is only the fallback for an absent locale service or a catalog missing
+/// the key, so a missing translation can never surface a raw key.
+/// <para>Shared by the profile editor's problem list and the DRO's one-time
+/// undeclared-axes warning so the two cannot drift into two mappings of one code.</para>
+/// </summary>
+public static class KinematicsProblemText
+{
+    /// <summary>The <c>appSettings.axes.problem.*</c> catalog key for a problem. The
+    /// plane-count mismatch carries two sentences — one plane's axis count vs the whole
+    /// plane list — so a problem that names no specific plane is the whole-list one.</summary>
+    public static string KeyFor(KinematicsProblem problem) =>
+        problem.Code == KinematicsProblemCodes.PlaneCountMismatch && problem.Plane < 0
+            ? "appSettings.axes.problem.planes.countMismatch"
+            : "appSettings.axes.problem." + problem.Code;
+
+    /// <summary>The value a sentence's <c>{0}</c> takes: the offending axis index, else
+    /// the 1-based plane number, else 0 for a sentence with no placeholder.</summary>
+    public static int PlaceholderFor(KinematicsProblem problem) =>
+        problem.AxisIndex >= 0
+            ? problem.AxisIndex
+            : problem.Plane >= 0
+                ? problem.Plane + 1
+                : 0;
+
+    /// <summary>
+    /// Resolve a problem through <paramref name="resolve"/> and substitute the
+    /// sentence's <c>{0}</c>. <paramref name="resolve"/> is a <c>(key, English
+    /// fallback) → text</c> lookup shaped like <c>LocalizationService.Resolve</c> and
+    /// <c>LocText.Resolve</c>, so a caller passes whichever locale source it owns.
+    /// </summary>
+    public static string Localize(KinematicsProblem problem, Func<string, string, string> resolve) =>
+        resolve(KeyFor(problem), problem.Message)
+            .Replace("{0}", PlaceholderFor(problem).ToString(CultureInfo.CurrentCulture));
+}
+
+/// <summary>
 /// One resolved plane: its axes in plane order (<b>not</b> index order — the bug-report
 /// foam firmware's plane 2 is <c>[A, Z]</c> = indices <c>[3, 2]</c>) plus the
 /// plane-to-plane separation it sits at.
@@ -134,6 +175,15 @@ public sealed class MachineKinematics
     /// <para>The resolver has already rejected an alias that collides with the
     /// board's letters or with another alias (invariant 8), so this map is safe to
     /// hand straight to the parser. Inbound only — never displayed.</para>
+    /// <para><b>Profile state, deliberately not connection state.</b> The map is
+    /// derived from the profile alone, so a disconnected machine still reports it and
+    /// a program parsed while disconnected resolves its CAM letters. Do not "fix" it
+    /// to empty on disconnect: parsing happens at load time (the load gate, the
+    /// transformers), which can precede the connection, and an emptied map would
+    /// silently re-seat an alias letter on its conventional index — the wrong physical
+    /// axis on a token list that runs later. The provider re-derives and republishes it
+    /// on every connect, disconnect and profile switch, so no value from a previous
+    /// board or profile can survive in it.</para>
     /// </summary>
     public IReadOnlyDictionary<char, int> AliasMap => aliasMap ??= BuildAliasMap();
 
@@ -219,10 +269,9 @@ public sealed class MachineKinematics
     /// The letter to show for an axis index: the controller's board letter at that
     /// index, else the conventional fallback when the board reported none. <c>'?'</c>
     /// for an index past the known letters (the letter is never stored, so it can
-    /// never disagree with the board).
+    /// never disagree with the board). Same helper the g-code token renderers use.
     /// </summary>
-    public char LetterFor(int index) =>
-        index >= 0 && index < BoardLetters.Length ? BoardLetters[index] : '?';
+    public char LetterFor(int index) => AxisLetters.LetterAt(BoardLetters, index);
 
     /// <summary>The axis index in a plane's slot, or <c>-1</c> when the slot (or the
     /// plane) does not exist. Slots are role positions, so this is what replaces

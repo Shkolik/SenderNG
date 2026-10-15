@@ -56,14 +56,27 @@ namespace CNC.Core.Services;
 /// The alias map is a parameter, never read from a profile here, so this class
 /// stays independent of the machine model and testable on its own.
 /// </para>
+/// <para>
+/// The conventional <c>XYZABCUVW</c> order has one source,
+/// <see cref="MachineType.ConventionalLetters"/>; this class reads it instead of
+/// keeping a second copy that could drift from it.
+/// </para>
 /// </summary>
 public static class AxisLetters
 {
-    /// <summary>The nine conventional grbl axis letters, in axis-index order.</summary>
-    public const string ConventionalLetters = "XYZABCUVW";
-
     /// <summary>Number of grbl axes: valid indices are <c>0..AxisCount - 1</c>.</summary>
     public const int AxisCount = 9;
+
+    /// <summary>
+    /// The letter at <paramref name="index"/> in a letter set, or <c>'?'</c> when the
+    /// set does not reach that index — an unknown letter, never a throw. The single
+    /// spelling of "the controller's letter for this axis index" that
+    /// <c>MachineKinematics.LetterFor</c> and the g-code token renderers share, so a
+    /// set shorter than the index (a four-letter <c>[AXS:4:XYZA]</c> board against a
+    /// nine-axis <c>AxisFlags.All</c> walk) cannot slice past its end.
+    /// </summary>
+    public static char LetterAt(string? letters, int index) =>
+        letters is not null && index >= 0 && index < letters.Length ? letters[index] : '?';
 
     /// <summary>
     /// Resolves a program's axis letter to a grbl axis index: the board's reported
@@ -127,7 +140,7 @@ public static class AxisLetters
     /// -1 when the character is not one of the nine axis letters.
     /// </summary>
     public static int ConventionalIndex(char letter) =>
-        IndexIn(ConventionalLetters, char.ToUpperInvariant(letter));
+        IndexIn(MachineType.ConventionalLetters, char.ToUpperInvariant(letter));
 
     /// <summary>Ordinal, case-insensitive position of a letter in a letter string.</summary>
     private static int IndexIn(string? letters, char upper)

@@ -414,6 +414,7 @@
     "app.msg.mdiFailed": "Error en MDI: {0}",
     "app.msg.validationFailed": "Error de validación: {0} ({1} error(es))",
     "app.msg.loaded": "Cargado {0} ({1} líneas)",
+    "app.msg.unknownAxisLetters": "Cargado {0} ({1} líneas), pero el programa usa letras de eje que esta máquina desconoce: {2}",
     "app.msg.saved": "Guardado {0}",
     "app.msg.saveFailed": "Error al guardar: {0}",
     "app.msg.settingsCorruptMoved": "El archivo de ajustes {0} estaba dañado, así que se cargaron los valores predeterminados; el original se conservó en la misma carpeta con un nombre que termina en .corrupt",

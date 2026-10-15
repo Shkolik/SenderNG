@@ -1335,9 +1335,19 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
 
         var isConverted = FindFileHandler(Path.GetExtension(path)) is not null;
-        Status = isConverted
-            ? LocText.Format("app.msg.converted", "Converted {0}: {1} lines", Path.GetFileName(path), program.ProgramRows.Count)
-            : LocText.Format("app.msg.loaded", "Loaded {0} ({1} lines)", Path.GetFileName(path), program.ProgramRows.Count);
+        // A letter neither the board's letters nor the profile's aliases resolve means
+        // the program is for another machine: its value landed on the axis's
+        // conventional index, so one axis would move wrongly. That is worth saying at
+        // load time on the status line (the app's load-diagnostic channel), because the
+        // failure would otherwise only show up as a wrong axis mid-run.
+        Status = parsed.UnknownAxisLetters.Count > 0
+            ? LocText.Format("app.msg.unknownAxisLetters",
+                "Loaded {0} ({1} lines), but it uses axis letters this machine does not know: {2}",
+                Path.GetFileName(path), program.ProgramRows.Count,
+                string.Join(", ", parsed.UnknownAxisLetters))
+            : isConverted
+                ? LocText.Format("app.msg.converted", "Converted {0}: {1} lines", Path.GetFileName(path), program.ProgramRows.Count)
+                : LocText.Format("app.msg.loaded", "Loaded {0} ({1} lines)", Path.GetFileName(path), program.ProgramRows.Count);
     }
 
     // Menu-claiming modules (PanelHint.Menu) open as modal dialogs.

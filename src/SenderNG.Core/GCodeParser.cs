@@ -314,8 +314,9 @@ namespace CNC.GCode
         /// Letters a program used that neither the board's letters nor the aliases
         /// know — the program is for a different machine. Their values are kept at
         /// the conventional index rather than dropped; one entry per distinct
-        /// letter, for a caller to surface (surfacing it in the UI is not wired
-        /// yet). Cleared by <see cref="Reset"/>.
+        /// letter. Cleared by <see cref="Reset"/>. The load gate copies this onto
+        /// <c>GCodeProgram.UnknownAxisLetters</c>, which the host surfaces as a
+        /// localized warning when the program loads.
         /// </summary>
         public IReadOnlyCollection<char> UnknownAxisLetters => unknownAxisLetters;
 
@@ -2232,7 +2233,11 @@ namespace CNC.GCode
             string s = base.ToString();
 
             foreach(int i in AxisFlags.ToIndices())
-                s += GrblInfo.AxisIndexToLetter(i) + Values[i].ToInvariantString();
+            {
+                if (i >= Values.Length)
+                    continue; // a 3-axis command carries no value for a higher index
+                s += AxisLetters.LetterAt(GrblInfo.AxisLetters, i) + Values[i].ToInvariantString();
+            }
 
             return s;
         }
@@ -2266,8 +2271,17 @@ namespace CNC.GCode
         {
             string s = base.ToString();
 
+            // An index the board reported no letter for renders as '?' — the same
+            // treatment MachineKinematics.LetterFor gives it. The previous
+            // GrblInfo.AxisIndexToLetter(i) -> AxisLetters.Substring(i, 1) threw once
+            // the AxisFlags.All walk (0x1FF, nine axes) reached past a shorter board
+            // letter set. An index with no value slot is not rendered at all.
             foreach (int i in AxisFlags.ToIndices())
-                s += GrblInfo.AxisIndexToLetter(i) + Values[i].ToInvariantString();
+            {
+                if (i >= Values.Length)
+                    continue;
+                s += AxisLetters.LetterAt(GrblInfo.AxisLetters, i) + Values[i].ToInvariantString();
+            }
 
             return s;
         }

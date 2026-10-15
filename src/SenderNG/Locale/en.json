@@ -414,6 +414,7 @@
     "app.msg.mdiFailed": "MDI failed: {0}",
     "app.msg.validationFailed": "Validation failed: {0} ({1} error(s))",
     "app.msg.loaded": "Loaded {0} ({1} lines)",
+    "app.msg.unknownAxisLetters": "Loaded {0} ({1} lines), but it uses axis letters this machine does not know: {2}",
     "app.msg.saved": "Saved {0}",
     "app.msg.saveFailed": "Save failed: {0}",
     "app.msg.settingsCorruptMoved": "Settings file {0} was damaged, so defaults were loaded instead; the original was kept in the same folder with a name ending in .corrupt",
