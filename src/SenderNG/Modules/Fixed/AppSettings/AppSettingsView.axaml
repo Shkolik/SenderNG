@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:CNC.Core.ViewModels;assembly=SenderNG.Core"
+             xmlns:views="clr-namespace:SenderNG.Modules.Fixed"
              xmlns:loc="clr-namespace:SenderNG.Localization;assembly=SenderNG"
              xmlns:conv="clr-namespace:SenderNG.Converters"
              mc:Ignorable="d" d:DesignWidth="920" d:DesignHeight="560"
@@ -216,6 +217,20 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                                     Command="{Binding ApplyTypeCommand}"
                                                     Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
                                         </StackPanel>
+
+                                        <!-- The switch is destructive: the new type's defaults
+                                             replace the layout outright, so it is warned about and
+                                             needs the second (confirming) click. -->
+                                        <TextBlock Text="{Binding TypeChangeWarning}" FontSize="11"
+                                                   Foreground="#a33" TextWrapping="Wrap"
+                                                   IsVisible="{Binding IsTypeChangePending}" />
+
+                                        <Rectangle Height="1" Fill="#ddd" />
+
+                                        <!-- Machine card: the type's topology picture, an ordered
+                                             row per axis grouped by plane, the optional axes and
+                                             the resolver's validation. -->
+                                        <views:MachineAxesView DataContext="{Binding MachineAxes}" />
                                     </StackPanel>
                                 </ScrollViewer>
                             </DataTemplate>
