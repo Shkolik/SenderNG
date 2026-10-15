@@ -458,7 +458,7 @@
     "app.transform.wrap.diameter": "Durchmesser (mm)",
     "app.transform.wrap.z0AtCenter": "Z0 in der Mitte",
     "app.transform.wrap.axisLabel": "{0}-Achse",
-    "app.transform.wrap.noRotaryAxis": "Wickeln/Abwickeln benötigt eine vom Controller gemeldete Drehachse (A/B).",
+    "app.transform.wrap.noRotaryAxis": "Wickeln/Abwickeln benötigt eine im Maschinenprofil festgelegte Drehachse (A/B).",
     "app.transform.wrap.arcsUnsupported": "Wickeln/Abwickeln unterstützt keine Bögen, Splines oder Bohrzyklen — zuerst „Bögen zu Linien“ ausführen.",
     "app.msg.converted": "{0} umgewandelt: {1} Zeilen",
     "app.msg.convertFailed": "Umwandlung fehlgeschlagen: {0}",

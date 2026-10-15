@@ -167,6 +167,20 @@ public class AxisAliasWiringTests : IDisposable
     }
 
     [Fact]
+    public void Duplicate_aliases_stay_deterministic_and_last_wins()
+    {
+        // A duplicate is flagged as an error (invariant 8) but the profile still
+        // resolves, and the map must not depend on dictionary luck: axes are
+        // written in plane-then-optional order, so the last writer wins.
+        var profile = FoamWithAlias('U');       // plane 2's first axis, index 2
+        profile.Planes[0].Axes[0].Alias = 'U';  // plane 1's first axis, written first
+        var k = MachineKinematicsResolver.Resolve(profile, "XYZA", 4);
+
+        Assert.Contains(k.Problems, p => p.Code == KinematicsProblemCodes.AliasDuplicate);
+        Assert.Equal(2, k.AliasMap['U']);
+    }
+
+    [Fact]
     public void A_program_letter_resolves_through_the_alias()
     {
         // The board has no U; the CAM writes one for plane 2's first axis. Without

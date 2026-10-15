@@ -11,7 +11,6 @@
     "module.plotter-gl.renderUnavailable.notSupported": "Vulkan no está disponible en este sistema. Instale o active el controlador de Vulkan y reinicie SenderNG. Ejecute vulkaninfo --summary para comprobarlo.",
     "module.plotter-gl.renderUnavailable.runtimeError": "Vulkan está disponible, pero no se pudo crear ningún dispositivo Vulkan 1.3. Puede que su controlador gráfico sea anterior a Vulkan 1.3. Ejecute vulkaninfo --summary para comprobarlo.",
     "module.plotter-gl.renderUnavailable.other": "El trazado 3D no pudo iniciarse ni continuar. Consulte el registro de diagnóstico para conocer el error exacto.",
-    "module.plotter-gl.settings.plane": "Plano {0}",
     "module.plotter-gl.settings.view": "Vista",
     "module.plotter-gl.settings.showOrigin": "Mostrar origen",
     "module.plotter-gl.settings.showEnvelope": "Mostrar envolvente",

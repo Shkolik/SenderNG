@@ -458,7 +458,7 @@
     "app.transform.wrap.diameter": "Diamètre (mm)",
     "app.transform.wrap.z0AtCenter": "Z0 au centre",
     "app.transform.wrap.axisLabel": "Axe {0}",
-    "app.transform.wrap.noRotaryAxis": "L'enroulement nécessite un axe rotatif (A/B) signalé par le contrôleur.",
+    "app.transform.wrap.noRotaryAxis": "L'enroulement nécessite un axe rotatif (A/B) déclaré dans le profil de la machine.",
     "app.transform.wrap.arcsUnsupported": "L'enroulement ne prend pas en charge les arcs, splines ou cycles de perçage — exécutez d'abord « Arcs en lignes ».",
     "app.msg.converted": "{0} converti : {1} lignes",
     "app.msg.convertFailed": "Échec de la conversion : {0}",

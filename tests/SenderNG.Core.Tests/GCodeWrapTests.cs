@@ -123,6 +123,16 @@ public class GCodeWrapTests
     }
 
     [Fact]
+    public void Wrap_does_not_shift_z_on_a_g53_machine_coordinate_move()
+    {
+        // A G53 line that also spells its motion splits into the passthrough G53
+        // token plus a plain motion token carrying the axis words — in either word
+        // order. The center shift must not touch the machine coordinates.
+        var result = Wrap("G53 G0 Z0\nG0 G53 Z0\n", zShift: 25d);
+        Assert.Equal(["(Wrap applied)", "G53G0Z0", "G53G0Z0"], result.Split('\n'));
+    }
+
+    [Fact]
     public void Wrap_refuses_arcs()
     {
         var program = GCodeProgram.Parse("G2 X10 Y0 I5 J0\n");

@@ -87,10 +87,11 @@ public static class AxisLetters
     /// (e.g. "XYZA", "XYUV"); null or empty when the board reported none.</param>
     /// <param name="aliases">Per-axis CAM aliases: program letter to grbl axis
     /// index. An alias that the board's letters already contain can never be
-    /// reached — the board wins, and the kinematics model rejects such a profile
-    /// (invariant 8). Two axes cannot claim the same alias letter through a
-    /// dictionary key; a case-variant collision resolves to the exact key, so the
-    /// result is deterministic.</param>
+    /// reached — the board wins, and the kinematics model flags such a profile
+    /// (invariant 8) without dropping the alias. A duplicate between two axes is
+    /// one dictionary key in this map, so the last axis written wins; a
+    /// case-variant collision resolves to the exact key. Deterministic either
+    /// way.</param>
     /// <param name="letter">The letter as written in the program.</param>
     /// <param name="index">The resolved grbl axis index; -1 when unresolved.</param>
     public static bool TryResolve(

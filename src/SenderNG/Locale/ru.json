@@ -548,7 +548,7 @@
     "app.transform.wrap.diameter": "Диаметр (мм)",
     "app.transform.wrap.z0AtCenter": "Z0 по центру",
     "app.transform.wrap.axisLabel": "Ось {0}",
-    "app.transform.wrap.noRotaryAxis": "Для оборачивания нужна поворотная ось (A/B), сообщаемая контроллером.",
+    "app.transform.wrap.noRotaryAxis": "Для оборачивания нужна поворотная ось (A/B), заданная в профиле станка.",
     "app.transform.wrap.arcsUnsupported": "Оборачивание не поддерживает дуги, сплайны и циклы сверления — сначала выполните «Дуги → линии».",
     "app.msg.converted": "Конвертировано {0}: {1} строк",
     "app.msg.convertFailed": "Ошибка конвертации: {0}",

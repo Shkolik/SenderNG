@@ -458,7 +458,7 @@
     "app.transform.wrap.diameter": "Diameter (mm)",
     "app.transform.wrap.z0AtCenter": "Z0 at center",
     "app.transform.wrap.axisLabel": "{0}-axis",
-    "app.transform.wrap.noRotaryAxis": "Wrap/unwrap needs a rotary axis (A/B) reported by the controller.",
+    "app.transform.wrap.noRotaryAxis": "Wrap/unwrap needs a rotary axis (A/B) declared in the machine profile.",
     "app.transform.wrap.arcsUnsupported": "Wrap/unwrap does not support arcs, splines or canned cycles — run Arcs to lines first.",
     "app.msg.converted": "Converted {0}: {1} lines",
     "app.msg.convertFailed": "Conversion failed: {0}",

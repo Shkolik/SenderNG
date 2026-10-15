@@ -1920,4 +1920,34 @@ public class MachineAxesEditorTests
             Directory.Delete(dir, recursive: true);
         }
     }
-}
+
+    [Fact]
+    public void Numeric_fields_reject_values_that_overflow_to_infinity()
+    {
+        // The field filter blocks letters but not digit overflow, and pasted text
+        // bypasses the filter entirely. A non-finite value would be stored and then
+        // make the settings serializer throw on the next save.
+        Assert.False(MachineAxesViewModel.TryParseNumber("Infinity", out _));
+        Assert.False(MachineAxesViewModel.TryParseNumber("1e400", out _));
+        Assert.False(MachineAxesViewModel.TryParseNumber(new string('9', 400), out _));
+
+        // Control: ordinary values still parse.
+        Assert.True(MachineAxesViewModel.TryParseNumber("12.5", out var value));
+        Assert.Equal(12.5, value);
+    }
+
+    [Fact]
+    public void Alias_normalization_accepts_only_resolvable_axis_letters()
+    {
+        Assert.Equal('A', MachineAxisRowViewModel.NormalizeAlias(" a "));
+        Assert.Equal('U', MachineAxisRowViewModel.NormalizeAlias("U"));
+
+        // A letter the parser can never resolve would be a stored-but-dead alias:
+        // it must clear instead. So must multi-character text (no silent truncation).
+        Assert.Null(MachineAxisRowViewModel.NormalizeAlias("Q"));
+        Assert.Null(MachineAxisRowViewModel.NormalizeAlias("1"));
+        Assert.Null(MachineAxisRowViewModel.NormalizeAlias("ab"));
+        Assert.Null(MachineAxisRowViewModel.NormalizeAlias(""));
+        Assert.Null(MachineAxisRowViewModel.NormalizeAlias(null));
+    }
+}

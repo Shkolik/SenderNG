@@ -292,7 +292,8 @@ public sealed class MachineAxisRowViewModel : ViewModelBase
     }
 
     /// <summary>Store the optional inbound CAM alias. Empty clears it; anything that is
-    /// not a letter clears it too, because a non-letter can never be a program letter.</summary>
+    /// not a single resolvable axis letter clears it too, because such text can never
+    /// match a program word.</summary>
     public void ApplyAlias(string? text)
     {
         var alias = NormalizeAlias(text);
@@ -302,14 +303,17 @@ public sealed class MachineAxisRowViewModel : ViewModelBase
         _owner.CommitEdit();
     }
 
-    /// <summary>A single upper-case letter, or null for empty / not-a-letter.</summary>
+    /// <summary>Exactly one upper-case axis letter (<c>XYZABCUVW</c>) after trimming, or
+    /// null for anything else: empty, longer text, or a character the parser can never
+    /// resolve — a stored-but-dead alias would validate clean and then silently do
+    /// nothing.</summary>
     public static char? NormalizeAlias(string? text)
     {
         var trimmed = (text ?? string.Empty).Trim();
-        if (trimmed.Length == 0)
+        if (trimmed.Length != 1)
             return null;
         var letter = char.ToUpperInvariant(trimmed[0]);
-        return char.IsLetter(letter) ? letter : null;
+        return MachineType.ConventionalLetters.Contains(letter) ? letter : null;
     }
 
     /// <summary>The stored pivot coordinate for one of the two perpendicular slots.</summary>
@@ -764,11 +768,18 @@ public sealed class MachineAxesViewModel : ViewModelBase
 
     private void Save()
     {
-        var live = _settings.Load();
-        if (string.Equals(live.Id, _profile.Id, StringComparison.Ordinal))
-            _settings.Save(_profile);
-        else
-            _settings.SaveProfile(_profile);
+        try
+        {
+            var live = _settings.Load();
+            if (string.Equals(live.Id, _profile.Id, StringComparison.Ordinal))
+                _settings.Save(_profile);
+            else
+                _settings.SaveProfile(_profile);
+        }
+        catch
+        {
+            // Best-effort persistence; the edit still applies for the session.
+        }
     }
 
     private void Rebuild()
@@ -892,7 +903,10 @@ public sealed class MachineAxesViewModel : ViewModelBase
     ];
 
     /// <summary>Parses a numeric field: the current culture first, then invariant (a
-    /// decimal point typed under a comma culture still reads). Empty means zero.</summary>
+    /// decimal point typed under a comma culture still reads). Empty means zero.
+    /// Non-finite values (an overflow to infinity) are rejected: the field filter
+    /// blocks letters but not digit overflow, and a stored infinity would make the
+    /// settings serializer throw on the next save.</summary>
     public static bool TryParseNumber(string? text, out double value)
     {
         var trimmed = (text ?? string.Empty).Trim();
@@ -901,7 +915,8 @@ public sealed class MachineAxesViewModel : ViewModelBase
             value = 0;
             return true;
         }
-        return double.TryParse(trimmed, NumberStyles.Float, CultureInfo.CurrentCulture, out value)
-            || double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+        return (double.TryParse(trimmed, NumberStyles.Float, CultureInfo.CurrentCulture, out value)
+            || double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+            && double.IsFinite(value);
     }
 }

@@ -95,7 +95,6 @@ public class PlotterGlModule : IModule, ILocalizedModule, IPluginInfo, IPluginDe
         {
             ["module.plotter-gl.name"] = "Plot 3D",
             ["module.plotter-gl.description"] = "G-code 3D path plotter: program toolpath with live run overlay.",
-            ["module.plotter-gl.settings.plane"] = "Plane {0}",
             ["module.plotter-gl.settings.view"] = "View",
             ["module.plotter-gl.settings.showOrigin"] = "Show origin",
             ["module.plotter-gl.settings.showEnvelope"] = "Show envelope",

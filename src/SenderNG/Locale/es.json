@@ -458,7 +458,7 @@
     "app.transform.wrap.diameter": "Diámetro (mm)",
     "app.transform.wrap.z0AtCenter": "Z0 en el centro",
     "app.transform.wrap.axisLabel": "Eje {0}",
-    "app.transform.wrap.noRotaryAxis": "Enrollar/desenrollar requiere un eje rotativo (A/B) informado por el controlador.",
+    "app.transform.wrap.noRotaryAxis": "Enrollar/desenrollar requiere un eje rotativo (A/B) declarado en el perfil de la máquina.",
     "app.transform.wrap.arcsUnsupported": "Enrollar/desenrollar no admite arcos, splines ni ciclos de taladrado — ejecute primero «Arcos a líneas».",
     "app.msg.converted": "Convertido {0}: {1} líneas",
     "app.msg.convertFailed": "Error de conversión: {0}",

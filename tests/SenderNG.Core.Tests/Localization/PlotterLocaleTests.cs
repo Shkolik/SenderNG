@@ -3,8 +3,8 @@
  *
  * Drift guard for the Skia plotter's own locale files: en and ru must carry the
  * same keys, every key the view chrome resolves must exist in both, none may be
- * blank, the one formatted key must keep its placeholder, and the orphaned
- * `module.plotter.loft` and `module.plotter.isometric` must stay deleted.
+ * blank, and the orphaned `module.plotter.loft`, `module.plotter.isometric` and
+ * `module.plotter.settings.plane` must stay deleted.
  *
  * Three corrections to the plan's version of this file, each verified against the
  * files rather than assumed:
@@ -43,11 +43,11 @@ namespace SenderNG.Core.Tests.Localization;
 
 public class PlotterLocaleTests
 {
-    /// <summary>The 10 keys the view chrome still resolves: 9 label properties on
-    /// <c>PlotterSettingsViewModel</c> plus the per-row plane placeholder. The
-    /// per-plane world-axes / origin rows went with the per-plotter axis mapping
-    /// (2026-10-14 — the machine profile owns it now), so their two keys are gone
-    /// from here and from the catalog.
+    /// <summary>The 9 label properties the view chrome still resolves on
+    /// <c>PlotterSettingsViewModel</c>. The per-plane world-axes / origin rows
+    /// (and the plane placeholder they fed) went with the per-plotter axis
+    /// mapping (2026-10-14 — the machine profile owns it now), so their three
+    /// keys are gone from here and from the catalog.
     /// Listed here rather than reflected out of the VM so that deleting a label
     /// from the VM without adding its key still fails the build.</summary>
     private static readonly string[] ViewChromeKeys =
@@ -57,7 +57,6 @@ public class PlotterLocaleTests
         "module.plotter.settings.showOrigin",
         "module.plotter.settings.showEnvelope",
         "module.plotter.settings.showRunState",
-        "module.plotter.settings.plane",
         "module.plotter.zoomIn",
         "module.plotter.zoomOut",
         "module.plotter.zoomFit",
@@ -102,22 +101,15 @@ public class PlotterLocaleTests
         }
     }
 
-    /// <summary>The plane row substitutes a 1-based number, so the placeholder has
-    /// to survive translation — a Russian "Плоскость" with no <c>{0}</c> would
-    /// render every row identically.</summary>
-    [Theory]
-    [InlineData("en.json")]
-    [InlineData("ru.json")]
-    public void The_plane_key_keeps_its_placeholder(string locale)
+    /// <summary>The plane placeholder fed the per-plane rows that went with the
+    /// per-plotter axis mapping — nothing in the view resolves it now. Asserted
+    /// gone so a re-add has to be a deliberate edit here too, exactly as the
+    /// loft key was.</summary>
+    [Fact]
+    public void The_orphaned_plane_key_is_gone()
     {
-        // TryGetProperty rather than GetProperty: a bare KeyNotFoundException names
-        // neither the file nor the key, so an absent key and a lost placeholder
-        // produced indistinguishable failures.
-        var strings = Strings(locale);
-        Assert.True(
-            strings.TryGetProperty("module.plotter.settings.plane", out var plane),
-            $"{locale}:module.plotter.settings.plane is absent");
-        Assert.Contains("{0}", plane.GetString());
+        Assert.DoesNotContain("module.plotter.settings.plane", Keys("en.json"));
+        Assert.DoesNotContain("module.plotter.settings.plane", Keys("ru.json"));
     }
 
     [Fact]

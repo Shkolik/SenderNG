@@ -12,7 +12,6 @@
     "module.plotter.settings.showOrigin": "Mostrar origen",
     "module.plotter.settings.showEnvelope": "Mostrar envolvente",
     "module.plotter.settings.showRunState": "Mostrar estado de ejecución",
-    "module.plotter.settings.plane": "Plano {0}",
     "module.plotter.zoomIn": "Acercar",
     "module.plotter.zoomOut": "Alejar",
     "module.plotter.zoomFit": "Ajustar",

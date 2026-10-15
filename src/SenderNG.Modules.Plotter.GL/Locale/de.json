@@ -11,7 +11,6 @@
     "module.plotter-gl.renderUnavailable.notSupported": "Vulkan ist auf diesem System nicht verfügbar. Vulkan-Treiber installieren oder aktivieren, dann SenderNG neu starten. Zur Prüfung vulkaninfo --summary ausführen.",
     "module.plotter-gl.renderUnavailable.runtimeError": "Vulkan ist verfügbar, aber es konnte kein Gerät mit Vulkan 1.3 erstellt werden. Möglicherweise ist der Grafiktreiber älter als Vulkan 1.3. Zur Prüfung vulkaninfo --summary ausführen.",
     "module.plotter-gl.renderUnavailable.other": "Die 3D-Darstellung konnte nicht gestartet oder fortgesetzt werden. Details zum genauen Fehler stehen im Diagnoseprotokoll.",
-    "module.plotter-gl.settings.plane": "Ebene {0}",
     "module.plotter-gl.settings.view": "Ansicht",
     "module.plotter-gl.settings.showOrigin": "Ursprung anzeigen",
     "module.plotter-gl.settings.showEnvelope": "Umriss anzeigen",

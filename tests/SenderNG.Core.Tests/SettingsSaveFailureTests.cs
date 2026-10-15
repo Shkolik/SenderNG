@@ -140,4 +140,20 @@ public class SettingsSaveFailureTests
         Poison(settings.SettingsDir);
         vm.ZHome = 42; // setter -> Save(); must not throw
     }
+
+    [Fact]
+    public void MachineAxes_edit_survives_an_io_failure_and_keeps_working_after_recovery()
+    {
+        var (dir, settings) = MakeSettings();
+        var vm = new MachineAxesViewModel(settings, (_, fallback) => fallback, settings.Load().Id);
+
+        Poison(dir);
+        vm.Separation = vm.Separation + 1; // setter -> CommitEdit() -> Save(); must not throw
+
+        Unpoison(dir);
+        var fired = false;
+        settings.Changed += () => fired = true;
+        vm.Separation = vm.Separation + 1;
+        Assert.True(fired); // the write path works again after recovery
+    }
 }

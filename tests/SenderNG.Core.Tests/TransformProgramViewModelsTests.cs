@@ -287,6 +287,27 @@ public class TransformProgramViewModelsTests
     }
 
     [Fact]
+    public void WrapDialog_ok_is_disabled_without_a_source_and_target_axis()
+    {
+        // A machine with no rotary offers no wrap target at all: OK must not be
+        // clickable into a silent close.
+        var foam = new WrapProgramViewModel(WrapDirection.Wrap, Kinematics(MachineTypes.Foam, 4));
+        Assert.Null(foam.TargetAxis);
+        Assert.False(foam.OkCommand.CanExecute(null));
+
+        var vm = new WrapProgramViewModel(WrapDirection.Wrap, Kinematics(MachineTypes.Mill, 4, Rotary(3)));
+        Assert.True(vm.OkCommand.CanExecute(null));
+
+        vm.SourceAxis = null;
+        Assert.False(vm.OkCommand.CanExecute(null));
+        vm.SourceAxis = vm.SourceAxes[0];
+        Assert.True(vm.OkCommand.CanExecute(null));
+
+        vm.TargetAxis = null;
+        Assert.False(vm.OkCommand.CanExecute(null));
+    }
+
+    [Fact]
     public void WrapDialog_builds_axis_labels_through_the_injected_formatter()
     {
         var localized = new WrapProgramViewModel(WrapDirection.Wrap,

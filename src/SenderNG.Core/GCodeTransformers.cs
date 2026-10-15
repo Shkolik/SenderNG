@@ -851,8 +851,9 @@ public static class GCodeTransformers
     /// the caller's stream.</summary>
     private static GCodeToken CloneMotion(GCodeToken token) => token switch
     {
-        // Note: GCAbsLinearMotion is a G53-bearing subclass of GCLinearMotion —
-        // it must be matched first (its ctor takes the wrapped motion command).
+        // Note: GCAbsLinearMotion is a G53-bearing sibling of GCLinearMotion
+        // (both descend from GCAxisCommand9) — it needs its own arm before the
+        // fallback, and its ctor takes the wrapped motion command.
         GCAbsLinearMotion abs => new GCAbsLinearMotion(abs.Command, abs.Motion, abs.LineNumber,
             (double[])abs.Values.Clone(), abs.AxisFlags),
         GCLinearMotion lin => new GCLinearMotion(lin.Command, lin.LineNumber,
@@ -876,9 +877,10 @@ public static class GCodeTransformers
     /// remaining linear path is zero — uses units/min (G94) with the feed
     /// converted to target-axis units; a mixed rotary + linear move uses inverse
     /// time (G93) with `F = programFeed / dist`, over the remaining X/Y/Z axes
-    /// only. A move that is not remapped (including G0 rapids) restores the
+    /// only. A rapid or non-remapped move restores the
     /// program's feed mode and value, so a converted F never leaks onwards.
-    /// <paramref name="zShift"/> is added to Z on every motion carrying Z. Arc,
+    /// <paramref name="zShift"/> is added to Z on every work-coordinate motion
+    /// carrying Z; a G53 machine-coordinate move is left untouched. Arc,
     /// spline and canned-cycle tokens are refused, as is a G95 (units/rev) feed
     /// mode — the model assumes a distance-based feed. Inputs are never mutated:
     /// an untouched motion is passed through by reference, a changed one is a new
@@ -961,7 +963,7 @@ public static class GCodeTransformers
                     {
                         var motion = (GCLinearMotion)token;
                         var remapped = !inMachineCoords && motion.AxisFlags.HasFlag(fromFlag);
-                        var shifted = zShift != 0d && motion.AxisFlags.HasFlag(AxisFlags.Z);
+                        var shifted = zShift != 0d && !inMachineCoords && motion.AxisFlags.HasFlag(AxisFlags.Z);
 
                         // Untouched motions pass through by reference; anything the
                         // transform writes is a new token with a cloned array.

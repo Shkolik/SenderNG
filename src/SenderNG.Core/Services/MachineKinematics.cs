@@ -172,9 +172,12 @@ public sealed class MachineKinematics
     /// parser takes (<c>AxisLetters.TryResolve</c>'s alias argument): every
     /// declared axis's <see cref="MachineAxis.Alias"/>, planes and optional axes
     /// alike. Empty when the user declared none.
-    /// <para>The resolver has already rejected an alias that collides with the
-    /// board's letters or with another alias (invariant 8), so this map is safe to
-    /// hand straight to the parser. Inbound only — never displayed.</para>
+    /// <para>The resolver <i>flags</i> an alias that collides with the board's
+    /// letters or with another alias (<see cref="KinematicsProblemCodes.AliasBoardLetter"/>,
+    /// <see cref="KinematicsProblemCodes.AliasDuplicate"/>, invariant 8) but does not
+    /// remove it, so this map can carry a flagged alias. Duplicates are written
+    /// last-wins in plane-then-optional order, which keeps the resolution
+    /// deterministic. Inbound only — never displayed.</para>
     /// <para><b>Profile state, deliberately not connection state.</b> The map is
     /// derived from the profile alone, so a disconnected machine still reports it and
     /// a program parsed while disconnected resolves its CAM letters. Do not "fix" it

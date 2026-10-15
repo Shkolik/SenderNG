@@ -181,7 +181,8 @@ public class WrapProgramViewModel : ViewModelBase, IClosableDialog
         _sourceAxis = Pick(SourceAxes, wrap ? new[] { 1, 0 } : new[] { 3, 4 });
         _targetAxis = Pick(TargetAxes, wrap ? new[] { 3, 4 } : new[] { 0, 1 });
 
-        OkCommand = new DelegateCommand(_ => RequestClose(true), _ => _diameter > 0d);
+        OkCommand = new DelegateCommand(_ => RequestClose(true),
+            _ => _diameter > 0d && _sourceAxis is not null && _targetAxis is not null);
         CancelCommand = new DelegateCommand(_ => RequestClose(false));
     }
 
@@ -196,13 +197,21 @@ public class WrapProgramViewModel : ViewModelBase, IClosableDialog
     public WrapAxisOption? SourceAxis
     {
         get => _sourceAxis;
-        set => SetField(ref _sourceAxis, value);
+        set
+        {
+            if (SetField(ref _sourceAxis, value))
+                (OkCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        }
     }
 
     public WrapAxisOption? TargetAxis
     {
         get => _targetAxis;
-        set => SetField(ref _targetAxis, value);
+        set
+        {
+            if (SetField(ref _targetAxis, value))
+                (OkCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        }
     }
 
     /// <summary>Cylinder diameter in mm. A non-positive value disables OK —

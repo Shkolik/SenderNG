@@ -591,7 +591,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         if (kinematics.RotaryAxes.Count == 0)
         {
             var message = LocText.Resolve("app.transform.wrap.noRotaryAxis",
-                "Wrap/unwrap needs a rotary axis (A/B) reported by the controller.");
+                "Wrap/unwrap needs a rotary axis (A/B) declared in the machine profile.");
             Status = message;
             if (_fileDialogs is not null)
                 await _fileDialogs.ShowErrorAsync(Resolve("app.transform.failedTitle", "Transform failed"), message);
