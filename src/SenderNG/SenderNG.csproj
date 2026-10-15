@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
@@ -27,6 +27,11 @@
     <AvaloniaResource Include="Assets\banner.png" />
     <AvaloniaResource Include="Assets\appIcon.png" />
     <AvaloniaResource Include="Assets\appIcon.ico" />
+    <!-- Machine-topology reference pictures for the profile's axis editor,
+         loaded as avares://SenderNG/Assets/machine-topology/<file>. Wildcarded
+         so replacing a drawing needs no edit here (same pattern as the Probing
+         module's Assets\Probing\*.png). Placeholder art for now. -->
+    <AvaloniaResource Include="Assets\machine-topology\*.png" />
   </ItemGroup>
 
   <ItemGroup>
