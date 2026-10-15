@@ -67,6 +67,16 @@ public sealed class GCodeProgram
     public IReadOnlyList<GCodeToken> Tokens { get; init; } = [];
     public IReadOnlyList<string> Errors { get; init; } = [];
 
+    /// <summary>
+    /// Axis letters the program used that neither the controller's reported letters nor
+    /// the active profile's CAM aliases resolve — the program is for a different
+    /// machine. Their values are kept at the conventional index rather than dropped, so
+    /// the load still succeeds; the caller warns. <b>Data only</b>: the sentence is the
+    /// UI's to localize (Core emits no user-facing text). Empty when every letter
+    /// resolved, which is the ordinary case.
+    /// </summary>
+    public IReadOnlyCollection<char> UnknownAxisLetters { get; init; } = [];
+
     /// <summary>Significant decimals the parser tracked while reading the file
     /// (grows with coordinate word precision, 4 after a G20) — transforms use it
     /// to round rotated values to the file's own resolution.</summary>
@@ -126,6 +136,9 @@ public sealed class GCodeProgram
             Tokens = parser.Tokens,
             Errors = errors,
             Decimals = parser.Decimals,
+            // The parser records a letter neither the board's letters nor the profile's
+            // aliases know; without this it was consumed by nobody.
+            UnknownAxisLetters = [.. parser.UnknownAxisLetters],
         };
     }
 }

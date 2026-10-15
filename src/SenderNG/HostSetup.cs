@@ -138,6 +138,15 @@ public static class HostSetup
             // "my CAM writes U" case) resolves through the profile's
             // MachineAxis.Alias entries. Current merges stored profile state with
             // live controller state, so this must follow every change to it.
+            //
+            // Unlike the board's letters, the aliases are PROFILE state, not connection
+            // state — they deliberately survive a disconnect. A program is parsed when
+            // it loads (and by the transformers), which can be while disconnected, and
+            // clearing the map then would re-seat an alias letter on its conventional
+            // slot: a wrong physical axis on a token list that is parsed now and run
+            // later. Nothing stale can linger either way: Changed fires on connect, on
+            // disconnect and on a profile switch, and each pushes a map freshly derived
+            // from the active profile.
             void PushAliases() =>
                 CNC.Core.GrblInfo.Current.AxisAliases = provider.Current.AliasMap;
 

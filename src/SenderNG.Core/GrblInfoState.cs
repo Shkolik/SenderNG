@@ -65,6 +65,10 @@ public class GrblInfoState
         set => _numAxes = value;
     }
 
+    /// <summary>The letter at an axis index. Throws once the index reaches the reported
+    /// letter set (a short <c>[AXS:4:XYZA]</c> board against a nine-axis walk) — a caller
+    /// rendering an arbitrary index wants <see cref="AxisLetters.LetterAt"/> instead,
+    /// which yields <c>'?'</c>.</summary>
     public string AxisIndexToLetter(int index) => AxisLetters.Substring(index, 1);
 
     public int AxisLetterToIndex(string letter) => AxisLetters.IndexOf(letter);

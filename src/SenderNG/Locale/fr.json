@@ -414,6 +414,7 @@
     "app.msg.mdiFailed": "Échec MDI : {0}",
     "app.msg.validationFailed": "Échec de la validation : {0} ({1} erreur(s))",
     "app.msg.loaded": "{0} chargé ({1} lignes)",
+    "app.msg.unknownAxisLetters": "{0} chargé ({1} lignes), mais le programme utilise des lettres d'axe que cette machine ne connaît pas : {2}",
     "app.msg.saved": "{0} enregistré",
     "app.msg.saveFailed": "Échec de l'enregistrement : {0}",
     "app.msg.settingsCorruptMoved": "Le fichier de paramètres {0} était endommagé ; les valeurs par défaut ont été chargées à la place. L'original a été conservé dans le même dossier avec un nom se terminant par .corrupt",

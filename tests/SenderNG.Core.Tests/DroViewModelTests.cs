@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Reactive.Subjects;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
 using SenderNG.Core.Services;
 using SenderNG.Localization;
@@ -42,6 +43,11 @@ using SenderNG.Modules.Fixed;
 
 namespace SenderNG.Core.Tests;
 
+// Serialized with the other LocalizationState classes: DroKinematicsTests swaps
+// LocalizationService.Current for its localized-warning test, and LocText reads that
+// static from every DRO instance — including this class's, which runs in parallel
+// otherwise and would see the Russian tip text mid-swap.
+[Collection("LocalizationState")]
 public class DroViewModelTests
 {
     private sealed class BehaviorSubjectGrbl : IGrblService
@@ -298,9 +304,32 @@ public class DroProxyInitialStateTests
 /// unknown linear axis and is warned about exactly once — the rows are labelled with
 /// the board's own letters, and a rotary axis reads in degrees instead of millimetres.
 /// </summary>
+[Collection("LocalizationState")] // the localized-warning test swaps LocalizationService.Current
 public class DroKinematicsTests : IDisposable
 {
     private readonly List<string> _dirs = new();
+
+    /// <summary>Run <paramref name="body"/> with the real English catalog installed.
+    /// <see cref="LocText"/> falls back to the caller's English literal when no service is
+    /// set, so without this an assertion on the warning's sentence would depend on
+    /// whether some other test happened to install a catalog first.</summary>
+    private static void WithEnglishCatalog(Action body)
+    {
+        var previous = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = LocalizationService.LoadFromDirectory(
+                Path.Combine(AppContext.BaseDirectory, "Locale"));
+            body();
+        }
+        finally
+        {
+            LocalizationService.Current = previous;
+        }
+    }
+
+    private static string UndeclaredAxesSentence() =>
+        LocalizationService.Current!.T("appSettings.axes.problem.controller.undeclaredAxes");
 
     public void Dispose()
     {
@@ -368,14 +397,19 @@ public class DroKinematicsTests : IDisposable
         var grbl = new CapabilityGrbl(subject, Board(4, "XYZA"));
         using var kinematics = new MachineKinematicsProvider(settings, grbl);
 
-        var vm = new DroViewModel(grbl, kinematics);
+        WithEnglishCatalog(() =>
+        {
+            var vm = new DroViewModel(grbl, kinematics);
 
-        Assert.Equal(4, vm.Axes.Count);
-        Assert.Equal(["X", "Y", "Z", "A"], vm.Axes.Select(a => a.Letter));
-        Assert.False(vm.Axes[3].IsRotary);
-        Assert.Equal(string.Empty, vm.Axes[3].Unit);
-        Assert.Equal(4, vm.Axes[3].Position);
-        Assert.Contains("not declared", vm.Status);
+            Assert.Equal(4, vm.Axes.Count);
+            Assert.Equal(["X", "Y", "Z", "A"], vm.Axes.Select(a => a.Letter));
+            Assert.False(vm.Axes[3].IsRotary);
+            Assert.Equal(string.Empty, vm.Axes[3].Unit);
+            Assert.Equal(4, vm.Axes[3].Position);
+            // The warning is the catalog's sentence for the problem's Code: the DRO
+            // localizes, and KinematicsProblem.Message is developer-facing English only.
+            Assert.Equal(UndeclaredAxesSentence(), vm.Status);
+        });
     }
 
     [Fact]
@@ -414,6 +448,38 @@ public class DroKinematicsTests : IDisposable
     }
 
     [Fact]
+    public void The_undeclared_axes_warning_is_the_catalogs_sentence_not_the_resolvers_english()
+    {
+        // The resolver's Message is English developer text (KinematicsProblem.Message);
+        // the DRO is a localized UI, so its status must be the catalog sentence for the
+        // problem's Code — the same mapping the machine-card editor renders. Run in a
+        // real non-English locale so an English string reaching the status is visible.
+        var settings = MakeSettings(withRotaryAxis: false);
+        var subject = new BehaviorSubject<MachineState>(
+            new MachineState { NumAxes = 4, Positions = [1, 2, 3, 4] });
+        var grbl = new CapabilityGrbl(subject, Board(4, "XYZA"));
+        using var kinematics = new MachineKinematicsProvider(settings, grbl);
+
+        var previous = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = LocalizationService.LoadFromDirectory(
+                Path.Combine(AppContext.BaseDirectory, "Locale"), "ru");
+
+            var vm = new DroViewModel(grbl, kinematics);
+
+            Assert.Equal(
+                LocalizationService.Current.T("appSettings.axes.problem.controller.undeclaredAxes"),
+                vm.Status);
+            Assert.DoesNotContain("not declared", vm.Status);
+        }
+        finally
+        {
+            LocalizationService.Current = previous;
+        }
+    }
+
+    [Fact]
     public void The_undeclared_axes_warning_fires_once_across_repeated_updates()
     {
         var settings = MakeSettings(withRotaryAxis: false);
@@ -421,25 +487,30 @@ public class DroKinematicsTests : IDisposable
             new MachineState { NumAxes = 3, Positions = [1, 2, 3] });
         var grbl = new CapabilityGrbl(subject, Board(3, "XYZ"));
         using var kinematics = new MachineKinematicsProvider(settings, grbl);
-        var vm = new DroViewModel(grbl, kinematics);
-        Assert.Equal(string.Empty, vm.Status); // three declared, three reported
 
-        var warnings = 0;
-        vm.PropertyChanged += (_, e) =>
+        WithEnglishCatalog(() =>
         {
-            if (e.PropertyName == nameof(DroViewModel.Status) && vm.Status.Contains("not declared"))
-                warnings++;
-        };
+            var vm = new DroViewModel(grbl, kinematics);
+            Assert.Equal(string.Empty, vm.Status); // three declared, three reported
 
-        // The board reveals a fourth axis: one warning, then no repeat however many
-        // status reports this continuously-refreshing view consumes.
-        grbl.Capabilities = Board(4, "XYZA");
-        kinematics.Refresh();
-        subject.OnNext(new MachineState { NumAxes = 4, Positions = [1, 2, 3, 4] });
-        subject.OnNext(new MachineState { NumAxes = 4, Positions = [1, 2, 3, 5] });
-        subject.OnNext(new MachineState { NumAxes = 4, Positions = [1, 2, 3, 6] });
+            var expected = UndeclaredAxesSentence();
+            var warnings = 0;
+            vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(DroViewModel.Status) && vm.Status == expected)
+                    warnings++;
+            };
 
-        Assert.Equal(1, warnings);
-        Assert.Equal(4, vm.Axes.Count);
+            // The board reveals a fourth axis: one warning, then no repeat however many
+            // status reports this continuously-refreshing view consumes.
+            grbl.Capabilities = Board(4, "XYZA");
+            kinematics.Refresh();
+            subject.OnNext(new MachineState { NumAxes = 4, Positions = [1, 2, 3, 4] });
+            subject.OnNext(new MachineState { NumAxes = 4, Positions = [1, 2, 3, 5] });
+            subject.OnNext(new MachineState { NumAxes = 4, Positions = [1, 2, 3, 6] });
+
+            Assert.Equal(1, warnings);
+            Assert.Equal(4, vm.Axes.Count);
+        });
     }
 }

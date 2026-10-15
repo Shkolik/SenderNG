@@ -177,6 +177,54 @@ public class AxisFlagsAllTests
     }
 
     [Fact]
+    public void Rendering_a_command_wider_than_the_board_letters_does_not_throw()
+    {
+        // Regression: the axis-command ToString() called
+        // GrblInfo.AxisIndexToLetter(i) -> AxisLetters.Substring(i, 1), which throws
+        // once an index reaches the board's letter count. AxisFlags.All (0x1FF) walks
+        // all nine indices, so on a four-letter [AXS:4:XYZA] board indices 4..8 threw
+        // ArgumentOutOfRangeException — and widening All from 0x3F made that the walk
+        // Machine.Reset, the tool-offset copies and the emulator's G28/G30 fallback
+        // all take. An index past the board's letters has no letter; it renders as
+        // '?', exactly as MachineKinematics.LetterFor treats an out-of-range index.
+        var previous = GrblInfo.Current;
+        try
+        {
+            GrblInfo.Current = new GrblInfoState { AxisLetters = "XYZA", NumAxes = 4 };
+
+            var motion = new GCLinearMotion(CNC.GCode.Commands.G1, 1, new double[9], AxisFlags.All);
+
+            Assert.Equal("G1X0Y0Z0A0?0?0?0?0?0", motion.ToString());
+        }
+        finally
+        {
+            GrblInfo.Current = previous;
+        }
+    }
+
+    [Fact]
+    public void TokensToGCode_renders_a_command_wider_than_the_board_letters()
+    {
+        // The only reachable path to the crash above: the emulator rebuilds G28/G30
+        // tokens with AxisFlags.All and the transformers feed them through
+        // TokensToGCode, which calls an axis command's ToString().
+        var previous = GrblInfo.Current;
+        try
+        {
+            GrblInfo.Current = new GrblInfoState { AxisLetters = "XYZA", NumAxes = 4 };
+            var token = new GCLinearMotion(CNC.GCode.Commands.G1, 1, [1, 2, 3, 4, 5, 6, 7, 8, 9], AxisFlags.All);
+
+            var lines = GCodeParser.TokensToGCode([token]);
+
+            Assert.Equal("G1X1Y2Z3A4?5?6?7?8?9", Assert.Single(lines));
+        }
+        finally
+        {
+            GrblInfo.Current = previous;
+        }
+    }
+
+    [Fact]
     public void G28_without_axis_words_moves_every_axis_including_UVW()
     {
         // G28 with no axis words means "all axes to the predefined position", so

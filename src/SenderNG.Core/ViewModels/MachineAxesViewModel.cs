@@ -863,16 +863,10 @@ public sealed class MachineAxesViewModel : ViewModelBase
     {
         // The invariant's *code* is the localizable contract; Message is English
         // developer text and is only the fallback when a catalog lacks the key (so a
-        // missing translation can never surface a raw key).
-        var key = problem.Code == KinematicsProblemCodes.PlaneCountMismatch && problem.Plane < 0
-            ? "appSettings.axes.problem.planes.countMismatch"
-            : "appSettings.axes.problem." + problem.Code;
-        var number = problem.AxisIndex >= 0
-            ? problem.AxisIndex
-            : problem.Plane >= 0
-                ? problem.Plane + 1
-                : 0;
-        return Resolve(key, problem.Message).Replace("{0}", number.ToString(CultureInfo.CurrentCulture));
+        // missing translation can never surface a raw key). The mapping itself lives in
+        // KinematicsProblemText because the DRO's undeclared-axes warning renders the
+        // same codes — one map, two consumers.
+        return KinematicsProblemText.Localize(problem, Resolve);
     }
 
     private IReadOnlyList<AxisIndexChoice> BuildIndexChoices()

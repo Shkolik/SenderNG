@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Collections.Generic;
 using System.Linq;
 using CNC.Core;
+using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using CNC.GCode;
 using Xunit;
@@ -48,9 +49,40 @@ namespace SenderNG.Core.Tests;
 /// because a post-processor may name an axis the board names differently. T1
 /// stored it and T2 resolved it with an empty map, so before this wiring the
 /// feature was dead code: a stored alias that nothing read.
+/// <para>Serialized (<c>LegacyStatics</c>): the parser round trip swaps the
+/// process-global <see cref="GrblInfo.Current"/> to stand in for the host's ambient
+/// push, which every parser construction in the suite reads.</para>
 /// </summary>
-public class AxisAliasWiringTests
+[Collection("LegacyStatics")]
+public class AxisAliasWiringTests : IDisposable
 {
+    private readonly List<string> _dirs = new();
+
+    public void Dispose()
+    {
+        foreach (var dir in _dirs)
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    private SettingsService SettingsWithAlias(char? alias)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-alias-wiring-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        _dirs.Add(dir);
+
+        var settings = new SettingsService(dir);
+        var profile = settings.Load();
+        var type = MachineTypeCatalog.Resolve(MachineTypes.Foam);
+        profile.MachineTypeId = MachineTypes.Foam;
+        profile.Planes = type.CreateDefaultPlanes();
+        // Plane 2's first slot is index 2 by default; alias it.
+        profile.Planes[1].Axes[0].Alias = alias;
+        settings.Save(profile);
+        return settings;
+    }
+
     private static MachineProfile FoamWithAlias(char? alias)
     {
         var type = MachineTypeCatalog.Resolve(MachineTypes.Foam);
@@ -59,6 +91,33 @@ public class AxisAliasWiringTests
         // Plane 2's first slot is index 2 by default; alias it.
         profile.Planes[1].Axes[0].Alias = alias;
         return profile;
+    }
+
+    /// <summary>Connection double: capabilities land first, then a connect/disconnect
+    /// raise — the ordering the real handshake approximates and the provider assumes.</summary>
+    private sealed class FakeGrbl : IGrblService
+    {
+        public bool IsConnected { get; private set; }
+        public ControllerCapabilities Capabilities { get; set; } = ControllerCapabilities.Unknown;
+        public event EventHandler? ConnectionChanged;
+
+        public IObservable<MachineState> State => System.Reactive.Linq.Observable.Empty<MachineState>();
+
+        public void Connect()
+        {
+            IsConnected = true;
+            ConnectionChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void Disconnect()
+        {
+            IsConnected = false;
+            ConnectionChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public Task ConnectAsync(string port) { Connect(); return Task.CompletedTask; }
+        public void SendRealtime(byte code) { }
+        public Task SendAsync(string line) => Task.CompletedTask;
     }
 
     private static GCLinearMotion Motion(GCodeParser parser, string block)
@@ -165,6 +224,116 @@ public class AxisAliasWiringTests
 
             var motion = Motion(parser, "G1 X0 U5 F100");
             Assert.Equal(5d, motion.Values[2]);
+        }
+        finally
+        {
+            GrblInfo.Current = previous;
+        }
+    }
+
+    /* -----------------------------------------------------------------------
+     * Lifetime: the map is PROFILE state, not connection state
+     * --------------------------------------------------------------------- */
+
+    [Fact]
+    public void The_profiles_aliases_reach_the_ambient_state_before_any_connect()
+    {
+        // The startup push: HostSetup writes the first resolution's AliasMap into the
+        // ambient state, and a program loaded offline cannot re-derive it — the load gate
+        // only constructs a GCodeParser, which reads that ambient state. Without a
+        // controller the reported count is 0, so the map can only come from the stored
+        // profile.
+        var settings = SettingsWithAlias('U');
+        var grbl = new FakeGrbl();
+        using var provider = new MachineKinematicsProvider(settings, grbl);
+
+        Assert.Equal(0, provider.Current.ReportedAxes);
+        Assert.Equal(2, provider.Current.AliasMap['U']);
+
+        var previous = GrblInfo.Current;
+        try
+        {
+            // Exactly what HostSetup's startup PushAliases() leaves behind.
+            GrblInfo.Current = new GrblInfoState { AxisAliases = provider.Current.AliasMap };
+
+            var parser = new GCodeParser();          // the ctor calls Reset()
+
+            Assert.Equal(2, parser.AxisAliases['U']);
+        }
+        finally
+        {
+            GrblInfo.Current = previous;
+        }
+    }
+
+    [Fact]
+    public void The_map_follows_the_active_profile_so_nothing_stale_can_linger()
+    {
+        // The anti-leakage property the brief's "empty after a disconnect" criterion was
+        // really after: the map is re-derived and re-pushed on every publish, so a
+        // profile switch replaces it outright — an alias from another profile cannot
+        // survive in the ambient state the parser reads.
+        var settings = SettingsWithAlias('U');
+        var grbl = new FakeGrbl();
+        using var provider = new MachineKinematicsProvider(settings, grbl);
+        var aliasedProfileId = provider.Current.ProfileId;
+        Assert.Equal(2, provider.Current.AliasMap['U']);
+
+        var changes = 0;
+        provider.Changed += (_, _) => changes++;
+
+        var plain = settings.CreateProfile("no-aliases", MachineTypes.Mill);
+        settings.Activate(plain.Id);
+        Assert.Empty(provider.Current.AliasMap);
+
+        settings.Activate(aliasedProfileId);
+        Assert.Equal(2, provider.Current.AliasMap['U']);
+
+        Assert.True(changes >= 2, $"expected a publish per profile switch, got {changes}");
+    }
+
+    [Fact]
+    public void A_disconnect_keeps_the_profiles_aliases_so_an_offline_load_still_resolves_them()
+    {
+        // Deliberate, and pinned: the CAM alias belongs to the PROFILE (the machine
+        // setup), not to the connection. It exists *because* the controller's letters
+        // differ from what the CAM writes, so making its lifetime depend on the
+        // connection inverts the dependency. A program is parsed when it loads — the
+        // load gate's new GCodeParser(), and the transformers — which can be while
+        // disconnected; emptying the map there would re-seat the alias letter on its
+        // conventional index, the wrong physical axis on a token list parsed now and run
+        // later. Nothing board-derived can linger either way: the map is built from the
+        // stored profile on every publish.
+        var settings = SettingsWithAlias('U');
+        var grbl = new FakeGrbl();
+        using var provider = new MachineKinematicsProvider(settings, grbl);
+
+        grbl.Capabilities = ControllerCapabilities.Full with { NumAxes = 4, AxisLetters = "XYZA" };
+        grbl.Connect();
+        Assert.Equal(4, provider.Current.ReportedAxes);
+        Assert.Equal(2, provider.Current.AliasMap['U']);
+
+        grbl.Disconnect();
+        Assert.Equal(0, provider.Current.ReportedAxes);     // no controller
+        Assert.Equal(2, provider.Current.AliasMap['U']);    // the profile's aliases, still resolvable
+
+        var previous = GrblInfo.Current;
+        try
+        {
+            // The ambient state as the app has it right after a disconnect: the letters
+            // are the ones the connect wrote (RealGrblService.ApplyCapabilities does not
+            // clear them) and the aliases are the push above.
+            GrblInfo.Current = new GrblInfoState
+            {
+                AxisLetters = "XYZA",
+                AxisAliases = provider.Current.AliasMap,
+            };
+
+            var parser = new GCodeParser();                 // the load gate's parser
+            var motion = Motion(parser, "G1 U5 F100");
+
+            Assert.Equal(5d, motion.Values[2]);             // the profile's index 2, not U's conventional 6
+            Assert.Empty(parser.UnknownAxisLetters);
         }
         finally
         {
