@@ -60,10 +60,14 @@ public class JogViewModel : ViewModelBase
     private readonly SettingsService _settingsService;
     private readonly CNC.Core.GrblInfoState _info;
     private MachineProfile _profile;
-    private MachineType _machineType = MachineTypeCatalog.Resolve(MachineTypes.Mill);
     private int _numAxes = 2;
     private string _letters = string.Empty;
+    // The resolved preset ⊕ profile ⊕ board layout the cross and the linear rows
+    // are derived from. Re-resolved whenever the profile, the letters or the
+    // reported axis count change (see ResolveKinematics).
+    private MachineKinematics _kinematics = null!;
     private bool _suppressReload;
+    private SenderNG.Core.Services.HotkeyService? _subscribedHotkeys;
 
     public JogViewModel(IGrblService grbl, SettingsService settingsService, CNC.Core.GrblInfoState? info = null)
     {
@@ -74,8 +78,8 @@ public class JogViewModel : ViewModelBase
 
         Config = JogConfigStore.Load(_profile);
         Config.PropertyChanged += OnConfigPropertyChanged;
-        _machineType = MachineTypeCatalog.Resolve(_profile.MachineTypeId);
         _letters = _info.AxisLetters;
+        ResolveKinematics();
         RefreshGeometry();
         RefreshLinearAxes();
 
@@ -94,6 +98,12 @@ public class JogViewModel : ViewModelBase
         _grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
         _grbl.ConnectionChanged += OnConnectionChanged;
         _settingsService.Changed += OnSettingsChanged;
+        // The plane-2 hotkey labels carry the live letter, so a language switch or a
+        // hotkey remap must re-read them (the tooltip also carries the gesture).
+        if (SenderNG.Core.Localization.LocalizationService.Current is { } localization)
+            localization.Changed += OnLocaleChanged;
+        AppHotkeys.Changed += OnAppHotkeysChanged;
+        SubscribeToHotkeys(AppHotkeys.Current);
     }
 
     public JogConfig Config { get; private set; }
@@ -139,33 +149,89 @@ public class JogViewModel : ViewModelBase
     public ObservableCollection<LinearAxisRow> LinearAxisLetters { get; } = new();
 
     // ---- Machine geometry ----
-    // The layout derives from the profile's machine-type preset
-    // (MachineTypeCatalog), not from machine-type strings: planes drive the
-    // crosses, roles pair the letters, and the controller's handshake letters
-    // ([AXS:]) override the conventional display.
+    // The layout comes from the resolved MachineKinematics (preset ⊕ profile ⊕
+    // board), never from a slot position: a plane's slot 0/1 are ROLES, and the
+    // axis index behind each role is what the profile stores. A plane bound to
+    // slots [3, 2] — the bug-report foam firmware's A-horizontal/Z-vertical tower —
+    // therefore labels and drives A/Z, where a positional cross drove Z/A.
 
-    /// <summary>Multi-plane machine (foam): the schema's IsMultiPlane — the
-    /// padlock/second-cross gate without a "Foam" string check.</summary>
-    public bool IsMultiPlane => _machineType.IsMultiPlane;
+    /// <summary>Re-resolve the kinematics from what jog tracks live: the active
+    /// profile, the controller's letters and the polled axis count. Mirrors the
+    /// resolver the Core provider runs; jog keeps its own state-driven inputs so a
+    /// state emission (the demo's SetNumAxes path) re-lays the cross immediately.</summary>
+    private void ResolveKinematics() =>
+        _kinematics = MachineKinematicsResolver.Resolve(_profile, _letters, _numAxes);
 
-    /// <summary>Plane 2 (second carriage) is drivable: a multi-plane preset AND
-    /// enough reported axes (foam needs 4). Under-axed boards hide the plane
-    /// and show the hint.</summary>
-    public bool Plane2Visible => IsMultiPlane && _numAxes >= _machineType.AxisCount;
+    /// <summary>Multi-plane machine (foam): the resolver's plane count.</summary>
+    public bool IsMultiPlane => _kinematics.IsMultiPlane;
+
+    /// <summary>Plane 2 (second carriage) is drivable: both of its in-plane slots
+    /// are reported. Fit is by presence of each slot's index (never by a running
+    /// count), so a plane whose indices are non-monotonic — [3, 2] — needs the
+    /// highest one. Under-axed boards hide the plane and show the hint.</summary>
+    public bool Plane2Visible => PlaneVisible(1);
 
     /// <summary>Shown when a multi-plane machine meets fewer axes than its planes need.</summary>
     public bool Plane2HiddenHintVisible => IsMultiPlane && !Plane2Visible;
 
-    /// <summary>The Together padlock only means something when both planes are drivable.</summary>
-    public bool TogetherVisible => Plane2Visible;
+    /// <summary>The Together padlock only means something when two visible planes
+    /// share their in-plane direction pair — that parallel pair is the wire the
+    /// coupling mirrors, so a non-parallel second plane must not offer it.</summary>
+    public bool TogetherVisible
+    {
+        get
+        {
+            if (!PlaneVisible(0) || _kinematics.Planes.Count < 2)
+                return false;
 
-    // Plane letters: the controller's [AXS:] letters when the handshake
-    // reported them, the preset's conventional order otherwise (a foam board
-    // flashed XYUV shows U/V on the second cross).
-    public string P1H => LetterFor(0);
-    public string P1V => LetterFor(1);
-    public string P2H => LetterFor(2);
-    public string P2V => LetterFor(3);
+            var reference = InPlanePair(0);
+            var coupled = 0;
+            for (var plane = 1; plane < _kinematics.Planes.Count; plane++)
+            {
+                if (!PlaneVisible(plane))
+                    continue;
+                if (!InPlanePair(plane).SequenceEqual(reference))
+                    return false;
+                coupled++;
+            }
+            return coupled > 0;
+        }
+    }
+
+    /// <summary>A plane renders as a cross iff its horizontal and vertical slots
+    /// both exist and the controller reports both axes.</summary>
+    private bool PlaneVisible(int plane)
+    {
+        var horizontal = _kinematics.IndexAt(plane, 0);
+        var vertical = _kinematics.IndexAt(plane, 1);
+        return _kinematics.IsPresent(horizontal) && _kinematics.IsPresent(vertical);
+    }
+
+    /// <summary>A plane's in-plane direction pair (horizontal, vertical) — the pair
+    /// two parallel planes of a coupled machine share.</summary>
+    private AxisDirection[] InPlanePair(int plane) =>
+        _kinematics.Planes[plane].Axes.Take(2).Select(a => a.Direction).ToArray();
+
+    // Plane letters: the axis index in the plane's slot, through the controller's
+    // [AXS:] letters (the conventional order when it reported none). A plane that
+    // does not exist has no slots, so the two properties that would label its
+    // hidden cross fall back to the extra-axis rows — which is what those controls
+    // have always driven on a single-plane machine (PageUp/PageDown = the mill's
+    // depth, Home/End = the next axis).
+    public string P1H => PlaneLetter(0, 0);
+    public string P1V => PlaneLetter(0, 1);
+    public string P2H => PlaneLetter(1, 0);
+    public string P2V => PlaneLetter(1, 1);
+
+    private string PlaneLetter(int plane, int slot)
+    {
+        var index = _kinematics.IndexAt(plane, slot);
+        if (index >= 0)
+            return _kinematics.LetterFor(index).ToString();
+
+        var extras = ExtraAxes;
+        return slot < extras.Count ? _kinematics.LetterFor(extras[slot]).ToString() : "?";
+    }
 
     public string P1HPlus => P1H + "+";
     public string P1HMinus => P1H + "-";
@@ -179,7 +245,7 @@ public class JogViewModel : ViewModelBase
     // Plane-1 cross tags: part 1 = plane-1 words, part 2 (after '|') = the
     // coupled plane-2 words the Together padlock adds ("X+|Z+" = both
     // horizontals, "Y+|A+" = both verticals — the mirrored-gantry semantics).
-    // No plane 2 (mill, or clamped foam) -> single part.
+    // No coupled second plane (mill, clamped foam, non-parallel tower) -> single part.
     public string UpLeftTag => CrossTag($"{P1H}-,{P1V}+", $"{P2H}-,{P2V}+");
     public string UpTag => CrossTag($"{P1V}+", $"{P2V}+");
     public string UpRightTag => CrossTag($"{P1H}+,{P1V}+", $"{P2H}+,{P2V}+");
@@ -199,15 +265,82 @@ public class JogViewModel : ViewModelBase
     public string SecondDownTag => $"{P2V}-";
     public string SecondDownRightTag => $"{P2H}+,{P2V}-";
 
-    private string LetterFor(int axisIndex)
+    // The coupled '|' part is the Together payload, so it exists only where the
+    // padlock does: two visible planes sharing their direction pair (a mill, a
+    // clamped foam machine and a non-parallel second plane all tag single-part).
+    private string CrossTag(string plane1, string plane2) => TogetherVisible ? $"{plane1}|{plane2}" : plane1;
+
+    // ---- Plane-2 direction hotkey labels ----
+    // The action IDs are frozen (saved keymaps key on them), but the LETTERS are
+    // not machine-invariant: with plane 2's slots bound to [3, 2] the "horizontal"
+    // key jogs A and the "vertical" one Z, on conventional foam [2, 3] they jog Z/A,
+    // and on a mill the same two keys jog the depth and the next reported axis. No
+    // static catalog value can be right for every machine, so both the App Settings
+    // row and the pad tooltip format the letter the key ACTUALLY jogs right now.
+    private static readonly Dictionary<string, string> Plane2HotkeyKeys = new(StringComparer.Ordinal)
     {
-        var letters = _info.AxisLetters;
-        return axisIndex < letters.Length
-            ? letters.Substring(axisIndex, 1)
-            : MachineType.ConventionalLetters.Substring(axisIndex, 1);
+        ["jog.z.plus"] = "module.jog.hotkey.jog.z.plus",
+        ["jog.z.minus"] = "module.jog.hotkey.jog.z.minus",
+        ["jog.a.plus"] = "module.jog.hotkey.jog.a.plus",
+        ["jog.a.minus"] = "module.jog.hotkey.jog.a.minus",
+    };
+
+    /// <summary>Live, localized label for a plane-2 direction action on this machine
+    /// ("Jog A+"); the id itself for an action this VM does not own.</summary>
+    public string HotkeyLabel(string actionId)
+        => Plane2HotkeyKeys.TryGetValue(actionId, out var key)
+            ? LocText.Format(key, Plane2English(actionId), Plane2Letter(actionId))
+            : actionId;
+
+    /// <summary>The same label plus the gesture currently bound to the action
+    /// ("Jog A+ [PageUp]") — the pad tooltip's text.</summary>
+    public string HotkeyTip(string actionId)
+        => HotkeyTipSource.Compose(HotkeyLabel(actionId), AppHotkeys.Current?.GestureFor(actionId));
+
+    public string HotkeyTipPlane2Right => HotkeyTip("jog.z.plus");
+    public string HotkeyTipPlane2Left => HotkeyTip("jog.z.minus");
+    public string HotkeyTipPlane2Up => HotkeyTip("jog.a.plus");
+    public string HotkeyTipPlane2Down => HotkeyTip("jog.a.minus");
+
+    private static string Plane2English(string actionId)
+        => actionId.EndsWith(".minus", StringComparison.Ordinal) ? "Jog {0}-" : "Jog {0}+";
+
+    // The horizontal keys drive the plane's slot 0, the vertical keys slot 1 — the
+    // same P2H/P2V the on-screen cross shows and the tags it sends, so the label and
+    // the motion can never disagree.
+    private string Plane2Letter(string actionId)
+        => actionId.Contains(".z.", StringComparison.Ordinal) ? P2H : P2V;
+
+    private void RefreshHotkeyTips()
+    {
+        OnPropertyChanged(nameof(HotkeyTipPlane2Right));
+        OnPropertyChanged(nameof(HotkeyTipPlane2Left));
+        OnPropertyChanged(nameof(HotkeyTipPlane2Up));
+        OnPropertyChanged(nameof(HotkeyTipPlane2Down));
     }
 
-    private string CrossTag(string plane1, string plane2) => Plane2Visible ? $"{plane1}|{plane2}" : plane1;
+    private void OnLocaleChanged(object? sender, EventArgs e) => UiThread.Post(RefreshHotkeyTips);
+    private void OnHotkeysChanged(object? sender, EventArgs e) => UiThread.Post(RefreshHotkeyTips);
+
+    /// <summary>Owns the single <see cref="SenderNG.Core.Services.HotkeyService"/>
+    /// subscription, moving it to <paramref name="service"/> and releasing the previous
+    /// one (the reference check keeps it idempotent).</summary>
+    private void SubscribeToHotkeys(SenderNG.Core.Services.HotkeyService? service)
+    {
+        if (ReferenceEquals(_subscribedHotkeys, service))
+            return;
+        if (_subscribedHotkeys is not null)
+            _subscribedHotkeys.Changed -= OnHotkeysChanged;
+        _subscribedHotkeys = service;
+        if (service is not null)
+            service.Changed += OnHotkeysChanged;
+    }
+
+    private void OnAppHotkeysChanged(object? sender, EventArgs e)
+    {
+        SubscribeToHotkeys(AppHotkeys.Current);
+        RefreshHotkeyTips();
+    }
 
     private void RefreshGeometry()
     {
@@ -227,6 +360,7 @@ public class JogViewModel : ViewModelBase
                      nameof(SecondDownTag), nameof(SecondDownRightTag),
                  })
             OnPropertyChanged(property);
+        RefreshHotkeyTips();   // the plane-2 labels carry the letters re-laid here
     }
 
     public bool ShowDiagonals => Config.Diagonals;
@@ -500,7 +634,7 @@ public class JogViewModel : ViewModelBase
         Config = JogConfigStore.Load(_profile);
         Config.PropertyChanged += OnConfigPropertyChanged;
         OnPropertyChanged(nameof(Config));
-        _machineType = MachineTypeCatalog.Resolve(_profile.MachineTypeId);
+        ResolveKinematics();
         RefreshGeometry();
         OnPropertyChanged(nameof(ShowDiagonals));
         OnPropertyChanged(nameof(SelectedDistanceIndex));
@@ -538,39 +672,45 @@ public class JogViewModel : ViewModelBase
 
         _numAxes = n;
         _letters = letters;
+        ResolveKinematics();
         RefreshGeometry();
         RefreshLinearAxes();
     }
 
-    // Crossed axis count: the H/V roles of the planes that fit the reported
-    // axes (mill: X/Y of plane 1; foam: both towers = 4; foam clamped to 3
-    // axes: plane 1 only). The mill's Depth role (Z) and clamped-away axes
-    // render as linear +/- rows.
-    private int CrossedAxes
+    // Extra axis rows: every reported axis no VISIBLE plane's in-plane pair
+    // consumes, ascending — the mill's depth, any optional axis (rotary axes
+    // included; a rotary row jogs in the step distance's units) and any axis the
+    // controller reports that the profile does not declare. This is a set test,
+    // not a running count, so a plane's non-monotonic indices cannot smuggle an
+    // already-crossed axis into a duplicate row.
+    private IReadOnlyList<int> ExtraAxes
     {
         get
         {
-            var hv = 0;
-            for (var i = 0; i < _machineType.Planes.Count; i++)
+            var crossed = new HashSet<int>();
+            for (var plane = 0; plane < _kinematics.Planes.Count; plane++)
             {
-                var planeHv = _machineType.Planes[i].Roles.Count(r =>
-                    r is AxisRoleKind.Horizontal or AxisRoleKind.Vertical);
-                if (hv + planeHv <= _numAxes)
-                    hv += planeHv;
+                if (!PlaneVisible(plane))
+                    continue;
+                crossed.Add(_kinematics.IndexAt(plane, 0));
+                crossed.Add(_kinematics.IndexAt(plane, 1));
             }
-            return hv;
+
+            var extras = new List<int>();
+            for (var index = 0; index < _numAxes; index++)
+                if (!crossed.Contains(index))
+                    extras.Add(index);
+            return extras;
         }
     }
 
     private void RefreshLinearAxes()
     {
-        var crossed = CrossedAxes;
-        var count = Math.Max(0, _numAxes - crossed);
-        // Rebuild (not just resize): the crossed-axis count changes with the
-        // machine type / clamping, so existing rows must be re-lettered.
+        // Rebuild (not just resize): the crossed-axis set changes with the machine
+        // type / clamping, so existing rows must be re-lettered.
         LinearAxisLetters.Clear();
-        for (var i = 0; i < count; i++)
-            LinearAxisLetters.Add(new LinearAxisRow(LetterFor(crossed + i)));
+        foreach (var index in ExtraAxes)
+            LinearAxisLetters.Add(new LinearAxisRow(_kinematics.LetterFor(index).ToString()));
     }
 
     private static string Fmt(double value) =>
