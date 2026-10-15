@@ -249,11 +249,62 @@ public sealed class MachineKinematics
     }
 
     /// <summary>
-    /// The world axis a plane's slot feeds. Within a plane slot k feeds world axis k —
-    /// there is no per-plane mapping table to store — so this is the slot itself, or
-    /// <c>-1</c> when the slot does not exist.
+    /// The world axis a machine <paramref name="direction"/> feeds in the 3D views:
+    /// Width→world X, Length→world Y, <b>Height→world Z</b>. Height is always world
+    /// Z because a machine's height is vertical by definition — that is what puts a
+    /// foam tower (Length × Height) on a <i>vertical</i> plane and leaves its
+    /// separation on the free horizontal axis, instead of stacking the two towers
+    /// like horizontal shelves.
+    /// <para>It also leaves the mill untouched: its one plane spans Width, Length
+    /// and Height in that order, so it still maps to X, Y, Z.</para>
     /// </summary>
-    public int WorldAxisFor(int plane, int slot) => IndexAt(plane, slot) < 0 ? -1 : slot;
+    public static int WorldAxisForDirection(AxisDirection direction) => direction switch
+    {
+        AxisDirection.Width => 0,
+        AxisDirection.Length => 1,
+        _ => 2,
+    };
+
+    /// <summary>
+    /// The world axis a plane's slot feeds, read from that axis's direction (see
+    /// <see cref="WorldAxisForDirection"/>); <c>-1</c> when the slot does not exist.
+    /// </summary>
+    public int WorldAxisFor(int plane, int slot)
+    {
+        if (plane < 0 || plane >= Planes.Count)
+            return -1;
+        var axes = Planes[plane].Axes;
+        return slot >= 0 && slot < axes.Count ? WorldAxisForDirection(axes[slot].Direction) : -1;
+    }
+
+    /// <summary>
+    /// A plane's world axes in slot order — what a 3D view needs to place one
+    /// machine position: slot <c>k</c>'s value belongs on element <c>k</c>.
+    /// </summary>
+    public int[] WorldAxesFor(int plane)
+    {
+        if (plane < 0 || plane >= Planes.Count)
+            return [];
+        return [.. Planes[plane].Axes.Select(a => WorldAxisForDirection(a.Direction))];
+    }
+
+    /// <summary>
+    /// The world axis this plane does <b>not</b> span — where a multi-plane
+    /// machine's separation places it, one tower per side. <c>-1</c> when the plane
+    /// spans all three (a mill), which is never displaced.
+    /// </summary>
+    public int FreeWorldAxisFor(int plane)
+    {
+        if (plane < 0 || plane >= Planes.Count)
+            return -1;
+        var spanned = 0;
+        foreach (var axis in Planes[plane].Axes)
+            spanned |= 1 << WorldAxisForDirection(axis.Direction);
+        for (var world = 0; world < 3; world++)
+            if ((spanned & (1 << world)) == 0)
+                return world;
+        return -1;
+    }
 
     /// <summary>Plane-to-plane separation: <c>0</c> for plane 0, a single-plane machine
     /// and an invalid plane; the profile's separation for a later plane.</summary>

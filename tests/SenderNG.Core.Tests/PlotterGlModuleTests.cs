@@ -339,9 +339,10 @@ public class PlotterGlModuleTests
             Assert.Equal(2, tool.Positions.Count);
             var points = tool.Positions[1].Points;
             Assert.Equal(2, points.Length);
-            // Plane 1 sits at the separation (0 by default) on world Z, with A=4
-            // on world X and Z=3 on world Y — slot order, not sorted order.
-            Assert.Equal(new System.Numerics.Vector3(4, 3, 0), points[1]);
+            // Plane 1 sits at the separation (0 by default) and spans the vertical
+            // plane: A=4 on world Y (the tower's length), Z=3 on world Z (its
+            // height) — slot order, not sorted order.
+            Assert.Equal(new System.Numerics.Vector3(0, 4, 3), points[1]);
         }
         finally
         {

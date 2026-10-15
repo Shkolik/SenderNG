@@ -118,8 +118,10 @@ public class MachineKinematicsResolverTests
         Assert.Equal(-1, k.IndexForDirection(9, AxisDirection.Width));
 
         // Slot k feeds world axis k — positional by construction.
-        Assert.Equal(0, k.WorldAxisFor(1, 0));
-        Assert.Equal(1, k.WorldAxisFor(1, 1));
+        // The tower's slots are Length then Height, which the direction rule maps
+        // to world Y then world Z — a height is always vertical.
+        Assert.Equal(1, k.WorldAxisFor(1, 0));
+        Assert.Equal(2, k.WorldAxisFor(1, 1));
         Assert.Equal(-1, k.WorldAxisFor(1, 2));
         Assert.Equal(-1, k.WorldAxisFor(9, 0));
 

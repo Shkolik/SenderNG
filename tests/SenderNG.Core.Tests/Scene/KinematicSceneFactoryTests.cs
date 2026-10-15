@@ -94,9 +94,10 @@ public class KinematicSceneFactoryTests
     }
 
     /// <summary>The initial tool wire spans the machine's own separation, on the
-    /// world axis the two-slot planes do NOT span (world Z) — the machine-model
-    /// placement, not an invented UnitZ. A separation of 0 (the shipped foam
-    /// default) degenerates to the same wire the mill case uses.</summary>
+    /// world axis the two-slot tower does NOT span — world <b>X</b>, because the
+    /// tower's Length × Height plane is vertical (world Y × Z). The placement is
+    /// the machine model's, not an invented UnitZ. A separation of 0 degenerates to
+    /// the same wire the mill case uses.</summary>
     [Fact]
     public void Foam_initial_tool_wire_spans_the_separation_on_the_unspanned_axis()
     {
@@ -109,8 +110,8 @@ public class KinematicSceneFactoryTests
         var points = ((FakePlotTool)f.Tool!).Positions[0].Points;
         Assert.Equal(2, points.Length);
         Assert.Equal(Vector3.Zero, points[0]);
-        // Two-slot planes leave world Z free, and plane 1 sits at the separation.
-        Assert.Equal(new Vector3(0, 0, 25), points[1]);
+        // The vertical tower leaves world X free, and plane 1 sits at the separation.
+        Assert.Equal(new Vector3(25, 0, 0), points[1]);
     }
 
     /// <summary>A rotary axis is never a plane slot, so it must not conjure a

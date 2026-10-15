@@ -383,7 +383,7 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
     /// through <see cref="PlaneWorldMapper.PlacementFor"/>, the one place that
     /// rule lives, so the scene, the tool and the loft cannot disagree.</summary>
     private static Vector3[] ResolvePlacements(MachineKinematics machine) =>
-        [.. machine.Planes.Select((plane, p) => PlaneWorldMapper.PlacementFor(machine, p, plane.Axes.Count))];
+        [.. machine.Planes.Select((plane, p) => PlaneWorldMapper.PlacementFor(machine, p))];
 
     /// <summary>One plane's world placement, or the origin for a plane that does
     /// not exist (a machine with no planes still renders its empty scene rather
@@ -445,7 +445,7 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
                     // bug firmware), so indices[^1] would test the wrong axis.
                     if (seg.To.Length <= HighestAxisIndex(indices))
                         continue;
-                    _ackedEnds[p] = PlaneWorldMapper.ToWorld(PlacementForPlane(p), seg.To, indices);
+                    _ackedEnds[p] = PlaneWorldMapper.ToWorld(PlacementForPlane(p), seg.To, indices, _machine.WorldAxesFor(p));
                 }
             }
             _ackedEndRowBaseline = i;
@@ -470,7 +470,7 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
             var indices = PlaneAxisIndices(p);
             if (positions.Length <= HighestAxisIndex(indices))
                 return; // Controller reports fewer axes than the machine needs.
-            var live = PlaneWorldMapper.ToWorld(PlacementForPlane(p), positions, indices);
+            var live = PlaneWorldMapper.ToWorld(PlacementForPlane(p), positions, indices, _machine.WorldAxesFor(p));
             var acked = p < _ackedEnds.Length ? _ackedEnds[p] : null;
             Vector3? resolved = _isCheckMode ? (acked ?? live) : live;
             if (resolved is null)
@@ -548,7 +548,7 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
             for (var p = 0; p < _machine.Planes.Count; p++)
                 ToolpathSceneBuilder.PopulatePlane(
                     _sceneFactory.PlaneLayer(p), geometry.SourceSegments, PlaneAxisIndices(p),
-                    PlacementForPlane(p));
+                    PlacementForPlane(p), _machine.WorldAxesFor(p));
 
             var loft = _sceneFactory.Loft;
             if (loft is not null && _machine.Planes.Count >= 2)
@@ -587,8 +587,8 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
         var place1 = PlacementForPlane(1);
         foreach (var seg in segments)
         {
-            sideA.Add(PlaneWorldMapper.ToWorld(place0, seg.From, idx0));
-            sideB.Add(PlaneWorldMapper.ToWorld(place1, seg.From, idx1));
+            sideA.Add(PlaneWorldMapper.ToWorld(place0, seg.From, idx0, _machine.WorldAxesFor(0)));
+            sideB.Add(PlaneWorldMapper.ToWorld(place1, seg.From, idx1, _machine.WorldAxesFor(1)));
         }
         loft.SetLoftSheet(sideA, sideB);
     }

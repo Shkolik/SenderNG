@@ -86,11 +86,12 @@ public sealed class KinematicSceneFactory : ISceneFactory
         if (planes >= 2)
         {
             // The placeholder wire spans the two planes' placements — the
-            // separation on the world axis the planes' slots do not span — so the
-            // tool starts on the machine and not on an invented diagonal. Live
-            // pose updates replace it immediately.
-            var second = PlaneWorldMapper.PlacementFor(kinematics, 1, PlaneSlots(kinematics, 1));
-            _tool.UpdatePosition(new Endpoint([PlaneWorldMapper.PlacementFor(kinematics, 0, PlaneSlots(kinematics, 0)), second]));
+            // separation on the world axis the planes do not span (world X for a
+            // foam tower, whose Length × Height plane is vertical) — so the tool
+            // starts on the machine and not on an invented diagonal. Live pose
+            // updates replace it immediately.
+            var second = PlaneWorldMapper.PlacementFor(kinematics, 1);
+            _tool.UpdatePosition(new Endpoint([PlaneWorldMapper.PlacementFor(kinematics, 0), second]));
         }
         else
         {
@@ -99,10 +100,4 @@ public sealed class KinematicSceneFactory : ISceneFactory
 
         return _scene;
     }
-
-    /// <summary>How many slots plane <paramref name="plane"/> has (−1 for a plane
-    /// that does not exist), which is what decides the world axis a plane leaves
-    /// free for the separation.</summary>
-    private static int PlaneSlots(MachineKinematics kinematics, int plane) =>
-        plane >= 0 && plane < kinematics.Planes.Count ? kinematics.Planes[plane].Axes.Count : -1;
 }
