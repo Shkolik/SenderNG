@@ -153,16 +153,22 @@ public sealed class MachinePlaneViewModel : ViewModelBase
 }
 
 /// <summary>
-/// One axis row: the index picker (letters offered, index stored), kind, direction,
-/// sign and the optional inbound CAM alias, plus the two pivot inputs of a rotary axis.
-/// A base row is locked by the preset — no delete, no reorder — while an optional row
-/// is removable.
+/// One axis row: the index picker (letters offered, index stored), kind, role, the
+/// inverted-direction checkbox and the optional inbound CAM alias, plus the two pivot
+/// inputs of a rotary axis. A base row is locked by the preset — no delete, no reorder —
+/// while an optional row is removable.
 /// </summary>
 public sealed class MachineAxisRowViewModel : ViewModelBase
 {
     private readonly MachineAxesViewModel _owner;
     private readonly MachineAxis _axis;
-    private readonly List<AxisPivotRowViewModel> _pivots = new();
+
+    // ObservableCollection, not a plain List: Pivots keeps the same instance for the life of
+    // the row, so mutating a List behind the property is invisible to the ItemsControl that
+    // renders it — the containers would keep the pre-change pivot VMs and their labels would
+    // only correct themselves when the whole card is rebuilt (a reload). The collection
+    // notifications are what make a Role change re-letter the pivot labels live.
+    private readonly ObservableCollection<AxisPivotRowViewModel> _pivots = new();
 
     internal MachineAxisRowViewModel(MachineAxesViewModel owner, MachineAxis axis, bool isBase)
     {
@@ -193,7 +199,9 @@ public sealed class MachineAxisRowViewModel : ViewModelBase
     /// when it reported none) — the only letter this row displays as the axis's name.</summary>
     public string BoardLetterText => _owner.Kinematics.LetterFor(_axis.Index).ToString();
 
-    public string SignText => _axis.Sign < 0 ? "−" : "+";
+    /// <summary>The Direction column's checkbox: checked means the axis counts negative
+    /// (<c>Sign &lt; 0</c>). Display only — the write goes through <see cref="SetInverted"/>.</summary>
+    public bool IsInverted => _axis.Sign < 0;
 
     public string AliasText => _axis.Alias?.ToString() ?? string.Empty;
 
@@ -204,8 +212,8 @@ public sealed class MachineAxisRowViewModel : ViewModelBase
         : _owner.Resolve("appSettings.axes.optionalRowHint",
             "An optional axis: outside every plane. A rotary axis always lives here.");
 
-    /// <summary>Remove-button label (localized; the button is hidden on a base row).</summary>
-    public string RemoveText => _owner.Resolve("appSettings.axes.remove", "Remove");
+    /// <summary>Delete-button label (localized; short, to keep the optional rows compact).</summary>
+    public string RemoveText => _owner.Resolve("appSettings.axes.remove", "Del");
 
     public IReadOnlyList<AxisIndexChoice> IndexChoices => _owner.IndexChoices;
     public IReadOnlyList<AxisKindChoice> KindChoices => _owner.KindChoices;
@@ -272,9 +280,14 @@ public sealed class MachineAxisRowViewModel : ViewModelBase
         _owner.CommitEdit();
     }
 
-    public void ToggleSign()
+    /// <summary>Store the axis's sense from the Direction column's checkbox. The stored
+    /// semantics are unchanged: <c>Sign</c> is <c>-1</c> when inverted, <c>+1</c> otherwise.</summary>
+    public void SetInverted(bool inverted)
     {
-        _axis.Sign = _axis.Sign < 0 ? 1 : -1;
+        var sign = inverted ? -1 : 1;
+        if (_axis.Sign == sign)
+            return;
+        _axis.Sign = sign;
         _owner.CommitEdit();
     }
 
@@ -326,6 +339,8 @@ public sealed class MachineAxisRowViewModel : ViewModelBase
 
     private void RebuildPivots()
     {
+        // An explicit Clear/Add pair (not a reassignment): the collection is observable, so
+        // the rendered pivot rows are re-created and pick up the new perpendicular pair.
         _pivots.Clear();
         if (_axis.Kind == AxisKind.Rotary)
         {
@@ -341,7 +356,7 @@ public sealed class MachineAxisRowViewModel : ViewModelBase
     internal void RefreshFromKinematics()
     {
         OnPropertyChanged(nameof(BoardLetterText));
-        OnPropertyChanged(nameof(SignText));
+        OnPropertyChanged(nameof(IsInverted));
         OnPropertyChanged(nameof(AliasText));
         OnPropertyChanged(nameof(IsRotary));
         OnPropertyChanged(nameof(RowHint));
@@ -511,10 +526,6 @@ public sealed class MachineAxesViewModel : ViewModelBase
 
     public bool HasTopologyImage => TopologyImage is not null;
 
-    /// <summary>Reference art for an optional rotary axis, shown beside the optional list
-    /// (rotary is a kind, not a machine type, so it never occupies the type slot).</summary>
-    public string RotaryImage => TopologyAssetBase + "rotary.png";
-
     /// <summary>The machine's planes, in machine order, each with its ordered axis rows.</summary>
     public ObservableCollection<MachinePlaneViewModel> Planes { get; } = new();
 
@@ -628,13 +639,13 @@ public sealed class MachineAxesViewModel : ViewModelBase
 
     internal string Resolve(string key, string fallback) => _resolve(key, fallback);
 
-    /// <summary>The locale name of a direction — the pivot label for a direction no axis
-    /// occupies, and the direction picker's labels.</summary>
+    /// <summary>The locale name of a role (a Width/Length/Height direction) — the pivot
+    /// label for a role no axis occupies, and the role picker's labels.</summary>
     internal string DirectionName(AxisDirection direction) => direction switch
     {
-        AxisDirection.Width => Resolve("appSettings.axes.direction.width", "Width"),
-        AxisDirection.Length => Resolve("appSettings.axes.direction.length", "Length"),
-        _ => Resolve("appSettings.axes.direction.height", "Height"),
+        AxisDirection.Width => Resolve("appSettings.axes.role.width", "Width"),
+        AxisDirection.Length => Resolve("appSettings.axes.role.length", "Length"),
+        _ => Resolve("appSettings.axes.role.height", "Height"),
     };
 
     /// <summary>The two directions perpendicular to <paramref name="direction"/>, in
@@ -819,7 +830,6 @@ public sealed class MachineAxesViewModel : ViewModelBase
         OnPropertyChanged(nameof(MachineTypeName));
         OnPropertyChanged(nameof(TopologyImage));
         OnPropertyChanged(nameof(HasTopologyImage));
-        OnPropertyChanged(nameof(RotaryImage));
         OnPropertyChanged(nameof(IsMultiPlane));
         OnPropertyChanged(nameof(HasSeparation));
         OnPropertyChanged(nameof(Separation));
@@ -876,8 +886,8 @@ public sealed class MachineAxesViewModel : ViewModelBase
 
     private IReadOnlyList<AxisKindChoice> BuildKindChoices() =>
     [
-        new AxisKindChoice(AxisKind.Linear, () => Resolve("appSettings.axes.kind.linear", "Linear")),
-        new AxisKindChoice(AxisKind.Rotary, () => Resolve("appSettings.axes.kind.rotary", "Rotary")),
+        new AxisKindChoice(AxisKind.Linear, () => Resolve("appSettings.axes.type.linear", "Linear")),
+        new AxisKindChoice(AxisKind.Rotary, () => Resolve("appSettings.axes.type.rotary", "Rotary")),
     ];
 
     private IReadOnlyList<AxisDirectionChoice> BuildDirectionChoices() =>

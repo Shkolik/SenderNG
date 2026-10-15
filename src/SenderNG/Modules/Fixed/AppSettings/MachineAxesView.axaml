@@ -57,12 +57,33 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     </UserControl.Styles>
 
     <UserControl.Resources>
-        <!-- The editable fields of one axis row. The remove button is NOT part of it: a
-             locked base row must not render one at all (an invisible button is both dead
-             weight and a trap for anything that searches the pane for a "Remove" button). -->
+        <!-- The editable fields of one axis row, on the six shared axis-table columns. The
+             delete button is NOT part of it: a locked base row must not render one at all
+             (an invisible button is both dead weight and a trap for anything that searches the
+             pane for a delete button). -->
         <DataTemplate x:Key="AxisFields" x:DataType="vm:MachineAxisRowViewModel">
             <StackPanel Orientation="Vertical">
-                <Grid ColumnDefinitions="22,92,92,100,32,52">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <!-- Shared widths, not per-grid ones: every header and every row lives in
+                             the one IsSharedSizeScope (the root panel), so a column measures once
+                             and all of them use that width. Fluent leaves a ComboBox
+                             HorizontalAlignment=Left, so a cell that is not stretched sizes itself
+                             to its own text and each row drifts; the editors below are stretched
+                             into their shared column instead. -->
+                        <ColumnDefinition Width="26" />
+                        <ColumnDefinition Width="Auto" MinWidth="72" MaxWidth="104" SharedSizeGroup="AxisIndex" />
+                        <ColumnDefinition Width="Auto" MinWidth="78" MaxWidth="110" SharedSizeGroup="AxisType" />
+                        <ColumnDefinition Width="Auto" MinWidth="84" MaxWidth="116" SharedSizeGroup="AxisRole" />
+                        <ColumnDefinition Width="Auto" MinWidth="76" MaxWidth="132" SharedSizeGroup="AxisDirection" />
+                        <ColumnDefinition Width="Auto" MinWidth="56" MaxWidth="80" SharedSizeGroup="AxisAlias" />
+                        <!-- The trailing star is load-bearing, not decoration: without a star
+                             column Avalonia arranges every cell one pixel wider than its own
+                             definition, so a row would sit 1px right of the same column in the
+                             header grids (which do carry one). -->
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
                     <!-- The derived letter: the controller's own, never a stored one. -->
                     <TextBlock Grid.Column="0" Text="{Binding BoardLetterText}" FontSize="12"
                                FontWeight="SemiBold" Foreground="#1c5f8a" VerticalAlignment="Center"
@@ -71,6 +92,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <ComboBox Grid.Column="1" ItemsSource="{Binding IndexChoices}"
                               SelectedItem="{Binding SelectedIndex, Mode=OneWay}"
                               SelectionChanged="OnIndexSelectionChanged"
+                              HorizontalAlignment="Stretch"
                               Height="24" MinHeight="24" FontSize="11" CornerRadius="0"
                               BorderBrush="#999" BorderThickness="1" VerticalContentAlignment="Center"
                               ToolTip.Tip="{Binding RowHint}">
@@ -84,6 +106,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <ComboBox Grid.Column="2" ItemsSource="{Binding KindChoices}"
                               SelectedItem="{Binding SelectedKind, Mode=OneWay}"
                               SelectionChanged="OnKindSelectionChanged"
+                              HorizontalAlignment="Stretch"
                               Height="24" MinHeight="24" FontSize="11" CornerRadius="0"
                               BorderBrush="#999" BorderThickness="1" VerticalContentAlignment="Center">
                         <ComboBox.ItemTemplate>
@@ -96,6 +119,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <ComboBox Grid.Column="3" ItemsSource="{Binding DirectionChoices}"
                               SelectedItem="{Binding SelectedDirection, Mode=OneWay}"
                               SelectionChanged="OnDirectionSelectionChanged"
+                              HorizontalAlignment="Stretch"
                               Height="24" MinHeight="24" FontSize="11" CornerRadius="0"
                               BorderBrush="#999" BorderThickness="1" VerticalContentAlignment="Center">
                         <ComboBox.ItemTemplate>
@@ -105,13 +129,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         </ComboBox.ItemTemplate>
                     </ComboBox>
 
-                    <Button Grid.Column="4" Content="{Binding SignText}" Click="OnSignClick"
-                            ToolTip.Tip="{loc:Loc appSettings.axes.sign}"
-                            Height="24" MinHeight="24" FontSize="12" FontWeight="SemiBold"
-                            CornerRadius="0" Padding="0" HorizontalContentAlignment="Center" />
+                    <!-- The axis's sense. Checked = the axis counts negative (Sign < 0); the
+                         stored Sign semantics are unchanged, only the control is. -->
+                    <CheckBox Grid.Column="4" Content="{loc:Loc appSettings.axes.inverted}"
+                              IsChecked="{Binding IsInverted, Mode=OneWay}"
+                              Click="OnInvertedClick"
+                              HorizontalAlignment="Left" MinWidth="0"
+                              Height="24" MinHeight="24" FontSize="11"
+                              VerticalAlignment="Center" VerticalContentAlignment="Center"
+                              ToolTip.Tip="{loc:Loc appSettings.axes.invertedHint}" />
 
                     <TextBox Grid.Column="5" Classes="alias" Text="{Binding AliasText, Mode=OneWay}"
                              TextChanged="OnAliasTextChanged" MaxLength="1"
+                             HorizontalAlignment="Stretch" MinWidth="0"
                              Height="24" MinHeight="24" FontSize="11" CornerRadius="0"
                              BorderBrush="#999" BorderThickness="1" VerticalContentAlignment="Center"
                              Padding="4,0" PlaceholderText="—"
@@ -120,7 +150,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
                 <!-- Invariant 7: a rotary axis shows exactly two pivot inputs, labelled by
                      the two directions perpendicular to its own; a linear row shows none. -->
-                <StackPanel Orientation="Horizontal" Spacing="8" Margin="22,2,0,0"
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="26,2,0,0"
                             IsVisible="{Binding IsRotary}">
                     <TextBlock Text="{loc:Loc appSettings.axes.pivot}" FontSize="10" Foreground="#666"
                                VerticalAlignment="Center"
@@ -150,30 +180,48 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             </StackPanel>
         </DataTemplate>
 
-        <!-- A locked base row: the preset fixes its count and order, so no remove button. -->
+        <!-- A locked base row: the preset fixes its count and order, so no delete button. -->
         <DataTemplate x:Key="AxisRow" x:DataType="vm:MachineAxisRowViewModel">
             <ContentControl Content="{Binding}" ContentTemplate="{StaticResource AxisFields}"
                             Margin="0,1,0,1" />
         </DataTemplate>
 
-        <!-- An optional row is removable. -->
+        <!-- An optional row is deletable: the button takes its own column, immediately after
+             the CAM alias, so it stays beside the row it belongs to. -->
         <DataTemplate x:Key="OptionalAxisRow" x:DataType="vm:MachineAxisRowViewModel">
-            <Grid ColumnDefinitions="*,Auto" Margin="0,1,0,1">
-                <ContentControl Grid.Column="0" Content="{Binding}"
+            <Grid Margin="0,1,0,1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="26" />
+                    <ColumnDefinition Width="Auto" MinWidth="72" MaxWidth="104" SharedSizeGroup="AxisIndex" />
+                    <ColumnDefinition Width="Auto" MinWidth="78" MaxWidth="110" SharedSizeGroup="AxisType" />
+                    <ColumnDefinition Width="Auto" MinWidth="84" MaxWidth="116" SharedSizeGroup="AxisRole" />
+                    <ColumnDefinition Width="Auto" MinWidth="76" MaxWidth="132" SharedSizeGroup="AxisDirection" />
+                    <ColumnDefinition Width="Auto" MinWidth="56" MaxWidth="80" SharedSizeGroup="AxisAlias" />
+                    <ColumnDefinition Width="Auto" />
+                    <!-- The trailing star keeps this grid on the same cell arithmetic as the
+                         header grids; see the note on AxisFields. -->
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <ContentControl Grid.Column="0" Grid.ColumnSpan="6" Content="{Binding}"
                                 ContentTemplate="{StaticResource AxisFields}" />
-                <Button Grid.Column="1" Content="{Binding RemoveText}" Command="{Binding RemoveCommand}"
-                        VerticalAlignment="Top" Margin="6,0,0,0"
-                        Height="24" MinHeight="24" FontSize="11" CornerRadius="0" Padding="8,0" />
+                <Button Grid.Column="6" Content="{Binding RemoveText}" Command="{Binding RemoveCommand}"
+                        VerticalAlignment="Center" VerticalContentAlignment="Center"
+                        Margin="8,0,0,0" Height="24" MinHeight="24" FontSize="11"
+                        CornerRadius="0" Padding="8,0" />
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
 
-    <StackPanel Orientation="Vertical" Spacing="8" IsEnabled="{Binding IsEditable}">
+    <!-- One shared-size scope for the whole card: the axis table's headers and rows all read
+         their column widths from it, so every row lines up under the same labels. -->
+    <StackPanel Orientation="Vertical" Spacing="8" Grid.IsSharedSizeScope="True"
+                IsEnabled="{Binding IsEditable}">
 
-        <!-- Machine type + its topology art: roles only, never letters. -->
+        <!-- Machine type + its topology art: roles only, never letters. Kept small — the axis
+             list is what the card is for. -->
         <TextBlock Text="{Binding MachineTypeName}" FontSize="11" FontWeight="SemiBold" Foreground="#333" />
-        <Image x:Name="TopologyImage" Stretch="Uniform" MaxWidth="620" HorizontalAlignment="Left"
-               IsVisible="{Binding HasTopologyImage}" />
+        <Image x:Name="TopologyImage" Stretch="Uniform" MaxWidth="200" MaxHeight="150"
+               HorizontalAlignment="Left" IsVisible="{Binding HasTopologyImage}" />
 
         <!-- A machine-type switch replaces the layout but deliberately leaves DemoAxes
              alone: warn when the demo now simulates fewer axes than the type needs. -->
@@ -214,12 +262,26 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold"
                                    Foreground="#333" />
                         <Rectangle Height="1" Fill="#ddd" />
-                        <Grid ColumnDefinitions="22,92,92,100,32,52,*" Margin="0,0,0,1">
+                        <!-- The column labels. Same six shared columns as the rows below, so the
+                             labels sit over their controls; the widths live in the shared scope,
+                             never here, so the header cannot drift from the rows. -->
+                        <Grid Margin="0,0,0,1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="26" />
+                                <ColumnDefinition Width="Auto" MinWidth="72" MaxWidth="104" SharedSizeGroup="AxisIndex" />
+                                <ColumnDefinition Width="Auto" MinWidth="78" MaxWidth="110" SharedSizeGroup="AxisType" />
+                                <ColumnDefinition Width="Auto" MinWidth="84" MaxWidth="116" SharedSizeGroup="AxisRole" />
+                                <ColumnDefinition Width="Auto" MinWidth="76" MaxWidth="132" SharedSizeGroup="AxisDirection" />
+                                <ColumnDefinition Width="Auto" MinWidth="56" MaxWidth="80" SharedSizeGroup="AxisAlias" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="1" Text="{loc:Loc appSettings.axes.index}"
                                        FontSize="10" Foreground="#888" />
-                            <TextBlock Grid.Column="2" Text="{loc:Loc appSettings.axes.kind}"
+                            <TextBlock Grid.Column="2" Text="{loc:Loc appSettings.axes.type}"
                                        FontSize="10" Foreground="#888" />
-                            <TextBlock Grid.Column="3" Text="{loc:Loc appSettings.axes.direction}"
+                            <TextBlock Grid.Column="3" Text="{loc:Loc appSettings.axes.role}"
+                                       FontSize="10" Foreground="#888" />
+                            <TextBlock Grid.Column="4" Text="{loc:Loc appSettings.axes.direction}"
                                        FontSize="10" Foreground="#888" />
                             <TextBlock Grid.Column="5" Text="{loc:Loc appSettings.axes.alias}"
                                        FontSize="10" Foreground="#888" />
@@ -245,36 +307,41 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
         <Rectangle Height="1" Fill="#ddd" Margin="0,4,0,0" />
 
-        <!-- Optional axes: rotaries and extra linears, never inside a plane. -->
-        <Grid ColumnDefinitions="*,Auto">
-            <StackPanel Grid.Column="0" Orientation="Vertical" Spacing="2">
-                <TextBlock Text="{loc:Loc appSettings.axes.optional}" FontSize="12" FontWeight="SemiBold"
-                           Foreground="#333" />
-                <TextBlock Text="{loc:Loc appSettings.axes.optionalHint}" FontSize="10"
-                           Foreground="#888" TextWrapping="Wrap" />
-                <Grid ColumnDefinitions="22,92,92,100,32,52,*" Margin="0,2,0,1">
-                    <TextBlock Grid.Column="1" Text="{loc:Loc appSettings.axes.index}"
-                               FontSize="10" Foreground="#888" />
-                    <TextBlock Grid.Column="2" Text="{loc:Loc appSettings.axes.kind}"
-                               FontSize="10" Foreground="#888" />
-                    <TextBlock Grid.Column="3" Text="{loc:Loc appSettings.axes.direction}"
-                               FontSize="10" Foreground="#888" />
-                    <TextBlock Grid.Column="5" Text="{loc:Loc appSettings.axes.alias}"
-                               FontSize="10" Foreground="#888" />
-                </Grid>
-                <ItemsControl ItemsSource="{Binding OptionalAxes}"
-                              ItemTemplate="{StaticResource OptionalAxisRow}" />
-                <TextBlock Text="{loc:Loc appSettings.axes.optionalEmpty}" FontSize="11" Foreground="#999"
-                           IsVisible="{Binding HasNoOptionalAxes}" />
-                <Button Content="{loc:Loc appSettings.axes.add}" Command="{Binding AddAxisCommand}"
-                        HorizontalAlignment="Left" Margin="0,3,0,0"
-                        Height="24" MinHeight="24" FontSize="11" CornerRadius="0" Padding="10,0" />
-            </StackPanel>
-
-            <!-- Rotary is a kind, not a machine type: its reference art sits here, not in
-                 the machine-type slot. -->
-            <Image Grid.Column="1" x:Name="RotaryImage" Stretch="Uniform" MaxWidth="250"
-                   HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8,0,0,0" />
-        </Grid>
+        <!-- Optional axes: rotaries and extra linears, never inside a plane. No reference art
+             here: the rotary picture was unreadable at this size and it mangled the list. -->
+        <StackPanel Orientation="Vertical" Spacing="2">
+            <TextBlock Text="{loc:Loc appSettings.axes.optional}" FontSize="12" FontWeight="SemiBold"
+                       Foreground="#333" />
+            <TextBlock Text="{loc:Loc appSettings.axes.optionalHint}" FontSize="10"
+                       Foreground="#888" TextWrapping="Wrap" />
+            <Grid Margin="0,2,0,1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="26" />
+                    <ColumnDefinition Width="Auto" MinWidth="72" MaxWidth="104" SharedSizeGroup="AxisIndex" />
+                    <ColumnDefinition Width="Auto" MinWidth="78" MaxWidth="110" SharedSizeGroup="AxisType" />
+                    <ColumnDefinition Width="Auto" MinWidth="84" MaxWidth="116" SharedSizeGroup="AxisRole" />
+                    <ColumnDefinition Width="Auto" MinWidth="76" MaxWidth="132" SharedSizeGroup="AxisDirection" />
+                    <ColumnDefinition Width="Auto" MinWidth="56" MaxWidth="80" SharedSizeGroup="AxisAlias" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="1" Text="{loc:Loc appSettings.axes.index}"
+                           FontSize="10" Foreground="#888" />
+                <TextBlock Grid.Column="2" Text="{loc:Loc appSettings.axes.type}"
+                           FontSize="10" Foreground="#888" />
+                <TextBlock Grid.Column="3" Text="{loc:Loc appSettings.axes.role}"
+                           FontSize="10" Foreground="#888" />
+                <TextBlock Grid.Column="4" Text="{loc:Loc appSettings.axes.direction}"
+                           FontSize="10" Foreground="#888" />
+                <TextBlock Grid.Column="5" Text="{loc:Loc appSettings.axes.alias}"
+                           FontSize="10" Foreground="#888" />
+            </Grid>
+            <ItemsControl ItemsSource="{Binding OptionalAxes}"
+                          ItemTemplate="{StaticResource OptionalAxisRow}" />
+            <TextBlock Text="{loc:Loc appSettings.axes.optionalEmpty}" FontSize="11" Foreground="#999"
+                       IsVisible="{Binding HasNoOptionalAxes}" />
+            <Button Content="{loc:Loc appSettings.axes.add}" Command="{Binding AddAxisCommand}"
+                    HorizontalAlignment="Left" Margin="0,3,0,0" VerticalAlignment="Center"
+                    Height="24" MinHeight="24" FontSize="11" CornerRadius="0" Padding="10,0" />
+        </StackPanel>
     </StackPanel>
 </UserControl>

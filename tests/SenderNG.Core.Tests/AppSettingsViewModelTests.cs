@@ -1560,6 +1560,74 @@ public class MachineAxesEditorTests
     }
 
     [Fact]
+    public void The_direction_checkbox_stores_the_sign_and_the_delete_label_is_short()
+    {
+        // The Direction column carries a checkbox now: checked = the axis counts negative.
+        // The stored Sign keeps its +1/−1 semantics; only the control changed.
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var profile = settings.Load();
+            var editor = CreateEditor(settings, profile.Id);
+            editor.AddAxisCommand.Execute(null);
+            var row = Assert.Single(editor.OptionalAxes);
+
+            Assert.False(row.IsInverted);
+            Assert.Equal(1, row.Sign);
+            Assert.Equal("Del", row.RemoveText); // renamed from "Remove" to save the row's space
+
+            row.SetInverted(true);
+            Assert.True(row.IsInverted);
+            Assert.Equal(-1, row.Sign);
+            Assert.Equal(-1, new SettingsService(dir).Load().OptionalAxes[0].Sign);
+
+            row.SetInverted(true); // idempotent: no second flip, nothing to write
+            Assert.Equal(-1, row.Sign);
+
+            row.SetInverted(false);
+            Assert.False(row.IsInverted);
+            Assert.Equal(1, row.Sign);
+            Assert.Equal(1, new SettingsService(dir).Load().OptionalAxes[0].Sign);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void A_role_change_rebuilds_the_perpendicular_pairs_labels()
+    {
+        // A rotary row's two pivot labels are named by the two roles perpendicular to its
+        // own, and they follow a role change without reloading the profile. The rendered
+        // containers are pinned in MachineAxesViewHeadlessTests (the collection must be
+        // observable); here the pair itself is pinned.
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var profile = settings.Load(); // Mill plane: index 0 = Width, 1 = Length, 2 = Height
+            var editor = CreateEditor(settings, profile.Id);
+            editor.AddAxisCommand.Execute(null);
+            var row = Assert.Single(editor.OptionalAxes);
+
+            row.ApplyKind(AxisKind.Rotary);
+            row.ApplyDirection(AxisDirection.Width);
+            Assert.Equal(new[] { AxisDirection.Length, AxisDirection.Height },
+                row.Pivots.Select(p => p.Direction).ToArray());
+            Assert.Equal(new[] { "Y", "Z" }, row.Pivots.Select(p => p.Label).ToArray());
+
+            row.ApplyDirection(AxisDirection.Length);
+            Assert.Equal(new[] { AxisDirection.Width, AxisDirection.Height },
+                row.Pivots.Select(p => p.Direction).ToArray());
+            Assert.Equal(new[] { "X", "Z" }, row.Pivots.Select(p => p.Label).ToArray());
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Pivot_label_is_the_bare_direction_name_when_no_axis_occupies_it()
     {
         var (dir, settings) = MakeSettings();
@@ -1579,7 +1647,7 @@ public class MachineAxesEditorTests
 
             Assert.Equal(new[] { AxisDirection.Width, AxisDirection.Length },
                 row.Pivots.Select(p => p.Direction).ToArray());
-            Assert.Equal(Loc.T("appSettings.axes.direction.width"), row.Pivots[0].Label);
+            Assert.Equal(Loc.T("appSettings.axes.role.width"), row.Pivots[0].Label);
             Assert.Equal(editor.Planes[0].Axes[0].BoardLetterText, row.Pivots[1].Label);
         }
         finally
