@@ -75,6 +75,7 @@ tests/ReleaseManager.Tests xUnit release-tooling suite
 
 - **Foam CNC depth** — the machine-type preset (Mill / Foam) chosen per profile drives the jog layout (schema: preset planes + controller `[AXS:]` letters; under-axed multi-plane machines hide the second plane), the plotter's two-carriage views and the Outline sweep, but foam-specific behavior beyond that is still limited. Hold-to-jog continuous works across these layouts including foam Together; what remains is tracked in the roadmap.
 - **Transports** — `TcpGrblTransport` covers plain TCP; telnet option negotiation and WebSocket are not implemented.
+- **Machine world mapping bakes in a horizontal convention** — the 3D views place a plane's axes by each axis's direction (Width → world X, Length → world Y, Height → world Z). Only `Height → Z` is physics, because a height is vertical by definition; the two horizontal assignments are naming conventions. A machine whose plane horizontal runs along the *other* horizontal axis — a sideways or gantry-rotated frame — therefore cannot be expressed and would need a per-machine override, which is the one thing the deleted per-plotter `Planes[].WorldAxes` table allowed. Deferred; tracked in the roadmap.
 
 ### Landed recently (context)
 

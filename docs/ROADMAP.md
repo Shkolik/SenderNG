@@ -132,6 +132,16 @@ set was checked for parity defaults before finalizing.
   (2026-09-07):** Jog's layout derives from the preset's planes + controller
   letters (M2), fresh profiles seed demo axes from the preset (M3); the
   plotter (P2) and Wrap remain the open consumers.
+  **Known limitation — the horizontal convention (deferred, 2026-10-14):** the
+  3D views derive a plane's world axes from each axis's own direction — Width →
+  world X, Length → world Y, **Height → world Z**. Only `Height → Z` is physics
+  (a height is vertical by construction); the two horizontal assignments are
+  naming conventions. A machine whose plane horizontal runs along the *other*
+  horizontal axis, or any sideways / gantry-rotated frame, therefore cannot be
+  expressed and would need a per-machine override. The per-plotter
+  `Planes[].WorldAxes` table was the only escape hatch for that, and it was
+  removed deliberately — a view must not own the machine's layout. To be handled
+  in a later session.
 - **Continuous jog** — hold-to-jog with continuous motion (ioSender's
   Continuous mode), feedrate selection, and stop-on-release (0x85
   JogCancel). Axis layout comes from the existing jog pad, later from
