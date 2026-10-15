@@ -131,7 +131,14 @@ set was checked for parity defaults before finalizing.
   `global.json`, profile manager in App Settings). **Schema landed and consumers migrated
   (2026-09-07):** Jog's layout derives from the preset's planes + controller
   letters (M2), fresh profiles seed demo axes from the preset (M3); the
-  plotter (P2) and Wrap remain the open consumers.
+  plotter (P2) and Wrap consume it too — the plotter no longer owns an axis
+  mapping of its own. **Kinematics model landed (2026-10-14):** a profile
+  declares planes of `MachineAxis`s (direction + sign, optional rotary axes with
+  a pivot) and one separation scalar; the resolver derives the concrete letters
+  from the connect handshake, and the 3D views place each plane by its axes'
+  directions. The old positional axis-role surface (`AxisRoleKind`,
+  `CarriagePlane`, `MachineType.Planes`, `PlaneAxisIndices`, `HasDepth`) is
+  deleted, so there is exactly one source of truth.
   **Known limitation — the horizontal convention (deferred, 2026-10-14):** the
   3D views derive a plane's world axes from each axis's own direction — Width →
   world X, Length → world Y, **Height → world Z**. Only `Height → Z` is physics

@@ -407,7 +407,7 @@ Explicitly deferred per `docs/ROADMAP.md`. Tick when deliberately started.
 | WorkParametersControl | `Fixed/WorkParameters` flyout | done (read/select; editable write-back in `Fixed/Offsets`) |
 | FileActionControl | File → Open/Save/Close | P1: Save = picker pre-filled with current name (no implicit overwrite) |
 | StepperCalibrationWizard | `Settings-menu` stepper-calibration module | done (2026-09-19) |
-| GCodeViewer / RenderControl | `Modules/Plotter` plugin | done (2026-09-08) — flat quadrant views + iso loft, frontier coloring (P2); sibling `Modules/Plotter.GL` adds a 3D OpenGL orbit view (2026-10-08+, hidden by default) |
+| GCodeViewer / RenderControl | `Modules/Plotter` plugin | done (2026-09-08) — flat quadrant views + iso loft, frontier coloring (P2); sibling `Modules/Plotter.GL` adds a 3D OpenGL orbit view (2026-10-08+, hidden by default). The per-plane axis mapping the plotter used to own is gone (2026-10-14): the machine profile declares the planes and the mapping follows from each axis's direction, so this no longer couples the plotter to the machine schema |
 | ProbeVerify / ConfigControl / MacroDialog | — | **missing** (P2) |
 | SDCardView | — | deferred (P4) |
 | Camera | — | deferred (P4) |

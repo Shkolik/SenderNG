@@ -103,6 +103,16 @@ These run unattended against the board named by `SENDERNG_HW_PORT`:
   archive round-trips a real controller's `$$` text, and that the post-apply verify tolerates the
   board's own formatting (`$110=600` is reported back as `600.000` — the grblHAL RP2040 does this).
   `$110` is restored in a `finally`, so the board is left exactly as found.
+- **`The_reported_letters_reach_the_kinematics_model_on_hardware`** — the machine-kinematics model against
+  real hardware: the connect handshake's own `[AXS:]` letters and axis count are fed to
+  `MachineKinematicsResolver`, and the test asserts the model's `BoardLetters` and `LetterFor` are the
+  **controller's** letters rather than the conventional `XYZABCUVW` fallback, that the foam preset's
+  two-tower layout resolves on that board (plane 0 = indices `[0,1]`, plane 1 = `[2,3]`), and that
+  invariant 10's superset tolerance holds in both directions — fewer reported axes than the profile
+  declares leaves the extras simply *absent* (not an error), while more reported axes surfaces once as
+  `controller.undeclaredAxes`. Connects and reads only; it commands no motion, so it is safe on a board
+  that is wired to something. It is the one check that cannot be faked by a simulated controller: the
+  point is that the letters come from a real `$I`.
 
 ## Interactive (human-in-the-loop) hardware tests
 
