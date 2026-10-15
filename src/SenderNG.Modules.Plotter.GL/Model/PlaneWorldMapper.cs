@@ -35,32 +35,66 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System.Numerics;
-using SenderNG.Modules.Plotter.GL.Settings;
+using CNC.Core.Services;
 
 namespace SenderNG.Modules.Plotter.GL.Model;
 
 /// <summary>
-/// Pure plane-local → world mapping. For each slot <c>s</c>:
-/// <c>world[g.WorldAxes[s]] = g.Origin[g.WorldAxes[s]] + machinePos[planeAxisSlots[s]]</c>;
-/// world axes with no slot mapping stay at the captured <see cref="GlPlaneGeometry.Origin"/> value.
+/// Pure plane-local → world mapping. The mapping is <b>positional</b> — within a
+/// plane slot <c>k</c> feeds world axis <c>k</c> — so for each slot <c>s</c>:
+/// <c>world[s] = placement[s] + machinePos[planeAxisSlots[s]]</c>. The per-plane
+/// <c>WorldAxes</c> table this class used to read is deleted; the only
+/// per-plane input left is the plane's <see cref="PlacementFor"/> offset, which
+/// is the machine model's single separation scalar applied on the world axis the
+/// plane's slots do not span. World axes with no slot stay at the placement
+/// value (0, since a plane with no free axis is never displaced).
 /// </summary>
 public static class PlaneWorldMapper
 {
-    public static Vector3 ToWorld(GlPlaneGeometry g, IReadOnlyList<double> machinePos, int[] planeAxisSlots)
+    /// <summary>World axes are X, Y, Z.</summary>
+    public const int WorldAxisCount = 3;
+
+    /// <summary>
+    /// The plane's placement in world millimetres: <c>SeparationFor(plane)</c>
+    /// applied on the world axis the plane's slots do <b>not</b> span. Slot
+    /// <c>k</c> feeds world axis <c>k</c>, so a plane with <paramref name="slots"/>
+    /// slots occupies world axes <c>0..slots-1</c> and the free axis is the next
+    /// one — world Z for the two-slot foam tower, which is exactly the wire
+    /// direction the two parallel planes leave free. Plane 0 and every
+    /// single-plane machine resolve to a separation of 0, so they sit at the
+    /// origin; a plane that spans all three world axes has no free axis and is
+    /// never displaced.
+    /// </summary>
+    public static Vector3 PlacementFor(MachineKinematics? kinematics, int plane, int slots)
     {
-        var world = new double[]
+        var separation = kinematics is null ? 0 : kinematics.SeparationFor(plane);
+        if (separation == 0 || slots <= 0 || slots >= WorldAxisCount)
+            return Vector3.Zero;
+        // slots == 1 leaves world Y free (the lowest axis the single slot does not
+        // span); slots == 2 leaves world Z.
+        return slots == 1
+            ? new Vector3(0f, (float)separation, 0f)
+            : new Vector3(0f, 0f, (float)separation);
+    }
+
+    /// <summary>
+    /// Maps one machine position into world coordinates through a plane's
+    /// <paramref name="placement"/>: slot <c>k</c> feeds world axis <c>k</c>. A
+    /// slot that names an axis the reported position does not carry is left at
+    /// the placement value, never treated as a zero position — the caller
+    /// checks the plane's highest index first (see
+    /// <c>PlotterGlViewModel</c>), and this is the belt to that brace.
+    /// </summary>
+    public static Vector3 ToWorld(
+        Vector3 placement, IReadOnlyList<double> machinePos, int[] planeAxisSlots)
+    {
+        var world = new[] { (double)placement.X, (double)placement.Y, (double)placement.Z };
+        for (var slot = 0; slot < planeAxisSlots.Length && slot < WorldAxisCount; slot++)
         {
-            g.Origin.Length > 0 ? g.Origin[0] : 0,
-            g.Origin.Length > 1 ? g.Origin[1] : 0,
-            g.Origin.Length > 2 ? g.Origin[2] : 0,
-        };
-        for (var s = 0; s < g.WorldAxes.Length && s < planeAxisSlots.Length; s++)
-        {
-            var wa = g.WorldAxes[s];
-            var slot = planeAxisSlots[s];
-            if (wa < 0 || wa > 2 || slot < 0 || slot >= machinePos.Count)
+            var machineAxis = planeAxisSlots[slot];
+            if (machineAxis < 0 || machineAxis >= machinePos.Count)
                 continue;
-            world[wa] = (g.Origin.Length > wa ? g.Origin[wa] : 0) + machinePos[slot];
+            world[slot] += machinePos[machineAxis];
         }
         return new Vector3((float)world[0], (float)world[1], (float)world[2]);
     }

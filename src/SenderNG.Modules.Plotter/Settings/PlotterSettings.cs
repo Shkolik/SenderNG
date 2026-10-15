@@ -32,23 +32,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace SenderNG.Modules.Plotter.Settings;
 
-/// <summary>One carriage plane's axis→world mapping plus its iso origin
-/// offset. <c>WorldAxes[slot]</c> is the world axis (0 = X, 1 = Y, 2 = Z)
-/// that the plane's <c>slot</c>-th machine axis feeds; <c>Origin</c> is the
-/// plane's offset in world millimetres.</summary>
-public sealed class PlotterPlaneGeometry
-{
-    /// <summary>Slot → world axis. Length equals the plane's role count.</summary>
-    public int[] WorldAxes { get; set; } = [];
-
-    /// <summary>World-axis offset, always length 3 after normalization.</summary>
-    public double[] Origin { get; set; } = [0, 0, 0];
-}
-
-/// <summary>The <c>plotter</c> section: four view toggles plus one
-/// <see cref="PlotterPlaneGeometry"/> per carriage plane. All toggles default
-/// <c>true</c> and the planes default to identity, so a profile that has never
-/// seen this section renders exactly as it did before.</summary>
+/// <summary>The <c>plotter</c> section: the four view toggles, nothing else.
+/// <para>The per-plane axis→world mapping this section used to carry is
+/// <b>deleted</b>, not moved: the machine kinematics owns the axis layout, and
+/// within a plane slot <c>k</c> feeds world axis <c>k</c> by construction, so
+/// there is no mapping left to store. A stale section still carrying
+/// <c>Planes</c> deserializes with those members ignored
+/// (<see cref="PlotterConfig"/>).</para>
+/// <para>All toggles default <c>true</c>, so a profile that has never seen this
+/// section renders exactly as it did before.</para></summary>
 public sealed class PlotterSettings
 {
     /// <summary>World XY grid, on the iso floor and face-on in the flat panes.</summary>
@@ -66,7 +58,4 @@ public sealed class PlotterSettings
     /// <summary>Live run-state coloring. Off resolves every row to idle, which
     /// the bake already falls through to the neutral feed pen.</summary>
     public bool ShowRunState { get; set; } = true;
-
-    /// <summary>One entry per carriage plane, in plane order.</summary>
-    public List<PlotterPlaneGeometry> Planes { get; set; } = [];
 }

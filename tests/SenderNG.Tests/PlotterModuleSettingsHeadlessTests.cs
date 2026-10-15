@@ -107,8 +107,13 @@ public class PlotterModuleSettingsHeadlessTests
         sc.AddSingleton<ILoadedProgramSource>(new StubProgramSource());
         sc.AddSingleton<IGrblService>(new StubGrbl());
         // Registered here so the DI wiring the module depends on is the same
-        // container every test in this class builds.
+        // container every test in this class builds — including the machine seam
+        // the module resolves its view model through.
         sc.AddSingleton<IFileDialogService>(dialogs);
+        sc.AddSingleton<IMachineKinematicsProvider>(
+            sp => new MachineKinematicsProvider(
+                sp.GetRequiredService<SettingsService>(),
+                sp.GetRequiredService<IGrblService>()));
         return (settings, sc.BuildServiceProvider(), foam.Id, mill.Id, dialogs);
     }
 
@@ -133,55 +138,49 @@ public class PlotterModuleSettingsHeadlessTests
         (PlotterSettingsViewModel)((Control)provider.CreateSettingsView()!).DataContext!;
 
     [AvaloniaFact]
-    public void The_plot_view_starts_on_the_stored_plane_mapping()
+    public void The_plot_view_reads_its_planes_from_the_machine_not_from_the_section()
     {
-        // The plan's "build on the stored mappings rather than identity": opening
-        // the Plot tab must show the profile's saved mapping, not a hardcoded
-        // identity that ignores the section.
-        var (_, services, _, _, _) = ModuleHost(new PlotterSettings
-        {
-            Planes = [PlotterPlaneMapper.Identity(2), new PlotterPlaneGeometry { WorldAxes = [1, 0] }],
-        });
+        // The plane layout is the machine model's. Opening the Plot tab must show
+        // the ACTIVE machine's planes and letters; the section carries only the
+        // view toggles now (the per-plotter mapping is deleted rather than moved).
+        var (_, services, _, _, _) = ModuleHost(new PlotterSettings { ShowGrid = false });
         var module = new PlotterModule();
         var vm = (PlotterViewModel)module.CreateViewModel(services);
 
-        // Foam plane 1 is mirrored; identity would read "XY | XY".
-        Assert.Equal("XY | YX", string.Join(" | ", vm.PlaneLetters));
+        // The active profile is foam: two planes, machine axes X,Y then Z,A.
+        Assert.Equal(2, vm.PlaneCount);
+        Assert.Equal([0, 1], vm.PlaneAxisIndices(0));
+        Assert.Equal([2, 3], vm.PlaneAxisIndices(1));
+        Assert.Equal("XY | ZA", string.Join(" | ", vm.PlaneLetters));
     }
 
     [AvaloniaFact]
-    public void A_profile_switch_pushes_the_new_profiles_mapping_and_toggles()
+    public void A_profile_switch_moves_the_plot_view_to_the_new_machines_planes_and_toggles()
     {
-        // The active profile is foam with the grid OFF and a mirrored plane 1;
-        // the mill profile is untouched. After a switch the plot view must carry
-        // the MILL profile's single identity plane and the new toggles — not the
-        // old profile's, and not an empty set (a `SetPlaneGeometries([])` first
-        // would leave the view reporting no planes at all).
+        // The active profile is foam with the grid OFF; the mill profile is
+        // untouched. After a switch the plot view must carry the MILL machine's
+        // single three-axis plane and the new toggles — not the old profile's,
+        // and not an empty set.
         //
-        // Asserted on the pushed MAPPING, not on PlaneLetters: letters render
-        // through `GeometryFor(plane)`, which clamps a stored geometry to
-        // `PlaneLetters`' OWN machine type — and PlotterViewModel only re-resolves
-        // that on a PROGRAM change (PlotterViewModel.OnProgramChanged), not on a
-        // profile switch. With no program loaded it still reads "Foam", so
-        // letters would report this task's behaviour through an unrelated layer's
-        // stale state. The mill's three-axis identity is the unambiguous signal:
-        // foam's stored first plane is two-axis, and no push at all leaves zero.
+        // Asserted on the plane count and slices, which is what the profile
+        // switch actually changes now: the per-plotter mapping was deleted, so
+        // there is nothing for the module to push onto the view.
         var (settings, services, _, millId, _) = ModuleHost(new PlotterSettings
         {
             ShowGrid = false,
-            Planes = [PlotterPlaneMapper.Identity(2), new PlotterPlaneGeometry { WorldAxes = [1, 0] }],
         });
         var module = new PlotterModule();
         module.AttachServices(services);
         var plot = (PlotterViewModel)module.CreateViewModel(services);
-        Assert.Equal(2, plot.PlaneGeometries.Count);
-        Assert.Equal([1, 0], plot.PlaneGeometries[1].WorldAxes);   // foam plane 1 mirrored
+        Assert.Equal(2, plot.PlaneCount);
+        Assert.Equal([2, 3], plot.PlaneAxisIndices(1));
         Assert.False(LeafOf((IModuleSettingsProvider)module).ShowGrid);
 
         settings.Activate(millId);
 
-        var mill = Assert.Single(plot.PlaneGeometries);
-        Assert.Equal([0, 1, 2], mill.WorldAxes);                   // mill identity, 3 axes
+        Assert.Equal(1, plot.PlaneCount);
+        Assert.Equal([0, 1, 2], plot.PlaneAxisIndices(0));
+        Assert.Equal("XYZ", string.Join(" | ", plot.PlaneLetters));
         Assert.True(LeafOf((IModuleSettingsProvider)module).ShowGrid);
     }
 
@@ -216,7 +215,6 @@ public class PlotterModuleSettingsHeadlessTests
         var (settings, services, foamId, millId, _) = ModuleHost(new PlotterSettings
         {
             ShowGrid = true,
-            Planes = [PlotterPlaneMapper.Identity(2), new PlotterPlaneGeometry { WorldAxes = [1, 0] }],
         });
         var module = new PlotterModule();
         module.AttachServices(services);

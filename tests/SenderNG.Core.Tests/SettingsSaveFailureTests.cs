@@ -109,7 +109,7 @@ public class SettingsSaveFailureTests
         var (_, settings) = MakeSettings();
         var vm = new PlotterGlSettingsViewModel(settings);
         Poison(settings.SettingsDir);
-        vm.WireLength = 12345; // setter -> Save(); must not throw
+        vm.ShowGrid = !vm.ShowGrid; // setter -> Save(); must not throw
     }
 
     [Fact]

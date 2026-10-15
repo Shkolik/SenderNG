@@ -35,11 +35,13 @@ using CNC.Core.Services;
 
 namespace SenderNG.Modules.Plotter.GL.Scene;
 
-/// <summary>Assembles a scene for a given machine kinematic type.</summary>
+/// <summary>Assembles a scene for a given machine kinematic.</summary>
 public interface ISceneFactory
 {
-    /// <summary>Build a fully-assembled scene for the given machine type.</summary>
-    IPlotScene BuildScene(MachineType type);
+    /// <summary>Build a fully-assembled scene for the given resolved machine: one
+    /// carriage-plane layer per real plane, a loft only when there genuinely is a
+    /// second plane, and the tool's initial wire along the separation axis.</summary>
+    IPlotScene BuildScene(MachineKinematics kinematics);
 
     /// <summary>Number of carriage plane layers in the current scene.</summary>
     int PlaneCount { get; }

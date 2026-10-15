@@ -77,15 +77,24 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
 
     private readonly ILoadedProgramSource _programSource;
     private readonly IGrblService _grbl;
-    private readonly SettingsService _settings;
     private readonly LocalizationService _localization;
+    private readonly IMachineKinematicsProvider _kinematics;
+    /// <summary>True when this view model built the provider itself (a direct
+    /// construction: a unit test, or a third-party embedder). An injected
+    /// provider belongs to the caller — the app's DI singleton — and must not be
+    /// disposed here.</summary>
+    private readonly bool _ownsKinematics;
     private readonly IDisposable _stateSubscription;
 
     private ISceneFactory? _sceneFactory;
     private IPlotScene? _scene;
-    private MachineType _machineType;
-    private PlotterGlSettings _lastSettings;
-    private GlPlaneGeometry[] _planeGeometries = [];
+    /// <summary>The resolved machine: plane count, plane slices, letters and the
+    /// separation all come from here, re-read on every provider change.</summary>
+    private MachineKinematics _machine;
+    /// <summary>Per-plane world placement, index-aligned with
+    /// <see cref="MachineKinematics.Planes"/>: the separation applied on the
+    /// world axis the plane's slots do not span.</summary>
+    private Vector3[] _planePlacements = [];
     private uint[][] _planeOutputLines = [];
     private Dictionary<uint, int> _lineToRow = new();
     private int _generation;
@@ -111,17 +120,22 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
         IGrblService grbl,
         SettingsService settings,
         LocalizationService localization,
-        ISceneFactory? sceneFactory = null)
+        ISceneFactory? sceneFactory = null,
+        IMachineKinematicsProvider? kinematics = null)
     {
         _programSource = programSource;
         _grbl = grbl;
-        _settings = settings;
         _localization = localization;
-        _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
-        _lastSettings = PlotterGlConfig.Load(_settings.Load(), _machineType);
+        // Optional in the signature so a direct construction (tests, an
+        // embedder) stays possible; the module always injects the app's DI
+        // singleton. The fallback is built from the SAME settings and controller
+        // this view model was handed, so it resolves the same machine.
+        _ownsKinematics = kinematics is null;
+        _kinematics = kinematics ?? new MachineKinematicsProvider(settings, grbl);
+        _machine = _kinematics.Current;
+        _planePlacements = ResolvePlacements(_machine);
 
-        _planeGeometries = ResolvePlaneGeometries(_machineType);
-        _settings.Changed += OnSettingsChanged;
+        _kinematics.Changed += OnKinematicsChanged;
         _localization.Changed += OnLocalizationChanged;
 
         _programSource.ProgramChanged += OnProgramChanged;
@@ -147,15 +161,21 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
     /// HasGeometry false, no event flows and nothing throws).</summary>
     public IPlotScene? Scene => _scene;
 
-    /// <summary>Machine planes: the fabric's layer count, or the machine
-    /// type's planes while no fabric is attached.</summary>
-    public int PlaneCount => _sceneFactory?.PlaneCount ?? _machineType.Planes.Count;
+    /// <summary>Machine planes: the fabric's layer count, or the resolved
+    /// machine's planes while no fabric is attached.</summary>
+    public int PlaneCount => _sceneFactory?.PlaneCount ?? _machine.Planes.Count;
 
     /// <summary>Display letters per plane, joined for the header ("XYZ" or
-    /// "XY | ZA") — mirrors the Skia plotter's PlaneLetters.</summary>
-    public string PlaneLettersText => string.Join(" | ", _machineType.Planes
+    /// "XY | ZA") — the plane's own MACHINE axes in plane order, named through
+    /// the controller's letters, so a bug-report foam layout's plane 2 reads
+    /// "AZ" rather than a sorted "ZA".</summary>
+    public string PlaneLettersText => string.Join(" | ", _machine.Planes
         .Select((_, p) => new string(
-            _machineType.PlaneAxisIndices(p).Select(AxisLetter).ToArray())));
+            _machine.PlaneIndices(p).Select(_machine.LetterFor).ToArray())));
+
+    /// <summary>The resolved kinematics this view model is drawing (diagnostics
+    /// and the tests' handle on the plane layout).</summary>
+    public MachineKinematics Machine => _machine;
 
     /// <summary>"{done}/{sendable}" live-run progress over the program rows.</summary>
     public string ProgressText => $"{_programSource.DoneCount}/{_programSource.SendableCount}";
@@ -323,93 +343,53 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
 
     public void Dispose()
     {
-        _settings.Changed -= OnSettingsChanged;
+        _kinematics.Changed -= OnKinematicsChanged;
         _localization.Changed -= OnLocalizationChanged;
         _programSource.ProgramChanged -= OnProgramChanged;
         _programSource.RowsChanged -= OnRowsChanged;
+        // Only the provider this view model built: an injected one is the app's
+        // DI singleton and outlives every view.
+        if (_ownsKinematics && _kinematics is IDisposable disposable)
+            disposable.Dispose();
         _stateSubscription.Dispose();
     }
 
+    /// <summary>Re-read the machine after a profile switch, a connect (the
+    /// <c>[AXS:]</c> letters and the reported count) or a committed axis edit.
+    /// The plane slices themselves may have moved, so the program is re-sliced
+    /// rather than merely relabelled.</summary>
+    private void OnKinematicsChanged(object? sender, EventArgs e) => PostUi(() =>
+    {
+        _machine = _kinematics.Current;
+        _planePlacements = ResolvePlacements(_machine);
+        OnPropertyChanged(nameof(PlaneCount));
+        OnPropertyChanged(nameof(PlaneLettersText));
+        if (_programSource.Program is not null)
+            Rebuild();
+    });
+
     private void OnProgramChanged() => PostUi(() =>
     {
-        _machineType = MachineTypeCatalog.Resolve(_settings.Load().MachineTypeId);
-        _planeGeometries = ResolvePlaneGeometries(_machineType);
+        _machine = _kinematics.Current;
+        _planePlacements = ResolvePlacements(_machine);
         OnPropertyChanged(nameof(PlaneCount));
         OnPropertyChanged(nameof(PlaneLettersText));
         Rebuild();
     });
 
-    private void OnSettingsChanged()
-    {
-        var profile = _settings.Load();
-        var machineType = MachineTypeCatalog.Resolve(profile.MachineTypeId);
-        var settings = PlotterGlConfig.Load(profile, machineType);
+    /// <summary>The per-plane world placements for a resolved machine: plane
+    /// <c>p</c> sits at the machine's separation on the world axis its slots do
+    /// not span (world Z for a two-slot tower), plane 0 at the origin. Read
+    /// through <see cref="PlaneWorldMapper.PlacementFor"/>, the one place that
+    /// rule lives, so the scene, the tool and the loft cannot disagree.</summary>
+    private static Vector3[] ResolvePlacements(MachineKinematics machine) =>
+        [.. machine.Planes.Select((plane, p) => PlaneWorldMapper.PlacementFor(machine, p, plane.Axes.Count))];
 
-        // The overlay toggle bar and the App Settings leaf now save through this
-        // SAME SettingsService, so every Show* flip and the supersample change
-        // arrives here too. Only those runtime-flippable settings must
-        // stay runtime-only (the view's shared-VM subscription pushes them to the
-        // LIVE scene — SetView for the view toggles; no node
-        // recreation, no program rebuild); any structural change (machine type,
-        // planes, wire length) keeps the full legacy path.
-        if (OnlyRuntimeStateChanged(_lastSettings, settings, _machineType, machineType))
-        {
-            _lastSettings = settings;
-            return;
-        }
-
-        _machineType = machineType;
-        _planeGeometries = ResolvePlaneGeometries(machineType);
-        OnPropertyChanged(nameof(PlaneCount));
-        OnPropertyChanged(nameof(PlaneLettersText));
-        if (_programSource.Program is not null)
-            Rebuild();
-        _lastSettings = settings;
-    }
-
-    /// <summary>True when <paramref name="a"/> and <paramref name="b"/> differ in
-    /// AT MOST the five view toggles (ShowOrigin/ShowEnvelope/ShowRunState/ShowGrid/ShowLoft)
-    /// — the runtime-only case
-    /// (identical machine type, planes and wire length). The view pushes these live
-    /// onto the scene (SetView — node-level Enabled/park flips only), so a
-    /// structural rebuild is never required for them.
-    /// A no-op save (Changed raised with nothing actually changed) is
-    /// also caught here, so unrelated profile saves no longer force a node rebuild.</summary>
-    private static bool OnlyRuntimeStateChanged(
-        PlotterGlSettings a, PlotterGlSettings b, MachineType machineA, MachineType machineB)
-    {
-        if (machineA.Id != machineB.Id)
-            return false;
-        if (Math.Abs(a.WireLength - b.WireLength) > 1e-9)
-            return false;
-        if (a.Planes.Count != b.Planes.Count)
-            return false;
-        for (var p = 0; p < a.Planes.Count; p++)
-        {
-            var ga = a.Planes[p];
-            var gb = b.Planes[p];
-            if (ga.WorldAxes.Length != gb.WorldAxes.Length)
-                return false;
-            for (var s = 0; s < ga.WorldAxes.Length; s++)
-                if (ga.WorldAxes[s] != gb.WorldAxes[s])
-                    return false;
-            if (ga.Origin.Length != gb.Origin.Length)
-                return false;
-            for (var o = 0; o < ga.Origin.Length; o++)
-                if (Math.Abs(ga.Origin[o] - gb.Origin[o]) > 1e-9)
-                    return false;
-        }
-        return true;
-    }
-
-    private GlPlaneGeometry[] ResolvePlaneGeometries(MachineType type)
-    {
-        var settings = PlotterGlConfig.Load(_settings.Load(), type);
-        var geoms = new GlPlaneGeometry[type.Planes.Count];
-        for (var p = 0; p < geoms.Length; p++)
-            geoms[p] = p < settings.Planes.Count ? settings.Planes[p] : settings.Planes[^1];
-        return geoms;
-    }
+    /// <summary>One plane's world placement, or the origin for a plane that does
+    /// not exist (a machine with no planes still renders its empty scene rather
+    /// than throwing on the way in).</summary>
+    private Vector3 PlacementForPlane(int plane) =>
+        plane >= 0 && plane < _planePlacements.Length ? _planePlacements[plane] : Vector3.Zero;
 
     /// <summary>Row events land on the serial thread at stream speed; posting one
     /// dispatcher action per event starves the UI during a fast check run. The
@@ -441,12 +421,12 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
         var touched = _programSource.TouchedRow;
         if (touched < _ackedEndRowBaseline)
         {
-            _ackedEnds = new Vector3?[_machineType.Planes.Count];
+            _ackedEnds = new Vector3?[_machine.Planes.Count];
             _ackedEndRowBaseline = touched;
             return;
         }
-        if (_ackedEnds.Length != _machineType.Planes.Count)
-            _ackedEnds = new Vector3?[_machineType.Planes.Count];
+        if (_ackedEnds.Length != _machine.Planes.Count)
+            _ackedEnds = new Vector3?[_machine.Planes.Count];
         for (var i = _ackedEndRowBaseline + 1; i <= touched; i++)
         {
             var state = _programSource.GetRowState(i);
@@ -457,15 +437,15 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
                 var seg = LastSegmentForRow(i);
                 if (seg is null)
                     continue;
-                for (var p = 0; p < _machineType.Planes.Count; p++)
+                for (var p = 0; p < _machine.Planes.Count; p++)
                 {
-                    var indices = _machineType.PlaneAxisIndices(p);
-                    if (seg.To.Length <= indices[^1])
+                    var indices = PlaneAxisIndices(p);
+                    // Highest index, not the last entry: a plane's index list is in
+                    // plane order and may be non-monotonic ([3, 2] on the shipped
+                    // bug firmware), so indices[^1] would test the wrong axis.
+                    if (seg.To.Length <= HighestAxisIndex(indices))
                         continue;
-                    var geometry = _planeGeometries.Length == _machineType.Planes.Count
-                        ? _planeGeometries[p]
-                        : PlotterGlConfig.Defaults(_machineType).Planes[p];
-                    _ackedEnds[p] = PlaneWorldMapper.ToWorld(geometry, seg.To, indices);
+                    _ackedEnds[p] = PlaneWorldMapper.ToWorld(PlacementForPlane(p), seg.To, indices);
                 }
             }
             _ackedEndRowBaseline = i;
@@ -484,16 +464,13 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
         if (positions is null || factory?.Tool is null)
             return;
 
-        var points = new List<Vector3>(_machineType.Planes.Count);
-        for (var p = 0; p < _machineType.Planes.Count; p++)
+        var points = new List<Vector3>(_machine.Planes.Count);
+        for (var p = 0; p < _machine.Planes.Count; p++)
         {
-            var indices = _machineType.PlaneAxisIndices(p);
-            if (positions.Length <= indices[^1])
+            var indices = PlaneAxisIndices(p);
+            if (positions.Length <= HighestAxisIndex(indices))
                 return; // Controller reports fewer axes than the machine needs.
-            var geometry = _planeGeometries.Length == _machineType.Planes.Count
-                ? _planeGeometries[p]
-                : PlotterGlConfig.Defaults(_machineType).Planes[p];
-            var live = PlaneWorldMapper.ToWorld(geometry, positions, indices);
+            var live = PlaneWorldMapper.ToWorld(PlacementForPlane(p), positions, indices);
             var acked = p < _ackedEnds.Length ? _ackedEnds[p] : null;
             Vector3? resolved = _isCheckMode ? (acked ?? live) : live;
             if (resolved is null)
@@ -522,7 +499,7 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
 
         if (program.Tokens.Count <= AsyncBuildThreshold)
         {
-            ApplyBuild(BuildGeometry(program, _machineType), generation);
+            ApplyBuild(BuildGeometry(program, _machine), generation);
             return;
         }
 
@@ -531,12 +508,12 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
         SetStatus("module.plotter-gl.building", "Plotting…");
         Bump();
 
-        var machineType = _machineType;
+        var machine = _machine;
         _ = Task.Run(() =>
         {
             try
             {
-                var geometry = BuildGeometry(program, machineType);
+                var geometry = BuildGeometry(program, machine);
                 PostUi(() =>
                 {
                     if (generation != _generation)
@@ -568,13 +545,13 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
         if (_sceneFactory is not null)
         {
             BuildScene();
-            for (var p = 0; p < _machineType.Planes.Count; p++)
+            for (var p = 0; p < _machine.Planes.Count; p++)
                 ToolpathSceneBuilder.PopulatePlane(
-                    _sceneFactory.PlaneLayer(p), geometry.SourceSegments, _machineType.PlaneAxisIndices(p),
-                    _planeGeometries.Length == _machineType.Planes.Count ? _planeGeometries[p] : PlotterGlConfig.Defaults(_machineType).Planes[p]);
+                    _sceneFactory.PlaneLayer(p), geometry.SourceSegments, PlaneAxisIndices(p),
+                    PlacementForPlane(p));
 
             var loft = _sceneFactory.Loft;
-            if (loft is not null && _machineType.Planes.Count >= 2)
+            if (loft is not null && _machine.Planes.Count >= 2)
                 PopulateLoftSheet(loft, geometry.SourceSegments);
         }
 
@@ -582,7 +559,7 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
         _lineToRow = geometry.LineToRow;
         _sourceSegments = geometry.SourceSegments;
         _lastSegmentByRow = BuildLastSegmentByRow(geometry.SourceSegments, geometry.LineToRow);
-        _ackedEnds = new Vector3?[_machineType.Planes.Count];
+        _ackedEnds = new Vector3?[_machine.Planes.Count];
         _ackedEndRowBaseline = -1;
         _lastAppliedTouched = -1;
         _recoloredUpTo = -1;
@@ -604,18 +581,14 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
         var count = segments.Count > 2 ? segments.Count : 2;
         var sideA = new List<Vector3>(count);
         var sideB = new List<Vector3>(count);
-        var g0 = _planeGeometries.Length == _machineType.Planes.Count
-            ? _planeGeometries[0]
-            : PlotterGlConfig.Defaults(_machineType).Planes[0];
-        var g1 = _planeGeometries.Length == _machineType.Planes.Count
-            ? _planeGeometries[1]
-            : PlotterGlConfig.Defaults(_machineType).Planes[1];
-        var idx0 = _machineType.PlaneAxisIndices(0);
-        var idx1 = _machineType.PlaneAxisIndices(1);
+        var idx0 = PlaneAxisIndices(0);
+        var idx1 = PlaneAxisIndices(1);
+        var place0 = PlacementForPlane(0);
+        var place1 = PlacementForPlane(1);
         foreach (var seg in segments)
         {
-            sideA.Add(PlaneWorldMapper.ToWorld(g0, seg.From, idx0));
-            sideB.Add(PlaneWorldMapper.ToWorld(g1, seg.From, idx1));
+            sideA.Add(PlaneWorldMapper.ToWorld(place0, seg.From, idx0));
+            sideB.Add(PlaneWorldMapper.ToWorld(place1, seg.From, idx1));
         }
         loft.SetLoftSheet(sideA, sideB);
     }
@@ -631,7 +604,7 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
         _lineToRow = new Dictionary<uint, int>();
         _sourceSegments = [];
         _lastSegmentByRow = new();
-        _ackedEnds = new Vector3?[_machineType.Planes.Count];
+        _ackedEnds = new Vector3?[_machine.Planes.Count];
         _ackedEndRowBaseline = -1;
         _lastAppliedTouched = -1;
         _recoloredUpTo = -1;
@@ -640,7 +613,7 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
         Bump();
     }
 
-    private Geometry BuildGeometry(GCodeProgram program, MachineType type)
+    private Geometry BuildGeometry(GCodeProgram program, MachineKinematics machine)
     {
         var segments = ToolpathBuilder.Build(program.Tokens);
         if (segments.Count == 0)
@@ -650,9 +623,9 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
         }
 
         var lineToRow = BuildLineToRow(program);
-        var planeOutputLines = new uint[type.Planes.Count][];
-        for (var p = 0; p < type.Planes.Count; p++)
-            planeOutputLines[p] = PlaneOutputLines(segments, type.PlaneAxisIndices(p));
+        var planeOutputLines = new uint[machine.Planes.Count][];
+        for (var p = 0; p < machine.Planes.Count; p++)
+            planeOutputLines[p] = PlaneOutputLines(segments, PlaneAxisIndices(p));
 
         return new Geometry(segments, planeOutputLines, lineToRow, Status: null);
     }
@@ -889,17 +862,27 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
 
     private void BuildScene()
     {
-        _scene = _sceneFactory!.BuildScene(_machineType);
+        _scene = _sceneFactory!.BuildScene(_machine);
     }
 
-    /// <summary>Controller letter for a flattened axis index — the controller's
-    /// handshake letters win, the preset's conventional letters are the fallback.</summary>
-    private char AxisLetter(int axisIndex)
+    /// <summary>Plane <paramref name="plane"/>'s machine axis indices, in plane
+    /// order (may be non-monotonic).</summary>
+    private int[] PlaneAxisIndices(int plane) => [.. _machine.PlaneIndices(plane)];
+
+    /// <summary>A plane's highest machine axis index, or <c>-1</c> for a plane
+    /// with no axes. The list is in PLANE order and may be NON-MONOTONIC — the
+    /// bug-report foam firmware's plane 2 is <c>[3, 2]</c> — so "does the plane
+    /// fit the reported position / the program frame" is a MAX, never the last
+    /// entry.</summary>
+    private static int HighestAxisIndex(int[] planeAxisIndices)
     {
-        var letters = _grbl.Capabilities.AxisLetters;
-        if (!string.IsNullOrEmpty(letters) && axisIndex < letters.Length)
-            return letters[axisIndex];
-        return _machineType.ConventionalLetter(axisIndex);
+        var max = -1;
+        foreach (var index in planeAxisIndices)
+        {
+            if (index > max)
+                max = index;
+        }
+        return max;
     }
 
     private void Bump()

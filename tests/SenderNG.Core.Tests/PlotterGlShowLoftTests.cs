@@ -47,11 +47,11 @@ namespace SenderNG.Core.Tests;
 
 /// <summary>Task 7's settings half: <c>ShowLoft</c> rides the module's
 /// existing JSON section (default on), persists through the settings VM like
-/// every other <c>Show*</c> toggle, is gated by a machine's plane count
+/// every other <c>Show*</c> toggle, is gated by the MACHINE's plane count
 /// (<see cref="PlotterGlSettingsViewModel.HasLoft"/> — a single-plane mill
 /// has no sheet, so neither toolbar nor settings show the toggle), and a
-/// ShowLoft-only profile save stays on the runtime-push path (no node
-/// rebuild).</summary>
+/// ShowLoft-only profile save does not disturb the kinematics (no republish, so
+/// no node rebuild).</summary>
 public class PlotterGlShowLoftTests
 {
     private readonly string _dir = Path.Combine(
@@ -59,23 +59,20 @@ public class PlotterGlShowLoftTests
 
     public PlotterGlShowLoftTests() => Directory.CreateDirectory(_dir);
 
-    private static readonly MachineType Mill = MachineTypeCatalog.Resolve(MachineTypes.Mill);
-
     [Fact]
     public void ShowLoft_defaults_to_true_and_round_trips_through_the_profile()
     {
         var settings = new SettingsService(_dir);
         var profile = MakeMill(settings);
 
-        var loaded = PlotterGlConfig.Load(profile, Mill);
+        var loaded = PlotterGlConfig.Load(profile);
         Assert.True(loaded.ShowLoft); // default: the sheet shows until hidden
 
         loaded.ShowLoft = false;
         PlotterGlConfig.Save(profile, loaded);
         settings.Save(profile);
 
-        Assert.False(
-            PlotterGlConfig.Load(settings.Load(), Mill).ShowLoft);
+        Assert.False(PlotterGlConfig.Load(settings.Load()).ShowLoft);
     }
 
     [Fact]
@@ -93,13 +90,14 @@ public class PlotterGlShowLoftTests
         vm.ShowLoft = false;
 
         Assert.Contains(nameof(PlotterGlSettingsViewModel.ShowLoft), changed);
-        Assert.False(
-            PlotterGlConfig.Load(settings.Load(), Mill).ShowLoft);
+        Assert.False(PlotterGlConfig.Load(settings.Load()).ShowLoft);
     }
 
     /// <summary>The plane-count gate: no sheet between a single plane and
     /// nothing, so the mill's view/settings carry no loft toggle while the
-    /// two-plane foam does.</summary>
+    /// two-plane foam does. The count comes from the MACHINE now — the settings
+    /// section no longer describes the layout — so this exercises the resolver
+    /// fallback a directly constructed editor uses.</summary>
     [Fact]
     public void HasLoft_is_false_for_a_single_plane_machine_and_true_for_two()
     {
@@ -112,22 +110,31 @@ public class PlotterGlShowLoftTests
         Assert.True(new PlotterGlSettingsViewModel(settings).HasLoft);
     }
 
-    /// <summary>Structure-only classification: a save that differs in ShowLoft
-    /// alone (same machine, same planes) stays on the runtime-push path, so
-    /// flipping the sheet toggle never forces a node rebuild.</summary>
+    /// <summary>A toggle-only save must not republish the kinematics: the
+    /// provider gates on a structural signature (profile, preset, letters,
+    /// reported count, axis bindings, separations), so flipping a plotter
+    /// rendering flag leaves every consumer's snapshot — and therefore the
+    /// scene — alone. This replaces the reflection test over the deleted
+    /// <c>OnlyRuntimeStateChanged</c> classifier, which compared the section's
+    /// plane table: that table no longer exists, and the machine is the thing
+    /// that must stay still.</summary>
     [Fact]
-    public void OnlyRuntimeStateChanged_returns_true_when_only_ShowLoft_differs()
+    public void A_show_loft_only_save_does_not_republish_the_kinematics()
     {
-        var method = typeof(PlotterGlViewModel).GetMethod(
-            "OnlyRuntimeStateChanged",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        Assert.NotNull(method);
+        var settings = new SettingsService(_dir);
+        MakeMill(settings);
+        var grbl = new JogViewModelTests.RecordingGrbl([], numAxes: 3);
+        using var provider = new MachineKinematicsProvider(settings, grbl);
 
-        var a = new PlotterGlSettings { ShowLoft = true };
-        var b = new PlotterGlSettings { ShowLoft = false };
+        var raised = 0;
+        provider.Changed += (_, _) => raised++;
+        var before = provider.Current;
 
-        var result = (bool)method!.Invoke(null, [a, b, Mill, Mill])!;
-        Assert.True(result);
+        var vm = new PlotterGlSettingsViewModel(settings, null, provider);
+        vm.ShowLoft = false;
+
+        Assert.Equal(0, raised);
+        Assert.Same(before, provider.Current);
     }
 
     private static MachineProfile MakeMill(SettingsService settings)

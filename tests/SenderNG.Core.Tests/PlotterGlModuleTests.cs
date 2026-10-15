@@ -47,6 +47,7 @@ using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
 using SenderNG.Modules.Fixed;
 using SenderNG.Modules.Plotter.GL;
+using SenderNG.Modules.Plotter.GL.Scene;
 using SenderNG.Modules.Plotter.GL.Settings;
 
 namespace SenderNG.Core.Tests;
@@ -144,11 +145,11 @@ public class PlotterGlModuleTests
     }
 
     /// <summary>The host calls CreateViewModel on the UI thread with exactly
-    /// these four services resolvable (ILoadedProgramSource, IGrblService,
-    /// SettingsService, LocalizationService) — the shared stub set.
-    /// It must hand back the GL plotter's own view model, and it must not
-    /// touch the Avalonia dispatcher beyond capturing it (headless
-    /// construction stays inline).</summary>
+    /// these five services resolvable (ILoadedProgramSource, IGrblService,
+    /// SettingsService, LocalizationService, IMachineKinematicsProvider — the
+    /// shared stub set plus the machine seam). It must hand back the GL
+    /// plotter's own view model, and it must not touch the Avalonia dispatcher
+    /// beyond capturing it (headless construction stays inline).</summary>
     [Fact]
     public void CreateViewModel_returns_the_plot_gl_view_model()
     {
@@ -163,6 +164,10 @@ public class PlotterGlModuleTests
                 .AddSingleton(settings)
                 .AddSingleton(new LocalizationService(
                     new MemoryStream("{ \"strings\": {} }"u8.ToArray())))
+                .AddSingleton<IMachineKinematicsProvider>(
+                    sp => new MachineKinematicsProvider(
+                        sp.GetRequiredService<SettingsService>(),
+                        sp.GetRequiredService<IGrblService>()))
                 .BuildServiceProvider();
 
             var vm = new PlotterGlModule().CreateViewModel(services);
@@ -220,8 +225,7 @@ public class PlotterGlModuleTests
             module.AttachServices(sp);
 
             var firstVm = (PlotterGlSettingsViewModel)((PlotterGlSettingsView)module.CreateSettingsView()!).DataContext!;
-            Assert.False(firstVm.ShowWireLength); // Mill: single plane
-            Assert.Single(firstVm.PlaneRows);
+            Assert.False(firstVm.HasLoft); // Mill: single plane, no sheet
 
             // Switching the active profile (App Settings profile switch / connect flow)
             // must be reflected by a new CreateSettingsView call.
@@ -229,8 +233,7 @@ public class PlotterGlModuleTests
             settingsService.Activate(foam.Id);
 
             var secondVm = (PlotterGlSettingsViewModel)((PlotterGlSettingsView)module.CreateSettingsView()!).DataContext!;
-            Assert.True(secondVm.ShowWireLength); // Foam: wire length + two planes
-            Assert.Equal(2, secondVm.PlaneRows.Count);
+            Assert.True(secondVm.HasLoft); // Foam: two planes, so the sheet toggle exists
             Assert.NotSame(firstVm, secondVm);
         }
         finally
@@ -278,12 +281,93 @@ public class PlotterGlModuleTests
             Assert.True(secondVm.ShowGrid);
 
             // And the flip persisted per-profile through the shared service.
-            var reloaded = PlotterGlConfig.Load(settingsService.Load(), MachineTypeCatalog.Resolve(MachineTypes.Mill));
+            var reloaded = PlotterGlConfig.Load(settingsService.Load());
             Assert.Equal(firstVm.ShowGrid, reloaded.ShowGrid);
         }
         finally
         {
             if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// A live controller can report FEWER axes than the machine's highest plane
+    /// index — and on the shipped bug-report foam layout plane 2's indices are
+    /// <c>[3, 2]</c>, so the plane's LAST entry is 2 while its true maximum is 3.
+    /// The guard must test the maximum: with <c>indices[^1]</c> the check
+    /// <c>3 &lt;= 2</c> passed and the world mapping then read
+    /// <c>positions[3]</c> — an IndexOutOfRangeException on every status poll of
+    /// exactly the layout this feature exists for. The cross is abandoned for the
+    /// whole tick (the plane cannot be located), and the same report WITH the
+    /// fourth axis does move the tool, so the test cannot pass vacuously.
+    /// </summary>
+    [Fact]
+    public void A_short_controller_report_does_not_index_past_the_position_on_a_non_monotonic_plane()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "plotter-gl-short-report-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var settings = new SettingsService(dir);
+            var profile = settings.Load();
+            profile.MachineTypeId = MachineTypes.Foam;
+            profile.Planes = MachineTypeCatalog.Resolve(MachineTypes.Foam).CreateDefaultPlanes();
+            profile.Planes[1].Axes[0].Index = 3; // slot 0 = A
+            profile.Planes[1].Axes[1].Index = 2; // slot 1 = Z
+            settings.Save(profile);
+
+            var grbl = new PushStateGrbl();
+            var scene = new FakePlotScene();
+            var factory = new KinematicSceneFactory(scene);
+            using var vm = new PlotterGlViewModel(
+                new ProgramViewModel(),
+                grbl,
+                settings,
+                new LocalizationService(new MemoryStream("{ \"error\":\"\" }"u8.ToArray())),
+                factory);
+
+            var tool = Assert.IsType<FakePlotTool>(factory.Tool);
+            Assert.Single(tool.Positions); // the BuildScene placeholder
+
+            // Three axes against a plane that needs index 3: nothing is drawn for
+            // the cross this tick, and nothing throws.
+            grbl.Push(new MachineState { Positions = [1, 2, 3], Status = "Idle" });
+            Assert.Single(tool.Positions);
+
+            // Four axes: the cross resolves and both carriages move.
+            grbl.Push(new MachineState { Positions = [1, 2, 3, 4], Status = "Idle" });
+            Assert.Equal(2, tool.Positions.Count);
+            var points = tool.Positions[1].Points;
+            Assert.Equal(2, points.Length);
+            // Plane 1 sits at the separation (0 by default) on world Z, with A=4
+            // on world X and Z=3 on world Y — slot order, not sorted order.
+            Assert.Equal(new System.Numerics.Vector3(4, 3, 0), points[1]);
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    /// <summary>Minimal controller double whose status stream the test pushes:
+    /// the resolved kinematics reads <see cref="IGrblService.Capabilities"/> and
+    /// the plotter's live pose reads the state stream.</summary>
+    private sealed class PushStateGrbl : IGrblService
+    {
+        private readonly System.Reactive.Subjects.Subject<MachineState> _state = new();
+
+        public bool IsConnected => true;
+
+        public ControllerCapabilities Capabilities =>
+            ControllerCapabilities.Full with { NumAxes = 4, AxisLetters = "XYZA" };
+
+        public IObservable<MachineState> State => _state;
+
+        public void Push(MachineState state) => _state.OnNext(state);
+
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public Task SendAsync(string line) => Task.CompletedTask;
+        public void SendRealtime(byte code) { }
     }
 }

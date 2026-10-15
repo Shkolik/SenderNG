@@ -149,19 +149,6 @@ public class NumericInputFilterPresenceTests
         AssertAllRejectLetters(new ConverterParametersView());
 
     [AvaloniaFact]
-    public void Plotter_settings_boxes_reject_letters()
-    {
-        var dir = Path.Combine(Path.GetTempPath(), "senderng-presence-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
-        var vm = new PlotterSettingsViewModel(new SettingsService(dir), null);
-        AssertAllRejectLetters(new PlotterSettingsView { DataContext = vm });
-    }
-
-    [AvaloniaFact]
-    public void Plotter_gl_settings_boxes_reject_letters() =>
-        AssertAllRejectLetters(new PlotterGlSettingsView());
-
-    [AvaloniaFact]
     public async Task Valid_paste_lands_via_SelectedText()
     {
         var (window, boxes) = ShowAndGetFilteredBoxes(new JogSettingsView());

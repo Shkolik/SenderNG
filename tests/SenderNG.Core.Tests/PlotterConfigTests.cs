@@ -36,6 +36,11 @@ using SenderNG.Modules.Plotter.Settings;
 
 namespace SenderNG.Core.Tests;
 
+/// <summary>The <c>plotter</c> section after the world-mapping deletion: four
+/// view toggles and a JSON bag that must KEEP TOLERATING a section written by the
+/// previous model. The plane-geometry cases that used to live here
+/// (identity/mirror/origin round trips, plane-count mismatch, malformed mapping
+/// recovery) encode a model that no longer exists.</summary>
 public class PlotterConfigTests
 {
     private static MachineProfile NewProfile() => new()
@@ -46,64 +51,65 @@ public class PlotterConfigTests
     };
 
     [Fact]
-    public void An_absent_section_yields_all_toggles_on_and_identity_planes()
+    public void An_absent_section_yields_all_toggles_on()
     {
-        var s = PlotterConfig.Load(NewProfile(), MachineTypeCatalog.Resolve(MachineTypes.Mill));
+        var s = PlotterConfig.Load(NewProfile());
         Assert.True(s.ShowGrid);
         Assert.True(s.ShowOrigin);
         Assert.True(s.ShowEnvelope);
         Assert.True(s.ShowRunState);
-        Assert.Single(s.Planes);
-        Assert.Equal([0, 1, 2], s.Planes[0].WorldAxes);
-    }
-
-    [Fact]
-    public void Foam_defaults_map_plane_one_Z_A_onto_world_X_Y()
-    {
-        var s = PlotterConfig.Defaults(MachineTypeCatalog.Resolve(MachineTypes.Foam));
-        Assert.Equal(2, s.Planes.Count);
-        Assert.Equal([0, 1], s.Planes[0].WorldAxes);
-        Assert.Equal([0, 1], s.Planes[1].WorldAxes);
     }
 
     [Fact]
     public void A_saved_section_round_trips()
     {
         var profile = NewProfile();
-        var saved = PlotterConfig.Defaults(MachineTypeCatalog.Resolve(MachineTypes.Mill));
+        var saved = PlotterConfig.Defaults();
         saved.ShowGrid = false;
         saved.ShowOrigin = false;
         saved.ShowEnvelope = false;
         saved.ShowRunState = false;
-        saved.Planes[0] = new PlotterPlaneGeometry { WorldAxes = [1, 2, 0], Origin = [1, 2, 3] };
 
         PlotterConfig.Save(profile, saved);
-        var loaded = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Mill));
+        var loaded = PlotterConfig.Load(profile);
 
         Assert.False(loaded.ShowGrid);
         Assert.False(loaded.ShowOrigin);
         Assert.False(loaded.ShowEnvelope);
         Assert.False(loaded.ShowRunState);
-        Assert.Equal([1, 2, 0], loaded.Planes[0].WorldAxes);
-        Assert.Equal([1, 2, 3], loaded.Planes[0].Origin);
     }
 
+    /// <summary>A section saved BEFORE the model change carries a
+    /// <c>Planes</c> array of world mappings. <see cref="JsonSerializer"/> ignores
+    /// members the type no longer declares, so the section still reads back with
+    /// its toggles — verified here rather than assumed, because the opposite
+    /// (a throw) would turn every existing profile's plotter settings into
+    /// defaults.</summary>
     [Fact]
-    public void A_two_plane_section_round_trips_each_plane_independently()
+    public void A_stale_section_carrying_planes_is_ignored_not_fatal()
     {
-        var profile = new MachineProfile { Id = "p1", Name = "P1", MachineTypeId = MachineTypes.Foam };
-        var saved = PlotterConfig.Defaults(MachineTypeCatalog.Resolve(MachineTypes.Foam));
-        saved.Planes[0] = new PlotterPlaneGeometry { WorldAxes = [1, 0], Origin = [-50, 0, 0] };
-        saved.Planes[1] = new PlotterPlaneGeometry { WorldAxes = [0, 1], Origin = [50, 25, 0] };
+        var profile = NewProfile();
+        profile.ModuleSettings[PlotterConfig.SectionKey] =
+            """{"ShowGrid":false,"Planes":[{"WorldAxes":[1,0],"Origin":[-50,0,0]}]}""";
 
-        PlotterConfig.Save(profile, saved);
-        var loaded = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Foam));
+        var loaded = PlotterConfig.Load(profile);
 
-        Assert.Equal(2, loaded.Planes.Count);
-        Assert.Equal([1, 0], loaded.Planes[0].WorldAxes);
-        Assert.Equal([-50d, 0, 0], loaded.Planes[0].Origin);
-        Assert.Equal([0, 1], loaded.Planes[1].WorldAxes);
-        Assert.Equal([50d, 25, 0], loaded.Planes[1].Origin);
+        Assert.False(loaded.ShowGrid);
+        Assert.True(loaded.ShowOrigin);
+    }
+
+    /// <summary>The same tolerance the other way: a save of the new model must
+    /// not carry a <c>Planes</c> member forward, so a profile's section shrinks
+    /// to the toggles the first time anything is written.</summary>
+    [Fact]
+    public void A_saved_section_carries_no_plane_member()
+    {
+        var profile = NewProfile();
+        PlotterConfig.Save(profile, PlotterConfig.Defaults());
+
+        var json = (string)profile.ModuleSettings[PlotterConfig.SectionKey]!;
+        Assert.DoesNotContain("Planes", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("WorldAxes", json, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -111,9 +117,9 @@ public class PlotterConfigTests
     {
         var profile = NewProfile();
         profile.ModuleSettings[PlotterConfig.SectionKey] = "{not json";
-        var s = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Mill));
+        var s = PlotterConfig.Load(profile);
         Assert.True(s.ShowGrid);
-        Assert.Equal([0, 1, 2], s.Planes[0].WorldAxes);
+        Assert.True(s.ShowRunState);
     }
 
     [Fact]
@@ -121,90 +127,34 @@ public class PlotterConfigTests
     {
         var profile = NewProfile();
         profile.ModuleSettings[PlotterConfig.SectionKey] = """{"ShowGrid":"yes"}""";
-        var s = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Mill));
+        var s = PlotterConfig.Load(profile);
         Assert.True(s.ShowGrid);
-        Assert.Equal([0, 1, 2], s.Planes[0].WorldAxes);
     }
 
     [Fact]
-    public void A_plane_count_mismatch_falls_back_to_defaults()
-    {
-        var profile = new MachineProfile { Id = "p1", Name = "P1", MachineTypeId = MachineTypes.Foam };
-        profile.ModuleSettings[PlotterConfig.SectionKey] =   // one plane on a foam
-            JsonSerializer.Serialize(new PlotterSettings { Planes = [new PlotterPlaneGeometry()] });
-
-        var s = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Foam));
-        Assert.Equal(2, s.Planes.Count);
-    }
-
-    [Fact]
-    public void A_malformed_plane_mapping_is_replaced_with_identity()
+    public void A_null_section_value_falls_back_to_defaults()
     {
         var profile = NewProfile();
-        profile.ModuleSettings[PlotterConfig.SectionKey] =
-            JsonSerializer.Serialize(new PlotterSettings
-            {
-                Planes = [new PlotterPlaneGeometry { WorldAxes = [0, 0, 0] }],
-            });
-
-        var loaded = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Mill));
-        Assert.Equal([0, 1, 2], loaded.Planes[0].WorldAxes);
+        profile.ModuleSettings[PlotterConfig.SectionKey] = null!;
+        var s = PlotterConfig.Load(profile);
+        Assert.True(s.ShowGrid);
     }
 
+    /// <summary>The bag may hold the section as a plain string (the settings VM's
+    /// shape) or as a <see cref="JsonElement"/> wrapping that string (a
+    /// hand-migrated bag); both must read, because a loader that handled only one
+    /// would silently reset the profiles holding the other.</summary>
     [Fact]
-    public void A_malformed_origin_is_replaced_with_zeros()
+    public void The_section_may_be_a_json_string_directly_or_inside_an_element()
     {
         var profile = NewProfile();
-        profile.ModuleSettings[PlotterConfig.SectionKey] =
-            JsonSerializer.Serialize(new PlotterSettings
-            {
-                Planes = [new PlotterPlaneGeometry { WorldAxes = [0, 1, 2], Origin = [5] }],
-            });
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize("""{"ShowRunState":false}"""));
+        profile.ModuleSettings[PlotterConfig.SectionKey] = doc.RootElement.Clone();
 
-        var loaded = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Mill));
-        Assert.Equal([0d, 0d, 0d], loaded.Planes[0].Origin);
-    }
+        Assert.False(PlotterConfig.Load(profile).ShowRunState);
 
-    [Fact]
-    public void A_malformed_second_plane_leaves_the_first_plane_untouched()
-    {
-        var profile = new MachineProfile { Id = "p1", Name = "P1", MachineTypeId = MachineTypes.Foam };
-        profile.ModuleSettings[PlotterConfig.SectionKey] =
-            JsonSerializer.Serialize(new PlotterSettings
-            {
-                Planes =
-                [
-                    new PlotterPlaneGeometry { WorldAxes = [1, 0], Origin = [-50, 0, 0] },
-                    new PlotterPlaneGeometry { WorldAxes = [0, 0], Origin = [0, 0, 0] },
-                ],
-            });
-
-        var loaded = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Foam));
-        Assert.Equal([1, 0], loaded.Planes[0].WorldAxes);
-        Assert.Equal([-50d, 0, 0], loaded.Planes[0].Origin);
-        Assert.Equal([0, 1], loaded.Planes[1].WorldAxes);
-    }
-
-    [Fact]
-    public void A_null_planes_array_falls_back_to_defaults()
-    {
-        var profile = new MachineProfile { Id = "p1", Name = "P1", MachineTypeId = MachineTypes.Foam };
-        profile.ModuleSettings[PlotterConfig.SectionKey] =
-            JsonSerializer.Serialize(new PlotterSettings { Planes = null! });
-
-        var s = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Foam));
-        Assert.Equal(2, s.Planes.Count);
-    }
-
-    [Fact]
-    public void A_null_plane_element_falls_back_to_defaults()
-    {
-        var profile = NewProfile();
-        profile.ModuleSettings[PlotterConfig.SectionKey] =
-            JsonSerializer.Serialize(new PlotterSettings { Planes = [null!] });
-
-        var loaded = PlotterConfig.Load(profile, MachineTypeCatalog.Resolve(MachineTypes.Mill));
-        Assert.Equal([0, 1, 2], loaded.Planes[0].WorldAxes);
+        profile.ModuleSettings[PlotterConfig.SectionKey] = """{"ShowEnvelope":false}""";
+        Assert.False(PlotterConfig.Load(profile).ShowEnvelope);
     }
 
     [Fact]

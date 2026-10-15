@@ -63,20 +63,6 @@ public class SettingsCommitHeadlessTests
         return new SettingsService(dir);
     }
 
-    /// <summary>Like <see cref="MakeSettings"/> but seeded to the two-plane Foam
-    /// machine type (same Load/modify/Save shape as JogViewModelTests.MakeSettings).
-    /// The GL WireLength row is visible only when the profile has more than
-    /// one plane (ShowWireLength => Plaines.Count > 1), and a hidden box cannot
-    /// take focus, so blur would raise no LostFocus.</summary>
-    private static SettingsService MakeFoamSettings()
-    {
-        var settings = MakeSettings();
-        var profile = settings.Load();
-        profile.MachineTypeId = MachineTypes.Foam;
-        settings.Save(profile);
-        return settings;
-    }
-
     /// <summary>Run queued dispatcher jobs and yield so the headless
     /// SynchronizationContext runs a pending layout/render.</summary>
     private static async Task Pump()
@@ -214,61 +200,6 @@ public class SettingsCommitHeadlessTests
         await Pump();
         Assert.Equal(1, saves);
         Assert.Equal("Renamed", vm.SelectedMacro!.Name);
-    }
-
-    [AvaloniaFact]
-    public async Task Gl_wire_length_reaches_the_vm_only_after_a_commit()
-    {
-        var settings = MakeFoamSettings();
-        var vm = new PlotterGlSettingsViewModel(settings);
-        var view = new PlotterGlSettingsView { DataContext = vm };
-        var window = new Window { Content = view };
-        window.Show();
-        await Pump();
-
-        var saves = 0;
-        settings.Changed += () => saves++;
-
-        var box = window.GetVisualDescendants().OfType<TextBox>().First(); // WireLength (:46)
-        box.Focus();
-        var before = vm.WireLength;
-        box.Text = "4321";
-        await Pump();
-        Assert.Equal(0, saves);
-        Assert.Equal(before, vm.WireLength);
-
-        Blur(window, box);
-        await Pump();
-        Assert.Equal(1, saves);
-        Assert.Equal(4321d, vm.WireLength);
-    }
-
-    [AvaloniaFact]
-    public async Task Plotter_origin_row_reaches_the_service_only_after_a_commit()
-    {
-        var settings = MakeSettings();
-        var vm = new PlotterSettingsViewModel(settings, null);
-        var view = new PlotterSettingsView { DataContext = vm };
-        var window = new Window { Content = view };
-        window.Show();
-        await Pump();
-
-        var saves = 0;
-        settings.Changed += () => saves++;
-
-        // The origin-row Value box: its DataContext is the nested PlotterOriginRow
-        // (x:DataType at PlotterSettingsView.axaml:65). A bare First() would land
-        // on the slot ComboBox's template TextBox instead.
-        var box = window.GetVisualDescendants().OfType<TextBox>()
-            .First(b => b.DataContext is PlotterSettingsViewModel.PlotterOriginRow);
-        box.Focus();
-        box.Text = "4321";
-        await Pump();
-        Assert.Equal(0, saves);
-
-        Blur(window, box);
-        await Pump();
-        Assert.Equal(1, saves); // setter -> ApplyRow -> Persist -> Changed
     }
 
     [AvaloniaFact]

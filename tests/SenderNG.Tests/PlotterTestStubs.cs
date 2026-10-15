@@ -112,14 +112,20 @@ internal static class PlotterTestStubs
 
     /// <summary>A view model over a <see cref="StubProgramSource"/>, in a
     /// throwaway settings directory so the machine-type choice is the only
-    /// thing the fixture controls.</summary>
-    internal static PlotterViewModel MakeVm(StubProgramSource source, string machineTypeId)
+    /// thing the fixture controls. <paramref name="configure"/> runs against the
+    /// saved profile BEFORE the view model resolves it, which is how a test
+    /// writes an axis layout (a non-monotonic plane, a malformed plane count)
+    /// into the machine model — the per-plotter mapping that used to be pushed
+    /// is deleted.</summary>
+    internal static PlotterViewModel MakeVm(
+        StubProgramSource source, string machineTypeId, System.Action<MachineProfile>? configure = null)
     {
         var dir = Path.Combine(Path.GetTempPath(), "plotter-ui-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var settings = new SettingsService(dir);
         var profile = settings.Load();
         profile.MachineTypeId = machineTypeId;
+        configure?.Invoke(profile);
         settings.Save(profile);
 
         // This factory stands in for PlotterModule.CreateViewModel, and that is

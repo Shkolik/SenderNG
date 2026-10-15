@@ -38,16 +38,22 @@ namespace SenderNG.Modules.Plotter.Settings;
 /// <summary>Per-profile settings store for the <c>plotter</c> section, on the
 /// <c>ModuleSettingsJson</c> pattern: a JSON string under <see cref="SectionKey"/>
 /// in <see cref="MachineProfile.ModuleSettings"/>. Missing, corrupt and
-/// plane-count-mismatched sections fall back to identity defaults synthesized
-/// from the resolved <see cref="MachineType"/>.</summary>
+/// wrong-typed sections fall back to the defaults (all toggles on).
+/// <para>A stale section written before the world mapping was deleted still
+/// carries a <c>Planes</c> array; the deserializer ignores members the model no
+/// longer declares, so such a section reads back as its toggles plus defaults
+/// (verified by <c>PlotterConfigTests</c>, not assumed).</para>
+/// <para>The section is machine-type independent now: the plane layout comes
+/// from <c>IMachineKinematicsProvider</c>, so the store no longer needs — and
+/// no longer takes — the resolved <see cref="MachineType"/>.</para></summary>
 public static class PlotterConfig
 {
     /// <summary>The profile's section key (per module id).</summary>
     public const string SectionKey = "plotter";
 
-    /// <summary>Loads the section, or synthesizes defaults when absent, corrupt
-    /// or mismatched.</summary>
-    public static PlotterSettings Load(MachineProfile profile, MachineType type)
+    /// <summary>Loads the section, or returns the defaults when it is absent,
+    /// unreadable or carries a value of the wrong type.</summary>
+    public static PlotterSettings Load(MachineProfile profile)
     {
         if (profile.ModuleSettings.TryGetValue(SectionKey, out var raw))
         {
@@ -59,41 +65,16 @@ public static class PlotterConfig
             };
             var parsed = JsonDefaults.TryDeserialize<PlotterSettings>(json);
             if (parsed is not null)
-                return Normalize(parsed, type);
+                return parsed;
         }
-        return Defaults(type);
+        return Defaults();
     }
 
-    /// <summary>Normalizes and serializes the section into the profile's bag.</summary>
-    public static void Save(MachineProfile profile, PlotterSettings settings)
-    {
-        var type = MachineTypeCatalog.Resolve(profile.MachineTypeId);
-        profile.ModuleSettings[SectionKey] = JsonSerializer.Serialize(Normalize(settings, type));
-    }
+    /// <summary>Serializes the section into the profile's bag.</summary>
+    public static void Save(MachineProfile profile, PlotterSettings settings) =>
+        profile.ModuleSettings[SectionKey] = JsonSerializer.Serialize(settings ?? Defaults());
 
-    /// <summary>All toggles on, every plane at identity — which is what the
-    /// renderer already assumes, so this is a no-op for existing profiles.</summary>
-    public static PlotterSettings Defaults(MachineType type)
-    {
-        var settings = new PlotterSettings();
-        for (var p = 0; p < type.Planes.Count; p++)
-            settings.Planes.Add(PlotterPlaneMapper.Identity(type.Planes[p].Roles.Count));
-        return settings;
-    }
-
-    private static PlotterSettings Normalize(PlotterSettings s, MachineType type)
-    {
-        var defaults = Defaults(type);
-        if (s is null || s.Planes is null || s.Planes.Count != type.Planes.Count)
-            return defaults;
-        for (var p = 0; p < s.Planes.Count; p++)
-        {
-            var roles = type.Planes[p].Roles.Count;
-            if (!PlotterPlaneMapper.IsUsable(s.Planes[p], roles))
-                s.Planes[p] = defaults.Planes[p];
-            else if (s.Planes[p].Origin is not { Length: PlotterPlaneMapper.WorldAxisCount })
-                s.Planes[p].Origin = [0, 0, 0];
-        }
-        return s;
-    }
+    /// <summary>All toggles on — which is what the renderer already assumes, so
+    /// this is a no-op for existing profiles.</summary>
+    public static PlotterSettings Defaults() => new();
 }

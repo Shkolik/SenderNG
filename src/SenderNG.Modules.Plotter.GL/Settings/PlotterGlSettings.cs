@@ -34,13 +34,16 @@ using SenderNG.Modules.Common.Render;
 
 namespace SenderNG.Modules.Plotter.GL.Settings;
 
-/// <summary>Per-profile Plot GL rendering config (<c>MachineProfile.ModuleSettings["plotter-gl"]</c>).</summary>
+/// <summary>Per-profile Plot GL rendering config (<c>MachineProfile.ModuleSettings["plotter-gl"]</c>).
+/// <para>The per-plane world mapping and the wire-length scalar this section used
+/// to carry are <b>deleted</b>: the plane layout (count, slices and the
+/// plane-to-plane separation) comes from <c>IMachineKinematicsProvider</c>, and
+/// the profile's own <c>Separation</c> is the machine-model home for the tower
+/// distance. What is left is purely presentational.</para>
+/// <para>A stale section still carrying <c>Planes</c>/<c>WireLength</c>
+/// deserializes with those members ignored (<see cref="PlotterGlConfig"/>).</para></summary>
 public sealed class PlotterGlSettings
 {
-    /// <summary>Distance between the towers (machine units). Changing it recomputes
-    /// the plane origins along the wire axis (symmetric centering).</summary>
-    public double WireLength { get; set; } = 100;
-
     /// <summary>Show the origin pivot + chrome.</summary>
     public bool ShowOrigin { get; set; } = true;
 
@@ -68,20 +71,4 @@ public sealed class PlotterGlSettings
     /// render size, they compose). Default None until checkpoint verification
     /// proves a win on the target machines.</summary>
     public MsaaMode MsaaMode { get; set; } = MsaaMode.None;
-
-    /// <summary>Ordered per-machine plane; <c>WorldAxes[s]</c> = world axis index
-    /// (0=X, 1=Y, 2=Z) for the plane's slot <c>s</c> (distinct); <c>Origin</c> =
-    /// world position of the plane's origin. Length must equal the schema plane's
-    /// role count / 3 respectively (enforced by <see cref="PlotterGlConfig"/>).</summary>
-    public List<GlPlaneGeometry> Planes { get; set; } = [];
-}
-
-/// <summary>One machine carriage plane's world mapping.</summary>
-public sealed class GlPlaneGeometry
-{
-    /// <summary>World axis index per slot; distinct; length == the plane's <c>Roles.Count</c>.</summary>
-    public int[] WorldAxes { get; set; } = [];
-
-    /// <summary>World position of the plane's origin (length 3: X, Y, Z).</summary>
-    public double[] Origin { get; set; } = [0, 0, 0];
 }

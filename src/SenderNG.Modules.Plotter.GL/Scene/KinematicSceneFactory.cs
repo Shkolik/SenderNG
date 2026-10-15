@@ -35,11 +35,13 @@ using System.Numerics;
 using CNC.Core.Services;
 
 using SenderNG.Modules.Common.Render;
+using SenderNG.Modules.Plotter.GL.Model;
 
 namespace SenderNG.Modules.Plotter.GL.Scene;
 
 /// <summary>Headless scene factory that assembles carriage planes, loft, and
-/// tool based on the machine's kinematic type.</summary>
+/// tool from the machine's RESOLVED kinematics — plane count, the separation
+/// placement and the (plane-less) rotary axes.</summary>
 public sealed class KinematicSceneFactory : ISceneFactory
 {
     private readonly IPlotScene _scene;
@@ -63,25 +65,44 @@ public sealed class KinematicSceneFactory : ISceneFactory
     public ILoftSurface? Loft => _loft;
 
     /// <inheritdoc/>
-    public IPlotScene BuildScene(MachineType type)
+    public IPlotScene BuildScene(MachineKinematics kinematics)
     {
         _layers.Clear();
         _tool = null;
         _loft = null;
 
-        for (var i = 0; i < type.Planes.Count; i++)
+        // Real topology, not an inference: the machine model already says how
+        // many planes exist. A rotary axis is never a plane slot (it lives in
+        // OptionalAxes), so it cannot conjure a layer or a loft here.
+        var planes = kinematics.Planes.Count;
+        for (var i = 0; i < planes; i++)
             _layers.Add(_scene.AddCarriagePlane());
 
-        if (type.Planes.Count >= 2)
+        if (planes >= 2)
             _loft = _scene.AddLoftSurface();
 
         _tool = _scene.CreateTool(ToolShape.Cone);
 
-        if (type.Planes.Count >= 2)
-            _tool.UpdatePosition(new Endpoint([Vector3.Zero, Vector3.UnitZ]));
+        if (planes >= 2)
+        {
+            // The placeholder wire spans the two planes' placements — the
+            // separation on the world axis the planes' slots do not span — so the
+            // tool starts on the machine and not on an invented diagonal. Live
+            // pose updates replace it immediately.
+            var second = PlaneWorldMapper.PlacementFor(kinematics, 1, PlaneSlots(kinematics, 1));
+            _tool.UpdatePosition(new Endpoint([PlaneWorldMapper.PlacementFor(kinematics, 0, PlaneSlots(kinematics, 0)), second]));
+        }
         else
+        {
             _tool.UpdatePosition(new Endpoint([Vector3.Zero]));
+        }
 
         return _scene;
     }
+
+    /// <summary>How many slots plane <paramref name="plane"/> has (−1 for a plane
+    /// that does not exist), which is what decides the world axis a plane leaves
+    /// free for the separation.</summary>
+    private static int PlaneSlots(MachineKinematics kinematics, int plane) =>
+        plane >= 0 && plane < kinematics.Planes.Count ? kinematics.Planes[plane].Axes.Count : -1;
 }
