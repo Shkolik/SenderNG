@@ -48,7 +48,16 @@ namespace CNC.Core.Services;
 /// A profile whose <see cref="MachineProfile.Planes"/> are empty (written before the
 /// axis model existed, or explicitly cleared) is seeded from the preset's
 /// <see cref="MachineType.BasePlanes"/> with the default conventional indices, so it
-/// behaves exactly like a freshly created profile.
+/// behaves exactly like a freshly created profile. <b>This is why the profile format
+/// carries no schema-version field.</b> A file's shape is decided by the structure it
+/// actually has, and the loader already refuses the one failure a version number
+/// would catch: <c>AppSettingsBundle.TryDeserialize</c> rejects a payload that binds
+/// only case-insensitively, which is exactly a profile that would otherwise read as
+/// defaults. Adding a version would put a second source of truth next to this check.
+/// The one field it cannot interpret is <see cref="MachineProfile.Separation"/> —
+/// a non-nullable double, so "absent" and "explicitly 0" are indistinguishable, and
+/// a pre-model foam profile therefore starts at 0 until the machine card seeds the
+/// preset's value. That is an old file carrying no separation, not a misread.
 /// </para>
 /// </summary>
 public static class MachineKinematicsResolver

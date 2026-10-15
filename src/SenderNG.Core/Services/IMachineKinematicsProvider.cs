@@ -37,18 +37,33 @@ using CNC.Core.Abstractions;
 namespace CNC.Core.Services;
 
 /// <summary>
-/// The one place the app resolves machine kinematics. Modules (jog, plotter,
-/// outline, DRO/limits) read <see cref="Current"/> instead of each calling
+/// The one place the app resolves machine kinematics. The plotter (the Skia panes
+/// and the 3D view), the outline sweep, the DRO/limits and Wrap read
+/// <see cref="Current"/> instead of each calling
 /// <see cref="MachineTypeCatalog.Resolve"/> at their own trigger point — which is
 /// also what makes a connect's <c>[AXS:]</c> letters and reported axis count reach
 /// every consumer at once.
 /// </summary>
 /// <remarks>
-/// <see cref="Current"/> merges <b>stored</b> profile state with <b>live</b>
+/// <para><see cref="Current"/> merges <b>stored</b> profile state with <b>live</b>
 /// controller state, so it is re-resolved on connect / disconnect and on a profile
 /// switch. <see cref="Refresh"/> is the explicit hook for a caller that changed the
 /// active profile's axis layout (the profile editor's commit path). Register as a
-/// singleton and resolve it from DI.
+/// singleton and resolve it from DI.</para>
+/// <para><b>Jog is deliberately not a consumer.</b> It calls
+/// <see cref="MachineKinematicsResolver.Resolve"/> with the <i>live polled</i> axis
+/// count instead of this provider's, because its cross must re-lay the moment the
+/// controller's reported count changes — which is exactly what the demo's
+/// <c>SetNumAxes</c> path does, and a connect handshake never fires again. So the
+/// two read different inputs on purpose: this provider answers "what topology did
+/// the controller declare", which is the stable question the plotters and Wrap ask;
+/// jog answers "how many axes is it reporting right now". They can differ
+/// transiently (a status vector shorter than the handshake) and each consumer stays
+/// self-consistent — jog hides the extra cross, the plotter skips ticks for an axis
+/// the position does not carry — rather than driving a wrong axis. Unifying jog
+/// onto this provider would break the demo's live re-layout. Recorded in
+/// <c>docs/architecture.md</c> §8 tech debt, so it is not mistaken for an
+/// oversight.</para>
 /// </remarks>
 public interface IMachineKinematicsProvider
 {
