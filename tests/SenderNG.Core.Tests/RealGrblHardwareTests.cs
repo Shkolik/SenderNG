@@ -980,7 +980,10 @@ public class RealGrblHardwareTests
             .Where(m => m.GetCustomAttributes(typeof(HardwareFactAttribute), inherit: false).Length > 0)
             .ToArray();
 
-        Assert.Equal(9, hardwareFacts.Length);
+        // A tripwire, not a coincidence: adding a hardware test means updating this
+        // number and docs/hardware-testing.md together, so the battery's size cannot
+        // drift out of the documentation silently.
+        Assert.Equal(10, hardwareFacts.Length);
         foreach (var method in hardwareFacts)
         {
             var hasTrait = method.CustomAttributes
