@@ -45,6 +45,7 @@ using System.IO;
 // portable: removed Media3D
 using System.Xml.Serialization;
 using CNC.Core;
+using CNC.Core.Services;
 using System.Text;
 
 namespace CNC.GCode
@@ -286,7 +287,42 @@ namespace CNC.GCode
         public event ToolChangedHandler? ToolChanged;
 
         private bool motionModeChanged = false;
-        private bool remapU2A = false, remapV2B = false, remapW2C = false;
+
+        /// <summary>
+        /// The controller's reported axis letters, used to resolve a program's axis
+        /// letters to grbl indices. Captured from the ambient connect state by
+        /// <see cref="Reset"/> (the [AXS:] handshake arrives with the connect); a
+        /// caller that already holds the connect's capabilities — or a test, which
+        /// must not mutate the process-global <see cref="GrblInfo"/> — can set it
+        /// explicitly instead.
+        /// </summary>
+        public string BoardLetters
+        {
+            get => boardLetters;
+            set => boardLetters = value ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Per-axis CAM aliases (program letter to grbl axis index) supplied by the
+        /// machine profile: the honest home for a post-processor spelling an axis
+        /// with a letter the board does not use. Empty until the profile wiring
+        /// lands, and never a display mapping.
+        /// </summary>
+        public IReadOnlyDictionary<char, int> AxisAliases { get; set; } = NoAliases;
+
+        /// <summary>
+        /// Letters a program used that neither the board's letters nor the aliases
+        /// know — the program is for a different machine. Their values are kept at
+        /// the conventional index rather than dropped; one entry per distinct
+        /// letter, for a caller to surface (surfacing it in the UI is not wired
+        /// yet). Cleared by <see cref="Reset"/>.
+        /// </summary>
+        public IReadOnlyCollection<char> UnknownAxisLetters => unknownAxisLetters;
+
+        private string boardLetters = GrblInfo.DefaultAxisLetters;
+        private readonly SortedSet<char> unknownAxisLetters = new SortedSet<char>();
+        private static readonly IReadOnlyDictionary<char, int> NoAliases = new Dictionary<char, int>();
+
         private GCValues gcValues = new GCValues();
         private GCodeToken last_token = new GCodeToken();
         private NGCExpr ngcexpr;
@@ -369,9 +405,67 @@ namespace CNC.GCode
             IsScaled = motionModeChanged = false;
             Decimals = 3;
             zorg = feedRate = 0d;
-            remapU2A = !GrblInfo.AxisLetters.Contains('A');
-            remapV2B = !GrblInfo.AxisLetters.Contains('B');
-            remapW2C = !GrblInfo.AxisLetters.Contains('C');
+            // The connect's [AXS:] letters drive axis-letter resolution for this
+            // program; a letter nobody knows is recorded, not guessed.
+            boardLetters = GrblInfo.AxisLetters;
+            unknownAxisLetters.Clear();
+        }
+
+        /// <summary>
+        /// Resolves an axis letter written in a program to the grbl axis index it
+        /// means — the board's reported letters first, then the profile's CAM
+        /// aliases. A letter neither knows is never dropped: it keeps its
+        /// conventional XYZABCUVW slot and is recorded once in
+        /// <see cref="UnknownAxisLetters"/> so a caller can report the mismatch.
+        /// </summary>
+        private int ResolveAxisIndex(char letter)
+        {
+            if (AxisLetters.TryResolve(boardLetters, AxisAliases, letter, out int index))
+                return index;
+
+            unknownAxisLetters.Add(letter);
+
+            return AxisLetters.ConventionalIndex(letter);
+        }
+
+        /// <summary>
+        /// The word flag of an axis letter as written in the program — the letter,
+        /// not the axis it resolves to, so the duplicate-word check stays keyed on
+        /// what the program spelled and stays per program letter as grbl's word
+        /// rules are. Only X, Y, Z, A, B, C, U, V and W reach here.
+        /// <para>
+        /// Consequence to know about: a G65 macro call binds its letter parameters
+        /// from the letter's own conventional slot (<c>gcValues.U</c> is XYZ[6]), so
+        /// on a remapped board a macro parameter spelled with a remapped letter does
+        /// not see the value that landed on the resolved index. G65 is the LinuxCNC
+        /// expression path and is not part of this change.
+        /// </para>
+        /// </summary>
+        private static WordFlags AxisWordFlag(char letter)
+        {
+            switch (letter)
+            {
+                case 'X':
+                    return WordFlags.X;
+                case 'Y':
+                    return WordFlags.Y;
+                case 'Z':
+                    return WordFlags.Z;
+                case 'A':
+                    return WordFlags.A;
+                case 'B':
+                    return WordFlags.B;
+                case 'C':
+                    return WordFlags.C;
+                case 'U':
+                    return WordFlags.U;
+                case 'V':
+                    return WordFlags.V;
+                case 'W':
+                    return WordFlags.W;
+                default:
+                    return 0;
+            }
         }
 
         private bool VerifyIgnore(string code, CommandIgnoreState state)
@@ -984,90 +1078,35 @@ namespace CNC.GCode
                                 break;
 
                             case 'X':
-                                if (!ngcexpr.WasExpression && !ExpressionsSupported)
-                                {
-                                    string val = block.Substring(ppos + 1, pos - ppos - 1);
-                                    Decimals = Math.Max(Decimals, val.Length - val.IndexOf('.') - 1);
-                                }
-                                wordFlag = WordFlags.X;
-                                axisWords |= GCode.AxisFlags.X;
-                                gcValues.X = Math.Round(value, Decimals);
-                                break;
-
                             case 'Y':
-                                wordFlag = WordFlags.Y;
-                                axisWords |= GCode.AxisFlags.Y;
-                                gcValues.Y = Math.Round(value, Decimals);
-                                break;
-
                             case 'Z':
-                                wordFlag = WordFlags.Z;
-                                axisWords |= GCode.AxisFlags.Z;
-                                gcValues.Z = Math.Round(value, Decimals);
-                                break;
-
                             case 'A':
-                                wordFlag = WordFlags.A;
-                                axisWords |= GCode.AxisFlags.A;
-                                gcValues.A = Math.Round(value, Decimals);
-                                break;
-
                             case 'B':
-                                wordFlag = WordFlags.B;
-                                axisWords |= GCode.AxisFlags.B;
-                                gcValues.B = Math.Round(value, Decimals);
-                                break;
-
                             case 'C':
-                                wordFlag = WordFlags.C;
-                                axisWords |= GCode.AxisFlags.C;
-                                gcValues.C = Math.Round(value, Decimals);
-                                break;
-
                             case 'U':
-                                if (remapU2A)
-                                {
-                                    wordFlag = WordFlags.A;
-                                    axisWords |= GCode.AxisFlags.A;
-                                    gcValues.A = Math.Round(value, Decimals);
-                                }
-                                else
-                                {
-                                    wordFlag = WordFlags.U;
-                                    axisWords |= GCode.AxisFlags.U;
-                                    gcValues.U = Math.Round(value, Decimals);
-                                }
-                                break;
-
                             case 'V':
-                                if (remapV2B)
-                                {
-                                    wordFlag = WordFlags.B;
-                                    axisWords |= GCode.AxisFlags.B;
-                                    gcValues.B = Math.Round(value, Decimals);
-                                }
-                                else
-                                {
-                                    wordFlag = WordFlags.V;
-                                    axisWords |= GCode.AxisFlags.V;
-                                    gcValues.W = Math.Round(value, Decimals);
-                                }
-                                break;
-
                             case 'W':
-                                if (remapW2C)
                                 {
-                                    wordFlag = WordFlags.C;
-                                    axisWords |= GCode.AxisFlags.C;
-                                    gcValues.C = Math.Round(value, Decimals);
+                                    char axisLetter = char.ToUpperInvariant(block[ppos]);
+
+                                    if (axisLetter == 'X' && !ngcexpr.WasExpression && !ExpressionsSupported)
+                                    {
+                                        string val = block.Substring(ppos + 1, pos - ppos - 1);
+                                        Decimals = Math.Max(Decimals, val.Length - val.IndexOf('.') - 1);
+                                    }
+
+                                    // The word carries a grbl axis index, not a letter:
+                                    // resolve it through the board's reported letters (then
+                                    // the profile's CAM aliases) so a remapped board slices
+                                    // the right axis. The value always lands in the resolved
+                                    // index's slot, and an unknown letter keeps its
+                                    // conventional slot instead of being dropped.
+                                    int axisIndex = ResolveAxisIndex(axisLetter);
+                                    wordFlag = AxisWordFlag(axisLetter);
+                                    axisWords |= AxisFlag[axisIndex];
+                                    gcValues.XYZ[axisIndex] = Math.Round(value, Decimals);
+                                    break;
                                 }
-                                else
-                                {
-                                    wordFlag = WordFlags.W;
-                                    axisWords |= GCode.AxisFlags.W;
-                                    gcValues.W = Math.Round(value, Decimals);
-                                }
-                                break;
 
                             case '$':
                                 gcValues.Dollar = (int)value;

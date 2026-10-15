@@ -132,3 +132,78 @@ public class GCodeParserTests
         Assert.Single(actions);
     }
 }
+
+/// <summary>
+/// AxisFlags.All is the "every axis" mask the machine and emulator walk, so it
+/// must cover U/V/W too (ioSender defines it as 0x1FF; this port had narrowed it
+/// to 0x3F).
+/// </summary>
+[Collection("LegacyStatics")]
+public class AxisFlagsAllTests
+{
+    [Fact]
+    public void All_covers_all_nine_axes()
+    {
+        Assert.Equal(Enumerable.Range(0, 9), AxisFlags.All.ToIndices());
+    }
+
+    [Fact]
+    public void A_tool_offset_copies_the_UVW_slots_too()
+    {
+        var previous = Machine.WorkParametersProvider;
+        var seed = WorkParameters.CreateDefault(9, 1);
+        seed.Tools.First(t => t.Id == 1).Offsets[6] = 5;   // U
+        seed.Tools.First(t => t.Id == 1).Offsets[8] = 7;   // W
+
+        try
+        {
+            Machine.WorkParametersProvider = () => seed;
+            var machine = new Machine();
+            machine.Reset();
+
+            Assert.True(machine.SetToolOffset(new GCToolOffset(CNC.GCode.Commands.G43, 1, 1)));
+
+            Assert.Equal(5, machine.GetToolOffset(6));
+            Assert.Equal(7, machine.GetToolOffset(8));
+
+            machine.CancelToolCompensation();
+            Assert.Equal(0, machine.GetToolOffset(6));
+            Assert.Equal(0, machine.GetToolOffset(8));
+        }
+        finally
+        {
+            Machine.WorkParametersProvider = previous;
+        }
+    }
+
+    [Fact]
+    public void G28_without_axis_words_moves_every_axis_including_UVW()
+    {
+        // G28 with no axis words means "all axes to the predefined position", so
+        // the U/V/W slots must be part of the walk — the emulator falls back to
+        // AxisFlags.All, and the absence of U/V/W there left U at its previous
+        // value while claiming the move had happened.
+        var previous = Machine.WorkParametersProvider;
+        var seed = WorkParameters.CreateDefault(9);
+        var g28 = new WorkCoordinateSystem("G28", 0, 9);
+        g28.Values[6] = 3;   // U
+        seed.CoordinateSystems.Add(g28);
+
+        try
+        {
+            Machine.WorkParametersProvider = () => seed;
+
+            var program = GCodeProgram.Parse("G0 U9\nG28\n");
+            var emu = new GCodeEmulator(true);
+            foreach (var _ in emu.Execute(program.Tokens.ToList()))
+            {
+            }
+
+            Assert.Equal(3, emu.GetPosition(6));
+        }
+        finally
+        {
+            Machine.WorkParametersProvider = previous;
+        }
+    }
+}
