@@ -40,9 +40,11 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
@@ -100,7 +102,7 @@ public class AppSettingsViewHeadlessTests
 
             var buttons = window.GetVisualDescendants().OfType<Button>().ToList();
             var dump = string.Join(" | ", buttons.Select(b => b.Content is null ? "<null>" : $"\"{b.Content}\""));
-            var remove = buttons.SingleOrDefault(b => Equals(b.Content, "Remove"))
+            var remove = buttons.SingleOrDefault(b => b.Classes.Contains("remove"))
                 ?? throw new InvalidOperationException($"Remove button not found. Buttons: {dump}");
             var type = buttons.SingleOrDefault(b => Equals(b.Content, "Change type"))
                 ?? throw new InvalidOperationException($"Type button not found. Buttons: {dump}");
@@ -119,8 +121,9 @@ public class AppSettingsViewHeadlessTests
                     // The Profiles leaf title itself follows the locale.
                     Assert.Equal("Профили", leaf.Name);
 
-                    // Computed (PropertyChanged-driven) labels follow the locale...
-                    Assert.Equal("Удалить", remove.Content);
+                    // Computed (PropertyChanged-driven) labels follow the locale: the type
+                    // button carries its verb, the remove glyph carries it in its tooltip.
+                    Assert.Equal("Удалить этот профиль", ToolTip.GetTip(remove));
                     Assert.Equal("Изменить тип", type.Content);
                     // ...as do the {loc:Loc} markup labels.
                     Assert.Equal("Добавить", window.GetVisualDescendants().OfType<Button>()
@@ -135,8 +138,9 @@ public class AppSettingsViewHeadlessTests
                     vm.SelectedNode = leaf;
                     for (var i = 0; i < 4; i++)
                         await Pump();
-                    Assert.Equal("Удалить", window.GetVisualDescendants().OfType<Button>()
-                        .Single(b => Equals(b.Content, "Удалить")).Content);
+                    var revivedRemove = window.GetVisualDescendants().OfType<Button>()
+                        .Single(b => b.Classes.Contains("remove"));
+                    Assert.Equal("Удалить этот профиль", ToolTip.GetTip(revivedRemove));
                 }
                 finally
                 {
@@ -376,20 +380,36 @@ public class AppSettingsViewHeadlessTests
             for (var i = 0; i < 4; i++)
                 await Pump();
 
-            // The list and the picture share one row, and the picture is exactly as tall
-            // as the list — that placement is the whole point of the layout. Uniform
-            // stretch derives the width from the type art's aspect ratio (the mill art is
-            // 820x560, so ~249 wide at 170 tall), so height is the dimension that must match.
+            // The left column is one dock panel: the add-profile row pinned under the
+            // list, the picture spanning the whole column. Fixed 204 = 170 list + 10 gap
+            // + 24 row; Uniform stretch derives the width from the type art's aspect
+            // ratio (the mill art is 820x560, so ~299 wide at 204 tall), so height is
+            // the dimension that must match.
             var list = window.GetVisualDescendants().OfType<ListBox>()
                 .Single(l => l.ItemsSource is IEnumerable<ProfileRow>);
             var row = list.GetVisualAncestors().OfType<Grid>()
                 .First(g => g.GetVisualDescendants().OfType<Image>().Any());
             var image = row.GetVisualDescendants().OfType<Image>().Single();
-            Assert.Equal(list.Bounds.Height, row.Bounds.Height, 1);
-            Assert.Equal(list.Bounds.Height, image.Height, 1);
-            Assert.Equal(list.Bounds.Height, image.Bounds.Height, 1);
-            Assert.True(image.Bounds.Width > list.Bounds.Height,
+            Assert.Equal(204, row.Bounds.Height, 1);
+            Assert.Equal(170, list.Bounds.Height, 1);
+            Assert.Equal(row.Bounds.Height, image.Height, 1);
+            Assert.Equal(row.Bounds.Height, image.Bounds.Height, 1);
+            Assert.True(image.Bounds.Width > image.Bounds.Height,
                 "the mill art is wider than it is tall; a narrower picture means the height was capped");
+
+            // The add row really sits in that column under the list, and the picture
+            // reaches down to its bottom edge — that two-column alignment is the point.
+            var add = window.GetVisualDescendants().OfType<TextBox>()
+                .Single(t => Equals(t.PlaceholderText, Loc.T("appSettings.profiles.newName")));
+            double Top(Visual v) => v.TranslatePoint(new Point(0, 0), window)!.Value.Y;
+            double Bottom(Visual v) => v.TranslatePoint(new Point(0, v.Bounds.Height), window)!.Value.Y;
+            Assert.Equal(10, Top(add) - Bottom(list), 1);
+            Assert.Equal(Bottom(add), Bottom(image), 1);
+            Assert.Equal(Top(list), Top(image), 1);
+            Assert.True(Top(add) > Bottom(list), "the add row belongs under the list, not beside it");
+            Assert.True(add.TranslatePoint(new Point(add.Bounds.Width, 0), window)!.Value.X
+                    < image.TranslatePoint(new Point(0, 0), window)!.Value.X,
+                "the add row's controls stay left of the picture column");
 
             // It resolves through avares://SenderNG/Assets/... — the one thing that proves
             // the asset registration works at runtime (docs/images/ would not load at all).
@@ -471,7 +491,7 @@ public class AppSettingsViewHeadlessTests
     }
 
     [AvaloniaFact]
-    public async Task The_rename_hint_is_offered_over_the_whole_selected_row()
+    public async Task The_row_actions_are_pictograms_with_their_own_tooltips()
     {
         var prev = LocalizationService.Current;
         try
@@ -491,38 +511,43 @@ public class AppSettingsViewHeadlessTests
                 await Pump();
 
             var row = leaf.Profiles.Single(p => p.Id == "default");
-            // The rename hint lives on the row, not on the 20px pencil: hovering the name
-            // or the badge has to explain the gesture too.
+            // The rename hint lives on the pencil glyph alone now: the row itself carries
+            // no tip, and every action explains itself.
             var rowPanel = window.GetVisualDescendants().OfType<StackPanel>()
                 .Single(p => ReferenceEquals(p.DataContext, row) && p.Classes.Contains("row"));
-            Assert.Equal(Loc.T("appSettings.profiles.renameHint"), ToolTip.GetTip(rowPanel));
+            Assert.Null(ToolTip.GetTip(rowPanel));
 
             // Every row action is on the row itself, and only on the selected one: the
             // strip that used to sit under the list acted on whatever was selected.
             var actions = rowPanel.GetVisualDescendants().OfType<Button>()
                 .Where(b => b.Classes.Contains("rowact")).ToList();
             Assert.Equal(4, actions.Count);                       // rename, activate, duplicate, remove
-            Assert.All(actions, b => Assert.True(b.IsVisible));
             var rename = actions.Single(b => b.Classes.Contains("pencil"));
-            // The pencil sets no tip of its own: it inherits the row's rename hint, so
-            // hovering the glyph and hovering the name say the same thing.
+            var activate = actions.Single(b => b.Classes.Contains("activate"));
+            var duplicate = actions.Single(b => b.Classes.Contains("duplicate"));
+            var remove = actions.Single(b => b.Classes.Contains("remove"));
+
+            // All four are pictograms now; the words live in the tooltips.
+            Assert.Equal("\u270E", rename.Content);
+            Assert.Equal("\u2713", activate.Content);
+            Assert.Equal("\u2750", duplicate.Content);
+            Assert.Equal("\u2715", remove.Content);
             Assert.Equal(Loc.T("appSettings.profiles.renameHint"), ToolTip.GetTip(rename));
-            var activate = actions.Single(b => Equals(b.Content, Loc.T("appSettings.profiles.activate")));
-            var duplicate = actions.Single(b => Equals(b.Content, Loc.T("appSettings.profiles.duplicate")));
-            var remove = actions.Single(b => Equals(b.Content, row.RemoveText));
             Assert.Equal(row.ActivateHint, ToolTip.GetTip(activate));
             Assert.Equal(row.DuplicateHint, ToolTip.GetTip(duplicate));
             Assert.Equal(row.RemoveHint, ToolTip.GetTip(remove));
 
             // This is the ACTIVE profile: re-activating and deleting it are refused, so
-            // those two are disabled — the only state worth tinting.
-            Assert.False(activate.IsEnabled);
-            Assert.True(duplicate.IsEnabled);
-            Assert.False(remove.IsEnabled);
+            // those buttons are hidden rather than greyed (the context-menu test pins the
+            // disabled items that keep the full set visible).
+            Assert.True(rename.IsVisible);
+            Assert.False(activate.IsVisible);
+            Assert.True(duplicate.IsVisible);
+            Assert.False(remove.IsVisible);
 
             // The actions are chrome-less so the hover wash cannot draw boxes in the row;
             // the same template background is pinned for the pointerover/pressed states by
-            // the view's styles (those need a real pointer to exercise).
+            // the view's styles.
             Assert.All(actions, b => Assert.Equal(new Thickness(0), b.BorderThickness));
             Assert.All(actions, b => Assert.Equal(Colors.Transparent,
                 Assert.IsAssignableFrom<ISolidColorBrush>(b.Background).Color));
@@ -533,9 +558,211 @@ public class AppSettingsViewHeadlessTests
             for (var i = 0; i < 4; i++)
                 await Pump();
             Assert.All(actions, b => Assert.False(b.IsVisible));
-            Assert.All(window.GetVisualDescendants().OfType<Button>()
-                .Where(b => b.Classes.Contains("rowact") && ReferenceEquals(b.DataContext, other)),
-                b => Assert.True(b.IsVisible));
+            var otherActions = window.GetVisualDescendants().OfType<Button>()
+                .Where(b => b.Classes.Contains("rowact") && ReferenceEquals(b.DataContext, other)).ToList();
+            Assert.All(otherActions, b => Assert.True(b.IsVisible));
+
+            // On a row that can be activated the check is black — an offer to become
+            // active, not the green mark the active row itself wears.
+            var otherActivate = otherActions.Single(b => b.Classes.Contains("activate"));
+            Assert.Equal(Colors.Black,
+                Assert.IsAssignableFrom<ISolidColorBrush>(otherActivate.Foreground).Color);
+
+            static ContentPresenter FillOf(Button b) =>
+                b.GetVisualDescendants().OfType<ContentPresenter>().First();
+
+            // The delete is two-step: the first click arms the row — the glyph turns white
+            // on the red fill, a border appears, the tooltip becomes the ask for the
+            // confirming click — and deletes nothing.
+            var otherRemove = otherActions.Single(b => b.Classes.Contains("remove"));
+            // The delete stands a little apart from the rest of the set (extra left
+            // margin): a mis-aimed click on its neighbour must not arm the destructive
+            // one. The other three keep the plain Spacing="6" gaps.
+            Assert.Equal(new Thickness(8, 0, 0, 0), otherRemove.Margin);
+            otherRemove.Command!.Execute(null);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+            Assert.True(other.RemoveArmed);
+            Assert.Equal(2, leaf.Profiles.Count);
+            Assert.Equal(Color.FromRgb(0xAA, 0x33, 0x33),
+                Assert.IsAssignableFrom<ISolidColorBrush>(FillOf(otherRemove).Background).Color);
+            Assert.Equal(Colors.White,
+                Assert.IsAssignableFrom<ISolidColorBrush>(otherRemove.Foreground).Color);
+            Assert.Equal(new Thickness(1), otherRemove.BorderThickness);
+            Assert.Equal(Loc.T("appSettings.profiles.removeConfirmHint"), ToolTip.GetTip(otherRemove));
+
+            // The pointer usually still sits on the button when it arms; hovering must keep
+            // the fill red (the armed rule is defined after the pointerover rule) instead
+            // of letting the themed wash repaint it.
+            var center = otherRemove.TranslatePoint(
+                new Point(otherRemove.Bounds.Width / 2, otherRemove.Bounds.Height / 2), window)!.Value;
+            window.MouseMove(center, RawInputModifiers.None);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+            Assert.True(otherRemove.IsPointerOver);
+            Assert.Equal(Color.FromRgb(0xAA, 0x33, 0x33),
+                Assert.IsAssignableFrom<ISolidColorBrush>(FillOf(otherRemove).Background).Color);
+
+            // The second click is the destructive one.
+            otherRemove.Command!.Execute(null);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+            Assert.DoesNotContain(leaf.Profiles, p => p.Id == "second");
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task The_row_context_menu_keeps_every_action_disabled_where_refused()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var vm = new AppSettingsViewModel(settings, Array.Empty<IModule>(), Loc);
+            var leaf = ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<ProfileSettingsLeaf>().Single();
+            settings.CreateProfile("second", MachineTypes.Mill);
+            leaf.Refresh();
+            vm.SelectedNode = leaf;
+
+            var view = new AppSettingsView { DataContext = vm };
+            var window = new Window { Width = 920, Height = 560, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var row = leaf.Profiles.Single(p => p.Id == "default"); // the active one
+            var rowPanel = window.GetVisualDescendants().OfType<StackPanel>()
+                .Single(p => ReferenceEquals(p.DataContext, row) && p.Classes.Contains("row"));
+            var menu = rowPanel.ContextMenu;
+            Assert.NotNull(menu);
+            menu!.Open(rowPanel);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var items = menu.Items.OfType<MenuItem>().ToList();
+            Assert.Equal(
+                new[] { "rename", "activate", "duplicate", "remove" }
+                    .Select(k => Loc.T($"appSettings.profiles.{k}")),
+                items.Select(m => m.Header as string));
+            // The full set is present on the ACTIVE profile, with the refused commands
+            // disabled rather than omitted — the row buttons hide them instead.
+            Assert.True(items[0].IsEnabled);                       // rename
+            Assert.False(items[1].IsEnabled);                      // activate: already active
+            Assert.True(items[2].IsEnabled);                       // duplicate
+            Assert.False(items[3].IsEnabled);                      // remove: the active profile
+            menu.Close();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            // On a row where every action is possible the menu is fully enabled.
+            var other = leaf.Profiles.Single(p => p.Id == "second");
+            var otherPanel = window.GetVisualDescendants().OfType<StackPanel>()
+                .Single(p => ReferenceEquals(p.DataContext, other) && p.Classes.Contains("row"));
+            var otherMenu = otherPanel.ContextMenu;
+            Assert.NotNull(otherMenu);
+            otherMenu!.Open(otherPanel);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+            Assert.All(otherMenu.Items.OfType<MenuItem>(), m => Assert.True(m.IsEnabled));
+            otherMenu.Close();
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Removing_from_the_context_menu_takes_the_same_two_clicks()
+    {
+        // Delete is two-step everywhere: the first click arms, the second deletes. A menu
+        // that closed after the arming click would force the operator to right-click and
+        // aim again just to confirm, so the delete entry stays open on click — it is the
+        // only one that does.
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var vm = new AppSettingsViewModel(settings, Array.Empty<IModule>(), Loc);
+            var leaf = ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<ProfileSettingsLeaf>().Single();
+            settings.CreateProfile("second", MachineTypes.Mill);
+            leaf.Refresh();
+            vm.SelectedNode = leaf;
+
+            var view = new AppSettingsView { DataContext = vm };
+            var window = new Window { Width = 920, Height = 560, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var other = leaf.Profiles.Single(p => p.Id == "second");
+            var otherPanel = window.GetVisualDescendants().OfType<StackPanel>()
+                .Single(p => ReferenceEquals(p.DataContext, other) && p.Classes.Contains("row"));
+            var menu = otherPanel.ContextMenu!;
+            menu.Open(otherPanel);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var items = menu.Items.OfType<MenuItem>().ToList();
+            var removeItem = items[3];
+            Assert.True(removeItem.StaysOpenOnClick,
+                "the delete entry must keep the menu open for its confirming click");
+            Assert.All(items.Where(m => !ReferenceEquals(m, removeItem)),
+                m => Assert.False(m.StaysOpenOnClick));
+            Assert.Equal(Loc.T("appSettings.profiles.removeHint"), ToolTip.GetTip(removeItem));
+
+            // A real click runs the item's command through MenuItem's own class handler;
+            // raising Click is that same path (headless has no pointer on the popup). Manually
+            // executing the command as well would double-invoke it and delete on the first click.
+            removeItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent, removeItem));
+            for (var i = 0; i < 4; i++)
+                await Pump();
+            Assert.True(other.RemoveArmed);
+            Assert.Contains(leaf.Profiles, p => p.Id == "second");
+            Assert.True(menu.IsOpen, "the first, arming click must not close the menu");
+
+            // The armed entry says what the next click will do, the same way the button
+            // does: the fill reddens, the text goes white and the tooltip flips to the
+            // confirm ask — the glyph alone cannot carry the two-step.
+            Assert.Equal(Loc.T("appSettings.profiles.removeConfirmHint"), ToolTip.GetTip(removeItem));
+            var armedFill = removeItem.GetVisualDescendants().OfType<Border>()
+                .Single(b => b.Name == "PART_LayoutRoot");
+            Assert.Equal(Color.FromRgb(0xAA, 0x33, 0x33),
+                Assert.IsAssignableFrom<ISolidColorBrush>(armedFill.Background).Color);
+            var armedText = removeItem.GetVisualDescendants().OfType<ContentPresenter>()
+                .Single(p => p.Name == "PART_HeaderPresenter");
+            Assert.Equal(Colors.White,
+                Assert.IsAssignableFrom<ISolidColorBrush>(armedText.Foreground).Color);
+
+            // In the real session the pointer still rests on the armed item, which wears
+            // the flyout's :selected wash; the armed red must outrank it instead of
+            // greying out under the pointer that is about to confirm.
+            removeItem.IsSelected = true;
+            for (var i = 0; i < 4; i++)
+                await Pump();
+            Assert.True(removeItem.Classes.Contains(":selected"),
+                "a vacuous pass: the item must wear :selected for this to test the wash");
+            Assert.Equal(Color.FromRgb(0xAA, 0x33, 0x33),
+                Assert.IsAssignableFrom<ISolidColorBrush>(armedFill.Background).Color);
+            Assert.Equal(Colors.White,
+                Assert.IsAssignableFrom<ISolidColorBrush>(armedText.Foreground).Color);
+
+            // The second click is the destructive one, and the menu closes with its row.
+            removeItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent, removeItem));
+            for (var i = 0; i < 4; i++)
+                await Pump();
+            Assert.DoesNotContain(leaf.Profiles, p => p.Id == "second");
+            Assert.False(menu.IsOpen);
 
             window.Close();
         }
@@ -592,6 +819,90 @@ public class AppSettingsViewHeadlessTests
 
             Assert.Equal("Bench mill", new SettingsService(settings.SettingsDir).Load().Name);
             Assert.False(leaf.Profiles.Single(p => p.Id == "default").IsEditing);
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Rename_from_the_pencil_or_the_context_menu_focuses_and_selects_the_name()
+    {
+        // Both the pencil and the context menu start the edit through the row's command,
+        // which is view-less: the box opened, but focus stayed where it was and the whole
+        // name was unselected, so the first keystroke went to the wrong place. The view
+        // now lands the box focused and fully selected — like double-click.
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var vm = new AppSettingsViewModel(settings, Array.Empty<IModule>(), Loc);
+            var leaf = ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<ProfileSettingsLeaf>().Single();
+            settings.CreateProfile("second", MachineTypes.Mill);
+            leaf.Refresh();
+            vm.SelectedNode = leaf;
+
+            var view = new AppSettingsView { DataContext = vm };
+            var window = new Window { Width = 920, Height = 560, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            // The pencil: a real click, the gesture the operator makes.
+            var row = leaf.Profiles.Single(p => p.Id == "default");
+            var rowPanel = window.GetVisualDescendants().OfType<StackPanel>()
+                .Single(p => ReferenceEquals(p.DataContext, row) && p.Classes.Contains("row"));
+            var pencil = rowPanel.GetVisualDescendants().OfType<Button>()
+                .Single(b => b.Classes.Contains("pencil"));
+            var center = pencil.TranslatePoint(
+                new Point(pencil.Bounds.Width / 2, pencil.Bounds.Height / 2), window)!.Value;
+            window.MouseMove(center, RawInputModifiers.None);
+            window.MouseDown(center, MouseButton.Left, RawInputModifiers.None);
+            window.MouseUp(center, MouseButton.Left, RawInputModifiers.None);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var box = window.GetVisualDescendants().OfType<TextBox>()
+                .Single(t => t.Classes.Contains("rename") && t.DataContext == row);
+            Assert.True(box.IsVisible);
+            Assert.True(box.IsFocused, "the pencil must land the caret in the box");
+            Assert.Equal(0, box.SelectionStart);
+            Assert.Equal(box.Text!.Length, box.SelectionEnd);
+
+            leaf.CancelRename();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            // The context menu, on a row that is not even selected: the command's
+            // select-the-row step must not break the focus hook. Executing the command
+            // and raising Click mirrors what the framework does for a real menu click
+            // (the popup itself is out of headless pointer reach); the close that
+            // follows is the real click's other half — the view's focus hook hangs
+            // off Closed because MenuItem's own class handler swallows Click.
+            var other = leaf.Profiles.Single(p => p.Id == "second");
+            var otherPanel = window.GetVisualDescendants().OfType<StackPanel>()
+                .Single(p => ReferenceEquals(p.DataContext, other) && p.Classes.Contains("row"));
+            var menu = otherPanel.ContextMenu!;
+            menu.Open(otherPanel);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+            var renameItem = menu.Items.OfType<MenuItem>().First();
+            renameItem.Command!.Execute(null);
+            renameItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent, renameItem));
+            menu.Close();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var otherBox = window.GetVisualDescendants().OfType<TextBox>()
+                .Single(t => t.Classes.Contains("rename") && t.DataContext == other);
+            Assert.True(otherBox.IsVisible);
+            Assert.True(otherBox.IsFocused, "the context menu must land the caret in the box");
+            Assert.Equal(0, otherBox.SelectionStart);
+            Assert.Equal(otherBox.Text!.Length, otherBox.SelectionEnd);
 
             window.Close();
         }

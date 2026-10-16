@@ -62,6 +62,7 @@ public interface IModule
     object CreateViewModel(IServiceProvider serviceProvider);
     object CreateView(object viewModel);
     (double Width, double Height)? DialogPreferredSize { get; }
+    (double Width, double Height)? DialogMinimumSize { get; }   // floor for a resizable dialog
 }
 ```
 

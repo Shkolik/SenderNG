@@ -119,6 +119,7 @@ public partial class AppSettingsView : UserControl
         if (selected is null)
             return;
         leaf.BeginRename(selected);
+        FocusRenameBox();
         e.Handled = true;
     }
 
@@ -167,7 +168,29 @@ public partial class AppSettingsView : UserControl
         e.Handled = true;
     }
 
-    /// <summary>Focus the row's edit box once the template has realized it.</summary>
+    /// <summary>The pencil starts the edit through the row's command, which is view-less,
+    /// so it lands here to put the caret in the box with the name selected, exactly like
+    /// the double-click and F2 paths. If the command refused the rename there is no
+    /// visible box, and the focus call is a no-op.</summary>
+    private void OnRenameInvoked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: ProfileRow })
+            FocusRenameBox();
+    }
+
+    /// <summary>The context menu's rename entry cannot land on a XAML Click handler: the
+    /// MenuItem class handler runs the command and marks Click handled before instance
+    /// handlers would run. The request therefore arrives here instead — a closed menu
+    /// over a row that is now editing.</summary>
+    private void OnRowMenuClosed(object? sender, RoutedEventArgs e)
+    {
+        if (sender is ContextMenu { DataContext: ProfileRow { IsEditing: true } })
+            FocusRenameBox();
+    }
+
+    /// <summary>Moves focus into the row's editor with the whole name selected. Posted,
+    /// because on the button path the editor opens only after the click finishes
+    /// bubbling, and a hidden box would silently refuse the focus call.</summary>
     private void FocusRenameBox() => Dispatcher.UIThread.Post(() =>
     {
         var box = this.GetVisualDescendants().OfType<TextBox>()

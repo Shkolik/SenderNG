@@ -49,7 +49,9 @@ public class AvaloniaDialogService : IDialogService
         _views = views;
     }
 
-    public async Task<bool?> ShowDialogAsync(string title, object viewModel, (double Width, double Height)? preferredSize = null)
+    public async Task<bool?> ShowDialogAsync(string title, object viewModel,
+        (double Width, double Height)? preferredSize = null,
+        (double Width, double Height)? minSize = null)
     {
         var window = new Window
         {
@@ -66,6 +68,13 @@ public class AvaloniaDialogService : IDialogService
             window.Width = size.Width;
             window.Height = size.Height;
             window.CanResize = true;
+            // The floor stops a drag before the content starts clipping its own
+            // panes. Only a resizable window has one to apply.
+            if (minSize is { } min)
+            {
+                window.MinWidth = min.Width;
+                window.MinHeight = min.Height;
+            }
         }
         else
         {

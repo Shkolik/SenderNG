@@ -414,8 +414,15 @@ public sealed class ProfileRow : ViewModelBase
         RenameHint = renameHint;
         _owner = owner;
         // Every command re-selects its own row first: the actions used to run against the
-        // leaf's selection, and the row they belong to is now the only sane target.
-        BeginRenameCommand = new DelegateCommand(_ => _owner?.BeginRename(this));
+        // leaf's selection, and the row they belong to is now the only sane target. The
+        // rename command too — the context menu can reach a row the pointer never selected.
+        BeginRenameCommand = new DelegateCommand(_ =>
+        {
+            if (_owner is null)
+                return;
+            _owner.SelectedProfile = this;
+            _owner.BeginRename(this);
+        });
         ActivateCommand = new DelegateCommand(_ => Select().Activate(this));
         DuplicateCommand = new DelegateCommand(_ => Select().Duplicate(this));
         RemoveCommand = new DelegateCommand(_ => Select().Remove(this));    }
@@ -423,9 +430,8 @@ public sealed class ProfileRow : ViewModelBase
     public string Id { get; }
     public string MachineTypeId { get; }
 
-    /// <summary>The rename affordance's tooltip. It lives on the row, not on the pencil:
-    /// the whole name+badge area is the rename target, so the hint should appear anywhere
-    /// over it, not only on a 20px glyph.</summary>
+    /// <summary>The rename pencil's tooltip. The row itself carries no tip: the other
+    /// actions explain themselves on their own glyphs.</summary>
     public string? RenameHint { get; }
 
     /// <summary>Opens this row's name for editing (the pencil and the F2/double-click path).</summary>
@@ -458,8 +464,16 @@ public sealed class ProfileRow : ViewModelBase
     public bool IsSelected { get => _isSelected; internal set => SetField(ref _isSelected, value); }
 
     /// <summary>The row's actions are offered on the selected row and hidden while its name
-    /// is being edited (the row is then a text field, not a toolbar).</summary>
-    public bool ShowActions => _isSelected && !_isEditing;
+    /// is being edited (the row is then a text field, not a toolbar) or while the list is
+    /// gated (a session is running, a restore is pending): every action would be refused.</summary>
+    public bool ShowActions => _isSelected && !_isEditing && CanRename;
+
+    // Button visibility: an action belongs to the selected row only. The context menu
+    // binds the bare Can* flags instead — a row may be managed from its menu without the
+    // pointer ever selecting it.
+    public bool ShowActivate => ShowActions && CanActivate;
+    public bool ShowDuplicate => ShowActions && CanDuplicate;
+    public bool ShowRemove => ShowActions && CanRemove;
 
     /// <summary>True while this row's name is being edited in place.</summary>
     public bool IsEditing
@@ -471,6 +485,9 @@ public sealed class ProfileRow : ViewModelBase
             {
                 OnPropertyChanged(nameof(IsNotEditing));
                 OnPropertyChanged(nameof(ShowActions));
+                OnPropertyChanged(nameof(ShowActivate));
+                OnPropertyChanged(nameof(ShowDuplicate));
+                OnPropertyChanged(nameof(ShowRemove));
             }
         }
     }
@@ -486,18 +503,16 @@ public sealed class ProfileRow : ViewModelBase
         internal set
         {
             if (SetField(ref _removeArmed, value))
-                OnPropertyChanged(nameof(RemoveText));
+                OnPropertyChanged(nameof(RemoveHint));
         }
     }
 
-    /// <summary>The delete button's label: the plain verb until it is armed, then the
-    /// confirmation. Kept short — it sits inside a row, not under the list.</summary>
-    public string RemoveText => RemoveArmed
-        ? _owner?.ResolveRemoveConfirm() ?? "Confirm"
-        : _owner?.ResolveRemove() ?? "Remove";
-
-    /// <summary>Why the delete button needs a second click, as a tooltip.</summary>
-    public string? RemoveHint => _owner?.ResolveRemoveHint();
+    /// <summary>The delete glyph's tooltip: what it will delete, or — once the row is
+    /// armed — the ask for the confirming second click. The glyph's face never changes
+    /// (it is a pictogram); the reddened glyph and this tip are the confirmation state.</summary>
+    public string? RemoveHint => RemoveArmed
+        ? _owner?.ResolveRemoveConfirmHint()
+        : _owner?.ResolveRemoveHint();
 
     /// <summary>What the activate button says it will do.</summary>
     public string? ActivateHint => _owner?.ResolveActivateHint();
@@ -505,9 +520,11 @@ public sealed class ProfileRow : ViewModelBase
     /// <summary>What the duplicate button says it will do.</summary>
     public string? DuplicateHint => _owner?.ResolveDuplicateHint();
 
-    // The buttons' enabled state is the list's gate plus what is true of THIS profile: the
+    // Each action's availability is the list's gate plus what is true of THIS profile: the
     // active one cannot be activated again or deleted, and the last profile cannot be
-    // deleted. They are re-raised with the rest of the row's action state.
+    // deleted. A row button is hidden when its flag is false; the context menu keeps the
+    // item, disabled. They are re-raised with the rest of the row's action state.
+    public bool CanRename => _owner?.CanSwitchProfiles == true;
     public bool CanActivate => _owner?.CanActivate(this) == true;
     public bool CanDuplicate => _owner?.CanDuplicate(this) == true;
     public bool CanRemove => _owner?.CanRemove(this) == true;
@@ -515,11 +532,14 @@ public sealed class ProfileRow : ViewModelBase
     /// <summary>Re-raises the localized labels and hints (a rebuild or a locale change).</summary>
     internal void RefreshActionText()
     {
-        OnPropertyChanged(nameof(RemoveText));
         OnPropertyChanged(nameof(RemoveHint));
         OnPropertyChanged(nameof(ActivateHint));
         OnPropertyChanged(nameof(DuplicateHint));
         OnPropertyChanged(nameof(ShowActions));
+        OnPropertyChanged(nameof(ShowActivate));
+        OnPropertyChanged(nameof(ShowDuplicate));
+        OnPropertyChanged(nameof(ShowRemove));
+        OnPropertyChanged(nameof(CanRename));
         OnPropertyChanged(nameof(CanActivate));
         OnPropertyChanged(nameof(CanDuplicate));
         OnPropertyChanged(nameof(CanRemove));
@@ -811,13 +831,11 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         ProfilesChanged?.Invoke();
     }
 
-    internal string ResolveRemoveConfirm() =>
-        _resolve("appSettings.profiles.removeConfirm", "Confirm");
-
-    internal string ResolveRemove() => _resolve("appSettings.profiles.remove", "Remove");
-
     internal string ResolveRemoveHint() =>
-        _resolve("appSettings.profiles.removeHint", "Delete this profile (click again to confirm)");
+        _resolve("appSettings.profiles.removeHint", "Delete this profile");
+
+    internal string ResolveRemoveConfirmHint() =>
+        _resolve("appSettings.profiles.removeConfirmHint", "Click again to confirm");
 
     internal string ResolveActivateHint() =>
         _resolve("appSettings.profiles.activateHint", "Make this profile the active one");

@@ -625,7 +625,9 @@ public class ConverterTests
         public object? LastVm { get; private set; }
         public bool? Result { get; set; } = true;
 
-        public Task<bool?> ShowDialogAsync(string title, object viewModel, (double Width, double Height)? preferredSize = null)
+        public Task<bool?> ShowDialogAsync(string title, object viewModel,
+            (double Width, double Height)? preferredSize = null,
+            (double Width, double Height)? minSize = null)
         {
             LastVm = viewModel;
             return Task.FromResult(Result);

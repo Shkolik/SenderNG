@@ -87,4 +87,9 @@ public interface IModule
 
     /// <summary>Preferred (width, height) when the module opens as a dialog; null = size to content.</summary>
     (double Width, double Height)? DialogPreferredSize => null;
+
+    /// <summary>Floor (width, height) the resizable dialog cannot be dragged below;
+    /// null = the platform's own floor. Ignored without a preferred size, since a
+    /// size-to-content dialog is not resizable.</summary>
+    (double Width, double Height)? DialogMinimumSize => null;
 }

@@ -268,7 +268,9 @@ public class MainViewModelTests
 
         public string? LastTitle { get; private set; }
 
-        public Task<bool?> ShowDialogAsync(string title, object viewModel, (double Width, double Height)? preferredSize = null)
+        public Task<bool?> ShowDialogAsync(string title, object viewModel,
+            (double Width, double Height)? preferredSize = null,
+            (double Width, double Height)? minSize = null)
         {
             LastVm = viewModel;
             LastTitle = title;
@@ -893,9 +895,17 @@ public class MainViewModelCycleEnablementTests
     {
         public object? LastVm { get; private set; }
 
-        public Task<bool?> ShowDialogAsync(string title, object viewModel, (double Width, double Height)? preferredSize = null)
+        public (double Width, double Height)? LastPreferredSize { get; private set; }
+
+        public (double Width, double Height)? LastMinSize { get; private set; }
+
+        public Task<bool?> ShowDialogAsync(string title, object viewModel,
+            (double Width, double Height)? preferredSize = null,
+            (double Width, double Height)? minSize = null)
         {
             LastVm = viewModel;
+            LastPreferredSize = preferredSize;
+            LastMinSize = minSize;
             var tcs = new TaskCompletionSource<bool?>(TaskCreationOptions.RunContinuationsAsynchronously);
             if (viewModel is IClosableDialog closable)
                 closable.CloseRequested += (_, r) => tcs.TrySetResult(r);
@@ -1048,6 +1058,36 @@ public class MainViewModelCycleEnablementTests
         {
             try { Directory.Delete(dir, recursive: true); } catch { }
         }
+    }
+
+    /// <summary>The dialog service is the only seam that sees a module's declared
+    /// window sizing, so this pins the wiring: preferred size AND the minimum floor
+    /// the module declares must reach ShowDialogAsync from the machine-settings menu,
+    /// not just from a direct service call.</summary>
+    [Fact]
+    public async Task Machine_settings_dialog_gets_the_modules_preferred_and_minimum_sizes()
+    {
+        var settings = MakeSettings();
+        var module = new SenderNG.Modules.Fixed.AppSettingsModule();
+        var services = new ServiceCollection();
+        services.AddSingleton(settings);
+        services.AddSingleton(_ => new DemoGrblService(settings.Load()));
+        services.AddSingleton(LocalizationService.LoadFromDirectory(
+            Path.Combine(AppContext.BaseDirectory, "Locale")));
+        services.AddSingleton<IModule>(module);
+        module.RegisterServices(services);
+        var provider = services.BuildServiceProvider();
+        var dialogs = new StubDialogService();
+        var vm = new MainViewModel(provider.GetRequiredService<DemoGrblService>(), settings, provider,
+            modules: [module], dialogs: dialogs);
+
+        vm.MachineSettingsCommand.Execute(null);
+        for (var i = 0; i < 200 && dialogs.LastVm is null; i++)
+            await Task.Delay(5);
+
+        Assert.NotNull(dialogs.LastVm);
+        Assert.Equal<(double, double)?>((900.0, 560.0), dialogs.LastPreferredSize);
+        Assert.Equal<(double, double)?>((720.0, 480.0), dialogs.LastMinSize);
     }
 }
 

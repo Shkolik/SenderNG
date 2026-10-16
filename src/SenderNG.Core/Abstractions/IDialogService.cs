@@ -36,8 +36,13 @@ namespace CNC.Core.Abstractions;
 
 public interface IDialogService
 {
-    /// <summary>preferredSize: explicit window size -> manually resizable; null -> size to content.</summary>
-    Task<bool?> ShowDialogAsync(string title, object viewModel, (double Width, double Height)? preferredSize = null);
+    /// <summary>preferredSize: explicit window size -> manually resizable; null -> size to content.
+    /// minSize: the floor a resizable window cannot be dragged below; without it the platform's
+    /// own floor stands. Ignored when the dialog sizes to content — that window cannot be resized
+    /// at all, so it has no floor to apply.</summary>
+    Task<bool?> ShowDialogAsync(string title, object viewModel,
+        (double Width, double Height)? preferredSize = null,
+        (double Width, double Height)? minSize = null);
 }
 
 /// <summary>

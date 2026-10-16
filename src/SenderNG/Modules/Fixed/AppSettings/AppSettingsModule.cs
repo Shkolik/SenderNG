@@ -80,4 +80,8 @@ public class AppSettingsModule : IModule
 
     // Content-heavy wrap grid: fixed resizable window instead of size-to-content.
     public (double Width, double Height)? DialogPreferredSize => (900.0, 560.0);
+
+    // The tree pane floors at 240px and the detail tables need room beside it;
+    // below this the dialog stops laying out and starts clipping its panes.
+    public (double Width, double Height)? DialogMinimumSize => (800.0, 480.0);
 }

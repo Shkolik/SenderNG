@@ -1085,7 +1085,8 @@ public class MainViewModel : ViewModelBase, IDisposable
             settingsVm.PreselectProfiles = profiles;
         try
         {
-            await _dialogs.ShowDialogAsync(module.Name, viewModel, module.DialogPreferredSize);
+            await _dialogs.ShowDialogAsync(module.Name, viewModel,
+                module.DialogPreferredSize, module.DialogMinimumSize);
         }
         finally
         {
@@ -1505,7 +1506,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             viewModel = module.CreateViewModel(_services);
             ApplySettingsDialogGuards(viewModel);
-            await _dialogs.ShowDialogAsync(module.Name, viewModel, module.DialogPreferredSize);
+            await _dialogs.ShowDialogAsync(module.Name, viewModel,
+                module.DialogPreferredSize, module.DialogMinimumSize);
         }
         catch (Exception ex)
         {

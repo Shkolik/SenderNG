@@ -289,7 +289,7 @@ public class ProfileManagerTests
         File.WriteAllText(ProfileSettingsPaths.CompanionPath(dir, "other", ".probing.json"), "{}");
         other.RemoveCommand.Execute(null);
         Assert.True(other.RemoveArmed);                       // armed, not executed
-        Assert.Equal("Confirm", other.RemoveText);
+        Assert.Equal("Click again to confirm", other.RemoveHint);
         other.RemoveCommand.Execute(null);
 
         Assert.Single(leaf.Profiles);
