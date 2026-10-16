@@ -217,11 +217,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <StackPanel Orientation="Vertical" Spacing="8" Grid.IsSharedSizeScope="True"
                 IsEnabled="{Binding IsEditable}">
 
-        <!-- Machine type + its topology art: roles only, never letters. Kept small — the axis
-             list is what the card is for. -->
+        <!-- Machine type. The topology picture is NOT here: it sits beside the profile
+             list, where it identifies the machine behind the selected profile. -->
         <TextBlock Text="{Binding MachineTypeName}" FontSize="11" FontWeight="SemiBold" Foreground="#333" />
-        <Image x:Name="TopologyImage" Stretch="Uniform" MaxWidth="200" MaxHeight="150"
-               HorizontalAlignment="Left" IsVisible="{Binding HasTopologyImage}" />
 
         <!-- A machine-type switch replaces the layout but deliberately leaves DemoAxes
              alone: warn when the demo now simulates fewer axes than the type needs. -->

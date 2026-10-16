@@ -1198,34 +1198,33 @@ public class AppSettingsViewModelTests
             leaf.Refresh();
             leaf.SelectedProfile = leaf.Profiles.Single(p => p.Id == "other");
             leaf.NewName = "third";
-            leaf.RenameName = "Renamed";
+            leaf.BeginRename(leaf.Profiles.Single(p => p.Id == "other"));
             leaf.SelectedMachineType = MachineTypes.Foam;
 
             // Control: with the gate open every mutation is offered, so the asserts below
             // fail for the restore guard, not because a condition was already false.
             Assert.True(leaf.CanSwitchProfiles);
             Assert.True(leaf.AddCommand.CanExecute(null));
-            Assert.True(leaf.DuplicateCommand.CanExecute(null));
-            Assert.True(leaf.RenameCommand.CanExecute(null));
-            Assert.True(leaf.RemoveCommand.CanExecute(null));
-            Assert.True(leaf.ActivateCommand.CanExecute(null));
+            Assert.True(leaf.Profiles.Single(p => p.Id == "other").CanDuplicate);
+            Assert.True(leaf.Profiles.Single(p => p.Id == "other").CanRemove);
+            Assert.True(leaf.Profiles.Single(p => p.Id == "other").CanActivate);
             Assert.True(leaf.ApplyTypeCommand.CanExecute(null));
+            Assert.True(leaf.Profiles.Single(p => p.Id == "other").IsEditing); // the rename opened
 
             settings.MarkRestorePending();
 
             Assert.False(leaf.CanSwitchProfiles);
-            Assert.True(leaf.ShowSwitchBlocked);
             Assert.False(leaf.AddCommand.CanExecute(null));
-            Assert.False(leaf.DuplicateCommand.CanExecute(null));
-            Assert.False(leaf.RenameCommand.CanExecute(null));
-            Assert.False(leaf.RemoveCommand.CanExecute(null));
-            Assert.False(leaf.ActivateCommand.CanExecute(null));
+            Assert.False(leaf.Profiles.Single(p => p.Id == "other").CanDuplicate);
+            Assert.False(leaf.Profiles.Single(p => p.Id == "other").CanRemove);
+            Assert.False(leaf.Profiles.Single(p => p.Id == "other").CanActivate);
             Assert.False(leaf.ApplyTypeCommand.CanExecute(null));
-
-            // The blocked caption is the restart copy: switching is not blocked by the
-            // session here, it is blocked by the pending restart.
-            Assert.Equal(Loc.T("appSettings.backup.restartRequired"), leaf.SwitchBlockedText);
-            Assert.NotEqual(Loc.T("appSettings.profiles.switchBlocked"), leaf.SwitchBlockedText);
+            // The in-place rename closes a still-open editor and refuses to open a new
+            // one: MarkRestorePending raises nothing the leaf listens to, so the editor
+            // armed before the restore only notices on the next interaction.
+            var after = leaf.Profiles.Single(p => p.Id == "other");
+            leaf.BeginRename(after);
+            Assert.False(after.IsEditing);  // closed, not silently kept
 
             // A stale UI can still call Execute (DelegateCommand.Execute bypasses
             // CanExecute): the leaf itself must refuse — no Activated for an add that
@@ -1235,7 +1234,7 @@ public class AppSettingsViewModelTests
             var before = DiskState(dir);
 
             leaf.AddCommand.Execute(null);
-            leaf.ActivateCommand.Execute(null);
+            after.ActivateCommand.Execute(null);
 
             Assert.Equal(0, activated);
             Assert.Equal(before, DiskState(dir));
@@ -1905,8 +1904,18 @@ public class MachineAxesEditorTests
             var foam = settings.CreateProfile("foam", MachineTypes.Foam);
             leaf.Refresh();
 
+            // The list row's picture follows the selection too (it is the leaf's own
+            // property, forwarded from the card so the XAML binds one place).
+            var published = new List<string?>();
+            leaf.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(ProfileSettingsLeaf.TopologyImage))
+                    published.Add(leaf.TopologyImage);
+            };
+
             var millEditor = leaf.MachineAxes;
             Assert.Equal(MachineTypes.Mill, millEditor.MachineTypeId);
+            Assert.EndsWith("machine-topology-mill.png", leaf.TopologyImage!);
 
             leaf.SelectedProfile = leaf.Profiles.Single(p => p.Id == foam.Id);
 
@@ -1914,6 +1923,12 @@ public class MachineAxesEditorTests
             Assert.Equal(MachineTypes.Foam, leaf.MachineAxes.MachineTypeId);
             Assert.Equal(2, leaf.MachineAxes.Planes.Count);
             Assert.EndsWith("machine-topology-foam.png", leaf.MachineAxes.TopologyImage!);
+            Assert.EndsWith("machine-topology-foam.png", leaf.TopologyImage!);
+            // MachineTypeName is republished alongside, so a switch raises the change
+            // twice (once per card property); what matters is that the last one — the
+            // value a binding re-reads — is the new type's art.
+            Assert.NotEmpty(published);
+            Assert.EndsWith("machine-topology-foam.png", published[^1]!);
         }
         finally
         {

@@ -36,6 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -85,6 +86,21 @@ public class MachineAxesViewHeadlessTests
             .Where(c => ReferenceEquals(c.ItemsSource, editor.IndexChoices))
             .ToList();
 
+    /// <summary>
+    /// The machine-type picture beside the profile list. Found through the list rather than
+    /// by name: the row that holds both is the evidence for the layout, so a picture that
+    /// drifted into another panel fails here instead of quietly passing.
+    /// </summary>
+    private static Image The_list_image(Visual root)
+    {
+        var list = root.GetVisualDescendants().OfType<ListBox>()
+            .Single(l => l.ItemsSource is IEnumerable<ProfileRow>);
+        // The nearest ancestor that actually holds a picture: the list's own row.
+        var row = list.GetVisualAncestors().OfType<Grid>()
+            .First(g => g.GetVisualDescendants().OfType<Image>().Any());
+        return row.GetVisualDescendants().OfType<Image>().Single();
+    }
+
     [AvaloniaFact]
     public async Task Renders_a_row_per_axis_and_loads_the_topology_picture_from_assets()
     {
@@ -111,17 +127,10 @@ public class MachineAxesViewHeadlessTests
             Assert.Contains(Loc.T("appSettings.axes.plane").Replace("{0}", "1"), texts);
             Assert.Contains("X", texts);
 
-            // The picture resolves through avares://SenderNG/Assets/... — the one thing
-            // that proves the asset registration works at runtime (docs/images/ would not
-            // load at all) — and it is the card's ONLY picture and a small one: the rotary
-            // reference art is gone from the optional list, and the machine-type art no
-            // longer dominates the card.
-            var image = Assert.Single(view.GetVisualDescendants().OfType<Image>());
-            var bitmap = Assert.IsType<Bitmap>(image.Source);
-            Assert.True(bitmap.PixelSize.Width > 0 && bitmap.PixelSize.Height > 0,
-                "the topology art decoded to an empty bitmap");
-            Assert.True(image.MaxWidth <= 240 && image.MaxHeight <= 200,
-                $"the topology picture must stay small, not {image.MaxWidth}x{image.MaxHeight}");
+            // The card carries no picture at all any more: the machine-type topology art
+            // moved beside the profile list (AppSettingsView, where the asset registration
+            // is proven instead), and the rotary reference art was already dropped.
+            Assert.Empty(view.GetVisualDescendants().OfType<Image>());
             Assert.EndsWith("machine-topology-mill.png", editor.TopologyImage!);
 
             window.Close();
@@ -281,12 +290,13 @@ public class MachineAxesViewHeadlessTests
 
             // The optional-axis section is the block that owns the "Optional axes" title:
             // no image may live in it (the rotary art was unreadable at that size and it
-            // squeezed the axis table). The machine-type picture stays, above the list.
+            // squeezed the axis table).
             var section = view.GetVisualDescendants().OfType<TextBlock>()
                 .First(t => t.Text == Loc.T("appSettings.axes.optional"))
                 .GetVisualAncestors().OfType<StackPanel>().First();
             Assert.Empty(section.GetVisualDescendants().OfType<Image>());
-            Assert.Single(view.GetVisualDescendants().OfType<Image>());
+            // The card itself is picture-free; the type's art lives beside the profile list.
+            Assert.Empty(view.GetVisualDescendants().OfType<Image>());
 
             window.Close();
         }
@@ -482,8 +492,7 @@ public class MachineAxesViewHeadlessTests
 
     [AvaloniaFact]
     public async Task Switching_the_selected_profile_writes_nothing_through_a_recycled_row()
-    {
-        // The recycled-control regression (docs/avalonia-gotchas.md §1): the axis rows'
+    {        // The recycled-control regression (docs/avalonia-gotchas.md §1): the axis rows'
         // containers are reused when the card re-points at another profile. A recycled
         // ComboBox raises SelectionChanged with the PREVIOUS row's selection while its
         // DataContext is already the new row; the handlers must write nothing then.
@@ -512,7 +521,9 @@ public class MachineAxesViewHeadlessTests
                 await Pump();
 
             var axesView = window.GetVisualDescendants().OfType<MachineAxesView>().Single();
-            var before = axesView.GetVisualDescendants().OfType<Image>().First().Source;
+            // The machine-type picture now sits beside the profile list, not in the card.
+            var listImage = The_list_image(window);
+            var before = listImage.Source;
             Assert.NotNull(before);
             Assert.Equal(3, AxisPickers(axesView, leaf.MachineAxes).Count);
 
@@ -520,10 +531,10 @@ public class MachineAxesViewHeadlessTests
             for (var i = 0; i < 6; i++)
                 await Pump();
 
-            // The card followed the selection, and the topology art was reloaded.
+            // The card followed the selection, and the list's topology art was reloaded.
             Assert.Equal(MachineTypes.Foam, leaf.MachineAxes.MachineTypeId);
             Assert.Equal(4, AxisPickers(axesView, leaf.MachineAxes).Count);
-            var after = axesView.GetVisualDescendants().OfType<Image>().First().Source;
+            var after = listImage.Source;
             Assert.IsType<Bitmap>(after);
             Assert.NotSame(before, after);
 

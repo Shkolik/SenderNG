@@ -36,10 +36,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Collections.Generic;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CNC.Core.Abstractions;
@@ -70,8 +75,7 @@ public class AppSettingsViewHeadlessTests
 
     [AvaloniaFact]
     public async Task Profiles_buttons_and_checkmark_follow_locale_and_render()
-    {
-        var prev = LocalizationService.Current;
+    {        var prev = LocalizationService.Current;
         try
         {
             LocalizationService.Current = Loc;
@@ -343,6 +347,308 @@ public class AppSettingsViewHeadlessTests
                 ?? throw new InvalidOperationException("Backup summary not rendered.");
             Assert.Contains(settings.SettingsDir, leaf.FolderText);
             Assert.True(summary.IsVisible);
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task The_topology_picture_renders_beside_the_profile_list_and_follows_the_selection()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var vm = new AppSettingsViewModel(settings, Array.Empty<IModule>(), Loc);
+            var leaf = ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<ProfileSettingsLeaf>().Single();
+            var foam = settings.CreateProfile("foam", MachineTypes.Foam);
+            leaf.Refresh();
+            vm.SelectedNode = leaf;
+
+            var view = new AppSettingsView { DataContext = vm };
+            var window = new Window { Width = 920, Height = 560, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            // The list and the picture share one row, and the picture is exactly as tall
+            // as the list — that placement is the whole point of the layout. Uniform
+            // stretch derives the width from the type art's aspect ratio (the mill art is
+            // 820x560, so ~249 wide at 170 tall), so height is the dimension that must match.
+            var list = window.GetVisualDescendants().OfType<ListBox>()
+                .Single(l => l.ItemsSource is IEnumerable<ProfileRow>);
+            var row = list.GetVisualAncestors().OfType<Grid>()
+                .First(g => g.GetVisualDescendants().OfType<Image>().Any());
+            var image = row.GetVisualDescendants().OfType<Image>().Single();
+            Assert.Equal(list.Bounds.Height, row.Bounds.Height, 1);
+            Assert.Equal(list.Bounds.Height, image.Height, 1);
+            Assert.Equal(list.Bounds.Height, image.Bounds.Height, 1);
+            Assert.True(image.Bounds.Width > list.Bounds.Height,
+                "the mill art is wider than it is tall; a narrower picture means the height was capped");
+
+            // It resolves through avares://SenderNG/Assets/... — the one thing that proves
+            // the asset registration works at runtime (docs/images/ would not load at all).
+            var bitmap = Assert.IsType<Bitmap>(image.Source);
+            Assert.True(bitmap.PixelSize.Width > 0 && bitmap.PixelSize.Height > 0,
+                "the topology art decoded to an empty bitmap");
+            Assert.EndsWith("machine-topology-mill.png", leaf.TopologyImage!);
+
+            // Selecting another profile swaps the picture in place.
+            leaf.SelectedProfile = leaf.Profiles.Single(p => p.Id == foam.Id);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            Assert.EndsWith("machine-topology-foam.png", leaf.TopologyImage!);
+            Assert.NotSame(bitmap, image.Source);
+            Assert.True(Assert.IsType<Bitmap>(image.Source).PixelSize.Width > 0);
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task A_profile_row_does_not_move_when_it_becomes_the_selected_one()
+    {
+        // The pencil only exists on the selected row, so the row's content used to grow
+        // with selection (16px → 20px): the name and the machine badge visibly dropped a
+        // couple of pixels the moment a row was picked. The row now reserves its height.
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var vm = new AppSettingsViewModel(settings, Array.Empty<IModule>(), Loc);
+            var leaf = ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<ProfileSettingsLeaf>().Single();
+            settings.CreateProfile("Foam bench", MachineTypes.Foam);
+            leaf.Refresh();
+            vm.SelectedNode = leaf;
+
+            var view = new AppSettingsView { DataContext = vm };
+            var window = new Window { Width = 920, Height = 560, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var row = leaf.Profiles.Single(p => p.Id == "foam-bench");
+            double Offset(Visual v) => v.TranslatePoint(new Point(0, 0), window)!.Value.Y;
+            var rowPanel = window.GetVisualDescendants().OfType<StackPanel>()
+                .Single(p => ReferenceEquals(p.DataContext, row) && p.Classes.Contains("row"));
+            var name = rowPanel.GetVisualDescendants().OfType<TextBlock>()
+                .Single(t => Equals(t.Text, "Foam bench"));
+            // The badge is the border whose child is the type label, not the item's own chrome.
+            var badge = rowPanel.GetVisualDescendants().OfType<Border>()
+                .Single(b => b.GetVisualDescendants().OfType<TextBlock>()
+                    .Any(t => Equals(t.Text, "Foam")));
+
+            var panelBefore = Offset(rowPanel);
+            var nameBefore = Offset(name);
+            var badgeBefore = Offset(badge);
+
+            leaf.SelectedProfile = row;
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            Assert.True(row.IsSelected);
+            Assert.Equal(panelBefore, Offset(rowPanel), 1);
+            Assert.Equal(nameBefore, Offset(name), 1);
+            Assert.Equal(badgeBefore, Offset(badge), 1);
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task The_rename_hint_is_offered_over_the_whole_selected_row()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var vm = new AppSettingsViewModel(settings, Array.Empty<IModule>(), Loc);
+            var leaf = ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<ProfileSettingsLeaf>().Single();
+            settings.CreateProfile("second", MachineTypes.Mill);
+            leaf.Refresh();
+            vm.SelectedNode = leaf;
+
+            var view = new AppSettingsView { DataContext = vm };
+            var window = new Window { Width = 920, Height = 560, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var row = leaf.Profiles.Single(p => p.Id == "default");
+            // The rename hint lives on the row, not on the 20px pencil: hovering the name
+            // or the badge has to explain the gesture too.
+            var rowPanel = window.GetVisualDescendants().OfType<StackPanel>()
+                .Single(p => ReferenceEquals(p.DataContext, row) && p.Classes.Contains("row"));
+            Assert.Equal(Loc.T("appSettings.profiles.renameHint"), ToolTip.GetTip(rowPanel));
+
+            // Every row action is on the row itself, and only on the selected one: the
+            // strip that used to sit under the list acted on whatever was selected.
+            var actions = rowPanel.GetVisualDescendants().OfType<Button>()
+                .Where(b => b.Classes.Contains("rowact")).ToList();
+            Assert.Equal(4, actions.Count);                       // rename, activate, duplicate, remove
+            Assert.All(actions, b => Assert.True(b.IsVisible));
+            var rename = actions.Single(b => b.Classes.Contains("pencil"));
+            // The pencil sets no tip of its own: it inherits the row's rename hint, so
+            // hovering the glyph and hovering the name say the same thing.
+            Assert.Equal(Loc.T("appSettings.profiles.renameHint"), ToolTip.GetTip(rename));
+            var activate = actions.Single(b => Equals(b.Content, Loc.T("appSettings.profiles.activate")));
+            var duplicate = actions.Single(b => Equals(b.Content, Loc.T("appSettings.profiles.duplicate")));
+            var remove = actions.Single(b => Equals(b.Content, row.RemoveText));
+            Assert.Equal(row.ActivateHint, ToolTip.GetTip(activate));
+            Assert.Equal(row.DuplicateHint, ToolTip.GetTip(duplicate));
+            Assert.Equal(row.RemoveHint, ToolTip.GetTip(remove));
+
+            // This is the ACTIVE profile: re-activating and deleting it are refused, so
+            // those two are disabled — the only state worth tinting.
+            Assert.False(activate.IsEnabled);
+            Assert.True(duplicate.IsEnabled);
+            Assert.False(remove.IsEnabled);
+
+            // The actions are chrome-less so the hover wash cannot draw boxes in the row;
+            // the same template background is pinned for the pointerover/pressed states by
+            // the view's styles (those need a real pointer to exercise).
+            Assert.All(actions, b => Assert.Equal(new Thickness(0), b.BorderThickness));
+            Assert.All(actions, b => Assert.Equal(Colors.Transparent,
+                Assert.IsAssignableFrom<ISolidColorBrush>(b.Background).Color));
+
+            // Selecting another row moves the whole set with the selection.
+            var other = leaf.Profiles.Single(p => p.Id == "second");
+            leaf.SelectedProfile = other;
+            for (var i = 0; i < 4; i++)
+                await Pump();
+            Assert.All(actions, b => Assert.False(b.IsVisible));
+            Assert.All(window.GetVisualDescendants().OfType<Button>()
+                .Where(b => b.Classes.Contains("rowact") && ReferenceEquals(b.DataContext, other)),
+                b => Assert.True(b.IsVisible));
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Double_clicking_a_profile_name_opens_the_inline_rename_editor()
+    {
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var vm = new AppSettingsViewModel(settings, Array.Empty<IModule>(), Loc);
+            var leaf = ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<ProfileSettingsLeaf>().Single();
+            vm.SelectedNode = leaf;
+
+            var view = new AppSettingsView { DataContext = vm };
+            var window = new Window { Width = 920, Height = 560, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var row = leaf.Profiles.Single(p => p.Id == "default");
+            var name = window.GetVisualDescendants().OfType<TextBlock>()
+                .First(t => t.DataContext == row && Equals(t.Text, "Default"));
+
+            // The standalone rename box is gone; the row edits in place.
+            Assert.DoesNotContain(window.GetVisualDescendants().OfType<TextBox>(),
+                t => Equals(t.Text, "Default") && !t.Classes.Contains("rename"));
+            Assert.True(name.IsVisible);
+
+            // The row's own command is what the pencil and the F2/double-click path call;
+            // the gesture wiring itself is Avalonia's DoubleTapped handler.
+            row.BeginRenameCommand.Execute(null);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var box = window.GetVisualDescendants().OfType<TextBox>()
+                .Single(t => t.Classes.Contains("rename") && t.DataContext == row);
+            Assert.True(box.IsVisible);
+            Assert.Equal("Default", box.Text);
+            Assert.False(name.IsVisible);
+
+            // Committing through the row's own handler persists the name.
+            leaf.UpdateRename(row, "Bench mill");
+            leaf.CommitRename(row);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            Assert.Equal("Bench mill", new SettingsService(settings.SettingsDir).Load().Name);
+            Assert.False(leaf.Profiles.Single(p => p.Id == "default").IsEditing);
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Clicking_another_row_finishes_the_open_rename_editor()
+    {
+        // The reported bug: start renaming a profile, click a different row, and the first
+        // row stayed in edit mode. Clicking away is the natural "done" gesture.
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var vm = new AppSettingsViewModel(settings, Array.Empty<IModule>(), Loc);
+            var leaf = ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<ProfileSettingsLeaf>().Single();
+            settings.CreateProfile("Foam bench", MachineTypes.Foam);
+            leaf.Refresh();
+            vm.SelectedNode = leaf;
+
+            var view = new AppSettingsView { DataContext = vm };
+            var window = new Window { Width = 920, Height = 560, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var list = window.GetVisualDescendants().OfType<ListBox>()
+                .Single(l => l.ItemsSource is IEnumerable<ProfileRow>);
+            var first = leaf.Profiles.Single(p => p.Id == "default");
+            var second = leaf.Profiles.Single(p => p.Id == "foam-bench");
+            leaf.SelectedProfile = first;
+            leaf.BeginRename(first);
+            leaf.UpdateRename(first, "Bench mill");
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var box = window.GetVisualDescendants().OfType<TextBox>()
+                .Single(t => t.Classes.Contains("rename") && t.DataContext == first);
+            Assert.True(box.IsVisible);
+
+            // The operator clicks the other row (this is what the ListBox writes).
+            list.SelectedItem = second;
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            Assert.False(leaf.Profiles.Single(p => p.Id == "default").IsEditing);
+            Assert.Equal("Bench mill", new SettingsService(settings.SettingsDir).Load().Name);
+            Assert.Equal("foam-bench", leaf.SelectedProfile!.Id);
+            // The live list has exactly one editor and exactly one pencil-bearing row.
+            Assert.DoesNotContain(window.GetVisualDescendants().OfType<TextBox>(),
+                t => t.Classes.Contains("rename") && t.IsVisible);
+            Assert.Single(leaf.Profiles, p => p.IsSelected);
 
             window.Close();
         }

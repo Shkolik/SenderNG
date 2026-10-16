@@ -38,6 +38,8 @@ using Avalonia;
 using Avalonia.Data;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 
 namespace SenderNG.Converters;
 
@@ -49,6 +51,54 @@ public static class Converters
     public static IsFlyoutModuleConverter IsFlyout => IsFlyoutModuleConverter.Instance;
     public static NumericTextConverter NumericText => NumericTextConverter.Instance;
     public static LocaleDisplayNameConverter LocaleDisplayName => LocaleDisplayNameConverter.Instance;
+    public static MachineTypeImageConverter MachineTypeImage => MachineTypeImageConverter.Instance;
+}
+
+/// <summary>
+/// <c>avares://</c> asset URI → <see cref="Bitmap"/>, so a machine-type picture can be
+/// bound straight from a view model instead of being pushed into an
+/// <see cref="Avalonia.Controls.Image"/> by code-behind. A null/blank URI, a URI that is
+/// not an asset, or an asset that cannot be read all yield null: the slot simply stays
+/// empty (the axis list is the truth, the picture is a hint). Decoded bitmaps are cached
+/// per URI — the list row's picture is re-evaluated on every selection.
+/// </summary>
+public sealed class MachineTypeImageConverter : IValueConverter
+{
+    public static readonly MachineTypeImageConverter Instance = new();
+
+    private static readonly Dictionary<string, IImage?> Cache = new(StringComparer.Ordinal);
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is not string uri || string.IsNullOrWhiteSpace(uri))
+            return null;
+        lock (Cache)
+        {
+            if (Cache.TryGetValue(uri, out var cached))
+                return cached;
+            var image = Load(uri);
+            Cache[uri] = image;
+            return image;
+        }
+    }
+
+    private static IImage? Load(string uri)
+    {
+        try
+        {
+            if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsed) || !parsed.IsAbsoluteUri)
+                return null;
+            // The stream is deliberately not disposed: the bitmap may decode from it lazily.
+            return new Bitmap(AssetLoader.Open(parsed));
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
 }
 
 /// <summary>

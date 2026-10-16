@@ -44,6 +44,42 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:Class="SenderNG.Modules.Fixed.AppSettingsView"
              x:DataType="vm:AppSettingsViewModel">
 
+    <UserControl.Styles>
+        <!-- The profile row's fixed height is load-bearing, not decoration: the pencil
+             only exists on the selected row, and without a fixed row the content's
+             measured height changed with selection (16px → 20px), so the name and the
+             machine badge jumped down a couple of pixels the moment a row was picked.
+             Reserving the space once removes the jump, and a shorter edit box keeps the
+             renaming state inside the same 20px instead of outgrowing it. -->
+        <Style Selector="ListBoxItem StackPanel.row">
+            <Setter Property="Height" Value="20" />
+        </Style>
+        <!-- A row's action buttons read as text, not as chrome: they sit inside a list row
+             where a themed button's border and hover wash would box in a one-word verb.
+             Only a disabled one is tinted — that is the state worth noticing (the active
+             profile cannot be activated or deleted, the last profile cannot be deleted). -->
+        <Style Selector="Button.rowact">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="#1c5f8a" />
+        </Style>
+        <Style Selector="Button.rowact /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.rowact:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.rowact:pointerover">
+            <Setter Property="Foreground" Value="#0d3d5c" />
+        </Style>
+        <Style Selector="Button.rowact:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.rowact:disabled">
+            <Setter Property="Foreground" Value="#b9b9b9" />
+        </Style>
+    </UserControl.Styles>
+
     <DockPanel Background="#f6f6f6">
 
         <!-- Close (bottom right, full width) -->
@@ -146,42 +182,110 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                                    TextWrapping="Wrap" IsVisible="{Binding HasDescription}" />
                                         <Rectangle Height="1" Fill="#ddd" IsVisible="{Binding HasDescription}" />
 
-                                        <TextBlock Text="{Binding SwitchBlockedText}" FontSize="11"
-                                                   Foreground="#a33" TextWrapping="Wrap"
-                                                   IsVisible="{Binding ShowSwitchBlocked}" />
+                                        <!-- The list and the machine-type picture share one row: the
+                                             picture explains the machine behind the selected profile, so
+                                             it belongs beside the list rather than down in the axis card.
+                                             Fixed height on the row keeps the list at its established size
+                                             and gives the picture its bounds (Uniform fits inside it).
 
-                                        <ListBox ItemsSource="{Binding Profiles}"
-                                                 SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
-                                                 Height="170" FontSize="11" CornerRadius="0"
-                                                 BorderBrush="#999" BorderThickness="1" Background="White">
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:ProfileItem">
-                                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                                        <TextBlock Text="&#x2713;" FontWeight="Bold" Foreground="#080"
-                                                                   IsVisible="{Binding IsActive}" />
-                                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                                                        <Border Background="#e4e4e4" BorderBrush="#bbb" BorderThickness="1"
-                                                                CornerRadius="2" Padding="4,0" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding MachineTypeId}" FontSize="10" Foreground="#555" />
-                                                        </Border>
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
+                                             No status or warning caption lives above this row: the active
+                                             row already carries its checkmark, and a caption that appears
+                                             for a moment on a switch (or on a failed one) shoves the whole
+                                             list down. A failure is a pop-up instead, raised by the host. -->
+                                        <Grid ColumnDefinitions="*,Auto" Height="170">
+                                            <ListBox Grid.Column="0"
+                                                     ItemsSource="{Binding Profiles}"
+                                                     SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+                                                     IsEnabled="{Binding CanSwitchProfiles}"
+                                                     FontSize="11" CornerRadius="0"
+                                                     BorderBrush="#999" BorderThickness="1" Background="White">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:ProfileRow">
+                                                        <StackPanel Classes="row" Orientation="Horizontal" Spacing="6"
+                                                                    ToolTip.Tip="{Binding RenameHint}">
+                                                            <TextBlock Text="&#x2713;" FontWeight="Bold" Foreground="#080"
+                                                                       VerticalAlignment="Center"
+                                                                       IsVisible="{Binding IsActive}" />
+                                                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       IsVisible="{Binding IsNotEditing}"
+                                                                       DoubleTapped="OnProfileNameDoubleTapped" />
+                                                            <TextBox Classes="rename" Text="{Binding RenameText, Mode=TwoWay}"
+                                                                     Width="150" Height="20" MinHeight="20" FontSize="11"
+                                                                     CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                                                     VerticalContentAlignment="Center" Padding="4,0"
+                                                                     IsVisible="{Binding IsEditing}"
+                                                                     KeyDown="OnRenameKeyDown"
+                                                                     TextChanged="OnRenameTextChanged"
+                                                                     LostFocus="OnRenameLostFocus" />
+                                                            <TextBlock Text="{Binding RenameError}" FontSize="10"
+                                                                       Foreground="#a33" VerticalAlignment="Center"
+                                                                       IsVisible="{Binding HasRenameError}" />
+                                                            <Border Background="#e4e4e4" BorderBrush="#bbb" BorderThickness="1"
+                                                                    CornerRadius="2" Padding="4,0" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding MachineTypeId}" FontSize="10" Foreground="#555" />
+                                                            </Border>
+                                                            <!-- The row's own actions, on the selected row only: a profile is
+                                                                 managed where it is, not from a strip under the list that
+                                                                 acted on whatever happened to be selected. Hidden while the
+                                                                 name is being edited — the row is a text field then.
+                                                                 Rename stays a glyph to leave the name its width; the other
+                                                                 two carry their verb so they are discoverable. -->
+                                                            <Button Content="&#x270E;" Classes="rowact pencil" FontSize="12"
+                                                                    Width="20" Height="20" MinHeight="20" Padding="0"
+                                                                    CornerRadius="2"
+                                                                    VerticalContentAlignment="Center"
+                                                                    HorizontalContentAlignment="Center"
+                                                                    ToolTip.Tip="{Binding RenameHint}"
+                                                                    IsVisible="{Binding ShowActions}"
+                                                                    Command="{Binding BeginRenameCommand}" />
+                                                            <Button Content="{loc:Loc appSettings.profiles.activate}"
+                                                                    Classes="rowact" FontSize="10"
+                                                                    Height="20" MinHeight="20" Padding="6,0"
+                                                                    CornerRadius="2"
+                                                                    VerticalContentAlignment="Center"
+                                                                    HorizontalContentAlignment="Center"
+                                                                    ToolTip.Tip="{Binding ActivateHint}"
+                                                                    IsVisible="{Binding ShowActions}"
+                                                                    IsEnabled="{Binding CanActivate}"
+                                                                    Command="{Binding ActivateCommand}" />
+                                                            <Button Content="{loc:Loc appSettings.profiles.duplicate}"
+                                                                    Classes="rowact" FontSize="10"
+                                                                    Height="20" MinHeight="20" Padding="6,0"
+                                                                    CornerRadius="2"
+                                                                    VerticalContentAlignment="Center"
+                                                                    HorizontalContentAlignment="Center"
+                                                                    ToolTip.Tip="{Binding DuplicateHint}"
+                                                                    IsVisible="{Binding ShowActions}"
+                                                                    IsEnabled="{Binding CanDuplicate}"
+                                                                    Command="{Binding DuplicateCommand}" />
+                                                            <Button Content="{Binding RemoveText}"
+                                                                    Classes="rowact" FontSize="10"
+                                                                    Height="20" MinHeight="20" Padding="6,0"
+                                                                    CornerRadius="2"
+                                                                    VerticalContentAlignment="Center"
+                                                                    HorizontalContentAlignment="Center"
+                                                                    ToolTip.Tip="{Binding RemoveHint}"
+                                                                    IsVisible="{Binding ShowActions}"
+                                                                    IsEnabled="{Binding CanRemove}"
+                                                                    Command="{Binding RemoveCommand}" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                            <!-- Height is the driver, not a max: the picture must be
+                                                 exactly as tall as the list. Uniform derives the width
+                                                 from the type art's own aspect ratio (~249px for the mill
+                                                 at this height), so a MaxWidth would silently cap the
+                                                 height instead. -->
+                                            <Image Grid.Column="1" Margin="10,0,0,0" Height="170"
+                                                   Stretch="Uniform" VerticalAlignment="Top"
+                                                   Source="{Binding TopologyImage, Converter={x:Static conv:Converters.MachineTypeImage}}"
+                                                   IsVisible="{Binding HasTopologyImage}" />
+                                        </Grid>
 
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <Button Content="{loc:Loc appSettings.profiles.activate}" FontSize="11"
-                                                    Command="{Binding ActivateCommand}"
-                                                    Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
-                                            <Button Content="{loc:Loc appSettings.profiles.duplicate}" FontSize="11"
-                                                    Command="{Binding DuplicateCommand}"
-                                                    Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
-                                            <Button Content="{Binding RemoveButtonText}" FontSize="11"
-                                                    Command="{Binding RemoveCommand}"
-                                                    Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
-                                        </StackPanel>
-
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <StackPanel Orientation="Horizontal" Spacing="6"
+                                                    IsEnabled="{Binding CanSwitchProfiles}">
                                             <TextBox Text="{Binding NewName, Mode=TwoWay}" Width="170" Height="24"
                                                      MinHeight="24" FontSize="11" CornerRadius="0" BorderBrush="#999"
                                                      BorderThickness="1" VerticalContentAlignment="Center" Padding="4,0"
@@ -196,17 +300,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                                     Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
                                         </StackPanel>
 
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <TextBox Text="{Binding RenameName, Mode=TwoWay}" Width="170" Height="24"
-                                                     MinHeight="24" FontSize="11" CornerRadius="0" BorderBrush="#999"
-                                                     BorderThickness="1" VerticalContentAlignment="Center" Padding="4,0"
-                                                     PlaceholderText="{loc:Loc appSettings.profiles.renameName}" />
-                                            <Button Content="{loc:Loc appSettings.profiles.rename}" FontSize="11"
-                                                    Command="{Binding RenameCommand}"
-                                                    Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
-                                        </StackPanel>
-
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <StackPanel Orientation="Horizontal" Spacing="6"
+                                                    IsEnabled="{Binding CanSwitchProfiles}">
                                             <TextBlock Text="{loc:Loc appSettings.profiles.type}" FontSize="11" VerticalAlignment="Center" />
                                             <ComboBox ItemsSource="{Binding MachineTypeOptions}"
                                                       SelectedItem="{Binding SelectedMachineType, Mode=TwoWay}"

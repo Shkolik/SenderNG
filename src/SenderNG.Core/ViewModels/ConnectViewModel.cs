@@ -79,7 +79,7 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
     private readonly LocalizationService? _localization;
     private MachineProfile _profile;
     private IReadOnlyList<MachineProfile> _allProfiles;
-    private ProfileItem? _selectedProfile;
+    private ProfileRow? _selectedProfile;
     private Timer? _autoRefreshTimer;
     private string _selectedPort = string.Empty;
     private int _baudRate = 115200;
@@ -114,7 +114,7 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
         ];
         var list = profiles?.ToList();
         _allProfiles = list is null || list.Count == 0 ? [profile] : list;
-        Profiles = _allProfiles.Select(p => new ProfileItem(p.Id, p.Name, p.MachineTypeId)).ToList();
+        Profiles = _allProfiles.Select(p => new ProfileRow(p.Id, p.Name, p.MachineTypeId)).ToList();
         _selectedProfile = Profiles.FirstOrDefault(p => p.Id == profile.Id) ?? Profiles[0];
 
         ConnectCommand = new DelegateCommand(_ => Connect(), _ => CanConnect);
@@ -211,11 +211,11 @@ public class ConnectViewModel : ViewModelBase, IClosableDialog, IDisposable
 
     public ConnectMode SelectedTab => (ConnectMode)SelectedIndex;
 
-    public IReadOnlyList<ProfileItem> Profiles { get; }
+    public IReadOnlyList<ProfileRow> Profiles { get; }
 
     public bool ProfileSelectorVisible => Profiles.Count > 1;
 
-    public ProfileItem SelectedProfile
+    public ProfileRow SelectedProfile
     {
         get => _selectedProfile!;
         set

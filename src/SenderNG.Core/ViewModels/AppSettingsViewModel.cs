@@ -35,7 +35,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
@@ -358,42 +360,213 @@ public sealed class ModuleSettingsLeaf : AppSettingsLeaf
  * Profiles leaf — the profile manager
  * ------------------------------------------------------------------------- */
 
-/// <summary>One row in the profile list: display name, machine-type badge, active marker.</summary>
-public sealed class ProfileItem : ViewModelBase
+/// <summary>
+/// Outcome of a host-performed profile switch. The three states are deliberately
+/// distinct because they leave the app in different places: a successful switch moved
+/// the machine and may or may not still be connected, a reconnect failure moved the
+/// machine but left it offline, and an activation failure changed nothing at all.
+/// </summary>
+/// <param name="Activated">The target profile is the active one now.</param>
+/// <param name="Title">Localized pop-up title; null = nothing to report.</param>
+/// <param name="Message">Localized pop-up body; null = nothing to report.</param>
+public sealed record ProfileSwitchResult(bool Activated, string? Title = null, string? Message = null)
 {
-    public string Id { get; }
-    public string Name { get; }
-    public string MachineTypeId { get; }
+    /// <summary>The switch completed and the transport came back up.</summary>
+    public static readonly ProfileSwitchResult Success = new(true);
 
+    /// <summary>The profile was activated but its connection could not be re-opened.</summary>
+    public static ProfileSwitchResult ReconnectFailed(string title, string message) =>
+        new(true, title, message);
+
+    /// <summary>The activation itself was refused — nothing moved.</summary>
+    public static ProfileSwitchResult ActivationFailed(string message) =>
+        new(false, null, message);
+}
+
+/// <summary>
+/// One row in a profile list: display name, machine-type badge and active marker, plus
+/// (<paramref name="owner"/> permitting) the in-place rename state. Shared by the
+/// settings leaf and the connect dialog's profile selector — the dialog's rows are
+/// read-only display items and pass no owner, so their pencil command does nothing.
+/// The name is the only editable field, so the row owns its own edit box instead of the
+/// leaf keeping one for the selection: an inline editor is bound to the row it belongs
+/// to, while a single shared box below the list always had to be re-synced to whichever
+/// row was selected.
+/// </summary>
+public sealed class ProfileRow : ViewModelBase
+{
+    private readonly ProfileSettingsLeaf? _owner;
+    private string _name;
     private bool _isActive;
-    public bool IsActive { get => _isActive; set => SetField(ref _isActive, value); }
+    private bool _isSelected;
+    private bool _isEditing;
+    private bool _removeArmed;
+    private string _renameText;
+    private string? _renameError;
 
-    public ProfileItem(string id, string name, string machineTypeId)
+    public ProfileRow(string id, string name, string machineTypeId, ProfileSettingsLeaf? owner = null,
+        string? renameHint = null)
     {
         Id = id;
-        Name = name;
+        _name = name;
+        _renameText = name;
         MachineTypeId = machineTypeId;
+        RenameHint = renameHint;
+        _owner = owner;
+        // Every command re-selects its own row first: the actions used to run against the
+        // leaf's selection, and the row they belong to is now the only sane target.
+        BeginRenameCommand = new DelegateCommand(_ => _owner?.BeginRename(this));
+        ActivateCommand = new DelegateCommand(_ => Select().Activate(this));
+        DuplicateCommand = new DelegateCommand(_ => Select().Duplicate(this));
+        RemoveCommand = new DelegateCommand(_ => Select().Remove(this));    }
+
+    public string Id { get; }
+    public string MachineTypeId { get; }
+
+    /// <summary>The rename affordance's tooltip. It lives on the row, not on the pencil:
+    /// the whole name+badge area is the rename target, so the hint should appear anywhere
+    /// over it, not only on a 20px glyph.</summary>
+    public string? RenameHint { get; }
+
+    /// <summary>Opens this row's name for editing (the pencil and the F2/double-click path).</summary>
+    public DelegateCommand BeginRenameCommand { get; }
+
+    /// <summary>Makes this row's profile the active one (shown only while it is not active).</summary>
+    public DelegateCommand ActivateCommand { get; }
+
+    /// <summary>Copies this row's profile to a new one (never activates it).</summary>
+    public DelegateCommand DuplicateCommand { get; }
+
+    /// <summary>Deletes this row's profile; needs the second click to confirm.</summary>
+    public DelegateCommand RemoveCommand { get; }
+
+    private ProfileSettingsLeaf Select()
+    {
+        if (_owner is not null)
+            _owner.SelectedProfile = this;
+        return _owner!;
     }
+
+    /// <summary>Display name. Only <see cref="ProfileSettingsLeaf"/> writes it (the
+    /// rename path swaps in the name the service returned).</summary>
+    public string Name { get => _name; internal set => SetField(ref _name, value); }
+
+    public bool IsActive { get => _isActive; set => SetField(ref _isActive, value); }
+
+    /// <summary>True for the row the leaf currently has selected — the action buttons show
+    /// only there, so the list does not turn into a wall of buttons.</summary>
+    public bool IsSelected { get => _isSelected; internal set => SetField(ref _isSelected, value); }
+
+    /// <summary>The row's actions are offered on the selected row and hidden while its name
+    /// is being edited (the row is then a text field, not a toolbar).</summary>
+    public bool ShowActions => _isSelected && !_isEditing;
+
+    /// <summary>True while this row's name is being edited in place.</summary>
+    public bool IsEditing
+    {
+        get => _isEditing;
+        set
+        {
+            if (SetField(ref _isEditing, value))
+            {
+                OnPropertyChanged(nameof(IsNotEditing));
+                OnPropertyChanged(nameof(ShowActions));
+            }
+        }
+    }
+
+    /// <summary>Inverse of <see cref="IsEditing"/> — what the display TextBlock binds.</summary>
+    public bool IsNotEditing => !_isEditing;
+
+    /// <summary>Delete is destructive, so its first click arms this row and the second one
+    /// deletes. Arming is per row: arming one profile must not delete another.</summary>
+    public bool RemoveArmed
+    {
+        get => _removeArmed;
+        internal set
+        {
+            if (SetField(ref _removeArmed, value))
+                OnPropertyChanged(nameof(RemoveText));
+        }
+    }
+
+    /// <summary>The delete button's label: the plain verb until it is armed, then the
+    /// confirmation. Kept short — it sits inside a row, not under the list.</summary>
+    public string RemoveText => RemoveArmed
+        ? _owner?.ResolveRemoveConfirm() ?? "Confirm"
+        : _owner?.ResolveRemove() ?? "Remove";
+
+    /// <summary>Why the delete button needs a second click, as a tooltip.</summary>
+    public string? RemoveHint => _owner?.ResolveRemoveHint();
+
+    /// <summary>What the activate button says it will do.</summary>
+    public string? ActivateHint => _owner?.ResolveActivateHint();
+
+    /// <summary>What the duplicate button says it will do.</summary>
+    public string? DuplicateHint => _owner?.ResolveDuplicateHint();
+
+    // The buttons' enabled state is the list's gate plus what is true of THIS profile: the
+    // active one cannot be activated again or deleted, and the last profile cannot be
+    // deleted. They are re-raised with the rest of the row's action state.
+    public bool CanActivate => _owner?.CanActivate(this) == true;
+    public bool CanDuplicate => _owner?.CanDuplicate(this) == true;
+    public bool CanRemove => _owner?.CanRemove(this) == true;
+
+    /// <summary>Re-raises the localized labels and hints (a rebuild or a locale change).</summary>
+    internal void RefreshActionText()
+    {
+        OnPropertyChanged(nameof(RemoveText));
+        OnPropertyChanged(nameof(RemoveHint));
+        OnPropertyChanged(nameof(ActivateHint));
+        OnPropertyChanged(nameof(DuplicateHint));
+        OnPropertyChanged(nameof(ShowActions));
+        OnPropertyChanged(nameof(CanActivate));
+        OnPropertyChanged(nameof(CanDuplicate));
+        OnPropertyChanged(nameof(CanRemove));
+    }
+
+    /// <summary>The edit box's draft text.</summary>
+    public string RenameText
+    {
+        get => _renameText;
+        set => SetField(ref _renameText, value);
+    }
+
+    /// <summary>Why the last commit was refused (blank or duplicate name); null when clean.</summary>
+    public string? RenameError
+    {
+        get => _renameError;
+        set
+        {
+            if (SetField(ref _renameError, value))
+                OnPropertyChanged(nameof(HasRenameError));
+        }
+    }
+
+    public bool HasRenameError => !string.IsNullOrEmpty(_renameError);
 }
 
 /// <summary>
 /// Global &gt; Profiles leaf: one profile per machine with add / duplicate /
 /// rename / remove / activate and the machine-type badge. All mutations go
 /// through <see cref="SettingsService"/>; switching is gated by
-/// <see cref="SetSwitchGuard"/> — the dialog host blocks it while the
-/// controller is connected or a session is running.
+/// <see cref="SetSwitchGuard"/> — the dialog host blocks it while a session is
+/// running — and carried out through <see cref="SetSwitchPipeline"/>, which
+/// lets the host take the transport down, activate the profile and bring the
+/// transport back up on the new profile's own endpoint.
 /// </summary>
 public sealed class ProfileSettingsLeaf : AppSettingsLeaf
 {
     private readonly SettingsService _settings;
     private readonly Func<string, string, string> _resolve;
     private Func<bool>? _switchAllowed;
-    private ProfileItem? _selected;
+    private Func<MachineProfile, Task<ProfileSwitchResult>>? _switchPipeline;
+    private ProfileRow? _selected;
+    private ProfileRow? _editing;
     private string _newName = string.Empty;
     private string _newType = MachineTypes.Mill;
-    private string _renameName = string.Empty;
     private string _machineTypeDraft = MachineTypes.Mill;
-    private bool _confirmRemove;
+    private bool _switchBusy;
     private bool _confirmTypeChange;
 
     /// <summary>Raised when a profile became active (host rebuilds profile-scoped UI).</summary>
@@ -412,6 +585,9 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         // profile is selected) — the same master/detail shape as the settings tree.
         MachineAxes = new MachineAxesViewModel(
             settings, resolve, settings.Global.ActiveProfileId, machines);
+        // The list row's picture is the selected profile's machine type, so the leaf
+        // republishes it whenever the card re-points (selection, type change, reload).
+        MachineAxes.PropertyChanged += OnMachineAxesChanged;
         WireCommands();
         Refresh();
     }
@@ -420,29 +596,88 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
     /// rows, the optional-axis list, the separation and the validation problems.</summary>
     public MachineAxesViewModel MachineAxes { get; }
 
-    public ObservableCollection<ProfileItem> Profiles { get; } = new();
+    /// <summary>The selected profile's machine-type picture, beside the list. Null for a
+    /// type that ships no art.</summary>
+    public string? TopologyImage => MachineAxes.TopologyImage;
+
+    public bool HasTopologyImage => MachineAxes.HasTopologyImage;
+
+    private void OnMachineAxesChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(MachineAxesViewModel.TopologyImage)
+            or nameof(MachineAxesViewModel.MachineTypeName)))
+            return;
+        OnPropertyChanged(nameof(TopologyImage));
+        OnPropertyChanged(nameof(HasTopologyImage));
+    }
+
+    public ObservableCollection<ProfileRow> Profiles { get; } = new();
 
     public IReadOnlyList<string> MachineTypeOptions { get; } = [MachineTypes.Mill, MachineTypes.Foam];
 
-    public ProfileItem? SelectedProfile
+    public ProfileRow? SelectedProfile
     {
         get => _selected;
         set
         {
-            if (SetField(ref _selected, value))
-            {
-                _renameName = value?.Name ?? string.Empty;
-                _machineTypeDraft = value?.MachineTypeId ?? MachineTypes.Mill;
-                _confirmRemove = false;
-                _confirmTypeChange = false;
-                OnPropertyChanged(nameof(RenameName));
-                OnPropertyChanged(nameof(SelectedMachineType));
-                // The axis card always edits the selected profile, so it re-reads here.
-                if (value is not null)
-                    MachineAxes.Load(value.Id);
-                RefreshCommands();
-            }
+            var previous = _selected;
+            if (ReferenceEquals(previous, value))
+                return;
+            // Moving to another row finishes the edit that was open on the old one. The
+            // list owns the pointer, so clicking away is the natural "done" gesture — and
+            // leaving an editor armed on a row that is no longer selected would commit it
+            // against whatever the operator does next.
+            FinishRename();
+            // Committing the rename rebuilds the rows, so the incoming instance is stale by
+            // now; the selection is carried by profile id and re-resolved from the list
+            // that is actually bound. The click is never lost that way.
+            value = ResolveRow(value);
+            if (!SetField(ref _selected, value))
+                return;
+            // The pencil's flag is derived state, so it is recomputed rather than
+            // toggled: a rebuild, a re-entrant binding write or a detached instance can
+            // each leave a second row flagged, and exactly one row may carry it.
+            ClearSelectionFlags();
+            if (previous is not null)
+                previous.IsSelected = false;
+            if (value is not null)
+                value.IsSelected = true;
+            // Arming delete is per row and does not survive leaving it.
+            DisarmRemovals();
+            _machineTypeDraft = value?.MachineTypeId ?? MachineTypes.Mill;
+            _confirmTypeChange = false;
+            OnPropertyChanged(nameof(SelectedMachineType));
+            // The axis card always edits the selected profile, so it re-reads here.
+            if (value is not null)
+                MachineAxes.Load(value.Id);
+            RefreshCommands();
         }
+    }
+
+    /// <summary>Drops the derived selected flag from every row in the list.</summary>
+    private void ClearSelectionFlags()
+    {
+        foreach (var row in Profiles)
+            row.IsSelected = false;
+    }
+
+    /// <summary>Drops the delete-confirmation arming from every row.</summary>
+    private void DisarmRemovals()
+    {
+        foreach (var row in Profiles)
+            row.RemoveArmed = false;
+    }
+
+    /// <summary>The live row for a row's profile id, or the row itself when the list does
+    /// not hold it (a caller passing a detached instance is honoured, not silently
+    /// dropped).</summary>
+    private ProfileRow? ResolveRow(ProfileRow? row)
+    {
+        if (row is null || Profiles.Contains(row))
+            return row;
+        if (_selected is not null && _selected.Id == row.Id)
+            return _selected;
+        return Profiles.FirstOrDefault(p => p.Id == row.Id) ?? row;
     }
 
     public string NewName
@@ -455,13 +690,6 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
     {
         get => _newType;
         set { if (SetField(ref _newType, value)) RefreshCommands(); }
-    }
-
-    /// <summary>Display-name edit box; synced to the selection.</summary>
-    public string RenameName
-    {
-        get => _renameName;
-        set { if (SetField(ref _renameName, value)) RefreshCommands(); }
     }
 
     /// <summary>Machine-type draft for the selected profile (commit via <see cref="ApplyTypeCommand"/>).</summary>
@@ -489,54 +717,218 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         "Changing the machine type replaces this profile's axis layout, optional axes and " +
         "plane-to-plane distance with the new type's defaults — nothing is carried over.");
 
-    /// <summary>False while connected/running, and false once a restore is pending: the
-    /// service refuses every mutation then, so the leaf must not offer one — the UI would
-    /// otherwise report an add/rename/activate that never happened.</summary>
-    public bool CanSwitchProfiles => _switchAllowed?.Invoke() != false && !_settings.RestorePending;
+    /// <summary>False while a session is running or a restore is pending: the service
+    /// refuses every mutation then, so the leaf must not offer one — the UI would
+    /// otherwise report an add/rename/activate that never happened. Being merely
+    /// *connected* is not a block any more: the host's switch pipeline takes the
+    /// transport down and brings it back on the new profile's endpoint.</summary>
+    public bool CanSwitchProfiles =>
+        !_switchBusy && _switchAllowed?.Invoke() != false && !_settings.RestorePending;
 
-    /// <summary>Inverse of <see cref="CanSwitchProfiles"/> — the caption shown when switching is blocked.</summary>
-    public bool ShowSwitchBlocked => !CanSwitchProfiles;
-
-    public string RemoveButtonText => _confirmRemove
-        ? _resolve("appSettings.profiles.removeConfirm", "Remove again to confirm")
-        : _resolve("appSettings.profiles.remove", "Remove");
+    /// <summary>True while the host is mid-switch (disconnect → activate → reconnect).</summary>
+    public bool SwitchBusy => _switchBusy;
 
     public string TypeButtonText => _confirmTypeChange
         ? _resolve("appSettings.profiles.typeConfirm", "Change again to confirm")
         : _resolve("appSettings.profiles.typeChange", "Change type");
 
-    /// <summary>The blocked caption: after a restore the connect/session wording is wrong
-    /// — switching is not blocked by the session but by the pending restart — so the
-    /// existing restart copy is shown instead.</summary>
-    public string SwitchBlockedText => _settings.RestorePending
-        ? _resolve("appSettings.backup.restartRequired", "Settings were restored — restart SenderNG to apply them.")
-        : _resolve("appSettings.profiles.switchBlocked",
-            "Profile switching is disabled while connected or a session is running.");
-
     public DelegateCommand AddCommand { get; private set; } = null!;
-    public DelegateCommand DuplicateCommand { get; private set; } = null!;
-    public DelegateCommand RenameCommand { get; private set; } = null!;
-    public DelegateCommand RemoveCommand { get; private set; } = null!;
-    public DelegateCommand ActivateCommand { get; private set; } = null!;
     public DelegateCommand ApplyTypeCommand { get; private set; } = null!;
+
+    /// <summary>Escape while a row's name is being edited: drop the draft, keep the name.</summary>
+    public DelegateCommand CancelRenameCommand { get; private set; } = null!;
 
     private void WireCommands()
     {
         AddCommand = new DelegateCommand(_ => Add(),
             _ => CanSwitchProfiles && !string.IsNullOrWhiteSpace(NewName));
-        DuplicateCommand = new DelegateCommand(_ => Duplicate(),
-            _ => CanSwitchProfiles && SelectedProfile is not null);
-        RenameCommand = new DelegateCommand(_ => Rename(),
-            _ => CanSwitchProfiles && SelectedProfile is not null
-                && !string.IsNullOrWhiteSpace(RenameName) && RenameName != SelectedProfile.Name);
-        RemoveCommand = new DelegateCommand(_ => Remove(),
-            _ => CanSwitchProfiles && SelectedProfile is not null
-                && !SelectedProfile.IsActive && Profiles.Count > 1);
-        ActivateCommand = new DelegateCommand(_ => Activate(),
-            _ => CanSwitchProfiles && SelectedProfile is not null && !SelectedProfile.IsActive);
         ApplyTypeCommand = new DelegateCommand(_ => ApplyType(),
             _ => CanSwitchProfiles && SelectedProfile is not null
                 && SelectedMachineType != SelectedProfile.MachineTypeId);
+        CancelRenameCommand = new DelegateCommand(_ => CancelRename());
+    }
+
+    /* ---------- Row actions ---------- */
+
+    /// <summary>May this row's profile be deleted? The active one never (it is what the
+    /// app is running on) and never the last one.</summary>
+    public bool CanRemove(ProfileRow item) =>
+        CanSwitchProfiles && !item.IsActive && Profiles.Count > 1;
+
+    /// <summary>May this row's profile be activated?</summary>
+    public bool CanActivate(ProfileRow item) =>
+        CanSwitchProfiles && !item.IsActive;
+
+    /// <summary>May this row's profile be copied?</summary>
+    public bool CanDuplicate(ProfileRow item) => CanSwitchProfiles;
+
+    /// <summary>
+    /// Makes a row's profile the active one. Row-scoped because the action now lives on the
+    /// row: the row is selected first, then the switch runs (see
+    /// <see cref="SetSwitchPipeline"/> for what the host does with it).
+    /// </summary>
+    public void Activate(ProfileRow item)
+    {
+        if (!CanActivate(item))
+            return;
+        _ = ActivateAsync(item);
+    }
+
+    /// <summary>
+    /// Copies a profile to a new one. Scoped to the row it was invoked from, and never
+    /// activates the copy: duplicating is how you build the next machine, not how you
+    /// switch to it.
+    /// </summary>
+    public void Duplicate(ProfileRow item)
+    {
+        if (!CanSwitchProfiles)
+            return;
+        _settings.CreateProfile($"{item.Name} copy", item.MachineTypeId, copyFromId: item.Id);
+        Refresh();
+        ProfilesChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Deletes a profile, in two steps: the first click arms that row, the second deletes.
+    /// The arming is the row's own state, so arming one profile cannot delete another.
+    /// </summary>
+    public void Remove(ProfileRow item)
+    {
+        if (!CanSwitchProfiles)
+            return;
+        if (!item.RemoveArmed)
+        {
+            DisarmRemovals();
+            item.RemoveArmed = true;
+            RefreshCommands();
+            return;
+        }
+        if (!CanRemove(item))
+            return;
+        item.RemoveArmed = false;
+        _settings.DeleteProfile(item.Id);
+        Refresh();
+        ProfilesChanged?.Invoke();
+    }
+
+    internal string ResolveRemoveConfirm() =>
+        _resolve("appSettings.profiles.removeConfirm", "Confirm");
+
+    internal string ResolveRemove() => _resolve("appSettings.profiles.remove", "Remove");
+
+    internal string ResolveRemoveHint() =>
+        _resolve("appSettings.profiles.removeHint", "Delete this profile (click again to confirm)");
+
+    internal string ResolveActivateHint() =>
+        _resolve("appSettings.profiles.activateHint", "Make this profile the active one");
+
+    internal string ResolveDuplicateHint() =>
+        _resolve("appSettings.profiles.duplicateHint", "Copy this profile to a new one");
+
+
+    /* ---------- In-place rename ---------- */
+
+    /// <summary>
+    /// Opens the row's name for editing. Refused while the list is gated (the service
+    /// would refuse the write). A refusal is not a no-op: this is also the path that runs
+    /// when the gate closes mid-edit — MarkRestorePending raises nothing the leaf
+    /// listens to — so any row still sitting in edit mode is closed first. Otherwise the
+    /// editor would stay on screen and its commit would silently do nothing.
+    /// </summary>
+    public void BeginRename(ProfileRow item)
+    {
+        if (item is null || !CanSwitchProfiles)
+        {
+            CancelRename();
+            return;
+        }
+        CancelRename();
+        _editing = item;
+        item.RenameError = null;
+        item.RenameText = item.Name;
+        item.IsEditing = true;
+    }
+
+    /// <summary>Keeps the draft text and flags why it cannot be committed yet: the
+    /// operator sees the problem while they type rather than on commit.</summary>
+    public void UpdateRename(ProfileRow item, string? text)
+    {
+        if (item is null || _editing is not null && !ReferenceEquals(_editing, item))
+            return;
+        item.RenameText = text ?? string.Empty;
+        item.RenameError = ValidateRename(item, item.RenameText);
+    }
+
+    /// <summary>Enter or lost focus: writes the draft through the service. A refused
+    /// draft keeps the row in edit mode with the reason shown.</summary>
+    public void CommitRename(ProfileRow item)
+    {
+        if (item is null || !ReferenceEquals(_editing, item))
+            return;
+        if (ValidateRename(item, item.RenameText) is { } problem)
+        {
+            item.RenameError = problem;
+            return;
+        }
+        if (item.RenameText == item.Name)
+        {
+            CancelRename();
+            return;
+        }
+
+        _settings.RenameProfile(item.Id, item.RenameText.Trim());
+        var renamed = _settings.AllProfiles().FirstOrDefault(p => p.Id == item.Id);
+        _editing = null;
+        item.RenameError = null;
+        item.IsEditing = false;
+        if (renamed is not null)
+            item.Name = renamed.Name;
+        Refresh();
+        ProfilesChanged?.Invoke();
+    }
+
+    /// <summary>Abandons the draft (Escape, or opening another row's editor).</summary>
+    public void CancelRename()
+    {
+        if (_editing is null)
+            return;
+        _editing.RenameError = null;
+        _editing.RenameText = _editing.Name;
+        _editing.IsEditing = false;
+        _editing = null;
+    }
+
+    /// <summary>
+    /// Ends the edit that is open, the way leaving the row should: a committable draft is
+    /// written, a refused one falls back to the stored name. Cancel-only would silently
+    /// throw away typing the operator never abandoned, and keep-edit would leave an armed
+    /// editor on a row that is no longer selected.
+    /// </summary>
+    private void FinishRename()
+    {
+        if (_editing is null)
+            return;
+        var item = _editing;
+        if (ValidateRename(item, item.RenameText) is null && item.RenameText != item.Name)
+            CommitRename(item);
+        else
+            CancelRename();
+    }
+
+    /// <summary>Why the draft cannot be committed, or null when it can. Blank and
+    /// duplicate names are refused here rather than letting the service slugify them:
+    /// a rename that silently became "default-2" would look like a failure.</summary>
+    private string? ValidateRename(ProfileRow item, string? text)
+    {
+        var name = text?.Trim() ?? string.Empty;
+        if (name.Length == 0)
+            return _resolve("appSettings.profiles.renameEmpty", "A profile name cannot be empty.");
+        if (name == item.Name)
+            return null;
+        return _settings.AllProfiles().Any(p =>
+            p.Id != item.Id && string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
+            ? _resolve("appSettings.profiles.renameDuplicate", "Another profile already uses that name.")
+            : null;
     }
 
     // Every mutator below re-checks the gate itself: a stale UI (or a direct Execute,
@@ -552,54 +944,141 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         Activated?.Invoke(profile.Id);
     }
 
-    private void Duplicate()
+    /// <summary>
+    /// Makes a row's profile active. When the host installed a
+    /// <see cref="SetSwitchPipeline">switch pipeline</see> it owns the whole
+    /// sequence — take the transport down, activate, bring it back up on the new
+    /// profile's own endpoint — and reports the outcome as text. Without one
+    /// (headless tests, a host with no transport) the activation is the plain
+    /// local switch it always was.
+    /// </summary>
+    private async Task ActivateAsync(ProfileRow item)
     {
-        if (!CanSwitchProfiles)
+        if (!CanSwitchProfiles || _switchBusy)
             return;
-        var selected = SelectedProfile!;
-        var name = string.IsNullOrWhiteSpace(NewName) ? $"{selected.Name} copy" : NewName.Trim();
-        _settings.CreateProfile(name, selected.MachineTypeId, copyFromId: selected.Id);
-        NewName = string.Empty;
-        Refresh();
-        ProfilesChanged?.Invoke();
-    }
 
-    private void Rename()
-    {
-        if (!CanSwitchProfiles)
-            return;
-        var selected = SelectedProfile!;
-        _settings.RenameProfile(selected.Id, RenameName.Trim());
-        Refresh();
-        ProfilesChanged?.Invoke();
-    }
-
-    private void Remove()
-    {
-        if (!CanSwitchProfiles)
-            return;
-        if (!_confirmRemove)
+        var profile = _settings.AllProfiles().FirstOrDefault(p => p.Id == item.Id);
+        if (profile is null)
         {
-            _confirmRemove = true;
-            RefreshCommands();
+            Refresh();
             return;
         }
-        _confirmRemove = false;
-        var selected = SelectedProfile!;
-        _settings.DeleteProfile(selected.Id);
-        Refresh();
-        ProfilesChanged?.Invoke();
+
+        if (_switchPipeline is null)
+        {
+            _settings.Activate(profile.Id);
+            Refresh();
+            Activated?.Invoke(profile.Id);
+            return;
+        }
+
+        SetSwitchBusy(true);
+        ProfileSwitchResult result;
+        try
+        {
+            result = await _switchPipeline(profile);
+        }
+        catch (Exception ex)
+        {
+            // The pipeline is documented not to throw; if it does, nothing is claimed.
+            result = ProfileSwitchResult.ActivationFailed(ex.Message);
+        }
+        finally
+        {
+            SetSwitchBusy(false);
+        }
+
+        // The switch succeeded only once the host says the profile is active. A failed
+        // activation republishes nothing: the tree and the active profile are whatever
+        // they were.
+        if (result.Activated)
+        {
+            Refresh();
+            Activated?.Invoke(profile.Id);
+        }
+        else
+        {
+            Refresh();
+        }
+
+        // Nothing about a switch is written into the pane: the active row already carries
+        // the checkmark, and a caption that appears above the list shoves the list down
+        // for a moment. Failures go to a pop-up instead, which the host owns.
+        if (result.Message is { Length: > 0 } message)
+            ReportSwitchProblem?.Invoke(result.Title ?? profile.Name, message);
     }
 
-    private void Activate()
+    private void SetSwitchBusy(bool busy)
     {
-        if (!CanSwitchProfiles)
+        if (_switchBusy == busy)
             return;
-        var selected = SelectedProfile!;
-        _settings.Activate(selected.Id);
-        Refresh();
-        Activated?.Invoke(selected.Id);
+        _switchBusy = busy;
+        if (busy)
+            CancelRename();
+        RefreshCommands();
     }
+
+    /// <summary>Rebuilds the list from disk/registry and keeps the selection.</summary>
+    public void Refresh()
+    {
+        var activeId = _settings.Global.ActiveProfileId;
+        // Captured per rebuild, so a locale change is picked up when the rows are.
+        var hint = _resolve("appSettings.profiles.renameHint", "Rename this profile");
+        Profiles.Clear();
+        foreach (var p in _settings.AllProfiles()
+            .OrderByDescending(p => p.Id == activeId)
+            .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            Profiles.Add(new ProfileRow(p.Id, p.Name, p.MachineTypeId, this, hint)
+            {
+                IsActive = p.Id == activeId,
+            });
+        }
+        var keep = _selected is null ? null : Profiles.FirstOrDefault(p => p.Id == _selected.Id);
+        // The rows are new instances: a draft that belonged to the old ones is gone.
+        _editing = null;
+        // Re-pointed without going through the setter: a rebuild is not a selection change.
+        // Routing it through the setter would re-run the commit-on-row-change rule and
+        // re-flag the old row, which is exactly what the commit this rebuild follows is
+        // trying to leave behind.
+        _selected = keep ?? Profiles.FirstOrDefault();
+        if (_selected is not null)
+            _selected.IsSelected = true;
+        _machineTypeDraft = _selected?.MachineTypeId ?? MachineTypes.Mill;
+        OnPropertyChanged(nameof(SelectedProfile));
+        OnPropertyChanged(nameof(SelectedMachineType));
+        if (_selected is not null)
+            MachineAxes.Load(_selected.Id);
+        RefreshCommands();
+    }
+
+    /// <summary>Host-provided gate: null = switching allowed. Applied live, so the
+    /// dialog honours a session that starts while it is open.</summary>
+    public void SetSwitchGuard(Func<bool>? allowed)
+    {
+        _switchAllowed = allowed;
+        RefreshCommands();
+    }
+
+    /// <summary>
+    /// Host-provided switch pipeline: performs the whole profile change and reports what
+    /// happened. The leaf calls it *instead of* <see cref="SettingsService.Activate"/>, so
+    /// the host is free to disconnect first and reconnect to the new profile's endpoint
+    /// afterwards. Null = the leaf activates the profile itself.
+    /// </summary>
+    public void SetSwitchPipeline(Func<MachineProfile, Task<ProfileSwitchResult>>? pipeline)
+    {
+        _switchPipeline = pipeline;
+        RefreshCommands();
+    }
+
+    /// <summary>
+    /// Host-provided failure reporting, raised with a localized title and message when a
+    /// switch did not complete. A switch failure is a connection-level event the pane
+    /// cannot express — the dialog is modal and about to be dismissed — so it is handed
+    /// to the host, which shows it as a pop-up over the app.
+    /// </summary>
+    public Action<string, string>? ReportSwitchProblem { get; set; }
 
     private void ApplyType()
     {
@@ -618,38 +1097,14 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         ProfilesChanged?.Invoke();
     }
 
-    /// <summary>Rebuilds the list from disk/registry and keeps the selection.</summary>
-    public void Refresh()
-    {
-        var activeId = _settings.Global.ActiveProfileId;
-        Profiles.Clear();
-        foreach (var p in _settings.AllProfiles()
-            .OrderByDescending(p => p.Id == activeId)
-            .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            Profiles.Add(new ProfileItem(p.Id, p.Name, p.MachineTypeId) { IsActive = p.Id == activeId });
-        }
-        var keep = _selected is null ? null : Profiles.FirstOrDefault(p => p.Id == _selected.Id);
-        SelectedProfile = keep ?? Profiles.FirstOrDefault();
-        RefreshCommands();
-    }
-
-    /// <summary>Host-provided gate: null = switching allowed.</summary>
-    public void SetSwitchGuard(Func<bool>? allowed)
-    {
-        _switchAllowed = allowed;
-        RefreshCommands();
-    }
-
     /// <summary>Re-resolve button labels after a locale change.</summary>
     public void RelocalizeButtons()
     {
-        OnPropertyChanged(nameof(RemoveButtonText));
         OnPropertyChanged(nameof(TypeButtonText));
-        OnPropertyChanged(nameof(SwitchBlockedText));
         OnPropertyChanged(nameof(CanSwitchProfiles));
-        OnPropertyChanged(nameof(ShowSwitchBlocked));
         OnPropertyChanged(nameof(TypeChangeWarning));
+        foreach (var row in Profiles)
+            row.RefreshActionText();
     }
 
     /// <summary>Re-localize everything the leaf renders itself (computed labels plus the
@@ -663,16 +1118,14 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
     private void RefreshCommands()
     {
         AddCommand?.RaiseCanExecuteChanged();
-        DuplicateCommand?.RaiseCanExecuteChanged();
-        RenameCommand?.RaiseCanExecuteChanged();
-        RemoveCommand?.RaiseCanExecuteChanged();
-        ActivateCommand?.RaiseCanExecuteChanged();
         ApplyTypeCommand?.RaiseCanExecuteChanged();
-        OnPropertyChanged(nameof(RemoveButtonText));
+        // The row-scoped actions carry localized labels and hints, and their enabled state
+        // is the list's gate; a rebuild or a locale change has to reach every row.
+        foreach (var row in Profiles)
+            row.RefreshActionText();
         OnPropertyChanged(nameof(TypeButtonText));
-        OnPropertyChanged(nameof(SwitchBlockedText));
         OnPropertyChanged(nameof(CanSwitchProfiles));
-        OnPropertyChanged(nameof(ShowSwitchBlocked));
+        OnPropertyChanged(nameof(SwitchBusy));
         OnPropertyChanged(nameof(IsTypeChangePending));
         OnPropertyChanged(nameof(TypeChangeWarning));
     }
@@ -1009,6 +1462,8 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
     private HotkeysSettingsLeaf? _hotkeysLeaf;
     private readonly IMachineKinematicsProvider? _machines;
     private Func<bool>? _profileSwitchAllowed;
+    private Func<MachineProfile, Task<ProfileSwitchResult>>? _profileSwitchPipeline;
+    private Action<string, string>? _reportSwitchProblem;
     private bool _preselectProfiles;
     private bool _updatingSections;
     private bool _disposed;
@@ -1061,11 +1516,10 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
     }
 
     /// <summary>
-    /// Host-provided gate for profile switching (blocked while the controller is
-    /// connected or a session runs). Null = allowed. Applied live, so the dialog
-    /// honors a connect that happens while it is open. The backup leaf's restore
-    /// is gated by the same predicate — a mid-session restore invalidates the
-    /// running session's loaded state.
+    /// Host-provided gate for profile switching (blocked while a session runs).
+    /// Null = allowed. Applied live, so the dialog honors a session that starts
+    /// while it is open. The backup leaf's restore is gated by the same predicate
+    /// — a mid-session restore invalidates the running session's loaded state.
     /// </summary>
     public Func<bool>? ProfileSwitchAllowed
     {
@@ -1075,6 +1529,36 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
             _profileSwitchAllowed = value;
             _profilesLeaf?.SetSwitchGuard(value);
             _backupLeaf?.SetSwitchGuard(value);
+        }
+    }
+
+    /// <summary>
+    /// Host-provided transport-aware profile switch (disconnect → activate →
+    /// reconnect). Only the Profiles leaf uses it; null leaves the plain local
+    /// activation in place.
+    /// </summary>
+    public Func<MachineProfile, Task<ProfileSwitchResult>>? ProfileSwitchPipeline
+    {
+        get => _profileSwitchPipeline;
+        set
+        {
+            _profileSwitchPipeline = value;
+            _profilesLeaf?.SetSwitchPipeline(value);
+        }
+    }
+
+    /// <summary>
+    /// Host-provided failure reporting (see <see cref="ProfileSettingsLeaf.ReportSwitchProblem"/>),
+    /// forwarded to the Profiles leaf.
+    /// </summary>
+    public Action<string, string>? ReportSwitchProblem
+    {
+        get => _reportSwitchProblem;
+        set
+        {
+            _reportSwitchProblem = value;
+            if (_profilesLeaf is not null)
+                _profilesLeaf.ReportSwitchProblem = value;
         }
     }
 
@@ -1152,6 +1636,8 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
             LeafDescription("profiles", "Machines and their settings — one profile per machine."),
             _machines);
         _profilesLeaf.SetSwitchGuard(_profileSwitchAllowed);
+        _profilesLeaf.SetSwitchPipeline(_profileSwitchPipeline);
+        _profilesLeaf.ReportSwitchProblem = _reportSwitchProblem;
         _profilesLeaf.Activated += _ => ReloadProfile();
         _globalLeaves.Add(_profilesLeaf);
 

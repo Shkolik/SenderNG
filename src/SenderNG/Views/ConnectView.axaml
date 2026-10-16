@@ -51,7 +51,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                           FontSize="12" Height="24" HorizontalAlignment="Stretch" CornerRadius="0"
                           BorderBrush="#999" BorderThickness="1">
                     <ComboBox.ItemTemplate>
-                        <DataTemplate x:DataType="vm:ProfileItem">
+                        <DataTemplate x:DataType="vm:ProfileRow">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
                                 <Border Background="#e4e4e4" BorderBrush="#bbb" BorderThickness="1" CornerRadius="2"

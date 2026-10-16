@@ -1093,13 +1093,153 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    /// <summary>Profile switching is nonsense mid-session: the dialog's switch
-    /// guard blocks it while connected or running.</summary>
+    /// <summary>Sessions run on a machine's geometry, so the switch is refused while a
+    /// program is streaming; being connected is no longer a block (see
+    /// <see cref="ApplySettingsDialogGuards"/> — the host reconnects on the new profile).
+    /// A switch that fails is reported as a pop-up: the pane cannot express a connection
+    /// problem, and an inline caption would shove the profile list around.</summary>
     private void ApplySettingsDialogGuards(object viewModel)
     {
-        if (viewModel is CNC.Core.ViewModels.AppSettingsViewModel settingsVm)
-            settingsVm.ProfileSwitchAllowed = () => !IsConnected && !SessionActive;
+        if (viewModel is not CNC.Core.ViewModels.AppSettingsViewModel settingsVm)
+            return;
+        settingsVm.ProfileSwitchAllowed = () => !SessionActive;
+        settingsVm.ProfileSwitchPipeline = SwitchProfileWithTransportAsync;
+        settingsVm.ReportSwitchProblem = (title, message) =>
+        {
+            if (_fileDialogs is not null)
+                _ = _fileDialogs.ShowErrorAsync(title, message);
+        };
     }
+
+    /// <summary>
+    /// The transport-aware profile switch the settings dialog invokes instead of a bare
+    /// activation: take the current connection down, activate the target profile and
+    /// bring the transport back up on that profile's own last-good endpoint.
+    /// <para>
+    /// The disconnect is unavoidable, not defensive: the axis layout, jog semantics and
+    /// limits all follow the active profile, while the controller is still configured for
+    /// the machine that was active when it was opened. Leaving the link up would show one
+    /// machine's layout over another machine's firmware. A failed switch leaves the app
+    /// disconnected rather than half-switched, and the two failure shapes are reported
+    /// separately because they leave the app in different places (see
+    /// <see cref="CNC.Core.ViewModels.ProfileSwitchResult"/>).
+    /// </para>
+    /// </summary>
+    private async Task<CNC.Core.ViewModels.ProfileSwitchResult> SwitchProfileWithTransportAsync(
+        MachineProfile target)
+    {
+        var wasConnected = IsConnected || IsDemo;
+        // Captured before the switch: a profile with no endpoint of its own falls back to
+        // the link the operator was just using.
+        var previous = CurrentEndpoint();
+        Disconnect();
+
+        try
+        {
+            _settingsService.Activate(target.Id);
+        }
+        catch (Exception ex)
+        {
+            // The activation was refused outright, so nothing moved and the app stays
+            // disconnected — exactly where the operator can pick a controller.
+            return CNC.Core.ViewModels.ProfileSwitchResult.ActivationFailed(
+                LocText.Format("appSettings.profiles.switchFailed",
+                    "Could not switch to profile \"{0}\": {1}", target.Name, ex.Message));
+        }
+
+        if (!wasConnected)
+            return CNC.Core.ViewModels.ProfileSwitchResult.Success;
+
+        var destination = EndpointFor(target) ?? previous;
+        if (await TryReconnectAsync(destination))
+            return CNC.Core.ViewModels.ProfileSwitchResult.Success;
+
+        return CNC.Core.ViewModels.ProfileSwitchResult.ReconnectFailed(
+            LocText.Resolve("appSettings.profiles.reconnectTitle", "Unable to reconnect"),
+            LocText.Format("appSettings.profiles.reconnectAdvice",
+                "The profile \"{0}\" is now active, but SenderNG could not reconnect to {1}. " +
+                "Use the connect dialog to pick a controller.",
+                target.Name, destination?.Address ?? "?"));
+    }
+    /// <summary>Where the app is connected right now: the endpoint plus its mode, read
+    /// from whichever service is active and the profile it is talking to.</summary>
+    private TransportEndpoint? CurrentEndpoint()
+    {
+        var inner = ResolveInner(Grbl);
+        var profile = _settingsService.Load();
+        if (inner is DemoGrblService || IsDemo)
+            return new TransportEndpoint(CNC.Core.ViewModels.ConnectMode.Demo, string.Empty,
+                null, profile.DemoAxes, ConnectResetMode.None, profile.Id);
+        var connection = profile.Connection;
+        if (ReferenceEquals(inner, _networkService))
+            return new TransportEndpoint(CNC.Core.ViewModels.ConnectMode.Network,
+                connection.LastNetworkEndpoint, null, profile.DemoAxes,
+                ConnectResetMode.None, profile.Id);
+        return new TransportEndpoint(CNC.Core.ViewModels.ConnectMode.Serial,
+            connection.LastSerialPort,
+            connection.LastSerialBaudRate > 0 ? connection.LastSerialBaudRate : null,
+            profile.DemoAxes, connection.SerialResetMode, profile.Id);
+    }
+
+    /// <summary>The endpoint carried by a profile, or null when it names none.</summary>
+    private static TransportEndpoint? EndpointFor(MachineProfile profile)
+    {
+        var connection = profile.Connection;
+        if (!string.IsNullOrWhiteSpace(connection.LastNetworkEndpoint))
+            return new TransportEndpoint(CNC.Core.ViewModels.ConnectMode.Network,
+                connection.LastNetworkEndpoint, null, profile.DemoAxes,
+                ConnectResetMode.None, profile.Id);
+        // A port the operator picked is the only thing worth reopening; "auto" means the
+        // profile never opened one, so falling back to the previous link is better.
+        if (!string.IsNullOrWhiteSpace(connection.LastSerialPort)
+            && !string.Equals(connection.LastSerialPort, "auto", StringComparison.OrdinalIgnoreCase))
+        {
+            return new TransportEndpoint(CNC.Core.ViewModels.ConnectMode.Serial,
+                connection.LastSerialPort,
+                connection.LastSerialBaudRate > 0 ? connection.LastSerialBaudRate : null,
+                profile.DemoAxes, connection.SerialResetMode, profile.Id);
+        }
+        return null;
+    }
+
+    /// <summary>Reopens the transport at <paramref name="target"/>; false means the app was
+    /// left disconnected and the caller should say so.</summary>
+    private async Task<bool> TryReconnectAsync(TransportEndpoint? target)
+    {
+        if (target is null)
+            return false;
+
+        if (target.Mode == CNC.Core.ViewModels.ConnectMode.Demo)
+        {
+            await ActivateDemoAsync();
+            return true;
+        }
+
+        Status = LocText.Format("app.msg.connectingTo", "Connecting to {0}...", target.Address);
+        try
+        {
+            await ApplyConnectionAsync(new CNC.Core.ViewModels.ConnectResult(
+                target.Mode, target.Address, target.BaudRate ?? 0, null,
+                target.ResetMode, ProfileId: target.ProfileId));
+        }
+        catch (Exception ex)
+        {
+            Status = LocText.Format("app.msg.connectFailed", "Connection failed: {0}", ex.Message);
+            return false;
+        }
+
+        return ResolveInner(Grbl).IsConnected;
+    }
+
+    /// <summary>One connect attempt's target, plain data so the pipeline can carry it
+    /// across profiles.</summary>
+    private sealed record TransportEndpoint(
+        CNC.Core.ViewModels.ConnectMode Mode,
+        string Address,
+        int? BaudRate,
+        int DemoAxes,
+        ConnectResetMode ResetMode,
+        string? ProfileId = null);
 
     private async Task ShowAboutAsync()
     {
@@ -1806,6 +1946,17 @@ public class MainViewModel : ViewModelBase, IDisposable
                 vm.ResultPort, vm.ResultBaudRate, null);
         if (choice.ProfileId is { Length: > 0 } pid && pid != profile.Id)
             _settingsService.Activate(pid);
+        await ApplyConnectionAsync(choice);
+    }
+
+    /// <summary>
+    /// Switches the app onto the controller described by <paramref name="choice"/>: the
+    /// network transport, the demo service, or the profile's serial port. Shared by the
+    /// connect dialog's confirm and the profile-switch pipeline's reconnect, so both take
+    /// exactly the same route.
+    /// </summary>
+    private async Task ApplyConnectionAsync(CNC.Core.ViewModels.ConnectResult choice)
+    {
         switch (choice.Mode)
         {
             case CNC.Core.ViewModels.ConnectMode.Network:

@@ -35,20 +35,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using System;
-using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Media;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 using Avalonia.Threading;
 using CNC.Core.ViewModels;
 
 namespace SenderNG.Modules.Fixed;
 
 /// <summary>
-/// The machine card's axis editor view: the machine-type topology picture, one row per
-/// axis grouped by plane and the optional-axis list.
+/// The machine card's axis editor view: one row per axis grouped by plane and the
+/// optional-axis list. The machine-type topology picture lives beside the profile list
+/// (bound through <c>Converters.MachineTypeImage</c>), not here.
 /// <para>
 /// The editors are <c>OneWay</c>-bound and write only from the explicit, type-guarded,
 /// deferred handlers below. The rows live in recycled <see cref="ItemsControl"/>
@@ -60,54 +57,9 @@ namespace SenderNG.Modules.Fixed;
 /// </summary>
 public partial class MachineAxesView : UserControl
 {
-    private MachineAxesViewModel? _vm;
-
     public MachineAxesView()
     {
         InitializeComponent();
-        DataContextChanged += OnDataContextChanged;
-    }
-
-    private void OnDataContextChanged(object? sender, EventArgs e)
-    {
-        if (_vm is not null)
-            _vm.PropertyChanged -= OnViewModelPropertyChanged;
-        _vm = DataContext as MachineAxesViewModel;
-        if (_vm is not null)
-            _vm.PropertyChanged += OnViewModelPropertyChanged;
-        UpdateImages();
-    }
-
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName is nameof(MachineAxesViewModel.TopologyImage))
-            UpdateImages();
-    }
-
-    /// <summary>
-    /// Load the machine-type reference art from the app's own assets
-    /// (<c>avares://SenderNG/Assets/machine-topology/…</c> — <c>docs/images/</c> is not
-    /// loadable at runtime). A type that ships no art, or an asset that cannot be read,
-    /// leaves the slot empty instead of throwing: the axis list is the truth.
-    /// </summary>
-    private void UpdateImages()
-    {
-        TopologyImage.Source = LoadImage(_vm?.TopologyImage);
-    }
-
-    private static IImage? LoadImage(string? uri)
-    {
-        if (string.IsNullOrEmpty(uri))
-            return null;
-        try
-        {
-            // The stream is deliberately not disposed: the bitmap may decode from it lazily.
-            return new Bitmap(AssetLoader.Open(new Uri(uri)));
-        }
-        catch (Exception)
-        {
-            return null;
-        }
     }
 
     /* -----------------------------------------------------------------------

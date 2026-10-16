@@ -135,14 +135,16 @@ public class ProfileManagerTests
         settings.Save(profile);
 
         var leaf = CreateLeaf(settings);
-        leaf.NewName = "Second mill";
-        leaf.DuplicateCommand.Execute(null);
+        // The action is the row's own: it copies THAT row's profile, not the selection's.
+        var row = leaf.Profiles.Single(p => p.Id == "default");
+        Assert.True(row.CanDuplicate);
+        row.DuplicateCommand.Execute(null);
 
-        var dup = leaf.Profiles.Single(p => p.Id == "second-mill");
-        Assert.Equal("Second mill", dup.Name);
+        var dup = leaf.Profiles.Single(p => p.Id == "default-copy");
+        Assert.Equal("Default copy", dup.Name);   // named after the row it came from
         Assert.False(dup.IsActive); // duplicate does not yank the user off the current machine
-        Assert.Equal(5, settings.AllProfiles().Single(p => p.Id == "second-mill").DemoAxes);
-        Assert.Equal(0.05, JogConfigStore.Load(settings.AllProfiles().Single(p => p.Id == "second-mill")).Distances[0]);
+        Assert.Equal(5, settings.AllProfiles().Single(p => p.Id == "default-copy").DemoAxes);
+        Assert.Equal(0.05, JogConfigStore.Load(settings.AllProfiles().Single(p => p.Id == "default-copy")).Distances[0]);
         Assert.Equal(2, leaf.Profiles.Count);
     }
 
@@ -151,14 +153,118 @@ public class ProfileManagerTests
     {
         var (dir, settings) = MakeSettings();
         var leaf = CreateLeaf(settings);
+        var changed = 0;
+        leaf.ProfilesChanged += () => changed++;
 
-        leaf.RenameName = "Big mill";
-        leaf.RenameCommand.Execute(null);
+        // The rename is in-place: the row opens for editing, the draft is committed.
+        var row = leaf.Profiles.Single(p => p.Id == "default");
+        leaf.BeginRename(row);
+        Assert.True(row.IsEditing);
+        leaf.UpdateRename(row, "Big mill");
+        leaf.CommitRename(row);
 
         Assert.Equal("Big mill", leaf.Profiles.Single(p => p.Id == "default").Name);
+        Assert.False(leaf.Profiles.Single(p => p.Id == "default").IsEditing);
+        Assert.Equal(1, changed);
         Assert.True(File.Exists(Path.Combine(dir, "profiles", "default.json")));
         Assert.Equal("Big mill", new SettingsService(dir).Global.Profiles["default"]);
         Assert.True(leaf.Profiles.Single(p => p.Id == "default").IsActive); // still active
+    }
+
+    [Fact]
+    public void Rename_refuses_a_blank_or_duplicate_name_and_keeps_editing()
+    {
+        var (_, settings) = MakeSettings();
+        var leaf = CreateLeaf(settings);
+        leaf.NewName = "second";
+        leaf.AddCommand.Execute(null);
+        var other = leaf.Profiles.Single(p => p.Id == "second");
+
+        leaf.BeginRename(other);
+        leaf.UpdateRename(other, "   ");
+        Assert.True(other.HasRenameError);
+        leaf.CommitRename(other);
+        Assert.True(other.IsEditing);                     // refused, still open
+        Assert.Equal("second", settings.AllProfiles().Single(p => p.Id == "second").Name);
+
+        leaf.UpdateRename(other, "Default");              // the other profile's name
+        Assert.True(other.HasRenameError);
+        leaf.CommitRename(other);
+        Assert.Equal("second", settings.AllProfiles().Single(p => p.Id == "second").Name);
+
+        leaf.UpdateRename(other, "Renamed");
+        Assert.False(other.HasRenameError);
+        leaf.CommitRename(other);
+        Assert.Equal("Renamed", settings.AllProfiles().Single(p => p.Id == "second").Name);
+    }
+
+    [Fact]
+    public void Selecting_another_row_finishes_the_open_rename()
+    {
+        // Clicking a different row is the natural "done" gesture — the list owns the
+        // pointer, so an edit left open on the old row would otherwise stay armed and
+        // commit later, against whatever the operator did next.
+        var (_, settings) = MakeSettings();
+        var leaf = CreateLeaf(settings);
+        leaf.NewName = "second";
+        leaf.AddCommand.Execute(null);
+
+        var first = leaf.Profiles.Single(p => p.Id == "default");
+        var second = leaf.Profiles.Single(p => p.Id == "second");
+        leaf.SelectedProfile = first;
+        leaf.BeginRename(first);
+        leaf.UpdateRename(first, "Bench mill");
+
+        leaf.SelectedProfile = second;   // the operator clicks away mid-edit
+
+        Assert.False(first.IsEditing);                       // the editor is closed
+        Assert.Equal("Bench mill", settings.AllProfiles().Single(p => p.Id == "default").Name);
+        Assert.Equal("Bench mill", leaf.Profiles.Single(p => p.Id == "default").Name);
+        // The click still landed: the commit rebuilds the rows, so the selection has to
+        // come back as the live instance for that profile, not the pre-commit one.
+        Assert.Equal("second", leaf.SelectedProfile!.Id);
+        Assert.True(leaf.Profiles.Single(p => p.Id == "second").IsSelected);
+        // Exactly one row is flagged: the rebuild re-selects the renamed row by id, so
+        // clearing the old flag has to happen after the commit, not before it.
+        Assert.Single(leaf.Profiles, p => p.IsSelected);
+    }
+
+    [Fact]
+    public void Selecting_another_row_discards_an_uncommittable_draft()
+    {
+        // A refused draft cannot be written, so leaving the row must not leave the editor
+        // armed either: the stored name stays and the row goes back to its label.
+        var (_, settings) = MakeSettings();
+        var leaf = CreateLeaf(settings);
+        leaf.NewName = "second";
+        leaf.AddCommand.Execute(null);
+
+        var first = leaf.Profiles.Single(p => p.Id == "default");
+        leaf.SelectedProfile = first;
+        leaf.BeginRename(first);
+        leaf.UpdateRename(first, "   ");                     // blank: not committable
+
+        leaf.SelectedProfile = leaf.Profiles.Single(p => p.Id == "second");
+
+        Assert.False(first.IsEditing);
+        Assert.Null(first.RenameError);
+        Assert.Equal("Default", settings.AllProfiles().Single(p => p.Id == "default").Name);
+    }
+
+    [Fact]
+    public void Rename_escape_keeps_the_original_name()
+    {
+        var (_, settings) = MakeSettings();
+        var leaf = CreateLeaf(settings);
+        var row = leaf.Profiles.Single(p => p.Id == "default");
+
+        leaf.BeginRename(row);
+        leaf.UpdateRename(row, "Discarded");
+        leaf.CancelRename();
+
+        Assert.False(row.IsEditing);
+        Assert.Equal("Default", row.Name);
+        Assert.Equal("Default", settings.AllProfiles().Single(p => p.Id == "default").Name);
     }
 
     [Fact]
@@ -167,30 +273,62 @@ public class ProfileManagerTests
         var (dir, settings) = MakeSettings();
         var leaf = CreateLeaf(settings);
 
-        // Only one profile: remove is refused outright.
-        Assert.False(leaf.RemoveCommand.CanExecute(null));
+        // Only one profile: the row refuses outright.
+        Assert.False(leaf.Profiles.Single(p => p.Id == "default").CanRemove);
 
         leaf.NewName = "other";
         leaf.AddCommand.Execute(null);
         var other = leaf.Profiles.Single(p => p.Id == "other");
-        // The add made "other" active; an active profile cannot be removed.
-        leaf.SelectedProfile = other;
-        Assert.False(leaf.RemoveCommand.CanExecute(null));
+        // The add made "other" active; the active profile cannot be removed.
+        Assert.False(other.CanRemove);
 
         // Make "default" active again, then remove "other" (two-step confirm).
-        leaf.SelectedProfile = leaf.Profiles.Single(p => p.Id == "default");
-        leaf.ActivateCommand.Execute(null);
-        leaf.SelectedProfile = leaf.Profiles.Single(p => p.Id == "other");
-        Assert.True(leaf.RemoveCommand.CanExecute(null));
+        leaf.Profiles.Single(p => p.Id == "default").ActivateCommand.Execute(null);
+        other = leaf.Profiles.Single(p => p.Id == "other");
+        Assert.True(other.CanRemove);
         File.WriteAllText(ProfileSettingsPaths.CompanionPath(dir, "other", ".probing.json"), "{}");
-        leaf.RemoveCommand.Execute(null);
-        Assert.Equal("Remove again to confirm", leaf.RemoveButtonText); // armed, not executed
-        leaf.RemoveCommand.Execute(null);
+        other.RemoveCommand.Execute(null);
+        Assert.True(other.RemoveArmed);                       // armed, not executed
+        Assert.Equal("Confirm", other.RemoveText);
+        other.RemoveCommand.Execute(null);
 
         Assert.Single(leaf.Profiles);
         Assert.False(File.Exists(ProfileSettingsPaths.ProfilePath(dir, "other")));
         Assert.False(File.Exists(ProfileSettingsPaths.CompanionPath(dir, "other", ".probing.json")));
         Assert.DoesNotContain("other", new SettingsService(dir).Global.Profiles.Keys);
+    }
+
+    [Fact]
+    public void Remove_arming_is_per_row_and_does_not_survive_leaving_the_row()
+    {
+        // Two-step delete used to be one flag on the leaf, which meant arming one profile
+        // and then clicking another row's button deleted the WRONG profile. It is the
+        // row's own state now.
+        var (_, settings) = MakeSettings();
+        var leaf = CreateLeaf(settings);
+        foreach (var name in new[] { "second", "third" })
+        {
+            leaf.NewName = name;
+            leaf.AddCommand.Execute(null);
+        }
+        leaf.Profiles.Single(p => p.Id == "default").ActivateCommand.Execute(null);
+
+        var second = leaf.Profiles.Single(p => p.Id == "second");
+        var third = leaf.Profiles.Single(p => p.Id == "third");
+
+        second.RemoveCommand.Execute(null);                   // arm "second"
+        Assert.True(second.RemoveArmed);
+        Assert.False(third.RemoveArmed);
+
+        // Selecting another row disarms: the confirmation is about the row you clicked.
+        leaf.SelectedProfile = third;
+        Assert.False(second.RemoveArmed);
+
+        // And a first click on "third" deletes nothing, however recently "second" was armed.
+        third.RemoveCommand.Execute(null);
+        Assert.Equal(3, leaf.Profiles.Count);
+        Assert.True(File.Exists(ProfileSettingsPaths.ProfilePath(settings.SettingsDir, "second")));
+        Assert.True(File.Exists(ProfileSettingsPaths.ProfilePath(settings.SettingsDir, "third")));
     }
 
     [Fact]
@@ -206,8 +344,7 @@ public class ProfileManagerTests
         settings.Changed += () => changed++;
         settings.ProfileSwitched += id => switched.Add(id);
 
-        leaf.SelectedProfile = leaf.Profiles.Single(p => p.Id == "default");
-        leaf.ActivateCommand.Execute(null);
+        leaf.Profiles.Single(p => p.Id == "default").ActivateCommand.Execute(null);
 
         Assert.Equal("default", settings.Global.ActiveProfileId);
         Assert.Equal("Default", settings.Load().Name);
@@ -217,23 +354,122 @@ public class ProfileManagerTests
     }
 
     [Fact]
-    public void Switch_guard_blocks_all_mutations_while_connected_or_running()
+    public async Task Switch_pipeline_owns_the_activation_and_reports_success()
+    {
+        var (_, settings) = MakeSettings();
+        var leaf = CreateLeaf(settings);
+        leaf.NewName = "second";
+        leaf.AddCommand.Execute(null); // activates "second"
+
+        var ran = new TaskCompletionSource();
+        var handedOver = new List<string>();
+        var problems = new List<(string Title, string Message)>();
+        var activated = 0;
+        settings.ProfileSwitched += _ => activated++;
+        leaf.ReportSwitchProblem = (title, message) => problems.Add((title, message));
+        leaf.SetSwitchPipeline(profile =>
+        {
+            // The host stands in for the real disconnect → activate → reconnect.
+            handedOver.Add(profile.Id);
+            settings.Activate(profile.Id);
+            ran.SetResult();
+            return Task.FromResult(ProfileSwitchResult.Success);
+        });
+
+        leaf.Profiles.Single(p => p.Id == "default").ActivateCommand.Execute(null);
+        await ran.Task;
+
+        Assert.Equal(["default"], handedOver);
+        Assert.Equal(1, activated);                                 // not activated twice
+        Assert.Equal("default", settings.Global.ActiveProfileId);
+        Assert.True(leaf.Profiles.Single(p => p.Id == "default").IsActive);
+        Assert.False(leaf.SwitchBusy);                              // cleared after the run
+        // A successful switch says nothing: the active row's checkmark is the whole
+        // confirmation, and a caption would shove the list around.
+        Assert.Empty(problems);
+    }
+
+    [Fact]
+    public async Task Switch_pipeline_reports_a_reconnect_failure_as_a_popup()
+    {
+        var (_, settings) = MakeSettings();
+        var leaf = CreateLeaf(settings);
+        leaf.NewName = "second";
+        leaf.AddCommand.Execute(null);
+        var ran = new TaskCompletionSource();
+        var problems = new List<(string Title, string Message)>();
+        leaf.ReportSwitchProblem = (title, message) => problems.Add((title, message));
+        // The host activated the profile but could not reopen its port.
+        leaf.SetSwitchPipeline(profile =>
+        {
+            settings.Activate(profile.Id);
+            ran.SetResult();
+            return Task.FromResult(ProfileSwitchResult.ReconnectFailed("Unable to reconnect", "COM9 is busy"));
+        });
+
+        leaf.Profiles.Single(p => p.Id == "default").ActivateCommand.Execute(null);
+        await ran.Task;
+
+        // The switch DID happen — the profile is active, the app is simply offline — and
+        // the operator is told through a pop-up rather than an in-pane caption.
+        Assert.Equal("default", settings.Global.ActiveProfileId);
+        Assert.Equal(("Unable to reconnect", "COM9 is busy"), Assert.Single(problems));
+        Assert.False(leaf.SwitchBusy);
+    }
+
+    [Fact]
+    public async Task Switch_pipeline_reports_a_refused_activation_and_keeps_the_old_profile()
+    {
+        var (_, settings) = MakeSettings();
+        var leaf = CreateLeaf(settings);
+        leaf.NewName = "second";
+        leaf.AddCommand.Execute(null);
+        var ran = new TaskCompletionSource();
+        var problems = new List<(string Title, string Message)>();
+        leaf.ReportSwitchProblem = (title, message) => problems.Add((title, message));
+        // The activation itself was refused, so nothing moved.
+        leaf.SetSwitchPipeline(_ =>
+        {
+            ran.SetResult();
+            return Task.FromResult(ProfileSwitchResult.ActivationFailed("Could not switch: refused"));
+        });
+
+        leaf.Profiles.Single(p => p.Id == "default").ActivateCommand.Execute(null);
+        await ran.Task;
+
+        Assert.Equal("second", settings.Global.ActiveProfileId);    // unchanged
+        Assert.Single(problems);
+        Assert.Equal("Could not switch: refused", problems[0].Message);
+        Assert.False(leaf.SwitchBusy);
+    }
+
+    [Fact]
+    public void Switch_guard_blocks_all_mutations_while_a_session_runs()
     {
         var (_, settings) = MakeSettings();
         var leaf = CreateLeaf(settings, guard: () => false);
 
         Assert.False(leaf.CanSwitchProfiles);
-        Assert.True(leaf.ShowSwitchBlocked);
         leaf.NewName = "blocked";
         Assert.False(leaf.AddCommand.CanExecute(null));
-        Assert.False(leaf.DuplicateCommand.CanExecute(null));
-        Assert.False(leaf.RenameCommand.CanExecute(null));
-        Assert.False(leaf.RemoveCommand.CanExecute(null));
-        Assert.False(leaf.ActivateCommand.CanExecute(null));
+        // The row actions are gated by the same predicate, through the row's own state.
+        var row = leaf.Profiles[0];
+        Assert.False(row.CanDuplicate);
+        Assert.False(row.CanRemove);
+        Assert.False(row.CanActivate);
+        // The in-place rename is gated by the same predicate: opening an editor the
+        // service would refuse to save is worse than not offering one.
+        leaf.BeginRename(row);
+        Assert.False(row.IsEditing);
 
         leaf.SetSwitchGuard(() => true);
         Assert.True(leaf.CanSwitchProfiles);
         Assert.True(leaf.AddCommand.CanExecute(null));
+        row = leaf.Profiles[0];
+        Assert.True(row.CanDuplicate);
+        Assert.False(row.CanRemove);    // still the active (and only) profile
+        leaf.BeginRename(row);
+        Assert.True(row.IsEditing);
     }
 
     [Fact]
@@ -267,8 +503,7 @@ public class ProfileManagerTests
         profilesLeaf.Refresh();
 
         // Activating it rebuilds the Modules group for the new profile.
-        profilesLeaf.SelectedProfile = profilesLeaf.Profiles.Single(p => p.Id == "no-jog");
-        profilesLeaf.ActivateCommand.Execute(null);
+        profilesLeaf.Profiles.Single(p => p.Id == "no-jog").ActivateCommand.Execute(null);
 
         Assert.False(vm.ModuleLeaves.Single(l => l.Id == "jog").IsVisible);
         Assert.Single(((AppSettingsGroupItem)vm.Groups[1]).Children);
