@@ -64,7 +64,7 @@ SenderNG is a focused fork of ioSender. The main differences are cross-platform 
 
 ![Plotter widget](/docs/images/plot_iso.png)
 
-- Plotter 3D. Supports orbiting and snap views, but requires OpenGL 3.1+ and may be resource-hungry (tested on an Intel Compute Stick — may be slow, RPi 4B works just fine)
+- Plotter 3D. Supports orbiting and snap views, but requires OpenGL 3.3 core (GLES 3.0 on ARM64) and may be resource-hungry (tested on an Intel Compute Stick — may be slow, RPi 4B works just fine)
 
 ![Plotter 3D widget](/docs/images/plot_3d.png)
 
@@ -113,7 +113,7 @@ SenderNG is a focused fork of ioSender. The main differences are cross-platform 
 
 ## App settings
 
-Everything is configured from App Settings, scoped to the active machine profile (one file per machine plus a `global.json`, with a profile manager inside the settings). Almost any widget can be hidden from there — every module has a visibility toggle (the built-ins: DRO, Jog, Console, Program, Plotter, Coolant, plus the tabs installed by plugins), so the UI shows only what your machine needs. Hotkey remapping, converter parameters and per-module options live there too.
+Everything is configured from App Settings, scoped to the active machine profile (one file per machine plus a `global.json`, with a profile manager inside the settings). Most widgets can be hidden from there — the hideable modules (Plotter, Plot 3D, Cutting, Coolant, Macro, mPos, Outline, Goto, Stepper calibration and the installed plugins) have a visibility toggle, while fixed modules (DRO, Program, Console, Grbl settings, App settings, Offsets, Work parameters) and Jog/converters always stay, so the UI shows only what your machine needs. Hotkey remapping, converter parameters and per-module options live there too.
 
 ![App settings](/docs/images/settings.png)
 
@@ -136,20 +136,20 @@ own metadata rejects is listed with its reason instead of being sent.
 SenderNG speaks the grbl / grblHAL protocol:
 
 - **grblHAL** — the primary target. Full capability detection via the connect-time `$I` handshake: axis count and letters (`[AXS:]`), tool count, options, signals, settings catalog (`$ES`/`$EG`), the G10 L1 tool table, and extended coordinate systems (G59.2/G59.3).
-- **Classic grbl 1.1 and forks** (e.g. the mega5x 1.2i build) — verified against real boards. Detection degrades gracefully: no `[AXS:]` → 3-axis default, settings fall back to the embedded English catalog, no G10 L1 tool table, coordinate systems limited to G54..G59, and mist (M7) support is assumed rather than reported.
+- **Classic grbl 1.1 and forks** (e.g. the mega5x 1.2i build) — verified against real boards. Detection degrades gracefully: no `[AXS:]` → 3-axis default, settings fall back to the embedded English catalog, no G10 L1 tool table, coordinate systems limited to G54..G59, and mist (M7) follows the `[OPT:]` `M` option letter (grblHAL always supports it).
 - **Transports** — serial (COM ports, `/dev/ttyUSB*`, `/dev/ttyACM*`), plain TCP (grblHAL Ethernet boards), or Demo mode.
 
 Limitations:
 
 - TCP only — no telnet option negotiation and no WebSocket transport yet.
 - The app shows as many axes as the firmware reports; producing multi-axis G-code is CAM's scope.
-- No machine kinematics model yet — jog layout is driven by machine profiles (Mill / Foam presets), not by an axis-role map.
+- Machine kinematics are profile-declared: each profile declares its planes and axis roles (linear/rotary, direction, sign, optional CAM alias) and the app resolves them against the controller's reported `[AXS:]` letters for the jog layout, plotter, outline and DRO. Limits: the 3D world mapping assumes Width → X, Length → Y, Height → Z, so a sideways or gantry-rotated frame cannot be expressed yet; a controller with remapped letters is unit-tested only, not bench-verified; a rotary axis's pivot is stored but not yet used by a view.
 - Camera support is deferred indefinitely (if ever, as a 3rd-party plugin).
 - The Plot 3D tab ships on every platform but is hidden by default; on ARM64 it renders via Mesa.
 
 ## Plugins
 
-The base app ships only core functionality; everything else is a plugin — a separate assembly discovered by scanning `Modules/*.dll` at startup. No DLL, no feature: the core bundle runs fine without any of them, and installing one is a straight copy of the plugin zip's contents into the bundle's `Modules/` folder (see [Running from release assets](#running-from-release-assets)). This repository includes:
+Some modules ship inside the app (Jog, Cutting, Coolant, Macro, mPos, Outline, Goto, Stepper calibration); the heavier ones are plugins — a separate assembly discovered by scanning `Modules/*.dll` at startup. No DLL, no feature: the core bundle runs fine without them, and installing one is a straight copy of the plugin zip's contents into the bundle's `Modules/` folder (see [Running from release assets](#running-from-release-assets)). This repository includes:
 
 - Probing — tool-length, edge, center, rotation and height-map probing cycles
 - Height map 3D viewer — interactive 3D surface of the probed height map (opened from the Probing widget)
@@ -352,7 +352,7 @@ selects the Plot 3D plugin's native binaries by build OS, and because keeping
 both Linux targets on one host means one toolchain, one mirror, and one runbook.
 
 ```powershell
-# Linux bundle in output\linux, tests skipped (default)
+# Linux bundle in output\linux, tests run by default (pass -SkipTests to skip)
 .\tools\build-linux-release.ps1
 
 # include plugins

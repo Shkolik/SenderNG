@@ -186,7 +186,7 @@ Many already exist; the gaps are listed per widget.
 - [x] **Tool table → probing integration** (`ToolView`) — the Offsets flyout
       tool table is a full editor mirroring the offsets table: a **Tool**
       column with **editor-local names** (grblHAL has no name field —
-      maintainer-confirmed; names persist in `settings.json` keyed by a
+      maintainer-confirmed; names persist in the profile's `Offsets` section, keyed by a
       **controller fingerprint** = the `$I` firmware identity, deliberately
       without the COM port, so byte-identical boards share names and moving a
       machine to another port keeps them), **X/Y/Z/… + tip-radius cells**
@@ -246,8 +246,9 @@ Many already exist; the gaps are listed per widget.
 
 ### Deferred scope noted here for completeness (do not start without asking)
 
-- [x] **Foam functional mode** — mode is persisted but only changes the jog
-      layout; continuous jog works on the cross incl. Together (2026-09-17).
+- [x] **Foam functional mode** — profiles replaced the Mill/Foam mode switch;
+      the per-profile machine type drives jog, plotter and Outline; continuous
+      jog works on the cross incl. Together (2026-09-17).
 - [x] **Home / Unlock / Reset / Check** — `$H`/`$X`/realtime Reset and the
       **Check checkbox** (`$C`, dry-run) are all bound in `MainViewModel`.
       Nothing left unbound in this area.
@@ -256,17 +257,16 @@ Many already exist; the gaps are listed per widget.
 
 - [x] **3D program view** — the unified plotter: one layers+tool engine
       (2D affine projection on a plain canvas — isometric + flat views,
-      no 3D lib) as the third center tab (Program / 3D /
-      Console) or a flyout. Mill = XY flat + XYZ isometric (no XZ/YZ
-      selector — side flats are CAM-verification views, deferred) with a
-      cylinder+tip tool; laser/drag-knife = flat + tool glyph (dot /
+      no 3D lib) as the Plot center tab (order 22; Program 20, Console 21,
+      Plot 22, Plot 3D 23) or a flyout. Mill = XY flat + XYZ isometric (no
+      XZ/YZ selector — side flats are CAM-verification views, deferred) with
+      a cylinder+tip tool; laser/drag-knife = flat + tool glyph (dot /
       blade circle with direction tick); foam = two carriage layers
-      (isometric loft | XY/ZA flats) with the wire as the tool.      Depends
-      on the machine axis-role schema from ROADMAP's "Machine physical
-      configuration" item — **designed, decided and landed**
-      (2026-09-07): the plotter's schema
-      blocker is gone; it consumes `MachineType.Planes` (layer decomposition)
-      and `GrblInfo.AxisLetters` (labels). **A true 3D orbit view LANDED
+      (isometric loft | XY/ZA flats) with the wire as the tool. The machine
+      axis-role schema from ROADMAP's "Machine physical configuration" item
+      landed (2026-09-07); the plotter consumes the resolved kinematics
+      (`IMachineKinematicsProvider`: planes and controller letters) and owns
+      no axis mapping of its own. **A true 3D orbit view LANDED
       (2026-10-08+)** as the `SenderNG.Modules.Plotter.GL` plugin — OpenGL,
       hidden by default — so the 3D-view gap is now "orbit exists, not yet
       the unified productized layer+tool engine".
@@ -349,15 +349,15 @@ Explicitly deferred per `docs/ROADMAP.md`. Tick when deliberately started.
       compress comment handling is a profile-scoped Program setting — the
       "strip ;-comments" middle mode was dropped because `;` lines never
       tokenize).
-      **Remaining:** Wrap = rotary mapping (X/Y → A/B, diameter,
+      **Wrap LANDED (2026-10-14):** rotary mapping (X/Y → A/B, diameter,
       Z0-at-center) with **G93 inverse-time feed switching** for combined
-      moves — deferred until machine presets land. Probing migration
+      moves, plus Unwrap — see ROADMAP. Probing migration
       **LANDED (2026-09-05)**: height-map apply and rotation rebuilt at this
       token level (instead of the line-based rewriting), closing the
       documented G91/arc-Z and rotation-origin limitations, plus the
       "Determine X0,Y0" corner extra.
-- [x] **Localization** — ioSender ships 9 locales; SenderNG ships an en/ru
-      JSON catalog with per-plugin overrides and live switching — see
+- [x] **Localization** — ioSender ships 9 locales; SenderNG ships en/ru/fr/es/de
+      JSON catalogs with per-plugin overrides and live switching — see
       `docs/localization.md`; more locales are catalog-only work.
 - [ ] **Telnet / WebSocket transports** — `TcpGrblTransport` covers plain TCP
       (grblHAL Ethernet); telnet option negotiation and WebSocket remain
@@ -365,7 +365,7 @@ Explicitly deferred per `docs/ROADMAP.md`. Tick when deliberately started.
 
 ## Cross-cutting tech debt (architecture §8)
 
-- [ ] **`Grbl.cs` stubs** — 203 lines vs upstream 3438; caps parsing ported,
+- [ ] **`Grbl.cs` stubs** — 206 lines vs upstream 3438; caps parsing ported,
       rest compile-only stubs. Clean up as features touch them.
 - [x] **`GrblInfo` static state** — resolved 2026-09-19: became a read-only
       facade over an injectable `GrblInfoState` (`GrblInfo.Current` bound to the

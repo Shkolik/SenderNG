@@ -168,9 +168,9 @@ public class ToolpathBuilderTests
     [Fact]
     public void Foam_machine_slices_second_carriage_from_Z_A_axes()
     {
-        // A foam-style block: tower 1 rides X/Y, tower 2 rides Z/A. The foam
-        // plane indices are 0,1 (plane 0) and 2,3 (plane 1) — the plotter reads
-        // those from MachineType.Planes and slices the per-axis segment arrays.
+        // A foam-style block: tower 1 rides X/Y, tower 2 rides Z/A. The slices
+        // are positional (indices 0,1 and 2,3) — the plotter maps those indices
+        // to the profile's declared planes via the kinematics provider.
         var segments = Build("G1 X10 Y2 Z8 A2 F100");
 
         var segment = Assert.Single(segments);

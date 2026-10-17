@@ -170,8 +170,9 @@ so they only ever ship in the core `Modules/`.
    `SenderNG-<ver>-win64.zip`, per-plugin zips, `SHA256SUMS.txt`.
 3. Smoke test: run `output\win64\SenderNG\SenderNG.exe` → Connect → Demo; open
    an `.nc`, plot, probe-free sanity pass.
-4. Copy to thumb drive: the self-contained bundle with the Vulkan closure is
-   large — copy the **zips** when speed matters and unzip on the destination.
+4. Copy to thumb drive: the self-contained bundle with the OpenGL/Silk.NET
+   closure is large — copy the **zips** when speed matters and unzip on the
+   destination.
    Optional verification: `Get-FileHash` against `SHA256SUMS.txt`.
 
 ## Runbook — Linux under WSL2 → thumb drive
@@ -232,10 +233,10 @@ so they only ever ship in the core `Modules/`.
    ```
    dotnet run --project tools/ReleaseManager -- --include-plugins
    ```
-   On a headless WSL host the rendering tests (`WboitConeRepro.*`,
-   `PlotterLiveRunHeadlessTests.*`) fail without a GPU, which aborts the
-   release's test gate. If they fail, ship with `--skip-tests` and rely on the
-   WSLg smoke test below instead:
+   The test gate runs the same filter as CI (the Hardware, GPU and Timing
+   categories are excluded), so a headless WSL host needs no special handling.
+   If the suite must be skipped for an unrelated reason, pass `--skip-tests`
+   and rely on the WSLg smoke test below instead:
    ```
    dotnet run --project tools/ReleaseManager -- --include-plugins --skip-tests
    ```

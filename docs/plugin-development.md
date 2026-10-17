@@ -395,9 +395,10 @@ the Avalonia host casts).
 The panel contract is not Flyout-only: `PanelHint` also offers `Dialog` (the
 module's UI opens as a dialog — wizards like stepper calibration) and `None`
 (no UI at all, e.g. converter plugins). Modules declare whether they start
-enabled (`IsEnabledByDefault`); App Settings lets users show/hide and
-enable/disable a module independently — what "disabled" gates exactly is the
-enabled/visible overhaul tracked in the ROADMAP.
+visible (`IsVisibleByDefault`) and whether they can be hidden (`CanHide`); App
+Settings lets users show/hide a module. Enablement (`IsEnabledByDefault`) is
+declared on the contract but not read yet — what "disabled" gates exactly is
+the enabled/visible overhaul tracked in the ROADMAP.
 
 ### 6.1 Reference plugin: probing
 

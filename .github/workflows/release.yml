@@ -182,9 +182,9 @@ jobs:
             * SenderNG-plugin-hpgl - HPGL->Gcode converter
             * SenderNG-plugin-excellon - Excellon->Gcode converter
             * SenderNG-plugin-plotter - 2D/Isometric Gcode viewer/plotter (good for a weak hardware)
-            * SenderNG-plugin-plotter-gl - 3D Gcode viewer/plotter (requires OpenGL 3.1+)
+            * SenderNG-plugin-plotter-gl - 3D Gcode viewer/plotter (requires OpenGL 3.3; GLES 3.0 on arm64)
             * SenderNG-plugin-probing - Probing module
-            * SenderNG-plugin-heightmap-viewer - 3D height-map viewer (requires OpenGL 3.1+)
+            * SenderNG-plugin-heightmap-viewer - 3D height-map viewer (requires OpenGL 3.3; GLES 3.0 on arm64)
           - **SHA256SUMS.txt** — SHA-256 checksums for all zips above
           ---
 

@@ -68,7 +68,8 @@ from there at runtime. A non-en locale JSON carries four top-level sections — 
   of them (88 `error.<n>` plus `errorHint.15` and `errorHint.79`) that `en.json` lacks;
   English for those comes from the built-in `GrblErrorCodes` dictionary instead
   (`TError`/`TErrorHint` fall back to it).
-  Resolution falls back `locale → English → the key itself`/caller-provided English.
+  Resolution falls back `locale → plugin locale → English → plugin English → the key
+  itself`/caller-provided English.
 
 ---
 
@@ -87,7 +88,7 @@ Key API:
 
 | Member | Purpose |
 | --- | --- |
-| `T(key)` | Resolve a key: locale → plugin → English → the **key itself** (low-level). |
+| `T(key)` | Resolve a key: locale → plugin locale → English → plugin English → the **key itself** (low-level). |
 | `Resolve(key, fallback)` | Same but returns caller's `fallback` instead of a raw key (code-side `{Loc}` counterpart). |
 | `SetLocale(code)` | Switch language at runtime; raises `Changed`. |
 | `Changed` | Event fired after a locale switch, so live UI re-reads labels. |

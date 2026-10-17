@@ -31,9 +31,9 @@ immutable `ControllerCapabilities` exposed on `IGrblService`. `CoolantViewModel`
 shows `HasFlood`/`HasMist` from `_grbl.Capabilities` and the XAML binds button
 visibility. Demo reports a full capability set so both toggles stay visible.
 
-Note: the honest default is `CoolantMist = isGrblHAL` (a reliable signal for
-classic grbl 1.1's `ENABLE_M7` isn't exposed via `$I`). Axis count comes from
-`[AXS:]`, tool count from the 4th `[OPT:]` field.
+Note: `CoolantMist` is `isGrblHAL || OPT contains 'M'` — classic grbl 1.1
+exposes `ENABLE_M7` through its `[OPT:]` letters, and grblHAL always supports
+mist. Axis count comes from `[AXS:]`, tool count from the 4th `[OPT:]` field.
 
 ## Controller connect (Serial / Network / Demo) — DONE
 
@@ -77,7 +77,7 @@ emulator semantics, unchanged by the bridge).
 ## Keyboard shortcuts / key-map settings — DONE
 
 **Resolved:** a full keymap stack is live with a remap screen in App Settings.
-`HotkeyService` (Core) persists action → gesture bindings in `settings.json`;
+`HotkeyService` (Core) persists action → gesture bindings in `global.json`;
 `KeymapController` dispatches key events by action id; `KeymapDispatcher`
 (window-scoped in `MainWindow.axaml.cs`) owns focus/scoping and the
 deactivation release. Defaults are declared per module via
@@ -95,13 +95,12 @@ set was checked for parity defaults before finalizing.
 
 ## Other known deferred items
 
-- **Machine physical configuration** — the app has no model of the machine's
-  axis layout today: foam cutters are two-carriage machines (X/Y work plane
-  plus an Z/A second plane), mills are XYZ cross-axis, and the app only knows
-  "N axes" from `$I [AXS:]`. This item defines a machine geometry model
-  (axis roles, workplane semantics, kinematics flavor) that drives jog
-  layout, limits presentation and — critically — the g-code plotter, whose
-  projection depends on axis semantics.
+- **Machine physical configuration — LANDED (2026-10-14)** — the profile now
+  declares the machine's axis layout: foam cutters are two-carriage machines
+  (X/Y work plane plus a Z/A second plane), mills are XYZ cross-axis, and the
+  model is resolved against the controller's `$I [AXS:]` letters. It drives the
+  jog layout, limits presentation and the g-code plotter (see the landing note
+  below). What remains is the horizontal world-mapping convention.
   **Studied together with the 2D/3D program view** (see
   `docs/iosender-gaps.md` P2): the coupling is real, so the axis-role
   **schema** is designed first as part of this item; the plotter then builds
@@ -123,7 +122,7 @@ set was checked for parity defaults before finalizing.
   loft, live frontier coloring + tool glyph, vector render path (30fps
   throttle + interaction decimation — the M4 raster cache was reverted in M5).
   **3D orbit LANDED (2026-10-08+):** `src/SenderNG.Modules.Plotter.GL` — the
-  OpenGL successor to the Vulkan proof-of-concept: OpenGL 3.1+ / GLES 3.0+,
+  OpenGL successor to the Vulkan proof-of-concept: OpenGL 3.3 core / GLES 3.0,
   "Plot 3D" center tab (order 23, behind Skia's order 22), hidden by default
   (`IsVisibleByDefault=false`), ships on win-x64, linux-x64 and linux-arm64.
   **Storage prerequisite landed:**
@@ -182,7 +181,7 @@ set was checked for parity defaults before finalizing.
   the verified mechanics in `docs/iosender-gaps.md`. **LANDED (M1–M3):**
   Rotate, ArcsToLines and Compress are in Core (`GCodeTransformers`,
   26 tests) behind the File → Transform menu (dialogs, profile-scoped
-  compress comment setting, en/ru).
+  compress comment setting, en/ru/fr/es/de).
   **LANDED (2026-10-14):** Wrap / Unwrap (`GCodeTransformers.AxisRemap`) — a
   direction-agnostic axis remap (X/Y ↔ A/B) scaled by the cylinder diameter,
   one shared dialog (localized axis labels, Z0-at-center offset), and feed
@@ -213,9 +212,10 @@ set was checked for parity defaults before finalizing.
      selection illustrations exist — letter-labeled corner/edge diagram with
       red Z-contact markers (functionally equivalent to ioSender's pictograms).
       No longer gates the Probing sign-off.
-- Foam CNC mode: functional foam-specific behavior (mode is persisted but only
-  changes jog layout today — the layout itself is now schema-driven:
-  machine-type preset planes + controller `[AXS:]` letters).
+- Foam CNC mode: foam-specific behavior beyond the layout is still limited —
+  profiles replaced the Mill/Foam mode switch; the per-profile machine type
+  drives the jog layout, plotter views and Outline sweep (schema: preset planes
+  + controller `[AXS:]` letters).
   Continuous jog (hold-to-jog: velocity-based `$J=` + stop-on-release 0x85)
   is implemented (2026-09-17).
 - Telnet / WebSocket transports: `TcpGrblTransport` covers plain TCP; telnet
@@ -244,7 +244,7 @@ set was checked for parity defaults before finalizing.
 > still driven exclusively by the same realtime bytes, now sent once per state
 > transition instead of blindly per button press.
 >
-> Cross-cutting tech debt: `Grbl.cs` is 203 L vs upstream 3438 L (foamcut's full
+> Cross-cutting tech debt: `Grbl.cs` is 206 L vs upstream 3438 L (foamcut's full
 > `Grbl.cs` is 2535L) — `ParseCaps` + `[OPT:...]` field extraction ported; the
 > `AxisLetter`/`Position`/`CoordinateSystem`/`Tool` WPF `ViewModelBase`
 > leftovers are compile-only stubs kept so the ported engine files that
