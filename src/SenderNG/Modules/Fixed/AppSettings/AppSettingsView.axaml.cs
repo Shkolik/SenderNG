@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System.Linq;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -181,11 +182,35 @@ public partial class AppSettingsView : UserControl
     /// <summary>The context menu's rename entry cannot land on a XAML Click handler: the
     /// MenuItem class handler runs the command and marks Click handled before instance
     /// handlers would run. The request therefore arrives here instead — a closed menu
-    /// over a row that is now editing.</summary>
+    /// over a row that is now editing. An armed machine-type choice is dropped here
+    /// too: the checkmark is the confirming-click cue and must not survive the popup
+    /// it was armed in, or a menu reopened later would confirm on a click the operator
+    /// meant as an arming one.</summary>
     private void OnRowMenuClosed(object? sender, RoutedEventArgs e)
     {
-        if (sender is ContextMenu { DataContext: ProfileRow { IsEditing: true } })
+        if (sender is not ContextMenu { DataContext: ProfileRow row })
+            return;
+        row.DisarmTypeChoices();
+        if (row.IsEditing)
             FocusRenameBox();
+    }
+
+    /// <summary>The machine-type submenu's entries are generated containers, so they
+    /// cannot carry XAML attributes: this is where the item's command, the stays-open
+    /// rule and the armed entry's confirming-click tip attach. Stays-open is bound to
+    /// the option's armed state, which flips inside the click's own command — the
+    /// framework reads the property right after the command runs, so the arming click
+    /// keeps the menu open (and shows the checkmark) while the confirming click closes
+    /// it, with no explicit close call. That close walks up from the clicked entry to
+    /// the menu, so a switch re-flags the entries instead of rebuilding them (see
+    /// ProfileRow.RefreshTypeChoices).</summary>
+    private void OnTypeMenuItemPrepared(object? sender, ContainerPreparedEventArgs e)
+    {
+        if (e.Container is not MenuItem item)
+            return;
+        item.Bind(MenuItem.CommandProperty, new Binding(nameof(MachineTypeOption.SelectCommand)));
+        item.Bind(MenuItem.StaysOpenOnClickProperty, new Binding(nameof(MachineTypeOption.IsArmed)));
+        item.Bind(ToolTip.TipProperty, new Binding(nameof(MachineTypeOption.Hint)));
     }
 
     /// <summary>Moves focus into the row's editor with the whole name selected. Posted,

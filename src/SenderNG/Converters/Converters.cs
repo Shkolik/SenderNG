@@ -52,6 +52,7 @@ public static class Converters
     public static NumericTextConverter NumericText => NumericTextConverter.Instance;
     public static LocaleDisplayNameConverter LocaleDisplayName => LocaleDisplayNameConverter.Instance;
     public static MachineTypeImageConverter MachineTypeImage => MachineTypeImageConverter.Instance;
+    public static BoolToFontWeightConverter BoldWhenTrue => BoolToFontWeightConverter.Instance;
 }
 
 /// <summary>
@@ -221,6 +222,19 @@ public sealed class LocaleDisplayNameConverter : IValueConverter
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         value is string code ? SenderNG.Localization.LocaleDisplayNames.For(code) : value;
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>True → bold text. Used by the machine-type submenu to mark the entry the
+/// row already runs: the state must read at a glance, and the menu has no check slot.</summary>
+public sealed class BoolToFontWeightConverter : IValueConverter
+{
+    public static readonly BoolToFontWeightConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is true ? FontWeight.Bold : FontWeight.Normal;
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();

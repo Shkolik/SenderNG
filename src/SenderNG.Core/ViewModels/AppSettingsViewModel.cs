@@ -384,6 +384,84 @@ public sealed record ProfileSwitchResult(bool Activated, string? Title = null, s
 }
 
 /// <summary>
+/// One machine-type choice on a profile row. Shared by the two pickers that offer
+/// it — the context menu's submenu (all types, the current one bold) and the badge's
+/// flyout (the others only) — so the two-step arming is one state, not two. The
+/// displayed name is the type's localized display name, the same text the row's
+/// badge wears.
+/// </summary>
+public sealed class MachineTypeOption : ViewModelBase
+{
+    private readonly ProfileRow _row;
+    private bool _armed;
+    private bool _isCurrent;
+
+    internal MachineTypeOption(string id, bool isCurrent, ProfileRow row)
+    {
+        Id = id;
+        _isCurrent = isCurrent;
+        _row = row;
+        SelectCommand = new DelegateCommand(_ => _row.ToggleType(this));
+    }
+
+    public string Id { get; }
+
+    /// <summary>The type's localized display name (the id stays the stored truth).</summary>
+    public string DisplayName => MachineTypes.DisplayName(Id);
+
+    /// <summary>The type this row already runs: bold in the submenu, absent from the
+    /// flyout, and a click on it is an answer, not an offer. Flagged in place when the
+    /// row switches — an entry instance outlives its selection, so the popup's
+    /// generated containers are never recreated under the click that confirmed.</summary>
+    public bool IsCurrent
+    {
+        get => _isCurrent;
+        internal set => SetField(ref _isCurrent, value);
+    }
+
+    public DelegateCommand SelectCommand { get; }
+
+    /// <summary>True while this choice awaits its confirming second click.</summary>
+    public bool IsArmed
+    {
+        get => _armed;
+        internal set
+        {
+            if (SetField(ref _armed, value))
+                OnPropertyChanged(nameof(Hint));
+        }
+    }
+
+    /// <summary>The offer's tooltip: nothing while it is a plain offer — the ask for
+    /// the confirming click appears only once the first click has armed it.</summary>
+    public string? Hint => _armed ? _row.TypeConfirmHint : null;
+
+    /// <summary>Re-reads the locale-dependent texts (a language change reached
+    /// <see cref="ProfileRow.RefreshActionText"/>).</summary>
+    internal void Relocalize()
+    {
+        OnPropertyChanged(nameof(DisplayName));
+        OnPropertyChanged(nameof(Hint));
+    }
+}
+
+/// <summary>
+/// One entry of the pane's plain machine-type list (the profile rows and the two
+/// pickers build their own entries). It exists so the list can wear the localized
+/// display names without turning the selection into anything but the type id.
+/// </summary>
+public sealed class MachineTypeChoice : ViewModelBase
+{
+    internal MachineTypeChoice(string id) => Id = id;
+
+    public string Id { get; }
+
+    public string DisplayName => MachineTypes.DisplayName(Id);
+
+    internal void Relocalize() => OnPropertyChanged(nameof(DisplayName));
+}
+
+/// <summary>
 /// One row in a profile list: display name, machine-type badge and active marker, plus
 /// (<paramref name="owner"/> permitting) the in-place rename state. Shared by the
 /// settings leaf and the connect dialog's profile selector — the dialog's rows are
@@ -397,22 +475,26 @@ public sealed class ProfileRow : ViewModelBase
 {
     private readonly ProfileSettingsLeaf? _owner;
     private string _name;
+    private string _machineTypeId;
     private bool _isActive;
     private bool _isSelected;
     private bool _isEditing;
     private bool _removeArmed;
+    private string? _armedTypeId;
+    private bool _typeFlyoutOpen;
+    private IReadOnlyList<MachineTypeOption> _typeOptions = [];
+    private IReadOnlyList<MachineTypeOption> _otherTypeOptions = [];
     private string _renameText;
     private string? _renameError;
 
-    public ProfileRow(string id, string name, string machineTypeId, ProfileSettingsLeaf? owner = null,
-        string? renameHint = null)
+    public ProfileRow(string id, string name, string machineTypeId, ProfileSettingsLeaf? owner = null)
     {
         Id = id;
         _name = name;
         _renameText = name;
-        MachineTypeId = machineTypeId;
-        RenameHint = renameHint;
+        _machineTypeId = machineTypeId;
         _owner = owner;
+        CreateTypeChoices();
         // Every command re-selects its own row first: the actions used to run against the
         // leaf's selection, and the row they belong to is now the only sane target. The
         // rename command too — the context menu can reach a row the pointer never selected.
@@ -428,11 +510,123 @@ public sealed class ProfileRow : ViewModelBase
         RemoveCommand = new DelegateCommand(_ => Select().Remove(this));    }
 
     public string Id { get; }
-    public string MachineTypeId { get; }
 
-    /// <summary>The rename pencil's tooltip. The row itself carries no tip: the other
-    /// actions explain themselves on their own glyphs.</summary>
-    public string? RenameHint { get; }
+    /// <summary>The machine-type preset id — the text the badge wears. Writable in
+    /// place: the type switch is a row-level action (the menu's submenu and the
+    /// badge's flyout), so the badge and the two choice lists follow without the
+    /// whole list being rebuilt under the popup that hosted the click. The choices
+    /// re-flag rather than recreate for the same reason: the menu framework closes
+    /// the menu by walking the clicked entry's parents, and an entry detached
+    /// mid-click would strand the menu open one click too long.</summary>
+    public string MachineTypeId
+    {
+        get => _machineTypeId;
+        internal set
+        {
+            if (SetField(ref _machineTypeId, value))
+            {
+                OnPropertyChanged(nameof(MachineTypeDisplayName));
+                DisarmTypeChoices();
+                RefreshTypeChoices();
+            }
+        }
+    }
+
+    /// <summary>The badge's text: the type's localized display name. The id stays the
+    /// stored truth; this is presentation, so it re-reads after a locale change (the
+    /// leaf's relocalize reaches <see cref="RefreshActionText"/>).</summary>
+    public string MachineTypeDisplayName => MachineTypes.DisplayName(_machineTypeId);
+
+    /// <summary>Every machine type, the current one included — the context menu's
+    /// submenu list, with the current entry bold.</summary>
+    public IReadOnlyList<MachineTypeOption> TypeOptions => _typeOptions;
+
+    /// <summary>The types other than this row's current one — what the badge's
+    /// flyout offers.</summary>
+    public IReadOnlyList<MachineTypeOption> OtherTypeOptions => _otherTypeOptions;
+
+    /// <summary>The type id whose confirming second click is pending, or null.</summary>
+    public string? ArmedTypeId => _armedTypeId;
+
+    /// <summary>The badge flyout's open state, bound two-way. Closing it drops a
+    /// pending arming: the checkmark is the confirming-click cue, and it must not
+    /// survive the popup it was armed in — a later reopen would then confirm on a
+    /// click the operator meant as an arming one.</summary>
+    public bool TypeFlyoutOpen
+    {
+        get => _typeFlyoutOpen;
+        set
+        {
+            if (SetField(ref _typeFlyoutOpen, value) && !value)
+                DisarmTypeChoices();
+        }
+    }
+
+    /// <summary>May this row's type be switched? The same list-wide gate the other
+    /// mutations obey (a session running, a restore pending).</summary>
+    public bool CanChangeType => _owner?.CanSwitchProfiles == true;
+
+    /// <summary>First click arms the choice, the second switches the profile —
+    /// the same two-step the delete glyph uses. The current type never arms: it is
+    /// the answer, not an offer.</summary>
+    internal void ToggleType(MachineTypeOption option)
+    {
+        if (_owner is null || option.IsCurrent)
+            return;
+        if (_armedTypeId == option.Id)
+        {
+            _owner.ChangeType(this, option.Id);
+            return;
+        }
+        _armedTypeId = option.Id;
+        OnPropertyChanged(nameof(ArmedTypeId));
+        foreach (var choice in _typeOptions)
+            choice.IsArmed = choice.Id == option.Id;
+    }
+
+    /// <summary>Drops a pending type arming (a popup closed, the selection moved).</summary>
+    public void DisarmTypeChoices()
+    {
+        if (_armedTypeId is null)
+            return;
+        _armedTypeId = null;
+        OnPropertyChanged(nameof(ArmedTypeId));
+        foreach (var choice in _typeOptions)
+            choice.IsArmed = false;
+    }
+
+    /// <summary>Builds the entry lists once, at construction. The list object and its
+    /// entries outlive every later switch: the submenu's generated containers are the
+    /// framework's way back to the menu it must close, so recreating them during the
+    /// confirming click would orphan the clicked entry and leave the menu open one
+    /// click too long.</summary>
+    private void CreateTypeChoices()
+    {
+        var ids = _owner?.MachineTypeOptions ?? MachineTypes.BuiltIn;
+        _typeOptions = ids.Select(id => new MachineTypeOption(id, id == _machineTypeId, this)).ToList();
+        RefreshTypeChoices();
+    }
+
+    /// <summary>Re-flags the same entries after a switch: the bold mark moves to the
+    /// new current type and the flyout's offer flips to the type left behind.</summary>
+    private void RefreshTypeChoices()
+    {
+        foreach (var option in _typeOptions)
+            option.IsCurrent = option.Id == _machineTypeId;
+        _otherTypeOptions = _typeOptions.Where(o => !o.IsCurrent).ToList();
+        OnPropertyChanged(nameof(OtherTypeOptions));
+    }
+
+    /// <summary>The rename pencil's tooltip, resolved per read so a mid-session
+    /// language change re-letters it with the rest (the other hints resolve on read
+    /// for the same reason). The row itself carries no tip: the other actions explain
+    /// themselves on their own glyphs.</summary>
+    public string? RenameHint => _owner?.ResolveRenameHint();
+
+    /// <summary>The armed type offer's tooltip — the ask for the confirming click.
+    /// Null for an ownerless row (the connect dialog's display-only rows have no
+    /// pickers).</summary>
+    internal string? TypeConfirmHint => _owner?.ResolveTypeConfirmHint();
 
     /// <summary>Opens this row's name for editing (the pencil and the F2/double-click path).</summary>
     public DelegateCommand BeginRenameCommand { get; }
@@ -535,6 +729,10 @@ public sealed class ProfileRow : ViewModelBase
         OnPropertyChanged(nameof(RemoveHint));
         OnPropertyChanged(nameof(ActivateHint));
         OnPropertyChanged(nameof(DuplicateHint));
+        OnPropertyChanged(nameof(RenameHint));
+        OnPropertyChanged(nameof(MachineTypeDisplayName));
+        foreach (var option in _typeOptions)
+            option.Relocalize();
         OnPropertyChanged(nameof(ShowActions));
         OnPropertyChanged(nameof(ShowActivate));
         OnPropertyChanged(nameof(ShowDuplicate));
@@ -543,6 +741,7 @@ public sealed class ProfileRow : ViewModelBase
         OnPropertyChanged(nameof(CanActivate));
         OnPropertyChanged(nameof(CanDuplicate));
         OnPropertyChanged(nameof(CanRemove));
+        OnPropertyChanged(nameof(CanChangeType));
     }
 
     /// <summary>The edit box's draft text.</summary>
@@ -583,7 +782,6 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
     private Func<MachineProfile, Task<ProfileSwitchResult>>? _switchPipeline;
     private ProfileRow? _selected;
     private ProfileRow? _editing;
-    private string _newName = string.Empty;
     private string _newType = MachineTypes.Mill;
     private string _machineTypeDraft = MachineTypes.Mill;
     private bool _switchBusy;
@@ -633,7 +831,25 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
 
     public ObservableCollection<ProfileRow> Profiles { get; } = new();
 
-    public IReadOnlyList<string> MachineTypeOptions { get; } = [MachineTypes.Mill, MachineTypes.Foam];
+    public IReadOnlyList<string> MachineTypeOptions { get; } = MachineTypes.BuiltIn;
+
+    /// <summary>The pane's picker entries: the same ids, each wearing the localized
+    /// display name. The selection stays the plain id (<see cref="SelectedMachineType"/>);
+    /// this list is display only.</summary>
+    public IReadOnlyList<MachineTypeChoice> MachineTypeChoices { get; } =
+        MachineTypes.BuiltIn.Select(id => new MachineTypeChoice(id)).ToList();
+
+    /// <summary>The picker's selected entry — a view over the string draft, so the
+    /// ComboBox shows the current type without the draft turning into an object.</summary>
+    public MachineTypeChoice? SelectedMachineTypeChoice
+    {
+        get => MachineTypeChoices.FirstOrDefault(c => c.Id == SelectedMachineType);
+        set
+        {
+            if (value is not null && SelectedMachineType != value.Id)
+                SelectedMachineType = value.Id;
+        }
+    }
 
     public ProfileRow? SelectedProfile
     {
@@ -664,9 +880,14 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
                 value.IsSelected = true;
             // Arming delete is per row and does not survive leaving it.
             DisarmRemovals();
+            // Same for a pending type choice: the confirming click belongs to the
+            // popup it was armed in, not to whatever the operator selects next.
+            foreach (var row in Profiles)
+                row.DisarmTypeChoices();
             _machineTypeDraft = value?.MachineTypeId ?? MachineTypes.Mill;
             _confirmTypeChange = false;
             OnPropertyChanged(nameof(SelectedMachineType));
+            OnPropertyChanged(nameof(SelectedMachineTypeChoice));
             // The axis card always edits the selected profile, so it re-reads here.
             if (value is not null)
                 MachineAxes.Load(value.Id);
@@ -700,16 +921,29 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         return Profiles.FirstOrDefault(p => p.Id == row.Id) ?? row;
     }
 
-    public string NewName
-    {
-        get => _newName;
-        set { if (SetField(ref _newName, value)) RefreshCommands(); }
-    }
-
     public string NewType
     {
         get => _newType;
-        set { if (SetField(ref _newType, value)) RefreshCommands(); }
+        set
+        {
+            if (SetField(ref _newType, value))
+            {
+                OnPropertyChanged(nameof(NewTypeChoice));
+                RefreshCommands();
+            }
+        }
+    }
+
+    /// <summary>The add row's picker selection — a view over the string draft, so the
+    /// entry can wear its display name without the draft turning into an object.</summary>
+    public MachineTypeChoice? NewTypeChoice
+    {
+        get => MachineTypeChoices.FirstOrDefault(c => c.Id == NewType);
+        set
+        {
+            if (value is not null && NewType != value.Id)
+                NewType = value.Id;
+        }
     }
 
     /// <summary>Machine-type draft for the selected profile (commit via <see cref="ApplyTypeCommand"/>).</summary>
@@ -720,6 +954,7 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         {
             if (SetField(ref _machineTypeDraft, value))
             {
+                OnPropertyChanged(nameof(SelectedMachineTypeChoice));
                 OnPropertyChanged(nameof(IsTypeChangePending));
                 RefreshCommands();
             }
@@ -731,11 +966,6 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
     /// the button needs a second click.</summary>
     public bool IsTypeChangePending =>
         SelectedProfile is not null && SelectedMachineType != SelectedProfile.MachineTypeId;
-
-    /// <summary>The destructive-switch warning, shown while a type change is pending.</summary>
-    public string TypeChangeWarning => _resolve("appSettings.profiles.typeWarning",
-        "Changing the machine type replaces this profile's axis layout, optional axes and " +
-        "plane-to-plane distance with the new type's defaults — nothing is carried over.");
 
     /// <summary>False while a session is running or a restore is pending: the service
     /// refuses every mutation then, so the leaf must not offer one — the UI would
@@ -761,7 +991,7 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
     private void WireCommands()
     {
         AddCommand = new DelegateCommand(_ => Add(),
-            _ => CanSwitchProfiles && !string.IsNullOrWhiteSpace(NewName));
+            _ => CanSwitchProfiles);
         ApplyTypeCommand = new DelegateCommand(_ => ApplyType(),
             _ => CanSwitchProfiles && SelectedProfile is not null
                 && SelectedMachineType != SelectedProfile.MachineTypeId);
@@ -831,6 +1061,37 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         ProfilesChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Switches a row's profile to another machine type, from the confirming second
+    /// click of a menu submenu entry or a badge-flyout badge. Destructive — the new
+    /// type's defaults replace the layout — which is why the row arms the choice
+    /// first; the list is deliberately not rebuilt, so the popup that hosted the
+    /// click resolves through its own stay-open rule and the row it belongs to stays
+    /// on screen. The axis card follows when the row is the selected one.
+    /// </summary>
+    public void ChangeType(ProfileRow item, string typeId)
+    {
+        if (!CanSwitchProfiles || item.MachineTypeId == typeId)
+        {
+            item.DisarmTypeChoices();
+            return;
+        }
+        item.DisarmTypeChoices();
+        _settings.SetProfileMachineType(item.Id, typeId);
+        item.MachineTypeId = typeId;
+        item.TypeFlyoutOpen = false;
+        if (ReferenceEquals(SelectedProfile, item))
+        {
+            _machineTypeDraft = typeId;
+            _confirmTypeChange = false;
+            OnPropertyChanged(nameof(SelectedMachineType));
+            OnPropertyChanged(nameof(IsTypeChangePending));
+            MachineAxes.Load(item.Id);
+        }
+        RefreshCommands();
+        ProfilesChanged?.Invoke();
+    }
+
     internal string ResolveRemoveHint() =>
         _resolve("appSettings.profiles.removeHint", "Delete this profile");
 
@@ -842,6 +1103,12 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
 
     internal string ResolveDuplicateHint() =>
         _resolve("appSettings.profiles.duplicateHint", "Copy this profile to a new one");
+
+    internal string ResolveRenameHint() =>
+        _resolve("appSettings.profiles.renameHint", "Rename this profile (double-click its name, or press F2)");
+
+    internal string ResolveTypeConfirmHint() =>
+        _resolve("appSettings.profiles.typeConfirmHint", "Click again to confirm selection.");
 
 
     /* ---------- In-place rename ---------- */
@@ -956,8 +1223,11 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
     {
         if (!CanSwitchProfiles)
             return;
-        var profile = _settings.Activate(_settings.CreateProfile(NewName.Trim(), NewType).Id);
-        NewName = string.Empty;
+        // The add row carries only a type: the profile is created at once under the
+        // localized default name (localized like every other added-item default, and,
+        // like any profile name, free to be renamed afterwards).
+        var name = _resolve("appSettings.profiles.newProfileName", "New profile");
+        var profile = _settings.Activate(_settings.CreateProfile(name, NewType).Id);
         Refresh();
         Activated?.Invoke(profile.Id);
     }
@@ -1040,14 +1310,12 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
     public void Refresh()
     {
         var activeId = _settings.Global.ActiveProfileId;
-        // Captured per rebuild, so a locale change is picked up when the rows are.
-        var hint = _resolve("appSettings.profiles.renameHint", "Rename this profile");
         Profiles.Clear();
         foreach (var p in _settings.AllProfiles()
             .OrderByDescending(p => p.Id == activeId)
             .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
         {
-            Profiles.Add(new ProfileRow(p.Id, p.Name, p.MachineTypeId, this, hint)
+            Profiles.Add(new ProfileRow(p.Id, p.Name, p.MachineTypeId, this)
             {
                 IsActive = p.Id == activeId,
             });
@@ -1065,6 +1333,7 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         _machineTypeDraft = _selected?.MachineTypeId ?? MachineTypes.Mill;
         OnPropertyChanged(nameof(SelectedProfile));
         OnPropertyChanged(nameof(SelectedMachineType));
+        OnPropertyChanged(nameof(SelectedMachineTypeChoice));
         if (_selected is not null)
             MachineAxes.Load(_selected.Id);
         RefreshCommands();
@@ -1120,7 +1389,9 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
     {
         OnPropertyChanged(nameof(TypeButtonText));
         OnPropertyChanged(nameof(CanSwitchProfiles));
-        OnPropertyChanged(nameof(TypeChangeWarning));
+        foreach (var choice in MachineTypeChoices)
+            choice.Relocalize();
+        OnPropertyChanged(nameof(SelectedMachineTypeChoice));
         foreach (var row in Profiles)
             row.RefreshActionText();
     }
@@ -1145,7 +1416,6 @@ public sealed class ProfileSettingsLeaf : AppSettingsLeaf
         OnPropertyChanged(nameof(CanSwitchProfiles));
         OnPropertyChanged(nameof(SwitchBusy));
         OnPropertyChanged(nameof(IsTypeChangePending));
-        OnPropertyChanged(nameof(TypeChangeWarning));
     }
 }
 

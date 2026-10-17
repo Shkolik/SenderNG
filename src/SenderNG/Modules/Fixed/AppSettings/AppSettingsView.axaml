@@ -104,6 +104,46 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <Style Selector="MenuItem.armed /template/ ContentPresenter#PART_HeaderPresenter">
             <Setter Property="Foreground" Value="White" />
         </Style>
+        <!-- The machine-type badge doubles as the type picker. The button chrome is
+             transparent — the chip stays exactly the border it always was — and the
+             chip only lifts a shade under the pointer, so the click target reads as
+             one. The height must not be pinned (the app's global Button style pins
+             28): the flyout anchors to the button, so a taller button would open
+             the picker below the chip instead of at its edge. The flyout's badges
+             wear the same chip; only the panel behind them is transparent. -->
+        <Style Selector="Button.typebadge">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Height" Value="NaN" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.typebadge /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.typebadge:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.typebadge:pointerover Border.chip">
+            <Setter Property="Background" Value="#d8d8d8" />
+            <Setter Property="BorderBrush" Value="#999" />
+        </Style>
+        <!-- The picker's flyout panel is transparent: no background, frame, inset or
+             minimum size, so the badges inside line up with the badge above (the
+             popup itself is placed left-edge-aligned, 2px below) and only the badges
+             themselves show. -->
+        <Style Selector="FlyoutPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="FlyoutPresenter /template/ Border#LayoutRoot">
+            <Setter Property="Padding" Value="0" />
+        </Style>
     </UserControl.Styles>
 
     <DockPanel Background="#f6f6f6">
@@ -224,25 +264,34 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                             <DockPanel Grid.Column="0">
                                                 <!-- The add-profile row docks under the list instead of
                                                      sitting in the stack below, so the picture stands
-                                                     beside both as one block. -->
-                                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" DockPanel.Dock="Bottom"
+                                                     beside both as one block. Type picker, then the
+                                                     button: the name is the localized default, so there
+                                                     is no field to type one in. -->
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6" DockPanel.Dock="Bottom"
                                                             Margin="0,10,0,0" IsEnabled="{Binding CanSwitchProfiles}">
-													<TextBox Grid.Column="0" Text="{Binding NewName, Mode=TwoWay}" Height="24"
-                                                             MinHeight="24" FontSize="11" CornerRadius="0" BorderBrush="#999"
-                                                             BorderThickness="1" VerticalContentAlignment="Center" Padding="4,0"
-                                                             PlaceholderText="{loc:Loc appSettings.profiles.newName}" />
-                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding MachineTypeOptions}"
-                                                              SelectedItem="{Binding NewType, Mode=TwoWay}"
-                                                              Width="90" Height="24" MinHeight="24" FontSize="11"
+                                                    <ComboBox Grid.Column="0" ItemsSource="{Binding MachineTypeChoices}"
+                                                              SelectedItem="{Binding NewTypeChoice, Mode=TwoWay}"
+                                                              Height="24" MinHeight="24" FontSize="11"
                                                               CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                                                              VerticalContentAlignment="Center" />
-                                                    <Button Grid.Column="2" Content="{loc:Loc appSettings.profiles.add}" FontSize="11"
+                                                              VerticalContentAlignment="Center" HorizontalAlignment="Right">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:MachineTypeChoice">
+                                                                <TextBlock Text="{Binding DisplayName}" FontSize="11" />
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                    <Button Grid.Column="1" Content="{loc:Loc appSettings.profiles.add}" FontSize="11"
                                                             Command="{Binding AddCommand}"
-                                                            Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />													
+                                                            Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
                                                 </Grid>
+                                                <!-- The horizontal scrollbar is Auto: long profile names and
+                                                     their row buttons can outgrow the list's width, and
+                                                     enabling horizontal scrolling also stops the items from
+                                                     stretching, so a row keeps its own natural width. -->
                                                 <ListBox ItemsSource="{Binding Profiles}"
                                                          SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
                                                          IsEnabled="{Binding CanSwitchProfiles}"
+                                                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                                          FontSize="11" CornerRadius="0"
                                                          BorderBrush="#999" BorderThickness="1" Background="White">
                                                     <ListBox.ItemTemplate>
@@ -260,9 +309,31 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                                                         <MenuItem Header="{loc:Loc appSettings.profiles.activate}"
                                                                                   Command="{Binding ActivateCommand}"
                                                                                   IsEnabled="{Binding CanActivate}" />
-                                                                        <MenuItem Header="{loc:Loc appSettings.profiles.duplicate}"
-                                                                                  Command="{Binding DuplicateCommand}"
-                                                                                  IsEnabled="{Binding CanDuplicate}" />
+                                                                 <MenuItem Header="{loc:Loc appSettings.profiles.duplicate}"
+                                                                           Command="{Binding DuplicateCommand}"
+                                                                           IsEnabled="{Binding CanDuplicate}" />
+                                                                 <!-- The machine-type list, the current entry bold. The
+                                                                      same two-step as the badge's flyout: the first
+                                                                      click arms an entry with a checkmark (the menu
+                                                                      waits open — the rule lands on the generated
+                                                                      entries, see the view's code-behind), the second
+                                                                      switches the profile. -->
+                                                                 <MenuItem Header="{loc:Loc appSettings.profiles.type}"
+                                                                           ItemsSource="{Binding TypeOptions}"
+                                                                           IsEnabled="{Binding CanChangeType}"
+                                                                           ContainerPrepared="OnTypeMenuItemPrepared">
+                                                                     <MenuItem.ItemTemplate>
+                                                                         <DataTemplate x:DataType="vm:MachineTypeOption">
+                                                                             <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                                 <TextBlock Text="{Binding DisplayName}"
+                                                                                            FontWeight="{Binding IsCurrent, Converter={x:Static conv:Converters.BoldWhenTrue}}" />
+                                                                                 <TextBlock Text="&#x2713;" FontWeight="Bold"
+                                                                                            Foreground="#080"
+                                                                                            IsVisible="{Binding IsArmed}" />
+                                                                             </StackPanel>
+                                                                         </DataTemplate>
+                                                                     </MenuItem.ItemTemplate>
+                                                                 </MenuItem>
                                                                         <!-- Keeps the menu open on its arming click: delete here
                                                                              is the same two-step gesture as the button's, and a
                                                                              menu that closed after the first click would make
@@ -296,10 +367,52 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                                                 <TextBlock Text="{Binding RenameError}" FontSize="10"
                                                                            Foreground="#a33" VerticalAlignment="Center"
                                                                            IsVisible="{Binding HasRenameError}" />
-                                                                <Border Background="#e4e4e4" BorderBrush="#bbb" BorderThickness="1"
-                                                                        CornerRadius="2" Padding="4,0" VerticalAlignment="Center">
-                                                                    <TextBlock Text="{Binding MachineTypeId}" FontSize="10" Foreground="#555" />
-                                                                </Border>
+                                                                 <!-- The badge is the type picker: clicking it lifts
+                                                                      the other types in a flyout — badges stacked at
+                                                                      2px under the current one, left edges aligned,
+                                                                      each wearing the same chip. First click arms one
+                                                                      (a checkmark appears beside its name), the second
+                                                                      switches the profile — the destructive switch
+                                                                      (the new type's defaults replace the layout)
+                                                                      stays behind two deliberate clicks, the same
+                                                                      gesture as the delete glyph. -->
+                                                                 <Button Classes="typebadge"
+                                                                         ToolTip.Tip="{loc:Loc appSettings.profiles.typeChangeHint}">
+                                                                     <Button.Flyout>
+                                                                         <Flyout Placement="BottomEdgeAlignedLeft"
+                                                                                 VerticalOffset="4"
+                                                                                 IsOpen="{Binding TypeFlyoutOpen, Mode=TwoWay}">
+                                                                             <ItemsControl ItemsSource="{Binding OtherTypeOptions}">
+                                                                                 <ItemsControl.ItemsPanel>
+                                                                                     <ItemsPanelTemplate>
+                                                                                         <StackPanel Orientation="Vertical" Spacing="2" />
+                                                                                     </ItemsPanelTemplate>
+                                                                                 </ItemsControl.ItemsPanel>
+                                                                                 <ItemsControl.ItemTemplate>
+                                                                                     <DataTemplate x:DataType="vm:MachineTypeOption">
+                                                                                         <Button Classes="typebadge"
+                                                                                                 Command="{Binding SelectCommand}"
+                                                                                                 ToolTip.Tip="{Binding Hint}">
+                                                                                             <Border Classes="chip" Background="#e4e4e4" BorderBrush="#bbb"
+                                                                                                     BorderThickness="1" CornerRadius="2" Padding="4,0">
+                                                                                                 <StackPanel Orientation="Horizontal" Spacing="3">
+                                                                                                     <TextBlock Text="{Binding DisplayName}" FontSize="10" Foreground="#555" />
+                                                                                                     <TextBlock Text="&#x2713;" FontSize="10" FontWeight="Bold"
+                                                                                                                Foreground="#080"
+                                                                                                                IsVisible="{Binding IsArmed}" />
+                                                                                                 </StackPanel>
+                                                                                             </Border>
+                                                                                         </Button>
+                                                                                     </DataTemplate>
+                                                                                 </ItemsControl.ItemTemplate>
+                                                                             </ItemsControl>
+                                                                         </Flyout>
+                                                                     </Button.Flyout>
+                                                                     <Border Classes="chip" Background="#e4e4e4" BorderBrush="#bbb" BorderThickness="1"
+                                                                             CornerRadius="2" Padding="4,0" VerticalAlignment="Center">
+                                                                         <TextBlock Text="{Binding MachineTypeDisplayName}" FontSize="10" Foreground="#555" />
+                                                                     </Border>
+                                                                 </Button>
                                                                 <!-- The row's own actions, on the selected row only: a profile is
                                                                      managed where it is, not from a strip under the list that
                                                                      acted on whatever happened to be selected. All four are
@@ -364,26 +477,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                                    Source="{Binding TopologyImage, Converter={x:Static conv:Converters.MachineTypeImage}}"
                                                    IsVisible="{Binding HasTopologyImage}" />
                                         </Grid>
-
-                                        <StackPanel Orientation="Horizontal" Spacing="6"
-                                                    IsEnabled="{Binding CanSwitchProfiles}">
-                                            <TextBlock Text="{loc:Loc appSettings.profiles.type}" FontSize="11" VerticalAlignment="Center" />
-                                            <ComboBox ItemsSource="{Binding MachineTypeOptions}"
-                                                      SelectedItem="{Binding SelectedMachineType, Mode=TwoWay}"
-                                                      Width="90" Height="24" MinHeight="24" FontSize="11"
-                                                      CornerRadius="0" BorderBrush="#999" BorderThickness="1"
-                                                      VerticalContentAlignment="Center" />
-                                            <Button Content="{Binding TypeButtonText}" FontSize="11"
-                                                    Command="{Binding ApplyTypeCommand}"
-                                                    Height="24" MinHeight="24" CornerRadius="0" Padding="10,0" />
-                                        </StackPanel>
-
-                                        <!-- The switch is destructive: the new type's defaults
-                                             replace the layout outright, so it is warned about and
-                                             needs the second (confirming) click. -->
-                                        <TextBlock Text="{Binding TypeChangeWarning}" FontSize="11"
-                                                   Foreground="#a33" TextWrapping="Wrap"
-                                                   IsVisible="{Binding IsTypeChangePending}" />
 
                                         <Rectangle Height="1" Fill="#ddd" />
 

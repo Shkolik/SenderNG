@@ -1087,7 +1087,7 @@ public class MainViewModelCycleEnablementTests
 
         Assert.NotNull(dialogs.LastVm);
         Assert.Equal<(double, double)?>((900.0, 560.0), dialogs.LastPreferredSize);
-        Assert.Equal<(double, double)?>((720.0, 480.0), dialogs.LastMinSize);
+        Assert.Equal<(double, double)?>((800.0, 480.0), dialogs.LastMinSize);
     }
 }
 

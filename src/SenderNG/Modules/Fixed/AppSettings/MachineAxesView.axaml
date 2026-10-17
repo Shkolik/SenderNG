@@ -54,6 +54,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Hidden" />
             <Setter Property="ScrollViewer.AllowAutoHide" Value="False" />
         </Style>
+        <!-- Fluent's CheckBox template centers its 20px box only inside a hardcoded
+             32px inner grid (CheckBoxMinHeight) that is top-aligned in the control; in
+             the row's pinned 24px that grid sits low and its bottom clips. The class
+             makes the selector a trigger — the only kind of style that outranks a
+             value set by a template — so releasing the pin and centering the grid
+             sizes it to the box itself, and the box centers in the row like every
+             other control. -->
+        <Style Selector="CheckBox.inverted /template/ Grid#RootGrid > Grid">
+            <Setter Property="Height" Value="NaN" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
     </UserControl.Styles>
 
     <UserControl.Resources>
@@ -63,7 +74,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              pane for a delete button). -->
         <DataTemplate x:Key="AxisFields" x:DataType="vm:MachineAxisRowViewModel">
             <StackPanel Orientation="Vertical">
-                <Grid>
+                <Grid ColumnSpacing="4">
                     <Grid.ColumnDefinitions>
                         <!-- Shared widths, not per-grid ones: every header and every row lives in
                              the one IsSharedSizeScope (the root panel), so a column measures once
@@ -72,11 +83,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                              to its own text and each row drifts; the editors below are stretched
                              into their shared column instead. -->
                         <ColumnDefinition Width="26" />
-                        <ColumnDefinition Width="Auto" MinWidth="72" MaxWidth="104" SharedSizeGroup="AxisIndex" />
-                        <ColumnDefinition Width="Auto" MinWidth="78" MaxWidth="110" SharedSizeGroup="AxisType" />
-                        <ColumnDefinition Width="Auto" MinWidth="84" MaxWidth="116" SharedSizeGroup="AxisRole" />
-                        <ColumnDefinition Width="Auto" MinWidth="76" MaxWidth="132" SharedSizeGroup="AxisDirection" />
-                        <ColumnDefinition Width="Auto" MinWidth="56" MaxWidth="80" SharedSizeGroup="AxisAlias" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="AxisIndex" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="AxisType" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="AxisRole" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="AxisDirection" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="AxisAlias" />
                         <!-- The trailing star is load-bearing, not decoration: without a star
                              column Avalonia arranges every cell one pixel wider than its own
                              definition, so a row would sit 1px right of the same column in the
@@ -131,12 +142,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
                     <!-- The axis's sense. Checked = the axis counts negative (Sign < 0); the
                          stored Sign semantics are unchanged, only the control is. -->
-                    <CheckBox Grid.Column="4" Content="{loc:Loc appSettings.axes.inverted}"
+                    <CheckBox Grid.Column="4" Classes="inverted" Margin="0,0" Padding="0,0"
                               IsChecked="{Binding IsInverted, Mode=OneWay}"
                               Click="OnInvertedClick"
-                              HorizontalAlignment="Left" MinWidth="0"
-                              Height="24" MinHeight="24" FontSize="11"
-                              VerticalAlignment="Center" VerticalContentAlignment="Center"
+                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                              MinWidth="0" Height="24" MinHeight="24" FontSize="11"
+                              VerticalContentAlignment="Center"
                               ToolTip.Tip="{loc:Loc appSettings.axes.invertedHint}" />
 
                     <TextBox Grid.Column="5" Classes="alias" Text="{Binding AliasText, Mode=OneWay}"
@@ -186,25 +197,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             Margin="0,1,0,1" />
         </DataTemplate>
 
-        <!-- An optional row is deletable: the button takes its own column, immediately after
-             the CAM alias, so it stays beside the row it belongs to. -->
+        <!-- An optional row is deletable: the button sits immediately after the CAM alias,
+             beside the row it belongs to. The wrapper does NOT redeclare the shared column
+             set: a second spacing-bearing grid over the same SharedSizeGroup scope as the
+             AxisFields grid inside the ContentControl sends Avalonia's layout into an
+             infinite measure loop. The Auto column hands the inner grid its own desired
+             width — cells still line up through the shared values — and the trailing star
+             keeps the 1px cell arithmetic shared with the header grids. -->
         <DataTemplate x:Key="OptionalAxisRow" x:DataType="vm:MachineAxisRowViewModel">
-            <Grid Margin="0,1,0,1">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="26" />
-                    <ColumnDefinition Width="Auto" MinWidth="72" MaxWidth="104" SharedSizeGroup="AxisIndex" />
-                    <ColumnDefinition Width="Auto" MinWidth="78" MaxWidth="110" SharedSizeGroup="AxisType" />
-                    <ColumnDefinition Width="Auto" MinWidth="84" MaxWidth="116" SharedSizeGroup="AxisRole" />
-                    <ColumnDefinition Width="Auto" MinWidth="76" MaxWidth="132" SharedSizeGroup="AxisDirection" />
-                    <ColumnDefinition Width="Auto" MinWidth="56" MaxWidth="80" SharedSizeGroup="AxisAlias" />
-                    <ColumnDefinition Width="Auto" />
-                    <!-- The trailing star keeps this grid on the same cell arithmetic as the
-                         header grids; see the note on AxisFields. -->
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <ContentControl Grid.Column="0" Grid.ColumnSpan="6" Content="{Binding}"
+            <Grid Margin="0,1,0,1" ColumnDefinitions="Auto,Auto,*">
+                <ContentControl Grid.Column="0" Content="{Binding}"
                                 ContentTemplate="{StaticResource AxisFields}" />
-                <Button Grid.Column="6" Content="{Binding RemoveText}" Command="{Binding RemoveCommand}"
+                <Button Grid.Column="1" Content="{Binding RemoveText}" Command="{Binding RemoveCommand}"
                         VerticalAlignment="Center" VerticalContentAlignment="Center"
                         Margin="8,0,0,0" Height="24" MinHeight="24" FontSize="11"
                         CornerRadius="0" Padding="8,0" />
@@ -263,14 +267,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         <!-- The column labels. Same six shared columns as the rows below, so the
                              labels sit over their controls; the widths live in the shared scope,
                              never here, so the header cannot drift from the rows. -->
-                        <Grid Margin="0,0,0,1">
+                        <Grid Margin="0,0,0,1" ColumnSpacing="4">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="26" />
-                                <ColumnDefinition Width="Auto" MinWidth="72" MaxWidth="104" SharedSizeGroup="AxisIndex" />
-                                <ColumnDefinition Width="Auto" MinWidth="78" MaxWidth="110" SharedSizeGroup="AxisType" />
-                                <ColumnDefinition Width="Auto" MinWidth="84" MaxWidth="116" SharedSizeGroup="AxisRole" />
-                                <ColumnDefinition Width="Auto" MinWidth="76" MaxWidth="132" SharedSizeGroup="AxisDirection" />
-                                <ColumnDefinition Width="Auto" MinWidth="56" MaxWidth="80" SharedSizeGroup="AxisAlias" />
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="AxisIndex" />
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="AxisType" />
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="AxisRole" />
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="AxisDirection" />
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="AxisAlias" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="1" Text="{loc:Loc appSettings.axes.index}"
@@ -279,7 +283,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                        FontSize="10" Foreground="#888" />
                             <TextBlock Grid.Column="3" Text="{loc:Loc appSettings.axes.role}"
                                        FontSize="10" Foreground="#888" />
-                            <TextBlock Grid.Column="4" Text="{loc:Loc appSettings.axes.direction}"
+                            <TextBlock Grid.Column="4" Text="{loc:Loc appSettings.axes.inverted}"
                                        FontSize="10" Foreground="#888" />
                             <TextBlock Grid.Column="5" Text="{loc:Loc appSettings.axes.alias}"
                                        FontSize="10" Foreground="#888" />
@@ -312,14 +316,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                        Foreground="#333" />
             <TextBlock Text="{loc:Loc appSettings.axes.optionalHint}" FontSize="10"
                        Foreground="#888" TextWrapping="Wrap" />
-            <Grid Margin="0,2,0,1">
+            <Grid Margin="0,2,0,1" ColumnSpacing="4" IsVisible="{Binding HasOptionalAxes}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="26" />
-                    <ColumnDefinition Width="Auto" MinWidth="72" MaxWidth="104" SharedSizeGroup="AxisIndex" />
-                    <ColumnDefinition Width="Auto" MinWidth="78" MaxWidth="110" SharedSizeGroup="AxisType" />
-                    <ColumnDefinition Width="Auto" MinWidth="84" MaxWidth="116" SharedSizeGroup="AxisRole" />
-                    <ColumnDefinition Width="Auto" MinWidth="76" MaxWidth="132" SharedSizeGroup="AxisDirection" />
-                    <ColumnDefinition Width="Auto" MinWidth="56" MaxWidth="80" SharedSizeGroup="AxisAlias" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="AxisIndex" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="AxisType" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="AxisRole" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="AxisDirection" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="AxisAlias" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="1" Text="{loc:Loc appSettings.axes.index}"
@@ -328,15 +332,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                            FontSize="10" Foreground="#888" />
                 <TextBlock Grid.Column="3" Text="{loc:Loc appSettings.axes.role}"
                            FontSize="10" Foreground="#888" />
-                <TextBlock Grid.Column="4" Text="{loc:Loc appSettings.axes.direction}"
+                <TextBlock Grid.Column="4" Text="{loc:Loc appSettings.axes.inverted}"
                            FontSize="10" Foreground="#888" />
                 <TextBlock Grid.Column="5" Text="{loc:Loc appSettings.axes.alias}"
                            FontSize="10" Foreground="#888" />
             </Grid>
             <ItemsControl ItemsSource="{Binding OptionalAxes}"
-                          ItemTemplate="{StaticResource OptionalAxisRow}" />
-            <TextBlock Text="{loc:Loc appSettings.axes.optionalEmpty}" FontSize="11" Foreground="#999"
-                       IsVisible="{Binding HasNoOptionalAxes}" />
+                          ItemTemplate="{StaticResource OptionalAxisRow}" IsVisible="{Binding HasOptionalAxes}" />
+            
             <Button Content="{loc:Loc appSettings.axes.add}" Command="{Binding AddAxisCommand}"
                     HorizontalAlignment="Left" Margin="0,3,0,0" VerticalAlignment="Center"
                     Height="24" MinHeight="24" FontSize="11" CornerRadius="0" Padding="10,0" />

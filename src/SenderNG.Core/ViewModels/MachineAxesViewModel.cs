@@ -536,7 +536,7 @@ public sealed class MachineAxesViewModel : ViewModelBase
     /// <summary>Axes outside every plane; a rotary axis is only ever here.</summary>
     public ObservableCollection<MachineAxisRowViewModel> OptionalAxes { get; } = new();
 
-    public bool HasNoOptionalAxes => OptionalAxes.Count == 0;
+    public bool HasOptionalAxes => OptionalAxes.Count > 0;
 
     /// <summary>True for a multi-plane machine — the only kind that carries a separation.</summary>
     public bool IsMultiPlane => _preset.BasePlanes.Count > 1;
@@ -696,7 +696,7 @@ public sealed class MachineAxesViewModel : ViewModelBase
             return;
         OptionalAxes.Remove(row);
         CommitEdit();
-        OnPropertyChanged(nameof(HasNoOptionalAxes));
+        OnPropertyChanged(nameof(HasOptionalAxes));
         RefreshCommands();
     }
 
@@ -715,7 +715,7 @@ public sealed class MachineAxesViewModel : ViewModelBase
         _profile.OptionalAxes.Add(axis);
         OptionalAxes.Add(new MachineAxisRowViewModel(this, axis, isBase: false));
         CommitEdit();
-        OnPropertyChanged(nameof(HasNoOptionalAxes));
+        OnPropertyChanged(nameof(HasOptionalAxes));
         RefreshCommands();
     }
 
@@ -847,7 +847,7 @@ public sealed class MachineAxesViewModel : ViewModelBase
         OnPropertyChanged(nameof(SeparationText));
         OnPropertyChanged(nameof(DemoAxesHint));
         OnPropertyChanged(nameof(HasDemoAxesHint));
-        OnPropertyChanged(nameof(HasNoOptionalAxes));
+        OnPropertyChanged(nameof(HasOptionalAxes));
         OnPropertyChanged(nameof(IsEditable));
         OnPropertyChanged(nameof(CanAddAxis));
         RefreshCommands();

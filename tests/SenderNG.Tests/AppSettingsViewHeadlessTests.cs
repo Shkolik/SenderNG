@@ -41,6 +41,7 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -104,11 +105,9 @@ public class AppSettingsViewHeadlessTests
             var dump = string.Join(" | ", buttons.Select(b => b.Content is null ? "<null>" : $"\"{b.Content}\""));
             var remove = buttons.SingleOrDefault(b => b.Classes.Contains("remove"))
                 ?? throw new InvalidOperationException($"Remove button not found. Buttons: {dump}");
-            var type = buttons.SingleOrDefault(b => Equals(b.Content, "Change type"))
-                ?? throw new InvalidOperationException($"Type button not found. Buttons: {dump}");
-            var add = buttons.SingleOrDefault(b => Equals(b.Content, "Add"))
+            var add = buttons.SingleOrDefault(b => Equals(b.Content, "Add profile"))
                 ?? throw new InvalidOperationException($"Add button not found. Buttons: {dump}");
-            Assert.Equal("Add", add.Content);
+            Assert.Equal("Add profile", add.Content);
 
             if (Loc.AvailableLocales.Contains("ru"))
             {
@@ -121,13 +120,12 @@ public class AppSettingsViewHeadlessTests
                     // The Profiles leaf title itself follows the locale.
                     Assert.Equal("Профили", leaf.Name);
 
-                    // Computed (PropertyChanged-driven) labels follow the locale: the type
-                    // button carries its verb, the remove glyph carries it in its tooltip.
+                    // Computed (PropertyChanged-driven) labels follow the locale: the
+                    // remove glyph carries its verb in its tooltip.
                     Assert.Equal("Удалить этот профиль", ToolTip.GetTip(remove));
-                    Assert.Equal("Изменить тип", type.Content);
                     // ...as do the {loc:Loc} markup labels.
-                    Assert.Equal("Добавить", window.GetVisualDescendants().OfType<Button>()
-                        .Single(b => Equals(b.Content, "Добавить")).Content);
+                    Assert.Equal("Добавить профиль", window.GetVisualDescendants().OfType<Button>()
+                        .Single(b => Equals(b.Content, "Добавить профиль")).Content);
 
                     // User's repro sequence: language leaf -> change locale -> visit
                     // Profiles. The hidden-while-away pane re-realizes already localized.
@@ -387,6 +385,10 @@ public class AppSettingsViewHeadlessTests
             // the dimension that must match.
             var list = window.GetVisualDescendants().OfType<ListBox>()
                 .Single(l => l.ItemsSource is IEnumerable<ProfileRow>);
+            // A row wider than the list (a long profile name, its buttons) scrolls
+            // sideways instead of clipping: the bar is Auto, so it hides when it fits.
+            Assert.Equal(ScrollBarVisibility.Auto,
+                ScrollViewer.GetHorizontalScrollBarVisibility(list));
             var row = list.GetVisualAncestors().OfType<Grid>()
                 .First(g => g.GetVisualDescendants().OfType<Image>().Any());
             var image = row.GetVisualDescendants().OfType<Image>().Single();
@@ -399,8 +401,8 @@ public class AppSettingsViewHeadlessTests
 
             // The add row really sits in that column under the list, and the picture
             // reaches down to its bottom edge — that two-column alignment is the point.
-            var add = window.GetVisualDescendants().OfType<TextBox>()
-                .Single(t => Equals(t.PlaceholderText, Loc.T("appSettings.profiles.newName")));
+            var add = window.GetVisualDescendants().OfType<Button>()
+                .Single(b => Equals(b.Content, Loc.T("appSettings.profiles.add")));
             double Top(Visual v) => v.TranslatePoint(new Point(0, 0), window)!.Value.Y;
             double Bottom(Visual v) => v.TranslatePoint(new Point(0, v.Bounds.Height), window)!.Value.Y;
             Assert.Equal(10, Top(add) - Bottom(list), 1);
@@ -467,7 +469,7 @@ public class AppSettingsViewHeadlessTests
             // The badge is the border whose child is the type label, not the item's own chrome.
             var badge = rowPanel.GetVisualDescendants().OfType<Border>()
                 .Single(b => b.GetVisualDescendants().OfType<TextBlock>()
-                    .Any(t => Equals(t.Text, "Foam")));
+                    .Any(t => Equals(t.Text, MachineTypes.DisplayName(MachineTypes.Foam))));
 
             var panelBefore = Offset(rowPanel);
             var nameBefore = Offset(name);
@@ -536,6 +538,14 @@ public class AppSettingsViewHeadlessTests
             Assert.Equal(row.ActivateHint, ToolTip.GetTip(activate));
             Assert.Equal(row.DuplicateHint, ToolTip.GetTip(duplicate));
             Assert.Equal(row.RemoveHint, ToolTip.GetTip(remove));
+
+            // The type badge opens the picker, so it explains itself with the change
+            // tip and wears the type's localized display name (not the stored id).
+            var badge = rowPanel.GetVisualDescendants().OfType<Button>()
+                .Single(b => b.Classes.Contains("typebadge"));
+            Assert.Equal(Loc.T("appSettings.profiles.typeChangeHint"), ToolTip.GetTip(badge));
+            Assert.Equal(MachineTypes.DisplayName(row.MachineTypeId),
+                badge.GetVisualDescendants().OfType<TextBlock>().Single().Text);
 
             // This is the ACTIVE profile: re-activating and deleting it are refused, so
             // those buttons are hidden rather than greyed (the context-menu test pins the
@@ -648,7 +658,7 @@ public class AppSettingsViewHeadlessTests
 
             var items = menu.Items.OfType<MenuItem>().ToList();
             Assert.Equal(
-                new[] { "rename", "activate", "duplicate", "remove" }
+                new[] { "rename", "activate", "duplicate", "type", "remove" }
                     .Select(k => Loc.T($"appSettings.profiles.{k}")),
                 items.Select(m => m.Header as string));
             // The full set is present on the ACTIVE profile, with the refused commands
@@ -656,7 +666,9 @@ public class AppSettingsViewHeadlessTests
             Assert.True(items[0].IsEnabled);                       // rename
             Assert.False(items[1].IsEnabled);                      // activate: already active
             Assert.True(items[2].IsEnabled);                       // duplicate
-            Assert.False(items[3].IsEnabled);                      // remove: the active profile
+            Assert.True(items[3].IsEnabled);                       // machine type: any row may switch
+            Assert.Same(row.TypeOptions, items[3].ItemsSource);    // the submenu lists both types
+            Assert.False(items[4].IsEnabled);                      // remove: the active profile
             menu.Close();
             for (var i = 0; i < 4; i++)
                 await Pump();
@@ -714,7 +726,7 @@ public class AppSettingsViewHeadlessTests
                 await Pump();
 
             var items = menu.Items.OfType<MenuItem>().ToList();
-            var removeItem = items[3];
+            var removeItem = items[4];
             Assert.True(removeItem.StaysOpenOnClick,
                 "the delete entry must keep the menu open for its confirming click");
             Assert.All(items.Where(m => !ReferenceEquals(m, removeItem)),
@@ -960,6 +972,118 @@ public class AppSettingsViewHeadlessTests
             Assert.DoesNotContain(window.GetVisualDescendants().OfType<TextBox>(),
                 t => t.Classes.Contains("rename") && t.IsVisible);
             Assert.Single(leaf.Profiles, p => p.IsSelected);
+
+            window.Close();
+        }
+        finally
+        {
+            LocalizationService.Current = prev;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task The_machine_type_submenu_arms_on_the_first_click_and_switches_on_the_second()
+    {
+        // Switching type is destructive — the new type's defaults replace the layout —
+        // so the picker borrows the delete glyph's two-step: the first click arms an
+        // entry and draws a checkmark, the second switches. The menu must wait through
+        // the arming click (the stays-open rule binds to the same armed state), while
+        // the current type answers instead of arming: it is bold, and clicking it
+        // changes nothing.
+        var prev = LocalizationService.Current;
+        try
+        {
+            LocalizationService.Current = Loc;
+            var settings = MakeSettings();
+            var vm = new AppSettingsViewModel(settings, Array.Empty<IModule>(), Loc);
+            var leaf = ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<ProfileSettingsLeaf>().Single();
+            vm.SelectedNode = leaf;
+
+            var view = new AppSettingsView { DataContext = vm };
+            var window = new Window { Width = 920, Height = 560, Content = view };
+            window.Show();
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var row = leaf.Profiles.Single(p => p.Id == "default");   // the Mill profile
+            var rowPanel = window.GetVisualDescendants().OfType<StackPanel>()
+                .Single(p => ReferenceEquals(p.DataContext, row) && p.Classes.Contains("row"));
+            var menu = rowPanel.ContextMenu!;
+            menu.Open(rowPanel);
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var typeItem = menu.Items.OfType<MenuItem>().Single(m => m.ItemsSource is not null);
+            Assert.True(typeItem.IsEnabled);
+            typeItem.IsSubMenuOpen = true;
+            for (var i = 0; i < 4; i++)
+                await Pump();
+
+            var millEntry = Assert.IsType<MenuItem>(typeItem.ContainerFromIndex(0));
+            var foamEntry = Assert.IsType<MenuItem>(typeItem.ContainerFromIndex(1));
+            static TextBlock EntryText(MenuItem entry, string text) =>
+                entry.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == text);
+            var foamMark = EntryText(foamEntry, "\u2713");
+            // The entries wear the localized display names, not the stored ids.
+            var millText = MachineTypes.DisplayName(MachineTypes.Mill);
+            var foamText = MachineTypes.DisplayName(MachineTypes.Foam);
+
+            // The current type is the bold entry; the checkmark is the arming cue, not
+            // a "current" mark. Nothing keeps the menu open until a choice is armed.
+            Assert.Equal(FontWeight.Bold, EntryText(millEntry, millText).FontWeight);
+            Assert.Equal(FontWeight.Normal, EntryText(foamEntry, foamText).FontWeight);
+            Assert.False(foamMark.IsVisible);
+            Assert.False(foamEntry.StaysOpenOnClick);
+            // A plain offer carries no tip; the ask for the confirming click appears
+            // only once the entry is armed.
+            Assert.Null(ToolTip.GetTip(foamEntry));
+
+            // The current entry is an answer, not an offer: clicking it arms nothing.
+            millEntry.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent, millEntry));
+            for (var i = 0; i < 4; i++)
+                await Pump();
+            Assert.Null(row.ArmedTypeId);
+
+            // First click: arms, checks, and keeps the menu open (the stays-open rule
+            // is bound to the armed state in the view's ContainerPrepared hook) — the
+            // profile itself is untouched.
+            foamEntry.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent, foamEntry));
+            for (var i = 0; i < 4; i++)
+                await Pump();
+            Assert.Equal("Foam", row.ArmedTypeId);
+            Assert.Equal(Loc.T("appSettings.profiles.typeConfirmHint"),
+                row.TypeOptions.Single(o => o.Id == MachineTypes.Foam).Hint);
+            // ...and the armed entry's container wears it (the binding lands in the
+            // view's ContainerPrepared hook, where generated entries get their
+            // command and stays-open rule too).
+            Assert.Equal(Loc.T("appSettings.profiles.typeConfirmHint"), ToolTip.GetTip(foamEntry));
+            Assert.True(foamMark.IsVisible);
+            Assert.True(foamEntry.StaysOpenOnClick);
+            Assert.Equal(MachineTypes.Mill, row.MachineTypeId);
+            Assert.Equal(MachineTypes.Mill, new SettingsService(settings.SettingsDir).Load().MachineTypeId);
+
+            // Second click: switches, persists, and drops the stays-open rule — the
+            // framework reads it right after the command, so a real click closes the
+            // menu with the click that confirmed. The bold mark moves to the type now
+            // running, and the entries themselves are the same containers: the menu
+            // closes by walking the clicked entry's parents, so an entry rebuilt under
+            // the confirming click would strand the menu open one click too long.
+            foamEntry.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent, foamEntry));
+            for (var i = 0; i < 4; i++)
+                await Pump();
+            Assert.Null(row.ArmedTypeId);
+            Assert.Equal(MachineTypes.Foam, row.MachineTypeId);
+            Assert.False(foamEntry.StaysOpenOnClick);
+            Assert.Null(ToolTip.GetTip(foamEntry));
+            Assert.Equal(MachineTypes.Foam, new SettingsService(settings.SettingsDir).Load().MachineTypeId);
+            Assert.Same(millEntry, typeItem.ContainerFromIndex(0));
+            Assert.Same(foamEntry, typeItem.ContainerFromIndex(1));
+            Assert.Equal(FontWeight.Normal, EntryText(millEntry, millText).FontWeight);
+            Assert.Equal(FontWeight.Bold, EntryText(foamEntry, foamText).FontWeight);
+
+            menu.Close();
+            for (var i = 0; i < 4; i++)
+                await Pump();
 
             window.Close();
         }

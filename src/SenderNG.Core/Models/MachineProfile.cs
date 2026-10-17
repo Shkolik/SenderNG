@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 using CNC.Core.Abstractions;
+using SenderNG.Core.Localization;
 
 namespace CNC.Core.Services;
 
@@ -41,6 +42,27 @@ public static class MachineTypes
 {
     public const string Mill = "Mill";
     public const string Foam = "Foam";
+
+    /// <summary>The built-ins in offer order — what the profile manager lists today.
+    /// Plugin-provided types join the catalog later; every list that offers types
+    /// reads this, so adding one is a single-place change.</summary>
+    public static IReadOnlyList<string> BuiltIn { get; } = [Mill, Foam];
+
+    /// <summary>The localized display name of a type id — the profile badge, both
+    /// type pickers and the machine card all wear it. The id stays the stored truth;
+    /// the English fallbacks keep an unknown (plugin) id readable — as its own id
+    /// when even the built-ins' naming rules do not apply.</summary>
+    public static string DisplayName(string id)
+    {
+        var fallback = id switch
+        {
+            Mill => "Mill/Router",
+            Foam => "Foam cutter/EDM",
+            _ => id,
+        };
+        return LocalizationService.Current?.Resolve($"appSettings.mode.{id.ToLowerInvariant()}", fallback)
+            ?? fallback;
+    }
 }
 
 /// <summary>

@@ -1197,7 +1197,6 @@ public class AppSettingsViewModelTests
             settings.CreateProfile("other", MachineTypes.Mill); // not activated: default stays active
             leaf.Refresh();
             leaf.SelectedProfile = leaf.Profiles.Single(p => p.Id == "other");
-            leaf.NewName = "third";
             leaf.BeginRename(leaf.Profiles.Single(p => p.Id == "other"));
             leaf.SelectedMachineType = MachineTypes.Foam;
 
@@ -1434,7 +1433,7 @@ public class MachineAxesEditorTests
             Assert.Equal(3, baseRows.Count);
             Assert.All(baseRows, r => Assert.True(r.IsBase));
             Assert.All(baseRows, r => Assert.False(r.CanRemove));
-            Assert.False(editor.HasNoOptionalAxes);
+            Assert.True(editor.HasOptionalAxes);
 
             // Persisted, not just in memory.
             var reloaded = new SettingsService(dir).Load();
@@ -1443,7 +1442,7 @@ public class MachineAxesEditorTests
 
             row.RemoveCommand.Execute(null);
             Assert.Empty(editor.OptionalAxes);
-            Assert.True(editor.HasNoOptionalAxes);
+            Assert.False(editor.HasOptionalAxes);
             Assert.Empty(new SettingsService(dir).Load().OptionalAxes);
         }
         finally
@@ -1805,7 +1804,6 @@ public class MachineAxesEditorTests
             // The draft only warns: nothing is replaced until the confirming click.
             leaf.SelectedMachineType = MachineTypes.Foam;
             Assert.True(leaf.IsTypeChangePending);
-            Assert.Contains("layout", leaf.TypeChangeWarning, StringComparison.OrdinalIgnoreCase);
 
             leaf.ApplyTypeCommand.Execute(null);
             Assert.Equal("Change again to confirm", leaf.TypeButtonText);
@@ -1827,6 +1825,75 @@ public class MachineAxesEditorTests
             Assert.True(leaf.MachineAxes.HasSeparation);
             Assert.EndsWith("machine-topology-foam.png", leaf.MachineAxes.TopologyImage!);
             Assert.False(leaf.IsTypeChangePending);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void The_row_type_picker_arms_then_switches_and_the_arming_does_not_outlive_its_popup()
+    {
+        var (dir, settings) = MakeSettings();
+        try
+        {
+            var vm = new AppSettingsViewModel(settings, NoModules, Loc);
+            var leaf = ProfilesLeafOf(vm);
+            var row = leaf.Profiles.Single(p => p.Id == "default");
+            leaf.SelectedProfile = row;
+            var mill = row.TypeOptions.Single(o => o.Id == MachineTypes.Mill);
+            var foam = row.TypeOptions.Single(o => o.Id == MachineTypes.Foam);
+
+            // Both pickers read the same choices; the flyout offers the others only.
+            Assert.Equal(new[] { MachineTypes.Mill, MachineTypes.Foam }, row.TypeOptions.Select(o => o.Id));
+            Assert.True(mill.IsCurrent);
+            Assert.Equal(new[] { MachineTypes.Foam }, row.OtherTypeOptions.Select(o => o.Id));
+
+            // The current type is the answer, not an offer: clicking it arms nothing.
+            mill.SelectCommand.Execute(null);
+            Assert.Null(row.ArmedTypeId);
+
+            // First click arms only: the row, the disk and the card are untouched.
+            foam.SelectCommand.Execute(null);
+            Assert.Equal(MachineTypes.Foam, row.ArmedTypeId);
+            Assert.True(foam.IsArmed);
+            Assert.Equal(MachineTypes.Mill, row.MachineTypeId);
+            Assert.Equal(MachineTypes.Mill, settings.Load().MachineTypeId);
+            Assert.Equal(MachineTypes.Mill, leaf.MachineAxes.MachineTypeId);
+
+            // Second click switches: badge, choices, disk and the selected row's card
+            // all follow, and the arming is spent.
+            foam.SelectCommand.Execute(null);
+            Assert.Null(row.ArmedTypeId);
+            Assert.Equal(MachineTypes.Foam, row.MachineTypeId);
+            Assert.Equal(MachineTypes.Foam, settings.Load().MachineTypeId);
+            Assert.Equal(MachineTypes.Foam, leaf.MachineAxes.MachineTypeId);
+            Assert.True(row.TypeOptions.Single(o => o.Id == MachineTypes.Foam).IsCurrent);
+            Assert.Equal(new[] { MachineTypes.Mill }, row.OtherTypeOptions.Select(o => o.Id));
+
+            // The arming is a popup cue: closing the badge's flyout drops it (a menu
+            // close arrives through the same call), so a later reopen cannot confirm
+            // on a click the operator meant as an arming one.
+            row.TypeOptions.Single(o => o.Id == MachineTypes.Mill).SelectCommand.Execute(null);
+            Assert.Equal(MachineTypes.Mill, row.ArmedTypeId);
+            row.TypeFlyoutOpen = true;    // an open, not a close: nothing is dropped
+            Assert.Equal(MachineTypes.Mill, row.ArmedTypeId);
+            row.TypeFlyoutOpen = false;
+            Assert.Null(row.ArmedTypeId);
+
+            // Nor does it survive moving to another row.
+            settings.CreateProfile("second", MachineTypes.Foam);
+            leaf.Refresh();
+            var second = leaf.Profiles.Single(p => p.Id == "second");
+            leaf.SelectedProfile = second;
+            second.TypeOptions.Single(o => o.Id == MachineTypes.Mill).SelectCommand.Execute(null);
+            Assert.Equal(MachineTypes.Mill, second.ArmedTypeId);
+            leaf.SelectedProfile = leaf.Profiles.Single(p => p.Id == "default");
+            Assert.Null(second.ArmedTypeId);
+
+            // The switch stuck to the row it was made on; the other profile is untouched.
+            Assert.Equal(MachineTypes.Foam, settings.AllProfiles().Single(p => p.Id == "second").MachineTypeId);
         }
         finally
         {

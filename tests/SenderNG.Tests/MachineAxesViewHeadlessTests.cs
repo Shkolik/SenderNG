@@ -69,7 +69,7 @@ public class MachineAxesViewHeadlessTests
         "appSettings.axes.index",
         "appSettings.axes.type",
         "appSettings.axes.role",
-        "appSettings.axes.direction",
+        "appSettings.axes.inverted",
         "appSettings.axes.alias",
     ];
 
@@ -142,7 +142,7 @@ public class MachineAxesViewHeadlessTests
     }
 
     [AvaloniaFact]
-    public async Task The_axis_table_header_reads_index_type_role_direction_cam_alias()
+    public async Task The_axis_table_header_reads_index_type_role_inverted_cam_alias()
     {
         var prev = LocalizationService.Current;
         try
@@ -154,7 +154,7 @@ public class MachineAxesViewHeadlessTests
 
             // The exact English wording the header must carry…
             Assert.Equal(
-                new[] { "Index", "Type", "Role", "Direction", "CAM Alias" },
+                new[] { "Index", "Type", "Role", "Inverted", "CAM Alias" },
                 HeaderKeys.Select(Loc.T).ToArray());
 
             var view = new MachineAxesView { DataContext = editor };
@@ -165,9 +165,12 @@ public class MachineAxesViewHeadlessTests
 
             // …and the rendered order, left to right. The card draws the header over every
             // plane and over the optional list, so each column label appears more than once:
-            // group by position and require one distinct x per column, ascending.
+            // group by position and require one distinct x per column, ascending. A hidden
+            // header (the optional table on an axis-less profile) is still in the visual
+            // tree but never arranged, so its labels would report a bogus x — skip them.
             var rendered = view.GetVisualDescendants().OfType<TextBlock>()
-                .Where(t => t.Text is not null && HeaderKeys.Select(Loc.T).Contains(t.Text))
+                .Where(t => t.IsEffectivelyVisible && t.Text is not null
+                            && HeaderKeys.Select(Loc.T).Contains(t.Text))
                 .Select(t => (Text: t.Text!, X: Position(t, view).X))
                 .GroupBy(h => Math.Round(h.X, 1))
                 .OrderBy(g => g.Key)
@@ -224,7 +227,7 @@ public class MachineAxesViewHeadlessTests
                 (1, "appSettings.axes.index", typeof(ComboBox)),
                 (2, "appSettings.axes.type", typeof(ComboBox)),
                 (3, "appSettings.axes.role", typeof(ComboBox)),
-                (4, "appSettings.axes.direction", typeof(CheckBox)),
+                (4, "appSettings.axes.inverted", typeof(CheckBox)),
                 (5, "appSettings.axes.alias", typeof(TextBox)),
             ];
 
@@ -238,11 +241,22 @@ public class MachineAxesViewHeadlessTests
                 var edges = editors.Select(c => Math.Round(Position(c, view).X, 1)).Distinct().ToList();
                 var edge = Assert.Single(edges);
 
-                // Every header copy sits over the same edge, so the labels sit over the controls.
+                // Every header copy sits over the same spot, so the labels sit over the
+                // controls. The comparison is by centre: the columns share one left edge,
+                // and the cells that centre their control (the inverted box, now a bare
+                // control under its column label) centre under the stretched headers. The
+                // tolerance absorbs the sub-pixel cell arithmetic Avalonia leaves between a
+                // shared column's Auto cells — a label whose text is a pixel narrower than
+                // the widest cell in its column lands half a pixel off the exact centre.
+                var centre = Position(editors[0], view).X + editors[0].Bounds.Width / 2;
                 var headers = view.GetVisualDescendants().OfType<TextBlock>()
                     .Where(t => t.Text == Loc.T(key)).ToList();
                 Assert.NotEmpty(headers);
-                Assert.All(headers, h => Assert.Equal(edge, Math.Round(Position(h, view).X, 1)));
+                Assert.All(headers, h => Assert.True(
+                    Math.Abs(centre - (Position(h, view).X + h.Bounds.Width / 2)) < 1,
+                    $"header '{key}' centre {Position(h, view).X + h.Bounds.Width / 2} " +
+                    $"= {Position(h, view).X:0.#}+{h.Bounds.Width:0.#} " +
+                    $"but its column's editor centre is {centre}"));
 
                 // …and the column is one width, not one width per row.
                 Assert.Single(editors.Select(c => Math.Round(c.Bounds.Width, 1)).Distinct());
@@ -309,7 +323,7 @@ public class MachineAxesViewHeadlessTests
     [AvaloniaFact]
     public async Task The_inverted_checkbox_reflects_and_commits_the_sign()
     {
-        // The Direction column's checkbox replaces the old [+]/[−] toggle: checked means the
+        // The Inverted column's checkbox replaces the old [+]/[−] toggle: checked means the
         // axis counts negative. The stored Sign keeps its +1/−1 semantics.
         var prev = LocalizationService.Current;
         try
@@ -332,8 +346,9 @@ public class MachineAxesViewHeadlessTests
             var box = Assert.Single(view.GetVisualDescendants().OfType<CheckBox>(),
                 c => ReferenceEquals(c.DataContext, row));
 
-            // Localized label, and the state it reflects today.
-            Assert.Equal(Loc.T("appSettings.axes.inverted"), box.Content);
+            // The label sits on the column header now (the header test pins the wording),
+            // so the box stays a bare control under it. The state it reflects today:
+            Assert.Null(box.Content);
             Assert.False(box.IsChecked);
 
             // Click it: the gesture's state is committed to Sign and persisted.
