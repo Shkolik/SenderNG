@@ -60,21 +60,26 @@ public static class PlaneWorldMapper
     /// The plane's placement in world millimetres: the machine's separation split
     /// around the origin — plane <c>p</c> sits at <c>SeparationFor(p) −
     /// maxSeparation/2</c> on the world axis the plane does <b>not</b> span
-    /// (<see cref="MachineKinematics.FreeWorldAxisFor"/>). A foam tower spans
-    /// Length × Height → world Y × Z, so it is displaced along world <b>X</b>:
-    /// the two towers stand at ±separation/2 around the origin — side by side,
-    /// which is what they physically are, not stacked like shelves — so machine
-    /// zero at 0,0,0,0 is the wire's middle at the scene centre. A single-plane
-    /// machine's separation resolves to 0 and sits at the origin; a plane that
-    /// spans all three world axes (a mill) has no free axis and is never
-    /// displaced.
+    /// (<see cref="MachineKinematics.FreeWorldAxisFor"/>), oriented in reading
+    /// order (<see cref="ReadingOrderSign"/>). A foam tower spans Length × Height
+    /// → world Y × Z, so it is displaced along world <b>X</b>: the two towers
+    /// stand at ±separation/2 around the origin — side by side, plane 0 on the
+    /// left, which is what they physically are, not stacked like shelves — so
+    /// machine zero at 0,0,0,0 is the wire's middle at the scene centre. A
+    /// machine whose planes span Length × Width (a vertical-wire EDM) is
+    /// displaced along world <b>Z</b> and reads top-to-bottom instead: plane 0
+    /// on top, plane 1 below, so the same program's two planes keep the flat
+    /// view's reading order. A single-plane machine's separation resolves to 0
+    /// and sits at the origin; a plane that spans all three world axes (a mill)
+    /// has no free axis and is never displaced.
     /// </summary>
     public static Vector3 PlacementFor(MachineKinematics? kinematics, int plane)
     {
         var free = kinematics?.FreeWorldAxisFor(plane) ?? -1;
         if (free < 0)
             return Vector3.Zero;
-        var offset = kinematics!.SeparationFor(plane) - MaxSeparation(kinematics) * 0.5;
+        var offset = (kinematics!.SeparationFor(plane) - MaxSeparation(kinematics) * 0.5)
+                     * ReadingOrderSign(free);
         if (offset == 0)
             return Vector3.Zero;
         return free switch
@@ -84,6 +89,19 @@ public static class PlaneWorldMapper
             _ => new Vector3(0f, 0f, (float)offset),
         };
     }
+
+    /// <summary>
+    /// The sign that puts a plane stack in reading order on
+    /// <paramref name="freeWorldAxis"/>: plane 0 comes first, then plane 1.
+    /// Horizontally (world X or Y) that is left-to-right / front-to-back, the
+    /// existing negative-first order; vertically (world Z) it is top-to-bottom,
+    /// which reverses the offset so plane 0 is the <b>high</b> plane. Without the
+    /// reversal a vertical-wire EDM rendered plane 0 (the file's first carriage)
+    /// at the bottom and plane 1 on top — the mirror image of the flat canvas's
+    /// plane-0-top layout and of the same file's horizontal foam layout rotated
+    /// ninety degrees about its length axis.
+    /// </summary>
+    private static int ReadingOrderSign(int freeWorldAxis) => freeWorldAxis == 2 ? -1 : 1;
 
     /// <summary>The machine's largest plane separation — the far side's
     /// <see cref="MachineKinematics.SeparationFor"/>. Half of it is the shift

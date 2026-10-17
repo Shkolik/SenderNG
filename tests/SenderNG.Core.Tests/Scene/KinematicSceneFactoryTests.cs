@@ -115,6 +115,52 @@ public class KinematicSceneFactoryTests
         Assert.Equal(new Vector3(12.5f, 0, 0), points[1]);
     }
 
+    /// <summary>A vertical-wire machine (two Length × Width planes stacked along
+    /// Height) reads top-to-bottom: the placeholder wire starts on plane 0 at
+    /// +sep/2 and ends on plane 1 at -sep/2 — the same reading order the flat
+    /// canvas uses, and the horizontal foam layout rotated about its length
+    /// axis. This is the EDM profile's geometry, not a preset default.</summary>
+    [Fact]
+    public void Vertical_stack_initial_tool_wire_runs_top_to_bottom()
+    {
+        var profile = new MachineProfile
+        {
+            Id = "vertical-edm",
+            Name = "Vertical EDM",
+            MachineTypeId = MachineTypes.Foam,
+            Separation = 25,
+        };
+        for (var plane = 0; plane < 2; plane++)
+        {
+            profile.Planes.Add(new ProfilePlane
+            {
+                Axes =
+                {
+                    new MachineAxis
+                    {
+                        Index = plane * 2, Kind = AxisKind.Linear, Direction = AxisDirection.Length,
+                    },
+                    new MachineAxis
+                    {
+                        Index = plane * 2 + 1, Kind = AxisKind.Linear, Direction = AxisDirection.Width,
+                    },
+                },
+            });
+        }
+        var kinematics = MachineKinematicsResolver.Resolve(profile, null, 0);
+
+        var fake = new FakePlotScene();
+        var f = new KinematicSceneFactory(fake);
+        f.BuildScene(kinematics);
+
+        Assert.Equal(2, f.PlaneCount);
+        Assert.NotNull(f.Loft);
+        var points = ((FakePlotTool)f.Tool!).Positions[0].Points;
+        Assert.Equal(2, points.Length);
+        Assert.Equal(new Vector3(0, 0, 12.5f), points[0]);
+        Assert.Equal(new Vector3(0, 0, -12.5f), points[1]);
+    }
+
     /// <summary>A rotary axis is never a plane slot, so it must not conjure a
     /// carriage layer or a loft: the plane count comes from the machine's planes
     /// alone, and the rotary lives in the optional axes (invariant 3).</summary>

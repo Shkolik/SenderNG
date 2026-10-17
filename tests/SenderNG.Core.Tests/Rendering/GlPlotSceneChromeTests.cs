@@ -176,7 +176,9 @@ public class GlPlotSceneChromeTests
         // the target — eye along the iso corner at radius * 2.2 and the
         // zoom basis untouched: mirrors ContentMetrics + SetViewPreset's
         // default branch, so a partial reframe that moved only Target must
-        // fail here.
+        // fail here. The eye stays in the negative X/Y, positive Z octant;
+        // the grid is moved to the far side instead (FarSideGridSign), which
+        // is what keeps the axis orientation of this view unchanged.
         Assert.Equal(new Vector3(120f, 130f, 0f), cam.Target);
         var center = new Vector3(120f, 130f, 0f); // the segment's midpoint
         var radius = MathF.Max(
@@ -184,6 +186,7 @@ public class GlPlotSceneChromeTests
         Assert.Equal(
             center + Vector3.Normalize(new Vector3(-1f, -1f, 1f)) * (radius * 2.2f),
             cam.Position);
+        Assert.Equal(Vector3.Normalize(new Vector3(0.5f, 0.5f, 1f)), cam.Up);
         Assert.Equal(100f, cam.Width);
     }
 
@@ -433,6 +436,36 @@ public class GlPlotSceneChromeTests
         var high = minorHigh.Concat(majorHigh).ToArray();
         Assert.True(high.Length > 0);
         Assert.All(VertexOffsets(high), o => Assert.Equal(20.5f, high[o]));
+    }
+
+    /// <summary>The grid is seat on the far side of the model from the current
+    /// eye, so it never stands between the camera and the work. This is not a
+    /// fixed default-eye rule: the same machine's X-normal floor moves to the
+    /// opposite end when the YZ snap looks from +X.</summary>
+    [Theory]
+    // Default ISO eye (-1,-1,+1): X/Y floors go to the high end, Z stays low.
+    [InlineData(0, 1, -1, -1)]
+    [InlineData(0, -1, -1, -1)]
+    [InlineData(1, 1, -1, -1)]
+    [InlineData(1, -1, -1, -1)]
+    [InlineData(2, 1, 1, 1)]
+    [InlineData(2, -1, 1, 1)]
+    // YZ snap looks from +X: the X-normal floor must move to X-min.
+    [InlineData(0, 1, 1, 1)]
+    [InlineData(0, -1, 1, 1)]
+    // A view straight along the normal has no near side: keep the machine sign.
+    [InlineData(1, 1, 0, 1)]
+    [InlineData(1, -1, 0, -1)]
+    public void The_grid_is_placed_on_the_side_away_from_the_eye(
+        int normalAxis, int normalSign, int eyeComponent, int expected)
+    {
+        var eye = normalAxis switch
+        {
+            0 => new Vector3(eyeComponent, 0, 0),
+            1 => new Vector3(0, eyeComponent, 0),
+            _ => new Vector3(0, 0, eyeComponent),
+        };
+        Assert.Equal(expected, GlPlotScene.GridSignForCamera(normalAxis, normalSign, eye));
     }
 
     /// <summary>The grid spans the two world axes around its normal — the

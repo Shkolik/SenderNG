@@ -485,6 +485,10 @@ internal sealed unsafe class GlPlotScene : IPlotScene
                 // Skia's iso projector exactly: X -> right/down, Y -> left/down,
                 // Z -> straight up. The camera offset must be -normalize(1,1,-1)
                 // (front-upper corner); +normalize(1,1,-1) looks from underneath.
+                // The floor grid is NOT forced to the camera's side to avoid
+                // occlusion — SetGrid places it at the far end of its normal axis
+                // instead (see GridSignForCamera), which keeps this view's axis
+                // orientation intact.
                 _persp.Position = center
                     + Vector3.Normalize(new Vector3(-1f, -1f, 1f)) * (radius * 2.2f);
                 _persp.Target = center;
@@ -494,6 +498,13 @@ internal sealed unsafe class GlPlotScene : IPlotScene
                 _fitDist = radius * 2.2f;
                 break;
         }
+
+        // A snap view changes which end of the grid's normal axis is "behind"
+        // the camera, so re-seat the already-built floor on the new far side.
+        // Without this, the EDM's X-normal floor would fill the YZ view from
+        // the near side (the ISO view's far side is that view's near side).
+        if (_hasGridBounds)
+            SetGrid(_gridBounds, _gridMinorStep, _gridMajorStep);
     }
 
     /// <inheritdoc/>
@@ -630,13 +641,50 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     public void SetGrid(BoundingBox bounds, double minor, double major)
     {
         var (minorVerts, majorVerts) = BuildGridLines(
-            bounds, minor, major, _gridNormalAxis, _gridNormalSign);
+            bounds, minor, major, _gridNormalAxis,
+            GridSignForCamera(_gridNormalAxis, _gridNormalSign, ActiveEyeOffset));
         _gridMinor.Upload(minorVerts);
         _gridMajor.Upload(majorVerts);
         _gridBounds = bounds;
         _gridMinorStep = minor;
         _gridMajorStep = major;
         _hasGridBounds = true;
+    }
+
+    /// <summary>The eye's offset from the target, or the default ISO eye before
+    /// the first <see cref="SetViewPreset"/> (the constructor builds the empty
+    /// chrome first).</summary>
+    private Vector3 ActiveEyeOffset =>
+        _active is null ? new Vector3(-1f, -1f, 1f) : _active.Position - _active.Target;
+
+    /// <summary>
+    /// The grid sign that puts the floor plane on the side of the model
+    /// <b>away</b> from the camera, so the grid never sits between the eye and
+    /// the work. <see cref="BuildGridLines"/> places the grid on the low end of
+    /// its normal axis for a positive sign and on the high end for a negative
+    /// one, so the sign is simply the sign of the eye's component along that
+    /// axis: an eye above the model (+Z) keeps the floor below it, an eye on
+    /// the negative X side puts an X-normal grid at X-max.
+    /// <para>This is recomputed on every snap view because "behind" changes
+    /// with the eye: the EDM's X-normal floor that sits behind the default ISO
+    /// view would fill the YZ view from the near side if it kept the same end.
+    /// A view looking straight along the grid's normal has no near side; it
+    /// keeps the machine's own sign (the grid is edge-on there).</para>
+    /// </summary>
+    internal static int GridSignForCamera(int normalAxis, int normalSign, Vector3 eyeOffset)
+    {
+        var eyeComponent = normalAxis switch
+        {
+            0 => eyeOffset.X,
+            1 => eyeOffset.Y,
+            _ => eyeOffset.Z,
+        };
+        // + eye => camera on the high side: grid low (+1). − eye => grid high.
+        if (eyeComponent > 0f)
+            return 1;
+        if (eyeComponent < 0f)
+            return -1;
+        return normalSign;
     }
 
     /// <summary>The grid's line vertices, split minor/major the way

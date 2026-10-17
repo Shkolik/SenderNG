@@ -94,10 +94,11 @@ public sealed class KinematicSceneFactory : ISceneFactory
         {
             // The placeholder wire spans the two planes' symmetric placements
             // — ±half the separation about the origin, on the world axis the
-            // planes do not span (world X for a foam tower, whose
-            // Length × Height plane is vertical) — so machine zero at 0,0,0,0
-            // starts mid-wire at the scene centre and not on an invented
-            // diagonal. Live pose updates replace it immediately.
+            // planes do not span (world X for a foam tower with a vertical
+            // Length × Height plane, world Z for a horizontal Length × Width
+            // EDM plane, whose stack reads top-to-bottom) — so machine zero at
+            // 0,0,0,0 starts mid-wire at the scene centre and not on an
+            // invented diagonal. Live pose updates replace it immediately.
             var second = PlaneWorldMapper.PlacementFor(kinematics, 1);
             _tool.UpdatePosition(new Endpoint([PlaneWorldMapper.PlacementFor(kinematics, 0), second]));
         }

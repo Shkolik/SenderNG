@@ -82,6 +82,45 @@ public class PlaneWorldMapperTests
         Assert.Equal(new Vector3(12.5f, 0, 0), PlaneWorldMapper.PlacementFor(k, 1));
     }
 
+    /// <summary>A vertical-wire machine — two Length × Width planes stacked
+    /// along Height — reads top-to-bottom: plane 0 is the HIGH plane and plane 1
+    /// the low one, so the 3D scene matches the flat canvas's plane-0-top order
+    /// and the horizontal foam layout rotated ninety degrees about its length
+    /// axis. Without the reading-order sign plane 0 landed at -sep/2 (bottom).</summary>
+    [Fact]
+    public void A_vertical_stack_reads_plane_0_on_top()
+    {
+        var profile = new MachineProfile
+        {
+            Id = "vertical-edm",
+            Name = "Vertical EDM",
+            MachineTypeId = MachineTypes.Foam,
+            Separation = 25,
+        };
+        for (var plane = 0; plane < 2; plane++)
+        {
+            profile.Planes.Add(new ProfilePlane
+            {
+                Axes =
+                {
+                    new MachineAxis
+                    {
+                        Index = plane * 2, Kind = AxisKind.Linear, Direction = AxisDirection.Length,
+                    },
+                    new MachineAxis
+                    {
+                        Index = plane * 2 + 1, Kind = AxisKind.Linear, Direction = AxisDirection.Width,
+                    },
+                },
+            });
+        }
+        var k = MachineKinematicsResolver.Resolve(profile, null, 0);
+
+        Assert.Equal(2, k.FreeWorldAxisFor(0));      // world Z — the vertical wire
+        Assert.Equal(new Vector3(0, 0, 12.5f), PlaneWorldMapper.PlacementFor(k, 0));
+        Assert.Equal(new Vector3(0, 0, -12.5f), PlaneWorldMapper.PlacementFor(k, 1));
+    }
+
     /// <summary>A single-plane machine has nothing to be separated from: even a
     /// stray profile separation (warned about, invariant 6) resolves plane 0's
     /// separation to 0, so no half-offset may move the machine off the origin.</summary>
