@@ -135,7 +135,13 @@ set was checked for parity defaults before finalizing.
   declares planes of `MachineAxis`s (direction + sign, optional rotary axes with
   a pivot) and one separation scalar; the resolver derives the concrete letters
   from the connect handshake, and the 3D views place each plane by its axes'
-  directions. The old positional axis-role surface (`AxisRoleKind`,
+  directions.
+  **Canonical cross order landed (2026-10-17):** a pair's Height-direction axis
+  always resolves into the vertical cross slot, so jog, Outline and the 2D
+  plotter draw the cross the 3D views render — both spellings of the bug-report
+  foam tower (index-bound `[3, 2]` and direction-remapped `[Z(Height), A(Length)]`)
+  now behave alike.
+  The old positional axis-role surface (`AxisRoleKind`,
   `CarriagePlane`, `MachineType.Planes`, `PlaneAxisIndices`, `HasDepth`) is
   deleted, so there is exactly one source of truth.
   **Known limitation — the horizontal convention (deferred, 2026-10-14):** the
