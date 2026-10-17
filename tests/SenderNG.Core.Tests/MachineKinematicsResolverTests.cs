@@ -507,6 +507,36 @@ public class MachineKinematicsResolverTests
         Assert.Equal(AxisDirection.Length, profile.Planes[1].Axes[1].Direction);
     }
 
+    [Fact]
+    public void A_three_axis_height_first_plane_swaps_the_pair_and_keeps_the_perpendicular()
+    {
+        // The remapped mill [H, W, L]: the pair canonicalizes to [W, H] while slot 2
+        // (the perpendicular, index 2) keeps its place — only 0 and 1 ever move.
+        var profile = Profile(MachineTypes.Mill,
+            Plane(Axis(0, AxisDirection.Height), Axis(1, AxisDirection.Width), Axis(2, AxisDirection.Length)));
+
+        var k = MachineKinematicsResolver.Resolve(profile, "XYZA", 3);
+
+        Assert.True(k.IsValid, string.Join("; ", k.Problems.Select(p => p.Message)));
+        Assert.Equal(new[] { 1, 0, 2 }, k.PlaneIndices(0));
+    }
+
+    [Fact]
+    public void A_both_height_pair_keeps_its_stored_order()
+    {
+        // Both pair axes Height is undefined geometry; the resolver must not guess —
+        // the stored order stands, like any pair without a single Height axis.
+        var profile = Profile(MachineTypes.Foam,
+            Plane(Axis(0, AxisDirection.Height), Axis(1, AxisDirection.Height)),
+            Plane(Axis(2, AxisDirection.Height), Axis(3, AxisDirection.Height)));
+
+        var k = MachineKinematicsResolver.Resolve(profile, "XYZA", 4);
+
+        Assert.True(k.IsValid, string.Join("; ", k.Problems.Select(p => p.Message)));
+        Assert.Equal(new[] { 0, 1 }, k.PlaneIndices(0));
+        Assert.Equal(new[] { 2, 3 }, k.PlaneIndices(1));
+    }
+
     /* ------------------- pre-migration and hand-edited profiles ------------------- */
 
     [Fact]
