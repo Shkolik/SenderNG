@@ -114,7 +114,11 @@ public sealed class MachineAxis
 /// <para>
 /// The list order <b>is</b> the plane's orientation — it is not a restatement of
 /// index order — so a plane's indices may be non-monotonic: the bug-report foam
-/// firmware's plane 2 is <c>[index 3 (A), index 2 (Z)]</c>. Consumers must use
+/// firmware's plane 2 is <c>[index 3 (A), index 2 (Z)]</c>. The resolver
+/// canonicalizes the pair — a stored Height-first pair resolves with the Height
+/// axis in the vertical slot
+/// (<c>docs/plans/2026-10-17-cross-order-normalization.md</c>) — but the stored
+/// order is never rewritten. Consumers must use
 /// <c>MachineKinematics.IndexAt</c>/<c>PlaneIndices</c>, never <c>indices[^1]</c>.
 /// </para>
 /// </summary>

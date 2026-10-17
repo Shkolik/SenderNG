@@ -137,9 +137,11 @@ public static class KinematicsProblemText
 }
 
 /// <summary>
-/// One resolved plane: its axes in plane order (<b>not</b> index order — the bug-report
-/// foam firmware's plane 2 is <c>[A, Z]</c> = indices <c>[3, 2]</c>) plus the
-/// plane-to-plane separation it sits at.
+/// One resolved plane: its axes in canonical plane order (<b>not</b> index order —
+/// the bug-report foam firmware's plane 2 is <c>[A, Z]</c> = indices <c>[3, 2]</c>)
+/// plus the plane-to-plane separation it sits at. The pair is canonical: when the
+/// stored profile lists the Height axis first, the resolver swaps it into the
+/// vertical slot, so slot 1 is the Height axis of any pair that spans one.
 /// </summary>
 public sealed class KinematicPlane
 {
@@ -278,8 +280,10 @@ public sealed class MachineKinematics
     public char LetterFor(int index) => AxisLetters.LetterAt(BoardLetters, index);
 
     /// <summary>The axis index in a plane's slot, or <c>-1</c> when the slot (or the
-    /// plane) does not exist. Slots are role positions, so this is what replaces
-    /// <c>LetterFor(0..3)</c> / <c>indices[^1]</c> assumptions.</summary>
+    /// plane) does not exist. Slots are role positions in the resolver's canonical
+    /// cross order (a pair's Height axis is always the vertical slot,
+    /// see <c>docs/plans/2026-10-17-cross-order-normalization.md</c>), so this is what
+    /// replaces <c>LetterFor(0..3)</c> / <c>indices[^1]</c> assumptions.</summary>
     public int IndexAt(int plane, int slot)
     {
         if (plane < 0 || plane >= Planes.Count)

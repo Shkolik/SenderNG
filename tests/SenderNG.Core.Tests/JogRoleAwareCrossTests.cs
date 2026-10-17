@@ -96,6 +96,36 @@ public class JogRoleAwareCrossTests
     }
 
     [Fact]
+    public void Direction_remapped_plane2_puts_the_Height_axis_on_the_vertical_pad()
+    {
+        // The user report: plane 2 remapped to [Z(Height), A(Length)] — Height stored
+        // first. Resolution canonicalizes to [A, Z], so the plane-2 cross reads and
+        // drives A horizontal / Z vertical, like the bug firmware's [3, 2] encoding.
+        var settings = JogViewModelTests.MakeSettings("Foam");
+        var profile = settings.Load();
+        var planes = MachineTypeCatalog.Resolve(MachineTypes.Foam).CreateDefaultPlanes();
+        planes[1].Axes[0].Direction = AxisDirection.Height;
+        planes[1].Axes[1].Direction = AxisDirection.Length;
+        profile.Planes = planes;
+        settings.Save(profile);
+
+        var sent = new List<string>();
+        var vm = new JogViewModel(
+            new JogViewModelTests.RecordingGrbl(sent, numAxes: 4), settings, Info("XYZA"));
+
+        Assert.True(vm.Plane2Visible);
+        Assert.True(vm.TogetherVisible);   // the pair is parallel; only its spelling differs
+        Assert.Equal("A", vm.P2H);
+        Assert.Equal("Z", vm.P2V);
+        Assert.Equal("A+", vm.SecondRightTag);
+        Assert.Equal("Z+", vm.SecondUpTag);
+
+        vm.JogCommand.Execute(vm.SecondUpTag);   // the vertical pad must drive Z, not A
+
+        Assert.Equal(["$J=G91 Z1 F1000"], sent);
+    }
+
+    [Fact]
     public void Mill_cross_is_the_two_in_plane_slots_and_depth_keeps_a_linear_row()
     {
         var sent = new List<string>();

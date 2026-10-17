@@ -92,6 +92,7 @@ public static class MachineKinematicsResolver
         var planes = NormalizePlanes(profile.Planes);
         if (planes.Count == 0)
             planes = preset.CreateDefaultPlanes();
+        planes = CanonicalCrossOrder(planes);
         var optionalAxes = profile.OptionalAxes.Where(a => a is not null).ToList();
 
         var separation = profile.Separation;
@@ -340,6 +341,36 @@ public static class MachineKinematicsResolver
                 : plane);
         }
         return planes;
+    }
+
+    // Canonical cross order (docs/plans/2026-10-17-cross-order-normalization.md):
+    // a plane whose cross pair spans Height always resolves with the Height axis in
+    // the vertical slot, so jog, the outline sweep and the 2D plotter draw the cross
+    // the 3D views place — a height is vertical by definition. Pairs without a
+    // Height axis keep their stored order (the mill's Width/Length), a both-Height
+    // pair is undefined and keeps it too, slot 2 never moves, and the stored profile
+    // is untouched: the swapped plane is a new ProfilePlane sharing axis references.
+    private static List<ProfilePlane> CanonicalCrossOrder(List<ProfilePlane> planes)
+    {
+        var ordered = new List<ProfilePlane>(planes.Count);
+        foreach (var plane in planes)
+        {
+            var axes = plane.Axes;
+            if (axes.Count >= 2
+                && axes[0].Direction == AxisDirection.Height
+                && axes[1].Direction != AxisDirection.Height)
+            {
+                var swapped = new List<MachineAxis>(axes.Count) { axes[1], axes[0] };
+                for (var i = 2; i < axes.Count; i++)
+                    swapped.Add(axes[i]);
+                ordered.Add(new ProfilePlane { Axes = swapped });
+            }
+            else
+            {
+                ordered.Add(plane);
+            }
+        }
+        return ordered;
     }
 
     // The resolved object is a snapshot: the profile stays editable (and the provider

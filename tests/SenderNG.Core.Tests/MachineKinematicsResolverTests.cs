@@ -471,14 +471,40 @@ public class MachineKinematicsResolverTests
     [Fact]
     public void Multi_plane_machines_must_share_their_in_plane_direction_pair()
     {
+        // Plane 2 spans Width/Height — a genuinely different pair from plane 1's
+        // Length/Height. (An order-only difference, [Height, Length], is valid by
+        // design: the resolver canonicalizes both planes — 2026-10-17 amendment.)
         var k = MachineKinematicsResolver.Resolve(Profile(MachineTypes.Foam,
             Plane(Axis(0, AxisDirection.Length), Axis(1, AxisDirection.Height)),
-            Plane(Axis(2, AxisDirection.Height), Axis(3, AxisDirection.Length))),
+            Plane(Axis(2, AxisDirection.Width), Axis(3, AxisDirection.Height))),
             "XYZA", 4);
 
         var problem = Assert.Single(k.Errors);
         Assert.Equal(KinematicsProblemCodes.PlaneDirectionPair, problem.Code);
         Assert.Equal(1, problem.Plane);
+    }
+
+    [Fact]
+    public void A_height_first_pair_resolves_with_the_height_axis_in_the_vertical_slot()
+    {
+        // The user-reported direction remap: plane 2 stores [Z(Height), A(Length)] —
+        // the same physical tower as the bug-report [3, 2] encoding, just spelled
+        // with directions instead of indices.
+        var profile = Profile(MachineTypes.Foam,
+            Plane(Axis(0, AxisDirection.Length), Axis(1, AxisDirection.Height)),
+            Plane(Axis(2, AxisDirection.Height), Axis(3, AxisDirection.Length)));
+
+        var k = MachineKinematicsResolver.Resolve(profile, "XYZA", 4);
+
+        Assert.True(k.IsValid, string.Join("; ", k.Problems.Select(p => p.Message)));
+        Assert.Equal(new[] { 3, 2 }, k.PlaneIndices(1));
+        Assert.Equal('A', k.LetterFor(k.IndexAt(1, 0)));
+        Assert.Equal('Z', k.LetterFor(k.IndexAt(1, 1)));
+        Assert.Equal(3, k.IndexForDirection(1, AxisDirection.Length));
+        Assert.Equal(2, k.IndexForDirection(1, AxisDirection.Height));
+        // The stored profile is a user document: never reordered by resolution.
+        Assert.Equal(AxisDirection.Height, profile.Planes[1].Axes[0].Direction);
+        Assert.Equal(AxisDirection.Length, profile.Planes[1].Axes[1].Direction);
     }
 
     /* ------------------- pre-migration and hand-edited profiles ------------------- */
