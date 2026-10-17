@@ -256,8 +256,8 @@ public class PlotterGlLocaleTests
     /// Cyrillic is checked rather than "differs from English" alone, because a
     /// value that differs from English only by a stray character would pass a
     /// weaker test while still being untranslated. Latin-script technical terms
-    /// inside a Russian sentence are fine and expected - `vulkaninfo --summary`,
-    /// `Vulkan 1.3`, `2D` - so the check is that the value *contains* Cyrillic,
+    /// inside a Russian sentence are fine and expected - `OpenGL 3.3`,
+    /// `Plot GL`, `2D` - so the check is that the value *contains* Cyrillic,
     /// not that it contains nothing else. Every key in the module's catalogs is
     /// required to be a translated sentence, so no key is exempt.
     /// </para></summary>
@@ -277,41 +277,24 @@ public class PlotterGlLocaleTests
         }
     }
 
-    /// <summary>The `vulkaninfo` command name must survive translation verbatim
-    /// wherever it appears: it is something the user types, and transliterating
-    /// it would send them to a command that does not exist. Both kinds that
-    /// mention the command are checked, so adding a third does not slip
-    /// through unasserted. (The hint *values* still explain the check in terms
-    /// of Vulkan — a documented limitation of the scripted copy; the command
-    /// name itself is what this test pins.)</summary>
-    [Fact]
-    public void Russian_keeps_the_vulkaninfo_command_name_intact()
+    /// <summary>No failure message may name Vulkan. The renderer is OpenGL (the
+    /// shared GlContext brings up a GL 3.3 / GLES 3.0 context), yet the
+    /// scripted Russian copy once told users to install Vulkan drivers and run
+    /// `vulkaninfo --summary` — advice for a renderer this module does not use,
+    /// which is how the mismatch shipped. Both catalogs are scanned key by key,
+    /// so a reintroduced Vulkan mention fails here instead of shipping.
+    /// The ordinal-ignore-case check also catches `vulkaninfo`.</summary>
+    [Theory]
+    [InlineData("en")]
+    [InlineData("ru")]
+    public void No_message_names_vulkan(string locale)
     {
-        const string command = "vulkaninfo --summary";
-        var ru = Strings("ru");
-        var pinned = new[]
+        foreach (var (key, value) in Strings(locale))
         {
-            "module.plotter-gl.renderUnavailable.notSupported",
-            "module.plotter-gl.renderUnavailable.runtimeError",
-        };
-
-        foreach (var key in pinned)
-        {
-            Assert.True(ru.ContainsKey(key), $"ru.json key '{key}' is missing.");
-            Assert.Contains(command, ru[key]);
-        }
-
-        // Nothing else in the catalog may mention a command we have not pinned.
-        // Membership is tested on the WHOLE key, not a suffix: an unrelated key
-        // that merely ends in ".notSupported" must not be able to slip past as
-        // if it were one of the two above.
-        foreach (var (key, value) in ru)
-        {
-            if (pinned.Contains(key, StringComparer.Ordinal))
-                continue;
-            Assert.False(value.Contains("vulkaninfo", StringComparison.Ordinal),
-                $"ru.json key '{key}' mentions vulkaninfo but is not covered by " +
-                "this test - add its key to `pinned`.");
+            Assert.False(
+                value.Contains("Vulkan", StringComparison.OrdinalIgnoreCase),
+                $"{locale}.json key '{key}' names Vulkan: '{value}'. " +
+                "The renderer is OpenGL; the message would send users to the wrong driver.");
         }
     }
 
