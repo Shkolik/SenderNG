@@ -63,7 +63,6 @@
     "appSettings.axes.pivotHint": "Two coordinates: the two directions perpendicular to the axis. The coordinate along it is free, so it is not stored.",
     "appSettings.axes.separation": "Plane-to-plane distance (wire length)",
     "appSettings.axes.separationHint": "Distance between the two planes, in machine coordinates.",
-    "appSettings.axes.problems": "Profile problems",
     "appSettings.axes.demoAxesHint": "The demo controller simulates {0} axes, but this machine type needs {1} for two planes — the demo's second plane stays hidden until the count is raised in the connection dialog.",
     "appSettings.axes.problem.axis.indexRange": "Axis index {0} is outside the 0–8 range.",
     "appSettings.axes.problem.axis.indexDuplicate": "Axis index {0} is used by more than one axis.",

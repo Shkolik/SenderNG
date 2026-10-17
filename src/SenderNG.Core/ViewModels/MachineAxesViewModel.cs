@@ -102,28 +102,6 @@ public sealed class AxisDirectionChoice
     public string Display => _label();
 }
 
-/// <summary>
-/// One validation problem, rendered as text. <see cref="KinematicsProblem"/> is
-/// returned by the resolver as <b>data</b>; the editor localizes its
-/// <see cref="KinematicsProblem.Code"/> and never parses the developer message — a
-/// hand-edited profile file with an impossible layout shows up here instead of crashing.
-/// </summary>
-public sealed class MachineAxisProblem
-{
-    public MachineAxisProblem(bool isError, string text)
-    {
-        IsError = isError;
-        Text = text;
-    }
-
-    /// <summary>Error = unusable as written; false = a warning the consumers tolerate.</summary>
-    public bool IsError { get; }
-
-    public bool IsWarning => !IsError;
-
-    public string Text { get; }
-}
-
 /* ---------------------------------------------------------------------------
  * Rows
  * ------------------------------------------------------------------------- */
@@ -439,14 +417,14 @@ public sealed class AxisPivotRowViewModel : ViewModelBase
 
 /// <summary>
 /// The machine card's axis editor: the topology picture for the machine type, an ordered
-/// row per axis of every plane, the optional-axis list with add/remove, the foam's
-/// plane-to-plane distance and the resolver's problems.
+/// row per axis of every plane, the optional-axis list with add/remove and the foam's
+/// plane-to-plane distance.
 /// <para>
 /// The stored truth is the grbl <b>index</b>; the index picker offers the nine
 /// conventional letters because that is how firmware docs speak, and the letter shown
 /// for an axis is always the one the controller reports. Every edit is committed to the
 /// profile and immediately re-resolved through <see cref="MachineKinematicsResolver"/>,
-/// so the invariant problems the user sees are the same data the consumers act on.
+/// so the rows and the consumers act on the same resolved model.
 /// </para>
 /// <para>
 /// Behind a machine card this is a master/detail editor: the rows live in an
@@ -468,7 +446,6 @@ public sealed class MachineAxesViewModel : ViewModelBase
     private MachineProfile _profile;
     private MachineType _preset;
     private MachineKinematics _kinematics;
-    private IReadOnlyList<MachineAxisProblem> _problems = [];
 
     /// <summary>
     /// Creates the editor for one profile. <paramref name="machines"/> is optional: with a
@@ -563,12 +540,6 @@ public sealed class MachineAxesViewModel : ViewModelBase
     /// <summary>False after a settings restore, when every write is a no-op anyway.</summary>
     public bool IsEditable => !_settings.RestorePending;
 
-    /// <summary>The resolver's problems, localized. Empty for a clean profile.</summary>
-    public IReadOnlyList<MachineAxisProblem> Problems => _problems;
-
-    public bool HasProblems => _problems.Count > 0;
-    public bool IsValid => !_problems.Any(p => p.IsError);
-
     /// <summary>Append an optional axis (rotary or extra linear). Null while all nine
     /// grbl indices are taken.</summary>
     public DelegateCommand AddAxisCommand { get; }
@@ -637,7 +608,7 @@ public sealed class MachineAxesViewModel : ViewModelBase
         }
         foreach (var row in OptionalAxes)
             row.RefreshChoices();
-        Revalidate(); // the problems' text is resolved from their codes
+        Revalidate(); // re-resolve so the derived row labels follow the new catalog
         RaiseComputed();
     }
 
@@ -811,7 +782,7 @@ public sealed class MachineAxesViewModel : ViewModelBase
     }
 
     /// <summary>Re-resolve the edited profile (preset ⊕ profile ⊕ board) and refresh every
-    /// derived label. Problems come back as data and are rendered, never thrown.</summary>
+    /// derived label.</summary>
     private void Revalidate()
     {
         // Board letters and the reported count are live controller state, not profile
@@ -820,7 +791,6 @@ public sealed class MachineAxesViewModel : ViewModelBase
         var boardLetters = _machines?.Current.BoardLetters;
         var reportedAxes = _machines?.Current.ReportedAxes ?? 0;
         _kinematics = MachineKinematicsResolver.Resolve(_profile, _preset, boardLetters, reportedAxes);
-        _problems = BuildProblems(_kinematics);
 
         foreach (var plane in Planes)
         {
@@ -829,10 +799,6 @@ public sealed class MachineAxesViewModel : ViewModelBase
         }
         foreach (var row in OptionalAxes)
             row.RefreshFromKinematics();
-
-        OnPropertyChanged(nameof(Problems));
-        OnPropertyChanged(nameof(HasProblems));
-        OnPropertyChanged(nameof(IsValid));
     }
 
     private void RaiseComputed()
@@ -858,26 +824,6 @@ public sealed class MachineAxesViewModel : ViewModelBase
         AddAxisCommand?.RaiseCanExecuteChanged();
         foreach (var row in OptionalAxes)
             row.RemoveCommand.RaiseCanExecuteChanged();
-    }
-
-    private IReadOnlyList<MachineAxisProblem> BuildProblems(MachineKinematics kinematics)
-    {
-        if (kinematics.Problems.Count == 0)
-            return [];
-        var problems = new List<MachineAxisProblem>(kinematics.Problems.Count);
-        foreach (var problem in kinematics.Problems)
-            problems.Add(new MachineAxisProblem(problem.Severity == KinematicsSeverity.Error, Localize(problem)));
-        return problems;
-    }
-
-    private string Localize(KinematicsProblem problem)
-    {
-        // The invariant's *code* is the localizable contract; Message is English
-        // developer text and is only the fallback when a catalog lacks the key (so a
-        // missing translation can never surface a raw key). The mapping itself lives in
-        // KinematicsProblemText because the DRO's undeclared-axes warning renders the
-        // same codes — one map, two consumers.
-        return KinematicsProblemText.Localize(problem, Resolve);
     }
 
     private IReadOnlyList<AxisIndexChoice> BuildIndexChoices()

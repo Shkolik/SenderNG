@@ -316,9 +316,9 @@ public class RealGrblService : IGrblService, IGrblSettingsProvider, IDisposable
         }
 
         // Push the discovered axis count into the injected GrblInfoState (the
-        // DRO, gcode parser and expressions read it via GrblInfo.Current) and
-        // into the live machine state so the DRO/signals grow to the board's
-        // real axes.
+        // gcode parser, expressions, jog, Goto and Outline read it via
+        // GrblInfo.Current) and into the live machine state so the DRO/signals
+        // grow to the board's real axes.
         ApplyCapabilities();
 
         // Max travel ($130+): the continuous-jog distance source (ioSender's

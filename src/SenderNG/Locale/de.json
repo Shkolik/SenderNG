@@ -63,7 +63,6 @@
     "appSettings.axes.pivotHint": "Zwei Koordinaten: die beiden Richtungen senkrecht zur Achse. Die Koordinate entlang der Achse ist frei und wird nicht gespeichert.",
     "appSettings.axes.separation": "Abstand zwischen den Ebenen (Drahtlänge)",
     "appSettings.axes.separationHint": "Abstand zwischen den beiden Ebenen in Maschinenkoordinaten.",
-    "appSettings.axes.problems": "Probleme des Profils",
     "appSettings.axes.demoAxesHint": "Der Demo-Controller simuliert {0} Achsen, dieser Maschinentyp braucht aber {1} für zwei Ebenen — die zweite Ebene der Demo bleibt verborgen, bis die Anzahl im Verbindungsdialog erhöht wird.",
     "appSettings.axes.problem.axis.indexRange": "Achsenindex {0} liegt außerhalb des Bereichs 0–8.",
     "appSettings.axes.problem.axis.indexDuplicate": "Achsenindex {0} wird von mehr als einer Achse verwendet.",

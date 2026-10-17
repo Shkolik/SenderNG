@@ -262,8 +262,7 @@ public class DroViewModel : ViewModelBase
     /// shown as unknown linear axes above, and the operator hears about it exactly
     /// once — not on every status report this view consumes.
     /// <para>The text comes from the problem's <see cref="KinematicsProblem.Code"/>
-    /// through the same catalog mapping the machine-card editor uses
-    /// (<see cref="KinematicsProblemText"/>), not from the resolver's English
+    /// through <see cref="KinematicsProblemText"/>, not from the resolver's English
     /// developer message — this status line is a localized UI string.</para>
     /// </summary>
     private void WarnUndeclaredAxesOnce(MachineKinematics? kinematics)

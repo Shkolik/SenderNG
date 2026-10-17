@@ -36,8 +36,8 @@ using System.Globalization;
 namespace CNC.Core.Services;
 
 /// <summary>How serious a <see cref="KinematicsProblem"/> is. Errors mean the profile
-/// cannot be honoured as written and the editor must offer a fix; warnings are
-/// tolerated by consumers but worth showing (superset tolerance, a dead value).</summary>
+/// cannot be honoured as written; warnings are tolerated by consumers (superset
+/// tolerance, a dead value).</summary>
 public enum KinematicsSeverity
 {
     Warning,
@@ -45,9 +45,10 @@ public enum KinematicsSeverity
 }
 
 /// <summary>
-/// Stable problem codes. These are the contract the profile editor localizes on —
-/// <see cref="KinematicsProblem.Message"/> is the developer-facing English text and
-/// must not be parsed.
+/// Stable problem codes. Consumers key off these, not off the message;
+/// <see cref="KinematicsProblem.Message"/> is developer-facing English text and must
+/// not be parsed. <see cref="KinematicsProblemText"/> localizes the one code the UI
+/// surfaces (the DRO's undeclared-axes warning).
 /// </summary>
 public static class KinematicsProblemCodes
 {
@@ -81,8 +82,8 @@ public static class KinematicsProblemCodes
 
 /// <summary>
 /// One validation problem found while resolving a profile. Returned as <b>data</b>,
-/// never thrown: the profile editor renders the list and a hand-edited profile file
-/// must not crash the app.
+/// never thrown: consumers decide what to surface and a hand-edited profile file must
+/// not crash the app.
 /// </summary>
 /// <param name="Severity">Error (unusable as written) or warning (tolerated).</param>
 /// <param name="Code">One of <see cref="KinematicsProblemCodes"/> — the localizable key.</param>
@@ -102,8 +103,8 @@ public sealed record KinematicsProblem(
 /// <see cref="KinematicsProblem.Message"/>, which is developer-facing English — and
 /// that message is only the fallback for an absent locale service or a catalog missing
 /// the key, so a missing translation can never surface a raw key.
-/// <para>Shared by the profile editor's problem list and the DRO's one-time
-/// undeclared-axes warning so the two cannot drift into two mappings of one code.</para>
+/// <para>Used by the DRO's one-time undeclared-axes warning, so the code-to-sentence
+/// mapping has a single home.</para>
 /// </summary>
 public static class KinematicsProblemText
 {

@@ -1408,9 +1408,6 @@ public class MachineAxesEditorTests
     private static ProfileSettingsLeaf ProfilesLeafOf(AppSettingsViewModel vm) =>
         ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<ProfileSettingsLeaf>().Single();
 
-    private static string ProblemText(string code, int number) =>
-        Loc.T("appSettings.axes.problem." + code).Replace("{0}", number.ToString());
-
     [Fact]
     public void Adding_an_optional_axis_appends_a_removable_row_and_persists()
     {
@@ -1452,7 +1449,7 @@ public class MachineAxesEditorTests
     }
 
     [Fact]
-    public void Duplicate_index_surfaces_as_a_localized_problem()
+    public void Duplicate_index_reaches_the_resolver_as_an_error()
     {
         var (dir, settings) = MakeSettings();
         try
@@ -1460,50 +1457,15 @@ public class MachineAxesEditorTests
             var profile = settings.Load();
             var editor = CreateEditor(settings, profile.Id);
             editor.AddAxisCommand.Execute(null);
-            Assert.True(editor.IsValid); // control: a fresh optional axis is clean
+            Assert.True(editor.Kinematics.IsValid); // control: a fresh optional axis is clean
 
             editor.OptionalAxes[0].ApplyIndex(1); // plane slot 1 already uses index 1
 
-            Assert.False(editor.IsValid);
-            Assert.Contains(editor.Problems, p => p.IsError && p.Text == ProblemText("axis.indexDuplicate", 1));
-        }
-        finally
-        {
-            Directory.Delete(dir, recursive: true);
-        }
-    }
-
-    [Fact]
-    public void Problem_messages_follow_the_locale()
-    {
-        var (dir, settings) = MakeSettings();
-        try
-        {
-            var profile = settings.Load();
-            var editor = CreateEditor(settings, profile.Id);
-            editor.AddAxisCommand.Execute(null);
-            editor.OptionalAxes[0].ApplyIndex(0);
-
-            var english = editor.Problems.Single(p => p.IsError).Text;
-
-            if (!Loc.AvailableLocales.Contains("ru"))
-                return;
-            try
-            {
-                Loc.SetLocale("ru");
-                editor.Relocalize();
-
-                var russian = editor.Problems.Single(p => p.IsError).Text;
-                Assert.NotEqual(english, russian);
-                Assert.Equal(Loc.T("appSettings.axes.problem.axis.indexDuplicate").Replace("{0}", "0"), russian);
-                // No raw key ever leaks: a missing translation falls back to the resolver's
-                // English developer text, not to "appSettings.axes.problem.…".
-                Assert.DoesNotContain("appSettings.axes", russian, StringComparison.Ordinal);
-            }
-            finally
-            {
-                Loc.SetLocale("en");
-            }
+            Assert.False(editor.Kinematics.IsValid);
+            Assert.Contains(editor.Kinematics.Problems,
+                p => p.Severity == KinematicsSeverity.Error
+                     && p.Code == KinematicsProblemCodes.AxisIndexDuplicate
+                     && p.AxisIndex == 1);
         }
         finally
         {
@@ -1549,7 +1511,7 @@ public class MachineAxesEditorTests
             row.ApplyKind(AxisKind.Linear);
             Assert.Empty(row.Pivots);
             Assert.Null(row.Model.RotationOrigin);
-            Assert.True(editor.IsValid);
+            Assert.True(editor.Kinematics.IsValid);
         }
         finally
         {
@@ -1679,11 +1641,11 @@ public class MachineAxesEditorTests
 
             var editor = CreateEditor(settings, profile.Id);
 
-            Assert.False(editor.IsValid);
-            Assert.Contains(editor.Problems,
-                p => p.Text == ProblemText("rotary.originArity", 3));
-            Assert.Contains(editor.Problems,
-                p => p.Text == ProblemText("linear.originPresent", 4));
+            Assert.False(editor.Kinematics.IsValid);
+            Assert.Contains(editor.Kinematics.Problems,
+                p => p.Code == KinematicsProblemCodes.RotaryOriginArity && p.AxisIndex == 3);
+            Assert.Contains(editor.Kinematics.Problems,
+                p => p.Code == KinematicsProblemCodes.LinearOriginPresent && p.AxisIndex == 4);
 
             // Still editable, and the row shows the two inputs arity requires.
             var rotary = editor.OptionalAxes.Single(r => r.Index == 3);

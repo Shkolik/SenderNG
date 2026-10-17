@@ -63,7 +63,6 @@
     "appSettings.axes.pivotHint": "Deux coordonnées : les deux directions perpendiculaires à l'axe. La coordonnée le long de l'axe est libre et n'est pas stockée.",
     "appSettings.axes.separation": "Distance entre plans (longueur du fil)",
     "appSettings.axes.separationHint": "Distance entre les deux plans, en coordonnées machine.",
-    "appSettings.axes.problems": "Problèmes du profil",
     "appSettings.axes.demoAxesHint": "Le contrôleur de démonstration simule {0} axes, mais ce type de machine en nécessite {1} pour deux plans — le second plan de la démo reste masqué jusqu'à ce que le nombre soit augmenté dans la boîte de connexion.",
     "appSettings.axes.problem.axis.indexRange": "L'index d'axe {0} est hors de la plage 0–8.",
     "appSettings.axes.problem.axis.indexDuplicate": "L'index d'axe {0} est utilisé par plusieurs axes.",

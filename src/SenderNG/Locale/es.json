@@ -63,7 +63,6 @@
     "appSettings.axes.pivotHint": "Dos coordenadas: las dos direcciones perpendiculares al eje. La coordenada a lo largo del eje es libre y no se guarda.",
     "appSettings.axes.separation": "Distancia entre planos (longitud del hilo)",
     "appSettings.axes.separationHint": "Distancia entre los dos planos, en coordenadas de máquina.",
-    "appSettings.axes.problems": "Problemas del perfil",
     "appSettings.axes.demoAxesHint": "El controlador de demostración simula {0} ejes, pero este tipo de máquina necesita {1} para dos planos: el segundo plano de la demo permanece oculto hasta que se aumente el número en el diálogo de conexión.",
     "appSettings.axes.problem.axis.indexRange": "El índice de eje {0} está fuera del rango 0–8.",
     "appSettings.axes.problem.axis.indexDuplicate": "El índice de eje {0} lo usa más de un eje.",

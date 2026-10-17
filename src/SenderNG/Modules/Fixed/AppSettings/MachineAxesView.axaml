@@ -233,29 +233,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                        TextWrapping="Wrap" />
         </Border>
 
-        <!-- Validation: the resolver's invariants, as data. -->
-        <Border Background="#fff4f4" BorderBrush="#e0a0a0" BorderThickness="1" Padding="6"
-                IsVisible="{Binding HasProblems}">
-            <StackPanel Orientation="Vertical" Spacing="2">
-                <TextBlock Text="{loc:Loc appSettings.axes.problems}" FontSize="11"
-                           FontWeight="SemiBold" Foreground="#a33" />
-                <ItemsControl ItemsSource="{Binding Problems}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:MachineAxisProblem">
-                            <Grid ColumnDefinitions="12,*">
-                                <TextBlock Grid.Column="0" Text="!" FontSize="11" FontWeight="Bold"
-                                           Foreground="#c00" IsVisible="{Binding IsError}" />
-                                <TextBlock Grid.Column="0" Text="·" FontSize="12" FontWeight="Bold"
-                                           Foreground="#b8860b" IsVisible="{Binding IsWarning}" />
-                                <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="11"
-                                           Foreground="#822" TextWrapping="Wrap" />
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
-        </Border>
-
         <!-- One block per plane, in machine order (the picture's columns). -->
         <ItemsControl ItemsSource="{Binding Planes}">
             <ItemsControl.ItemTemplate>

@@ -452,7 +452,7 @@ public class DroKinematicsTests : IDisposable
     {
         // The resolver's Message is English developer text (KinematicsProblem.Message);
         // the DRO is a localized UI, so its status must be the catalog sentence for the
-        // problem's Code — the same mapping the machine-card editor renders. Run in a
+        // problem's Code — the mapping KinematicsProblemText provides. Run in a
         // real non-English locale so an English string reaching the status is visible.
         var settings = MakeSettings(withRotaryAxis: false);
         var subject = new BehaviorSubject<MachineState>(
