@@ -438,36 +438,6 @@ public class GlPlotSceneChromeTests
         Assert.All(VertexOffsets(high), o => Assert.Equal(20.5f, high[o]));
     }
 
-    /// <summary>The grid is seat on the far side of the model from the current
-    /// eye, so it never stands between the camera and the work. This is not a
-    /// fixed default-eye rule: the same machine's X-normal floor moves to the
-    /// opposite end when the YZ snap looks from +X.</summary>
-    [Theory]
-    // Default ISO eye (-1,-1,+1): X/Y floors go to the high end, Z stays low.
-    [InlineData(0, 1, -1, -1)]
-    [InlineData(0, -1, -1, -1)]
-    [InlineData(1, 1, -1, -1)]
-    [InlineData(1, -1, -1, -1)]
-    [InlineData(2, 1, 1, 1)]
-    [InlineData(2, -1, 1, 1)]
-    // YZ snap looks from +X: the X-normal floor must move to X-min.
-    [InlineData(0, 1, 1, 1)]
-    [InlineData(0, -1, 1, 1)]
-    // A view straight along the normal has no near side: keep the machine sign.
-    [InlineData(1, 1, 0, 1)]
-    [InlineData(1, -1, 0, -1)]
-    public void The_grid_is_placed_on_the_side_away_from_the_eye(
-        int normalAxis, int normalSign, int eyeComponent, int expected)
-    {
-        var eye = normalAxis switch
-        {
-            0 => new Vector3(eyeComponent, 0, 0),
-            1 => new Vector3(0, eyeComponent, 0),
-            _ => new Vector3(0, 0, eyeComponent),
-        };
-        Assert.Equal(expected, GlPlotScene.GridSignForCamera(normalAxis, normalSign, eye));
-    }
-
     /// <summary>The grid spans the two world axes around its normal — the
     /// YZ-plane grid covers the bounds' Y and Z extents, not X's.</summary>
     [Fact]

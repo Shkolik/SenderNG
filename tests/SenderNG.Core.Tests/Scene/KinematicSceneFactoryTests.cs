@@ -159,6 +159,13 @@ public class KinematicSceneFactoryTests
         Assert.Equal(2, points.Length);
         Assert.Equal(new Vector3(0, 0, 12.5f), points[0]);
         Assert.Equal(new Vector3(0, 0, -12.5f), points[1]);
+
+        // The factory also hands the scene the display-only half turn that
+        // moves this X-normal floor behind the fixed ISO eye (X and Z flip).
+        var rotation = fake.LastSceneRotation;
+        Assert.Equal(-1f, Vector3.TransformNormal(Vector3.UnitX, rotation).X, 4);
+        Assert.Equal(1f, Vector3.TransformNormal(Vector3.UnitY, rotation).Y, 4);
+        Assert.Equal(-1f, Vector3.TransformNormal(Vector3.UnitZ, rotation).Z, 4);
     }
 
     /// <summary>A rotary axis is never a plane slot, so it must not conjure a
@@ -371,6 +378,7 @@ public sealed class FakePlotScene : IPlotScene
     public List<ToolShape> ToolShapes { get; } = [];
     public List<(Vector3 Pos, Vector3 Direction, string Letter)> LastChromeArrows { get; private set; } = [];    public int LastGridNormalAxis { get; private set; } = -1;
     public int LastGridNormalSign { get; private set; }
+    public Matrix4x4 LastSceneRotation { get; private set; } = Matrix4x4.Identity;
     public bool Disposed { get; private set; }
 
     public void SetViewPreset(ViewPreset preset) { }
@@ -393,6 +401,7 @@ public sealed class FakePlotScene : IPlotScene
     }
 
     public void AddAxisArrows(IReadOnlyList<(Vector3 Pos, Vector3 Direction, string Letter)> arrows) { }
+    public void SetSceneRotation(Matrix4x4 rotation) => LastSceneRotation = rotation;
     public void SetGrid(BoundingBox bounds, double minor, double major) { }
     public void SetOrigin(Vector3 origin) { }
     public void SetJobEnvelope(BoundingBox box) { }

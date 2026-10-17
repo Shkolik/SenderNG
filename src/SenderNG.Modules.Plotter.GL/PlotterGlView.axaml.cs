@@ -42,6 +42,7 @@ using Avalonia.Input;
 using Vector2 = System.Numerics.Vector2;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
@@ -76,6 +77,9 @@ public partial class PlotterGlView : UserControl
 
     private PlotterGlViewModel? _vm;
     private GlPlotScene? _scene;
+
+    // Per-plane origin labels, created on demand and repositioned every tick.
+    private readonly List<TextBlock> _planeLabels = [];
     // The context _scene renders on; nulled by FreeRenderResources on detach
     // (the tick gates on it — see EnableTick).
     private GlContext? _gl;
@@ -229,10 +233,34 @@ public partial class PlotterGlView : UserControl
         {
             if (_overlayToggles is not null)
                 _overlayToggles.PropertyChanged -= OnOverlayToggleChanged;
+
+            // Capture the stored state BEFORE the DataContext swap: a
+            // ToggleButton created with IsChecked=false can push that default
+            // through its two-way binding as soon as the new DataContext
+            // attaches, turning a persisted "grid on" into "grid off". Restore
+            // the captured values (and the buttons) before pushing to the scene.
+            var showGrid = value?.ShowGrid ?? true;
+            var showOrigin = value?.ShowOrigin ?? true;
+            var showEnvelope = value?.ShowEnvelope ?? true;
+            var showRunState = value?.ShowRunState ?? true;
+            var showLoft = value?.ShowLoft ?? true;
+
             _overlayToggles = value;
             OverlayViewToggles.DataContext = value;
             if (_overlayToggles is not null)
+            {
+                _overlayToggles.ShowGrid = showGrid;
+                _overlayToggles.ShowOrigin = showOrigin;
+                _overlayToggles.ShowEnvelope = showEnvelope;
+                _overlayToggles.ShowRunState = showRunState;
+                _overlayToggles.ShowLoft = showLoft;
+                GridToggle.IsChecked = showGrid;
+                OriginToggle.IsChecked = showOrigin;
+                EnvelopeToggle.IsChecked = showEnvelope;
+                RunStateToggle.IsChecked = showRunState;
+                LoftToggle.IsChecked = showLoft;
                 _overlayToggles.PropertyChanged += OnOverlayToggleChanged;
+            }
             PushOverlayState();
         }
     }
@@ -501,6 +529,8 @@ public partial class PlotterGlView : UserControl
         _vm?.ReleaseScene();
         _bitmap = null;
         GpuImage.Source = null;
+        PlaneLabelLayer.Children.Clear();
+        _planeLabels.Clear();
         _readbackTicks = 0;
     }
 
@@ -605,6 +635,7 @@ public partial class PlotterGlView : UserControl
         // user points at, not the supersampled render target.
         scene.SetViewportSize((int)r.PanelW, (int)r.PanelH);
         UpdateZoomLabel(scene);
+        UpdatePlaneLabels(wDip, hDip);
         if (_gl is null)
             return;
         _wPx = r.PanelW;
@@ -676,6 +707,57 @@ public partial class PlotterGlView : UserControl
         ZoomPctText.Text = $"{pct:0}%";
         if (!ZoomPctText.IsVisible)
             ZoomPctText.IsVisible = true;
+    }
+
+    /// <summary>Create/reposition the per-plane origin labels. Each label is
+    /// anchored at its plane's local (0,0), projected through the same view
+    /// projection as the frame (scene rotation included), so it follows orbit,
+    /// pan and zoom. Hidden when the origin toggle is off or no geometry is
+    /// loaded.</summary>
+    private void UpdatePlaneLabels(double wDip, double hDip)
+    {
+        var vm = _vm;
+        var scene = _scene;
+        var show = vm is not null && scene is not null && vm.HasGeometry
+                   && (_overlayToggles?.ShowOrigin ?? true);
+        var count = show ? vm!.PlaneCount : 0;
+
+        while (_planeLabels.Count < count)
+        {
+            var label = new TextBlock
+            {
+                FontSize = 11,
+                FontWeight = FontWeight.SemiBold,
+                Foreground = Brushes.Black,
+                Background = new SolidColorBrush(Color.FromArgb(170, 255, 255, 255)),
+                Padding = new Thickness(2, 0),
+                IsHitTestVisible = false,
+            };
+            PlaneLabelLayer.Children.Add(label);
+            _planeLabels.Add(label);
+        }
+
+        for (var i = 0; i < _planeLabels.Count; i++)
+        {
+            var label = _planeLabels[i];
+            if (i >= count
+                || !scene!.TryProjectToPanel(vm!.PlaneOriginWorld(i), wDip, hDip, out var px))
+            {
+                label.IsVisible = false;
+                continue;
+            }
+
+            if (px.X < -40 || px.X > wDip + 40 || px.Y < -20 || px.Y > hDip + 20)
+            {
+                label.IsVisible = false;
+                continue;
+            }
+
+            label.Text = $"{i + 1}: {vm.PlaneLettersFor(i)}";
+            Canvas.SetLeft(label, Math.Clamp(px.X + 6, 4, Math.Max(4, wDip - 70)));
+            Canvas.SetTop(label, Math.Clamp(px.Y + 4, 4, Math.Max(4, hDip - 18)));
+            label.IsVisible = true;
+        }
     }
 
     private float PxScale() => (float)(TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0);

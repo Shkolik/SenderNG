@@ -85,6 +85,13 @@ public interface IPlotScene : IDisposable
         IReadOnlyList<(Vector3 Pos, Vector3 Direction, string Letter)> arrows,
         int gridNormalAxis, int gridNormalSign);
 
+    /// <summary>Display-only rotation applied to the whole scene about the
+    /// camera target. The machine model and its coordinates are untouched; this
+    /// only reorients what is drawn, so a machine whose floor would sit in front
+    /// of the work can be viewed from a usable angle without moving the camera.
+    /// <see cref="Matrix4x4.Identity"/> is the no-op.</summary>
+    void SetSceneRotation(Matrix4x4 rotation);
+
     /// <summary>Add axis arrows with labels to the scene.</summary>
     void AddAxisArrows(IReadOnlyList<(Vector3 Pos, Vector3 Direction, string Letter)> arrows);
 

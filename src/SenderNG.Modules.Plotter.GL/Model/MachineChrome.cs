@@ -56,11 +56,10 @@ namespace SenderNG.Modules.Plotter.GL.Model;
 /// two-slot topology is driven by the Height-role axis (world Z; with no such
 /// axis, the Width-role axis instead). The sign is the driving axis's own: an
 /// inverted axis puts the machine's floor at the opposite end (its values run
-/// downward), so the grid end and the plunge both flip with it. This is the
-/// machine's own orientation; the scene re-seats the drawn floor on the side
-/// away from the current eye when those disagree
-/// (<c>GlPlotScene.GridSignForCamera</c>), so a vertical Y- or X-normal grid
-/// never stands between the camera and the work;</item>
+/// downward), so the grid end and the plunge both flip with it. This stays
+/// the machine's own orientation; a machine whose grid would otherwise stand
+/// between the fixed ISO eye and the work is drawn through a display-only
+/// scene rotation instead (<see cref="PlotSceneRotation"/>);</item>
 /// <item><see cref="PlungeDirection"/> — the single-point (mill) tool cone's
 /// opening direction: toward the spindle along the driving axis (the mill's
 /// perpendicular slot, else Height), flipped for an inverted one.</item>

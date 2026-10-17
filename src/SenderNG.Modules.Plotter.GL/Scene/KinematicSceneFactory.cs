@@ -76,6 +76,10 @@ public sealed class KinematicSceneFactory : ISceneFactory
         // the grid plane follows the Height-role axis with its sign.
         var chrome = MachineChrome.For(kinematics);
         _scene.SetMachineChrome(chrome.Arrows, chrome.GridNormalAxis, chrome.GridNormalSign);
+        // A machine whose floor would otherwise stand between the fixed ISO eye
+        // and the work is drawn through a display-only scene rotation; the
+        // machine model, its coordinates and this camera stay untouched.
+        _scene.SetSceneRotation(PlotSceneRotation.For(kinematics, chrome.GridNormalAxis));
 
         // Real topology, not an inference: the machine model already says how
         // many planes exist. A rotary axis is never a plane slot (it lives in

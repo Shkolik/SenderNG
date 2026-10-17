@@ -114,6 +114,7 @@ public class PlotSceneAbstractionTests
         public void SetMachineChrome(
             IReadOnlyList<(Vector3 Pos, Vector3 Direction, string Letter)> arrows,
             int gridNormalAxis, int gridNormalSign) { }
+        public void SetSceneRotation(Matrix4x4 rotation) { }
         public void AddAxisArrows(IReadOnlyList<(Vector3 Pos, Vector3 Direction, string Letter)> arrows) { }
         public void SetGrid(BoundingBox bounds, double minor, double major) { }
         public void SetOrigin(Vector3 origin) { }

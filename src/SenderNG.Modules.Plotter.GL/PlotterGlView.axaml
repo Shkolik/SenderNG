@@ -197,7 +197,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                 HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"
                                 x:Name="OverlayViewToggles">
 						<!-- Grid (3D Isometric Floor Grid) -->
-						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowGridLabel}" IsChecked="{Binding ShowGrid}">
+						<ToggleButton x:Name="GridToggle" Classes="navBtn" ToolTip.Tip="{Binding ShowGridLabel}" IsChecked="{Binding ShowGrid}">
 							<Path Width="16" Height="16" Stretch="Uniform"
 								  HorizontalAlignment="Center" VerticalAlignment="Center"
 								  Stroke="{Binding $parent[ToggleButton].Foreground}"
@@ -206,7 +206,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 						</ToggleButton>
 						
 						<!-- Origin (3D Isometric Axes) -->
-						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowOriginLabel}" IsChecked="{Binding ShowOrigin}">
+						<ToggleButton x:Name="OriginToggle" Classes="navBtn" ToolTip.Tip="{Binding ShowOriginLabel}" IsChecked="{Binding ShowOrigin}">
 							<Path Width="16" Height="16" Stretch="Uniform"
 								  HorizontalAlignment="Center" VerticalAlignment="Center"
 								  Stroke="{Binding $parent[ToggleButton].Foreground}"
@@ -215,7 +215,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 						</ToggleButton>
 
 						<!-- Envelope (3D Isometric Bounding Box) -->
-						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowEnvelopeLabel}" IsChecked="{Binding ShowEnvelope}">
+						<ToggleButton x:Name="EnvelopeToggle" Classes="navBtn" ToolTip.Tip="{Binding ShowEnvelopeLabel}" IsChecked="{Binding ShowEnvelope}">
 							<Path Width="16" Height="16" Stretch="Uniform"
 								  HorizontalAlignment="Center" VerticalAlignment="Center"
 								  Stroke="{Binding $parent[ToggleButton].Foreground}"
@@ -224,7 +224,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 						</ToggleButton>
 
 						<!-- Run State (Play Icon) -->
-						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowRunStateLabel}" IsChecked="{Binding ShowRunState}">
+						<ToggleButton x:Name="RunStateToggle" Classes="navBtn" ToolTip.Tip="{Binding ShowRunStateLabel}" IsChecked="{Binding ShowRunState}">
 							<Path Width="16" Height="16" Stretch="Uniform"
 								  HorizontalAlignment="Center" VerticalAlignment="Center"
 								  Stroke="{Binding $parent[ToggleButton].Foreground}"
@@ -234,7 +234,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 						<!-- Loft (the sheet between the carriage planes — hidden on
 						     single-plane machines, which have no sheet to show) -->
-						<ToggleButton Classes="navBtn" ToolTip.Tip="{Binding ShowLoftLabel}" IsChecked="{Binding ShowLoft}" IsVisible="{Binding HasLoft}">
+						<ToggleButton x:Name="LoftToggle" Classes="navBtn" ToolTip.Tip="{Binding ShowLoftLabel}" IsChecked="{Binding ShowLoft}" IsVisible="{Binding HasLoft}">
 							<Path Width="16" Height="16" Stretch="Uniform"
 								  HorizontalAlignment="Center" VerticalAlignment="Center"
 								  Stroke="{Binding $parent[ToggleButton].Foreground}"
@@ -266,6 +266,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         </StackPanel>
                     </StackPanel>
                 </Panel>
+
+                <!-- Per-plane origin labels ("1: XY", "2: ZA") projected from
+                     each plane's local (0,0) through the same view-projection
+                     the frame uses. Positioned by the tick; never hit-testable,
+                     so drag/wheel/click still reach PlotInput beneath it. -->
+                <Canvas x:Name="PlaneLabelLayer" IsHitTestVisible="False" />
             </Panel>
 
             <!-- Fallback shown when no GL context could be created. Both Text

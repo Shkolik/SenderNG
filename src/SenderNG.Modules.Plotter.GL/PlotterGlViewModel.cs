@@ -170,8 +170,25 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
     /// the controller's letters, so a bug-report foam layout's plane 2 reads
     /// "AZ" rather than a sorted "ZA".</summary>
     public string PlaneLettersText => string.Join(" | ", _machine.Planes
-        .Select((_, p) => new string(
-            _machine.PlaneIndices(p).Select(_machine.LetterFor).ToArray())));
+        .Select((_, p) => PlaneLettersFor(p)));
+
+    /// <summary>One plane's display letters in plane order ("XY", "ZA").</summary>
+    internal string PlaneLettersFor(int plane) => plane >= 0 && plane < _machine.Planes.Count
+        ? new string(_machine.PlaneIndices(plane).Select(_machine.LetterFor).ToArray())
+        : string.Empty;
+
+    /// <summary>The plane's local (0,0) in world space, before the scene's
+    /// display rotation — where the view anchors that plane's letter label.
+    /// A zero machine position maps through the plane's placement and slot
+    /// order, so the point sits on the plane's own origin whatever its axes.</summary>
+    internal Vector3 PlaneOriginWorld(int plane)
+    {
+        if (plane < 0 || plane >= _machine.Planes.Count)
+            return Vector3.Zero;
+        var zero = new double[9];
+        return PlaneWorldMapper.ToWorld(
+            PlacementForPlane(plane), zero, PlaneAxisIndices(plane), _machine.WorldAxesFor(plane));
+    }
 
     /// <summary>The resolved kinematics this view model is drawing (diagnostics
     /// and the tests' handle on the plane layout).</summary>

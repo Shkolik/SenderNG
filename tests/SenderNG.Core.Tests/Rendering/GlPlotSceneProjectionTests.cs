@@ -92,4 +92,20 @@ public class GlPlotSceneProjectionTests
         scene.SetViewPreset(ViewPreset.XY);
         Assert.False(scene.ActiveCamera.IsPerspective);
     }
+
+    /// <summary>The label projection shares the frame's view-projection: the
+    /// camera target lands at the panel centre, so a plane origin label sits on
+    /// its plane. Scene rotation is applied about that same target.</summary>
+    [GlFact]
+    public void Target_projects_to_the_panel_centre()
+    {
+        using var ctx = GlContext.Create();
+        using var scene = new GlPlotScene(ctx);
+        scene.SetViewportSize(200, 100);
+        scene.SetViewPreset(ViewPreset.Isometric3D);
+
+        Assert.True(scene.TryProjectToPanel(Vector3.Zero, 200, 100, out var px));
+        Assert.Equal(100f, px.X, 2);
+        Assert.Equal(50f, px.Y, 2);
+    }
 }

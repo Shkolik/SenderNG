@@ -86,6 +86,13 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     // to orthographic and nothing else ever flips the flag, which left the ISO
     // preset projecting ortho with a stray width (review Important #1).
     private readonly GlCamera _persp = new() { IsPerspective = true };
+
+    /// <summary>Display-only rotation applied to the whole scene about the
+    /// camera target — the machine frame is untouched, only what is drawn.
+    /// Set by <see cref="Scene.ISceneFactory"/> from
+    /// <c>PlotSceneRotation.For</c>; identity until a machine asks for one.</summary>
+    private Matrix4x4 _sceneRotation = Matrix4x4.Identity;
+
     private GlCamera _active = null!;
     private bool _perspectiveActive;
     private ViewPreset _lastPreset = ViewPreset.Isometric3D;
@@ -414,6 +421,44 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             layer.SetRunStateVisible(ShowRunState);
     }
 
+    /// <inheritdoc/>
+    public void SetSceneRotation(Matrix4x4 rotation) => _sceneRotation = rotation;
+
+    /// <summary>The view matrix with the display-only scene rotation applied
+    /// about the camera target, so the content stays framed and only its
+    /// orientation (and the grid's side) changes.</summary>
+    private Matrix4x4 SceneView()
+    {
+        var view = _active.View();
+        if (_sceneRotation == Matrix4x4.Identity)
+            return view;
+        var t = _active.Target;
+        return Matrix4x4.CreateTranslation(-t)
+               * _sceneRotation
+               * Matrix4x4.CreateTranslation(t)
+               * view;
+    }
+
+    /// <summary>Project a world point the same way <see cref="RenderFrame"/>
+    /// does (scene rotation included) into panel DIP pixels, for the 2D plane
+    /// labels the view overlays. False when the point is at or behind the eye.
+    /// </summary>
+    internal bool TryProjectToPanel(Vector3 world, double panelW, double panelH, out Vector2 px)
+    {
+        px = default;
+        if (_active is null || panelW <= 0 || panelH <= 0)
+            return false;
+        var vp = SceneView() * _active.Projection((float)panelW, (float)panelH);
+        var clip = Vector4.Transform(new Vector4(world, 1f), vp);
+        if (clip.W <= 1e-5f)
+            return false;
+        var ndc = new Vector3(clip.X, clip.Y, clip.Z) / clip.W;
+        px = new Vector2(
+            (ndc.X + 1f) * 0.5f * (float)panelW,
+            (1f - ndc.Y) * 0.5f * (float)panelH);
+        return true;
+    }
+
     /// <summary>Pump the carriage planes' staging into their dynamic buffers
     /// (called at the apply cadence, not every tick). Each layer decides for
     /// itself whether its <see cref="RebuildGate"/> grants an upload. The pump
@@ -485,10 +530,10 @@ internal sealed unsafe class GlPlotScene : IPlotScene
                 // Skia's iso projector exactly: X -> right/down, Y -> left/down,
                 // Z -> straight up. The camera offset must be -normalize(1,1,-1)
                 // (front-upper corner); +normalize(1,1,-1) looks from underneath.
-                // The floor grid is NOT forced to the camera's side to avoid
-                // occlusion — SetGrid places it at the far end of its normal axis
-                // instead (see GridSignForCamera), which keeps this view's axis
-                // orientation intact.
+                // The default eye stays here; a machine that would otherwise
+                // show its floor in front of the work gets a scene rotation
+                // (PlotSceneRotation), not a different eye, so these screen
+                // directions do not mirror.
                 _persp.Position = center
                     + Vector3.Normalize(new Vector3(-1f, -1f, 1f)) * (radius * 2.2f);
                 _persp.Target = center;
@@ -499,12 +544,6 @@ internal sealed unsafe class GlPlotScene : IPlotScene
                 break;
         }
 
-        // A snap view changes which end of the grid's normal axis is "behind"
-        // the camera, so re-seat the already-built floor on the new far side.
-        // Without this, the EDM's X-normal floor would fill the YZ view from
-        // the near side (the ISO view's far side is that view's near side).
-        if (_hasGridBounds)
-            SetGrid(_gridBounds, _gridMinorStep, _gridMajorStep);
     }
 
     /// <inheritdoc/>
@@ -641,50 +680,13 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     public void SetGrid(BoundingBox bounds, double minor, double major)
     {
         var (minorVerts, majorVerts) = BuildGridLines(
-            bounds, minor, major, _gridNormalAxis,
-            GridSignForCamera(_gridNormalAxis, _gridNormalSign, ActiveEyeOffset));
+            bounds, minor, major, _gridNormalAxis, _gridNormalSign);
         _gridMinor.Upload(minorVerts);
         _gridMajor.Upload(majorVerts);
         _gridBounds = bounds;
         _gridMinorStep = minor;
         _gridMajorStep = major;
         _hasGridBounds = true;
-    }
-
-    /// <summary>The eye's offset from the target, or the default ISO eye before
-    /// the first <see cref="SetViewPreset"/> (the constructor builds the empty
-    /// chrome first).</summary>
-    private Vector3 ActiveEyeOffset =>
-        _active is null ? new Vector3(-1f, -1f, 1f) : _active.Position - _active.Target;
-
-    /// <summary>
-    /// The grid sign that puts the floor plane on the side of the model
-    /// <b>away</b> from the camera, so the grid never sits between the eye and
-    /// the work. <see cref="BuildGridLines"/> places the grid on the low end of
-    /// its normal axis for a positive sign and on the high end for a negative
-    /// one, so the sign is simply the sign of the eye's component along that
-    /// axis: an eye above the model (+Z) keeps the floor below it, an eye on
-    /// the negative X side puts an X-normal grid at X-max.
-    /// <para>This is recomputed on every snap view because "behind" changes
-    /// with the eye: the EDM's X-normal floor that sits behind the default ISO
-    /// view would fill the YZ view from the near side if it kept the same end.
-    /// A view looking straight along the grid's normal has no near side; it
-    /// keeps the machine's own sign (the grid is edge-on there).</para>
-    /// </summary>
-    internal static int GridSignForCamera(int normalAxis, int normalSign, Vector3 eyeOffset)
-    {
-        var eyeComponent = normalAxis switch
-        {
-            0 => eyeOffset.X,
-            1 => eyeOffset.Y,
-            _ => eyeOffset.Z,
-        };
-        // + eye => camera on the high side: grid low (+1). − eye => grid high.
-        if (eyeComponent > 0f)
-            return 1;
-        if (eyeComponent < 0f)
-            return -1;
-        return normalSign;
     }
 
     /// <summary>The grid's line vertices, split minor/major the way
@@ -968,7 +970,7 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _sawConeDraw = false;
         _frameRtW = rtW;
         _frameRtH = rtH;
-        var view = _active.View();
+        var view = SceneView();
         var proj = _active.Projection(rtW, rtH);
         _hasInvViewProj = Matrix4x4.Invert(view * proj, out _invViewProj);
         DrawChrome(view * proj, rtW, rtH);
