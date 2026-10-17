@@ -115,6 +115,13 @@ internal sealed unsafe class GlPlotTool : IPlotTool, IDisposable
         set => _shape = value;
     }
 
+    /// <summary>The single-endpoint (mill) cone's opening direction — the
+    /// machine's plunge: toward the spindle, flipped when the height axis is
+    /// inverted. Default +Z, which is the identity rotation (the pre-plunge
+    /// behavior). Two-point (foam) tools draw along-the-wire cones and
+    /// ignore this.</summary>
+    public Vector3 PlungeDirection { get; set; } = Vector3.UnitZ;
+
     /// <summary>Primary cone model matrix (scale, aim, place — row-vector
     /// <c>v * S * R * T</c>) — the matrix <see cref="Draw"/> pushes as the
     /// cone's MVP, and the internal read seam the orientation tests assert
@@ -159,8 +166,16 @@ internal sealed unsafe class GlPlotTool : IPlotTool, IDisposable
             _secondConeVisible = false;
             _parked = pts.Length == 0;
             var p = pts.Length == 1 ? pts[0] : Vector3.Zero;
+            // The single cone opens along the machine's plunge so it hangs
+            // toward the spindle — identity for the default +Z, flipped for an
+            // inverted height axis. The rotation precedes the placement
+            // (row-vector v * S * R * T).
+            var plunge = PlungeDirection.LengthSquared() > 1e-12f
+                ? PlungeDirection
+                : Vector3.UnitZ;
             ModelMatrix = Matrix4x4.CreateScale(_meshScale)
-                * Matrix4x4.CreateTranslation(p);       // identity rotation (Quaternion.Identity)
+                * Matrix4x4.CreateFromQuaternion(ConeOrientation.FromUnitZTo(plunge))
+                * Matrix4x4.CreateTranslation(p);
             ModelMatrixB = Matrix4x4.Identity;
             // Only re-stage the wire when the value changed. Idle polls call
             // UpdatePosition with the same endpoints tens of times a second;

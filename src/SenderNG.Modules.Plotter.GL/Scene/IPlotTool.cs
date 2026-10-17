@@ -34,6 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Numerics;
 using SenderNG.Modules.Common.Render;
 
 namespace SenderNG.Modules.Plotter.GL.Scene;
@@ -46,4 +47,10 @@ public interface IPlotTool : IDisposable
 
     /// <summary>Gets or sets the tool shape.</summary>
     ToolShape Shape { get; set; }
+
+    /// <summary>The single-point (mill) cone's opening direction — the
+    /// machine's plunge: toward the spindle, along +Height normally and
+    /// flipped when the height axis is inverted. Two-point (foam) tools keep
+    /// their along-the-wire cones and ignore this. Default +Z (world up).</summary>
+    Vector3 PlungeDirection { get; set; }
 }

@@ -161,7 +161,7 @@ public class GlColourParityTests
 
         // ---- the Z axis cone: CAD + ACES against the mesh's normal set ----
         var (tip, rotation, scale) = GlPlotScene.AxisConeTransform(
-            "Z", Vector3.Zero, AxisShaftLength());
+            Vector3.UnitZ, Vector3.Zero, AxisShaftLength());
         var model = Matrix4x4.CreateScale(scale)
             * Matrix4x4.CreateFromQuaternion(rotation)
             * Matrix4x4.CreateTranslation(tip);

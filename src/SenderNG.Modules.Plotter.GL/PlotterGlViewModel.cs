@@ -378,8 +378,9 @@ public sealed class PlotterGlViewModel : INotifyPropertyChanged, IDisposable
     });
 
     /// <summary>The per-plane world placements for a resolved machine: plane
-    /// <c>p</c> sits at the machine's separation on the world axis its slots do
-    /// not span (world Z for a two-slot tower), plane 0 at the origin. Read
+    /// <c>p</c> sits at the machine's separation split around the origin
+    /// (±separation/2 per tower) on the world axis its slots do not span, so
+    /// machine zero at 0,0,0,0 lies mid-wire at the scene centre. Read
     /// through <see cref="PlaneWorldMapper.PlacementFor"/>, the one place that
     /// rule lives, so the scene, the tool and the loft cannot disagree.</summary>
     private static Vector3[] ResolvePlacements(MachineKinematics machine) =>

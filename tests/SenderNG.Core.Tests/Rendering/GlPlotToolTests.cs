@@ -187,6 +187,26 @@ public class GlPlotToolTests
         Assert.False(tool.WireUploadPending);
     }
 
+    /// <summary>An inverted height axis hands the tool a flipped plunge: the
+    /// single-point cone must open along it, apex still on the point.</summary>
+    [GlFact]
+    public void Single_point_cone_opens_along_the_plunge_direction()
+    {
+        using var ctx = GlContext.Create();
+        using var scene = new GlPlotScene(ctx);
+        var tool = (GlPlotTool)scene.CreateTool(ToolShape.Cone);
+
+        Assert.Equal(Vector3.UnitZ, tool.PlungeDirection);            // default: +Z, identity
+
+        tool.PlungeDirection = -Vector3.UnitZ;
+        var p = new Vector3(1f, 2f, 3f);
+        tool.UpdatePosition(new Endpoint(new[] { p }));
+
+        Assert.True(Vector3.Distance(MappedDirection(tool.ModelMatrix), -Vector3.UnitZ) < 1e-4f);
+        var apex = Vector3.Transform(Vector3.Zero, tool.ModelMatrix);
+        Assert.True(Vector3.Distance(apex, p) < 1e-4f, "the apex stays on the point");
+    }
+
     /// <summary>Local +Z direction of a cone model matrix, translation
     /// removed — the matrix form of <c>Vector3.Transform(UnitZ, q)</c>.</summary>
     private static Vector3 MappedDirection(Matrix4x4 m) =>

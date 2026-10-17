@@ -77,8 +77,16 @@ public interface IPlotScene : IDisposable
     /// reseed the fit zoom (and return to the iso angle in 3D).</summary>
     void Reframe();
 
+    /// <summary>Set the machine-letter chrome: the gnomon arrows (position,
+    /// world direction and the letter that colors them) and the grid plane's
+    /// normal world axis + sign. Stored — every chrome build (empty and
+    /// content states alike) draws from it.</summary>
+    void SetMachineChrome(
+        IReadOnlyList<(Vector3 Pos, Vector3 Direction, string Letter)> arrows,
+        int gridNormalAxis, int gridNormalSign);
+
     /// <summary>Add axis arrows with labels to the scene.</summary>
-    void AddAxisArrows(IReadOnlyList<(Vector3 Pos, string Label)> arrows);
+    void AddAxisArrows(IReadOnlyList<(Vector3 Pos, Vector3 Direction, string Letter)> arrows);
 
     /// <summary>Configure the grid with minor/major spacing over the given bounds.</summary>
     void SetGrid(BoundingBox bounds, double minor, double major);

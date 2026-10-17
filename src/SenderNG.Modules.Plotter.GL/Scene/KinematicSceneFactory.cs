@@ -71,6 +71,12 @@ public sealed class KinematicSceneFactory : ISceneFactory
         _tool = null;
         _loft = null;
 
+        // The chrome speaks the machine's own letters: the gnomon is recolored
+        // and repositioned (between the towers on a multi-plane machine), and
+        // the grid plane follows the Height-role axis with its sign.
+        var chrome = MachineChrome.For(kinematics);
+        _scene.SetMachineChrome(chrome.Arrows, chrome.GridNormalAxis, chrome.GridNormalSign);
+
         // Real topology, not an inference: the machine model already says how
         // many planes exist. A rotary axis is never a plane slot (it lives in
         // OptionalAxes), so it cannot conjure a layer or a loft here.
@@ -82,14 +88,16 @@ public sealed class KinematicSceneFactory : ISceneFactory
             _loft = _scene.AddLoftSurface();
 
         _tool = _scene.CreateTool(ToolShape.Cone);
+        _tool.PlungeDirection = chrome.PlungeDirection;
 
         if (planes >= 2)
         {
-            // The placeholder wire spans the two planes' placements — the
-            // separation on the world axis the planes do not span (world X for a
-            // foam tower, whose Length × Height plane is vertical) — so the tool
-            // starts on the machine and not on an invented diagonal. Live pose
-            // updates replace it immediately.
+            // The placeholder wire spans the two planes' symmetric placements
+            // — ±half the separation about the origin, on the world axis the
+            // planes do not span (world X for a foam tower, whose
+            // Length × Height plane is vertical) — so machine zero at 0,0,0,0
+            // starts mid-wire at the scene centre and not on an invented
+            // diagonal. Live pose updates replace it immediately.
             var second = PlaneWorldMapper.PlacementFor(kinematics, 1);
             _tool.UpdatePosition(new Endpoint([PlaneWorldMapper.PlacementFor(kinematics, 0), second]));
         }

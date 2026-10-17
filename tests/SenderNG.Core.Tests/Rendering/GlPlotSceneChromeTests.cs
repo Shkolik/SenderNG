@@ -63,7 +63,12 @@ public class GlPlotSceneChromeTests
         scene.SetViewportSize(256, 256);
         scene.SetViewPreset(ViewPreset.Isometric3D);
         scene.SetGrid(new BoundingBox(-50, -50, -1, 50, 50, 1), 10, 50);
-        scene.AddAxisArrows([(Vector3.Zero, "X"), (Vector3.Zero, "Y"), (Vector3.Zero, "Z")]);
+        scene.AddAxisArrows(
+        [
+            (Vector3.Zero, Vector3.UnitX, "X"),
+            (Vector3.Zero, Vector3.UnitY, "Y"),
+            (Vector3.Zero, Vector3.UnitZ, "Z"),
+        ]);
         scene.SetJobEnvelope(new BoundingBox(0, 0, 0, 100, 100, 10));
         rb.BeginFrame(Background);
         scene.RenderFrame(256, 256);
@@ -89,7 +94,12 @@ public class GlPlotSceneChromeTests
         scene.SetViewportSize(256, 256);
         scene.SetViewPreset(ViewPreset.Isometric3D);
         scene.SetGrid(new BoundingBox(-50, -50, -1, 50, 50, 1), 10, 50);
-        scene.AddAxisArrows([(Vector3.Zero, "X"), (Vector3.Zero, "Y"), (Vector3.Zero, "Z")]);
+        scene.AddAxisArrows(
+        [
+            (Vector3.Zero, Vector3.UnitX, "X"),
+            (Vector3.Zero, Vector3.UnitY, "Y"),
+            (Vector3.Zero, Vector3.UnitZ, "Z"),
+        ]);
         scene.SetJobEnvelope(new BoundingBox(0, 0, 0, 100, 100, 10));
 
         rb.BeginFrame(Background);
@@ -114,7 +124,12 @@ public class GlPlotSceneChromeTests
         scene.SetViewportSize(256, 256);
         scene.SetViewPreset(ViewPreset.Isometric3D);
         scene.SetGrid(new BoundingBox(-50, -50, -1, 50, 50, 1), 10, 50);
-        scene.AddAxisArrows([(Vector3.Zero, "X"), (Vector3.Zero, "Y"), (Vector3.Zero, "Z")]);
+        scene.AddAxisArrows(
+        [
+            (Vector3.Zero, Vector3.UnitX, "X"),
+            (Vector3.Zero, Vector3.UnitY, "Y"),
+            (Vector3.Zero, Vector3.UnitZ, "Z"),
+        ]);
         scene.SetJobEnvelope(new BoundingBox(0, 0, 0, 100, 100, 10));
         var px = new byte[256 * 256 * 4];
 
@@ -399,6 +414,98 @@ public class GlPlotSceneChromeTests
             "grid has no horizontal line at exactly maxY (7.5)");
     }
 
+    /// <summary>The grid plane's normal axis and sign: a machine whose grid
+    /// falls back to the world-YZ plane draws it past the content's X-min —
+    /// and past its X-max when the driving axis is inverted.</summary>
+    [Fact]
+    public void Grid_lines_offset_along_the_normal_axis_by_sign()
+    {
+        var bounds = new BoundingBox(-20, -30, -10, 20, 30, 10);
+
+        var (minorLow, majorLow) = GlPlotScene.BuildGridLines(
+            bounds, minor: 10, major: 20, normalAxis: 0, normalSign: 1);
+        var low = minorLow.Concat(majorLow).ToArray();
+        Assert.True(low.Length > 0);
+        Assert.All(VertexOffsets(low), o => Assert.Equal(-20.5f, low[o]));
+
+        var (minorHigh, majorHigh) = GlPlotScene.BuildGridLines(
+            bounds, minor: 10, major: 20, normalAxis: 0, normalSign: -1);
+        var high = minorHigh.Concat(majorHigh).ToArray();
+        Assert.True(high.Length > 0);
+        Assert.All(VertexOffsets(high), o => Assert.Equal(20.5f, high[o]));
+    }
+
+    /// <summary>The grid spans the two world axes around its normal — the
+    /// YZ-plane grid covers the bounds' Y and Z extents, not X's.</summary>
+    [Fact]
+    public void Grid_lines_span_the_two_world_axes_around_the_normal()
+    {
+        var bounds = new BoundingBox(-20, -30, -10, 20, 30, 10);
+        var (minor, major) = GlPlotScene.BuildGridLines(
+            bounds, minor: 10, major: 20, normalAxis: 0, normalSign: 1);
+        var lines = minor.Concat(major).ToArray();
+
+        var ys = VertexOffsets(lines).Select(o => lines[o + 1]).ToArray();
+        var zs = VertexOffsets(lines).Select(o => lines[o + 2]).ToArray();
+        Assert.Equal(-30f, ys.Min(), 3);
+        Assert.Equal(30f, ys.Max(), 3);
+        Assert.Equal(-10f, zs.Min(), 3);
+        Assert.Equal(10f, zs.Max(), 3);
+    }
+
+    /// <summary>AutoGridBounds in a non-default plane: the origin-corner and
+    /// envelope-centered rules move onto the span axes, and the normal axis
+    /// carries the caller's content end.</summary>
+    [Fact]
+    public void Auto_grid_bounds_follow_the_normal_axis()
+    {
+        var center = new Vector3(50f, 60f, 5f);
+        var span = new Vector3(40f, 60f, 10f);
+
+        var mill = GlPlotScene.AutoGridBounds(center, span, planeCount: 1, normalAxis: 0, endOnNormal: -0.5f);
+        Assert.Equal(-0.5f, mill.MinX, 3);
+        Assert.Equal(-0.5f, mill.MaxX, 3);
+        Assert.Equal(0f, mill.MinY, 3);   // origin-corner table on the span axes
+        Assert.Equal(72f, mill.MaxY, 3);  // span.Y 60 * 1.2
+        Assert.Equal(0f, mill.MinZ, 3);
+        Assert.Equal(12f, mill.MaxZ, 3);  // span.Z 10 * 1.2
+
+        var foam = GlPlotScene.AutoGridBounds(center, span, planeCount: 2, normalAxis: 0, endOnNormal: 3f);
+        Assert.Equal(3f, foam.MinX, 3);
+        Assert.Equal(3f, foam.MaxX, 3);
+        Assert.Equal(30f, foam.MinY, 3);  // envelope-centered: 60 ± 30
+        Assert.Equal(90f, foam.MaxY, 3);
+        Assert.Equal(0f, foam.MinZ, 3);   // 5 ± 5
+        Assert.Equal(10f, foam.MaxZ, 3);
+    }
+
+    /// <summary>SetMachineChrome re-provisions the chrome on the next pump —
+    /// the metrics themselves did not move, so this is the latch clear. The
+    /// empty-state reference grid reorients into the machine's plane.</summary>
+    [GlFact]
+    public void Set_machine_chrome_reorients_the_empty_grid()
+    {
+        using var ctx = GlContext.Create();
+        using var scene = new GlPlotScene(ctx);
+
+        scene.SetMachineChrome(
+        [
+            (Vector3.Zero, Vector3.UnitX, "?"),
+            (Vector3.Zero, Vector3.UnitY, "X"),
+            (Vector3.Zero, Vector3.UnitZ, "Y"),
+        ], gridNormalAxis: 0, gridNormalSign: 1);
+        scene.PumpCarriagePlanes();
+
+        var grid = scene.ChromeGridBounds;
+        Assert.NotNull(grid);
+        Assert.Equal(0f, grid.Value.MinX, 3);     // the normal axis stays at the origin
+        Assert.Equal(0f, grid.Value.MaxX, 3);
+        Assert.Equal(-50f, grid.Value.MinY, 3);   // the field reorients onto Y × Z
+        Assert.Equal(50f, grid.Value.MaxY, 3);
+        Assert.Equal(-50f, grid.Value.MinZ, 3);
+        Assert.Equal(50f, grid.Value.MaxZ, 3);
+    }
+
     /// <summary>The orbit-pivot marker lifecycle: the translucent amber
     /// sphere is up exactly while an orbit gesture is open (RMB), a preset
     /// switch cancels it, an ortho preset refuses the gesture, and the radius
@@ -472,6 +579,14 @@ public class GlPlotSceneChromeTests
         fixed (byte* p = px)
             Assert.True(rb.CopyFrame((nint)p, 256 * 4));
         Assert.Equal(0, LitPixels(px)); // marker leaves with the gesture
+    }
+
+    /// <summary>Offsets of the interleaved line vertices (pos 3 + color 4)
+    /// inside a line buffer.</summary>
+    private static IEnumerable<int> VertexOffsets(float[] lines)
+    {
+        for (var o = 0; o + 6 < lines.Length; o += 7)
+            yield return o;
     }
 
     /// <summary>One line = 2 vertices × 7 floats (pos + color): verticals

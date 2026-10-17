@@ -61,24 +61,51 @@ public class PlaneWorldMapperTests
         Assert.Equal(0, k.FreeWorldAxisFor(1));      // world X — the separation axis
 
         var placement = PlaneWorldMapper.PlacementFor(k, 1);
-        Assert.Equal(new Vector3(25, 0, 0), placement);
+        Assert.Equal(new Vector3(12.5f, 0, 0), placement);
 
         // Slot 0 = machine axis 2 (30) on world Y, slot 1 = machine axis 3 (40) on
         // world Z.
         var v = PlaneWorldMapper.ToWorld(placement, machinePos, [2, 3], k.WorldAxesFor(1));
-        Assert.Equal(new Vector3(25, 30, 40), v);
+        Assert.Equal(new Vector3(12.5f, 30, 40), v);
     }
 
-    /// <summary>Plane 0 is the datum: it sits at the origin even when the profile
-    /// carries a separation, because the separation is the distance to the NEXT
-    /// plane — and the two towers are one per side, along world X.</summary>
+    /// <summary>Two tower planes straddle the origin: each sits at half the
+    /// separation on one side of the world axis the tower does not span (world X
+    /// for the shipped Length × Height tower), so machine zero at 0,0,0,0 is the
+    /// wire's middle at the scene centre — not one of its ends.</summary>
     [Fact]
-    public void Plane_zero_is_always_at_the_origin()
+    public void The_two_tower_planes_straddle_the_origin_at_half_the_separation()
     {
         MachineKinematics k = Resolve(MachineTypes.Foam, separation: 25);
 
+        Assert.Equal(new Vector3(-12.5f, 0, 0), PlaneWorldMapper.PlacementFor(k, 0));
+        Assert.Equal(new Vector3(12.5f, 0, 0), PlaneWorldMapper.PlacementFor(k, 1));
+    }
+
+    /// <summary>A single-plane machine has nothing to be separated from: even a
+    /// stray profile separation (warned about, invariant 6) resolves plane 0's
+    /// separation to 0, so no half-offset may move the machine off the origin.</summary>
+    [Fact]
+    public void A_single_plane_machine_stays_at_the_origin_despite_a_profile_separation()
+    {
+        var profile = new MachineProfile
+        {
+            Id = "single-plane",
+            Name = "Single plane",
+            MachineTypeId = MachineTypes.Mill,
+            Separation = 25,
+        };
+        profile.Planes.Add(new ProfilePlane
+        {
+            Axes =
+            {
+                new MachineAxis { Index = 0, Kind = AxisKind.Linear, Direction = AxisDirection.Width },
+                new MachineAxis { Index = 1, Kind = AxisKind.Linear, Direction = AxisDirection.Length },
+            },
+        });
+        var k = MachineKinematicsResolver.Resolve(profile, null, 0);
+
         Assert.Equal(Vector3.Zero, PlaneWorldMapper.PlacementFor(k, 0));
-        Assert.Equal(new Vector3(25, 0, 0), PlaneWorldMapper.PlacementFor(k, 1));
     }
 
     /// <summary>The bug-report layout: plane 2's slots are machine indices
@@ -108,7 +135,7 @@ public class PlaneWorldMapperTests
 
         var v = PlaneWorldMapper.ToWorld(placement, [10, 20], [2, 3], k.WorldAxesFor(1));
 
-        Assert.Equal(new Vector3(25, 0, 0), v);
+        Assert.Equal(new Vector3(12.5f, 0, 0), v);
     }
 
     /// <summary>The direction rule itself, at its single source of truth.</summary>

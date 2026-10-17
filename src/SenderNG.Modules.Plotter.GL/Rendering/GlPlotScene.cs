@@ -223,6 +223,20 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// the ±25 fallback collides with the empty latch on every other field.</summary>
     private (Vector3 Center, Vector3 Span, int PlaneCount, bool HasContent)? _chromeMetrics;
 
+    /// <summary>The machine-letter chrome every chrome build draws from —
+    /// <see cref="SetMachineChrome"/> replaces it; until then the classic
+    /// X/Y/Z gnomon at the origin and the world-XY floor stand.</summary>
+    private IReadOnlyList<(Vector3 Pos, Vector3 Direction, string Letter)> _chromeArrows =
+    [
+        (Vector3.Zero, Vector3.UnitX, "X"),
+        (Vector3.Zero, Vector3.UnitY, "Y"),
+        (Vector3.Zero, Vector3.UnitZ, "Z"),
+    ];
+
+    private int _gridNormalAxis = 2;
+
+    private int _gridNormalSign = 1;
+
     /// <summary>The <c>_contentFramed</c> latch: the constructor frames the
     /// camera once against empty content, so the first rebuild that finds
     /// real content re-applies the current preset against the content's
@@ -573,7 +587,21 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     public void Reframe() => SetViewPreset(_lastPreset);
 
     /// <inheritdoc/>
-    public void AddAxisArrows(IReadOnlyList<(Vector3 Pos, string Label)> arrows)
+    public void SetMachineChrome(
+        IReadOnlyList<(Vector3 Pos, Vector3 Direction, string Letter)> arrows,
+        int gridNormalAxis, int gridNormalSign)
+    {
+        _chromeArrows = arrows;
+        _gridNormalAxis = gridNormalAxis is >= 0 and <= 2 ? gridNormalAxis : 2;
+        _gridNormalSign = gridNormalSign < 0 ? -1 : 1;
+        // The metrics themselves did not move, so they cannot trigger the
+        // rebuild — clear the latch to force the next pump's chrome build to
+        // re-provision from the new spec.
+        _chromeMetrics = null;
+    }
+
+    /// <inheritdoc/>
+    public void AddAxisArrows(IReadOnlyList<(Vector3 Pos, Vector3 Direction, string Letter)> arrows)
     {
         var shafts = new List<float>();
         var len = AxisArrowLength();
@@ -581,13 +609,14 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         _axisCones.Clear();
         for (var i = 0; i < arrows.Count; i++)
         {
-            var (pos, label) = arrows[i];
-            var color = AxisColor(label);
-            FillAxisShaft(shafts, pos, AxisDirection(label), len, coneHeight, color);
+            var (pos, rawDir, letter) = arrows[i];
+            var dir = rawDir.LengthSquared() > 1e-12f ? Vector3.Normalize(rawDir) : Vector3.UnitX;
+            var color = AxisColor(letter);
+            FillAxisShaft(shafts, pos, dir, len, coneHeight, color);
             // Only the first three arrows get heads — capped by AxisConeLimit.
             if (i >= AxisConeLimit)
                 continue;
-            var (tip, rotation, scale) = AxisConeTransform(label, pos, len);
+            var (tip, rotation, scale) = AxisConeTransform(dir, pos, len);
             // Row-vector order: scale, then aim, then place (v * S * R * T).
             var model = Matrix4x4.CreateScale(scale)
                 * Matrix4x4.CreateFromQuaternion(rotation)
@@ -600,7 +629,8 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     /// <inheritdoc/>
     public void SetGrid(BoundingBox bounds, double minor, double major)
     {
-        var (minorVerts, majorVerts) = BuildGridLines(bounds, minor, major);
+        var (minorVerts, majorVerts) = BuildGridLines(
+            bounds, minor, major, _gridNormalAxis, _gridNormalSign);
         _gridMinor.Upload(minorVerts);
         _gridMajor.Upload(majorVerts);
         _gridBounds = bounds;
@@ -610,62 +640,79 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     }
 
     /// <summary>The grid's line vertices, split minor/major the way
-    /// <see cref="SetGrid"/> uploads them: one line per step along each axis,
-    /// colored per step. Extracted as a pure function so the
-    /// vertex layout (including the far-edge boundaries) is assertable
-    /// without a GPU.</summary>
+    /// <see cref="SetGrid"/> uploads them: one line per step along each span
+    /// axis, colored per step. The plane spans the two world axes around
+    /// <paramref name="normalAxis"/> and sits 0.5 clear of the bounds on it —
+    /// past the low end for the normal sign, past the high end when the
+    /// driving axis is inverted (its values run toward the machine floor).
+    /// Extracted as a pure function so the vertex layout (including the
+    /// far-edge boundaries) is assertable without a GPU.</summary>
     internal static (float[] Minor, float[] Major) BuildGridLines(
-        BoundingBox bounds, double minor, double major)
+        BoundingBox bounds, double minor, double major, int normalAxis = 2, int normalSign = 1)
     {
         if (minor <= 0) minor = 1;
         if (major <= 0) major = minor * 5;
 
-        // Sit clear of the Mill plane so floor lines never z-fight it.
-        var z = (float)bounds.MinZ - 0.5f;
-        var minX = (float)bounds.MinX;
-        var maxX = (float)bounds.MaxX;
-        var minY = (float)bounds.MinY;
-        var maxY = (float)bounds.MaxY;
+        normalAxis = Math.Clamp(normalAxis, 0, 2);
+        var uAxis = (normalAxis + 1) % 3;
+        var vAxis = (normalAxis + 2) % 3;
+
+        // Sit clear of the model so floor lines never z-fight it.
+        var w = normalSign > 0
+            ? AxisMin(bounds, normalAxis) - 0.5f
+            : AxisMax(bounds, normalAxis) + 0.5f;
+        var uMin = AxisMin(bounds, uAxis);
+        var uMax = AxisMax(bounds, uAxis);
+        var vMin = AxisMin(bounds, vAxis);
+        var vMax = AxisMax(bounds, vAxis);
 
         // One pass, two buffers: a line is minor or major by its step colour,
         // and lands in the mesh that carries that color.
         var minorVerts = new List<float>();
         var majorVerts = new List<float>();
 
-        float? lastX = null;
-        for (double x = minX; x <= maxX + 1e-9; x += minor)
+        float? lastU = null;
+        for (double x = uMin; x <= uMax + 1e-9; x += minor)
         {
-            var xx = (float)Math.Min(x, maxX);
-            lastX = xx;
-            var onMajor = IsOnStep(xx, major);
-            AppendLine(onMajor ? majorVerts : minorVerts,
-                xx, minY, xx, maxY, z, onMajor ? GridMajorColor : GridMinorColor);
+            var uu = (float)Math.Min(x, uMax);
+            lastU = uu;
+            var onMajor = IsOnStep(uu, major);
+            AppendSegment(onMajor ? majorVerts : minorVerts,
+                PlanePoint(uAxis, uu, vAxis, vMin, normalAxis, w),
+                PlanePoint(uAxis, uu, vAxis, vMax, normalAxis, w),
+                onMajor ? GridMajorColor : GridMinorColor);
         }
-        float? lastY = null;
-        for (double y = minY; y <= maxY + 1e-9; y += minor)
+        float? lastV = null;
+        for (double y = vMin; y <= vMax + 1e-9; y += minor)
         {
-            var yy = (float)Math.Min(y, maxY);
-            lastY = yy;
-            var onMajor = IsOnStep(yy, major);
-            AppendLine(onMajor ? majorVerts : minorVerts,
-                minX, yy, maxX, yy, z, onMajor ? GridMajorColor : GridMinorColor);
+            var vv = (float)Math.Min(y, vMax);
+            lastV = vv;
+            var onMajor = IsOnStep(vv, major);
+            AppendSegment(onMajor ? majorVerts : minorVerts,
+                PlanePoint(uAxis, uMin, vAxis, vv, normalAxis, w),
+                PlanePoint(uAxis, uMax, vAxis, vv, normalAxis, w),
+                onMajor ? GridMajorColor : GridMinorColor);
         }
 
         // Close the frame: when (max - min) is not a step multiple the loops
-        // stop short of the far edge, so the grid's Xmax/Ymax boundary lines
-        // are appended explicitly — same major/minor coloring rule the clamp
+        // stop short of the far edge, so the grid's far boundary lines are
+        // appended explicitly — same major/minor coloring rule the clamp
         // applies when a step does land on the boundary (checkpoint-4 item 2).
-        if (lastX is { } lx && lx != maxX)
+        if (lastU is { } lu && lu != uMax)
         {
-            var onMajor = IsOnStep(maxX, major);
-            AppendLine(onMajor ? majorVerts : minorVerts,
-                maxX, minY, maxX, maxY, z, onMajor ? GridMajorColor : GridMinorColor);
+            var onMajor = IsOnStep(uMax, major);
+            AppendSegment(onMajor ? majorVerts : minorVerts,
+                PlanePoint(uAxis, uMax, vAxis, vMin, normalAxis, w),
+                PlanePoint(uAxis, uMax, vAxis, vMax, normalAxis, w),
+                onMajor ? GridMajorColor : GridMinorColor);
         }
-        if (lastY is { } ly && ly != maxY)
+        if (lastV is { } lv && lv != vMax)
         {
-            var onMajor = IsOnStep(maxY, major);
-            AppendLine(onMajor ? majorVerts : minorVerts,
-                minX, maxY, maxX, maxY, z, onMajor ? GridMajorColor : GridMinorColor);
+            var onMajor = IsOnStep(vMax, major);
+            AppendSegment(onMajor ? majorVerts : minorVerts,
+                PlanePoint(uAxis, uMin, vAxis, vMax, normalAxis, w),
+                PlanePoint(uAxis, uMax, vAxis, vMax, normalAxis, w),
+                onMajor ? GridMajorColor : GridMinorColor);
         }
 
         return (minorVerts.ToArray(), majorVerts.ToArray());
@@ -1273,23 +1320,36 @@ internal sealed unsafe class GlPlotScene : IPlotScene
 
     /// <summary>Chrome for the no-content state: a fixed
     /// square 10×10 reference grid spanning a 100×100 field centered on the
-    /// origin at Z=0, origin arrows, and no job envelope — sized to the
+    /// origin in the machine's grid plane (world XY for a Height-bearing
+    /// machine, the Width-perpendicular plane for a topology with none), the
+    /// machine-letter gnomon, and no job envelope — sized to the
     /// empty-content fallback framing (±25) so it fills the view. The metrics
     /// latch records the same (center, span) <see cref="ContentMetrics"/>
     /// reports with no content, so a steady empty state does not rebuild on
     /// every pump.</summary>
     private void BuildEmptyChrome()
     {
-        SetGrid(new BoundingBox(-50, -50, 0, 50, 50, 0), minor: 2, major: 10);
-        AddAxisArrows(
-        [
-            (Vector3.Zero, "X"),
-            (Vector3.Zero, "Y"),
-            (Vector3.Zero, "Z"),
-        ]);
+        SetGrid(EmptyGridBounds(), minor: 2, major: 10);
+        AddAxisArrows(_chromeArrows);
         ClearJobEnvelope();
         var (center, _, span) = ContentMetrics();
         _chromeMetrics = (center, span, _liveLayers.Count, false);
+    }
+
+    /// <summary>The empty state's fixed reference field: 100×100 centered on
+    /// the origin, laid out in the machine's grid plane.</summary>
+    private BoundingBox EmptyGridBounds()
+    {
+        Span<float> lo = stackalloc float[3];
+        Span<float> hi = stackalloc float[3];
+        var uAxis = (_gridNormalAxis + 1) % 3;
+        var vAxis = (_gridNormalAxis + 2) % 3;
+        lo[uAxis] = -50f;
+        hi[uAxis] = 50f;
+        lo[vAxis] = -50f;
+        hi[vAxis] = 50f;
+        // The normal axis stays 0; BuildGridLines clears it 0.5 outward.
+        return new BoundingBox(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
     }
 
     /// <summary>Drop the job-envelope chrome — the empty state's "no
@@ -1320,33 +1380,52 @@ internal sealed unsafe class GlPlotScene : IPlotScene
             center.X + hx, center.Y + hy, center.Z + hz);
         var major = NiceStep(Math.Max(radius * 0.25, 1));
         // One plane (mill) = origin-corner table from machine (0,0); two or
-        // more (foam) = grid pinned to the model's XY envelope, the plane
-        // count coming from the live carriage planes.
-        var grid = AutoGridBounds(center, span, planeCount: _liveLayers.Count, (float)box.MinZ);
+        // more (foam) = grid pinned to the model's envelope in the grid plane,
+        // the plane count coming from the live carriage planes. The normal
+        // offset follows the driving axis's sign: the grid sits past the
+        // content's low end normally, past its high end for an inverted axis.
+        var contentEnd = _gridNormalSign > 0
+            ? AxisMin(box, _gridNormalAxis)
+            : AxisMax(box, _gridNormalAxis);
+        var grid = AutoGridBounds(center, span, _liveLayers.Count, _gridNormalAxis, contentEnd);
         SetGrid(grid, major / 5, major);
-        AddAxisArrows(
-        [
-            (Vector3.Zero, "X"),
-            (Vector3.Zero, "Y"),
-            (Vector3.Zero, "Z"),
-        ]);
+        AddAxisArrows(_chromeArrows);
         SetJobEnvelope(box);
         _chromeMetrics = (center, span, _liveLayers.Count, true);
     }
 
     /// <summary>Auto-chrome grid bounds: single-plane (mill)
     /// plots start at machine (0,0) and run 20% past the model's positive
-    /// extent; multi-plane (foam) plots pin to the model's XY envelope.</summary>
-    internal static BoundingBox AutoGridBounds(in Vector3 center, in Vector3 span, int planeCount, float z)
+    /// extent; multi-plane (foam) plots pin to the model's envelope — both in
+    /// the machine's grid plane (<paramref name="normalAxis"/>),
+    /// <paramref name="endOnNormal"/> being the content end that plane clears.</summary>
+    internal static BoundingBox AutoGridBounds(
+        in Vector3 center, in Vector3 span, int planeCount, int normalAxis, float endOnNormal)
     {
+        normalAxis = Math.Clamp(normalAxis, 0, 2);
+        var uAxis = (normalAxis + 1) % 3;
+        var vAxis = (normalAxis + 2) % 3;
+        Span<float> lo = stackalloc float[3];
+        Span<float> hi = stackalloc float[3];
+        lo[normalAxis] = endOnNormal;
+        hi[normalAxis] = endOnNormal;
         if (planeCount > 1)
         {
-            var hx = Math.Max(span.X, 1f) * 0.5f;
-            var hy = Math.Max(span.Y, 1f) * 0.5f;
-            return new BoundingBox(center.X - hx, center.Y - hy, z, center.X + hx, center.Y + hy, z);
+            var hu = Math.Max(span[uAxis], 1f) * 0.5f;
+            var hv = Math.Max(span[vAxis], 1f) * 0.5f;
+            lo[uAxis] = center[uAxis] - hu;
+            hi[uAxis] = center[uAxis] + hu;
+            lo[vAxis] = center[vAxis] - hv;
+            hi[vAxis] = center[vAxis] + hv;
         }
-
-        return new BoundingBox(0, 0, z, Math.Max(span.X, 1f) * 1.2, Math.Max(span.Y, 1f) * 1.2, z);
+        else
+        {
+            lo[uAxis] = 0f;
+            hi[uAxis] = Math.Max(span[uAxis], 1f) * 1.2f;
+            lo[vAxis] = 0f;
+            hi[vAxis] = Math.Max(span[vAxis], 1f) * 1.2f;
+        }
+        return new BoundingBox(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
     }
 
     /// <summary>Round a raw grid step up to the next 1/2/5×10ⁿ; the minor
@@ -1378,22 +1457,15 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         return Math.Abs(quotient - Math.Round(quotient)) < 1e-4;
     }
 
-    private static Vector3 AxisDirection(string label) => label switch
-    {
-        "X" => Vector3.UnitX,
-        "-X" => -Vector3.UnitX,
-        "Y" => Vector3.UnitY,
-        "-Y" => -Vector3.UnitY,
-        "Z" => Vector3.UnitZ,
-        "-Z" => -Vector3.UnitZ,
-        _ => Vector3.UnitX
-    };
-
-    private static Vector4 AxisColor(string label) => label[0] switch
+    /// <summary>The arrow/letter palette: X red, Y green, Z blue, the 4th
+    /// letter (A) the orange accent; a world direction no machine axis rides
+    /// (<c>"?"</c>, foam's separation) stays neutral gray.</summary>
+    private static Vector4 AxisColor(string label) => (label.Length > 0 ? label[0] : '?') switch
     {
         'X' => new Vector4(0.85f, 0.2f, 0.2f, 1f),
         'Y' => new Vector4(0.2f, 0.8f, 0.2f, 1f),
         'Z' => new Vector4(0.2f, 0.35f, 0.9f, 1f),
+        'A' => new Vector4(0.95f, 0.6f, 0.1f, 1f),
         _ => GridMinorColor
     };
 
@@ -1409,12 +1481,13 @@ internal sealed unsafe class GlPlotScene : IPlotScene
     internal static float AxisConeRadius(float coneHeight) => coneHeight * AxisConeRadiusFraction;
 
     /// <summary>Apex position, orientation and shared-mesh scale for the cone
-    /// tip of an axis arrow. The rotation maps local +Z to -direction so the
-    /// apex lands on the shaft tip and the cone opens back toward the anchor.</summary>
+    /// tip of an axis arrow. The rotation maps local +Z onto
+    /// <paramref name="dir"/>'s negation so the apex lands on the shaft tip
+    /// and the cone opens back toward the anchor. <paramref name="dir"/> must
+    /// be a unit vector.</summary>
     internal static (Vector3 Tip, Quaternion Rotation, Vector3 Scale) AxisConeTransform(
-        string label, Vector3 anchor, float shaftLength)
+        Vector3 dir, Vector3 anchor, float shaftLength)
     {
-        var dir = AxisDirection(label);
         var tip = anchor + dir * shaftLength;
         var height = AxisConeHeight(shaftLength);
         var radius = AxisConeRadius(height);
@@ -1434,11 +1507,30 @@ internal sealed unsafe class GlPlotScene : IPlotScene
         AppendSegment(verts, anchor, shaftEnd, color);
     }
 
-    private static void AppendLine(List<float> dst,
-        float x0, float y0, float x1, float y1, float z, Vector4 color)
+    /// <summary>A bounds component on a world axis (0 = X, 1 = Y, 2 = Z).</summary>
+    private static float AxisMin(BoundingBox b, int axis) => axis switch
     {
-        AppendVertex(dst, new Vector3(x0, y0, z), color);
-        AppendVertex(dst, new Vector3(x1, y1, z), color);
+        0 => (float)b.MinX,
+        1 => (float)b.MinY,
+        _ => (float)b.MinZ,
+    };
+
+    private static float AxisMax(BoundingBox b, int axis) => axis switch
+    {
+        0 => (float)b.MaxX,
+        1 => (float)b.MaxY,
+        _ => (float)b.MaxZ,
+    };
+
+    /// <summary>One point of a grid plane: <paramref name="u"/>/<paramref name="v"/>
+    /// on the two span axes, <paramref name="w"/> on the normal axis.</summary>
+    private static Vector3 PlanePoint(int uAxis, float u, int vAxis, float v, int wAxis, float w)
+    {
+        Span<float> p = stackalloc float[3];
+        p[uAxis] = u;
+        p[vAxis] = v;
+        p[wAxis] = w;
+        return new Vector3(p[0], p[1], p[2]);
     }
 
     private static void AppendSegment(List<float> dst, Vector3 a, Vector3 b, Vector4 color)

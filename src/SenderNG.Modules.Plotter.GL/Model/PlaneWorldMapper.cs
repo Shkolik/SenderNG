@@ -47,7 +47,8 @@ namespace SenderNG.Modules.Plotter.GL.Model;
 /// per-plane <c>WorldAxes</c> <i>setting</i> this class used to read is deleted —
 /// the mapping belongs to the machine model, not to a view — and the one
 /// per-plane input left here is the <see cref="PlacementFor"/> offset: the model's
-/// single separation scalar applied on the world axis the plane does not span.
+/// single separation scalar, split around the origin, applied on the world axis
+/// the plane does not span.
 /// World axes with no slot stay at the placement value.
 /// </summary>
 public static class PlaneWorldMapper
@@ -56,27 +57,43 @@ public static class PlaneWorldMapper
     public const int WorldAxisCount = 3;
 
     /// <summary>
-    /// The plane's placement in world millimetres: <c>SeparationFor(plane)</c>
-    /// applied on the world axis the plane does <b>not</b> span
+    /// The plane's placement in world millimetres: the machine's separation split
+    /// around the origin — plane <c>p</c> sits at <c>SeparationFor(p) −
+    /// maxSeparation/2</c> on the world axis the plane does <b>not</b> span
     /// (<see cref="MachineKinematics.FreeWorldAxisFor"/>). A foam tower spans
-    /// Length × Height → world Y × Z, so it is displaced along world <b>X</b>: the
-    /// two towers stand side by side, which is what they physically are — not
-    /// stacked like shelves. Plane 0 and every single-plane machine resolve to a
-    /// separation of 0 and sit at the origin; a plane that spans all three world
-    /// axes (a mill) has no free axis and is never displaced.
+    /// Length × Height → world Y × Z, so it is displaced along world <b>X</b>:
+    /// the two towers stand at ±separation/2 around the origin — side by side,
+    /// which is what they physically are, not stacked like shelves — so machine
+    /// zero at 0,0,0,0 is the wire's middle at the scene centre. A single-plane
+    /// machine's separation resolves to 0 and sits at the origin; a plane that
+    /// spans all three world axes (a mill) has no free axis and is never
+    /// displaced.
     /// </summary>
     public static Vector3 PlacementFor(MachineKinematics? kinematics, int plane)
     {
-        var separation = kinematics is null ? 0 : kinematics.SeparationFor(plane);
         var free = kinematics?.FreeWorldAxisFor(plane) ?? -1;
-        if (separation == 0 || free < 0)
+        if (free < 0)
+            return Vector3.Zero;
+        var offset = kinematics!.SeparationFor(plane) - MaxSeparation(kinematics) * 0.5;
+        if (offset == 0)
             return Vector3.Zero;
         return free switch
         {
-            0 => new Vector3((float)separation, 0f, 0f),
-            1 => new Vector3(0f, (float)separation, 0f),
-            _ => new Vector3(0f, 0f, (float)separation),
+            0 => new Vector3((float)offset, 0f, 0f),
+            1 => new Vector3(0f, (float)offset, 0f),
+            _ => new Vector3(0f, 0f, (float)offset),
         };
+    }
+
+    /// <summary>The machine's largest plane separation — the far side's
+    /// <see cref="MachineKinematics.SeparationFor"/>. Half of it is the shift
+    /// that centres the planes' span on the origin.</summary>
+    private static double MaxSeparation(MachineKinematics kinematics)
+    {
+        var max = 0d;
+        for (var plane = 0; plane < kinematics.Planes.Count; plane++)
+            max = Math.Max(max, kinematics.SeparationFor(plane));
+        return max;
     }
 
     /// <summary>

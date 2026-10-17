@@ -74,7 +74,9 @@ public class PlotSceneAbstractionTests
         scene.SetViewPreset(ViewPreset.XY);
         scene.Pan(new PanDelta(new Vector3(1)));
         scene.ZoomAround(new Vector2(0.5f), 1.2);
-        scene.AddAxisArrows([(new Vector3(1, 0, 0), "X"), (new Vector3(0, 1, 0), "Y")]);
+        scene.SetMachineChrome(
+            [(new Vector3(1, 0, 0), Vector3.UnitX, "X")], gridNormalAxis: 2, gridNormalSign: 1);
+        scene.AddAxisArrows([(new Vector3(1, 0, 0), Vector3.UnitX, "X"), (new Vector3(0, 1, 0), Vector3.UnitY, "Y")]);
         scene.SetGrid(new BoundingBox(0, 0, 0, 10, 10, 0), 1, 5);
         scene.SetJobEnvelope(new BoundingBox(0, 0, 0, 50, 50, 25));
         var carriage = scene.AddCarriagePlane();
@@ -109,7 +111,10 @@ public class PlotSceneAbstractionTests
         public void BeginOrbit(Vector2 screenPointPx) { }
         public void EndOrbit() { }
         public void Reframe() { }
-        public void AddAxisArrows(IReadOnlyList<(Vector3 Pos, string Label)> arrows) { }
+        public void SetMachineChrome(
+            IReadOnlyList<(Vector3 Pos, Vector3 Direction, string Letter)> arrows,
+            int gridNormalAxis, int gridNormalSign) { }
+        public void AddAxisArrows(IReadOnlyList<(Vector3 Pos, Vector3 Direction, string Letter)> arrows) { }
         public void SetGrid(BoundingBox bounds, double minor, double major) { }
         public void SetOrigin(Vector3 origin) { }
         public void SetJobEnvelope(BoundingBox box) { }
@@ -136,6 +141,7 @@ public class PlotSceneAbstractionTests
     {
         public void UpdatePosition(Endpoint endpoints) { }
         public ToolShape Shape { get; set; }
+        public Vector3 PlungeDirection { get; set; } = Vector3.UnitZ;
         public void Dispose() { }
     }
 }
