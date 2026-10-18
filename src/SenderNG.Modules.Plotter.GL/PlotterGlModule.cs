@@ -73,9 +73,9 @@ public class PlotterGlModule : IModule, ILocalizedModule, IPluginInfo, IPluginDe
     // Right after the Skia plotter (22) — the two plot tabs read as one group.
     public int Order => 23;
     public PanelHint Panel => PanelHint.Center;
-    // Not visible by default: the 3D plotter is A/B'd behind the scenes until
-    // the plugin proves itself, so the Skia plotter stays the default.
-    public bool IsVisibleByDefault => false;
+    // Visible by default: the plugin proved itself; both plot tabs ship on.
+    // Hideable, so the Skia plotter can still be run alone.
+    public bool IsVisibleByDefault => true;
     // Hideable: a third-party visualizer can replace it the same way as Skia.
     public bool CanHide => true;
     public IReadOnlyList<HotKey> HotKeys { get; } = [];

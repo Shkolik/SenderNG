@@ -73,7 +73,7 @@ public class PlotterGlModuleTests
         Assert.IsAssignableFrom<IPluginInfo>(module);
         Assert.Equal("plotter-gl", module.Id);
         Assert.Equal(PanelHint.Center, module.Panel);
-        Assert.False(module.IsVisibleByDefault);
+        Assert.True(module.IsVisibleByDefault);
         Assert.True(module.CanHide);
         Assert.Equal(23, module.Order);
         Assert.Empty(module.HotKeys);
