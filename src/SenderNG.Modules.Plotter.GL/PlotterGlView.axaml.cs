@@ -45,6 +45,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using CNC.Core.Abstractions;
 using SenderNG.Core.Localization;
@@ -103,13 +104,13 @@ public partial class PlotterGlView : UserControl
     // True while the render loop has been failing, so the failure is logged
     // once per episode rather than once per retry tick. See LogGlFailure.
     private bool _readbackFailed;
-    // Clear color painted every tick: {0.98, 0.98, 0.98} × 255 = 250 — the
-    // near-white (~250/255 after the ACES-mapped clear; the frame is opaque
-    // — CopyFrame forces alpha 255). Bytes because GlReadback.BeginFrame
-    // takes a straight RGBA quad, the same shape a screenshot row has.
-    // (Checkpoint-1 ruling; original mandate was dark Skia-ish
-    // {0.13, 0.14, 0.16}.)
-    private static readonly byte[] _backgroundRgba = [250, 250, 250, 255];
+    // Clear color painted every tick: light stays the historically frozen
+    // {0.98, 0.98, 0.98} × 255 = 250 (~250/255 after the ACES-mapped clear;
+    // the frame is opaque — CopyFrame forces alpha 255); dark follows the
+    // Canvas.Bg token via RefreshCanvasBackground. Bytes because
+    // GlReadback.BeginFrame takes a straight RGBA quad, the same shape a
+    // screenshot row has.
+    private byte[] _backgroundRgba = GlCanvasBackground.Rgba(false, default);
     private WriteableBitmap? _bitmap;
     private DispatcherTimer? _tick;
     private uint _wPx;
@@ -145,6 +146,8 @@ public partial class PlotterGlView : UserControl
         _fileDialogs = fileDialogs;
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        RefreshCanvasBackground();
+        ActualThemeVariantChanged += (_, _) => RefreshCanvasBackground();
         // Tab switches detach the view from the visual tree; the host caches
         // one view per module for the app lifetime, but the GL scene and its
         // context are per-attach: they die together on detach and re-attach
@@ -192,6 +195,23 @@ public partial class PlotterGlView : UserControl
         ToolTip.SetTip(SaveScreenshotButton, loc?.Resolve(
             "module.plotter-gl.saveScreenshot", "Save screenshot (PNG)")
             ?? "Save screenshot (PNG)");
+    }
+
+    /// <summary>Re-resolve the clear color from the Canvas.Bg token for the
+    /// current theme variant. Runs at construction and on every
+    /// ActualThemeVariantChanged (attach resolves the variant).</summary>
+    private void RefreshCanvasBackground()
+    {
+        var fallback = Colors.White;
+        var canvasBg = fallback;
+        if (this.TryFindResource("Sender.Canvas.Bg", ActualThemeVariant, out var value))
+            canvasBg = value switch
+            {
+                ISolidColorBrush brush => brush.Color,
+                Color color => color,
+                _ => fallback,
+            };
+        _backgroundRgba = GlCanvasBackground.Rgba(ActualThemeVariant == ThemeVariant.Dark, canvasBg);
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)

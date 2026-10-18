@@ -25,6 +25,8 @@
          plugin's attach/detach lifecycle headlessly. -->
     <ProjectReference Include="..\..\src\SenderNG.Modules.Plotter.GL\SenderNG.Modules.Plotter.GL.csproj" />
     <ProjectReference Include="..\..\src\SenderNG.Modules.Excellon\SenderNG.Modules.Excellon.csproj" />
+    <!-- Compile-time ref so HeightMapViewerBackgroundTests can pin the GL clear bytes. -->
+    <ProjectReference Include="..\..\src\SenderNG.Modules.HeightMapViewer\SenderNG.Modules.HeightMapViewer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

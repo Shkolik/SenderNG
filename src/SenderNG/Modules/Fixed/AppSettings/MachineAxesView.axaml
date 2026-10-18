@@ -97,7 +97,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
                     <!-- The derived letter: the controller's own, never a stored one. -->
                     <TextBlock Grid.Column="0" Text="{Binding BoardLetterText}" FontSize="12"
-                               FontWeight="SemiBold" Foreground="#1c5f8a" VerticalAlignment="Center"
+                               FontWeight="SemiBold" Foreground="{DynamicResource Sender.Icon.Action}" VerticalAlignment="Center"
                                ToolTip.Tip="{loc:Loc appSettings.axes.boardLetterHint}" />
 
                     <ComboBox Grid.Column="1" ItemsSource="{Binding IndexChoices}"
@@ -105,7 +105,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                               SelectionChanged="OnIndexSelectionChanged"
                               HorizontalAlignment="Stretch"
                               Height="24" MinHeight="24" FontSize="11" CornerRadius="0"
-                              BorderBrush="#999" BorderThickness="1" VerticalContentAlignment="Center"
+                              BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" VerticalContentAlignment="Center"
                               ToolTip.Tip="{Binding RowHint}">
                         <ComboBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:AxisIndexChoice">
@@ -119,7 +119,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                               SelectionChanged="OnKindSelectionChanged"
                               HorizontalAlignment="Stretch"
                               Height="24" MinHeight="24" FontSize="11" CornerRadius="0"
-                              BorderBrush="#999" BorderThickness="1" VerticalContentAlignment="Center">
+                              BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" VerticalContentAlignment="Center">
                         <ComboBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:AxisKindChoice">
                                 <TextBlock Text="{Binding Display}" FontSize="11" />
@@ -132,7 +132,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                               SelectionChanged="OnDirectionSelectionChanged"
                               HorizontalAlignment="Stretch"
                               Height="24" MinHeight="24" FontSize="11" CornerRadius="0"
-                              BorderBrush="#999" BorderThickness="1" VerticalContentAlignment="Center">
+                              BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" VerticalContentAlignment="Center">
                         <ComboBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:AxisDirectionChoice">
                                 <TextBlock Text="{Binding Display}" FontSize="11" />
@@ -154,7 +154,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                              TextChanged="OnAliasTextChanged" MaxLength="1"
                              HorizontalAlignment="Stretch" MinWidth="0"
                              Height="24" MinHeight="24" FontSize="11" CornerRadius="0"
-                             BorderBrush="#999" BorderThickness="1" VerticalContentAlignment="Center"
+                             BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" VerticalContentAlignment="Center"
                              Padding="4,0" PlaceholderText="—"
                              ToolTip.Tip="{loc:Loc appSettings.axes.aliasHint}" />
                 </Grid>
@@ -163,7 +163,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                      the two directions perpendicular to its own; a linear row shows none. -->
                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="26,2,0,0"
                             IsVisible="{Binding IsRotary}">
-                    <TextBlock Text="{loc:Loc appSettings.axes.pivot}" FontSize="10" Foreground="#666"
+                    <TextBlock Text="{loc:Loc appSettings.axes.pivot}" FontSize="10" Foreground="{DynamicResource Sender.Text.Secondary}"
                                VerticalAlignment="Center"
                                ToolTip.Tip="{loc:Loc appSettings.axes.pivotHint}" />
                     <ItemsControl ItemsSource="{Binding Pivots}">
@@ -175,13 +175,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:AxisPivotRowViewModel">
                                 <StackPanel Orientation="Horizontal" Spacing="3">
-                                    <TextBlock Text="{Binding Label}" FontSize="11" Foreground="#333"
+                                    <TextBlock Text="{Binding Label}" FontSize="11" Foreground="{DynamicResource Sender.Text.Primary}"
                                                FontWeight="SemiBold" VerticalAlignment="Center"
                                                ToolTip.Tip="{Binding LabelHint}" />
                                     <TextBox Classes="num" Text="{Binding ValueText, Mode=OneWay}"
                                              TextChanged="OnPivotTextChanged"
                                              Width="66" Height="24" MinHeight="24" FontSize="11"
-                                             CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                             CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                                              VerticalContentAlignment="Center" Padding="4,0" />
                                 </StackPanel>
                             </DataTemplate>
@@ -223,13 +223,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
         <!-- Machine type. The topology picture is NOT here: it sits beside the profile
              list, where it identifies the machine behind the selected profile. -->
-        <TextBlock Text="{Binding MachineTypeName}" FontSize="11" FontWeight="SemiBold" Foreground="#333" />
+        <TextBlock Text="{Binding MachineTypeName}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Sender.Text.Primary}" />
 
         <!-- A machine-type switch replaces the layout but deliberately leaves DemoAxes
              alone: warn when the demo now simulates fewer axes than the type needs. -->
-        <Border Background="#fff8e1" BorderBrush="#e0c060" BorderThickness="1" Padding="6"
+        <Border Background="{DynamicResource Sender.Warn.Bg}" BorderBrush="{DynamicResource Sender.Warn.Border}" BorderThickness="1" Padding="6"
                 IsVisible="{Binding HasDemoAxesHint}">
-            <TextBlock Text="{Binding DemoAxesHint}" FontSize="11" Foreground="#664d00"
+            <TextBlock Text="{Binding DemoAxesHint}" FontSize="11" Foreground="{DynamicResource Sender.Text.Warn}"
                        TextWrapping="Wrap" />
         </Border>
 
@@ -239,8 +239,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <DataTemplate x:DataType="vm:MachinePlaneViewModel">
                     <StackPanel Orientation="Vertical" Spacing="2" Margin="0,4,0,2">
                         <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold"
-                                   Foreground="#333" />
-                        <Rectangle Height="1" Fill="#ddd" />
+                                   Foreground="{DynamicResource Sender.Text.Primary}" />
+                        <Rectangle Height="1" Fill="{DynamicResource Sender.Divider}" />
                         <!-- The column labels. Same six shared columns as the rows below, so the
                              labels sit over their controls; the widths live in the shared scope,
                              never here, so the header cannot drift from the rows. -->
@@ -255,15 +255,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="1" Text="{loc:Loc appSettings.axes.index}"
-                                       FontSize="10" Foreground="#888" />
+                                       FontSize="10" Foreground="{DynamicResource Sender.Text.Muted.Alt}" />
                             <TextBlock Grid.Column="2" Text="{loc:Loc appSettings.axes.type}"
-                                       FontSize="10" Foreground="#888" />
+                                       FontSize="10" Foreground="{DynamicResource Sender.Text.Muted.Alt}" />
                             <TextBlock Grid.Column="3" Text="{loc:Loc appSettings.axes.role}"
-                                       FontSize="10" Foreground="#888" />
+                                       FontSize="10" Foreground="{DynamicResource Sender.Text.Muted.Alt}" />
                             <TextBlock Grid.Column="4" Text="{loc:Loc appSettings.axes.inverted}"
-                                       FontSize="10" Foreground="#888" />
+                                       FontSize="10" Foreground="{DynamicResource Sender.Text.Muted.Alt}" />
                             <TextBlock Grid.Column="5" Text="{loc:Loc appSettings.axes.alias}"
-                                       FontSize="10" Foreground="#888" />
+                                       FontSize="10" Foreground="{DynamicResource Sender.Text.Muted.Alt}" />
                         </Grid>
                         <ItemsControl ItemsSource="{Binding Axes}"
                                       ItemTemplate="{StaticResource AxisRow}" />
@@ -281,18 +281,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <TextBox Classes="num" Text="{Binding SeparationText, Mode=OneWay}"
                      TextChanged="OnSeparationTextChanged"
                      Width="90" Height="24" MinHeight="24" FontSize="11" CornerRadius="0"
-                     BorderBrush="#999" BorderThickness="1" VerticalContentAlignment="Center" Padding="4,0" />
+                     BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" VerticalContentAlignment="Center" Padding="4,0" />
         </StackPanel>
 
-        <Rectangle Height="1" Fill="#ddd" Margin="0,4,0,0" />
+        <Rectangle Height="1" Fill="{DynamicResource Sender.Divider}" Margin="0,4,0,0" />
 
         <!-- Optional axes: rotaries and extra linears, never inside a plane. No reference art
              here: the rotary picture was unreadable at this size and it mangled the list. -->
         <StackPanel Orientation="Vertical" Spacing="2">
             <TextBlock Text="{loc:Loc appSettings.axes.optional}" FontSize="12" FontWeight="SemiBold"
-                       Foreground="#333" />
+                       Foreground="{DynamicResource Sender.Text.Primary}" />
             <TextBlock Text="{loc:Loc appSettings.axes.optionalHint}" FontSize="10"
-                       Foreground="#888" TextWrapping="Wrap" />
+                       Foreground="{DynamicResource Sender.Text.Muted.Alt}" TextWrapping="Wrap" />
             <Grid Margin="0,2,0,1" ColumnSpacing="4" IsVisible="{Binding HasOptionalAxes}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="26" />
@@ -304,15 +304,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="1" Text="{loc:Loc appSettings.axes.index}"
-                           FontSize="10" Foreground="#888" />
+                           FontSize="10" Foreground="{DynamicResource Sender.Text.Muted.Alt}" />
                 <TextBlock Grid.Column="2" Text="{loc:Loc appSettings.axes.type}"
-                           FontSize="10" Foreground="#888" />
+                           FontSize="10" Foreground="{DynamicResource Sender.Text.Muted.Alt}" />
                 <TextBlock Grid.Column="3" Text="{loc:Loc appSettings.axes.role}"
-                           FontSize="10" Foreground="#888" />
+                           FontSize="10" Foreground="{DynamicResource Sender.Text.Muted.Alt}" />
                 <TextBlock Grid.Column="4" Text="{loc:Loc appSettings.axes.inverted}"
-                           FontSize="10" Foreground="#888" />
+                           FontSize="10" Foreground="{DynamicResource Sender.Text.Muted.Alt}" />
                 <TextBlock Grid.Column="5" Text="{loc:Loc appSettings.axes.alias}"
-                           FontSize="10" Foreground="#888" />
+                           FontSize="10" Foreground="{DynamicResource Sender.Text.Muted.Alt}" />
             </Grid>
             <ItemsControl ItemsSource="{Binding OptionalAxes}"
                           ItemTemplate="{StaticResource OptionalAxisRow}" IsVisible="{Binding HasOptionalAxes}" />

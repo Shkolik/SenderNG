@@ -43,37 +43,37 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			 MinWidth="450" Height="400"
              x:Class="SenderNG.Modules.Plugins.StepperCalibrationView"
              x:DataType="vm:StepperCalibrationViewModel">
-    <DockPanel Background="#f6f6f6" Margin="10">
+    <DockPanel Background="{DynamicResource Sender.Bg.Window}" Margin="10">
         <DockPanel.Styles>
             <Style Selector="TextBlock.unit">
                 <Setter Property="FontSize" Value="10" />
-                <Setter Property="Foreground" Value="#888" />
+                <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Muted.Alt}" />
                 <Setter Property="VerticalAlignment" Value="Center" />
                 <Setter Property="Margin" Value="6,0,0,0" />
             </Style>
         </DockPanel.Styles>
 
-        <Border DockPanel.Dock="Bottom" BorderBrush="#aaa" BorderThickness="0,1,0,0">
+        <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0,1,0,0">
             <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0">                
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">                    
                     <Button Content="{loc:Loc module.stepper-calibration.next}" Command="{Binding NextCommand}"
                             IsVisible="{Binding CanAdvance}" Padding="14,0" Height="28" MinHeight="28"
-                            CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" />
+                            CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" />
                     <Button Content="{loc:Loc module.stepper-calibration.stop}" Command="{Binding StopCommand}"
                             IsEnabled="{Binding IsMoving}" Padding="14,0" Height="28" MinHeight="28"
-                            CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" />
+                            CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" />
                     <Button Content="{loc:Loc module.stepper-calibration.save}" Command="{Binding SaveCommand}"
                             IsEnabled="{Binding CanSave}" Padding="14,0" Height="28" MinHeight="28"
-                            CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" />
+                            CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" />
                     <Button Content="{loc:Loc module.stepper-calibration.newCalibration}" Command="{Binding NewCommand}"
                             IsVisible="{Binding IsDone}" Padding="14,0" Height="28" MinHeight="28"
-                            CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" />
+                            CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" />
                 </StackPanel>
             </Grid>
         </Border>
 
 		<!-- Done -->
-		<TextBlock Text="{Binding Status}" Foreground="Red" TextWrapping="Wrap" DockPanel.Dock="Bottom" Margin="0,10" MaxWidth="450"/>
+		<TextBlock Text="{Binding Status}" Foreground="{DynamicResource Sender.Text.Error.Alt}" TextWrapping="Wrap" DockPanel.Dock="Bottom" Margin="0,10" MaxWidth="450"/>
 		
 		<Grid ColumnDefinitions="Auto, 150, Auto, *" RowDefinitions="Auto,Auto,Auto,20,Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="10">
 			<!-- Setup -->

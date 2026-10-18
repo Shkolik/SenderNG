@@ -37,6 +37,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media;
 using CNC.Core.Abstractions;
+using SenderNG.Themes;
 
 namespace SenderNG.Services;
 
@@ -57,7 +58,7 @@ public class AvaloniaDialogService : IDialogService
         {
             Title = title,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Background = new SolidColorBrush(Color.Parse("#f6f6f6")),
+            Background = new SolidColorBrush(ThemeResources.Find("Sender.Bg.Window", Color.Parse("#f6f6f6"))),
             Content = _views.Create(viewModel),
         };
 

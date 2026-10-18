@@ -67,6 +67,7 @@ public sealed class UiHeadlessApp : Application
     public override void OnFrameworkInitializationCompleted()
     {
         Styles.Add(new FluentTheme());
+        ThemeTestHost.EnsureMerged();
         base.OnFrameworkInitializationCompleted();
     }
 }

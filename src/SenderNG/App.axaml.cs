@@ -40,6 +40,7 @@ using Avalonia.Platform;
 using Avalonia.Styling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using SenderNG.Themes;
 using SenderNG.ViewModels;
 
 namespace SenderNG;
@@ -74,6 +75,12 @@ public partial class App : Application
             var appIcon = new WindowIcon(iconStream);
 
             Host = HostSetup.BuildHost(StartupArgs);
+
+            // Theme is a UI preference applied before the first window exists so
+            // no window ever flashes the wrong variant.
+            ThemeVariants.Apply(
+                Host.Services.GetRequiredService<CNC.Core.Services.SettingsService>().Global.Theme, this);
+
             var vm = Host.Services.GetRequiredService<MainViewModel>();
 
             var globalIconStyle = new Style(x => x.OfType<Window>());

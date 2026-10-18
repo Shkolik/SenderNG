@@ -440,7 +440,7 @@ public partial class PlotterView : UserControl
                 new PixelSize(width, height), new Vector(96, 96));
             using (var ctx = bitmap.CreateDrawingContext())
             {
-                ctx.FillRectangle(Brushes.White, new Rect(0, 0, width, height));
+                ctx.FillRectangle(PlotterCanvas.Brush(this, ActualThemeVariant, Brushes.White), new Rect(0, 0, width, height));
                 // The whole scene at 2x, translated by the plot's offset in the
                 // view so it lands where the view draws it. The translate is
                 // INSIDE the scale, so it is not itself doubled: 2x of a 25px

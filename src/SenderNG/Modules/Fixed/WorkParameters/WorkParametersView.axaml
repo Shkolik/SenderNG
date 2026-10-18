@@ -41,7 +41,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              xmlns:loc="clr-namespace:SenderNG.Localization;assembly=SenderNG"
              mc:Ignorable="d" d:DesignWidth="250" d:DesignHeight="84"
              x:Class="SenderNG.Modules.Fixed.WorkParametersView"
-             x:DataType="vm:WorkParametersViewModel">    <Border Background="#f6f6f6" Padding="6">
+             x:DataType="vm:WorkParametersViewModel">    <Border Background="{DynamicResource Sender.Bg.Window}" Padding="6">
         <Grid RowDefinitions="Auto,Auto,Auto">
             <Grid ColumnDefinitions="100,*">
                 <TextBlock Grid.Column="0" Text="{loc:Loc module.work-parameters.offset}" />
@@ -71,7 +71,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6" Margin="0,3,0,0">
                 <CheckBox IsChecked="{Binding IsTloReferenceSet, Mode=OneWay}" IsEnabled="False" />
                 <TextBlock Text="{loc:Loc module.work-parameters.tloRefd}" VerticalAlignment="Center" />
-                <TextBlock Text="{loc:Loc module.work-parameters.tloActive}" IsVisible="{Binding IsTloActive}" Foreground="#555" VerticalAlignment="Center" />
+                <TextBlock Text="{loc:Loc module.work-parameters.tloActive}" IsVisible="{Binding IsTloActive}" Foreground="{DynamicResource Sender.Text.Muted}" VerticalAlignment="Center" />
             </StackPanel>
         </Grid>
     </Border>

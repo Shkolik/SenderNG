@@ -43,7 +43,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         x:Class="SenderNG.Views.AboutView"
         x:DataType="vm:AboutViewModel"
         Title="{Binding Title}" Width="540" Height="500"
-        Background="#f6f6f6" WindowStartupLocation="CenterOwner">
+        Background="{DynamicResource Sender.Bg.Window}" WindowStartupLocation="CenterOwner">
 
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8" Margin="8">
         <Image Grid.Row="0" Source="avares://SenderNG/Assets/banner.png"
@@ -59,17 +59,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <StackPanel Spacing="10" Margin="12,8,12,12" VerticalAlignment="Top">
 						<StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Spacing="4">
                             <TextBlock Text="{Binding AppName}" FontSize="20" FontWeight="Bold" />
-                            <TextBlock Text="{Binding Version}" FontSize="11" Foreground="#555" Margin="0,0,0,2" VerticalAlignment="Bottom"/>
+                            <TextBlock Text="{Binding Version}" FontSize="11" Foreground="{DynamicResource Sender.Text.Muted}" Margin="0,0,0,2" VerticalAlignment="Bottom"/>
 						</StackPanel>
-                        <TextBlock Text="{Binding Copyright}" FontSize="12" Foreground="#555" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding License}" FontSize="12" Foreground="#555" />
+                        <TextBlock Text="{Binding Copyright}" FontSize="12" Foreground="{DynamicResource Sender.Text.Muted}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding License}" FontSize="12" Foreground="{DynamicResource Sender.Text.Muted}" />
                         <HyperlinkButton NavigateUri="{Binding RepoUrl}" Content="{Binding RepoUrl}"
-                                         FontSize="12" Foreground="#06c" Padding="0" MinHeight="0"
+                                         FontSize="12" Foreground="{DynamicResource Sender.Text.Link}" Padding="0" MinHeight="0"
                                          Background="Transparent" BorderThickness="0"
                                          HorizontalAlignment="Left" />
-                        <TextBlock Text="{Binding Acknowledgement}" FontSize="12" Foreground="#555" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Acknowledgement}" FontSize="12" Foreground="{DynamicResource Sender.Text.Muted}" TextWrapping="Wrap" />
                         <HyperlinkButton NavigateUri="{Binding IoSenderUrl}" Content="{Binding IoSenderUrl}"
-                                         FontSize="12" Foreground="#06c" Padding="0" MinHeight="0"
+                                         FontSize="12" Foreground="{DynamicResource Sender.Text.Link}" Padding="0" MinHeight="0"
                                          Background="Transparent" BorderThickness="0"
                                          HorizontalAlignment="Left" />
                     </StackPanel>
@@ -82,10 +82,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <ListBox ItemsSource="{Binding Libraries}" Margin="4,8,4,4">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ThirdPartyLibrary">
-                            <Border BorderThickness="0,0,0,1" BorderBrush="#E5E5E5" Padding="0,2,0,2">
+                            <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Sender.Border.Soft}" Padding="0,2,0,2">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding VersionLicense}" FontSize="11" Foreground="#666" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding VersionLicense}" FontSize="11" Foreground="{DynamicResource Sender.Text.Secondary}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
@@ -99,14 +99,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <ListBox ItemsSource="{Binding Modules}" Margin="4,8,4,4">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ModuleInfoItem">
-                            <Border BorderThickness="0,0,0,1" BorderBrush="#E5E5E5" Padding="0,2,0,2">
+                            <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Sender.Border.Soft}" Padding="0,2,0,2">
                                 <StackPanel Spacing="1">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" />
-                                        <TextBlock Text="{Binding Version}" FontSize="11" Foreground="#666" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Version}" FontSize="11" Foreground="{DynamicResource Sender.Text.Secondary}" VerticalAlignment="Center" />
                                     </StackPanel>
-                                    <TextBlock Text="{Binding AuthorLicense}" FontSize="11" Foreground="#666" TextWrapping="Wrap" />
-                                    <TextBlock Text="{loc:Loc about.tab.modules.dependencies}" FontSize="11" Foreground="#666"
+                                    <TextBlock Text="{Binding AuthorLicense}" FontSize="11" Foreground="{DynamicResource Sender.Text.Secondary}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{loc:Loc about.tab.modules.dependencies}" FontSize="11" Foreground="{DynamicResource Sender.Text.Secondary}"
                                                IsVisible="{Binding HasDependencies}" Margin="0,4,0,0"/>
                                     <ItemsControl ItemsSource="{Binding Dependencies}" IsVisible="{Binding HasDependencies}">
                                         <ItemsControl.ItemsPanel>
@@ -116,7 +116,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="core:PluginDependency">
-                                                <TextBlock Text="{Binding OneLine}" FontSize="10" Foreground="#666" Margin="0,0,12,2" />
+                                                <TextBlock Text="{Binding OneLine}" FontSize="10" Foreground="{DynamicResource Sender.Text.Secondary}" Margin="0,0,12,2" />
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
@@ -131,11 +131,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <Grid Grid.Row="2" HorizontalAlignment="Stretch" ColumnDefinitions="Auto,*,Auto">
             <Button Grid.Column="0" HorizontalAlignment="Right" Content="{Binding CopyButtonText}"
                     Command="{Binding CopyInfoCmd}" Height="28" MinHeight="28" CornerRadius="0" FontSize="11"
-                    Background="#eee" BorderBrush="#999" BorderThickness="1"
+                    Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                     Padding="14,0" VerticalContentAlignment="Center" />
             <Button Grid.Column="2" HorizontalAlignment="Right" Content="{loc:Loc common.close}"
                     Command="{Binding CloseCmd}" Height="28" MinHeight="28" CornerRadius="0" FontSize="11"
-                    Background="#eee" BorderBrush="#999" BorderThickness="1"
+                    Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                     Padding="14,0" VerticalContentAlignment="Center" />
         </Grid>
     </Grid>

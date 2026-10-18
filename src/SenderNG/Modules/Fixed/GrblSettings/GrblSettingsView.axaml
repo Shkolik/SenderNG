@@ -43,34 +43,34 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:Class="SenderNG.Modules.Fixed.GrblSettingsView"
              x:DataType="vm:GrblSettingsViewModel">
 
-    <DockPanel Background="#f6f6f6">
+    <DockPanel Background="{DynamicResource Sender.Bg.Window}">
 
         <!-- Status + restore confirm strip + actions (bottom, full width) -->
-        <Border DockPanel.Dock="Bottom" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="10,8">
+        <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0,1,0,0" Padding="10,8">
             <Grid RowDefinitions="Auto,Auto">
                 <!-- Inline restore confirm: shown only while a parsed backup waits for Apply
                      or Cancel. The text wraps so a long summary cannot push the buttons off
                      the 660x520 dialog. -->
-                <Border Grid.Row="0" x:Name="RestoreStrip" Background="#fff8e1" BorderBrush="#e0c060" BorderThickness="1"
+                <Border Grid.Row="0" x:Name="RestoreStrip" Background="{DynamicResource Sender.Warn.Bg}" BorderBrush="{DynamicResource Sender.Warn.Border}" BorderThickness="1"
                         Padding="8,6" Margin="0,0,0,8" IsVisible="{Binding HasRestorePlan}">
                     <!-- Grid, not a horizontal StackPanel: a StackPanel measures children with
                          infinite width, so the wrapping summary would not be constrained and the
                          buttons could be pushed out of the 660x520 dialog. -->
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="{Binding RestoreSummary}" FontSize="11"
-                                   Foreground="#5a4a00" TextWrapping="Wrap" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource Sender.Warn.Text}" TextWrapping="Wrap" VerticalAlignment="Center"
                                    Margin="0,0,10,0" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
                                     VerticalAlignment="Center">
                             <Button Content="{loc:Loc module.grbl-settings.restoreApply}"
                                     Command="{Binding ApplyRestoreCommand}"
                                     Height="28" MinHeight="28" CornerRadius="0"
-                                    Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                    Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                                     Padding="14,0" VerticalContentAlignment="Center" />
                             <Button Content="{loc:Loc module.grbl-settings.restoreCancel}"
                                     Command="{Binding CancelRestoreCommand}"
                                     Height="28" MinHeight="28" CornerRadius="0"
-                                    Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                    Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                                     Padding="14,0" VerticalContentAlignment="Center" />
                         </StackPanel>
                     </Grid>
@@ -82,33 +82,33 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                          rendered underneath the buttons; the full text stays reachable in the
                          tooltip. -->
                     <Grid Grid.Column="0" ColumnDefinitions="*,Auto,Auto" ClipToBounds="True" Margin="0,0,8,0">
-                        <TextBlock Grid.Column="0" Text="{Binding Status}" FontSize="10" Foreground="#888"
+                        <TextBlock Grid.Column="0" Text="{Binding Status}" FontSize="10" Foreground="{DynamicResource Sender.Text.Muted.Alt}"
                                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                                    ToolTip.Tip="{Binding Status}" />
-                        <Rectangle Grid.Column="1" Width="1" Height="16" Fill="#ccc" VerticalAlignment="Center"
+                        <Rectangle Grid.Column="1" Width="1" Height="16" Fill="{DynamicResource Sender.Divider.Strong}" VerticalAlignment="Center"
                                    Margin="8,0" IsVisible="{Binding HasSelection}" />
                         <TextBlock Grid.Column="2" Text="{Binding SelectedEditSummary}" FontSize="10"
-                                   Foreground="#666" VerticalAlignment="Center" IsVisible="{Binding HasSelection}"
+                                   Foreground="{DynamicResource Sender.Text.Secondary}" VerticalAlignment="Center" IsVisible="{Binding HasSelection}"
                                    TextTrimming="CharacterEllipsis" />
                     </Grid>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <Button Content="{loc:Loc module.grbl-settings.backup}" Command="{Binding BackupCommand}"
                                 IsEnabled="{Binding CanTransfer}"
                                 Height="28" MinHeight="28" CornerRadius="0"
-                                Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                                 Padding="14,0" VerticalContentAlignment="Center" />
                         <Button Content="{loc:Loc module.grbl-settings.restore}" Command="{Binding RestoreCommand}"
                                 IsEnabled="{Binding CanTransfer}"
                                 Height="28" MinHeight="28" CornerRadius="0"
-                                Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                                 Padding="14,0" VerticalContentAlignment="Center" />
                         <Button Content="{loc:Loc module.grbl-settings.load}" Command="{Binding LoadCommand}"
                                 Height="28" MinHeight="28" CornerRadius="0"
-                                Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                                 Padding="14,0" VerticalContentAlignment="Center" />
                         <Button Content="{loc:Loc module.grbl-settings.saveChanges}" Command="{Binding SaveCommand}"
                                 Height="28" MinHeight="28" CornerRadius="0"
-                                Background="#eee" BorderBrush="#999" BorderThickness="1"
+                                Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                                 Padding="14,0" VerticalContentAlignment="Center" />
                     </StackPanel>
                 </Grid>
@@ -120,10 +120,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
             <!-- LEFT: search + tree selector - only leaf settings are selectable -->
             <DockPanel Grid.Column="0">
-                <Border DockPanel.Dock="Top" BorderBrush="#aaa" BorderThickness="0,0,0,1" Padding="10,8">
+                <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0,0,0,1" Padding="10,8">
                     <TextBox Text="{Binding Search}" PlaceholderText="{loc:Loc module.grbl-settings.searchPlaceholder}"
                              Height="26" MinHeight="26" VerticalContentAlignment="Center"
-                             FontSize="11" CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
+                             FontSize="11" CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" />
                 </Border>
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Auto" Padding="2">
@@ -141,11 +141,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             <Setter Property="Padding" Value="3,2" />
                         </Style>
                         <Style Selector="TreeViewItem:pointerover /template/ Border#Bd">
-                            <Setter Property="Background" Value="#eee" />
+                            <Setter Property="Background" Value="{DynamicResource Sender.Bg.Button}" />
                         </Style>
                         <Style Selector="TreeViewItem:selected /template/ Border#Bd">
-                            <Setter Property="Background" Value="#ddd" />
-                            <Setter Property="BorderBrush" Value="#999" />
+                            <Setter Property="Background" Value="{DynamicResource Sender.Bg.Selected}" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource Sender.Border.Input}" />
                             <Setter Property="BorderThickness" Value="0,0,0,2" />
                         </Style>
                     </TreeView.Styles>
@@ -155,7 +155,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                           x:DataType="vm:GrblSettingGroupItem">
                             <!-- Click anywhere on the label toggles the group (not just the chevron). -->
                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"
-                                       Foreground="#333" Margin="2,3,2,2" Tapped="OnGroupTapped" />
+                                       Foreground="{DynamicResource Sender.Text.Primary}" Margin="2,3,2,2" Tapped="OnGroupTapped" />
                         </TreeDataTemplate>
 
                         <!-- Leaf: label only; selection drives the detail pane -->
@@ -163,10 +163,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                       x:DataType="vm:GrblSettingItem">
                             <StackPanel Orientation="Horizontal" Spacing="6" Margin="2,1">
                                 <TextBlock Text="{Binding Key}" FontWeight="SemiBold" FontSize="11"
-                                           Foreground="#222" />
-                                <TextBlock Text="{Binding Name}" FontSize="11" Foreground="#333"
+                                           Foreground="{DynamicResource Sender.Text.Strong}" />
+                                <TextBlock Text="{Binding Name}" FontSize="11" Foreground="{DynamicResource Sender.Text.Primary}"
                                            TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="*" FontSize="12" FontWeight="Bold" Foreground="#c00"
+                                <TextBlock Text="*" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource Sender.Text.Error.Strong}"
                                            IsVisible="{Binding IsDirty}" />
                             </StackPanel>
                         </DataTemplate>
@@ -177,12 +177,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
             <!-- RIGHT: selected leaf - data + docs + editor -->
             <!-- Divider between the tree and the detail pane -->
-            <Rectangle Grid.Column="1" Fill="#ccc" />
+            <Rectangle Grid.Column="1" Fill="{DynamicResource Sender.Divider.Strong}" />
 
             <Border Grid.Column="2" Padding="12,10">
                 <Grid>
                 <TextBlock Text="{loc:Loc module.grbl-settings.selectHint}"
-                           FontSize="12" Foreground="#888" VerticalAlignment="Top" HorizontalAlignment="Left"
+                           FontSize="12" Foreground="{DynamicResource Sender.Text.Muted.Alt}" VerticalAlignment="Top" HorizontalAlignment="Left"
                            TextWrapping="Wrap" IsVisible="{Binding HasNoSelection}" />
 
                 <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasSelection}">
@@ -191,16 +191,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         <!-- Header: key + name (+ dirty marker), sized like the description -->
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="{Binding SelectedSetting.Key}" FontSize="12" FontWeight="SemiBold"
-                                       Foreground="#555" VerticalAlignment="Center" />
+                                       Foreground="{DynamicResource Sender.Text.Muted}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding SelectedSetting.Name}" FontSize="12"
-                                       Foreground="#333" VerticalAlignment="Center" TextWrapping="Wrap" />
-                            <TextBlock Text="* changed" FontSize="11" FontWeight="Bold" Foreground="#c00"
+                                       Foreground="{DynamicResource Sender.Text.Primary}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <TextBlock Text="* changed" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource Sender.Text.Error.Strong}"
                                        VerticalAlignment="Center" IsVisible="{Binding SelectedSetting.IsDirty}" />
                         </StackPanel>
-                        <Rectangle Height="1" Fill="#ddd" />
+                        <Rectangle Height="1" Fill="{DynamicResource Sender.Divider}" />
 
                         <!-- Range hint sits above the input -->
-                        <TextBlock Text="{Binding SelectedSetting.Range}" FontSize="11" Foreground="#666"
+                        <TextBlock Text="{Binding SelectedSetting.Range}" FontSize="11" Foreground="{DynamicResource Sender.Text.Secondary}"
                                    IsVisible="{Binding SelectedSetting.HasRange}" />
 
                         <!-- Editor: OneWay display + explicit user-input events, so bindings
@@ -217,9 +217,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                           SelectedIndex="{Binding SelectedSetting.SelectedIndex, Mode=OneWay}"
                                           SelectionChanged="OnDetailSelectionChanged"
                                           Width="200" Height="26" MinHeight="26"
-                                          FontSize="12" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                          FontSize="12" CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                                           VerticalContentAlignment="Center" />
-                                <TextBlock Text="{Binding SelectedSetting.Unit}" FontSize="11" Foreground="#666"
+                                <TextBlock Text="{Binding SelectedSetting.Unit}" FontSize="11" Foreground="{DynamicResource Sender.Text.Secondary}"
                                            VerticalAlignment="Center" IsVisible="{Binding SelectedSetting.HasUnit}" />
                             </StackPanel>
 
@@ -246,22 +246,22 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                          TextChanged="OnDetailTextChanged"
                                          Width="200" Height="26" MinHeight="26"
                                          VerticalContentAlignment="Center" FontSize="12"
-                                         CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                                <TextBlock Text="{Binding SelectedSetting.Unit}" FontSize="11" Foreground="#666"
+                                         CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" />
+                                <TextBlock Text="{Binding SelectedSetting.Unit}" FontSize="11" Foreground="{DynamicResource Sender.Text.Secondary}"
                                            VerticalAlignment="Center" IsVisible="{Binding SelectedSetting.HasUnit}" />
                             </StackPanel>
                         </StackPanel>
 
                         <!-- Docs -->
                         <StackPanel Spacing="4" IsVisible="{Binding SelectedSetting.HasDescription}">
-                            <TextBlock Text="{loc:Loc module.grbl-settings.descriptionLabel}" FontWeight="SemiBold" FontSize="11" Foreground="#666" />
+                            <TextBlock Text="{loc:Loc module.grbl-settings.descriptionLabel}" FontWeight="SemiBold" FontSize="11" Foreground="{DynamicResource Sender.Text.Secondary}" />
                             <TextBlock Text="{Binding SelectedSetting.Description}" FontSize="12"
-                                       Foreground="#333" TextWrapping="Wrap" />
+                                       Foreground="{DynamicResource Sender.Text.Primary}" TextWrapping="Wrap" />
                         </StackPanel>
 
                         <!-- Save hint -->
                         <TextBlock Text="{loc:Loc module.grbl-settings.saveHint}"
-                                   FontSize="10" Foreground="#999"
+                                   FontSize="10" Foreground="{DynamicResource Sender.Text.Disabled}"
                                    IsVisible="{Binding SelectedSetting.IsDirty}" />
                     </StackPanel>
                 </ScrollViewer>

@@ -69,7 +69,8 @@ public class AppSettingsModule : IModule
             sp.GetRequiredService<SenderNG.Core.Localization.LocalizationService>(),
             hotkeys: sp.GetService<SenderNG.Core.Services.HotkeyService>(),
             fileDialogs: sp.GetService<IFileDialogService>(),
-            machines: sp.GetService<IMachineKinematicsProvider>()));
+            machines: sp.GetService<IMachineKinematicsProvider>(),
+            applyTheme: SenderNG.Themes.ThemeVariants.Applier));
 
 
     public object CreateViewModel(IServiceProvider serviceProvider) =>

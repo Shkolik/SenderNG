@@ -67,7 +67,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             <TextBlock Grid.Column="0" Text="{Binding Letter}" FontSize="16" FontWeight="SemiBold"
                                        VerticalAlignment="Center" Width="22" TextAlignment="Center" />
                             <TextBox Grid.Column="1" Text="{Binding Value, Mode=TwoWay}" Height="32" MinHeight="32"
-                                     CornerRadius="0" BorderBrush="#999" BorderThickness="1" Margin="4,0"
+                                     CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Margin="4,0"
                                      Padding="8,0" VerticalContentAlignment="Center" FontSize="14" />
                         </Grid>
                     </DataTemplate>
@@ -76,7 +76,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <Button Content="{loc:Loc common.go}" Command="{Binding GoCommand}" IsEnabled="{Binding IsHomed}"
                     CornerRadius="0" HorizontalAlignment="Stretch" />
 
-            <TextBlock Text="{Binding Status}" Foreground="#777" FontSize="11" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Sender.Text.Caption}" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

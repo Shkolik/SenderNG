@@ -47,9 +47,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
          foam with the two carriage planes drawn in diagonal quadrants (XY
          top-left, ZA bottom-right), and one full-panel canvas for the
          isometric view, plus a header row and a progress line. -->
-    <Border BorderBrush="#aaa" BorderThickness="1" Background="White">
+    <Border BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1" Background="{DynamicResource Sender.Canvas.Bg}">
         <DockPanel>
-            <Border x:Name="HeaderHost" DockPanel.Dock="Top" Background="#e8e8e8" Height="24">
+            <Border x:Name="HeaderHost" DockPanel.Dock="Top" Background="{DynamicResource Sender.Bg.Chrome}" Height="24">
                 <DockPanel Margin="6,0">
                     <!-- [2D] / [Iso] are the same decision the 3D plotter's
                          view offers as [XY]/[3D], so they are the same control:
@@ -66,9 +66,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                       FontSize="11" Padding="8,1" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock x:Name="HeaderLetters" FontSize="11" FontWeight="SemiBold" Foreground="#333" />
-                        <TextBlock x:Name="ProgressText" FontSize="11" Foreground="#666" Margin="12,0,0,0" />
-                        <TextBlock x:Name="StatusTextBlock" FontSize="11" Foreground="#b03030" Margin="12,0,0,0" />
+                        <TextBlock x:Name="HeaderLetters" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Sender.Text.Primary}" />
+                        <TextBlock x:Name="ProgressText" FontSize="11" Foreground="{DynamicResource Sender.Text.Secondary}" Margin="12,0,0,0" />
+                        <TextBlock x:Name="StatusTextBlock" FontSize="11" Foreground="{DynamicResource Sender.Plot.Status}" Margin="12,0,0,0" />
                     </StackPanel>
                 </DockPanel>
             </Border>
@@ -121,7 +121,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             <Setter Property="Height" Value="32" />
                             <Setter Property="Padding" Value="0" />
                             <Setter Property="FontSize" Value="24" />
-                            <Setter Property="Foreground" Value="#777" />
+                            <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Caption}" />
                             <Setter Property="FontWeight" Value="Normal" />
                             <Setter Property="Background" Value="Transparent" />
                             <Setter Property="BorderThickness" Value="0" />
@@ -151,32 +151,32 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             </Setter>
                         </Style>
                         <Style Selector="Button.navBtn:pointerover, ToggleButton.navBtn:pointerover">
-                            <Setter Property="Foreground" Value="#444" />
+                            <Setter Property="Foreground" Value="{DynamicResource Sender.Icon.Hover}" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                         </Style>
                         <Style Selector="Button.navBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter,
                                      ToggleButton.navBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-                            <Setter Property="Foreground" Value="#444" />
+                            <Setter Property="Foreground" Value="{DynamicResource Sender.Icon.Hover}" />
                         </Style>
                         <Style Selector="Button.navBtn:pressed, ToggleButton.navBtn:pressed">
-                            <Setter Property="Foreground" Value="#222" />
+                            <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Strong}" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                         </Style>
                         <Style Selector="Button.navBtn:pressed /template/ ContentPresenter#PART_ContentPresenter,
                                      ToggleButton.navBtn:pressed /template/ ContentPresenter#PART_ContentPresenter">
-                            <Setter Property="Foreground" Value="#222" />
+                            <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Strong}" />
                         </Style>
                         <Style Selector="ToggleButton.navBtn:checked">
                             <Setter Property="FontWeight" Value="SemiBold" />
-                            <Setter Property="Foreground" Value="#222" />
+                            <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Strong}" />
                         </Style>
                         <Style Selector="ToggleButton.navBtn:checked /template/ ContentPresenter#PART_ContentPresenter">
-                            <Setter Property="Foreground" Value="#222" />
+                            <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Strong}" />
                             <Setter Property="Background" Value="Transparent" />
                         </Style>
                         <Style Selector="ToggleButton.navBtn:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-                            <Setter Property="Foreground" Value="#222" />
-                            <Setter Property="Background" Value="#22000000" />
+                            <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Strong}" />
+                            <Setter Property="Background" Value="{DynamicResource Sender.Overlay.Pressed}" />
                         </Style>
                     </Grid.Styles>
 
@@ -240,7 +240,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <StackPanel x:Name="ZoomPanel"
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                 Margin="0,0,12,12" Spacing="6">
-                        <TextBlock x:Name="ZoomPctText" FontSize="12" Foreground="#777"
+                        <TextBlock x:Name="ZoomPctText" FontSize="12" Foreground="{DynamicResource Sender.Text.Caption}"
                                    HorizontalAlignment="Center" IsVisible="False" />
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <Button x:Name="ZoomOutButton" Classes="navBtn" Content="−"

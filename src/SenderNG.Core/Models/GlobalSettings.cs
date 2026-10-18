@@ -44,6 +44,9 @@ public class GlobalSettings
     /// <summary>App-level UI language (locale code, e.g. "en"/"ru"); empty = English.</summary>
     public string Language { get; set; } = string.Empty;
 
+    /// <summary>UI theme: "system"/"light"/"dark"; empty = system (follows the OS, live).</summary>
+    public string Theme { get; set; } = string.Empty;
+
     /// <summary>Active profile id (<c>profiles/&lt;id&gt;.json</c>); replaces the legacy Mode value.</summary>
     public string ActiveProfileId { get; set; } = MachineProfile.DefaultId;
 

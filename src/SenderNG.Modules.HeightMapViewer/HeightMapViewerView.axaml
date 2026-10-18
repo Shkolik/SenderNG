@@ -45,7 +45,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
          button. The empty-state TextBlock overlays the viewport while no layer
          has been published; the fallback panel replaces the viewport when no GL
          context could be created. -->
-    <Border BorderBrush="#aaa" BorderThickness="1" Background="White">
+    <Border BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1" Background="{DynamicResource Sender.Bg.Panel}">
         <Panel x:Name="ScenePanel">
             <Image x:Name="GpuImage" Stretch="UniformToFill"
                    RenderOptions.BitmapInterpolationMode="HighQuality" />
@@ -65,7 +65,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         <Setter Property="Height" Value="32" />
                         <Setter Property="Padding" Value="0" />
                         <Setter Property="FontSize" Value="24" />
-                        <Setter Property="Foreground" Value="#777" />
+                        <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Caption}" />
                         <Setter Property="FontWeight" Value="Normal" />
                         <Setter Property="Background" Value="Transparent" />
                         <Setter Property="BorderThickness" Value="0" />
@@ -81,18 +81,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         </Setter>
                     </Style>
                     <Style Selector="Button.navBtn:pointerover">
-                        <Setter Property="Foreground" Value="#444" />
+                        <Setter Property="Foreground" Value="{DynamicResource Sender.Icon.Hover}" />
                         <Setter Property="FontWeight" Value="SemiBold" />
                     </Style>
                     <Style Selector="Button.navBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-                        <Setter Property="Foreground" Value="#444" />
+                        <Setter Property="Foreground" Value="{DynamicResource Sender.Icon.Hover}" />
                     </Style>
                     <Style Selector="Button.navBtn:pressed">
-                        <Setter Property="Foreground" Value="#222" />
+                        <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Strong}" />
                         <Setter Property="FontWeight" Value="SemiBold" />
                     </Style>
                     <Style Selector="Button.navBtn:pressed /template/ ContentPresenter#PART_ContentPresenter">
-                        <Setter Property="Foreground" Value="#222" />
+                        <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Strong}" />
                     </Style>
                 </Panel.Styles>
 
@@ -101,7 +101,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                            IsVisible="{Binding IsEmpty, Mode=OneWay}"
                            HorizontalAlignment="Center" VerticalAlignment="Center"
                            Margin="24" MaxWidth="460"
-                           Foreground="#555" FontSize="14"
+                           Foreground="{DynamicResource Sender.Text.Muted}" FontSize="14"
                            TextWrapping="Wrap" TextAlignment="Center" />
 
                 <!-- Top-left stats overlay: measured-point count and max Z
@@ -110,7 +110,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                            Text="{Binding StatsText}"
                            IsVisible="{Binding StatsText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                            HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"
-                           Foreground="#777" FontSize="12" />
+                           Foreground="{DynamicResource Sender.Text.Caption}" FontSize="12" />
 
                 <!-- Bottom-left: save the current view (the readback frame at its
                      native size) as a PNG through the standard save dialog. -->
@@ -127,7 +127,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <!-- Bottom-right: − ⛶ + zoom cluster with a percent readout above. -->
                 <StackPanel Orientation="Vertical" Spacing="6"
                             HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12">
-                    <TextBlock x:Name="ZoomPctText" Text="100%" FontSize="12" Foreground="#777"
+                    <TextBlock x:Name="ZoomPctText" Text="100%" FontSize="12" Foreground="{DynamicResource Sender.Text.Caption}"
                                HorizontalAlignment="Center" IsVisible="False" />
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <Button x:Name="ZoomOutButton" Classes="navBtn" Content="&#x2212;" Click="OnZoomOut" />
@@ -142,9 +142,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             Spacing="6" MaxWidth="460">
                     <TextBlock x:Name="FallbackTitle" Text=""
                                FontSize="16" FontWeight="SemiBold"
-                               Foreground="#222" HorizontalAlignment="Center" />
+                               Foreground="{DynamicResource Sender.Text.Strong}" HorizontalAlignment="Center" />
                     <TextBlock x:Name="FallbackHint" Text=""
-                               Foreground="#555" TextWrapping="Wrap"
+                               Foreground="{DynamicResource Sender.Text.Muted}" TextWrapping="Wrap"
                                HorizontalAlignment="Center" />
                 </StackPanel>
             </Border>

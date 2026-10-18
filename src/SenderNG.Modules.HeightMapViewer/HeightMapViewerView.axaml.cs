@@ -41,8 +41,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using SenderNG.Core.Localization;
 using SenderNG.Modules.Common.Render;
@@ -62,8 +64,12 @@ public partial class HeightMapViewerView : UserControl
 {
     private const double TickIntervalMs = 33.0;
 
-    /// <summary>Near-white clear ({250, 250, 250} after the opaque readback).</summary>
-    private static readonly byte[] BackgroundRgba = [250, 250, 250, 255];
+    // Clear color painted every tick: light stays the historically frozen
+    // near-white {250, 250, 250} (the frame is opaque — alpha 255); dark
+    // follows the Canvas.Bg token via RefreshCanvasBackground, mirroring the
+    // plotter GL view's pattern (GlCanvasBackground lives in Plotter.GL,
+    // which this module must not reference).
+    private byte[] _backgroundRgba = [250, 250, 250, 255];
 
     private HeightMapViewerViewModel? _vm;
     private GlContext? _gl;
@@ -107,8 +113,16 @@ public partial class HeightMapViewerView : UserControl
         };
         AttachedToVisualTree += (_, _) => OnAttachedToVisualTree();
         DetachedFromVisualTree += OnDetachedFromVisualTree;
+        // Fresh view per dialog open, so a constructor subscription dies with
+        // the dialog — no detach bookkeeping needed.
+        ActualThemeVariantChanged += (_, _) => RefreshCanvasBackground();
         ApplyLocalizedTexts();
     }
+
+    /// <summary>The GL clear color. Light stays the historically frozen near-white
+    /// canvas value; dark uses the Canvas.Bg token color with opaque alpha.</summary>
+    public static byte[] BackgroundRgbaFor(bool dark, Color canvasBg) =>
+        dark ? [canvasBg.R, canvasBg.G, canvasBg.B, 255] : [250, 250, 250, 255];
 
     /// <summary>Resolve the header, reset-button and fallback strings in the
     /// current locale. Reading them in code-behind (not binding) mirrors the
@@ -168,7 +182,27 @@ public partial class HeightMapViewerView : UserControl
     private void OnAttachedToVisualTree()
     {
         SubscribeLocale();
+        RefreshCanvasBackground();
         EnsureScene();
+    }
+
+    /// <summary>Re-resolve the clear color from the Canvas.Bg token for the
+    /// current theme variant. Runs on attach (which resolves the variant) and
+    /// on every ActualThemeVariantChanged. TryFindResource walks the styling
+    /// chain — TryGetResource only checks this element's own resources and
+    /// misses the app-level theme dictionaries.</summary>
+    private void RefreshCanvasBackground()
+    {
+        var fallback = Colors.White;
+        var canvasBg = fallback;
+        if (this.TryFindResource("Sender.Canvas.Bg", ActualThemeVariant, out var value))
+            canvasBg = value switch
+            {
+                ISolidColorBrush brush => brush.Color,
+                Color color => color,
+                _ => fallback,
+            };
+        _backgroundRgba = BackgroundRgbaFor(ActualThemeVariant == ThemeVariant.Dark, canvasBg);
     }
 
     private void OnDetachedFromVisualTree(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
@@ -296,7 +330,7 @@ public partial class HeightMapViewerView : UserControl
         try
         {
             _gl.MakeCurrent();
-            _readback!.BeginFrame(BackgroundRgba);
+            _readback!.BeginFrame(_backgroundRgba);
             scene.RenderFrame(_readback.Width, _readback.Height);
             // CopyFrame's glReadPixels synchronizes with the draws above.
             using (var fb = _bitmap!.Lock())

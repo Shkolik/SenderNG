@@ -39,6 +39,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using CNC.Core.Abstractions;
+using SenderNG.Themes;
 
 namespace SenderNG.Services;
 
@@ -118,7 +119,7 @@ public class AvaloniaFileDialogService : IFileDialogService
             CanResize = false,
             ShowInTaskbar = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Background = Brushes.White,
+            Background = new SolidColorBrush(ThemeResources.Find("Sender.Bg.Panel", Colors.White)),
         };
 
         var okButton = new Button
@@ -128,8 +129,8 @@ public class AvaloniaFileDialogService : IFileDialogService
             Height = 28,
             MinHeight = 28,
             CornerRadius = new CornerRadius(0),
-            Background = new SolidColorBrush(Color.Parse("#eee")),
-            BorderBrush = new SolidColorBrush(Color.Parse("#999")),
+            Background = new SolidColorBrush(ThemeResources.Find("Sender.Bg.Button", Color.Parse("#eeeeee"))),
+            BorderBrush = new SolidColorBrush(ThemeResources.Find("Sender.Border.Input", Color.Parse("#999999"))),
             // The button is wider than its label (MinWidth), so the content must be
             // centred explicitly — the default leaves "OK" hugging the left edge.
             HorizontalAlignment = HorizontalAlignment.Right,

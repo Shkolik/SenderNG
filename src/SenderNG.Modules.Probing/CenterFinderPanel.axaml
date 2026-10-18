@@ -81,7 +81,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 </Grid>
             </StackPanel>
 
-            <Border CornerRadius="0" Background="White" BorderBrush="#aaa" BorderThickness="1" Padding="6"
+            <Border CornerRadius="0" Background="{DynamicResource Sender.Bg.Panel}" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1" Padding="6"
                     HorizontalAlignment="Stretch">
                 <StackPanel Spacing="4" HorizontalAlignment="Stretch">
                     <TextBlock Text="{loc:Loc module.probing.dimensions, DText='Workpiece dimensions'}" FontWeight="SemiBold" FontSize="11" />
@@ -89,14 +89,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <Grid ColumnDefinitions="Auto,100,44,Auto,100,*" HorizontalAlignment="Stretch">
                         <TextBlock Text="X:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBox Grid.Column="1" Classes="num" Width="100" Text="{Binding WorkpieceSizeX, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
                         <CheckBox Grid.Column="2" Classes="padlock" VerticalAlignment="Center"
                                   IsChecked="{Binding WorkpieceLockXY}"
                                   ToolTip.Tip="{loc:Loc module.probing.lockHint, DText='Locked: X and Y sizes stay equal. Unlock to probe in one direction only.'}" />
                         <TextBlock Grid.Column="3" Text="Y:" FontSize="11" VerticalAlignment="Center" Margin="6,0,6,0" />
                         <TextBox Grid.Column="4" Classes="num" Width="100" Text="{Binding WorkpieceSizeY, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
                     </Grid>
                 </StackPanel>
@@ -106,7 +106,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 <TextBlock Text="{loc:Loc module.probing.passes, DText='Passes:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
                            ToolTip.Tip="{loc:Loc module.probing.passesHint, DText='More than one pass is usually needed for accurate dimensions'}" />
                 <TextBox Grid.Column="1" Classes="int" Text="{Binding Passes, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                         Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                         Height="24" MinHeight="24" CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                          FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
             </Grid>
     </StackPanel>

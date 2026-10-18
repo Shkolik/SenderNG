@@ -48,9 +48,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="Height" Value="32" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Background" Value="#eee" />
-            <Setter Property="BorderBrush" Value="#999" />
-            <Setter Property="Foreground" Value="#333" />
+            <Setter Property="Background" Value="{DynamicResource Sender.Bg.Button}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Sender.Border.Input}" />
+            <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Primary}" />
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
@@ -65,9 +65,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             </Setter>
         </Style>
         <Style Selector="ToggleButton.coolant:checked">
-            <Setter Property="Background" Value="#bdbdbd" />
-            <Setter Property="BorderBrush" Value="#666" />
-            <Setter Property="Foreground" Value="#111" />
+            <Setter Property="Background" Value="{DynamicResource Sender.Bg.Button.Checked}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Sender.Border.Button.Checked}" />
+            <Setter Property="Foreground" Value="{DynamicResource Sender.Icon.Checked}" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
     </UserControl.Styles>

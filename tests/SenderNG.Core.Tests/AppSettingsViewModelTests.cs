@@ -460,7 +460,7 @@ public class AppSettingsViewModelTests
         Assert.Equal("Global", global.Name);
         Assert.Equal("Modules", modules.Name);
         Assert.Contains(global.Children, c => c is ProfileSettingsLeaf);
-        Assert.Contains(global.Children, c => c is LanguageSettingsLeaf);
+        Assert.Contains(global.Children, c => c is AppearanceSettingsLeaf);
     }
 
     [Fact]
@@ -471,7 +471,7 @@ public class AppSettingsViewModelTests
 
         Assert.NotNull(vm.SelectedSetting);
         Assert.True(vm.HasSelection);
-        Assert.True(vm.IsLanguageLeaf); // first leaf under Global is Language
+        Assert.True(vm.IsAppearanceLeaf); // first leaf under Global is Appearance
     }
 
     [Fact]
@@ -494,7 +494,7 @@ public class AppSettingsViewModelTests
         var (_, settings) = MakeSettings();
         var vm = CreateVm(settings);
 
-        var leaf = (LanguageSettingsLeaf)((AppSettingsGroupItem)vm.Groups[0]).Children[1];
+        var leaf = (AppearanceSettingsLeaf)((AppSettingsGroupItem)vm.Groups[0]).Children[1];
         Assert.Contains("en", leaf.AvailableLocales);
 
         if (leaf.AvailableLocales.Contains("ru"))
@@ -506,7 +506,7 @@ public class AppSettingsViewModelTests
                 // The tree re-localizes immediately on the locale-changed event.
                 Assert.Equal("Ручное перемещение", Leaf(vm, "jog").Name);
                 Assert.Equal("Модули", ((AppSettingsGroupItem)vm.Groups[1]).Name);
-                Assert.Equal("Язык", leaf.Name);
+                Assert.Equal("Внешний вид", leaf.Name);
             }
             finally
             {
@@ -558,7 +558,7 @@ public class AppSettingsViewModelTests
     {
         var (_, settings) = MakeSettings();
         var vm = CreateVm(settings);
-        var leaf = (LanguageSettingsLeaf)((AppSettingsGroupItem)vm.Groups[0]).Children[1];
+        var leaf = (AppearanceSettingsLeaf)((AppSettingsGroupItem)vm.Groups[0]).Children[1];
 
         if (leaf.AvailableLocales.Contains("ru"))
         {
@@ -570,7 +570,7 @@ public class AppSettingsViewModelTests
                 Assert.Equal("ru", leaf.SelectedLocale);
                 // And a freshly opened dialog (new VM over the same settings) starts on "ru".
                 var reopened = new AppSettingsViewModel(settings, Modules, Loc);
-                var reopenedLeaf = (LanguageSettingsLeaf)((AppSettingsGroupItem)reopened.Groups[0]).Children[1];
+                var reopenedLeaf = (AppearanceSettingsLeaf)((AppSettingsGroupItem)reopened.Groups[0]).Children[1];
                 Assert.Equal("ru", reopenedLeaf.SelectedLocale);
             }
             finally
@@ -585,7 +585,7 @@ public class AppSettingsViewModelTests
     {
         var (_, settings) = MakeSettings();
         var vm = CreateVm(settings);
-        var leaf = (LanguageSettingsLeaf)((AppSettingsGroupItem)vm.Groups[0]).Children[1];
+        var leaf = (AppearanceSettingsLeaf)((AppSettingsGroupItem)vm.Groups[0]).Children[1];
         Assert.Equal("en", leaf.SelectedLocale);
 
         // Avalonia detaches invisible controls from the visual tree and can push null
@@ -761,7 +761,7 @@ public class AppSettingsViewModelTests
 
             // The positional assumptions existing tests rely on are load-bearing.
             Assert.IsType<ProfileSettingsLeaf>(global.Children[0]);
-            Assert.IsType<LanguageSettingsLeaf>(global.Children[1]);
+            Assert.IsType<AppearanceSettingsLeaf>(global.Children[1]);
             var leaf = Assert.IsType<BackupSettingsLeaf>(global.Children[global.Children.Count - 1]);
             Assert.Equal("backup", leaf.Id);
 
@@ -771,7 +771,7 @@ public class AppSettingsViewModelTests
             try
             {
                 var hotkeysGlobal = (AppSettingsGroupItem)withHotkeys.Groups[0];
-                Assert.IsType<LanguageSettingsLeaf>(hotkeysGlobal.Children[1]);
+                Assert.IsType<AppearanceSettingsLeaf>(hotkeysGlobal.Children[1]);
                 var last = Assert.IsType<BackupSettingsLeaf>(hotkeysGlobal.Children[hotkeysGlobal.Children.Count - 1]);
                 Assert.Equal(3, hotkeysGlobal.Children.IndexOf(last));
             }

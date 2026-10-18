@@ -186,7 +186,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 </Grid>
             </StackPanel>
 
-            <TextBlock Text="{Binding Status}" Foreground="#777" FontSize="11" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Sender.Text.Caption}" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

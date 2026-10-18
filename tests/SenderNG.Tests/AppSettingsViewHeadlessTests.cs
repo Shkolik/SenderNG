@@ -130,7 +130,7 @@ public class AppSettingsViewHeadlessTests
                     // User's repro sequence: language leaf -> change locale -> visit
                     // Profiles. The hidden-while-away pane re-realizes already localized.
                     vm.SelectedNode = ((AppSettingsGroupItem)vm.Groups[0]).Children
-                        .OfType<LanguageSettingsLeaf>().Single();
+                        .OfType<AppearanceSettingsLeaf>().Single();
                     for (var i = 0; i < 4; i++)
                         await Pump();
                     vm.SelectedNode = leaf;
@@ -165,7 +165,7 @@ public class AppSettingsViewHeadlessTests
             LocalizationService.Current = Loc;
             var settings = MakeSettings();
             var vm = new AppSettingsViewModel(settings, Array.Empty<IModule>(), Loc);
-            var language = ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<LanguageSettingsLeaf>().Single();
+            var language = ((AppSettingsGroupItem)vm.Groups[0]).Children.OfType<AppearanceSettingsLeaf>().Single();
             var locales = language.AvailableLocales; // computed getter: capture once
             vm.SelectedNode = language;
 
@@ -495,6 +495,7 @@ public class AppSettingsViewHeadlessTests
     [AvaloniaFact]
     public async Task The_row_actions_are_pictograms_with_their_own_tooltips()
     {
+        ThemeTestHost.EnsureMerged();
         var prev = LocalizationService.Current;
         try
         {
@@ -696,6 +697,7 @@ public class AppSettingsViewHeadlessTests
     [AvaloniaFact]
     public async Task Removing_from_the_context_menu_takes_the_same_two_clicks()
     {
+        ThemeTestHost.EnsureMerged();
         // Delete is two-step everywhere: the first click arms, the second deletes. A menu
         // that closed after the arming click would force the operator to right-click and
         // aim again just to confirm, so the delete entry stays open on click — it is the

@@ -13,7 +13,7 @@
          cannot use the app-only {Loc} markup (PlotterSettingsViewModel.Resolve). -->
     <StackPanel Spacing="4">
         <TextBlock Text="{Binding ViewLabel}" FontSize="12" FontWeight="SemiBold"
-                   Foreground="#333" Margin="0,6,0,0" />
+                   Foreground="{DynamicResource Sender.Text.Primary}" Margin="0,6,0,0" />
         <Grid ColumnDefinitions="Auto,24,Auto" RowDefinitions="Auto,Auto">
             <CheckBox Grid.Column="0" Grid.Row="0" Content="{Binding ShowGridLabel}"
                       IsChecked="{Binding ShowGrid, Mode=TwoWay}" FontSize="11" />

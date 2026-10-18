@@ -1,0 +1,268 @@
+<!--
+SenderTheme.axaml - semantic color tokens for the light and dark themes
+
+Copyright (c) 2026 Andrew Shkolik
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+· Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+
+· Redistributions in binary form must reproduce the above copyright notice, this
+list of conditions and the following disclaimer in the documentation and/or
+other materials provided with the distribution.
+
+· Neither the name of the copyright holder nor the names of its contributors may
+be used to endorse or promote products derived from this software without
+specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+-->
+
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Semantic token palette for SenderNG. Light values are today's literal
+         colors, frozen byte-for-byte; Dark is the approved "Soft graphite"
+         palette. Views must reference these keys with DynamicResource only. -->
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="Sender.Bg.Window">#f6f6f6</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Card">#fafafa</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Panel">#ffffff</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Chrome">#e8e8e8</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Sidebar">#e0e0e0</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Button">#eeeeee</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Button.Checked">#bdbdbd</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Chip">#e4e4e4</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Chip.Hover">#d8d8d8</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Selected">#dddddd</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Canvas.Bg">#ffffff</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Border">#aaaaaa</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Border.Soft">#e5e5e5</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Border.Soft.Alt">#e6e6e6</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Divider">#dddddd</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Divider.Strong">#cccccc</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Divider.Strong.Alt">#d0d0d0</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Border.Input">#999999</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Border.Button.Checked">#666666</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Border.Selected">#666666</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Border.Chip">#bbbbbb</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Primary">#333333</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Strong">#222222</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.OnButton">#000000</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.OnAccent">#ffffff</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Secondary">#666666</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Caption">#777777</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Muted">#555555</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Muted.Alt">#888888</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Disabled">#999999</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Link">#0066cc</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Error">#aa3333</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Error.Strong">#cc0000</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Error.Alt">#ff0000</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Warn">#664d00</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Warn.Strong">#c03030</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Success">#008800</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Icon.Checked">#111111</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Icon.Hover">#444444</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Icon.Action">#1c5f8a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Icon.Action.Hover">#0d3d5c</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Accent">#e04545</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Accent.Border">#b00000</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Accent.Border.Alt">#b03535</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Danger.Bg">#aa3333</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Danger.Border">#7a2626</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Warn.Bg">#fff8e1</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Warn.Border">#e0c060</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Warn.Text">#5a4a00</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.State.Border">#88aa88</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Plot.Status">#b03030</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Overlay.Busy">#99ffffff</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Overlay.Pressed">#22000000</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Signal.Dot">#ff0000</SolidColorBrush>
+
+            <!-- Fluent bridge: pinned FluentTheme chrome for inputs, menus and popups.
+                 Light values are frozen from FluentTheme's resolved brushes so the
+                 light theme stays byte-identical; the Dark dictionary re-colours. -->
+
+            <!-- Text input chrome -->
+            <SolidColorBrush x:Key="TextControlBackground">#66ffffff</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlBackgroundPointerOver">#99ffffff</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlBackgroundFocused">White</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlBackgroundDisabled">#33000000</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlForeground">Black</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlForegroundPointerOver">Black</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlForegroundFocused">Black</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlForegroundDisabled">#ff7a7a7a</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlBorderBrush">#99000000</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlBorderBrushPointerOver">#cc000000</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlBorderBrushDisabled">#33000000</SolidColorBrush>
+
+            <!-- ComboBox chrome -->
+            <SolidColorBrush x:Key="ComboBoxBackground">#66ffffff</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver">#99ffffff</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxBackgroundPressed">#33000000</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxBackgroundDisabled">#33000000</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxForeground">Black</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxForegroundDisabled">#66000000</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxBorderBrush">#99000000</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver">#cc000000</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled">#33000000</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxDropDownBackground">#fff2f2f2</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="Black" Opacity="0.14"/>
+
+            <!-- Menu / flyout / popup chrome -->
+            <SolidColorBrush x:Key="MenuFlyoutPresenterBackground">#fff2f2f2</SolidColorBrush>
+            <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="Black" Opacity="0.14"/>
+            <SolidColorBrush x:Key="FlyoutPresenterBackground">#fff2f2f2</SolidColorBrush>
+
+            <!-- Expander chrome (Color-typed: Fluent's template consumes these via DynamicResource) -->
+            <Color x:Key="ExpanderHeaderBackground">#CCFFFFFF</Color>
+            <Color x:Key="ExpanderHeaderBackgroundPointerOver">#CCFFFFFF</Color>
+            <Color x:Key="ExpanderHeaderForeground">#FF000000</Color>
+            <Color x:Key="ExpanderHeaderForegroundPointerOver">#FF000000</Color>
+            <Color x:Key="ExpanderContentBackground">#FFF2F2F2</Color>
+
+            <!-- Toggle button chrome -->
+            <SolidColorBrush x:Key="ToggleButtonBackground">#33000000</SolidColorBrush>
+            <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="Black" Opacity="0.1"/>
+            <SolidColorBrush x:Key="ToggleButtonForeground">Black</SolidColorBrush>
+            <SolidColorBrush x:Key="ToggleButtonBorderBrush">Transparent</SolidColorBrush>
+
+            <!-- ToolTip chrome -->
+            <SolidColorBrush x:Key="ToolTipBackground">#fff2f2f2</SolidColorBrush>
+            <SolidColorBrush x:Key="ToolTipForeground">Black</SolidColorBrush>
+            <SolidColorBrush x:Key="ToolTipBorderBrush" Color="Black" Opacity="0.14"/>
+
+            <!-- ScrollBar chrome -->
+            <SolidColorBrush x:Key="ScrollBarThumbFillPointerOver">#66000000</SolidColorBrush>
+            <SolidColorBrush x:Key="ScrollBarThumbFillPressed">#99000000</SolidColorBrush>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="Sender.Bg.Window">#262626</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Card">#2f2f2f</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Panel">#2f2f2f</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Chrome">#1f1f1f</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Sidebar">#242424</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Button">#3a3a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Button.Checked">#4a4a4a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Chip">#3a3a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Chip.Hover">#454545</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Bg.Selected">#3a3a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Canvas.Bg">#2a2a2e</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Border">#3a3a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Border.Soft">#333333</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Border.Soft.Alt">#333333</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Divider">#3a3a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Divider.Strong">#3a3a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Divider.Strong.Alt">#3a3a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Border.Input">#555555</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Border.Button.Checked">#4a4a4a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Border.Selected">#555555</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Border.Chip">#4a4a4a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Primary">#e4e4e4</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Strong">#f0f0f0</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.OnButton">#e4e4e4</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.OnAccent">#ffffff</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Secondary">#aaaaaa</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Caption">#999999</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Muted">#8c8c8c</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Muted.Alt">#8c8c8c</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Disabled">#666666</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Link">#6cb6ff</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Error">#f28b82</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Error.Strong">#ff7a7a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Error.Alt">#ff6b6b</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Warn">#ffd77a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Warn.Strong">#ffb86b</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Text.Success">#7ed67e</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Icon.Checked">#f0f0f0</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Icon.Hover">#d0d0d0</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Icon.Action">#6cb6ff</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Icon.Action.Hover">#8ccdff</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Accent">#e05555</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Accent.Border">#a03a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Accent.Border.Alt">#a03a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Danger.Bg">#b04a4a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Danger.Border">#8a3a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Warn.Bg">#3a3320</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Warn.Border">#8a7a40</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Warn.Text">#ffd77a</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.State.Border">#88aa88</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Plot.Status">#b03030</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Overlay.Busy">#99ffffff</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Overlay.Pressed">#22000000</SolidColorBrush>
+            <SolidColorBrush x:Key="Sender.Signal.Dot">#ff0000</SolidColorBrush>
+
+            <!-- Fluent bridge: "Soft graphite" chrome mirroring the Light dictionary's
+                 key set (see above). Accent-derived checked/selected/focused states
+                 are not bridged and follow the system accent. -->
+
+            <!-- Text input chrome -->
+            <SolidColorBrush x:Key="TextControlBackground">#3a3a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlBackgroundPointerOver">#454545</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlBackgroundFocused">#3a3a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlBackgroundDisabled">#2f2f2f</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlForeground">#e4e4e4</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlForegroundPointerOver">#e4e4e4</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlForegroundFocused">#e4e4e4</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlForegroundDisabled">#8a8a8a</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlBorderBrush">#555555</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlBorderBrushPointerOver">#666666</SolidColorBrush>
+            <SolidColorBrush x:Key="TextControlBorderBrushDisabled">#3a3a3a</SolidColorBrush>
+
+            <!-- ComboBox chrome -->
+            <SolidColorBrush x:Key="ComboBoxBackground">#3a3a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver">#454545</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxBackgroundPressed">#454545</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxBackgroundDisabled">#2f2f2f</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxForeground">#e4e4e4</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxForegroundDisabled">#8a8a8a</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxBorderBrush">#555555</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver">#666666</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled">#3a3a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxDropDownBackground">#2f2f2f</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush">#3a3a3a</SolidColorBrush>
+
+            <!-- Menu / flyout / popup chrome -->
+            <SolidColorBrush x:Key="MenuFlyoutPresenterBackground">#2f2f2f</SolidColorBrush>
+            <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush">#3a3a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="FlyoutPresenterBackground">#2f2f2f</SolidColorBrush>
+
+            <!-- Expander chrome (Color-typed: Fluent's template consumes these via DynamicResource) -->
+            <Color x:Key="ExpanderHeaderBackground">Transparent</Color>
+            <Color x:Key="ExpanderHeaderBackgroundPointerOver">#3a3a3a</Color>
+            <Color x:Key="ExpanderHeaderForeground">#e4e4e4</Color>
+            <Color x:Key="ExpanderHeaderForegroundPointerOver">#e4e4e4</Color>
+            <Color x:Key="ExpanderContentBackground">#2f2f2f</Color>
+
+            <!-- Toggle button chrome -->
+            <SolidColorBrush x:Key="ToggleButtonBackground">#3a3a3a</SolidColorBrush>
+            <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver">#454545</SolidColorBrush>
+            <SolidColorBrush x:Key="ToggleButtonForeground">#e4e4e4</SolidColorBrush>
+            <SolidColorBrush x:Key="ToggleButtonBorderBrush">#555555</SolidColorBrush>
+
+            <!-- ToolTip chrome -->
+            <SolidColorBrush x:Key="ToolTipBackground">#1f1f1f</SolidColorBrush>
+            <SolidColorBrush x:Key="ToolTipForeground">#e4e4e4</SolidColorBrush>
+            <SolidColorBrush x:Key="ToolTipBorderBrush">#3a3a3a</SolidColorBrush>
+
+            <!-- ScrollBar chrome -->
+            <SolidColorBrush x:Key="ScrollBarThumbFillPointerOver">#777777</SolidColorBrush>
+            <SolidColorBrush x:Key="ScrollBarThumbFillPressed">#999999</SolidColorBrush>
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

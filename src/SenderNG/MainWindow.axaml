@@ -45,7 +45,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         x:Class="SenderNG.MainWindow"
         x:DataType="vm:MainViewModel"
          Title="{Binding Title, FallbackValue=SenderNG}" Width="1200" Height="740"
-         Background="#f6f6f6">
+         Background="{DynamicResource Sender.Bg.Window}">
 
     <!-- Flyout strip buttons: width stays 32, height adapts to rotated text.
          Overrides app-wide fixed Button Height=28 (class selector beats type selector). -->
@@ -61,9 +61,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
         <!-- Row0: Menu + Toolbar (grid-column 0/3) -->
         <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="4"
-                Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,0,0,1" HorizontalAlignment="Stretch">
+                Background="{DynamicResource Sender.Bg.Chrome}" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0,0,0,1" HorizontalAlignment="Stretch">
             <StackPanel HorizontalAlignment="Stretch">
-                <Menu Background="#e8e8e8" CornerRadius="0">
+                <Menu Background="{DynamicResource Sender.Bg.Chrome}" CornerRadius="0">
                     <MenuItem Header="{loc:Loc app.menu.file}">
                         <MenuItem Header="{loc:Loc app.menu.file.open}" Command="{Binding OpenFileCommand}" />
                         <MenuItem Header="{loc:Loc app.menu.file.save}" Command="{Binding SaveFileCommand}" />
@@ -103,44 +103,44 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         <MenuItem Header="{loc:Loc app.menu.help.about}" Command="{Binding AboutCommand}" />
                     </MenuItem>
                 </Menu>
-                <Border BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="4,2" Background="#e8e8e8" HorizontalAlignment="Stretch">
+                <Border x:Name="ToolbarBand" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0,1,0,0" Padding="4,2" Background="{DynamicResource Sender.Bg.Chrome}" HorizontalAlignment="Stretch">
 					<StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
 						<!-- Toolbox buttons square 48x48 icon-only with ToolTip, contour icons -->
-						<Button Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" ToolTip.Tip="{loc:Loc app.toolbar.connect}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+						<Button Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" ToolTip.Tip="{loc:Loc app.toolbar.connect}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
 							<Path Width="30" Height="32" Stretch="Uniform"
 								  HorizontalAlignment="Center" VerticalAlignment="Center"
-								  Stroke="Black" StrokeThickness="1.5"
+								  Stroke="{DynamicResource Sender.Text.OnButton}" StrokeThickness="1.5"
 								  Data="M 11,6 v 4 M 21,6 v 4 M 6,10 h 20 v 4 a 10,10 0 0,1 -20,0 Z M 16,24 v 4" />
 						</Button>
 
-						<Button Command="{Binding DisconnectCommand}" IsVisible="{Binding ShowDisconnect}" ToolTip.Tip="{loc:Loc app.toolbar.disconnect}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+						<Button Command="{Binding DisconnectCommand}" IsVisible="{Binding ShowDisconnect}" ToolTip.Tip="{loc:Loc app.toolbar.disconnect}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
 							<Path Width="30" Height="32" Stretch="Uniform"
 								  HorizontalAlignment="Center" VerticalAlignment="Center"
-								  Stroke="Black" StrokeThickness="1.5"
+								  Stroke="{DynamicResource Sender.Text.OnButton}" StrokeThickness="1.5"
 								  Data="M 11,6 v 4 M 21,6 v 4 M 6,10 h 20 v 4 a 10,10 0 0,1 -20,0 Z M 16,24 v 4 M 12,12.5 l 8,8 M 20,12.5 l -8,8" />
 						</Button>
 
-						<Button Command="{Binding OpenFileCommand}" ToolTip.Tip="{loc:Loc app.toolbar.open}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+						<Button Command="{Binding OpenFileCommand}" ToolTip.Tip="{loc:Loc app.toolbar.open}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
 							<!-- Folder outline: Height stretched vertically to balance with Floppy baseline -->
 							<Path Width="32" Height="32" Stretch="Uniform"
 								  HorizontalAlignment="Center" VerticalAlignment="Center"
-								  Stroke="Black" StrokeThickness="1.5"
+								  Stroke="{DynamicResource Sender.Text.OnButton}" StrokeThickness="1.5"
 								  Data="M 2,30 V 6 a 2,2 0 0,1 2,-2 h 7 l 4,4 h 13 a 2,2 0 0,1 2,2 v 20 a 2,2 0 0,1 -2,2 H 4 a 2,2 0 0,1 -2,-2 Z" />
 						</Button>
 
-						<Button Command="{Binding SaveFileCommand}" ToolTip.Tip="{loc:Loc app.toolbar.save}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+						<Button Command="{Binding SaveFileCommand}" ToolTip.Tip="{loc:Loc app.toolbar.save}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
 							<!-- Floppy disk (stroke only) -->
 							<Path Width="32" Height="32" Stretch="Uniform"
 								  HorizontalAlignment="Center" VerticalAlignment="Center"
-								  Stroke="Black" StrokeThickness="1.5"
+								  Stroke="{DynamicResource Sender.Text.OnButton}" StrokeThickness="1.5"
 								  Data="M 4,4 h 20 l 4,4 v 20 a 2,2 0 0,1 -2,2 H 4 a 2,2 0 0,1 -2,-2 V 6 a 2,2 0 0,1 2,-2 Z M 9,4 v 8 h 11 V 4 Z M 7,16 h 18 v 14 H 7 Z" />
 						</Button>
 
-						<Button Command="{Binding CloseFileCommand}" ToolTip.Tip="{loc:Loc app.toolbar.close}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+						<Button Command="{Binding CloseFileCommand}" ToolTip.Tip="{loc:Loc app.toolbar.close}" Width="48" Height="48" MinHeight="48" CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
 							<!-- Document with X (stroke only) -->
 							<Path Width="32" Height="32" Stretch="Uniform"
 								  HorizontalAlignment="Center" VerticalAlignment="Center"
-								  Stroke="Black" StrokeThickness="1.5"
+								  Stroke="{DynamicResource Sender.Text.OnButton}" StrokeThickness="1.5"
 								  Data="M 4,2 h 16 l 8,8 v 20 a 2,2 0 0,1 -2,2 H 4 a 2,2 0 0,1 -2,-2 V 4 a 2,2 0 0,1 2,-2 Z M 20,2 v 8 h 8 M 10,16 l 12,12 M 22,16 l -12,12" />
 						</Button>
 					</StackPanel>
@@ -152,11 +152,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
         <!-- Col0 Row1: Left Border with 5 Expanders -->
         <Border Grid.Row="1" Grid.Column="0"
-                Background="White" BorderBrush="#aaa" BorderThickness="0,0,1,0" HorizontalAlignment="Stretch">
+                Background="{DynamicResource Sender.Bg.Panel}" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0,0,1,0" HorizontalAlignment="Stretch">
             <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
                 <!-- DRO -->
-                <Expander Grid.Row="0" IsExpanded="True" CornerRadius="0" Background="White"
-                          BorderBrush="#aaa" BorderThickness="1" Margin="4,4,4,2" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <Expander Grid.Row="0" IsExpanded="True" CornerRadius="0" Background="{DynamicResource Sender.Bg.Panel}"
+                          BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1" Margin="4,4,4,2" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                     <Expander.Header>
                         <TextBlock Text="{Binding DroHeader, FallbackValue='DRO'}" FontWeight="SemiBold" />
                     </Expander.Header>
@@ -166,8 +166,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 </Expander>
 
                 <!-- Program limits: hidden until a program with motion is loaded -->
-                <Expander Grid.Row="1" IsExpanded="True" CornerRadius="0" Background="White"
-                          BorderBrush="#aaa" BorderThickness="1" Margin="4,2" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                <Expander Grid.Row="1" IsExpanded="True" CornerRadius="0" Background="{DynamicResource Sender.Bg.Panel}"
+                          BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1" Margin="4,2" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                           IsVisible="{Binding HasProgramLimits}">
                     <Expander.Header>
                         <TextBlock Text="{loc:Loc app.panel.programLimits}" FontWeight="SemiBold" />
@@ -180,13 +180,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                         <TextBlock Grid.Column="0" Text="{Binding Letter}" FontSize="16" FontWeight="SemiBold"
                                                    VerticalAlignment="Center" TextAlignment="Center" />
                                         <TextBox Grid.Column="1" Text="{Binding Min, StringFormat={}{0:F3}, Mode=OneWay}" IsReadOnly="True"
-                                                 Height="32" MinHeight="32" CornerRadius="0" BorderBrush="#999" BorderThickness="1" Padding="6,0"
+                                                 Height="32" MinHeight="32" CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Padding="6,0"
                                                  FontSize="13" VerticalContentAlignment="Center" VerticalAlignment="Center" Margin="2,0" />
-                                        <TextBlock Grid.Column="2" Text="-" VerticalAlignment="Center" TextAlignment="Center" FontSize="11" Foreground="#666" />
+                                        <TextBlock Grid.Column="2" Text="-" VerticalAlignment="Center" TextAlignment="Center" FontSize="11" Foreground="{DynamicResource Sender.Text.Secondary}" />
                                         <TextBox Grid.Column="3" Text="{Binding Max, StringFormat={}{0:F3}, Mode=OneWay}" IsReadOnly="True"
-                                                 Height="32" MinHeight="32" CornerRadius="0" BorderBrush="#999" BorderThickness="1" Padding="6,0"
+                                                 Height="32" MinHeight="32" CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Padding="6,0"
                                                  FontSize="13" VerticalContentAlignment="Center" VerticalAlignment="Center" Margin="2,0" />
-                                        <TextBlock Grid.Column="4" Text="{loc:Loc common.mm, DText='mm'}" VerticalAlignment="Center" FontSize="11" Foreground="#888" Margin="4,0,0,0" />
+                                        <TextBlock Grid.Column="4" Text="{loc:Loc common.mm, DText='mm'}" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource Sender.Text.Muted.Alt}" Margin="4,0,0,0" />
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -195,21 +195,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 </Expander>
 
                 <!-- Left plugins ItemsControl (flex:1 fills) — hidden when no extra left plugins (count <=2) -->
-                <Expander Grid.Row="2" IsExpanded="True" CornerRadius="0" Background="White"
-                          BorderBrush="#aaa" BorderThickness="1" Margin="4,2" Padding="0"
+                <Expander Grid.Row="2" IsExpanded="True" CornerRadius="0" Background="{DynamicResource Sender.Bg.Panel}"
+                          BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1" Margin="4,2" Padding="0"
                           VerticalAlignment="Stretch" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                           IsVisible="{Binding LeftModules, Converter={x:Static conv:Converters.LeftPluginsVisible}}">
                     <Expander.Header>
                         <StackPanel>
                             <TextBlock Text="{loc:Loc app.panel.leftPlugins}" FontWeight="SemiBold" />
-                            <TextBlock Text="{loc:Loc app.panel.leftPluginsHint}" Foreground="#888" FontSize="9" />
+                            <TextBlock Text="{loc:Loc app.panel.leftPluginsHint}" Foreground="{DynamicResource Sender.Text.Muted.Alt}" FontSize="9" />
                         </StackPanel>
                     </Expander.Header>
                     <ScrollViewer VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
                         <ItemsControl ItemsSource="{Binding LeftModules}" Margin="4" HorizontalAlignment="Stretch">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:NamedModule">
-                                    <Border BorderBrush="#aaa" BorderThickness="1" CornerRadius="0" Margin="0,2" Padding="6" Background="#fafafa" HorizontalAlignment="Stretch">
+                                    <Border BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1" CornerRadius="0" Margin="0,2" Padding="6" Background="{DynamicResource Sender.Bg.Card}" HorizontalAlignment="Stretch">
                                         <TextBlock Text="{Binding Name}" FontSize="11" />
                                     </Border>
                                 </DataTemplate>
@@ -224,7 +224,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                      motor) anchored right in the same row. Two WrapPanels in a
                      3-column grid (Auto,*,Auto) reproduce the DockPanel Left/Right
                      split so each group wraps independently when space is tight. -->
-                <Border Grid.Row="3" Background="White" BorderBrush="#aaa" BorderThickness="0,1,0,0" Margin="0" Padding="4,6" HorizontalAlignment="Stretch">
+                <Border Grid.Row="3" Background="{DynamicResource Sender.Bg.Panel}" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0,1,0,0" Margin="0" Padding="4,6" HorizontalAlignment="Stretch">
                     <Grid ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch" VerticalAlignment="Center">
                         <ItemsControl Grid.Column="0" ItemsSource="{Binding AxisSignalIndicators}" HorizontalAlignment="Left" VerticalAlignment="Center">
                             <ItemsControl.ItemsPanel>
@@ -236,10 +236,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                 <DataTemplate x:DataType="vm:SignalIndicator">
                                     <StackPanel Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                 Margin="4,0" ToolTip.Tip="{Binding ToolTip}">
-                                        <Ellipse Width="14" Height="14" Stroke="#777" StrokeThickness="1.4"
+                                        <Ellipse Width="14" Height="14" Stroke="{DynamicResource Sender.Text.Caption}" StrokeThickness="1.4"
                                                  Fill="{Binding IsActive, Converter={x:Static conv:Converters.SignalBrush}}"
                                                  HorizontalAlignment="Center" />
-                                        <TextBlock Text="{Binding Letter}" FontSize="11" Foreground="#333" HorizontalAlignment="Center" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Letter}" FontSize="11" Foreground="{DynamicResource Sender.Text.Primary}" HorizontalAlignment="Center" FontWeight="SemiBold" />
                                     </StackPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -254,10 +254,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                 <DataTemplate x:DataType="vm:SignalIndicator">
                                     <StackPanel Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                 Margin="4,0" ToolTip.Tip="{Binding ToolTip}">
-                                        <Ellipse Width="14" Height="14" Stroke="#777" StrokeThickness="1.4"
+                                        <Ellipse Width="14" Height="14" Stroke="{DynamicResource Sender.Text.Caption}" StrokeThickness="1.4"
                                                  Fill="{Binding IsActive, Converter={x:Static conv:Converters.SignalBrush}}"
                                                  HorizontalAlignment="Center" />
-                                        <TextBlock Text="{Binding Letter}" FontSize="11" Foreground="#333" HorizontalAlignment="Center" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Letter}" FontSize="11" Foreground="{DynamicResource Sender.Text.Primary}" HorizontalAlignment="Center" FontWeight="SemiBold" />
                                     </StackPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -266,16 +266,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 </Border>
 
                 <!-- State / Controls (pinned bottom) — fixed, no Expander, aligns with Cycle bar height 28 -->
-                <Border Grid.Row="4" Background="White" BorderBrush="#aaa" BorderThickness="0,1,0,0" Margin="0" Padding="4" HorizontalAlignment="Stretch">
+                <Border Grid.Row="4" Background="{DynamicResource Sender.Bg.Panel}" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0,1,0,0" Margin="0" Padding="4" HorizontalAlignment="Stretch">
                     <StackPanel Spacing="4" HorizontalAlignment="Stretch">
                         <!-- State row as a 3-column grid: [State] | [indicator, stretches to fit
                              NOT CONNECTED] | [x Check]. The indicator has no fixed width so the
                              longest state text (NOT CONNECTED) and short ones (Alarm, Check) both
                              fit and center. -->
                         <Grid ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch">
-                            <TextBlock Grid.Column="0" Text="{loc:Loc app.state.label}" FontSize="12" FontWeight="SemiBold" Foreground="#333" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Grid.Column="0" Text="{loc:Loc app.state.label}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Sender.Text.Primary}" VerticalAlignment="Center" Margin="0,0,6,0" />
                             <Border Grid.Column="1" Height="30" MinHeight="30" VerticalAlignment="Center" Margin="0,0,6,0"
-                                    Background="{Binding StateBrush}" BorderBrush="#8a8" BorderThickness="1" CornerRadius="0" HorizontalAlignment="Stretch">
+                                    Background="{Binding StateBrush}" BorderBrush="{DynamicResource Sender.State.Border}" BorderThickness="1" CornerRadius="0" HorizontalAlignment="Stretch">
                                 <TextBlock Text="{Binding MachineStateDisplay}" FontSize="13" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{Binding StateForeground}"
                                            TextTrimming="CharacterEllipsis" />
                             </Border>
@@ -284,9 +284,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                       ToolTip.Tip="{loc:HotkeyTip app.state.checkTip, check}" />
                         </Grid>
                         <Grid ColumnDefinitions="*,Auto,*" HorizontalAlignment="Stretch">
-                            <Button Grid.Column="0" Content="{loc:Loc app.state.home}" Command="{Binding HomeCommand}" ToolTip.Tip="{loc:HotkeyTip app.state.homeTip, home}" CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1" Margin="0,0,2,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0" Height="28" MinHeight="28" />
-                            <Button Grid.Column="1" Content="{loc:Loc app.state.unlock}" Command="{Binding UnlockCommand}" ToolTip.Tip="{loc:HotkeyTip app.state.unlockTip, unlock}" CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1" Margin="2,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="2,0" Height="28" MinHeight="28" MinWidth="100"/>
-                            <Button Grid.Column="2" Content="{loc:Loc app.state.reset}" Command="{Binding ResetCommand}" ToolTip.Tip="{loc:HotkeyTip app.state.resetTip, reset}" CornerRadius="0" Background="#e04545" Foreground="White" BorderBrush="#b00" BorderThickness="1" Margin="2,0,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0" Height="28" MinHeight="28" />
+                            <Button Grid.Column="0" Content="{loc:Loc app.state.home}" Command="{Binding HomeCommand}" ToolTip.Tip="{loc:HotkeyTip app.state.homeTip, home}" CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" Foreground="{DynamicResource Sender.Text.OnButton}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Margin="0,0,2,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0" Height="28" MinHeight="28" />
+                            <Button Grid.Column="1" Content="{loc:Loc app.state.unlock}" Command="{Binding UnlockCommand}" ToolTip.Tip="{loc:HotkeyTip app.state.unlockTip, unlock}" CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" Foreground="{DynamicResource Sender.Text.OnButton}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Margin="2,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="2,0" Height="28" MinHeight="28" MinWidth="100"/>
+                            <Button Grid.Column="2" Content="{loc:Loc app.state.reset}" Command="{Binding ResetCommand}" ToolTip.Tip="{loc:HotkeyTip app.state.resetTip, reset}" CornerRadius="0" Background="{DynamicResource Sender.Accent}" Foreground="{DynamicResource Sender.Text.OnAccent}" BorderBrush="{DynamicResource Sender.Accent.Border}" BorderThickness="1" Margin="2,0,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0" Height="28" MinHeight="28" />
                         </Grid>
                     </StackPanel>
                 </Border>
@@ -294,9 +294,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         </Border>
 
         <!-- Col1 Row1: Center — TabControl with one tab per Center-claiming module (Program, Console) -->
-        <Border Grid.Row="1" Grid.Column="1" Background="White" BorderBrush="#aaa" BorderThickness="1,0,0,0" HorizontalAlignment="Stretch">
+        <Border x:Name="CenterHost" Grid.Row="1" Grid.Column="1" Background="{DynamicResource Sender.Bg.Panel}" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1,0,0,0" HorizontalAlignment="Stretch">
             <Grid RowDefinitions="*,Auto">
-                <TabControl Grid.Row="0" ItemsSource="{Binding CenterTabs}" CornerRadius="0" Background="White" Margin="4" HorizontalAlignment="Stretch">
+                <TabControl Grid.Row="0" ItemsSource="{Binding CenterTabs}" CornerRadius="0" Background="{DynamicResource Sender.Bg.Panel}" Margin="4" HorizontalAlignment="Stretch">
                     <TabControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:CenterTab">
                             <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" />
@@ -311,30 +311,30 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 </TabControl>
 
                 <!-- Cycle bar: 4 Buttons left-aligned below Center TabControl — Height 28, flat contour glyphs black/white on bg -->
-                <Border Grid.Row="1" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="4" HorizontalAlignment="Stretch">
+                <Border Grid.Row="1" Background="{DynamicResource Sender.Bg.Chrome}" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0,1,0,0" Padding="4" HorizontalAlignment="Stretch">
                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left" VerticalAlignment="Center">
-                        <Button Command="{Binding CycleStartCommand}" ToolTip.Tip="{loc:HotkeyTip app.cycle.startTip, cycle.start}" CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1" Padding="8,0" FontSize="11" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center">
+                        <Button Command="{Binding CycleStartCommand}" ToolTip.Tip="{loc:HotkeyTip app.cycle.startTip, cycle.start}" CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" Foreground="{DynamicResource Sender.Text.OnButton}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Padding="8,0" FontSize="11" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                <PathIcon Data="M6 5 L14 10 L6 15 Z" Width="12" Height="12" Foreground="Black" VerticalAlignment="Center" />
-                                <TextBlock Text="{loc:Loc app.cycle.start}" Foreground="Black" FontSize="11" VerticalAlignment="Center" />
+                                <PathIcon Data="M6 5 L14 10 L6 15 Z" Width="12" Height="12" Foreground="{DynamicResource Sender.Text.OnButton}" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:Loc app.cycle.start}" Foreground="{DynamicResource Sender.Text.OnButton}" FontSize="11" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
-                        <Button Command="{Binding FeedHoldCommand}" ToolTip.Tip="{loc:HotkeyTip app.cycle.feedHoldTip, cycle.hold}" CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1" Padding="8,0" FontSize="11" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center">
+                        <Button Command="{Binding FeedHoldCommand}" ToolTip.Tip="{loc:HotkeyTip app.cycle.feedHoldTip, cycle.hold}" CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" Foreground="{DynamicResource Sender.Text.OnButton}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Padding="8,0" FontSize="11" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                <PathIcon Data="M5 5 L7 5 L7 15 L5 15 Z M9 5 L11 5 L11 15 L9 15 Z" Width="12" Height="12" Foreground="Black" VerticalAlignment="Center" />
-                                <TextBlock Text="{loc:Loc app.cycle.feedHold}" Foreground="Black" FontSize="11" VerticalAlignment="Center" />
+                                <PathIcon Data="M5 5 L7 5 L7 15 L5 15 Z M9 5 L11 5 L11 15 L9 15 Z" Width="12" Height="12" Foreground="{DynamicResource Sender.Text.OnButton}" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:Loc app.cycle.feedHold}" Foreground="{DynamicResource Sender.Text.OnButton}" FontSize="11" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
-                        <Button Command="{Binding StopCommand}" ToolTip.Tip="{loc:HotkeyTip app.cycle.stopTip, cycle.stop}" CornerRadius="0" Background="#e04545" Foreground="White" BorderBrush="#b00" BorderThickness="1" Padding="8,0" FontSize="11" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center">
+                        <Button Command="{Binding StopCommand}" ToolTip.Tip="{loc:HotkeyTip app.cycle.stopTip, cycle.stop}" CornerRadius="0" Background="{DynamicResource Sender.Accent}" Foreground="{DynamicResource Sender.Text.OnAccent}" BorderBrush="{DynamicResource Sender.Accent.Border}" BorderThickness="1" Padding="8,0" FontSize="11" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                <PathIcon Data="M5 5 L11 5 L11 11 L5 11 Z" Width="12" Height="12" Foreground="White" VerticalAlignment="Center" />
-                                <TextBlock Text="{loc:Loc app.cycle.stop}" Foreground="White" FontSize="11" VerticalAlignment="Center" />
+                                <PathIcon Data="M5 5 L11 5 L11 11 L5 11 Z" Width="12" Height="12" Foreground="{DynamicResource Sender.Text.OnAccent}" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:Loc app.cycle.stop}" Foreground="{DynamicResource Sender.Text.OnAccent}" FontSize="11" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
-                        <Button Command="{Binding RewindCommand}" ToolTip.Tip="{loc:HotkeyTip app.cycle.rewindTip, cycle.rewind}" CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1" Padding="8,0" FontSize="11" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center">
+                        <Button Command="{Binding RewindCommand}" ToolTip.Tip="{loc:HotkeyTip app.cycle.rewindTip, cycle.rewind}" CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" Foreground="{DynamicResource Sender.Text.OnButton}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Padding="8,0" FontSize="11" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                <PathIcon Data="M12 5 A6 6 0 1 0 12 15 L12 13 A4 4 0 1 1 12 7 Z M11 8 L8 11 L11 11 Z" Width="12" Height="12" Foreground="Black" VerticalAlignment="Center" />
-                                <TextBlock Text="{loc:Loc app.cycle.rewind}" Foreground="Black" FontSize="11" VerticalAlignment="Center" />
+                                <PathIcon Data="M12 5 A6 6 0 1 0 12 15 L12 13 A4 4 0 1 1 12 7 Z M11 8 L8 11 L11 11 Z" Width="12" Height="12" Foreground="{DynamicResource Sender.Text.OnButton}" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:Loc app.cycle.rewind}" Foreground="{DynamicResource Sender.Text.OnButton}" FontSize="11" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
@@ -344,14 +344,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
         <!-- Col2 Row1: Right panel (own column — flyout strip never covers it); flyout drawer overlays on top -->
         <Panel x:Name="FlyoutHost" Grid.Row="1" Grid.Column="2">
-            <Border Background="White" BorderBrush="#aaa" BorderThickness="1,0,0,0" HorizontalAlignment="Stretch" Margin="0,0,0,0">
+            <Border Background="{DynamicResource Sender.Bg.Panel}" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1,0,0,0" HorizontalAlignment="Stretch" Margin="0,0,0,0">
                 <ScrollViewer HorizontalAlignment="Stretch" Margin="0,0,0,0">
                     <StackPanel Spacing="2" Margin="4" HorizontalAlignment="Stretch">
                         <ItemsControl ItemsSource="{Binding RightModuleViews}" HorizontalAlignment="Stretch">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:ModuleView">
-                                    <Expander IsExpanded="True" CornerRadius="0" Background="White"
-                                              BorderBrush="#aaa" BorderThickness="1" Margin="0,2" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                    <Expander IsExpanded="True" CornerRadius="0" Background="{DynamicResource Sender.Bg.Panel}"
+                                              BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1" Margin="0,2" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                         <Expander.Header>
                                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11" />
                                         </Expander.Header>
@@ -379,14 +379,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 MinWidth="360" MaxWidth="{Binding $parent[Window].Width}"
                 MaxHeight="{Binding #FlyoutHost.Bounds.Height}"
                 HorizontalAlignment="Right" VerticalAlignment="Top"
-                Background="White" BorderBrush="#aaa" BorderThickness="1"
+                Background="{DynamicResource Sender.Bg.Panel}" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1"
                 ClipToBounds="True"
                 IsVisible="{Binding SelectedModule, Converter={x:Static conv:Converters.IsFlyout}}">
             <Grid RowDefinitions="Auto,*">
-                <Border Grid.Row="0" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,0,0,1" Padding="6,4">
+                <Border Grid.Row="0" Background="{DynamicResource Sender.Bg.Chrome}" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0,0,0,1" Padding="6,4">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="{Binding SelectedModuleName, FallbackValue='Flyout'}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
-                        <Button Grid.Column="1" Content="✕" CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="6,0" Height="22" MinHeight="22" FontSize="10"
+                        <Button Grid.Column="1" Content="✕" CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Padding="6,0" Height="22" MinHeight="22" FontSize="10"
                                 Command="{Binding SelectModuleCommand}" CommandParameter="{x:Null}" />
                     </Grid>
                 </Border>
@@ -397,7 +397,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
         <!-- Col3 Row1: Flyout vertical 32px strip — dedicated column, never covers Right; Auto collapses when no Flyout claimants -->
         <Border Grid.Row="1" Grid.Column="3" Width="32"
-                Background="#e0e0e0" BorderBrush="#aaa" BorderThickness="1,0,0,0"
+                Background="{DynamicResource Sender.Bg.Sidebar}" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1,0,0,0"
                 IsVisible="{Binding FlyoutModules, Converter={x:Static conv:Converters.HasElements}}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl ItemsSource="{Binding FlyoutModules}" Margin="2">
@@ -408,8 +408,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:NamedModule">
-                            <Button Classes="flyoutToggle" CornerRadius="0" Background="#eee"
-                                    BorderBrush="#999" BorderThickness="1"
+                            <Button Classes="flyoutToggle" CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}"
+                                    BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                                     HorizontalAlignment="Stretch" FontSize="12"
                                     Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectModuleCommand}"
                                     CommandParameter="{Binding Module}">
@@ -428,14 +428,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
         <!-- Row2: MDI editable ComboBox (IsEditable) Width=300 + Send + signals/limits summary -->
         <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4"
-                Background="White" BorderBrush="#aaa" BorderThickness="0,1,0,1" Padding="6" HorizontalAlignment="Stretch">
+                Background="{DynamicResource Sender.Bg.Panel}" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0,1,0,1" Padding="6" HorizontalAlignment="Stretch">
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <TextBlock Text="{loc:Loc app.mdi.label}" FontWeight="SemiBold" VerticalAlignment="Center" />
                 <ComboBox x:Name="MdiBox" Width="300" Height="28" MinHeight="28" IsEditable="True"
                           Text="{Binding MdiInput, Mode=TwoWay}"
                           ItemsSource="{Binding MdiHistory}"
                           PlaceholderText="{loc:Loc app.mdi.placeholder}"
-                          CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                          CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                           VerticalAlignment="Center" VerticalContentAlignment="Center">
                     <ComboBox.KeyBindings>
                         <KeyBinding Gesture="Enter" Command="{Binding SendMdiCommand}" />
@@ -443,20 +443,20 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         <KeyBinding Gesture="Down" Command="{Binding MdiHistoryNextCommand}" />
                     </ComboBox.KeyBindings>
                 </ComboBox>
-                <Button Content="{loc:Loc app.mdi.send}" Command="{Binding SendMdiCommand}" CornerRadius="0" Background="#eee" Foreground="Black" BorderBrush="#999" BorderThickness="1" Padding="12,0" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center" />
+                <Button Content="{loc:Loc app.mdi.send}" Command="{Binding SendMdiCommand}" CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" Foreground="{DynamicResource Sender.Text.OnButton}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Padding="12,0" Height="28" MinHeight="28" VerticalAlignment="Center" VerticalContentAlignment="Center" />
             </StackPanel>
         </Border>
 
         <!-- Row3: StatusBar (ioSender layout: Blocks | Message | RunTime | JogStep).
              Fixed-width slots so Block/RunTime/JogStep changes never shift the
              other texts; the star column is Message, absorbing the slack. -->
-        <Border Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="4"
-                Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,1,0,0" Padding="4,2" HorizontalAlignment="Stretch">
+        <Border x:Name="StatusBar" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="4"
+                Background="{DynamicResource Sender.Bg.Chrome}" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0,1,0,0" Padding="4,2" HorizontalAlignment="Stretch">
             <Grid ColumnDefinitions="110,*,110,95">
-                <TextBlock Grid.Column="0" Text="{Binding StatusBarBlocks}" FontSize="10" Foreground="#666" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                <TextBlock Grid.Column="1" Text="{Binding Message}" FontSize="10" Foreground="#666" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" />
-                <TextBlock Grid.Column="2" Text="{Binding RunTime}" FontSize="10" Foreground="#666" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" />
-                <TextBlock Grid.Column="3" Text="{Binding StatusBarJogStep}" FontSize="10" Foreground="#666" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="0" Text="{Binding StatusBarBlocks}" FontSize="10" Foreground="{DynamicResource Sender.Text.Secondary}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="StatusBarText" Grid.Column="1" Text="{Binding Message}" FontSize="10" Foreground="{DynamicResource Sender.Text.Secondary}" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="2" Text="{Binding RunTime}" FontSize="10" Foreground="{DynamicResource Sender.Text.Secondary}" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="3" Text="{Binding StatusBarJogStep}" FontSize="10" Foreground="{DynamicResource Sender.Text.Secondary}" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" />
             </Grid>
         </Border>
 

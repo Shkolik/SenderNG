@@ -52,6 +52,10 @@ SenderNG is a focused fork of ioSender. The main differences are cross-platform 
 
 ![Localization settings](/docs/images/localization.png)
 
+- Light and dark themes — follows the system, or pick System/Light/Dark in App Settings (applies live, no restart).
+
+![Appearance settings - dark theme](/docs/images/dark_theme.png)
+
 - Jogging with a hold-to-jog continuous step (hold to move, release to stop)
 
 ![Jog widget](/docs/images/jog.png)

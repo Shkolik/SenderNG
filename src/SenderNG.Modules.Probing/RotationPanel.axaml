@@ -42,7 +42,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     <StackPanel Spacing="10" Margin="0,4" HorizontalAlignment="Stretch" VerticalAlignment="Top">
             <TextBlock Text="{loc:Loc module.probing.rotationDesc, DText='Probe two points along an edge to measure the angle of the workpiece.'}"
-                       FontSize="11" Foreground="#333" TextWrapping="Wrap" MaxWidth="360" HorizontalAlignment="Left" />
+                       FontSize="11" Foreground="{DynamicResource Sender.Text.Primary}" TextWrapping="Wrap" MaxWidth="360" HorizontalAlignment="Left" />
 
             <!-- Edge pictograms in 2x2 grid arrangement -->
             <Grid Width="160" Height="160" RowDefinitions="80,80" ColumnDefinitions="80,80" HorizontalAlignment="Left">

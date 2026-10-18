@@ -42,21 +42,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:Class="SenderNG.Views.ConnectView"
              x:DataType="vm:ConnectViewModel">
 
-    <Border Width="360" Padding="10" Background="#f6f6f6">
+    <Border Width="360" Padding="10" Background="{DynamicResource Sender.Bg.Window}">
         <StackPanel Spacing="6">
 
             <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ProfileSelectorVisible}">
                 <TextBlock Text="{loc:Loc connect.profile}" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
                 <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
                           FontSize="12" Height="24" HorizontalAlignment="Stretch" CornerRadius="0"
-                          BorderBrush="#999" BorderThickness="1">
+                          BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1">
                     <ComboBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ProfileRow">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                                <Border Background="#e4e4e4" BorderBrush="#bbb" BorderThickness="1" CornerRadius="2"
+                                <Border Background="{DynamicResource Sender.Bg.Chip}" BorderBrush="{DynamicResource Sender.Border.Chip}" BorderThickness="1" CornerRadius="2"
                                         Padding="4,0" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding MachineTypeDisplayName}" FontSize="10" Foreground="#555" />
+                                    <TextBlock Text="{Binding MachineTypeDisplayName}" FontSize="10" Foreground="{DynamicResource Sender.Text.Muted}" />
                                 </Border>
                             </StackPanel>
                         </DataTemplate>
@@ -67,8 +67,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                  so switching to the shorter Network/Demo tabs doesn't make the
                  dialog jump; it can still grow if content needs more room. -->
             <TabControl SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
-                        CornerRadius="0" Background="White"
-                        BorderBrush="#999" BorderThickness="1" MinHeight="200">
+                        CornerRadius="0" Background="{DynamicResource Sender.Bg.Panel}"
+                        BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" MinHeight="200">
 
                 <!-- Tab headers match the center-panel tab typography (13 SemiBold).
                      Serial is grayed out when no ports are found (port list + baud
@@ -91,7 +91,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                   FontSize="12" Height="24"
                                   HorizontalAlignment="Stretch"
                                   CornerRadius="0"
-                                  BorderBrush="#999" BorderThickness="1" />
+                                  BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" />
 
                         <!-- Lines: "Baud rate      On connect" and the two selectors.
                              Three-column grid: baud selector spans the first column's
@@ -110,7 +110,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                       FontSize="12" Height="24"
                                       HorizontalAlignment="Stretch"
                                       CornerRadius="0"
-                                      BorderBrush="#999" BorderThickness="1" />
+                                      BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" />
                             <ComboBox Grid.Column="2" ItemsSource="{Binding ResetModeOptions}"
                                       SelectedItem="{Binding SelectedResetModeOption, Mode=TwoWay}"
                                       DisplayMemberBinding="{Binding Name}"
@@ -118,12 +118,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                       FontSize="12" Height="24"
                                       HorizontalAlignment="Stretch"
                                       CornerRadius="0"
-                                      BorderBrush="#999" BorderThickness="1" />
+                                      BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" />
                         </Grid>
                         <TextBlock Text="{loc:Loc connect.dtrHint}"
-                                   FontSize="11" Foreground="#666" TextWrapping="Wrap" />
+                                   FontSize="11" Foreground="{DynamicResource Sender.Text.Secondary}" TextWrapping="Wrap" />
 
-                        <TextBlock Text="{Binding NoPortsHint}" FontSize="11" Foreground="#a33"
+                        <TextBlock Text="{Binding NoPortsHint}" FontSize="11" Foreground="{DynamicResource Sender.Text.Error}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
                 </TabItem>
@@ -137,8 +137,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         <TextBlock Text="{loc:Loc connect.endpoint}" FontWeight="SemiBold" FontSize="12" />
                         <TextBox Text="{Binding NetworkEndpoint, Mode=TwoWay}"
                                  FontSize="12" Height="24"
-                                 CornerRadius="0" BorderBrush="#999" BorderThickness="1" />
-                        <TextBlock Text="{Binding NetworkNote}" FontSize="11" Foreground="#666"
+                                 CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" />
+                        <TextBlock Text="{Binding NetworkNote}" FontSize="11" Foreground="{DynamicResource Sender.Text.Secondary}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
                 </TabItem>
@@ -150,14 +150,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     </TabItem.Header>
                     <StackPanel Spacing="6" Margin="4,8,4,4">
                         <TextBlock Text="{Binding DemoDisclaimer}" FontSize="12.5"
-                                   Foreground="#666" TextWrapping="Wrap" LineHeight="18" />
+                                   Foreground="{DynamicResource Sender.Text.Secondary}" TextWrapping="Wrap" LineHeight="18" />
                         <TextBlock Text="{loc:Loc connect.demoAxes}" FontWeight="SemiBold" FontSize="12"
                                    Margin="0,2,0,0" />
                         <ComboBox ItemsSource="{Binding DemoAxisOptions}"
                                   SelectedItem="{Binding DemoAxes, Mode=TwoWay}"
                                   FontSize="12" Height="24" CornerRadius="0" MinWidth="72"
                                   HorizontalAlignment="Left"
-                                  BorderBrush="#999" BorderThickness="1" />
+                                  BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" />
                     </StackPanel>
                 </TabItem>
             </TabControl>
@@ -165,11 +165,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,8,0,0">
                 <Button Content="{Binding ConnectButtonLabel}" Command="{Binding ConnectCommand}"
                         Height="26" MinHeight="26" CornerRadius="0" FontSize="11"
-                        Background="#eee" BorderBrush="#999" BorderThickness="1"
+                        Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                         Padding="12,0" VerticalContentAlignment="Center" />
                 <Button Content="{loc:Loc connect.cancel}" Command="{Binding CancelCommand}"
                         Height="26" MinHeight="26" CornerRadius="0" FontSize="11"
-                        Background="#eee" BorderBrush="#999" BorderThickness="1"
+                        Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                         Padding="12,0" VerticalContentAlignment="Center" />
             </StackPanel>
         </StackPanel>

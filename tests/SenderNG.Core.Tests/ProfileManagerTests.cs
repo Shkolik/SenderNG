@@ -500,7 +500,7 @@ public class ProfileManagerTests
         var (_, settings) = MakeSettings();
         var vm = new AppSettingsViewModel(settings, [new StubModule("jog", "Jog")]);
 
-        Assert.IsType<LanguageSettingsLeaf>(vm.SelectedSetting); // default: language
+        Assert.IsType<AppearanceSettingsLeaf>(vm.SelectedSetting); // default: appearance
 
         vm.PreselectProfiles = true;
         Assert.IsType<ProfileSettingsLeaf>(vm.SelectedSetting);

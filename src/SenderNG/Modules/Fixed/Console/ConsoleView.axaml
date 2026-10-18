@@ -43,13 +43,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              x:Class="SenderNG.Modules.Fixed.ConsoleView"
              x:DataType="vm:ConsoleViewModel">
 
-    <Border BorderBrush="#aaa" BorderThickness="1" CornerRadius="0" Background="#f6f6f6">
+    <Border BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1" CornerRadius="0" Background="{DynamicResource Sender.Bg.Window}">
         <Grid RowDefinitions="Auto,*">
 
             <!-- Console settings (ioSender ConsoleControl parity): verbose output,
                  filter realtime status reports, show all realtime responses. The
                  labels are long, so they stack vertically to fit the tab width. -->
-            <Border Grid.Row="0" Background="#e8e8e8" BorderBrush="#aaa" BorderThickness="0,0,0,1" Padding="4,3">
+            <Border Grid.Row="0" Background="{DynamicResource Sender.Bg.Chrome}" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0,0,0,1" Padding="4,3">
                 <StackPanel Orientation="Vertical" Spacing="1">
                     <CheckBox Content="{loc:Loc module.console.verbose}" IsChecked="{Binding Verbose, Mode=TwoWay}"
                               FontSize="11" CornerRadius="0" />
@@ -63,7 +63,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                               FontSize="11" CornerRadius="0" />
                     <Button Content="{loc:Loc common.clear}" Command="{Binding ClearCommand}"
                             HorizontalAlignment="Left"
-                            CornerRadius="0" Background="#eee" BorderBrush="#999" BorderThickness="1"
+                            CornerRadius="0" Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                             Padding="10,0" Height="22" FontSize="11" Margin="0,3,0,0" />
                 </StackPanel>
             </Border>
@@ -74,7 +74,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                  output can be selected and copied in one go. -->
             <TextBox x:Name="ConsoleText" Grid.Row="1" IsReadOnly="True"
                      Text="{Binding ConsoleText}" TextWrapping="NoWrap"
-                     CornerRadius="0" BorderBrush="#aaa" BorderThickness="0"
+                     CornerRadius="0" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0"
                      FontSize="13" FontFamily="Consolas, Courier New, monospace"
                      ScrollViewer.HorizontalScrollBarVisibility="Visible"
                      ScrollViewer.VerticalScrollBarVisibility="Auto"

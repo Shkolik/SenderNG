@@ -47,21 +47,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
          this view shows the program grid and its per-line statuses. Rows are a
          fixed 24px + 1px hairline, which the view code-behind needs for exact
          centered auto-scroll — keep the heights in sync. -->
-    <Border BorderBrush="#aaa" BorderThickness="1" CornerRadius="0" Background="White">
+    <Border BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1" CornerRadius="0" Background="{DynamicResource Sender.Bg.Panel}">
         <Grid>
         <DockPanel>
             <!-- Program grid header: Line (44px) | Status (28px) | Data (1*),
                  with 1px separator columns so the vertical gridlines line up
                  with the rows. Header text is aligned exactly like the cells:
                  Line right-aligned to the column edge, Data left-aligned. -->
-            <Grid DockPanel.Dock="Top" ColumnDefinitions="44,1,28,1,1*" Background="#e8e8e8" Height="28">
-                <TextBlock Grid.Column="0" Text="{loc:Loc module.program.line}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="6,0" Foreground="#333" />
-                <Border Grid.Column="1" Background="#d0d0d0" />
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="44,1,28,1,1*" Background="{DynamicResource Sender.Bg.Chrome}" Height="28">
+                <TextBlock Grid.Column="0" Text="{loc:Loc module.program.line}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="6,0" Foreground="{DynamicResource Sender.Text.Primary}" />
+                <Border Grid.Column="1" Background="{DynamicResource Sender.Divider.Strong.Alt}" />
                 <TextBlock Grid.Column="2" Text="" />
-                <Border Grid.Column="3" Background="#d0d0d0" />
-                <TextBlock Grid.Column="4" Text="{loc:Loc module.program.data}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" Margin="6,0" Foreground="#333" />
+                <Border Grid.Column="3" Background="{DynamicResource Sender.Divider.Strong.Alt}" />
+                <TextBlock Grid.Column="4" Text="{loc:Loc module.program.data}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" Margin="6,0" Foreground="{DynamicResource Sender.Text.Primary}" />
             </Grid>
-            <ListBox x:Name="ProgramList" ItemsSource="{Binding ProgramRows}" Background="White" CornerRadius="0" BorderBrush="#aaa" BorderThickness="0">
+            <ListBox x:Name="ProgramList" ItemsSource="{Binding ProgramRows}" Background="{DynamicResource Sender.Bg.Panel}" CornerRadius="0" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0">
                 <ListBox.Styles>
                     <!-- Zero-padding items: the hover highlight then covers the
                          row content exactly instead of being inset from it. -->
@@ -75,14 +75,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <DataTemplate x:DataType="vm:GCodeProgramRow">
                         <!-- Row: bottom hairline separator + vertical gridlines
                              at the same x positions as the header. -->
-                        <Border BorderBrush="#e6e6e6" BorderThickness="0,0,0,1">
+                        <Border BorderBrush="{DynamicResource Sender.Border.Soft.Alt}" BorderThickness="0,0,0,1">
                             <Grid ColumnDefinitions="44,1,28,1,1*" Height="24">
-                                <TextBlock Grid.Column="0" Text="{Binding Line}" FontFamily="Consolas" FontSize="11" Foreground="#666" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="6,0" />
-                                <Border Grid.Column="1" Background="#d0d0d0" />
+                                <TextBlock Grid.Column="0" Text="{Binding Line}" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource Sender.Text.Secondary}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="6,0" />
+                                <Border Grid.Column="1" Background="{DynamicResource Sender.Divider.Strong.Alt}" />
                                 <!-- Status cell has no header; shows ✓/✕/· with error detail as tooltip -->
-                                <TextBlock Grid.Column="2" Text="{Binding Status}" FontSize="13" Foreground="#888" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip.Tip="{Binding Detail}" />
-                                <Border Grid.Column="3" Background="#d0d0d0" />
-                                <TextBlock Grid.Column="4" Text="{Binding Data}" FontFamily="Consolas" FontSize="12" VerticalAlignment="Center" Margin="6,0" Foreground="#333" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="2" Text="{Binding Status}" FontSize="13" Foreground="{DynamicResource Sender.Text.Muted.Alt}" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip.Tip="{Binding Detail}" />
+                                <Border Grid.Column="3" Background="{DynamicResource Sender.Divider.Strong.Alt}" />
+                                <TextBlock Grid.Column="4" Text="{Binding Data}" FontFamily="Consolas" FontSize="12" VerticalAlignment="Center" Margin="6,0" Foreground="{DynamicResource Sender.Text.Primary}" TextTrimming="CharacterEllipsis" />
                             </Grid>
                         </Border>
                     </DataTemplate>
@@ -93,10 +93,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              so the app stays responsive — but the user must SEE the work is
              happening (indeterminate bar + label), not stare at an empty
              grid wondering where their file went. -->
-        <Border IsVisible="{Binding IsBusy}" Background="#99ffffff" CornerRadius="0">
+        <Border IsVisible="{Binding IsBusy}" Background="{DynamicResource Sender.Overlay.Busy}" CornerRadius="0">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
                 <ProgressBar IsIndeterminate="True" Width="220" Height="10" />
-                <TextBlock Text="{loc:Loc app.msg.loadingProgram}" FontSize="12" Foreground="#555"
+                <TextBlock Text="{loc:Loc app.msg.loadingProgram}" FontSize="12" Foreground="{DynamicResource Sender.Text.Muted}"
                            HorizontalAlignment="Center" />
             </StackPanel>
         </Border>

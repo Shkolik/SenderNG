@@ -49,8 +49,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <Setter Property="MinWidth" Value="30" />
             <Setter Property="Padding" Value="4,0" />
             <Setter Property="CornerRadius" Value="0" />
-            <Setter Property="Background" Value="#eee" />
-            <Setter Property="BorderBrush" Value="#999" />
+            <Setter Property="Background" Value="{DynamicResource Sender.Bg.Button}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Sender.Border.Input}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -59,9 +59,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <Setter Property="Height" Value="26" />
             <Setter Property="Padding" Value="8,0" />
             <Setter Property="FontSize" Value="11" />
-            <Setter Property="Background" Value="#eee" />
-            <Setter Property="BorderBrush" Value="#999" />
-            <Setter Property="Foreground" Value="#333" />
+            <Setter Property="Background" Value="{DynamicResource Sender.Bg.Button}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Sender.Border.Input}" />
+            <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Primary}" />
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
@@ -75,15 +75,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             </Setter>
         </Style>
         <Style Selector="ToggleButton.ovrToggle:checked">
-            <Setter Property="Background" Value="#bdbdbd" />
-            <Setter Property="BorderBrush" Value="#666" />
-            <Setter Property="Foreground" Value="#111" />
+            <Setter Property="Background" Value="{DynamicResource Sender.Bg.Button.Checked}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Sender.Border.Button.Checked}" />
+            <Setter Property="Foreground" Value="{DynamicResource Sender.Icon.Checked}" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style Selector="TextBlock.caption">
             <Setter Property="FontSize" Value="10" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="#333" />
+            <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Primary}" />
         </Style>
         <Style Selector="TextBlock.ovrValue">
             <Setter Property="FontSize" Value="11" />
@@ -96,7 +96,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <StackPanel Margin="8" Spacing="8">
 
         <!-- Live feed & speed (FS: report field) -->
-        <Border BorderBrush="#aaa" BorderThickness="1" Padding="8,5" Background="#f6f6f6">
+        <Border BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1" Padding="8,5" Background="{DynamicResource Sender.Bg.Window}">
             <StackPanel>
                 <Grid ColumnDefinitions="*,*">
                     <TextBlock Grid.Column="0" Classes="caption" Text="{loc:Loc module.cutting.feed}" />
@@ -153,7 +153,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <!-- Spindle control row: [rpm input] [CW] [CCW] [On/Off]; input and
                  direction buttons are disabled while the spindle is running. -->
             <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,12,0,0">
-                <TextBox Classes="int" Width="64" Height="26" MinHeight="26" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                <TextBox Classes="int" Width="64" Height="26" MinHeight="26" CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                          Padding="4,0" FontSize="11" VerticalContentAlignment="Center"
                          Text="{Binding SpindleRpm, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
                          IsEnabled="{Binding !IsSpindleOn}"
@@ -165,7 +165,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         Margin="6,0,0,0" />
             </StackPanel>
 
-            <TextBlock Text="{Binding Status}" Foreground="#777" FontSize="11" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Sender.Text.Caption}" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
 
     </StackPanel>

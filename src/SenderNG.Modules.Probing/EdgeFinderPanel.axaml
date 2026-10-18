@@ -65,7 +65,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="CornerDIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
-                            <Rectangle x:Name="ZDotD" Width="8" Height="8" Fill="Red"
+                            <Rectangle x:Name="ZDotD" Width="8" Height="8" Fill="{DynamicResource Sender.Signal.Dot}"
                                        Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=D}">
                                 <Rectangle.IsVisible>
                                     <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="D">
@@ -84,7 +84,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="EdgeCDIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
-                            <Rectangle x:Name="ZDotCD" Width="8" Height="8" Fill="Red"
+                            <Rectangle x:Name="ZDotCD" Width="8" Height="8" Fill="{DynamicResource Sender.Signal.Dot}"
                                        Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=CD}">
                                 <Rectangle.IsVisible>
                                     <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="CD">
@@ -103,7 +103,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="CornerCIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
-                            <Rectangle x:Name="ZDotC" Width="8" Height="8" Fill="Red"
+                            <Rectangle x:Name="ZDotC" Width="8" Height="8" Fill="{DynamicResource Sender.Signal.Dot}"
                                        Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=C}">
                                 <Rectangle.IsVisible>
                                     <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="C">
@@ -122,7 +122,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="EdgeADIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
-                            <Rectangle x:Name="ZDotAD" Width="8" Height="8" Fill="Red"
+                            <Rectangle x:Name="ZDotAD" Width="8" Height="8" Fill="{DynamicResource Sender.Signal.Dot}"
                                        Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=AD}">
                                 <Rectangle.IsVisible>
                                     <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="AD">
@@ -143,7 +143,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                  IsChecked="{Binding ProbeEdge, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=Z}">
                         <Grid>
                             <Image x:Name="EdgeZImage" Stretch="Fill" />
-                            <Rectangle x:Name="ZDotZ" Width="8" Height="8" Fill="Red" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Rectangle x:Name="ZDotZ" Width="8" Height="8" Fill="{DynamicResource Sender.Signal.Dot}" HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Rectangle.IsVisible>
                                     <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="Z">
                                         <Binding Path="ProbeEdge" />
@@ -161,7 +161,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="EdgeCBIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
-                            <Rectangle x:Name="ZDotCB" Width="8" Height="8" Fill="Red"
+                            <Rectangle x:Name="ZDotCB" Width="8" Height="8" Fill="{DynamicResource Sender.Signal.Dot}"
                                        Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=CB}">
                                 <Rectangle.IsVisible>
                                     <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="CB">
@@ -180,7 +180,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="CornerAIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
-                            <Rectangle x:Name="ZDotA" Width="8" Height="8" Fill="Red"
+                            <Rectangle x:Name="ZDotA" Width="8" Height="8" Fill="{DynamicResource Sender.Signal.Dot}"
                                        Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=A}">
                                 <Rectangle.IsVisible>
                                     <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="A">
@@ -199,7 +199,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="EdgeABIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
-                            <Rectangle x:Name="ZDotAB" Width="8" Height="8" Fill="Red"
+                            <Rectangle x:Name="ZDotAB" Width="8" Height="8" Fill="{DynamicResource Sender.Signal.Dot}"
                                        Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=AB}">
                                 <Rectangle.IsVisible>
                                     <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="AB">
@@ -218,7 +218,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderExternal}" />
                             <Image x:Name="CornerBIntImage" Stretch="Fill"
                                    IsVisible="{Binding SelectedTool, Converter={x:Static conv:Converters.EnumToBool}, ConverterParameter=EdgeFinderInternal}" />
-                            <Rectangle x:Name="ZDotB" Width="8" Height="8" Fill="Red"
+                            <Rectangle x:Name="ZDotB" Width="8" Height="8" Fill="{DynamicResource Sender.Signal.Dot}"
                                        Margin="{Binding SelectedTool, Converter={x:Static conv:Converters.ZDotMargin}, ConverterParameter=B}">
                                 <Rectangle.IsVisible>
                                     <MultiBinding Converter="{x:Static conv:Converters.EnumAndBool}" ConverterParameter="B">
@@ -236,14 +236,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="4">
                         <TextBlock Text="{loc:Loc module.probing.workpieceHeight, DText='Workpiece height:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBox Grid.Column="1" Classes="num" Width="NaN" Text="{Binding WorkpieceHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
                                  IsEnabled="{Binding ProbeZ}" Margin="4,0"/>
 
 						<TextBlock Grid.Row="1" Text="{loc:Loc module.probing.edgeOffset, DText='Edge offset:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
                                    ToolTip.Tip="{loc:Loc module.probing.edgeOffsetHint, DText='0 uses half the probe diameter'}" />
 						<TextBox Grid.Row="1" Grid.Column="1" Classes="num" Width="NaN" Text="{Binding WorkpieceXYEdgeOffset, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                                 Height="24" MinHeight="24" CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                                  FontSize="11" Padding="4,0" VerticalContentAlignment="Center"
                                  IsEnabled="{Binding ProbeZ}" Margin="4,0"/>
                     </Grid>

@@ -429,6 +429,18 @@ module example (Excellon is the minimal one). It is the reference for the
   the module internals to its test assembly; see the "Testing your plugin"
   section below for the test-battery shape.
 
+### Theming
+
+Use semantic tokens from `src/SenderNG/Themes/SenderTheme.axaml`:
+
+    <Border Background="{DynamicResource Sender.Bg.Panel}"
+            BorderBrush="{DynamicResource Sender.Border}" />
+
+- Never hardcode colors (including `White`/`Black`); `Transparent` is the only literal.
+- Always `DynamicResource`, never `StaticResource` — the theme switches live.
+- If your control draws in code, resolve the token at draw time (see `PlotterCanvas.Brush`)
+  or react to `ActualThemeVariantChanged` (see `PlotterGlView`).
+
 ## 7. Testing your plugin
 
 Test the module class directly — no host needed.

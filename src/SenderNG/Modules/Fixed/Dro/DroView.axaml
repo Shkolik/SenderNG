@@ -52,15 +52,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                    VerticalAlignment="Center" Width="22" TextAlignment="Center" />
                         <TextBox Grid.Column="1" Text="{Binding Position, StringFormat={}{0:F3}, Mode=OneWay}"
                                  IsReadOnly="True" Height="32" MinHeight="32" CornerRadius="0"
-                                 BorderBrush="#999" BorderThickness="1" Margin="4,0" Padding="8,0"
+                                 BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Margin="4,0" Padding="8,0"
                                  VerticalContentAlignment="Center" FontSize="14" />
                         <!-- Unit only when it is not the ordinary mm: a rotary axis reads in degrees. -->
-                        <TextBlock Grid.Column="2" Text="{Binding Unit}" FontSize="11" Foreground="#888"
+                        <TextBlock Grid.Column="2" Text="{Binding Unit}" FontSize="11" Foreground="{DynamicResource Sender.Text.Muted.Alt}"
                                    VerticalAlignment="Center" Margin="2,0,0,0" />
                         <Button Grid.Column="3" Content="0" Command="{Binding $parent[UserControl].((vm:DroViewModel)DataContext).ZeroAxisCommand}"
                                 CommandParameter="{Binding Letter}"
                                 Width="34" Height="32" MinHeight="32" CornerRadius="0"
-                                Background="#eee" BorderBrush="#999" BorderThickness="1" Padding="0"
+                                Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" Padding="0"
                                 FontSize="15" FontWeight="SemiBold" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                                 ToolTip.Tip="{Binding Tip}" />
                     </Grid>
@@ -72,10 +72,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 ToolTip.Tip="{loc:HotkeyTip module.dro.zeroAll, dro.zero.all}"
                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                 Height="32" MinHeight="32" CornerRadius="0"
-                Background="#eee" BorderBrush="#999" BorderThickness="1"
+                Background="{DynamicResource Sender.Bg.Button}" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                 FontSize="13" VerticalContentAlignment="Center" Margin="0,4,0,0" />
 
-        <TextBlock Text="{Binding Status}" FontSize="9" Foreground="#888"
+        <TextBlock Text="{Binding Status}" FontSize="9" Foreground="{DynamicResource Sender.Text.Muted.Alt}"
                    TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
     </StackPanel>
 </UserControl>

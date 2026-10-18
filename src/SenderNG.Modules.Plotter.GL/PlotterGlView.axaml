@@ -50,10 +50,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
          read back to a WriteableBitmap by a DispatcherTimer tick in the
          code-behind; GpuImage shows the result. (Task 1 placeholder: no
          readback yet, so the image stays empty. See GlReadback.) -->
-    <Border BorderBrush="#aaa" BorderThickness="1" Background="White">
+    <Border BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1" Background="{DynamicResource Sender.Canvas.Bg}">
         <DockPanel>
             <!-- Header bar (Skia PlotterView row): view snaps right, status left. -->
-            <Border DockPanel.Dock="Top" Background="#e8e8e8" Height="24">
+            <Border DockPanel.Dock="Top" Background="{DynamicResource Sender.Bg.Chrome}" Height="24">
                 <DockPanel Margin="8,0,6,0">
                     <StackPanel Orientation="Horizontal" Spacing="4"
                                 DockPanel.Dock="Right" VerticalAlignment="Center">
@@ -81,12 +81,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="{Binding PlaneLettersText, Mode=OneWay}"
-                                   FontSize="11" FontWeight="SemiBold" Foreground="#333" />
+                                   FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Sender.Text.Primary}" />
                         <TextBlock Text="{Binding ProgressText, Mode=OneWay}"
-                                   FontSize="11" Foreground="#666" Margin="12,0,0,0" />
+                                   FontSize="11" Foreground="{DynamicResource Sender.Text.Secondary}" Margin="12,0,0,0" />
                         <TextBlock x:Name="StatusTextBlock"
                                    Text="{Binding StatusText, Mode=OneWay}"
-                                   FontSize="11" Foreground="#b03030" Margin="12,0,0,0"
+                                   FontSize="11" Foreground="{DynamicResource Sender.Plot.Status}" Margin="12,0,0,0"
                                    TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </DockPanel>
@@ -112,7 +112,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 							<Setter Property="Height" Value="32" />
 							<Setter Property="Padding" Value="0" />
 							<Setter Property="FontSize" Value="24" />
-							<Setter Property="Foreground" Value="#777" />
+							<Setter Property="Foreground" Value="{DynamicResource Sender.Text.Caption}" />
 							<Setter Property="FontWeight" Value="Normal" />
 							<Setter Property="Background" Value="Transparent" />
 							<Setter Property="BorderThickness" Value="0" />
@@ -146,41 +146,41 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 						<!-- State: Pointerover (Root level targets text, Template targets paths) -->
 						<Style Selector="Button.navBtn:pointerover, ToggleButton.navBtn:pointerover">
-							<Setter Property="Foreground" Value="#444" />
+							<Setter Property="Foreground" Value="{DynamicResource Sender.Icon.Hover}" />
 							<Setter Property="FontWeight" Value="SemiBold" />
 						</Style>
 						<Style Selector="Button.navBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter, 
                      ToggleButton.navBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-							<Setter Property="Foreground" Value="#444" />
+							<Setter Property="Foreground" Value="{DynamicResource Sender.Icon.Hover}" />
 						</Style>
 
 						<!-- State: Pressed (Root level targets text, Template targets paths) -->
 						<Style Selector="Button.navBtn:pressed, ToggleButton.navBtn:pressed">
-							<Setter Property="Foreground" Value="#222" />
+							<Setter Property="Foreground" Value="{DynamicResource Sender.Text.Strong}" />
 							<Setter Property="FontWeight" Value="SemiBold" />
 						</Style>
 						<Style Selector="Button.navBtn:pressed /template/ ContentPresenter#PART_ContentPresenter, 
                      ToggleButton.navBtn:pressed /template/ ContentPresenter#PART_ContentPresenter">
-							<Setter Property="Foreground" Value="#222" />
+							<Setter Property="Foreground" Value="{DynamicResource Sender.Text.Strong}" />
 						</Style>
 
 						<!-- State: Checked (Root level handles structure) -->
 						<Style Selector="ToggleButton.navBtn:checked">
 							<Setter Property="FontWeight" Value="SemiBold" />
-							<Setter Property="Foreground" Value="#222" />
+							<Setter Property="Foreground" Value="{DynamicResource Sender.Text.Strong}" />
 						</Style>
 
 						<!-- State: Checked (Template level handles vector paths color) -->
 						<Style Selector="ToggleButton.navBtn:checked /template/ ContentPresenter#PART_ContentPresenter">
-							<Setter Property="Foreground" Value="#222" />
+							<Setter Property="Foreground" Value="{DynamicResource Sender.Text.Strong}" />
 							<Setter Property="Background" Value="Transparent" />
 						</Style>
 
 						<!-- State: Checked + Pointerover combined (Prevents hover from rolling back to #444 when checked)
 						     #80DDDDDD = #ddd at 50% opacity so the 3D view shows through. -->
 						<Style Selector="ToggleButton.navBtn:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-							<Setter Property="Foreground" Value="#222" />
-							<Setter Property="Background" Value="#22000000" />
+							<Setter Property="Foreground" Value="{DynamicResource Sender.Text.Strong}" />
+							<Setter Property="Background" Value="{DynamicResource Sender.Overlay.Pressed}" />
 						</Style>
 
 					</Panel.Styles>
@@ -257,7 +257,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     </StackPanel>
                     <StackPanel Orientation="Vertical" Spacing="6"
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12">
-                        <TextBlock x:Name="ZoomPctText" Text="100%" FontSize="12" Foreground="#777"
+                        <TextBlock x:Name="ZoomPctText" Text="100%" FontSize="12" Foreground="{DynamicResource Sender.Text.Caption}"
                                    HorizontalAlignment="Center" IsVisible="False" />
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <Button x:Name="ZoomOutButton" Classes="navBtn" Content="−" Click="OnZoomOut" />
@@ -290,10 +290,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     <TextBlock x:Name="FallbackTitle"
                                Text=""
                                FontSize="16" FontWeight="SemiBold"
-                               Foreground="#222" HorizontalAlignment="Center" />
+                               Foreground="{DynamicResource Sender.Text.Strong}" HorizontalAlignment="Center" />
                     <TextBlock x:Name="FallbackHint"
                                Text=""
-                               Foreground="#555" TextWrapping="Wrap" HorizontalAlignment="Center" />
+                               Foreground="{DynamicResource Sender.Text.Muted}" TextWrapping="Wrap" HorizontalAlignment="Center" />
                 </StackPanel>
             </Border>
         </DockPanel>

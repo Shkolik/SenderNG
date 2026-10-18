@@ -122,25 +122,51 @@ public abstract class AppSettingsLeaf : ViewModelBase
     }
 }
 
-/// <summary>Global &gt; Language leaf: locale dropdown that persists and re-applies at runtime.
-/// The selection is backed by the live current locale (a provider delegate into the VM), so
-/// the dropdown always reflects the active language whenever the leaf is re-selected — a
-/// locally cached copy could go stale and show a stale/blank value on focus loss.</summary>
-public sealed class LanguageSettingsLeaf : AppSettingsLeaf
+/// <summary>Global &gt; Appearance leaf: locale and theme dropdowns that persist and
+/// re-apply at runtime. Selections are backed by live provider delegates into the VM,
+/// so the dropdowns always reflect the active values whenever the leaf is re-selected —
+/// a locally cached copy could go stale and show a stale/blank value on focus loss.
+/// The theme track belongs here (not Profile) because theme is a UI preference, not
+/// machine data.</summary>
+public sealed class AppearanceSettingsLeaf : AppSettingsLeaf
 {
     private readonly Func<string> _getCurrentLocale;
     private readonly Action<string> _setLocale;
+    private readonly Func<string> _getTheme;
+    private readonly Action<string> _setTheme;
+    private string _themeLabel = string.Empty;
 
-    public LanguageSettingsLeaf(Func<string> getCurrentLocale, IReadOnlyList<string> availableLocales,
-        Action<string> setLocale, string name, string description)
-        : base("language", name, description)
+    public AppearanceSettingsLeaf(Func<string> getCurrentLocale, IReadOnlyList<string> availableLocales,
+        Action<string> setLocale, Func<string> getTheme, Action<string> setTheme,
+        Func<string, string> themeLabel, string name, string description)
+        : base("appearance", name, description)
     {
         _getCurrentLocale = getCurrentLocale;
-        AvailableLocales = availableLocales;
         _setLocale = setLocale;
+        _getTheme = getTheme;
+        _setTheme = setTheme;
+        AvailableLocales = availableLocales;
+        ThemeOptions = ThemePreference.AvailableThemes
+            .Select(code => new ThemeOption(code, themeLabel($"appSettings.theme.{code}")))
+            .ToList();
+        ThemeLabel = themeLabel("appSettings.theme.label");
     }
 
     public IReadOnlyList<string> AvailableLocales { get; }
+
+    public IReadOnlyList<ThemeOption> ThemeOptions { get; }
+
+    public string ThemeLabel
+    {
+        get => _themeLabel;
+        private set
+        {
+            if (string.Equals(_themeLabel, value, StringComparison.Ordinal))
+                return;
+            _themeLabel = value;
+            OnPropertyChanged(nameof(ThemeLabel));
+        }
+    }
 
     public string SelectedLocale
     {
@@ -156,6 +182,56 @@ public sealed class LanguageSettingsLeaf : AppSettingsLeaf
                 return;
             _setLocale(value);
             OnPropertyChanged();
+        }
+    }
+
+    public ThemeOption? SelectedTheme
+    {
+        get => ThemeOptions.FirstOrDefault(o =>
+                   string.Equals(o.Code, _getTheme(), StringComparison.OrdinalIgnoreCase))
+               ?? ThemeOptions[0];
+        set
+        {
+            // Same detach-null rule as SelectedLocale.
+            if (value is null
+                || string.Equals(_getTheme(), value.Code, StringComparison.OrdinalIgnoreCase))
+                return;
+            _setTheme(value.Code);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Re-name the theme captions in the current locale.</summary>
+    internal void RelocalizeTheme(string label, Func<string, string> optionLabel)
+    {
+        ThemeLabel = label;
+        foreach (var option in ThemeOptions)
+            option.Label = optionLabel($"appSettings.theme.{option.Code}");
+    }
+}
+
+/// <summary>One theme choice with a relocalizable label (ComboBox item).</summary>
+public sealed class ThemeOption : ViewModelBase
+{
+    private string _label = string.Empty;
+
+    public ThemeOption(string code, string label)
+    {
+        Code = code;
+        _label = label;
+    }
+
+    public string Code { get; }
+
+    public string Label
+    {
+        get => _label;
+        internal set
+        {
+            if (string.Equals(_label, value, StringComparison.Ordinal))
+                return;
+            _label = value;
+            OnPropertyChanged(nameof(Label));
         }
     }
 }
@@ -1749,6 +1825,7 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
     private readonly HotkeyService? _hotkeys;
     private HotkeysSettingsLeaf? _hotkeysLeaf;
     private readonly IMachineKinematicsProvider? _machines;
+    private readonly Action<string>? _applyTheme;
     private Func<bool>? _profileSwitchAllowed;
     private Func<MachineProfile, Task<ProfileSwitchResult>>? _profileSwitchPipeline;
     private Action<string, string>? _reportSwitchProblem;
@@ -1766,7 +1843,8 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         Func<bool>? profileSwitchAllowed = null,
         HotkeyService? hotkeys = null,
         IFileDialogService? fileDialogs = null,
-        IMachineKinematicsProvider? machines = null)
+        IMachineKinematicsProvider? machines = null,
+        Action<string>? applyTheme = null)
     {
         ArgumentNullException.ThrowIfNull(settingsService);
         ArgumentNullException.ThrowIfNull(modules);
@@ -1787,6 +1865,7 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         // (headless tests, a host that did not register it) the conventional fallback
         // letters apply, exactly as they do for a disconnected controller.
         _machines = machines;
+        _applyTheme = applyTheme;
         BuildModuleLeaves(modules);
         BuildTree();
 
@@ -1929,10 +2008,16 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         _profilesLeaf.Activated += _ => ReloadProfile();
         _globalLeaves.Add(_profilesLeaf);
 
-        var languageLeaf = new LanguageSettingsLeaf(() => _currentLanguage, _localization.AvailableLocales, SetLocale,
-            LeafName("language", "Language"),
-            LeafDescription("language", "Interface language. Applied immediately."));
-        _globalLeaves.Add(languageLeaf);
+        var appearanceLeaf = new AppearanceSettingsLeaf(
+            () => _currentLanguage,
+            _localization.AvailableLocales,
+            SetLocale,
+            () => ThemePreference.Normalize(_global.Theme),
+            SetTheme,
+            key => Resolve(key, key),
+            LeafName("appearance", "Appearance"),
+            LeafDescription("appearance", "Interface language and theme. Applied immediately."));
+        _globalLeaves.Add(appearanceLeaf);
         if (_hotkeys is not null)
         {
             _hotkeysLeaf = new HotkeysSettingsLeaf(_hotkeys, Resolve, _moduleById.Values,
@@ -1940,7 +2025,7 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
                 LeafDescription("hotkeys", "Global keyboard shortcuts and their scopes."));
             _globalLeaves.Add(_hotkeysLeaf);
         }
-        // Appended last: existing tests address the profiles/language leaves by
+        // Appended last: existing tests address the profiles/appearance leaves by
         // position (Children[0] / Children[1]) and the hotkeys leaf predates it.
         _backupLeaf = new BackupSettingsLeaf(_settingsService, _fileDialogs, Resolve,
             LeafName("backup", "Backup & restore"),
@@ -1960,7 +2045,7 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         global.IsExpanded = true;
         // Select a leaf so the detail pane is populated on open (Profiles wins
         // when the dialog was opened via the Machine settings menu entry).
-        SelectedNode = _preselectProfiles ? _profilesLeaf : languageLeaf;
+        SelectedNode = _preselectProfiles ? _profilesLeaf : appearanceLeaf;
     }
 
     private AppSettingsGroupItem GlobalGroup => (AppSettingsGroupItem)Groups[0];
@@ -2012,10 +2097,10 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
                 OnPropertyChanged(nameof(HasSelection));
                 OnPropertyChanged(nameof(HasNoSelection));
                 OnPropertyChanged(nameof(IsProfileLeaf));
-                OnPropertyChanged(nameof(IsLanguageLeaf));
+                OnPropertyChanged(nameof(IsAppearanceLeaf));
                 OnPropertyChanged(nameof(IsModuleLeaf));
                 OnPropertyChanged(nameof(SelectedProfileLeaf));
-                OnPropertyChanged(nameof(SelectedLanguageLeaf));
+                OnPropertyChanged(nameof(SelectedAppearanceLeaf));
                 OnPropertyChanged(nameof(SelectedModuleLeaf));
                 OnPropertyChanged(nameof(IsHotkeysLeaf));
                 OnPropertyChanged(nameof(SelectedHotkeysLeaf));
@@ -2030,14 +2115,14 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
 
     // Editor-kind flags the detail pane binds IsVisible to (no converters needed).
     public bool IsProfileLeaf => SelectedSetting is ProfileSettingsLeaf;
-    public bool IsLanguageLeaf => SelectedSetting is LanguageSettingsLeaf;
+    public bool IsAppearanceLeaf => SelectedSetting is AppearanceSettingsLeaf;
     public bool IsModuleLeaf => SelectedSetting is ModuleSettingsLeaf;
 
     // Typed selections so compiled XAML bindings (which are type-checked against the
     // property's declared type) can reach derived members — the bare SelectedSetting is
     // typed AppSettingsLeaf and cannot bind to leaf-specific properties.
     public ProfileSettingsLeaf? SelectedProfileLeaf => SelectedSetting as ProfileSettingsLeaf;
-    public LanguageSettingsLeaf? SelectedLanguageLeaf => SelectedSetting as LanguageSettingsLeaf;
+    public AppearanceSettingsLeaf? SelectedAppearanceLeaf => SelectedSetting as AppearanceSettingsLeaf;
     public ModuleSettingsLeaf? SelectedModuleLeaf => SelectedSetting as ModuleSettingsLeaf;
     public HotkeysSettingsLeaf? SelectedHotkeysLeaf => SelectedSetting as HotkeysSettingsLeaf;
     public BackupSettingsLeaf? SelectedBackupLeaf => SelectedSetting as BackupSettingsLeaf;
@@ -2052,9 +2137,12 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         GlobalGroup.Relocalize(GroupName("global", "Global"), string.Empty);
         ModulesGroup.Relocalize(GroupName("modules", "Modules"), string.Empty);
 
-        var language = _globalLeaves.OfType<LanguageSettingsLeaf>().FirstOrDefault();
-        language?.Relocalize(LeafName("language", "Language"),
-            LeafDescription("language", "Interface language. Applied immediately."));
+        var appearance = _globalLeaves.OfType<AppearanceSettingsLeaf>().FirstOrDefault();
+        appearance?.Relocalize(LeafName("appearance", "Appearance"),
+            LeafDescription("appearance", "Interface language and theme. Applied immediately."));
+        appearance?.RelocalizeTheme(
+            Resolve("appSettings.theme.label", "Theme"),
+            code => Resolve($"appSettings.theme.{code}", code));
 
         foreach (var leaf in ModuleLeaves)
         {
@@ -2099,6 +2187,15 @@ public class AppSettingsViewModel : ViewModelBase, IClosableDialog, IDisposable
         _global.Language = code == "en" ? string.Empty : code;
         _localization.SetLocale(code);
         SaveGlobal();
+    }
+
+    private void SetTheme(string code)
+    {
+        var normalized = ThemePreference.Normalize(code);
+        // Empty = system (the stored default); canonical lowercase otherwise.
+        _global.Theme = normalized == ThemePreference.System ? string.Empty : normalized;
+        SaveGlobal();
+        _applyTheme?.Invoke(normalized);
     }
 
     /* ---------- Profile module visibility ---------- */

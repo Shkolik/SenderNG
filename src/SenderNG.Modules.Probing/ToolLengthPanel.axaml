@@ -43,13 +43,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     <StackPanel Spacing="8" VerticalAlignment="Top">
             <TextBlock Text="{loc:Loc module.probing.toolLengthDesc, DText='Probe Z downward onto the touch plate / fixture to establish the tool length offset.'}"
-                       FontSize="11" Foreground="#333" TextWrapping="Wrap" MaxWidth="360" HorizontalAlignment="Left"/>
+                       FontSize="11" Foreground="{DynamicResource Sender.Text.Primary}" TextWrapping="Wrap" MaxWidth="360" HorizontalAlignment="Left"/>
 
             <CheckBox Content="{loc:Loc module.probing.probeFixture, DText='Probe fixture @ G59.3'}" IsChecked="{Binding ProbeFixture}" FontSize="11" />
             <CheckBox Content="{loc:Loc module.probing.establishReference, DText='Establish reference offset'}" IsChecked="{Binding ReferenceToolOffset}" FontSize="11" />
 
             <StackPanel Orientation="Horizontal" Spacing="6">
-                <TextBlock Text="{loc:Loc module.probing.withTool, DText='with tool:'}" FontSize="11" Foreground="#333" VerticalAlignment="Center" />
+                <TextBlock Text="{loc:Loc module.probing.withTool, DText='with tool:'}" FontSize="11" Foreground="{DynamicResource Sender.Text.Primary}" VerticalAlignment="Center" />
                 <ComboBox ItemsSource="{Binding ToolChoices}"
                           SelectedItem="{Binding SelectedToolChoice, Mode=TwoWay}"
                           IsEnabled="{Binding HasToolTable}"
@@ -61,19 +61,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     </ComboBox.ItemTemplate>
                 </ComboBox>
                 <TextBlock Text="{loc:Loc module.probing.storeProbed, DText='store probed length into the tool table (grblHAL)'}"
-                           FontSize="10" Foreground="#888" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="140" />
+                           FontSize="10" Foreground="{DynamicResource Sender.Text.Muted.Alt}" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="140" />
             </StackPanel>
 
             <CheckBox Content="{loc:Loc module.probing.setCoordSystem, DText='Set coordinate system or offset'}" IsChecked="{Binding AddAction}" FontSize="11" />
 
             <TextBlock IsVisible="{Binding ProbeFixture}" Text="{loc:Loc module.probing.fixtureProbing, DText='Fixture probing rapids to the fixture origin (0,0) and probes from there;'}"
-                           FontSize="10" Foreground="#888" TextWrapping="Wrap" MaxWidth="360" HorizontalAlignment="Left" />
+                           FontSize="10" Foreground="{DynamicResource Sender.Text.Muted.Alt}" TextWrapping="Wrap" MaxWidth="360" HorizontalAlignment="Left" />
             
             <StackPanel Spacing="4" IsVisible="{Binding AddAction}">
                 <Grid ColumnDefinitions="110,120" Width="230" HorizontalAlignment="Left">
                     <TextBlock Text="{loc:Loc module.probing.workpieceHeight, DText='Workpiece height:'}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
                     <TextBox Grid.Column="1" Classes="num" Width="120" Text="{Binding WorkpieceHeight, Mode=TwoWay, Converter={x:Static conv:Converters.NumericText}}"
-                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="#999" BorderThickness="1"
+                             Height="24" MinHeight="24" CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1"
                              FontSize="11" Padding="4,0" VerticalContentAlignment="Center" />
                 </Grid>
             </StackPanel>

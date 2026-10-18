@@ -50,8 +50,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                   FontSize="12" Height="24"
                   HorizontalAlignment="Stretch"
                   CornerRadius="0"
-                  BorderBrush="#999" BorderThickness="1" />
+                  BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" />
         <TextBlock Text="{loc:Loc module.program.compressCommentsHint}" FontSize="11"
-                   Foreground="#666" TextWrapping="Wrap" />
+                   Foreground="{DynamicResource Sender.Text.Secondary}" TextWrapping="Wrap" />
     </StackPanel>
 </UserControl>

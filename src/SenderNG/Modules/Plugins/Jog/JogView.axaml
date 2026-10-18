@@ -50,8 +50,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <Setter Property="Margin" Value="1" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="CornerRadius" Value="0" />
-            <Setter Property="Background" Value="#eee" />
-            <Setter Property="BorderBrush" Value="#999" />
+            <Setter Property="Background" Value="{DynamicResource Sender.Bg.Button}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Sender.Border.Input}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="VerticalAlignment" Value="Stretch" />
@@ -66,7 +66,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <Style Selector="ToggleButton.step">
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#444" />
+            <Setter Property="Foreground" Value="{DynamicResource Sender.Icon.Hover}" />
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
@@ -80,19 +80,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             </Setter>
         </Style>
         <Style Selector="ToggleButton.step:checked">
-            <Setter Property="Background" Value="#bdbdbd" />
-            <Setter Property="BorderBrush" Value="#999" />
-            <Setter Property="Foreground" Value="#111" />
+            <Setter Property="Background" Value="{DynamicResource Sender.Bg.Button.Checked}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Sender.Border.Input}" />
+            <Setter Property="Foreground" Value="{DynamicResource Sender.Icon.Checked}" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style Selector="TextBlock.caption">
             <Setter Property="FontSize" Value="10" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="#333" />
+            <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Primary}" />
         </Style>
         <Style Selector="TextBlock.unit">
             <Setter Property="FontSize" Value="9" />
-            <Setter Property="Foreground" Value="#666" />
+            <Setter Property="Foreground" Value="{DynamicResource Sender.Text.Secondary}" />
             <Setter Property="Margin" Value="14,0,0,0" />
         </Style>
         <Style Selector="TextBlock.axisLabel">
@@ -109,11 +109,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
                             <!-- Open lock (unchecked) -->
                             <Path x:Name="UnlockedIcon" Data="M5 8 V6 A3 3 0 0 1 11 6 M4 8 L12 8 L12 15 L4 15 Z"
-                                  Stroke="#555" StrokeThickness="1.5" Width="16" Height="16" Stretch="None"
+                                  Stroke="{DynamicResource Sender.Text.Muted}" StrokeThickness="1.5" Width="16" Height="16" Stretch="None"
                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
                             <!-- Closed lock (checked) -->
                             <Path x:Name="LockedIcon" Data="M5 8 V6 A3 3 0 0 1 11 6 V8 M4 8 L12 8 L12 15 L4 15 Z M8 10 L8 12"
-                                  Stroke="#333" StrokeThickness="1.5" Width="16" Height="16" Stretch="None"
+                                  Stroke="{DynamicResource Sender.Text.Primary}" StrokeThickness="1.5" Width="16" Height="16" Stretch="None"
                                   HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="False" />
                         </Panel>
                     </Border>
@@ -135,7 +135,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
          pointer (which is what stopped a held continuous jog). -->
     <DockPanel>
     <Border x:Name="StatusSlot" DockPanel.Dock="Bottom" Height="32" MaxWidth="300" Margin="8,0,8,8">
-        <TextBlock x:Name="StatusText" Text="{Binding Status}" Foreground="#777" FontSize="11"
+        <TextBlock x:Name="StatusText" Text="{Binding Status}" Foreground="{DynamicResource Sender.Text.Caption}" FontSize="11"
                    TextWrapping="Wrap" VerticalAlignment="Top" />
     </Border>
 
@@ -175,7 +175,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <Button Grid.Row="0" Grid.Column="2" Classes="jog diag" Content="↗" Command="{Binding JogCommand}" CommandParameter="{Binding UpRightTag}"
                     IsVisible="{Binding ShowDiagonals}" />
             <Button Grid.Row="1" Grid.Column="0" Classes="jog" Content="{Binding P1HMinus}" Command="{Binding JogCommand}" CommandParameter="{Binding LeftTag}" ToolTip.Tip="{loc:HotkeyTip module.jog.hotkey.jog.left, jog.left}" />
-            <Button Grid.Row="1" Grid.Column="1" Classes="jog" Content="{loc:Loc common.stop}" Background="#e04545" BorderBrush="#b03535" Foreground="White" FontSize="11"
+            <Button Grid.Row="1" Grid.Column="1" Classes="jog" Content="{loc:Loc common.stop}" Background="{DynamicResource Sender.Accent}" BorderBrush="{DynamicResource Sender.Accent.Border.Alt}" Foreground="{DynamicResource Sender.Text.OnAccent}" FontSize="11"
                     Command="{Binding StopCommand}" ToolTip.Tip="{loc:Loc module.jog.feedHold}" />
             <Button Grid.Row="1" Grid.Column="2" Classes="jog" Content="{Binding P1HPlus}" Command="{Binding JogCommand}" CommandParameter="{Binding RightTag}" ToolTip.Tip="{loc:HotkeyTip module.jog.hotkey.jog.right, jog.right}" />
             <Button Grid.Row="2" Grid.Column="0" Classes="jog diag" Content="↙" Command="{Binding JogCommand}" CommandParameter="{Binding DownLeftTag}"
@@ -237,7 +237,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <!-- Under-axed multi-plane machine: the second plane is hidden (schema
              decision #3) — explain why instead of showing a dead cross -->
         <TextBlock IsVisible="{Binding Plane2HiddenHintVisible}" Text="{loc:Loc module.jog.planeHidden}"
-                   Width="150" TextWrapping="Wrap" FontSize="10" Foreground="#888" VerticalAlignment="Center" Margin="0,0,8,0" />
+                   Width="150" TextWrapping="Wrap" FontSize="10" Foreground="{DynamicResource Sender.Text.Muted.Alt}" VerticalAlignment="Center" Margin="0,0,8,0" />
 
     </StackPanel>
     </ScrollViewer>
