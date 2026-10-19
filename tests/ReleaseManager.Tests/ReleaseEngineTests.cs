@@ -392,13 +392,16 @@ public class ReleaseEngineTests
 
     // A switch, not a ternary, for the same reason as PlatformInfo: `== Win64 ?
     // a : b` would keep working by accident for a new platform and never be
-    // revisited. libcoreclr.so is the runtime's name on every Linux RID, so both
-    // Linux entries are correct, not a copy-paste.
+    // revisited. libcoreclr.so is the runtime's name on every Linux RID and
+    // libcoreclr.dylib on every macOS RID, so the shared entries below are
+    // correct, not a copy-paste.
     private static string NativeLib(ReleasePlatform platform) => platform switch
     {
         ReleasePlatform.Win64 => "coreclr.dll",
         ReleasePlatform.Linux => "libcoreclr.so",
         ReleasePlatform.LinuxArm64 => "libcoreclr.so",
+        ReleasePlatform.MacOsArm64 => "libcoreclr.dylib",
+        ReleasePlatform.MacOsX64 => "libcoreclr.dylib",
         _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, null)
     };
 }
