@@ -4,7 +4,7 @@
 
 ## 1. Goal
 
-SenderNG is a reimplementation of ioSender decoupled from the Windows environment: cross-platform (Windows + Linux x64 + Linux ARM64), .NET 9 + Avalonia 12, with no WPF / `PresentationCore` / `System.Windows.Forms` / `System.Management` dependencies. The rewrite follows the philosophy already defined in this project: modular plugin architecture, MVVM + DI, portable settings, works without a controller (demo mode), and a panel-based layout — `PanelHint {Left, Center, Right, Flyout, Menu, Bottom, Dialog, None}`, with the visible UI organized as Left / Center tabs / Right / Flyout.
+SenderNG is a reimplementation of ioSender decoupled from the Windows environment: cross-platform (Windows + Linux x64 + Linux ARM64 + macOS arm64/x64), .NET 9 + Avalonia 12, with no WPF / `PresentationCore` / `System.Windows.Forms` / `System.Management` dependencies. The rewrite follows the philosophy already defined in this project: modular plugin architecture, MVVM + DI, portable settings, works without a controller (demo mode), and a panel-based layout — `PanelHint {Left, Center, Right, Flyout, Menu, Bottom, Dialog, None}`, with the visible UI organized as Left / Center tabs / Right / Flyout.
 
 ## 2. Reference projects
 

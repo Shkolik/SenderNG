@@ -1,6 +1,6 @@
 # SenderNG
 
-**Modern cross-platform (Windows + Linux + Linux ARM64) grblHAL gcode sender based on [ioSender](https://github.com/terjeio/ioSender) by Io Engineering (Terje Io).**
+**Modern cross-platform (Windows + Linux + Linux ARM64 + macOS) grblHAL gcode sender based on [ioSender](https://github.com/terjeio/ioSender) by Io Engineering (Terje Io).**
 
 [![CI](https://github.com/Shkolik/SenderNG/actions/workflows/ci.yml/badge.svg)](https://github.com/Shkolik/SenderNG/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Shkolik/SenderNG?include_prereleases)](https://github.com/Shkolik/SenderNG/releases)
@@ -23,6 +23,7 @@
 - [Running from release assets](#running-from-release-assets)
   - [Windows](#windows)
   - [Linux](#linux)
+  - [macOS](#macos)
 - [Linux release build (WSL2)](#linux-release-build-wsl2)
 - [Linux CI test pass (WSL2)](#linux-ci-test-pass-wsl2)
 - [Linux arm64 (Raspberry Pi)](#linux-arm64-raspberry-pi)
@@ -35,7 +36,7 @@ SenderNG is a focused fork of ioSender. The main differences are cross-platform 
 
 ## Features
 
-- Cross-platform: Windows + Linux x64 + Linux ARM64. ARM64 is tested on a Raspberry Pi 4B; x64 is tested on Ubuntu 22.04 and Mint 21.3.
+- Cross-platform: Windows + Linux x64 + Linux ARM64 + macOS (Apple Silicon and Intel). ARM64 is tested on a Raspberry Pi 4B; x64 is tested on Ubuntu 22.04 and Mint 21.3; macOS builds are produced and smoke-tested on GitHub's macOS runners.
 - 2-plane machine support (hotwire CNC foam cutters)
 
 ![Foam mode](/docs/images/foam_plot_jog.png)
@@ -171,6 +172,7 @@ Lathe, DragKnife and other heavy modules are planned. To write your own plugin, 
 | Windows | Windows 10/11 x64 — the bundle is self-contained, no .NET install needed |
 | Linux x64 | Distro with X11; `libx11-6 libice6 libsm6 libfontconfig1` (Debian/Ubuntu package names) |
 | Linux ARM64 | 64-bit Raspberry Pi OS on a Pi 4B — a 32-bit userland cannot run a `linux-arm64` bundle |
+| macOS | Apple Silicon (`osx-arm64`) or Intel (`osx-x64`) — self-contained, no .NET install; unsigned bundle, first launch needs right-click → Open |
 | Serial | membership in the `dialout` group on Linux (see [Linux](#linux)) |
 | Controller | grblHAL or grbl 1.1 over serial or plain TCP — see [Supported controllers and limitations](#supported-controllers-and-limitations) |
 
@@ -200,8 +202,8 @@ dotnet run --project src/SenderNG
 ## Running from release assets
 
 **Automated weekly builds:** every Monday 06:00 UTC the **Release** workflow
-(`.github/workflows/release.yml`) builds win64, linux-x64 and linux-arm64 with
-all plugins and publishes a prerelease to the
+(`.github/workflows/release.yml`) builds win64, linux-x64, linux-arm64,
+osx-arm64 and osx-x64 with all plugins and publishes a prerelease to the
 [Releases page](https://github.com/Shkolik/SenderNG/releases) — unless nothing
 changed since the previous release, in which case it skips. Formal releases use
 the same workflow: bump `<Version>` in `src/SenderNG/SenderNG.csproj`, then run
@@ -219,9 +221,9 @@ fallback. (To build the **Linux** zip from a Windows host, use
 `tools/build-linux-release.ps1` — see "Linux release build (WSL2)" below; it
 writes `output\linux` and never reads, writes or deletes `output\win64`.)
 A release folder (`output/win64/` on Windows, `output/linux/` or
-`output/linux-arm64/` on Linux) looks like this. The example is an x64
-release (arm64 ships the same plugin set — the Plot 3D tab runs on Mesa and is
-hidden by default):
+`output/linux-arm64/` on Linux, `output/osx-arm64/` or `output/osx-x64/` on
+macOS) looks like this. The example is an x64 release (arm64 ships the same
+plugin set — the Plot 3D tab runs on Mesa and is hidden by default):
 
 ```
 SenderNG-<ver>-<suffix>.zip                  ← core bundle: the whole app
@@ -234,7 +236,8 @@ SenderNG-plugin-heightmap-viewer-<ver>-<suffix>.zip
 SHA256SUMS.txt                              ← <sha256> <relative path> per file
 ```
 
-`<suffix>` is `win64` on Windows, `linux-x64` or `linux-arm64` on Linux.
+`<suffix>` is `win64` on Windows, `linux-x64` or `linux-arm64` on Linux,
+`osx-arm64` or `osx-x64` on macOS.
 
 **Core bundle zip** — the complete self-contained app: `SenderNG.exe` /
 `SenderNG` runner, all .NET + platform natives, locale catalogs, and a
@@ -343,6 +346,26 @@ sudo fuser -v /dev/ttyACM0
 
 To try a group change without logging out, `newgrp dialout` opens a subshell
 with it already active; launch the app from there.
+
+### macOS
+
+1. Download `SenderNG-<ver>-osx-arm64.zip` (Apple Silicon) or
+   `SenderNG-<ver>-osx-x64.zip` (Intel).
+2. Unzip and run `./SenderNG/SenderNG`. If "Permission denied" (the zip passed
+   through a filesystem that drops Unix permissions, e.g. exFAT):
+   `chmod +x SenderNG/SenderNG` — only the runner needs `+x`.
+3. The build is unsigned, so Gatekeeper blocks the first launch ("cannot be
+   opened because the developer cannot be verified"). Right-click the binary
+   in Finder → **Open** → **Open** once, or clear the quarantine flag:
+   ```
+   xattr -d com.apple.quarantine SenderNG/SenderNG
+   ```
+4. Optional modules: same copy step as Windows — plugin contents into
+   `SenderNG/Modules/`.
+5. Run → Connect: serial ports appear as `/dev/cu.*` (the `cu.Bluetooth-*`
+   and `cu.debug-console` entries always exist but are never preselected).
+6. The 3D PLOT view (`plotter-gl`) needs OpenGL 3.3+; macOS provides 4.1 core
+   through the deprecated OpenGL framework, which this build uses.
 
 ## Linux release build (WSL2)
 

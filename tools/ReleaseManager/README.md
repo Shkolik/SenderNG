@@ -3,7 +3,7 @@
 Release staging tool for SenderNG. From a clean checkout it publishes the app
 (self-contained), stages a curated bundle plus optional plugin payloads into
 `./output/`, zips them, and writes `SHA256SUMS.txt`. One command produces a
-Windows or Linux release — the host OS by default, overridable with
+Windows, Linux or macOS release — the host OS by default, overridable with
 `--platform`.
 
 ## Requirements
@@ -32,7 +32,7 @@ though WSLg supplies the display server.
 
 1. **Tests** (`dotnet test SenderNG.sln`) unless `--skip-tests` — failure aborts, exit 2.
 2. **Publish app** self-contained for the target RID (`win-x64`, `linux-x64`,
-   `linux-arm64`; the host OS by default).
+   `linux-arm64`, `osx-arm64`, `osx-x64`; the host OS by default).
 3. **Curate** into `output/<platform>/SenderNG` — drops `*.pdb`, `*.xml`,
    dev-only Avalonia diagnostic assemblies, and strips `Modules/` down to the
    SDK assemblies (`SenderNG.Modules.Common.dll`,
@@ -63,7 +63,7 @@ dotnet run --project tools/ReleaseManager [options]
 | `--version <ver>` | override the app version read from the csproj |
 | `--date <yyyyMMdd>` | date suffix for weekly builds; ignored with `--stable` |
 | `--out <dir>` | output directory (default `./output`) |
-| `--platform <name>` | target `win64`, `linux` or `linux-arm64` (default: the host OS) |
+| `--platform <name>` | target `win64`, `linux`, `linux-arm64`, `osx-arm64` or `osx-x64` (default: the host OS) |
 | `--skip-tests` | do not run the test suite first |
 | `--no-zip` | stage folders + checksums, no zips |
 | `--verbose` | per-file detail |
@@ -72,7 +72,8 @@ dotnet run --project tools/ReleaseManager [options]
 - Default (no flags): core app only, current host OS, zips on.
 - `--platform` overrides the host, which is what makes `linux-arm64`
   cross-publishing possible from an x64 Linux host. Linux bundles build under
-  WSL2 or a real Linux box.
+  WSL2 or a real Linux box. macOS bundles build on a Mac host; CI
+  cross-publishes `osx-x64` from an arm64 `macos-latest` runner (release.yml).
 - With **no arguments** in a terminal, ReleaseManager starts an interactive
   checklist (version, plugin toggles, zip choice). On a non-TTY it fails with
   exit 1 ("args required") instead of prompting.
@@ -81,7 +82,7 @@ dotnet run --project tools/ReleaseManager [options]
 
 ```
 output/
-├── win64/                                  ← Windows run (linux/ or linux-arm64/ for Linux)
+├── win64/                                  ← Windows run (linux/, linux-arm64/, osx-arm64/, osx-x64/ on those hosts)
 │   ├── SenderNG/                           ← curated app bundle
 │   │   ├── SenderNG.exe, *.dll, .deps.json, .runtimeconfig.json
 │   │   ├── coreclr.dll, hostfxr.dll, …     ← natives hoisted flat (self-contained)
@@ -102,10 +103,13 @@ output/
 
 - Linux zip suffix is `linux-x64` or `linux-arm64`; the Linux executable is
   `SenderNG` (no `.exe`).
+- macOS zip suffix is `osx-arm64` or `osx-x64`; the macOS executable is
+  `SenderNG` (no `.exe`).
 - Installing a plugin = copy `plugins/<id>/*` straight into `Modules/`.
 - **No `runtimes/` folder**: `dotnet publish` with a single RID (`--self-contained`)
   hoists native binaries flat to the bundle root. The verifier checks for the
-  platform core CLR (`coreclr.dll` on win64, `libcoreclr.so` on linux).
+  platform core CLR (`coreclr.dll` on win64, `libcoreclr.so` on linux,
+  `libcoreclr.dylib` on macOS).
 
 ## Exit codes
 
@@ -264,11 +268,30 @@ so they only ever ship in the core `Modules/`.
    cd /mnt/e/SenderNG-linux && sha256sum -c SHA256SUMS.txt
    ```
 
+## Runbook — macOS
+
+Built on a Mac (or in CI on the `macos-latest` runner — `release.yml` builds
+both flavors):
+
+```
+dotnet run --project tools/ReleaseManager -- --include-plugins --platform osx-arm64
+# Intel Mac: --platform osx-x64
+```
+
+Output: `output/osx-arm64/SenderNG`, `output/osx-arm64/plugins/<id>/`,
+`SenderNG-<ver>-osx-arm64.zip`, per-plugin zips, `SHA256SUMS.txt`.
+
+The bundle is a plain folder (no `.app`) and unsigned: launch
+`./output/osx-arm64/SenderNG/SenderNG` from a terminal, or use Finder's
+right-click → Open once to clear Gatekeeper's quarantine
+(`xattr -d com.apple.quarantine SenderNG`). Serial ports appear as
+`/dev/cu.*`.
+
 ## Deferred
 
 AppImage/Flatpak packaging (the linux layout is what `linuxdeploy` expects);
 Windows→Linux cross-building (the csproj plugin staging selects natives by
-build OS, not RID); code/plugin signing.
+build OS, not RID); code/plugin signing and macOS notarization.
 
 Automated weekly uploads to GitHub Releases with auto-generated notes live in
 `.github/workflows/release.yml`.
