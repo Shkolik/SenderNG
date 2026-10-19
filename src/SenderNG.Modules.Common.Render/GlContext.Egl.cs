@@ -6,8 +6,8 @@
  * GBM platform — so WSL2 Mesa d3d12 (Task 8b: surfaceless initializes
  * with zero configs) and a headless Raspberry Pi (Task 8c: default display
  * fails eglInitialize without X/Wayland; GBM works) both find a working
- * display. Only ever *called* on non-Windows (GlContext.Create dispatches
- * at runtime), but compiled on every OS — so these DllImports never fire
+ * display. Only ever *called* on Linux (GlContext.Create dispatches at
+ * runtime), but compiled on every OS — so these DllImports never fire
  * on Windows.
  */
 

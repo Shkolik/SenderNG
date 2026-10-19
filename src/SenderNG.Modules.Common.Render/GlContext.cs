@@ -1,6 +1,6 @@
 /*
  * GlContext.cs - offscreen GL context, managed surface + runtime platform
- * dispatch (hand-rolled WGL on Windows, EGL surfaceless on Linux).
+ * dispatch (hand-rolled WGL on Windows, EGL surfaceless on Linux, CGL on macOS).
  */
 
 /*
@@ -44,7 +44,9 @@ namespace SenderNG.Modules.Common.Render;
 
 /// <summary>Offscreen GL context: GL 3.3 core on Windows (never-shown
 /// top-level window + WGL, GlContext.Win32.cs) and surfaceless EGL on Linux
-/// (GlContext.Egl.cs — desktop GL 3.3 on x64, GLES 3.0 on arm64). Platform
+/// (GlContext.Egl.cs — desktop GL 3.3 on x64, GLES 3.0 on arm64) and a
+/// no-drawable CGL core-profile context on macOS (GlContext.Cocoa.cs).
+/// Platform
 /// construction is dispatched at runtime (Create), not with #if WINDOWS: the
 /// repo targets a single net9.0 TFM.
 /// <para>
@@ -125,19 +127,38 @@ public sealed unsafe partial class GlContext : IDisposable, INativeContext
         RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
 
     /// <summary>Runtime platform dispatch (not #if WINDOWS — single net9.0
-    /// TFM). Non-Windows takes the EGL path; the WGL P/Invokes simply never
-    /// fire there, so a DllNotFound could only come from a broken dispatch.</summary>
-    private static bool UseEgl => !OperatingSystem.IsWindows();
+    /// TFM). Each backend's P/Invokes simply never fire on the wrong OS, so a
+    /// DllNotFound could only come from a broken dispatch.</summary>
+    private static GlBackend Backend =>
+        OperatingSystem.IsWindows() ? GlBackend.Win32 :
+        OperatingSystem.IsMacOS() ? GlBackend.Cgl : GlBackend.Egl;
+
+    private enum GlBackend
+    {
+        Win32,
+        Egl,
+        Cgl
+    }
 
     public static GlContext Create()
     {
         var ctx = new GlContext();
         try
         {
-            if (UseEgl)
-                ctx.InitializeEgl();
-            else
-                ctx.InitializeWin32();
+            switch (Backend)
+            {
+                case GlBackend.Win32:
+                    ctx.InitializeWin32();
+                    break;
+                case GlBackend.Egl:
+                    ctx.InitializeEgl();
+                    break;
+                case GlBackend.Cgl:
+                    ctx.InitializeCocoa();
+                    break;
+                default:
+                    throw new InvalidOperationException($"unknown GL backend: {Backend}");
+            }
             // One line per created context (platform init runs exactly once)
             // for the app's captured stdout: which driver did THIS process
             // bind — the hardware ICD or a Mesa deployment? Version/Renderer/
@@ -194,22 +215,43 @@ public sealed unsafe partial class GlContext : IDisposable, INativeContext
     public void MakeCurrent()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (UseEgl)
-            MakeCurrentEgl();
-        else
-            MakeCurrentWin32();
+        switch (Backend)
+        {
+            case GlBackend.Win32:
+                MakeCurrentWin32();
+                break;
+            case GlBackend.Egl:
+                MakeCurrentEgl();
+                break;
+            case GlBackend.Cgl:
+                MakeCurrentCocoa();
+                break;
+            default:
+                throw new InvalidOperationException($"unknown GL backend: {Backend}");
+        }
     }
 
     public bool IsCurrent =>
-        !_disposed && (UseEgl ? IsCurrentEgl() : IsCurrentWin32());
+        !_disposed && Backend switch
+        {
+            GlBackend.Win32 => IsCurrentWin32(),
+            GlBackend.Egl => IsCurrentEgl(),
+            GlBackend.Cgl => IsCurrentCocoa(),
+            _ => false
+        };
 
     /// <summary>Entry-point resolver for Silk's loader. Platform halves:
     /// wglGetProcAddress + opengl32.dll on Windows; eglGetProcAddress + the
     /// driver library's export table on Linux. Returns 0 when neither knows
     /// the symbol — extension entry points a driver does not expose stay
     /// unloaded instead of throwing during context creation.</summary>
-    public nint GetProcAddress(string procName) =>
-        UseEgl ? GetProcAddressEgl(procName) : GetProcAddressWin32(procName);
+    public nint GetProcAddress(string procName) => Backend switch
+    {
+        GlBackend.Win32 => GetProcAddressWin32(procName),
+        GlBackend.Egl => GetProcAddressEgl(procName),
+        GlBackend.Cgl => GetProcAddressCocoa(procName),
+        _ => 0
+    };
 
     IntPtr INativeContext.GetProcAddress(string procName, int? slot) => GetProcAddress(procName);
 
@@ -226,9 +268,17 @@ public sealed unsafe partial class GlContext : IDisposable, INativeContext
         _disposed = true;
         _gl?.Dispose();
         _gl = null;
-        if (UseEgl)
-            DisposeEgl();
-        else
-            DisposeWin32();
+        switch (Backend)
+        {
+            case GlBackend.Win32:
+                DisposeWin32();
+                break;
+            case GlBackend.Egl:
+                DisposeEgl();
+                break;
+            case GlBackend.Cgl:
+                DisposeCocoa();
+                break;
+        }
     }
 }
