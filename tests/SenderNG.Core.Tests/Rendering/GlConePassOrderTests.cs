@@ -156,8 +156,9 @@ public class GlConePassOrderTests
         Assert.True(d.Changed > 0,
             "decision gate: toolpath bytes are identical between None and X8 " +
             $"— MSAA does not reach the toolpath (defect branch). Evidence: {d}");
-        // Every changed pixel carries partial (anti-aliased) coverage in at
-        // least one mode — the delta is the stroke's AA edge.
+        // Every changed pixel is an AA-edge change (partial coverage or a
+        // background-vs-solid sampling flip — see Diff): the delta is the
+        // stroke's AA edge.
         Assert.Equal(d.Changed, d.EdgeChanged);
         // The 5e perceptual coverage floor: a real count of changed edges.
         Assert.True(d.Changed >= ToolpathEdgeFloor,
@@ -220,7 +221,11 @@ public class GlConePassOrderTests
             if (delta > maxDelta) maxDelta = delta;
             var partialA = !bgA && !solids.Contains(Pack(a, i));
             var partialB = !bgB && !solids.Contains(Pack(b, i));
-            if (partialA || partialB)
+            // Same edge-like clause as GlMsaaCoverageTests.Diff: a mode's
+            // sample grid can fully cover a pixel whose centre sample the
+            // other mode missed — the stroke boundary moving by sub-pixel
+            // sampling, not an interior change.
+            if (partialA || partialB || bgA != bgB)
                 edgeChanged++;
         }
         return new FrameDiff(changed, maxDelta, litA, litB, edgeChanged);

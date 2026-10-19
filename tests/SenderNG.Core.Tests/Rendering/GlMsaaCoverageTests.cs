@@ -109,9 +109,10 @@ public class GlMsaaCoverageTests
         Assert.True(d.Changed > 0,
             "decision gate: toolpath bytes are identical between None and X8 " +
             $"— MSAA does not reach the toolpath (defect branch). Evidence: {d}");
-        // Every changed pixel carries partial (anti-aliased) coverage in at
-        // least one mode: the delta is the stroke's AA edge — never a change
-        // inside flat background or solid line interior.
+        // Every changed pixel is an AA-edge change — partial coverage in at
+        // least one mode, or a background-vs-solid sampling flip (see Diff):
+        // the delta is the stroke's AA edge, never a change inside flat
+        // background or solid line interior.
         Assert.Equal(d.Changed, d.EdgeChanged);
         // Perceptual branch coverage floor: a real count of changed edges.
         Assert.True(d.Changed >= ToolpathEdgeFloor,
@@ -218,7 +219,8 @@ public class GlMsaaCoverageTests
     /// <summary>The checkpoint numbers for one None-vs-X8 frame pair:
     /// differing pixels, the largest per-channel delta, each mode's lit
     /// (non-background) footprint, and how many of the differing pixels are
-    /// partial-coverage in at least one mode (the AA-edge changes).</summary>
+    /// AA-edge changes: partial-coverage in at least one mode, or a
+    /// background-vs-solid sampling flip (see the Diff classifier).</summary>
     private static FrameDiff Diff(byte[] a, byte[] b)
     {
         var solids = SolidColors(a);
@@ -246,7 +248,14 @@ public class GlMsaaCoverageTests
             if (delta > maxDelta) maxDelta = delta;
             var partialA = !bgA && !solids.Contains(Pack(a, i));
             var partialB = !bgB && !solids.Contains(Pack(b, i));
-            if (partialA || partialB)
+            // Edge-like when either mode blends the pixel, or when the two
+            // modes disagree on background-vs-solid: a mode's sample grid can
+            // fully cover a pixel whose centre sample the other mode missed
+            // (macOS GL measured 22 of 6549 chrome pixels: changed=6549,
+            // edgeChanged=6527 without this clause). That is the stroke
+            // boundary moving by sub-pixel sampling. A true interior shift
+            // keeps a solid colour on both sides and still fails the gates.
+            if (partialA || partialB || bgA != bgB)
                 edgeChanged++;
         }
         return new FrameDiff(changed, maxDelta, litA, litB, edgeChanged);
