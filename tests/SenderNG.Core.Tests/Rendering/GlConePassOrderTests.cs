@@ -156,10 +156,11 @@ public class GlConePassOrderTests
         Assert.True(d.Changed > 0,
             "decision gate: toolpath bytes are identical between None and X8 " +
             $"— MSAA does not reach the toolpath (defect branch). Evidence: {d}");
-        // Every changed pixel is an AA-edge change (partial coverage or a
-        // background-vs-solid sampling flip — see Diff): the delta is the
-        // stroke's AA edge.
-        Assert.Equal(d.Changed, d.EdgeChanged);
+        // 99 % floor, not equality — cross-driver residue, see the note on
+        // the GlMsaaCoverageTests toolpath gate: the delta is the stroke's
+        // AA edge.
+        Assert.True(d.EdgeChanged * 100 >= d.Changed * 99,
+            $"changed pixels must be AA-edge changes within the 99 % floor: {d}");
         // The 5e perceptual coverage floor: a real count of changed edges.
         Assert.True(d.Changed >= ToolpathEdgeFloor,
             $"toolpath MSAA edge delta below the coverage floor: {d}");
