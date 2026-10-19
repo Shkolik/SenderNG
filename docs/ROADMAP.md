@@ -124,7 +124,7 @@ set was checked for parity defaults before finalizing.
   **3D orbit LANDED (2026-10-08+):** `src/SenderNG.Modules.Plotter.GL` — the
   OpenGL successor to the Vulkan proof-of-concept: OpenGL 3.3 core / GLES 3.0,
   "Plot 3D" center tab (order 23, behind Skia's order 22), hidden by default
-  (`IsVisibleByDefault=false`), ships on win-x64, linux-x64 and linux-arm64.
+  (`IsVisibleByDefault=false`), ships on win-x64, linux-x64, linux-arm64, osx-arm64 and osx-x64.
   **Storage prerequisite landed:**
   profiles replace the Mill/Foam "mode" split (one file per machine +
   `global.json`, profile manager in App Settings). **Schema landed and consumers migrated

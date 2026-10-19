@@ -68,7 +68,7 @@ public sealed unsafe partial class GlContext : IDisposable, INativeContext
     }
 
     /// <summary>true on the EGL path when the context is GLES (Linux arm64);
-    /// always false on Windows. Shader preambles key off this.</summary>
+    /// always false on the Win32 and CGL paths. Shader preambles key off this.</summary>
     public bool IsGles { get; private set; }
 
     public string Version { get; private set; } = "";
@@ -242,9 +242,10 @@ public sealed unsafe partial class GlContext : IDisposable, INativeContext
 
     /// <summary>Entry-point resolver for Silk's loader. Platform halves:
     /// wglGetProcAddress + opengl32.dll on Windows; eglGetProcAddress + the
-    /// driver library's export table on Linux. Returns 0 when neither knows
-    /// the symbol — extension entry points a driver does not expose stay
-    /// unloaded instead of throwing during context creation.</summary>
+    /// driver library's export table on Linux; dlopen/dlsym against
+    /// OpenGL.framework on macOS. Returns 0 when none knows the symbol —
+    /// extension entry points a driver does not expose stay unloaded instead
+    /// of throwing during context creation.</summary>
     public nint GetProcAddress(string procName) => Backend switch
     {
         GlBackend.Win32 => GetProcAddressWin32(procName),

@@ -172,7 +172,7 @@ Lathe, DragKnife and other heavy modules are planned. To write your own plugin, 
 | Windows | Windows 10/11 x64 — the bundle is self-contained, no .NET install needed |
 | Linux x64 | Distro with X11; `libx11-6 libice6 libsm6 libfontconfig1` (Debian/Ubuntu package names) |
 | Linux ARM64 | 64-bit Raspberry Pi OS on a Pi 4B — a 32-bit userland cannot run a `linux-arm64` bundle |
-| macOS | Apple Silicon (`osx-arm64`) or Intel (`osx-x64`) — self-contained, no .NET install; unsigned bundle, first launch needs right-click → Open |
+| macOS | Apple Silicon (`osx-arm64`) or Intel (`osx-x64`) on macOS versions per the .NET 9 support matrix — self-contained, no .NET install; unsigned bundle, first launch needs right-click → Open |
 | Serial | membership in the `dialout` group on Linux (see [Linux](#linux)) |
 | Controller | grblHAL or grbl 1.1 over serial or plain TCP — see [Supported controllers and limitations](#supported-controllers-and-limitations) |
 
