@@ -8,7 +8,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
     env:
       # The ubuntu-latest deaths were an OOM, not a build-tool defect: an unbounded
       # snapshot-stress writer (in a test since removed) grew a dotnet process to
@@ -41,4 +41,41 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ matrix.os }}
+          path: '**/TestResults/*.trx'
+
+  # Report-only for now: answers "does GitHub's macOS VM expose a usable
+  # OpenGL context to CGL?" with evidence instead of assumption. It must not
+  # block anything until the CGL path is proven on runners; promotions
+  # criterion is three consecutive weekly releases with the smoke passing
+  # (see the macOS release design spec). The job's trx is always uploaded so
+  # a red result still leaves the version/renderer strings for triage.
+  gl-smoke-macos:
+    runs-on: macos-latest
+    continue-on-error: true
+    env:
+      MSBUILDDISABLENODEREUSE: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build SenderNG.sln -c Release --nologo -t:Rebuild -warnaserror -m:1
+
+      - name: GL smoke
+        env:
+          SENDERNG_GL_SMOKE: "1"
+        run: dotnet test tests/SenderNG.Core.Tests/SenderNG.Core.Tests.csproj -c Release --no-build --filter "Category=GLSmoke" --logger trx -m:1
+
+      - name: GPU suite (report only)
+        continue-on-error: true
+        run: dotnet test SenderNG.sln -c Release --no-build --filter "Category=GPU" --logger trx -m:1
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-macos-gl
           path: '**/TestResults/*.trx'
