@@ -109,9 +109,10 @@ public class GlCarriagePlaneLayerTests
 
     /// <summary>Headless replacement for the waived GUI check (Step 5.4): the
     /// pumped toolpath really draws — chrome toggled off so only the layer can
-    /// light pixels — and the spike's one-shot GL error probe (in
-    /// <see cref="GlPlotScene.RenderFrame"/>, Debug only) ran clean over the
-    /// frame that drew it.</summary>
+    /// light pixels — with no GL error left behind over the frame that drew
+    /// it: via the spike's one-shot probe (in
+    /// <see cref="GlPlotScene.RenderFrame"/>, Debug only), or in Release via
+    /// the test's own drain (the probe does not run there).</summary>
     [GlFact]
     public unsafe void Pump_and_RenderFrame_draw_the_toolpath_without_gl_errors()
     {
@@ -135,14 +136,20 @@ public class GlCarriagePlaneLayerTests
 
         rb.BeginFrame(Background);
         scene.RenderFrame(256, 256);
+        #if DEBUG
+        Assert.True(scene.GlErrorProbeRan, "the one-shot probe should fire on the first content frame");
+        Assert.Equal(GLEnum.NoError, scene.GlErrorProbeResult);
+        #else
+        // The spike's one-shot probe is a Debug-only seam (GlPlotScene.cs);
+        // Release checks the same clean-error claim straight off the context,
+        // before the readback's resolve/read can add error state of its own.
+        Assert.Equal(GLEnum.NoError, ctx.Api.GetError());
+        #endif
         var px = new byte[256 * 256 * 4];
         fixed (byte* p = px)
             Assert.True(rb.CopyFrame((nint)p, 256 * 4));
         var lit = LitPixels(px);
         Assert.True(lit > 50, $"expected toolpath pixels, got {lit}");
-
-        Assert.True(scene.GlErrorProbeRan, "the one-shot probe should fire on the first content frame");
-        Assert.Equal(GLEnum.NoError, scene.GlErrorProbeResult);
     }
 
     private static readonly byte[] Background = [32, 35, 40, 255];
