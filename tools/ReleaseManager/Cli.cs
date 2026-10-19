@@ -52,7 +52,7 @@ public static class Cli
           --date <yyyyMMdd>        date suffix for weekly builds; ignored with --stable
           --stable                 weekly builds get a date suffix; --stable omits it
           --out <dir>              output directory (default: ./output)
-          --platform <name>        target: win64 | linux | linux-arm64
+          --platform <name>        target: win64 | linux | linux-arm64 | osx-arm64 | osx-x64
                                     (default: the host OS)
           --skip-tests             do not run the test suite first
           --no-zip                  stage folders + checksums, no zips
@@ -61,7 +61,8 @@ public static class Cli
 
         With no arguments, ReleaseManager starts an interactive checklist.
         Platform defaults to the host OS. --platform cross-publishes, so
-        linux-arm64 can be built from an x64 Linux host.
+        linux-arm64 can be built from an x64 Linux host and osx-x64 from an
+        arm64 macOS host.
         """;
 
     public static CliResult Parse(string[] args)
@@ -130,8 +131,10 @@ public static class Cli
             "win64" => ReleasePlatform.Win64,
             "linux" => ReleasePlatform.Linux,
             "linux-arm64" => ReleasePlatform.LinuxArm64,
+            "osx-arm64" => ReleasePlatform.MacOsArm64,
+            "osx-x64" => ReleasePlatform.MacOsX64,
             _ => throw new CliException(
-                $"Unknown platform '{platformName}'. Valid values: win64, linux, linux-arm64.")
+                $"Unknown platform '{platformName}'. Valid values: win64, linux, linux-arm64, osx-arm64, osx-x64.")
         };
 
         var options = new ReleaseOptions(

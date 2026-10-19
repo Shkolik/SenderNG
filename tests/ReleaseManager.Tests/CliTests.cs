@@ -197,6 +197,8 @@ public class CliTests
     [InlineData("win64", ReleasePlatform.Win64)]
     [InlineData("linux", ReleasePlatform.Linux)]
     [InlineData("linux-arm64", ReleasePlatform.LinuxArm64)]
+    [InlineData("osx-arm64", ReleasePlatform.MacOsArm64)]
+    [InlineData("osx-x64", ReleasePlatform.MacOsX64)]
     public void Parse_reads_the_platform_flag(string value, ReleasePlatform expected)
     {
         var options = Cli.Parse(["--platform", value]).Options!;
@@ -214,6 +216,7 @@ public class CliTests
     {
         var ex = Assert.Throws<CliException>(() => Cli.Parse(["--platform", "linux-arm"]));
         Assert.Contains("linux-arm64", ex.Message);
+        Assert.Contains("osx-x64", ex.Message);
     }
 
     [Fact]
@@ -221,5 +224,6 @@ public class CliTests
     {
         Assert.Contains("--platform", Cli.Usage);
         Assert.Contains("linux-arm64", Cli.Usage);
+        Assert.Contains("osx-arm64", Cli.Usage);
     }
 }
