@@ -112,6 +112,42 @@ public class SerialComPortServiceTests : IDisposable
     public void Real_enumerators_are_not_phantom(string className)
         => Assert.False(SerialComPortService.IsPhantomEnumerator(className));
 
+    [Fact]
+    public void EnumerateMacPorts_returns_only_cu_devices_as_full_paths()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(Path.Combine(_dir, "cu.usbserial-1420"), "");
+        File.WriteAllText(Path.Combine(_dir, "cu.Bluetooth-Incoming-Port"), "");
+        File.WriteAllText(Path.Combine(_dir, "tty.usbserial-1420"), "");
+        File.WriteAllText(Path.Combine(_dir, "ttyACM0"), "");
+
+        var ports = SerialComPortService.EnumerateMacPorts(_dir);
+
+        // Full device paths and cu.* only: tty.* is the incoming side that
+        // blocks on DCD, and System.IO.Ports opens the name verbatim.
+        Assert.Equal(
+            [Path.Combine(_dir, "cu.Bluetooth-Incoming-Port"), Path.Combine(_dir, "cu.usbserial-1420")],
+            ports);
+    }
+
+    [Fact]
+    public void EnumerateMacPorts_returns_empty_for_missing_dir()
+        => Assert.Empty(SerialComPortService.EnumerateMacPorts(Path.Combine(_dir, "does-not-exist")));
+
+    [Theory]
+    [InlineData("cu.usbserial-1420")]
+    [InlineData("cu.wchusbserial1420")]
+    [InlineData("cu.usbmodem2101")]
+    [InlineData("cu.SLAB_USBtoUART")]
+    public void Mac_real_ports_are_preferred(string name)
+        => Assert.True(SerialComPortService.IsPreferredOnMac("/dev/" + name));
+
+    [Theory]
+    [InlineData("cu.Bluetooth-Incoming-Port")]
+    [InlineData("cu.debug-console")]
+    public void Mac_virtual_ports_are_not_preferred(string name)
+        => Assert.False(SerialComPortService.IsPreferredOnMac("/dev/" + name));
+
     public void Dispose()
     {
         if (Directory.Exists(_dir))

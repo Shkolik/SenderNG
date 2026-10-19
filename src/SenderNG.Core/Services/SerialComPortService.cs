@@ -46,7 +46,9 @@ namespace CNC.Core.Services;
 /// information ioSender reads via WMI), e.g. <c>COM7 - USB Serial Device</c>.
 /// The registry route is used instead of <c>System.Management</c> so the core
 /// library stays dependency-free and cross-platform (the architecture explicitly
-/// bans WPF/System.Management); on non-Windows platforms plain names are returned.
+/// bans WPF/System.Management); on Linux full <c>/dev/ttyUSB*</c> /
+/// <c>/dev/ttyACM*</c> paths are returned; on macOS full <c>/dev/cu.*</c> callout
+/// paths, with the Bluetooth and debug-console virtual ports marked non-preferred.
 /// Enumeration is deduplicated by name: after a USB adapter is unplugged and
 /// plugged back in, Windows can briefly report the COM port twice.
 /// </summary>
@@ -100,6 +102,13 @@ public class SerialComPortService : IComPortService
                     : SerialPortEntry.Plain(n))];
         }
 
+        if (_linuxDevDir is null && OperatingSystem.IsMacOS())
+        {
+            // cu.Bluetooth-Incoming-Port and cu.debug-console always exist on
+            // macOS; list them but never preselect them for first-run connect.
+            return [.. names.Select(n => SerialPortEntry.Plain(n, preferred: IsPreferredOnMac(n)))];
+        }
+
         // Non-Windows enumeration only lists real ttyUSB/ttyACM devices — every
         // entry is preferred (there are no phantom/Bluetooth virtual ports).
         return [.. names.Select(n => SerialPortEntry.Plain(n, preferred: true))];
@@ -110,6 +119,38 @@ public class SerialComPortService : IComPortService
     public static bool IsPhantomEnumerator(string className) =>
         className.Equals("BTHENUM", StringComparison.OrdinalIgnoreCase) ||
         className.Equals("BTH", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Enumerate macOS serial callout devices (<c>cu.*</c>) under the
+    /// given device directory, as full paths. macOS exposes every serial
+    /// device twice — a <c>tty.*</c> node for incoming connections (blocks
+    /// waiting for DCD) and a <c>cu.*</c> callout node for outgoing ones;
+    /// only the callout side is correct for a sender. A pure function over an
+    /// injected directory, so it is unit-testable from any host OS.</summary>
+    public static string[] EnumerateMacPorts(string devDir)
+    {
+        if (!Directory.Exists(devDir))
+            return [];
+        try
+        {
+            return [.. Directory.GetFiles(devDir, "cu.*").Order(StringComparer.Ordinal)];
+        }
+        catch
+        {
+            // Directory may be unreadable; skip.
+            return [];
+        }
+    }
+
+    /// <summary>The macOS virtual ports that always exist but never back a
+    /// machine: the Bluetooth modem endpoint and the kernel debug console,
+    /// mirroring <see cref="IsPhantomEnumerator"/> on Windows. Real adapters
+    /// (usbserial, wchusbserial, usbmodem, …) stay preferred.</summary>
+    public static bool IsPreferredOnMac(string portPath)
+    {
+        var name = Path.GetFileName(portPath);
+        return !name.Contains("Bluetooth", StringComparison.OrdinalIgnoreCase) &&
+               !name.Contains("debug-console", StringComparison.OrdinalIgnoreCase);
+    }
 
     private string[] EnumerateNames()
     {
@@ -124,6 +165,9 @@ public class SerialComPortService : IComPortService
                 return [];
             }
         }
+
+        if (_linuxDevDir is null && OperatingSystem.IsMacOS())
+            return EnumerateMacPorts("/dev");
 
         var devDir = _linuxDevDir ?? "/dev";
         if (!Directory.Exists(devDir))
