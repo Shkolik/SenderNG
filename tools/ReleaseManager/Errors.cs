@@ -83,5 +83,5 @@ public sealed class StagingException : ReleaseManagerException
 public sealed class UnsupportedPlatformException : ReleaseManagerException
 {
     public UnsupportedPlatformException(string platform)
-        : base($"Unsupported host OS: {platform}. ReleaseManager builds win64 on Windows and linux on Linux.", ExitCodes.UnsupportedPlatform) { }
+        : base($"Unsupported host OS: {platform}. ReleaseManager builds win64 on Windows, linux on Linux and osx-arm64/osx-x64 on macOS.", ExitCodes.UnsupportedPlatform) { }
 }

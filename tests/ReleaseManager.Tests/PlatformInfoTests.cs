@@ -35,6 +35,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Runtime.InteropServices;
+
 namespace ReleaseManager.Tests;
 
 public class PlatformInfoTests
@@ -128,5 +130,57 @@ public class PlatformInfoTests
         Assert.Throws<ArgumentOutOfRangeException>(() => PlatformInfo.FolderName(unknown));
         Assert.Throws<ArgumentOutOfRangeException>(() => PlatformInfo.ZipSuffix(unknown));
         Assert.Throws<ArgumentOutOfRangeException>(() => PlatformInfo.RunnerFileName(unknown));
+    }
+
+    [Fact]
+    public void Rid_is_osx_arm64_for_MacOsArm64()
+        => Assert.Equal("osx-arm64", PlatformInfo.Rid(ReleasePlatform.MacOsArm64));
+
+    [Fact]
+    public void Rid_is_osx_x64_for_MacOsX64()
+        => Assert.Equal("osx-x64", PlatformInfo.Rid(ReleasePlatform.MacOsX64));
+
+    [Fact]
+    public void FolderName_and_ZipSuffix_match_design_for_macOS()
+    {
+        Assert.Equal("osx-arm64", PlatformInfo.FolderName(ReleasePlatform.MacOsArm64));
+        Assert.Equal("osx-x64", PlatformInfo.FolderName(ReleasePlatform.MacOsX64));
+        Assert.Equal("osx-arm64", PlatformInfo.ZipSuffix(ReleasePlatform.MacOsArm64));
+        Assert.Equal("osx-x64", PlatformInfo.ZipSuffix(ReleasePlatform.MacOsX64));
+    }
+
+    [Fact]
+    public void RunnerFileName_is_SenderNG_for_macOS()
+    {
+        Assert.Equal("SenderNG", PlatformInfo.RunnerFileName(ReleasePlatform.MacOsArm64));
+        Assert.Equal("SenderNG", PlatformInfo.RunnerFileName(ReleasePlatform.MacOsX64));
+    }
+
+    [Fact]
+    public void macOS_values_collide_with_no_other_platform()
+    {
+        // The x64/arm64 collision guard, extended: neither mac value may emit
+        // a folder, RID or zip suffix already used by another platform.
+        var macs = new[] { ReleasePlatform.MacOsArm64, ReleasePlatform.MacOsX64 };
+        var others = new[] { ReleasePlatform.Win64, ReleasePlatform.Linux, ReleasePlatform.LinuxArm64 };
+        Assert.All(macs, mac => Assert.All(others, other =>
+        {
+            Assert.NotEqual(PlatformInfo.Rid(other), PlatformInfo.Rid(mac));
+            Assert.NotEqual(PlatformInfo.FolderName(other), PlatformInfo.FolderName(mac));
+            Assert.NotEqual(PlatformInfo.ZipSuffix(other), PlatformInfo.ZipSuffix(mac));
+        }));
+        Assert.NotEqual(PlatformInfo.Rid(ReleasePlatform.MacOsArm64), PlatformInfo.Rid(ReleasePlatform.MacOsX64));
+        Assert.NotEqual(PlatformInfo.FolderName(ReleasePlatform.MacOsArm64), PlatformInfo.FolderName(ReleasePlatform.MacOsX64));
+    }
+
+    [Fact]
+    public void Current_selects_the_macOS_platform_by_architecture()
+    {
+        if (!OperatingSystem.IsMacOS())
+            return;
+        var expected = RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+            ? ReleasePlatform.MacOsArm64
+            : ReleasePlatform.MacOsX64;
+        Assert.Equal(expected, PlatformInfo.Current);
     }
 }

@@ -35,13 +35,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using System.Runtime.InteropServices;
+
 namespace ReleaseManager;
 
 public enum ReleasePlatform
 {
     Win64,
     Linux,
-    LinuxArm64
+    LinuxArm64,
+    MacOsArm64,
+    MacOsX64
 }
 
 public static class PlatformInfo
@@ -55,7 +59,9 @@ public static class PlatformInfo
             if (OperatingSystem.IsLinux())
                 return ReleasePlatform.Linux;
             if (OperatingSystem.IsMacOS())
-                throw new UnsupportedPlatformException("macOS");
+                return RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+                    ? ReleasePlatform.MacOsArm64
+                    : ReleasePlatform.MacOsX64;
             throw new UnsupportedPlatformException("unknown");
         }
     }
@@ -72,6 +78,8 @@ public static class PlatformInfo
         ReleasePlatform.Win64 => "win64",
         ReleasePlatform.Linux => "linux",
         ReleasePlatform.LinuxArm64 => "linux-arm64",
+        ReleasePlatform.MacOsArm64 => "osx-arm64",
+        ReleasePlatform.MacOsX64 => "osx-x64",
         _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, null)
     };
 
@@ -80,6 +88,8 @@ public static class PlatformInfo
         ReleasePlatform.Win64 => "win-x64",
         ReleasePlatform.Linux => "linux-x64",
         ReleasePlatform.LinuxArm64 => "linux-arm64",
+        ReleasePlatform.MacOsArm64 => "osx-arm64",
+        ReleasePlatform.MacOsX64 => "osx-x64",
         _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, null)
     };
 
@@ -88,6 +98,8 @@ public static class PlatformInfo
         ReleasePlatform.Win64 => "win64",
         ReleasePlatform.Linux => "linux-x64",
         ReleasePlatform.LinuxArm64 => "linux-arm64",
+        ReleasePlatform.MacOsArm64 => "osx-arm64",
+        ReleasePlatform.MacOsX64 => "osx-x64",
         _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, null)
     };
 
@@ -96,6 +108,8 @@ public static class PlatformInfo
         ReleasePlatform.Win64 => "SenderNG.exe",
         ReleasePlatform.Linux => "SenderNG",
         ReleasePlatform.LinuxArm64 => "SenderNG",
+        ReleasePlatform.MacOsArm64 => "SenderNG",
+        ReleasePlatform.MacOsX64 => "SenderNG",
         _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, null)
     };
 }
