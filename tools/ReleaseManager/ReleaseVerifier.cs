@@ -63,7 +63,13 @@ public static class ReleaseVerifier
                 failures.Add($"missing: {relative}");
         }
 
-        var coreLib = platform == ReleasePlatform.Win64 ? "coreclr.dll" : "libcoreclr.so";
+        var coreLib = platform switch
+        {
+            ReleasePlatform.Win64 => "coreclr.dll",
+            ReleasePlatform.Linux or ReleasePlatform.LinuxArm64 => "libcoreclr.so",
+            ReleasePlatform.MacOsArm64 or ReleasePlatform.MacOsX64 => "libcoreclr.dylib",
+            _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, null)
+        };
         var nativeFound = Directory.EnumerateFiles(bundleDir, coreLib, SearchOption.AllDirectories).Any();
         if (!nativeFound)
             failures.Add($"missing: native runtime binaries ({coreLib})");

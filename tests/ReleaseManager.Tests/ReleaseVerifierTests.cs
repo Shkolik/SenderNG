@@ -124,8 +124,41 @@ public class ReleaseVerifierTests
         File.WriteAllText(Path.Combine(dir, "Modules", "Silk.NET.Core.dll"), "silk");
         File.WriteAllText(Path.Combine(dir, "Modules", "Silk.NET.Maths.dll"), "silk");
         File.WriteAllText(Path.Combine(dir, "Modules", "Silk.NET.OpenGL.dll"), "silk");
-        File.WriteAllText(Path.Combine(dir, platform == ReleasePlatform.Win64 ? "coreclr.dll" : "libcoreclr.so"), "native");
+        var coreLib = platform switch
+        {
+            ReleasePlatform.Win64 => "coreclr.dll",
+            ReleasePlatform.Linux or ReleasePlatform.LinuxArm64 => "libcoreclr.so",
+            _ => "libcoreclr.dylib"
+        };
+        File.WriteAllText(Path.Combine(dir, coreLib), "native");
         File.WriteAllText(Path.Combine(dir, "LICENSE"), "BSD 3-Clause\n");
         return dir;
+    }
+
+    [Theory]
+    [InlineData(ReleasePlatform.MacOsArm64)]
+    [InlineData(ReleasePlatform.MacOsX64)]
+    public void Verify_passes_for_a_complete_macOS_bundle(ReleasePlatform platform)
+    {
+        var bundle = CompleteBundle(platform);
+        ReleaseVerifier.Verify(bundle, platform);
+    }
+
+    [Theory]
+    [InlineData(ReleasePlatform.MacOsArm64)]
+    [InlineData(ReleasePlatform.MacOsX64)]
+    public void Verify_rejects_a_macOS_bundle_without_libcoreclr(ReleasePlatform platform)
+    {
+        var bundle = CompleteBundle(platform);
+        File.Delete(Path.Combine(bundle, "libcoreclr.dylib"));
+        var ex = Assert.Throws<StagingException>(() => ReleaseVerifier.Verify(bundle, platform));
+        Assert.Contains("libcoreclr.dylib", ex.Message);
+    }
+
+    [Fact]
+    public void Verify_passes_for_a_complete_linux_arm64_bundle()
+    {
+        var bundle = CompleteBundle(ReleasePlatform.LinuxArm64);
+        ReleaseVerifier.Verify(bundle, ReleasePlatform.LinuxArm64);
     }
 }
