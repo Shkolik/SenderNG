@@ -97,8 +97,58 @@ jobs:
           path: output/linux-arm64/*.zip
           if-no-files-found: error
 
+  build-macos:
+    needs: gate
+    if: needs.gate.outputs.build == 'true'
+    runs-on: macos-latest
+    env:
+      MSBUILDDISABLENODEREUSE: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build osx-arm64 release
+        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform osx-arm64 --date ${{ needs.gate.outputs.date }} ${{ inputs.stable && '--stable' || '' }}
+
+      # The bundled runner must stay executable after extraction. If this
+      # fails, fix ReleasePackage (external_attr) — do not patch the workflow.
+      - name: Assert the runner keeps its executable bit in the zip
+        shell: bash
+        run: |
+          python3 - <<'EOF'
+          import glob, stat, sys, zipfile
+          matches = glob.glob("output/osx-arm64/SenderNG-[0-9]*-osx-arm64.zip")
+          if len(matches) != 1:
+              sys.exit(f"expected exactly one core zip, found {matches}")
+          with zipfile.ZipFile(matches[0]) as z:
+              entry = next((i for i in z.infolist() if i.filename.endswith("/SenderNG")), None)
+              if entry is None:
+                  sys.exit("SenderNG runner entry not found in the zip")
+              mode = (entry.external_attr >> 16) & 0o777
+              print(f"{entry.filename}: mode={oct(mode)}")
+              sys.exit(0 if mode & stat.S_IXUSR else 1)
+          EOF
+
+      - name: Build osx-x64 release
+        run: dotnet run --project tools/ReleaseManager -- --include-plugins --platform osx-x64 --skip-tests --date ${{ needs.gate.outputs.date }} ${{ inputs.stable && '--stable' || '' }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-arm64
+          path: output/osx-arm64/*.zip
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-x64
+          path: output/osx-x64/*.zip
+          if-no-files-found: error
+
   publish:
-    needs: [gate, build-win64, build-linux]
+    needs: [gate, build-win64, build-linux, build-macos]
     if: needs.gate.outputs.build == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -111,7 +161,7 @@ jobs:
       - name: Collect assets and write merged checksums
         run: |
           mkdir -p release-assets
-          mv release-win64/*.zip release-linux/*.zip release-linux-arm64/*.zip release-assets/
+          mv release-win64/*.zip release-linux/*.zip release-linux-arm64/*.zip release-macos-arm64/*.zip release-macos-x64/*.zip release-assets/
           cd release-assets
           sha256sum *.zip > SHA256SUMS.txt
           echo "Assets: $(ls *.zip | wc -l) zips"
@@ -175,7 +225,7 @@ jobs:
           cat >> "$HEADER_FILE" << 'EOF'
           ### Assets
 
-          - **SenderNG** — core application (win64, linux-x64, linux-arm64). Barebone functions included, no plugins.
+          - **SenderNG** — core application (win64, linux-x64, linux-arm64, osx-arm64, osx-x64). Barebone functions included, no plugins.
           - **Plugins** — optional plugin packages, one zip per plugin,
           matching the platform suffix (e.g. a `linux-x64` plugin goes with
           the `linux-x64` core only)
