@@ -40,11 +40,12 @@ using Xunit.Abstractions;
 
 namespace SenderNG.Core.Tests;
 
-/// <summary>The only place the macOS CGL backend is executed end-to-end:
-/// enabled only by SENDERNG_GL_SMOKE=1 (see <see cref="GlSmokeFactAttribute"/>),
-/// which the report-only gl-smoke-macos CI job sets on the macOS runner.
-/// Context creation failure here is the evidence that GitHub's macOS VMs
-/// cannot back the CGL path — a failure, not a skip, when it is requested.</summary>
+/// <summary>The on-demand check that a Mac really backs the CGL backend
+/// end-to-end: enabled only by SENDERNG_GL_SMOKE=1 on a macOS host (see
+/// <see cref="GlSmokeFactAttribute"/>). The report-only gl-smoke-macos CI
+/// job that set it on GitHub's runners was retired after it confirmed the
+/// CGL path there; run it by hand on a Mac to re-check. Context creation
+/// failure here is a failure, not a skip, when it is requested.</summary>
 [Trait("Category", "GLSmoke")]
 public class GlContextMacSmokeTests
 {

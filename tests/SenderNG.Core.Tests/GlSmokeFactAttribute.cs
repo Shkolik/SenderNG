@@ -41,8 +41,9 @@ namespace SenderNG.Core.Tests;
 /// Discovery-time gate for the macOS GL smoke test, same mechanism as
 /// <see cref="HardwareFactAttribute"/>: with SENDERNG_GL_SMOKE unset the test
 /// reports Skipped — never Passed — so normal test runs on any OS never touch
-/// the CGL path. The dedicated CI job (gl-smoke-macos) sets the variable and
-/// reports for real; it is macOS-only because it verifies the CGL backend.
+/// the CGL path. Set SENDERNG_GL_SMOKE=1 on a Mac to run it for real (the
+/// report-only gl-smoke-macos CI job was retired after CGL was confirmed on
+/// the runners); it is macOS-only because it verifies the CGL backend.
 /// </summary>
 public sealed class GlSmokeFactAttribute : FactAttribute
 {
