@@ -127,32 +127,49 @@ public class GlReadbackTests
     /// the context. The GL_VERSION string alone cannot — a legacy bootstrap
     /// context reports its own (often higher, "Compatibility Profile")
     /// version, which would sail through the minimum-version audit. So audit
-    /// the path itself: the ARB entry point resolved, the ARB call succeeded
-    /// with the mandated 3.3-core-forward-compat attribs, no legacy fallback
-    /// occurred, and the CURRENT context's profile mask + flags say core and
-    /// forward-compatible (glGetIntegerv read back through this very context).</summary>
+    /// the path itself, per backend: on Windows the ARB entry point resolved,
+    /// the ARB call succeeded with the mandated 3.3-core-forward-compat
+    /// attribs, and no legacy fallback occurred. CGL has neither extension
+    /// nor fallback — the core-3.2 request IS the path, so its token is the
+    /// evidence there. Either way the CURRENT context's profile mask says
+    /// core, read back through this very context.</summary>
     [GlFact]
     public void Context_is_the_mandated_3_3_core_forward_compatible_context()
     {
         using var ctx = GlContext.Create();
-        Assert.True(ctx.ArbCreateResolved,
-            "wglGetProcAddress(\"wglCreateContextAttribsARB\") must resolve — " +
-            "without the extension only a legacy context can exist");
-        Assert.True(ctx.ArbCreateSucceeded,
-            $"the ARB call must succeed, not fall back — attribs: {ctx.ArbCreateAttribs}; " +
-            $"version: {ctx.Version}; renderer: {ctx.Renderer}");
-        Assert.False(ctx.UsedLegacyFallback,
-            "the final context must be the ARB-created one, not the legacy bootstrap");
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.True(ctx.ArbCreateResolved,
+                "wglGetProcAddress(\"wglCreateContextAttribsARB\") must resolve — " +
+                "without the extension only a legacy context can exist");
+            Assert.True(ctx.ArbCreateSucceeded,
+                $"the ARB call must succeed, not fall back — attribs: {ctx.ArbCreateAttribs}; " +
+                $"version: {ctx.Version}; renderer: {ctx.Renderer}");
+            Assert.False(ctx.UsedLegacyFallback,
+                "the final context must be the ARB-created one, not the legacy bootstrap");
+        }
+        else if (OperatingSystem.IsMacOS())
+        {
+            // The WGL audit fields are never touched off Windows (see
+            // GlContext.cs): CGL's only knob is the profile attribute list,
+            // and its success is this token.
+            Assert.Equal("path=cgl-core3.2", ctx.CreationPath);
+        }
         Assert.True(ctx.IsCurrent,
             "the audit reads below go through the current context — it must be THE context");
         Assert.Equal(0x1, ctx.ProfileMask);
-        // GL_CONTEXT_FLAGS uses GL QUERY numbering (forward = 0x1,
-        // debug = 0x2) — the mirror image of the WGL request numbering used
-        // in the attribs (WGL forward = 0x2, WGL debug = 0x1).
-        Assert.True((ctx.ContextFlagsMask & 0x1) != 0,
-            $"GL_CONTEXT_FLAGS must include GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT (got 0x{ctx.ContextFlagsMask:X})");
-        Assert.True((ctx.ContextFlagsMask & 0x2) == 0,
-            $"GL_CONTEXT_FLAGS must NOT include GL_CONTEXT_FLAG_DEBUG_BIT (got 0x{ctx.ContextFlagsMask:X})");
+        if (OperatingSystem.IsWindows())
+        {
+            // GL_CONTEXT_FLAGS uses GL QUERY numbering (forward = 0x1,
+            // debug = 0x2) — the mirror image of the WGL request numbering used
+            // in the attribs (WGL forward = 0x2, WGL debug = 0x1). The
+            // forward-compat bit exists because WGL requests it as an explicit
+            // attribute; CGL's core profile carries no such separate request.
+            Assert.True((ctx.ContextFlagsMask & 0x1) != 0,
+                $"GL_CONTEXT_FLAGS must include GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT (got 0x{ctx.ContextFlagsMask:X})");
+            Assert.True((ctx.ContextFlagsMask & 0x2) == 0,
+                $"GL_CONTEXT_FLAGS must NOT include GL_CONTEXT_FLAG_DEBUG_BIT (got 0x{ctx.ContextFlagsMask:X})");
+        }
     }
 
     /// <summary>Step 5b.4 (user ruling): MSAA is an independent axis from the
