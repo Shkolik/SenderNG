@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System.Reactive.Subjects;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
+using SenderNG.Modules.Fixed;
 using SenderNG.Modules.Plugins;
 
 namespace SenderNG.Core.Tests;
@@ -129,6 +130,62 @@ public Task SendAsync(string line)
 
         Assert.Empty(vm.Macros);
         Assert.Null(vm.SelectedMacro);
+    }
+
+    private sealed class GatedGrbl(List<string> sent) : IGrblService
+    {
+        private readonly BehaviorSubject<MachineState> _subject = new(new MachineState(3));
+        private readonly TaskCompletionSource<string> _reply = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool IsConnected => true;
+        public IObservable<MachineState> State => _subject;
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public void SendRealtime(byte code) { }
+        public Task SendAsync(string line) { sent.Add(line); return Task.CompletedTask; }
+        public Task<string> SendProgramLineAsync(string line, CancellationToken ct = default)
+        {
+            sent.Add(line);
+            return _reply.Task;
+        }
+        public void Release() => _reply.TrySetResult("ok");
+    }
+
+    [Fact]
+    public async Task Macro_run_is_refused_while_a_program_runs_and_lifts_when_it_ends()
+    {
+        // ioSender's MacroExecuteControl refuses while IsJobRunning: a macro line
+        // queued between program blocks is a crash the operator cannot predict.
+        var sent = new List<string>();
+        var grbl = new GatedGrbl(sent);
+        var program = new ProgramViewModel(grbl);
+        program.LoadGCode("G0 X0\n");
+        var run = program.RunAsync();
+        await WaitUntil(() => program.IsRunning);
+
+        var vm = new MacroViewModel(_settings, grbl, program);
+        var macro = new MacroItem { Name = "Home", Code = "G28" };
+        vm.Macros.Add(macro);
+        vm.SelectedMacro = macro;
+
+        Assert.False(vm.RunCommand.CanExecute(null));
+        await vm.RunAsync(macro);                       // RunAsync is public: guard must hold
+        Assert.Equal("Stop the running program first", vm.Status);
+        Assert.DoesNotContain("G28", sent);
+
+        grbl.Release();
+        await run;
+        await WaitUntil(() => !program.IsRunning);
+
+        Assert.True(vm.RunCommand.CanExecute(null));
+        await vm.RunAsync(macro);
+        Assert.Contains("G28", sent);
+    }
+
+    private static async Task WaitUntil(Func<bool> condition, int timeoutMs = 3000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (DateTime.UtcNow < deadline && !condition())
+            await Task.Delay(20);
     }
 
     public void Dispose() => GC.SuppressFinalize(this);

@@ -50,12 +50,14 @@ public class MachineState
     public string Status { get; set; } = "Idle";
     public double[] Positions { get; set; } = new double[3];
 
-    // Machine coordinates (MPos:) — independent of work offsets. Null until the
-    // controller reports them (grblHAL status reports carry both WPos and MPos).
+    // Machine coordinates (MPos:) — independent of work offsets. A status report
+    // carries exactly ONE position field (WPos: or MPos:, chosen by $10 bit 0), so
+    // the parser fills whichever one was not reported by deriving it from WCO.
     public double[]? MachinePositions { get; set; }
 
-    // Work offsets (WCO:) from the status report. Classic grbl (default $10=1)
-    // reports MPos + WCO and no WPos; the parser derives WPos = MPos - WCO.
+    // Work offsets (WCO:) from the status report. Reported periodically rather than
+    // in every report; the parser derives WPos = MPos - WCO (or MPos = WPos + WCO)
+    // from the last known values when the field is absent.
     public double[]? WorkOffsets { get; set; }
 
     // Active coordinate system (WCS:) from grblHAL status reports — "G54".."G59.3".

@@ -108,6 +108,7 @@
     "module.probing.notConnected": "Nicht verbunden - zuerst verbinden (oder den Demo-Modus verwenden).",
     "module.probing.cancelled": "Tasten abgebrochen",
     "module.probing.failed": "Tasten fehlgeschlagen: {0}",
+    "module.probing.programRunning": "Beenden Sie zuerst das laufende Programm",
     "module.probing.noPosition": "Tasten fehlgeschlagen - keine Tastposition erfasst",
     "module.probing.toolLengthSet": "Werkzeuglängenversatz gesetzt: {0}",
     "module.probing.measuredZ": "Gemessenes Z: {0}",

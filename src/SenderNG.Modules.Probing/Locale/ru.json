@@ -108,6 +108,7 @@
     "module.probing.notConnected": "Не подключено — сначала подключитесь (или используйте режим Demo).",
     "module.probing.cancelled": "Измерение отменено",
     "module.probing.failed": "Ошибка измерения: {0}",
+    "module.probing.programRunning": "Сначала остановите выполняющуюся программу",
     "module.probing.noPosition": "Ошибка измерения — позиция щупа не получена",
     "module.probing.toolLengthSet": "Смещение длины инструмента установлено: {0}",
     "module.probing.measuredZ": "Измерен Z: {0}",

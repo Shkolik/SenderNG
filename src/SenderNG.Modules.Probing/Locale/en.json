@@ -108,6 +108,7 @@
     "module.probing.notConnected": "Not connected - connect first (or use Demo mode).",
     "module.probing.cancelled": "Probing cancelled",
     "module.probing.failed": "Probing failed: {0}",
+    "module.probing.programRunning": "Stop the running program first",
     "module.probing.noPosition": "Probing failed - no probe position captured",
     "module.probing.toolLengthSet": "Tool length offset set: {0}",
     "module.probing.measuredZ": "Measured Z: {0}",

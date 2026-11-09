@@ -108,6 +108,7 @@
     "module.probing.notConnected": "Non connecté — connectez-vous d'abord (ou utilisez le mode démo).",
     "module.probing.cancelled": "Sondage annulé",
     "module.probing.failed": "Échec du sondage : {0}",
+    "module.probing.programRunning": "Arrêtez d'abord le programme en cours",
     "module.probing.noPosition": "Échec du sondage — aucune position de sonde capturée",
     "module.probing.toolLengthSet": "Décalage de longueur d'outil défini : {0}",
     "module.probing.measuredZ": "Z mesuré : {0}",

@@ -72,7 +72,7 @@ public class OutlineViewModel : ViewModelBase
         _kinematics = kinematics;
 
         _feedRate = ReadFeedRate(_settings);
-        GoCommand = new DelegateCommand(_ => _ = GoAsync(), _ => HasProgramLimits);
+        GoCommand = new DelegateCommand(_ => _ = GoAsync(), _ => HasProgramLimits && !IsJobRunning);
 
         // Enable/disable the Go button as programs load and unload.
         _program.ProgramRows.CollectionChanged += (_, _) =>
@@ -82,6 +82,10 @@ public class OutlineViewModel : ViewModelBase
             OnPropertyChanged(nameof(HasProgramLimits));
             (GoCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         };
+        // ...and while a session streams: an outline block queued between program
+        // moves is a crash the operator cannot predict (ioSender gates its outline
+        // panel on !IsJobRunning the same way).
+        _program.PropertyChanged += OnProgramPropertyChanged;
 
         // The feed rate is a per-profile module setting: follow profile switches
         // so the cached value never lingers from the previously active machine.
@@ -101,6 +105,17 @@ public class OutlineViewModel : ViewModelBase
     }
 
     public DelegateCommand GoCommand { get; }
+
+    /// <summary>True while a program session streams or is paused.</summary>
+    public bool IsJobRunning => _program.IsRunning;
+
+    private void OnProgramPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(ProgramViewModel.IsRunning) or nameof(ProgramViewModel.IsPaused)))
+            return;
+        OnPropertyChanged(nameof(IsJobRunning));
+        (GoCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+    }
 
     public bool HasProgramLimits => _program.LimitRows.Count > 0;
 
@@ -125,6 +140,13 @@ public class OutlineViewModel : ViewModelBase
     {
         if (!HasProgramLimits)
             return;
+        // Belt-and-braces: the button's CanExecute is closed during a session, but
+        // Execute() bypasses CanExecute and the hotkey/command surface can reach here.
+        if (IsJobRunning)
+        {
+            Status = LocText.Resolve("module.outline.programRunning", "Stop the running program first");
+            return;
+        }
 
         var sweep = BuildSweepPlanes();
         if (sweep.Count == 0)

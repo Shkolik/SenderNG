@@ -104,4 +104,13 @@ public interface ILoadedProgramSource
     /// without scanning the program (comments rows stay idle forever, so a
     /// scan can never stop at the first idle row).</summary>
     int TouchedRow { get; }
+
+    /// <summary>
+    /// A program session is streaming right now (including a feed-held/paused one).
+    /// Plugins that inject their own commands — probing wizards, macros, outline —
+    /// gate on this so nothing is queued between program blocks, the way ioSender
+    /// gates on <c>IsJobRunning</c>. Default <c>false</c> keeps lightweight test
+    /// doubles compiling, exactly like the other defaulted members above.
+    /// </summary>
+    bool IsRunning => false;
 }

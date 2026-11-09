@@ -236,6 +236,60 @@ public class OutlineViewModelTests : IDisposable
         public void SendRealtime(byte code) { }
     }
 
+    /// <summary>A controller whose program lines wait for <see cref="Release"/>.</summary>
+    private sealed class GatedGrbl : IGrblService
+    {
+        private readonly System.Reactive.Subjects.BehaviorSubject<MachineState> _subject = new(new MachineState(3));
+        private readonly TaskCompletionSource<string> _reply = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<string> Sent { get; } = new();
+        public bool IsConnected => true;
+        public IObservable<MachineState> State => _subject;
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public Task SendAsync(string line) { Sent.Add(line); return Task.CompletedTask; }
+        public void SendRealtime(byte code) { }
+        public Task<string> SendProgramLineAsync(string line, CancellationToken ct = default)
+        {
+            Sent.Add(line);
+            return _reply.Task;
+        }
+        public void Release() => _reply.TrySetResult("ok");
+    }
+
+    [Fact]
+    public async Task Go_is_refused_while_a_program_runs_and_lifts_when_it_ends()
+    {
+        // ioSender gates its outline panel on !IsJobRunning: the perimeter block
+        // would otherwise be queued between program moves.
+        var grbl = new GatedGrbl();
+        var program = new ProgramViewModel(grbl);
+        LoadSquareProgram(program);
+        var run = program.RunAsync();
+        await WaitUntil(() => program.IsRunning);
+
+        var vm = new OutlineViewModel(grbl, _settings, program);
+        Assert.True(vm.HasProgramLimits);
+        Assert.False(vm.GoCommand.CanExecute(null));
+
+        vm.GoCommand.Execute(null);                    // Execute() bypasses CanExecute
+        await Task.Delay(50);
+        Assert.Equal("Stop the running program first", vm.Status);
+        Assert.DoesNotContain(grbl.Sent, l => l.StartsWith("G90G21G1F", StringComparison.Ordinal));
+
+        grbl.Release();
+        await run;
+        await WaitUntil(() => !program.IsRunning);
+
+        Assert.True(vm.GoCommand.CanExecute(null));
+    }
+
+    private static async Task WaitUntil(Func<bool> condition, int timeoutMs = 3000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (DateTime.UtcNow < deadline && !condition())
+            await Task.Delay(20);
+    }
+
     private static void LoadSquareProgram(ProgramViewModel program)
     {
         program.LoadGCode("G1 F100 X10 Y20\r\nG1 X40 Y30\r\n");

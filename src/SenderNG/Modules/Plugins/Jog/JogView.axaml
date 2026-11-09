@@ -139,7 +139,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                    TextWrapping="Wrap" VerticalAlignment="Top" />
     </Border>
 
-    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="8,0,8,0">
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="8,0,8,0"
+                  IsEnabled="{Binding CanJog}">
     <StackPanel x:Name="JogRow" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
 
         <!-- Selectors stacked vertically with a small gap; no box outline -->

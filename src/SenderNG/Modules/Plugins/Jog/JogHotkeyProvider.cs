@@ -123,6 +123,8 @@ internal static class JogHotkeyProvider
                 if (!grbl.IsConnected || !TagDrivable(tag(), info))
                     return false;
                 var jog = Jog();
+                if (!jog.CanJog)                       // a program session closes jog (ioSender parity)
+                    return false;
                 if (allGantries && !jog.Plane2Visible)
                     return false;
                 return !jog.IsContinuousStep || jog.ContinuousAvailable;

@@ -39,12 +39,13 @@ using System.Globalization;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Localization;
+using SenderNG.Modules.Fixed;
 using SenderNG.ViewModels;
 using SenderNG.Core.Commands;
 
 namespace SenderNG.Modules.Plugins;
 
-/// <summary>Bindable goto axis row: letter + editable machine coordinate.</summary>
+/// <summary>Bindable goto axis row: letter + editable coordinate in the active work coordinate system.</summary>
 public sealed class GotoAxisRow : ViewModelBase
 {
     private string _value = "0";
@@ -66,8 +67,13 @@ public sealed class GotoAxisRow : ViewModelBase
 
 /// <summary>
 /// ioSender's Goto widget: G28/G30 "goto predefined position" buttons, G28.1/G30.1
-/// "record current position as reference point", and a numeric machine-coordinate
-/// goto (G53 G0 X.. Y.. Z..). All actions are gated on the machine being homed —
+/// "record current position as reference point", and a numeric goto in the ACTIVE
+/// work coordinate system (absolute <c>G90 G0 X.. Y.. Z..</c>) — the coordinates
+/// the DRO shows, not machine coordinates: a G53 move here would ignore the G54..G59
+/// offset and drive the operator's typed value into the machine frame (the reported
+/// crash into hard limits). The operator's G90/G91 distance mode is snapshotted and
+/// restored around the move, since forcing G90 is otherwise sticky.
+/// All actions are gated on the machine being homed —
 /// grbl itself refuses them while an alarm is active, and moving to a stored
 /// reference before homing is meaningless.
 /// The numeric goto shows as many axes as the connected controller reports
@@ -77,21 +83,29 @@ public sealed class GotoViewModel : ViewModelBase
 {
     private readonly IGrblService _grbl;
     private readonly CNC.Core.GrblInfoState _info;
+    private readonly ProgramViewModel? _program;
     private readonly IDisposable _stateSubscription;
     private bool _isHomed;
     private int _availableAxes = 3;
     private string _status = string.Empty;
 
-    public GotoViewModel(IGrblService grbl, CNC.Core.GrblInfoState? info = null)
+    public GotoViewModel(IGrblService grbl, CNC.Core.GrblInfoState? info = null,
+        ProgramViewModel? program = null)
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
         _info = info ?? CNC.Core.GrblInfo.Current;
+        _program = program;
 
-        GotoHomeCommand = new DelegateCommand(_ => _ = SendAsync("G28", LocText.Resolve("module.goto.goingHome", "Going to home position")));
-        GotoG30Command = new DelegateCommand(_ => _ = SendAsync("G30", LocText.Resolve("module.goto.goingRef2", "Going to second reference point")));
-        SetHomeCommand = new DelegateCommand(_ => _ = SendAsync("G28.1", LocText.Resolve("module.goto.homeRecorded", "Home position recorded")));
-        SetG30Command = new DelegateCommand(_ => _ = SendAsync("G30.1", LocText.Resolve("module.goto.ref2Recorded", "Second reference point recorded")));
-        GoCommand = new DelegateCommand(_ => _ = GoAsync());
+        GotoHomeCommand = new DelegateCommand(_ => _ = SendAsync("G28", LocText.Resolve("module.goto.goingHome", "Going to home position")), _ => CanOperate);
+        GotoG30Command = new DelegateCommand(_ => _ = SendAsync("G30", LocText.Resolve("module.goto.goingRef2", "Going to second reference point")), _ => CanOperate);
+        SetHomeCommand = new DelegateCommand(_ => _ = SendAsync("G28.1", LocText.Resolve("module.goto.homeRecorded", "Home position recorded")), _ => CanOperate);
+        SetG30Command = new DelegateCommand(_ => _ = SendAsync("G30.1", LocText.Resolve("module.goto.ref2Recorded", "Second reference point recorded")), _ => CanOperate);
+        GoCommand = new DelegateCommand(_ => _ = GoAsync(), _ => CanOperate);
+
+        // A program session appears/disappears through IsRunning; the whole panel
+        // follows it (ioSender does the same from IsJobRunning).
+        if (_program is not null)
+            _program.PropertyChanged += OnProgramPropertyChanged;
 
         _stateSubscription = grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
         RefreshAxes();
@@ -109,10 +123,25 @@ public sealed class GotoViewModel : ViewModelBase
         get => _isHomed;
         private set
         {
-            if (SetField(ref _isHomed, value))
-                Status = value ? string.Empty : LocText.Resolve("module.goto.homeFirst", "Home the machine first ($H)");
+            if (!SetField(ref _isHomed, value))
+                return;
+            Status = value ? string.Empty : LocText.Resolve("module.goto.homeFirst", "Home the machine first ($H)");
+            OnPropertyChanged(nameof(CanOperate));
+            RaiseCommandStates();
         }
     }
+
+    /// <summary>True while a program session is streaming (including a paused one).</summary>
+    public bool IsJobRunning => _program?.IsRunning == true;
+
+    /// <summary>
+    /// Every action on this widget requires a homed machine AND no program run.
+    /// A reference-point move or a coordinate move queued between program blocks
+    /// is a crash risk the operator cannot see coming — ioSender disables its whole
+    /// Goto panel from <c>IsJobRunning</c> (<c>GotoBaseControl.xaml</c>), and
+    /// recording "home" from a moving machine would store the wrong reference.
+    /// </summary>
+    public bool CanOperate => IsHomed && !IsJobRunning;
 
     public ObservableCollection<GotoAxisRow> GotoAxes { get; } = new();
 
@@ -120,6 +149,24 @@ public sealed class GotoViewModel : ViewModelBase
     {
         get => _status;
         private set => SetField(ref _status, value);
+    }
+
+    private void OnProgramPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(ProgramViewModel.IsRunning) or nameof(ProgramViewModel.IsPaused)))
+            return;
+        OnPropertyChanged(nameof(IsJobRunning));
+        OnPropertyChanged(nameof(CanOperate));
+        RaiseCommandStates();
+    }
+
+    private void RaiseCommandStates()
+    {
+        GotoHomeCommand.RaiseCanExecuteChanged();
+        GotoG30Command.RaiseCanExecuteChanged();
+        SetHomeCommand.RaiseCanExecuteChanged();
+        SetG30Command.RaiseCanExecuteChanged();
+        GoCommand.RaiseCanExecuteChanged();
     }
 
     private void ApplyState(MachineState state)
@@ -151,11 +198,8 @@ public sealed class GotoViewModel : ViewModelBase
 
     private async Task GoAsync()
     {
-        if (!IsHomed)
-        {
-            Status = LocText.Resolve("module.goto.homeFirst", "Home the machine first ($H)");
+        if (RefuseWhenLocked())
             return;
-        }
 
         var words = new List<string>();
         var invalid = new List<string>();
@@ -173,7 +217,37 @@ public sealed class GotoViewModel : ViewModelBase
             return;
         }
 
-        await SendAsync($"G53 G0 {string.Join(" ", words)}", LocText.Resolve("module.goto.goingPosition", "Going to position"));
+        // G90 is explicit: a controller left in G91 by an earlier MDI line would
+        // otherwise treat the typed position as an incremental distance. G90 is
+        // MODAL, though, so snapshot the operator's distance mode first and put it
+        // back once the move is accepted — otherwise an MDI session working in G91
+        // silently flips to absolute after a Go (the stepper wizard restores its
+        // modal state the same way).
+        var wasIncremental = false;
+        try
+        {
+            wasIncremental = await _grbl.ReadModalStateAsync() is { IsAbsolute: false };
+        }
+        catch
+        {
+            // Unknown (the controller didn't answer $G): the move is still absolute
+            // because G90 rides in the same block; the mode is simply left as-is.
+        }
+
+        await SendAsync($"G90 G0 {string.Join(" ", words)}", LocText.Resolve("module.goto.goingPosition", "Going to position"));
+
+        if (wasIncremental)
+        {
+            try
+            {
+                await _grbl.SendAsync("G91");
+            }
+            catch
+            {
+                // Non-fatal: the move is already accepted; the controller stays
+                // absolute, which is grbl's own reset default anyway.
+            }
+        }
     }
 
     private static void TryAxis(List<string> words, List<string> invalid, GotoAxisRow row)
@@ -186,13 +260,31 @@ public sealed class GotoViewModel : ViewModelBase
             invalid.Add($"{row.Letter}=\"{row.Value}\"");
     }
 
-    private async Task SendAsync(string command, string success)
+    /// <summary>
+    /// Explains why a command was refused and reports that it was. Greys out the
+    /// whole widget in the normal flow; this is the belt-and-braces guard for a
+    /// command invoked programmatically (a DelegateCommand's Execute does not
+    /// consult CanExecute).
+    /// </summary>
+    private bool RefuseWhenLocked()
     {
+        if (IsJobRunning)
+        {
+            Status = LocText.Resolve("module.goto.programRunning", "Stop the running program first");
+            return true;
+        }
         if (!IsHomed)
         {
             Status = LocText.Resolve("module.goto.homeFirst", "Home the machine first ($H)");
-            return;
+            return true;
         }
+        return false;
+    }
+
+    private async Task SendAsync(string command, string success)
+    {
+        if (RefuseWhenLocked())
+            return;
         try
         {
             await _grbl.SendAsync(command);

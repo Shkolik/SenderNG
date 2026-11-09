@@ -84,16 +84,21 @@ Many already exist; the gaps are listed per widget.
       `$G` modal dump (`[GC:...]`, fallback G54) and grblHAL's live `WCS:` report
       field, and the editor follows report-driven changes without echoing.
       After a DRO zero the app re-reads `$#` so the offsets table reflects the
-      controller immediately; positions always come from the controller's MPos /
-      WCO report fields (WPos is derived controller-style, never local math).
+      controller immediately; positions come from the controller's single reported
+      position field (WPos or MPos, per `$10` bit 0) plus WCO, and the other one is
+      derived controller-style (never local G-code math).
 - [x] Jog widget (`Modules/Plugins/Jog`) — cross + linear axes, distances/speeds,
       foam Z/A cross, padlock. Layout is schema-driven (2026-09-07):
       crosses from the machine-type preset's
       planes, letters from the controller's `[AXS:]` report (XYUV-style boards
       display correctly), and an under-axed multi-plane machine hides its
       second plane with a status hint instead of showing a dead cross.
+      Closed while a program session streams or is paused (`CanJog`, ioSender's
+      `IsEnabled = !IsJobRunning` on `JogBaseControl`), including the direction
+      hotkeys; a continuous jog already unwinding keeps the panel live so the
+      release/cancel path is never gated away.
 - [x] MPos widget (`Modules/Plugins/Mpos`) — machine-position readouts.
-- [x] Outline widget (`Modules/Plugins/Outline`) — feed rate + Go perimeter; plane-aware: sweeps every sweepable carriage plane in sync (X/Y | Z/A for foam), letters from the controller.
+- [x] Outline widget (`Modules/Plugins/Outline`) — feed rate + Go perimeter; plane-aware: sweeps every sweepable carriage plane in sync (X/Y | Z/A for foam), letters from the controller. Go is closed while a program session streams or is paused (ioSender's outline panel is `IsEnabled=!IsJobRunning`).
 - [x] Coolant (`Modules/Plugins/Coolant`) — Flood/Mist toggles + overrides.
 - [x] Cutting (`Modules/Plugins/Cutting`) — Feed/Rapids/Speed overrides, spindle
       CW/CCW/Off + RPM input, plus the live feed/speed readout (FS: report field).
@@ -157,6 +162,12 @@ Many already exist; the gaps are listed per widget.
 - [x] MDI row (editable combo + history + Send). The static signals/limits
       summary right of the Send button was removed as redundant — the signals
       panel already shows live state (the summary text never updated).
+      Disabled while a program session streams or is paused (`CanSendMdi`,
+      ioSender's `IsEnabled = !IsJobRunning` on `MDIControl`) so a typed motion
+      line cannot be queued between program blocks; it stays available in Alarm,
+      which is where `$X`/`$H` are typed. MDI is raw parser input and its modal
+      words persist for the session — upstream behaves the same and restores
+      nothing.
 - [x] Signals panel (axis indicators + probe state).
 - [x] State indicator (Idle/Run/Alarm/Hold + brush).
 - [x] Cycle bar (Cycle Start / Feed Hold / Stop / Rewind) — the **only** run
@@ -179,9 +190,18 @@ Many already exist; the gaps are listed per widget.
 
 - [x] **Goto widget** (`GotoControl`/`GotoFlyoutControl`) — implemented as the
       `Plugins/Goto` flyout: G28/G30 "goto position" buttons, G28.1/G30.1
-      record-reference-point buttons, numeric per-axis rows + Go (`G53 G0`),
+      record-reference-point buttons, numeric per-axis rows + Go
+      (`G90 G0`, in the ACTIVE work coordinate system — the values the DRO shows;
+      a `G53` machine move here ignored the G54..G59 offset and drove typed values
+      into the machine frame, which crashed a reporter's machine into hard limits;
+      the operator's G90/G91 mode is snapshotted from `$G` and restored after the
+      move, so forcing G90 is not sticky),
       gated on homed state (tracked via completed `$H`; cleared on alarm/soft
-      reset). The numeric rows always track the connected controller's reported
+      reset) AND on no program session — the whole panel is disabled while a
+      program streams or is paused (`ProgramViewModel.IsRunning`), ioSender's
+      `IsEnabled = !IsJobRunning` on `GotoBaseControl`, because a reference or
+      coordinate move queued between program blocks is a crash the operator cannot
+      see coming. The numeric rows always track the connected controller's reported
       axis count (one row per axis, like the DRO / mPos read-outs).
 - [x] **Tool table → probing integration** (`ToolView`) — the Offsets flyout
       tool table is a full editor mirroring the offsets table: a **Tool**
@@ -301,6 +321,11 @@ Many already exist; the gaps are listed per widget.
 - [x] **Preview of generated probe program** before running — every probing
       tool panel has a "Show preview" checkbox + read-only textbox (ioSender
       layout); regenerates live on input changes (2026-09-05).
+- [x] **Start gate on a running program** — Start is refused while a program
+      session streams or is paused, read through the Core `ILoadedProgramSource`
+      seam (the plugin never sees the app's view model; ioSender gates its
+      wizard Start on `!IsJobRunning`, and a probe block queued between program
+      blocks is a crash).
 - [x] **Height-map apply completeness** — rebuilt on the token machinery
       (`GCodeTransformers.ApplyHeightMap`, 2026-09-05): feeds split at the
       map grid spacing, arcs split into sub-arcs with helix Z, G91 supported.

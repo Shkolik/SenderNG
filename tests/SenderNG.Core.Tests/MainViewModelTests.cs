@@ -1247,6 +1247,71 @@ public class MainViewModelStatusButtonsTests
         public void SendRealtime(byte code) { }
     }
 
+    /// <summary>A session that can be ended: program lines wait on <see cref="Release"/>.</summary>
+    private sealed class ReleasableSessionGrbl(BehaviorSubject<MachineState> state, List<string> sent) : IGrblService
+    {
+        private readonly TaskCompletionSource<string> _reply = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool IsConnected => true;
+        public IObservable<MachineState> State => state;
+        public Task ConnectAsync(string port) => Task.CompletedTask;
+        public void Disconnect() { }
+        public Task SendAsync(string line) { sent.Add(line); return Task.CompletedTask; }
+        public void SendRealtime(byte code) { }
+        public Task<string> SendProgramLineAsync(string line, CancellationToken ct = default)
+        {
+            sent.Add(line);
+            return _reply.Task;
+        }
+        public void Release() => _reply.TrySetResult("ok");
+    }
+
+    [Fact]
+    public async Task Mdi_is_disabled_while_a_program_runs_and_re_enabled_when_it_ends()
+    {
+        // ioSender's MDIControl is IsEnabled = !IsJobRunning: G-code typed into MDI
+        // during a run would be queued between program blocks.
+        var settings = MakeSettings();
+        var subject = new BehaviorSubject<MachineState>(new MachineState());
+        var grbl = new ReleasableSessionGrbl(subject, []);
+        var services = new ServiceCollection();
+        services.AddSingleton(settings);
+        services.AddSingleton<IGrblService>(grbl);
+        services.AddSingleton<SenderNG.Modules.Fixed.ProgramViewModel>();
+        var provider = services.BuildServiceProvider();
+        var vm = new MainViewModel(grbl, settings, provider);
+
+        vm.MdiInput = "G0 X1";
+        Assert.True(vm.CanSendMdi);
+        Assert.True(vm.SendMdiCommand.CanExecute(null));
+
+        var program = provider.GetRequiredService<SenderNG.Modules.Fixed.ProgramViewModel>();
+        program.LoadGCode("G0 X0");
+        vm.CycleStartCommand.Execute(null);
+        Assert.True(program.IsRunning);
+
+        Assert.False(vm.CanSendMdi);
+        Assert.False(vm.SendMdiCommand.CanExecute(null));
+
+        // Execute() bypasses CanExecute: the guard must refuse without consuming the text.
+        vm.SendMdiCommand.Execute(null);
+        await Task.Delay(50);
+        Assert.Equal("MDI is disabled while a program is running", vm.Status);
+        Assert.Equal("G0 X1", vm.MdiInput);
+
+        grbl.Release();
+        await WaitUntil(() => !program.IsRunning);
+
+        Assert.True(vm.CanSendMdi);
+        Assert.True(vm.SendMdiCommand.CanExecute(null));
+    }
+
+    private static async Task WaitUntil(Func<bool> condition, int timeoutMs = 3000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (DateTime.UtcNow < deadline && !condition())
+            await Task.Delay(20);
+    }
+
     [Fact]
     public void Cycle_bar_gates_follow_the_session_state()
     {

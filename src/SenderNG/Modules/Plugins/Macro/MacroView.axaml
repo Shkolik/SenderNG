@@ -50,6 +50,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         </StackPanel>
 
         <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
+            <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Sender.Text.Caption}" FontSize="11" TextWrapping="Wrap" />
             <TextBox Text="{Binding SelectedMacro.Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                      PlaceholderText="{loc:Loc module.macro.namePlaceholder}"
                      IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}"

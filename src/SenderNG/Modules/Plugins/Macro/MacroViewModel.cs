@@ -39,6 +39,7 @@ using System.Text.Json;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Localization;
+using SenderNG.Modules.Fixed;
 using SenderNG.Core.Commands;
 using SenderNG.ViewModels;
 
@@ -65,6 +66,7 @@ public class MacroViewModel : ViewModelBase
 {
     private readonly IGrblService _grbl;
     private readonly SettingsService _settingsService;
+    private readonly ProgramViewModel? _program;
     private MachineProfile _profile;
 
     public ObservableCollection<MacroItem> Macros { get; } = new();
@@ -87,21 +89,48 @@ public class MacroViewModel : ViewModelBase
     public DelegateCommand AddMacroCommand { get; }
     public DelegateCommand RemoveMacroCommand { get; }
 
-    public MacroViewModel(SettingsService settingsService, IGrblService grbl)
+    public MacroViewModel(SettingsService settingsService, IGrblService grbl, ProgramViewModel? program = null)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
+        _program = program;
         _profile = _settingsService.Load();
 
-        RunCommand = new DelegateCommand(_ => _ = RunAsync(SelectedMacro), _ => SelectedMacro is not null);
+        RunCommand = new DelegateCommand(_ => _ = RunAsync(SelectedMacro), _ => SelectedMacro is not null && !IsJobRunning);
         AddMacroCommand = new DelegateCommand(_ => AddMacro());
         RemoveMacroCommand = new DelegateCommand(
             _ => RemoveSelected(), _ => SelectedMacro is not null);
+
+        // Macros are raw G-code: closed while a program session streams, so a macro
+        // line cannot be queued between program blocks (ioSender's
+        // MacroExecuteControl refuses while IsJobRunning).
+        if (_program is not null)
+            _program.PropertyChanged += OnProgramPropertyChanged;
 
         Load();
         // Macros are machine routines: follow profile switches (reload the list
         // from the newly active machine, keep saving to its file).
         _settingsService.Changed += OnSettingsChanged;
+    }
+
+    /// <summary>True while a program session streams or is paused.</summary>
+    public bool IsJobRunning => _program?.IsRunning == true;
+
+    private string _status = string.Empty;
+
+    /// <summary>Last refusal message (a run blocked by a program session).</summary>
+    public string Status
+    {
+        get => _status;
+        private set => SetField(ref _status, value);
+    }
+
+    private void OnProgramPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(ProgramViewModel.IsRunning) or nameof(ProgramViewModel.IsPaused)))
+            return;
+        OnPropertyChanged(nameof(IsJobRunning));
+        RunCommand.RaiseCanExecuteChanged();
     }
 
     private void OnSettingsChanged()
@@ -118,6 +147,13 @@ public class MacroViewModel : ViewModelBase
     {
         if (macro is null || string.IsNullOrWhiteSpace(macro.Code))
             return;
+        // Belt-and-braces: RunCommand.CanExecute is closed during a session, but
+        // Execute() bypasses it and RunAsync is public.
+        if (IsJobRunning)
+        {
+            Status = LocText.Resolve("module.macro.programRunning", "Stop the running program first");
+            return;
+        }
 
         foreach (var line in macro.Code.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries))
             await _grbl.SendAsync(line.Trim());

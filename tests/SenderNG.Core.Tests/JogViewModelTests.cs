@@ -36,6 +36,7 @@ using System.Reactive.Subjects;
 using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Localization;
+using SenderNG.Modules.Fixed;
 using SenderNG.Modules.Plugins;
 
 namespace SenderNG.Core.Tests;
@@ -768,5 +769,49 @@ public class JogSchemaLayoutTests
         grbl.Push(new MachineState(4)); // same count, different letters
 
         Assert.Equal("B", vm.P2V);
+    }
+
+    [Fact]
+    public async Task Jog_is_closed_while_a_program_runs_and_opens_when_it_ends()
+    {
+        // ioSender disables its jog panel from !IsJobRunning: a jog block queued
+        // between program moves is a crash the operator cannot anticipate.
+        var sent = new List<string>();
+        var gate = new TaskCompletionSource();          // program lines wait for Release()
+        var grbl = new JogViewModelTests.RecordingGrbl(sent, gate: gate);
+        var program = new ProgramViewModel(grbl);
+        program.LoadGCode("G1 F100 X10\n");
+        var run = program.RunAsync();
+        await WaitUntil(() => program.IsRunning);
+
+        var vm = new JogViewModel(grbl, JogViewModelTests.MakeSettings(), program: program);
+        Assert.True(vm.IsJobRunning);
+        Assert.False(vm.CanJog);
+        Assert.False(vm.JogCommand.CanExecute("X+"));
+
+        // Execute() bypasses CanExecute — the guard inside JogAsync must still refuse.
+        vm.JogCommand.Execute("X+");
+        await Task.Delay(50);
+        Assert.Equal("Stop the running program first", vm.Status);
+        Assert.DoesNotContain(sent, l => l.StartsWith("$J=", StringComparison.Ordinal));
+
+        // A held continuous jog (pointer down) is refused the same way.
+        vm.StartContinuousJog("X+");
+        await Task.Delay(50);
+        Assert.False(vm.ContinuousActive);
+
+        gate.SetResult();
+        await run;
+        await WaitUntil(() => !program.IsRunning);
+
+        Assert.True(vm.CanJog);
+        Assert.True(vm.JogCommand.CanExecute("X+"));
+    }
+
+    private static async Task WaitUntil(Func<bool> condition, int timeoutMs = 3000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (DateTime.UtcNow < deadline && !condition())
+            await Task.Delay(20);
     }
 }

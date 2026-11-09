@@ -932,6 +932,57 @@ public class ProbeViewModelTests : IDisposable
         Assert.DoesNotContain("Probing completed", vm.LastResult);
     }
 
+    [Fact]
+    public async Task Start_is_refused_while_a_program_session_runs()
+    {
+        // The plugin reads the run flag through the Core seam (ILoadedProgramSource),
+        // never the app's view model; ioSender gates its wizard Start on !IsJobRunning
+        // because a probe move queued between program blocks is a crash.
+        var demo = await ConnectDemoAsync();
+        var source = new ProgramSourceStub { IsRunning = true };
+        var sp = new ServiceCollection().AddSingleton<ILoadedProgramSource>(source).BuildServiceProvider();
+        var vm = new ProbeViewModel(demo, _settings, sp);
+
+        Assert.False(vm.StartCommand.CanExecute(null));
+
+        await vm.StartAsync();
+        Assert.Equal("Stop the running program first", vm.LastResult);
+    }
+
+    [Fact]
+    public async Task Start_gate_follows_the_session_flag()
+    {
+        var demo = await ConnectDemoAsync();
+        var source = new ProgramSourceStub();
+        var sp = new ServiceCollection().AddSingleton<ILoadedProgramSource>(source).BuildServiceProvider();
+        var vm = new ProbeViewModel(demo, _settings, sp);
+        Assert.True(vm.StartCommand.CanExecute(null));
+
+        source.IsRunning = true;
+        await demo.SendAsync("?"); // a status report re-evaluates the gate (the poll clock)
+
+        Assert.False(vm.StartCommand.CanExecute(null));
+
+        source.IsRunning = false;
+        await demo.SendAsync("?");
+
+        Assert.True(vm.StartCommand.CanExecute(null));
+    }
+
+    /// <summary>Stand-in for the app's program surface: only the run flag matters here.</summary>
+    private sealed class ProgramSourceStub : ILoadedProgramSource
+    {
+        public bool IsRunning { get; set; }
+        public GCodeProgram? Program => null;
+        public event Action? ProgramChanged { add { } remove { } }
+        public event Action? RowsChanged { add { } remove { } }
+        public int RowCount => 0;
+        public int SendableCount => 0;
+        public int DoneCount => 0;
+        public ProgramRowState GetRowState(int index) => ProgramRowState.Idle;
+        public int TouchedRow => 0;
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_dir, recursive: true); } catch { }

@@ -40,6 +40,7 @@ using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using SenderNG.Core.Commands;
 using SenderNG.Localization;
+using SenderNG.Modules.Fixed;
 using SenderNG.ViewModels;
 
 namespace SenderNG.Modules.Plugins;
@@ -59,6 +60,7 @@ public class JogViewModel : ViewModelBase
     private readonly IGrblService _grbl;
     private readonly SettingsService _settingsService;
     private readonly CNC.Core.GrblInfoState _info;
+    private readonly ProgramViewModel? _program;
     private MachineProfile _profile;
     private int _numAxes = 2;
     private string _letters = string.Empty;
@@ -69,11 +71,13 @@ public class JogViewModel : ViewModelBase
     private bool _suppressReload;
     private SenderNG.Core.Services.HotkeyService? _subscribedHotkeys;
 
-    public JogViewModel(IGrblService grbl, SettingsService settingsService, CNC.Core.GrblInfoState? info = null)
+    public JogViewModel(IGrblService grbl, SettingsService settingsService, CNC.Core.GrblInfoState? info = null,
+        ProgramViewModel? program = null)
     {
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _info = info ?? CNC.Core.GrblInfo.Current;
+        _program = program;
         _profile = _settingsService.Load();
 
         Config = JogConfigStore.Load(_profile);
@@ -83,7 +87,7 @@ public class JogViewModel : ViewModelBase
         RefreshGeometry();
         RefreshLinearAxes();
 
-        JogCommand = new DelegateCommand(p => _ = JogAsync(p as string, Together));
+        JogCommand = new DelegateCommand(p => _ = JogAsync(p as string, Together), _ => CanJog);
         // Jog cancel (realtime 0x85) is the firmware's dedicated stop-jog command on
         // classic grbl 1.1, the mega5x 1.2i fork and grblHAL: it decelerates, flushes
         // remaining jog blocks and returns to IDLE. A feed hold ('!') would leave the
@@ -94,6 +98,11 @@ public class JogViewModel : ViewModelBase
                 _continuousCancelRequested = true;
             CancelJog();
         });
+
+        // A program session closes the panel (ioSender's IsEnabled = !IsJobRunning
+        // on JogBaseControl); Stop stays usable — the cancel path must never be gated.
+        if (_program is not null)
+            _program.PropertyChanged += OnProgramPropertyChanged;
 
         _grbl.State.Subscribe(s => UiThread.Post(() => ApplyState(s)));
         _grbl.ConnectionChanged += OnConnectionChanged;
@@ -398,6 +407,27 @@ public class JogViewModel : ViewModelBase
     public bool ContinuousActive => _continuousTag is not null;
     public bool ContinuousStarting => _continuousStarting;
 
+    /// <summary>True while a program session streams or is paused.</summary>
+    public bool IsJobRunning => _program?.IsRunning == true;
+
+    /// <summary>
+    /// Jog is closed while a program runs — a jog block queued between program moves
+    /// is a crash the operator cannot predict; ioSender disables its whole jog panel
+    /// from <c>!IsJobRunning</c>. A continuous jog already unwinding keeps the panel
+    /// live (upstream OR-s its jogging state in the same way) so the release/cancel
+    /// path is never gated away.
+    /// </summary>
+    public bool CanJog => !IsJobRunning || ContinuousActive;
+
+    private void OnProgramPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(ProgramViewModel.IsRunning) or nameof(ProgramViewModel.IsPaused)))
+            return;
+        OnPropertyChanged(nameof(IsJobRunning));
+        OnPropertyChanged(nameof(CanJog));
+        JogCommand.RaiseCanExecuteChanged();
+    }
+
     /// <summary>Continuous jog needs the board's per-axis max travel ($130+), which only
     /// exists after the connect handshake's $$ fetch. Gates the Continuous toggle
     /// (IsEnabled in the view) — "wait till connection established before allow jogging".
@@ -412,6 +442,11 @@ public class JogViewModel : ViewModelBase
     private async Task StartContinuousJogAsync(string? tag, bool allGantries)
     {
         var mergeBoth = allGantries || Together;   // explicit hotkey flag or the engaged padlock
+        if (IsJobRunning)
+        {
+            Status = LocText.Resolve("module.jog.programRunning", "Stop the running program first");
+            return;
+        }
         if (!IsContinuousStep || string.IsNullOrWhiteSpace(tag) || _continuousTag is not null
             || _continuousStarting || !_grbl.IsConnected || !ContinuousTravelKnown(tag, mergeBoth))
             return;                                   // step mode, empty tag, held, in flight, or no travel
@@ -428,6 +463,8 @@ public class JogViewModel : ViewModelBase
             else
             {
                 _continuousTag = tag;
+                OnPropertyChanged(nameof(ContinuousActive));
+                OnPropertyChanged(nameof(CanJog));
                 Status = LocText.Resolve("module.jog.continuousStarted", "Continuous jog started");
             }
         }
@@ -460,7 +497,13 @@ public class JogViewModel : ViewModelBase
 
     private void CancelJog()
     {
+        var hadTag = _continuousTag is not null;
         _continuousTag = null;
+        if (hadTag)
+        {
+            OnPropertyChanged(nameof(ContinuousActive));
+            OnPropertyChanged(nameof(CanJog));
+        }
         Status = string.Empty;                          // the run is over: drop any jog message
         try { _grbl.SendRealtime(GrblRealtime.JogCancel); }   // 0x85 — decelerate, flush, Idle
         catch (InvalidOperationException) { }                  // disconnected: nothing to cancel
@@ -574,6 +617,13 @@ public class JogViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(tag) || _continuousTag is not null   // no step jog while holding
             || !_grbl.IsConnected)                                          // wait till connected
             return;
+        // Belt-and-braces: the panel and JogCommand.CanExecute are already closed for a
+        // program session, but the hotkeys and the pointer path can reach this directly.
+        if (IsJobRunning)
+        {
+            Status = LocText.Resolve("module.jog.programRunning", "Stop the running program first");
+            return;
+        }
         try
         {
             await _grbl.SendAsync($"$J=G91 {BuildJogWords(tag, _ => SelectedDistance, allGantries)} F{Fmt(SelectedSpeed)}");

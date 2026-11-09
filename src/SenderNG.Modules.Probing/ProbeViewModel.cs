@@ -64,6 +64,7 @@ public class ProbeViewModel : ViewModelBase
     private readonly SettingsService _settingsService;
     private MachineProfile _profile;
     private readonly IServiceProvider? _services;
+    private readonly ILoadedProgramSource? _program;
     private ProbingProfileStore _store;
     private readonly ProbeRunner _runner;
     private Dictionary<string, bool> _enabledTools;
@@ -74,6 +75,10 @@ public class ProbeViewModel : ViewModelBase
         _grbl = grbl ?? throw new ArgumentNullException(nameof(grbl));
         _settingsService = settings ?? throw new ArgumentNullException(nameof(settings));
         _services = services;
+        // The run-session flag arrives through the Core seam (this plugin never sees
+        // the app's ProgramViewModel): probing injects its own moves, so it must not
+        // run between program blocks — ioSender gates its wizard Start the same way.
+        _program = _services?.GetService(typeof(ILoadedProgramSource)) as ILoadedProgramSource;
         _profile = _settingsService.Load();
 
         // Module settings hold only the enabled-tool checkboxes; the per-profile
@@ -92,6 +97,11 @@ public class ProbeViewModel : ViewModelBase
         WireCommands();
         ApplyToolInstructions();
         ToolTabs = BuildToolTabs();
+
+        // The session flag has no change event: it flips at run start/end, and the
+        // status poll is already the app's clock, so re-evaluate the Start gate there
+        // (the comparison keeps this free on the steady-state poll).
+        _grbl.State.Subscribe(_ => UiThread.Post(RefreshJobGate));
 
         // RotationOriginNames is resolved live (like the {loc:Loc} markup
         // extension): re-raise it when the active locale switches so the
@@ -200,7 +210,7 @@ public class ProbeViewModel : ViewModelBase
 
     private void WireCommands()
     {
-        StartCommand = new DelegateCommand(_ => _ = StartAsync(), _ => !IsRunning);
+        StartCommand = new DelegateCommand(_ => _ = StartAsync(), _ => !IsRunning && !IsJobRunning);
         StopCommand = new DelegateCommand(_ => Stop(), _ => IsRunning);
         SelectToolCommand = new DelegateCommand(p =>
         {
@@ -941,6 +951,21 @@ public class ProbeViewModel : ViewModelBase
     private bool _isConnected;
     public bool IsConnected { get => _isConnected; private set => SetField(ref _isConnected, value); }
 
+    private bool _jobWasRunning;
+
+    /// <summary>True while a program session streams or is paused.</summary>
+    private bool IsJobRunning => _program?.IsRunning == true;
+
+    /// <summary>Re-gate Start when the session flag flips (otherwise a no-op).</summary>
+    private void RefreshJobGate()
+    {
+        var running = IsJobRunning;
+        if (running == _jobWasRunning)
+            return;
+        _jobWasRunning = running;
+        (StartCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+    }
+
     public DelegateCommand StartCommand { get; private set; } = null!;
     public DelegateCommand StopCommand { get; private set; } = null!;
     public DelegateCommand HeightMapSaveCommand { get; private set; } = null!;
@@ -969,6 +994,14 @@ public class ProbeViewModel : ViewModelBase
     {
         if (IsRunning)
             return;
+
+        // A program session owns the input stream: a probe move queued between its
+        // blocks is a crash (ioSender gates its wizard Start on !IsJobRunning).
+        if (IsJobRunning)
+        {
+            LastResult = LocText.Resolve("module.probing.programRunning", "Stop the running program first");
+            return;
+        }
 
         // Design-time instance (CreateDesignInstance) wires commands so the
         // action bar renders enabled, but must never reach the controller.

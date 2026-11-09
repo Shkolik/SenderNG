@@ -212,7 +212,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             else
                 SelectedModule = p as IModule;
         });
-        SendMdiCommand = new DelegateCommand(_ => _ = SendMdiAsync(), _ => !string.IsNullOrWhiteSpace(MdiInput));
+        SendMdiCommand = new DelegateCommand(_ => _ = SendMdiAsync(), _ => !string.IsNullOrWhiteSpace(MdiInput) && CanSendMdi);
         OpenFileCommand = new DelegateCommand(_ => _ = OpenFileAsync());
         SaveFileCommand = new DelegateCommand(_ => _ = SaveFileAsync(), _ => HasProgram && !SessionActive);
         CloseFileCommand = new DelegateCommand(_ => CloseFile(), _ => HasProgram && !SessionActive);
@@ -970,6 +970,14 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// MDI is G-code input: closed while a program session streams or is paused, so a
+    /// typed motion line cannot be queued between program blocks (ioSender's MDIControl
+    /// is <c>IsEnabled = !IsJobRunning</c>). It stays available in Alarm on purpose —
+    /// that is where the operator types <c>$X</c>/<c>$H</c> to recover.
+    /// </summary>
+    public bool CanSendMdi => !SessionActive;
+
     public ICommand ConnectCommand { get; }
 
     public ICommand DisconnectCommand { get; }
@@ -1326,6 +1334,14 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         var line = MdiInput?.Trim();
         if (string.IsNullOrWhiteSpace(line)) return;
+        // Guard before the history/clear side effects so a refused line keeps the
+        // operator's text (the ComboBox is disabled during a run; this covers the
+        // command being invoked programmatically).
+        if (!CanSendMdi)
+        {
+            Status = LocText.Resolve("app.msg.mdiBlocked", "MDI is disabled while a program is running");
+            return;
+        }
         // push to session history first (dedup tail), even if send fails or not connected
         if (MdiHistory.Count == 0 || MdiHistory[^1] != line)
             MdiHistory.Add(line);
@@ -1776,6 +1792,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         (CompressProgramCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (WrapProgramCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (UnwrapProgramCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        (SendMdiCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        OnPropertyChanged(nameof(CanSendMdi));
         OnPropertyChanged(nameof(StatusBarBlocks));
     }
 

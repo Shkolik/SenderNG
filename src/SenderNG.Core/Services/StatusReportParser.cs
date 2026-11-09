@@ -122,8 +122,8 @@ public static class StatusReportParser
         // semantic that a report always sets the current state.
         state.Signals = 0;
 
-        // Classic grbl (default $10=1) reports MPos + WCO and no WPos; ioSender
-        // derives the work position as MPos - WCO so the DRO moves on those boards.
+        // Exactly one position field arrives per report ($10 bit 0 picks MPos or
+        // WPos); whichever is missing is derived from WCO after the field loop.
         var sawWPos = false;
         var sawMPos = false;
 
@@ -191,26 +191,40 @@ public static class StatusReportParser
             }
         }
 
-        // Reports that only carry machine coords (classic grbl default $10=1)
-        // need the work position for the DRO. Derive WPos = MPos - WCO, using
-        // this report's WCO or the last known offsets carried in state; when no
-        // WCO was ever seen, fall back to MPos directly (ioSender: Position =
-        // MachinePosition when there is no WCO). An explicit WPos always wins.
+        // grbl and grblHAL report exactly ONE position field per status report and
+        // the $10 mask's bit 0 picks which: machine (MPos) or work (WPos) position.
+        // Both read-outs must therefore be derived from whichever one arrived plus
+        // WCO — the same symmetric derivation ioSender's GrblViewModel.ParseStatus
+        // does. Offsets are reported periodically rather than in every report, so
+        // the last known WCO carried in state is used when this report omits it;
+        // when no WCO was ever seen there is no offset as far as the sender knows,
+        // so the two read-outs agree (ioSender: Position = MachinePosition when
+        // there is no WCO). An explicit field always wins over a derived one.
         if (!sawWPos && sawMPos && state.MachinePositions is not null)
         {
-            if (state.WorkOffsets is not null)
-            {
-                for (var i = 0; i < state.Positions.Length; i++)
-                    state.Positions[i] = state.MachinePositions[i] - state.WorkOffsets[i];
-            }
-            else
-            {
-                for (var i = 0; i < state.Positions.Length; i++)
-                    state.Positions[i] = state.MachinePositions[i];
-            }
+            DeriveFrom(state.Positions, state.MachinePositions, state.WorkOffsets, subtractOffsets: true);
+        }
+        else if (sawWPos && !sawMPos)
+        {
+            if (state.MachinePositions is null || state.MachinePositions.Length != state.Positions.Length)
+                state.MachinePositions = new double[state.Positions.Length];
+            DeriveFrom(state.MachinePositions, state.Positions, state.WorkOffsets, subtractOffsets: false);
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Fills <paramref name="target"/> from <paramref name="source"/> plus the work
+    /// offset: <c>work = machine - WCO</c> (subtract) or <c>machine = work + WCO</c>
+    /// (add). Without a known offset the source is copied unchanged.
+    /// </summary>
+    private static void DeriveFrom(double[] target, double[] source, double[]? workOffsets, bool subtractOffsets)
+    {
+        for (var i = 0; i < target.Length && i < source.Length; i++)
+            target[i] = workOffsets is not null && i < workOffsets.Length
+                ? (subtractOffsets ? source[i] - workOffsets[i] : source[i] + workOffsets[i])
+                : source[i];
     }
 
     private static void SetPositions(double[] target, string csv)
