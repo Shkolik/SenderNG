@@ -87,11 +87,25 @@ public sealed class BatchObservableCollection<T> : ObservableCollection<T>
 // plotter) resolve from DI — they must not reference this app-assembly type.
 public class ProgramViewModel : ViewModelBase, ILoadedProgramSource, IProgramTransformTarget
 {
+    /// <summary>Which partial-send action owns the current session (null while a
+    /// whole-program Run owns it). Drives the scope-aware messages and the
+    /// per-line MDI-style echo.</summary>
+    private enum LineAction
+    {
+        None,
+        SendSelection,
+        RunFromLine,
+    }
+
     private readonly IGrblService? _grbl;
     private ProgramStreamSession? _session;
     private GCodeProgram? _program;
     private IReadOnlyList<AxisLimits> _limits = [];
     private MachineState _machineState = new();
+    private int[] _selectedRows = [];
+    private LineAction _lineAction;
+    private int _lineActionFirstRow;
+    private int _lineActionPlanned;
     // Incremental acked count (O(1) reads): a per-read scan of ProgramRows is
     // O(n) and ProgressText/DoneCount are re-read on EVERY row update, so a
     // scan made a run O(n²) — large programs froze the UI thread for seconds
@@ -107,6 +121,12 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource, IProgramTra
         PauseCommand = new DelegateCommand(_ => Pause(), _ => IsRunning && IsMachineState("Run"));
         ResumeCommand = new DelegateCommand(_ => Resume(), _ => IsRunning && IsMachineState("Hold"));
         StopCommand = new DelegateCommand(_ => _ = StopAsync(), _ => IsRunning);
+        // Line actions: MDI-like sends fed from the grid. The command parameter is
+        // ignored; the run-from-here start row is the first selected one.
+        SendSelectionCommand = new DelegateCommand(_ => _ = SendSelectionAsync(), _ => CanSendSelection);
+        RunFromLineCommand = new DelegateCommand(
+            _ => _ = RunFromAsync(_selectedRows.Length > 0 ? _selectedRows[0] : -1),
+            _ => CanRunFromLine);
 
         if (_grbl is not null)
         {
@@ -234,6 +254,90 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource, IProgramTra
     public ICommand ResumeCommand { get; }
     public ICommand StopCommand { get; }
 
+    // ---- program line actions (MDI fed from the grid) ----
+
+    /// <summary>Sends exactly the selected rows, in file order — the MDI replacement.</summary>
+    public DelegateCommand SendSelectionCommand { get; }
+
+    /// <summary>Sends from the first selected row to the program end.</summary>
+    public DelegateCommand RunFromLineCommand { get; }
+
+    /// <summary>Selected program rows (0-based, ascending), pushed by the view.</summary>
+    public IReadOnlyList<int> SelectedRows => _selectedRows;
+
+    public bool HasSelection => _selectedRows.Length > 0;
+
+    /// <summary>Menu label, carrying the number of rows that will actually be
+    /// sent (comments and other non-command rows in the selection are skipped).</summary>
+    public string SendSelectionMenuText => LocText.Format(
+        "module.program.sendSelection.menu", "Send selected lines ({0})", SendableSelectedCount);
+
+    /// <summary>Menu label for the to-end variant — the first selected row's file line.</summary>
+    public string RunFromLineMenuText => _selectedRows.Length > 0
+        ? LocText.Format("module.program.runFromLine.menu", "Run from line {0} to end",
+            ProgramRows[_selectedRows[0]].Line)
+        : LocText.Resolve("module.program.runFromLine", "Run from line");
+
+    public bool CanSendSelection => CanActOnSelectedLines && SendableSelectedCount > 0;
+
+    public bool CanRunFromLine => CanActOnSelectedLines && _selectedRows.Length > 0;
+
+    /// <summary>Shared gate: a raw command may only be injected into an idle
+    /// controller (or check mode). Held/moving states are refused — the line would
+    /// sit buffered and execute on resume, which is never what clicking a row meant.</summary>
+    private bool CanActOnSelectedLines =>
+        _grbl?.IsConnected == true && !IsRunning && _program is not null
+        && (IsMachineState("Idle") || IsMachineState("Check"));
+
+    private int SendableSelectedCount => _program is null
+        ? 0
+        : _selectedRows.Count(i => i < _program.Entries.Count && _program.Entries[i].IsSendable);
+
+    /// <summary>Selection pushed by the view; indices are validated against the
+    /// loaded rows and kept ascending so a selection send follows file order.</summary>
+    public void SetSelection(IEnumerable<int> indices)
+    {
+        ArgumentNullException.ThrowIfNull(indices);
+        var picked = indices
+            .Where(i => i >= 0 && i < ProgramRows.Count)
+            .Distinct()
+            .OrderBy(i => i)
+            .ToArray();
+        if (picked.AsSpan().SequenceEqual(_selectedRows))
+            return;
+        _selectedRows = picked;
+        RefreshLineActionTexts();
+    }
+
+    /// <summary>Re-reads the labels/command gates from the current selection.
+    /// The view calls it when the context menu opens, so the item texts can never
+    /// lag a just-changed selection.</summary>
+    public void RefreshLineActionTexts()
+    {
+        OnPropertyChanged(nameof(SelectedRows));
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(SendSelectionMenuText));
+        OnPropertyChanged(nameof(RunFromLineMenuText));
+        OnPropertyChanged(nameof(CanSendSelection));
+        OnPropertyChanged(nameof(CanRunFromLine));
+        SendSelectionCommand.RaiseCanExecuteChanged();
+        RunFromLineCommand.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>Raised when the view-model drops the row selection — a partial send
+    /// starts with it, and a reload clears it. The view clears the ListBox on it so
+    /// no stale highlight survives.</summary>
+    public event Action? SelectionCleared;
+
+    private void ClearSelection()
+    {
+        if (_selectedRows.Length == 0)
+            return;
+        _selectedRows = [];
+        RefreshLineActionTexts();
+        SelectionCleared?.Invoke();
+    }
+
     private bool CanRun => _grbl?.IsConnected == true && !IsRunning && ProgramRows.Count > 0 && !IsMachineState("Alarm");
 
     private bool IsMachineState(string value) =>
@@ -245,9 +349,13 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource, IProgramTra
         (PauseCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (ResumeCommand as DelegateCommand)?.RaiseCanExecuteChanged();
         (StopCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+        SendSelectionCommand.RaiseCanExecuteChanged();
+        RunFromLineCommand.RaiseCanExecuteChanged();
         OnPropertyChanged(nameof(IsRunning));
         OnPropertyChanged(nameof(IsPaused));
         OnPropertyChanged(nameof(ProgressText));
+        OnPropertyChanged(nameof(CanSendSelection));
+        OnPropertyChanged(nameof(CanRunFromLine));
     }
 
     /// <summary>Loads an engine-parsed program (the Open File path): rows keep
@@ -257,6 +365,7 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource, IProgramTra
     /// inline computation (tests, transforms).</summary>
     public void LoadProgram(GCodeProgram program, string? text, IReadOnlyList<AxisLimits>? limits = null)
     {
+        ClearSelection();
         _program = program;
         LoadedText = text;
         _doneCount = 0;
@@ -298,6 +407,7 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource, IProgramTra
     /// invalidates limits and jog semantics.</summary>
     public void ClearProgram()
     {
+        ClearSelection();
         _program = null;
         LoadedText = null;
         _limits = [];
@@ -369,6 +479,7 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource, IProgramTra
             return;
 
         Rewind();
+        _lineAction = LineAction.None;
         var streamer = new GCodeProgramStreamer(_grbl);
         // Direct IProgress (NOT Progress<T>): callbacks from the run loop are
         // marshalled via UiThread — inline when no dispatcher (deterministic
@@ -392,6 +503,115 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource, IProgramTra
         var result = await _session.Completion;
         _session = null;
         Finalize(result);
+    }
+
+    /// <summary>
+    /// Sends the selected rows to the controller exactly as selected — one line at
+    /// a time, awaiting each reply, in file order. This is the MDI replacement: no
+    /// modal preamble, no rewind, no CycleStart; the controller's current modes
+    /// apply. Stops at a program-end marker and on the first controller error.
+    /// </summary>
+    public async Task SendSelectionAsync()
+    {
+        if (!CanSendSelection || _program is null)
+            return;
+        var rows = _selectedRows.ToArray();
+        var plan = ProgramRunPlan.Selection(_program, rows);
+        await RunPartialAsync(plan, LineAction.SendSelection, rows, rows[0]);
+    }
+
+    /// <summary>
+    /// Streams from <paramref name="row"/> to the program end ("run from here").
+    /// An out-of-range row falls back to the first selected row.
+    /// </summary>
+    public async Task RunFromAsync(int row)
+    {
+        if (!CanRunFromLine || _program is null)
+            return;
+        var first = row >= 0 && row < ProgramRows.Count
+            ? row
+            : _selectedRows.Length > 0 ? _selectedRows[0] : -1;
+        if (first < 0)
+            return;
+        var plan = ProgramRunPlan.FromLine(_program, first);
+        await RunPartialAsync(plan, LineAction.RunFromLine,
+            Enumerable.Range(first, ProgramRows.Count - first), first);
+    }
+
+    /// <summary>Shared partial-session body: reset only the scope's rows, start the
+    /// streamer on the plan, then finalize with a scope-aware message.</summary>
+    private async Task RunPartialAsync(
+        ProgramRunPlan plan, LineAction action, IEnumerable<int> scopeRows, int firstRow)
+    {
+        if (_grbl is null)
+            return;
+
+        // The action is committed — drop the grid selection before the first byte.
+        // The rows are immutable records, so every status update REPLACES the item
+        // and the ListBox's selection model drops that index: a selection left up
+        // would erode row by row (sent rows unhighlight, comment rows keep their
+        // highlight). One deliberate clear is the honest state.
+        ClearSelection();
+
+        ResetRows(scopeRows);
+        // The scope's frontier moved back to its first row: only ever LOWER
+        // TouchedRow. The plotter treats a regression as a full rescan and depends
+        // on monotonicity; advancing it here would leave the run's own Sent rows
+        // outside its apply window (empty window → never recolored).
+        TouchedRow = Math.Min(TouchedRow, Math.Max(0, firstRow - 1));
+
+        _lineAction = action;
+        _lineActionFirstRow = firstRow;
+        _lineActionPlanned = plan.Entries.Count(e => e.IsSendable);
+
+        var streamer = new GCodeProgramStreamer(_grbl);
+        _session = streamer.Start(plan, new UiProgress(ApplyUpdate));
+        RunMessage = action == LineAction.SendSelection
+            ? LocText.Format("module.program.startedSelection", "Sending {0} blocks", _lineActionPlanned)
+            : LocText.Format("module.program.startedFromLine", "Running from line {0} ({1} blocks)",
+                ProgramRows[firstRow].Line, _lineActionPlanned);
+        OnPropertyChanged(nameof(RunMessage));
+        RaiseCommandStates();
+        RowsChanged?.Invoke();
+
+        ProgramRunResult result;
+        try
+        {
+            result = await _session.Completion;
+        }
+        finally
+        {
+            _session = null;
+        }
+        Finalize(result);
+    }
+
+    /// <summary>Returns the scope's rows to "not sent" before a partial session,
+    /// leaving the rest of the grid untouched. One batched Reset — the same
+    /// suppression a rewind relies on — so a large range costs one layout pass.</summary>
+    private void ResetRows(IEnumerable<int> indices)
+    {
+        var toReset = new List<int>();
+        foreach (var i in indices)
+        {
+            if (i < 0 || i >= ProgramRows.Count)
+                continue;
+            if (ProgramRows[i].Status != "\u00b7" || ProgramRows[i].Detail is not null)
+                toReset.Add(i);
+        }
+        if (toReset.Count == 0)
+            return;
+
+        ProgramRows.BeginUpdate();
+        foreach (var i in toReset)
+        {
+            var row = ProgramRows[i];
+            if (row.Status == "\u2713")
+                _doneCount--;
+            ProgramRows[i] = row with { Status = "\u00b7", Detail = null };
+        }
+        ProgramRows.EndUpdate();
+        OnPropertyChanged(nameof(ProgressText));
     }
 
     /// <summary>Feed-hold pause: halts motion; the send loop observes Hold and waits.</summary>
@@ -463,6 +683,13 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource, IProgramTra
             TouchedRow = index;
         ProgramRows[index] = updated;
         OnPropertyChanged(nameof(ProgressText));
+        if (_lineAction != LineAction.None)
+        {
+            // MDI-style echo for the partial sends: the status bar shows the block
+            // that is executing, so a batch is not a stream of anonymous "ok"s.
+            RunMessage = LocText.Format("module.program.sendingLine", "Line {0}: {1}", updated.Line, updated.Data);
+            OnPropertyChanged(nameof(RunMessage));
+        }
         RowsChanged?.Invoke();
         ScrollRequested?.Invoke(index);
     }
@@ -478,12 +705,41 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource, IProgramTra
         }
         ProgramRows.EndUpdate();
 
-        RunMessage = result.Outcome switch
+        RunMessage = _lineAction switch
         {
-            ProgramRunOutcome.Completed => LocText.Format("module.program.finished", "Run finished ({0} blocks)", result.LinesOk),
-            ProgramRunOutcome.Failed => LocText.Format("module.program.failed", "Run failed: {0}", result.Error),
-            _ => LocText.Resolve("module.program.stopped", "Run stopped"),
+            LineAction.SendSelection => result.Outcome switch
+            {
+                ProgramRunOutcome.Completed when result.LinesOk < _lineActionPlanned =>
+                    LocText.Format("module.program.sentSelectionCut",
+                        "Sent {0} blocks — program end reached, {1} not sent",
+                        result.LinesOk, _lineActionPlanned - result.LinesOk),
+                ProgramRunOutcome.Completed =>
+                    LocText.Format("module.program.sentSelection", "Sent {0} blocks", result.LinesOk),
+                ProgramRunOutcome.Failed =>
+                    LocText.Format("module.program.failed", "Run failed: {0}", result.Error),
+                _ => LocText.Resolve("module.program.stopped", "Run stopped"),
+            },
+            LineAction.RunFromLine => result.Outcome switch
+            {
+                ProgramRunOutcome.Completed =>
+                    LocText.Format("module.program.sentFromLine", "Run from line {0} finished ({1} blocks)",
+                        _lineActionFirstRow < ProgramRows.Count ? ProgramRows[_lineActionFirstRow].Line : _lineActionFirstRow + 1,
+                        result.LinesOk),
+                ProgramRunOutcome.Failed =>
+                    LocText.Format("module.program.failed", "Run failed: {0}", result.Error),
+                _ => LocText.Resolve("module.program.stopped", "Run stopped"),
+            },
+            _ => result.Outcome switch
+            {
+                ProgramRunOutcome.Completed =>
+                    LocText.Format("module.program.finished", "Run finished ({0} blocks)", result.LinesOk),
+                ProgramRunOutcome.Failed =>
+                    LocText.Format("module.program.failed", "Run failed: {0}", result.Error),
+                _ => LocText.Resolve("module.program.stopped", "Run stopped"),
+            },
         };
+        _lineAction = LineAction.None;
+        _lineActionPlanned = 0;
         OnPropertyChanged(nameof(RunMessage));
         RaiseCommandStates();
         RowsChanged?.Invoke();

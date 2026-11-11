@@ -42,7 +42,7 @@ using SenderNG.Core.Modules;
 
 namespace SenderNG.Modules.Fixed;
 
-public class ProgramModule : IModule, IModuleSettingsProvider
+public class ProgramModule : IModule, IModuleSettingsProvider, IHotkeyActionProvider
 {
     private SettingsService? _settingsService;
     private IServiceProvider? _services;
@@ -55,7 +55,39 @@ public class ProgramModule : IModule, IModuleSettingsProvider
     public PanelHint Panel => PanelHint.Center;
     public bool IsVisibleByDefault => true;
     public bool CanHide => false;
-    public IReadOnlyList<HotKey> HotKeys { get; } = [];
+
+    // Module-scoped: the gestures only fire with the program grid focused, so
+    // they cannot collide with the MDI box's Enter binding or the cycle bar.
+    // Ctrl+Enter sends the selected lines (the MDI replacement); Ctrl+Shift+Enter
+    // streams from the first selected line to the program end.
+    public IReadOnlyList<HotKey> HotKeys { get; } =
+    [
+        new("Ctrl+Enter", "program.sendSelection"),
+        new("Ctrl+Shift+Enter", "program.runFromLine"),
+    ];
+
+    public IReadOnlyList<IHotkeyAction> CreateHotkeyActions(IServiceProvider services)
+    {
+        ProgramViewModel Program() => services.GetRequiredService<ProgramViewModel>();
+
+        return
+        [
+            new CommandHotkeyAction(
+                "program.sendSelection",
+                "Send selected lines",
+                "module.program.hotkey.sendSelection",
+                () => Program().SendSelectionCommand.Execute(null),
+                () => Program().SendSelectionCommand.CanExecute(null),
+                scope: HotkeyScope.Module, moduleId: Id),
+            new CommandHotkeyAction(
+                "program.runFromLine",
+                "Run from line",
+                "module.program.hotkey.runFromLine",
+                () => Program().RunFromLineCommand.Execute(null),
+                () => Program().RunFromLineCommand.CanExecute(null),
+                scope: HotkeyScope.Module, moduleId: Id),
+        ];
+    }
 
     public void RegisterServices(IServiceCollection services)
     {

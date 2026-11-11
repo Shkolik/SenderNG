@@ -126,14 +126,33 @@ public sealed class GCodeProgramStreamer
     /// </summary>
     public ProgramStreamSession Start(GCodeProgram program, IProgress<ProgramLineUpdate>? progress = null)
     {
-        var session = new ProgramStreamSession();
+        ArgumentNullException.ThrowIfNull(program);
         if (program.HasErrors)
-        {
-            session.Completion = Task.FromResult(new ProgramRunResult(
-                ProgramRunOutcome.Failed, program.Errors[0], 0, 0));
-            return session;
-        }
-        session.Completion = Task.Run(() => RunAsync(program, progress, session));
+            return Failed(program.Errors[0]);
+        return Start(new ProgramRunPlan { Entries = program.Entries }, progress);
+    }
+
+    /// <summary>
+    /// Starts a run over a <see cref="ProgramRunPlan"/>: a tail from a row
+    /// ("run from here") or an arbitrary row selection ("send selected lines")
+    /// streams through the SAME loop as a whole program — non-sendable lines are
+    /// skipped, a program-end marker ends the session, the first controller
+    /// error stops it. A plan never carries a modal preamble: these are MDI-like
+    /// sends, so the controller's current modal state applies untouched.
+    /// </summary>
+    public ProgramStreamSession Start(ProgramRunPlan plan, IProgress<ProgramLineUpdate>? progress = null)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        var session = new ProgramStreamSession();
+        session.Completion = Task.Run(() => RunAsync(plan.Entries, progress, session));
+        return session;
+    }
+
+    private static ProgramStreamSession Failed(string error)
+    {
+        var session = new ProgramStreamSession();
+        session.Completion = Task.FromResult(new ProgramRunResult(
+            ProgramRunOutcome.Failed, error, 0, 0));
         return session;
     }
 
@@ -144,7 +163,7 @@ public sealed class GCodeProgramStreamer
         status?.StartsWith("Alarm", StringComparison.OrdinalIgnoreCase) == true;
 
     private async Task<ProgramRunResult> RunAsync(
-        GCodeProgram program,
+        IReadOnlyList<GCodeProgramEntry> entries,
         IProgress<ProgramLineUpdate>? progress,
         ProgramStreamSession session)
     {
@@ -168,7 +187,7 @@ public sealed class GCodeProgramStreamer
             if (!_grbl.IsConnected)
                 return new ProgramRunResult(ProgramRunOutcome.Failed, "Not connected.", 0, 0);
 
-            foreach (var entry in program.Entries)
+            foreach (var entry in entries)
             {
                 ct.ThrowIfCancellationRequested();
                 if (session.IsStopRequested)

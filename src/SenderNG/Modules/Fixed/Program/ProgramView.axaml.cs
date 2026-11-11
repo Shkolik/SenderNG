@@ -41,6 +41,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
+using System.ComponentModel;
 
 namespace SenderNG.Modules.Fixed;
 
@@ -59,12 +60,48 @@ public partial class ProgramView : UserControl
         DataContextChanged += (_, _) =>
         {
             if (_vm is not null)
+            {
                 _vm.ScrollRequested -= ScrollToRow;
+                _vm.ProgramChanged -= OnProgramChanged;
+                _vm.SelectionCleared -= OnSelectionCleared;
+            }
             _vm = DataContext as ProgramViewModel;
             if (_vm is not null)
+            {
                 _vm.ScrollRequested += ScrollToRow;
+                _vm.ProgramChanged += OnProgramChanged;
+                _vm.SelectionCleared += OnSelectionCleared;
+            }
         };
     }
+
+    /// <summary>Pushes the grid selection to the view-model behind the two row
+    /// actions. The selection is the only state they need: which rows are picked
+    /// (file order, ascending) and how many of them are commands.</summary>
+    private void OnProgramSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_vm is null)
+            return;
+        _vm.SetSelection(ProgramList.Selection.SelectedIndexes);
+    }
+
+    /// <summary>The rows were replaced (open / transform / clear): the ListBox's
+    /// selection is index-based and no longer means anything, so drop it before
+    /// the menu can act on stale rows.</summary>
+    private void OnProgramChanged() => ClearRowSelection();
+
+    /// <summary>The view-model dropped the selection (a partial send started, or a
+    /// reload cleared it): clear the ListBox too, or a stale highlight would erode
+    /// row by row as the status updates replace items.</summary>
+    private void OnSelectionCleared() => ClearRowSelection();
+
+    private void ClearRowSelection() => ProgramList.Selection.Clear();
+
+    /// <summary>Re-read the action labels/gates as the menu opens (right-click on
+    /// a row changes the selection before the popup is realized, but re-reading
+    /// here removes any ordering doubt).</summary>
+    private void OnProgramMenuOpening(object? sender, CancelEventArgs e)
+        => _vm?.RefreshLineActionTexts();
 
     /// <summary>
     /// Follow the send frontier during a run, keeping the last-sent line near

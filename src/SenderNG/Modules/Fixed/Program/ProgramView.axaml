@@ -53,15 +53,29 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <!-- Program grid header: Line (44px) | Status (28px) | Data (1*),
                  with 1px separator columns so the vertical gridlines line up
                  with the rows. Header text is aligned exactly like the cells:
-                 Line right-aligned to the column edge, Data left-aligned. -->
-            <Grid DockPanel.Dock="Top" ColumnDefinitions="44,1,28,1,1*" Background="{DynamicResource Sender.Bg.Chrome}" Height="28">
+                 Line right-aligned to the column edge, Data left-aligned.
+                 The trailing hint points at the row actions (right-click menu +
+                 hotkeys) — a context menu is otherwise undiscoverable. -->
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="44,1,28,1,1*,Auto" Background="{DynamicResource Sender.Bg.Chrome}" Height="28">
                 <TextBlock Grid.Column="0" Text="{loc:Loc module.program.line}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="6,0" Foreground="{DynamicResource Sender.Text.Primary}" />
                 <Border Grid.Column="1" Background="{DynamicResource Sender.Divider.Strong.Alt}" />
                 <TextBlock Grid.Column="2" Text="" />
                 <Border Grid.Column="3" Background="{DynamicResource Sender.Divider.Strong.Alt}" />
                 <TextBlock Grid.Column="4" Text="{loc:Loc module.program.data}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" Margin="6,0" Foreground="{DynamicResource Sender.Text.Primary}" />
+                <TextBlock Grid.Column="5" Text="{loc:Loc module.program.lineActionsHint}" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="6,0" Foreground="{DynamicResource Sender.Text.Muted}" />
             </Grid>
-            <ListBox x:Name="ProgramList" ItemsSource="{Binding ProgramRows}" Background="{DynamicResource Sender.Bg.Panel}" CornerRadius="0" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0">
+            <ListBox x:Name="ProgramList" ItemsSource="{Binding ProgramRows}" Background="{DynamicResource Sender.Bg.Panel}" CornerRadius="0" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="0"
+                     SelectionMode="Multiple" SelectionChanged="OnProgramSelectionChanged">
+                <!-- Row actions: the MDI replacement. The same two commands are on
+                     module-scoped hotkeys (Ctrl+Enter / Ctrl+Shift+Enter). -->
+                <ListBox.ContextMenu>
+                    <ContextMenu Opening="OnProgramMenuOpening">
+                        <MenuItem Header="{Binding SendSelectionMenuText}" Command="{Binding SendSelectionCommand}"
+                                  IsEnabled="{Binding CanSendSelection}" />
+                        <MenuItem Header="{Binding RunFromLineMenuText}" Command="{Binding RunFromLineCommand}"
+                                  IsEnabled="{Binding CanRunFromLine}" />
+                    </ContextMenu>
+                </ListBox.ContextMenu>
                 <ListBox.Styles>
                     <!-- Zero-padding items: the hover highlight then covers the
                          row content exactly instead of being inset from it. -->

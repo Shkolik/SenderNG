@@ -303,6 +303,38 @@ public class GCodeProgramStreamerTests
         Assert.Equal("error:22", result.Error);
     }
 
+    [Fact]
+    public async Task Plan_overload_streams_only_the_plans_entries()
+    {
+        var svc = new ScriptedGrblService();
+        var program = ProgramOf("%", "G21", "G0 X10", "G1 X20 F100", "M5");
+
+        // Rows 1 and 3 only: a non-contiguous selection keeps file order.
+        var plan = ProgramRunPlan.Selection(program, [3, 1]);
+        var result = await new GCodeProgramStreamer(svc).Start(plan).Completion;
+
+        Assert.Equal(ProgramRunOutcome.Completed, result.Outcome);
+        Assert.Equal(new[] { "G21", "G1 X20 F100" }, svc.Sent);
+        Assert.Equal(2, result.LinesOk);
+    }
+
+    [Fact]
+    public async Task Plan_stops_at_a_program_end_inside_the_selection()
+    {
+        var svc = new ScriptedGrblService();
+        var program = ProgramOf("G21", "M2", "G0 X99");
+
+        var plan = ProgramRunPlan.Selection(program, [0, 1, 2]);
+        var result = await new GCodeProgramStreamer(svc).Start(plan).Completion;
+
+        Assert.Equal(ProgramRunOutcome.Completed, result.Outcome);
+        // M2 is the file's end marker: the selected line after it never reaches the controller.
+        Assert.Equal(new[] { "G21", "M2" }, svc.Sent);
+        Assert.Equal(2, result.LinesOk);
+        // The caller can tell how much of the plan was left unsent.
+        Assert.Equal(3, plan.Entries.Count(e => e.IsSendable));
+    }
+
     private static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 5000)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
