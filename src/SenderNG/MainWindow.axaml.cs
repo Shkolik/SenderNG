@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using SenderNG.Core.Services;
@@ -69,7 +70,8 @@ public partial class MainWindow : Window
         if (_viewModel.Hotkeys is { } hotkeys)
         {
             AppHotkeys.Current = hotkeys;
-            _dispatcher = new KeymapDispatcher(this, new KeymapController(hotkeys), _viewModel.ModuleIdForView);
+            _dispatcher = new KeymapDispatcher(this, new KeymapController(hotkeys), _viewModel.ModuleIdForView,
+                _viewModel.TryRunMacroShortcut, CommitMacroEditorEdits);
         }
     }
 
@@ -77,5 +79,27 @@ public partial class MainWindow : Window
     {
         MdiBox.Focus();
         MdiBox.GetVisualDescendants().OfType<TextBox>().FirstOrDefault()?.SelectAll();
+    }
+
+    /// <summary>
+    /// The macro editor's boxes commit on lost focus; an F-key runs while the box
+    /// still has focus, so push the pending text into the model first — otherwise
+    /// the shortcut would run the previously committed code. Scoped to the macro
+    /// view: committing other LostFocus editors early could trigger their own
+    /// re-parse/validation while the operator is still typing.
+    /// </summary>
+    private void CommitMacroEditorEdits()
+    {
+        if (FocusManager?.GetFocusedElement() is not Visual focused)
+            return;
+
+        for (Visual? visual = focused; visual is not null; visual = visual.GetVisualParent())
+        {
+            if (visual is Control { DataContext: Modules.Plugins.MacroViewModel })
+            {
+                BindingCommit.CommitFocused(this);
+                return;
+            }
+        }
     }
 }

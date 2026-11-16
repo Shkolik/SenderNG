@@ -40,11 +40,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         xmlns:fixed="clr-namespace:SenderNG.Modules.Fixed"
         xmlns:m="clr-namespace:SenderNG.Core.Modules;assembly=SenderNG.Core"
         xmlns:conv="clr-namespace:SenderNG.Converters"
+        xmlns:macro="clr-namespace:SenderNG.Modules.Plugins"
         xmlns:loc="clr-namespace:SenderNG.Localization"
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="740"
         x:Class="SenderNG.MainWindow"
         x:DataType="vm:MainViewModel"
-         Title="{Binding Title, FallbackValue=SenderNG}" Width="1200" Height="740"
+         Title="{Binding Title, FallbackValue=SenderNG}" Width="1200" Height="740" MinWidth="1024"
          Background="{DynamicResource Sender.Bg.Window}">
 
     <!-- Flyout strip buttons: width stays 32, height adapts to rotated text.
@@ -143,6 +144,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 								  Stroke="{DynamicResource Sender.Text.OnButton}" StrokeThickness="1.5"
 								  Data="M 4,2 h 16 l 8,8 v 20 a 2,2 0 0,1 -2,2 H 4 a 2,2 0 0,1 -2,-2 V 4 a 2,2 0 0,1 2,-2 Z M 20,2 v 8 h 8 M 10,16 l 12,12 M 22,16 l -12,12" />
 						</Button>
+
+						<!-- Macro block: the first twelve macros, M1-M12, 24 px clear of the file buttons. -->
+						<macro:MacroToolbarView DataContext="{Binding Macros}" />
 					</StackPanel>
 
 

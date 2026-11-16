@@ -51,8 +51,22 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
         <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
             <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Sender.Text.Caption}" FontSize="11" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="6"
+                        IsVisible="{Binding SelectedMacro.HasShortcut, FallbackValue=False}">
+                <TextBlock Text="{loc:Loc module.macro.shortcut}" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource Sender.Text.Secondary}" />
+                <Border Padding="4,0" CornerRadius="2" VerticalAlignment="Center"
+                        Background="{DynamicResource Sender.Bg.Chip}" BorderBrush="{DynamicResource Sender.Border.Chip}" BorderThickness="1">
+                    <TextBlock Text="{Binding SelectedMacro.ShortcutKey}" FontSize="11" Foreground="{DynamicResource Sender.Text.Primary}" />
+                </Border>
+                <TextBlock Text="{loc:Loc module.macro.shortcutHint}" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource Sender.Text.Muted}" />
+            </StackPanel>
             <TextBox Text="{Binding SelectedMacro.Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                      PlaceholderText="{loc:Loc module.macro.namePlaceholder}"
+                     IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}"
+                     CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" />
+            <TextBox Text="{Binding SelectedMacro.ShortName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                     PlaceholderText="{loc:Loc module.macro.shortNamePlaceholder}"
+                     MaxLength="6"
                      IsEnabled="{Binding SelectedMacro, Converter={x:Static ObjectConverters.IsNotNull}}"
                      CornerRadius="0" BorderBrush="{DynamicResource Sender.Border.Input}" BorderThickness="1" />
             <TextBox Text="{Binding SelectedMacro.Code, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
@@ -66,7 +80,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				 CornerRadius="0" BorderBrush="{DynamicResource Sender.Border}" BorderThickness="1" Background="{DynamicResource Sender.Bg.Panel}">
             <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="vm:MacroItem">
-                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Margin="2" FontSize="11" Foreground="{DynamicResource Sender.Text.Primary}" />
+                    <Grid ColumnDefinitions="*,Auto" Margin="2">
+                        <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource Sender.Text.Primary}" />
+                        <Border Grid.Column="1" IsVisible="{Binding HasShortcut}" Padding="4,0" VerticalAlignment="Center" CornerRadius="2"
+                                Background="{DynamicResource Sender.Bg.Chip}" BorderBrush="{DynamicResource Sender.Border.Chip}" BorderThickness="1">
+                            <TextBlock Text="{Binding ShortcutKey}" FontSize="10" Foreground="{DynamicResource Sender.Text.Muted}" />
+                        </Border>
+                    </Grid>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>

@@ -82,4 +82,21 @@ public class HotkeyGrammarTests
         Assert.True(HotkeyGrammar.IsModifierKey("Ctrl"));
         Assert.False(HotkeyGrammar.IsModifierKey("S"));
     }
+
+    [Fact]
+    public void Macro_shortcut_gestures_are_F1_to_F12_in_slot_order()
+        => Assert.Equal(
+            ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"],
+            HotkeyGrammar.MacroShortcutGestures);
+
+    [Theory]
+    [InlineData("F1", true)]
+    [InlineData("f12", true)]      // normalized to F12
+    [InlineData("F13", false)]     // valid grammar key, but not a macro slot
+    [InlineData("Ctrl+F1", false)] // only the bare key is reserved
+    [InlineData("A", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsMacroShortcut_matches_only_bare_F1_to_F12(string? gesture, bool expected)
+        => Assert.Equal(expected, HotkeyGrammar.IsMacroShortcut(gesture));
 }

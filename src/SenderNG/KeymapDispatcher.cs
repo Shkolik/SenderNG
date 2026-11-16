@@ -48,6 +48,12 @@ public sealed class KeymapDispatcher : IDisposable
     private readonly Window _window;
     private readonly KeymapController _controller;
     private readonly Func<object, string?> _moduleIdForView;
+    private readonly Func<Key, bool>? _macroShortcut;
+    private readonly Action? _beforeMacroShortcut;
+
+    // The F-key whose macro is running because the key is still held: auto-repeat
+    // must not re-fire it. Cleared on key-up and on window deactivation.
+    private Key? _heldShortcut;
 
     // An invisible keyboard parking spot, appended to the content root. Clicking an
     // inert area (no focusable ancestor at the pointer) focuses it, so focus never
@@ -56,11 +62,14 @@ public sealed class KeymapDispatcher : IDisposable
     // parking target.
     private readonly Control _parking;
 
-    public KeymapDispatcher(Window window, KeymapController controller, Func<object, string?> moduleIdForView)
+    public KeymapDispatcher(Window window, KeymapController controller, Func<object, string?> moduleIdForView,
+        Func<Key, bool>? macroShortcut = null, Action? beforeMacroShortcut = null)
     {
         _window = window ?? throw new ArgumentNullException(nameof(window));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _moduleIdForView = moduleIdForView ?? throw new ArgumentNullException(nameof(moduleIdForView));
+        _macroShortcut = macroShortcut;
+        _beforeMacroShortcut = beforeMacroShortcut;
 
         _parking = new Control
         {
@@ -85,6 +94,27 @@ public sealed class KeymapDispatcher : IDisposable
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        // F1–F12 are macro shortcuts, not remappable gestures: they are intercepted
+        // here, before the keymap, so the hotkey editor never binds them (it also
+        // rejects them explicitly — the reserved list lives in HotkeyGrammar).
+        if (e.KeyModifiers == KeyModifiers.None && MacroShortcutKeys.IndexOf(e.Key) >= 0)
+        {
+            if (_heldShortcut == e.Key)   // auto-repeat while the key is still down
+            {
+                e.Handled = true;
+                return;
+            }
+            // Push a focused editor's LostFocus-bound text into its source first:
+            // the run reads the model, not the TextBox.
+            _beforeMacroShortcut?.Invoke();
+            if (_macroShortcut?.Invoke(e.Key) == true)
+            {
+                _heldShortcut = e.Key;
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (!AvaloniaHotkeyInterop.TryGesture(e.Key, e.KeyModifiers, out var gesture) || gesture is null)
             return;
 
@@ -138,13 +168,23 @@ public sealed class KeymapDispatcher : IDisposable
 
     private void OnKeyUp(object? sender, KeyEventArgs e)
     {
+        if (_heldShortcut == e.Key)
+        {
+            _heldShortcut = null;
+            e.Handled = true;
+            return;   // the key never reached the keymap on the way down
+        }
         if (!AvaloniaHotkeyInterop.TryGesture(e.Key, e.KeyModifiers, out var gesture) || gesture is null)
             return;
         if (_controller.KeyUp(gesture))
             e.Handled = true;
     }
 
-    private void OnDeactivated(object? sender, EventArgs e) => _controller.WindowDeactivated();
+    private void OnDeactivated(object? sender, EventArgs e)
+    {
+        _heldShortcut = null;
+        _controller.WindowDeactivated();
+    }
 
     private string? ModuleIdFor(object? focused)
     {

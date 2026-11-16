@@ -128,6 +128,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     private int _signalAxisCount = -1;
     private CNC.Core.Signals _signalOptionalSignals = CNC.Core.Signals.Off;
     private readonly ProgramViewModel? _program;
+    private readonly Modules.Plugins.MacroViewModel? _macros;
     private readonly SenderNG.Core.Localization.LocalizationService? _localization;
     private readonly System.Diagnostics.Stopwatch _runStopwatch = new();
     private bool _isRunning;
@@ -183,6 +184,11 @@ public class MainViewModel : ViewModelBase, IDisposable
         // Tolerant resolve: unit tests construct MainViewModel with a minimal provider.
         var droVm = _services.GetService<Modules.Fixed.DroViewModel>();
         DroContent = new DroView { DataContext = droVm };
+        _macros = _services.GetService<Modules.Plugins.MacroViewModel>();
+        // A macro refusal usually happens with the macro panel closed (F-key), so
+        // mirror it to the always-visible status bar instead of only that panel.
+        if (_macros is not null)
+            _macros.PropertyChanged += OnMacrosPropertyChanged;
 
         foreach (var module in modules ?? Enumerable.Empty<IModule>())
             Modules.Add(module);
@@ -1056,6 +1062,9 @@ public class MainViewModel : ViewModelBase, IDisposable
     /// <summary>The shared hotkey catalog (null when the host did not register one, e.g. minimal tests).</summary>
     public HotkeyService? Hotkeys { get; }
 
+    /// <summary>The macro set behind F1–F12 and the toolbar block (null in minimal test hosts).</summary>
+    public Modules.Plugins.MacroViewModel? Macros => _macros;
+
     /// <summary>Raised by the <c>mdi.focus</c> hotkey; MainWindow focuses the MDI box.</summary>
     public event EventHandler? FocusMdiRequested;
 
@@ -1069,6 +1078,21 @@ public class MainViewModel : ViewModelBase, IDisposable
             if (ReferenceEquals(kv.Value, view))
                 return kv.Key.Id;
         return null;
+    }
+
+    /// <summary>Runs the macro that owns the F-key's slot, or returns <c>false</c> when
+    /// no macro owns that slot (an unowned key is not consumed). A claimed key is
+    /// consumed even when the run is refused (moving machine, empty macro) — the
+    /// F-row is a macro surface, not a hotkey.</summary>
+    public bool TryRunMacroShortcut(Avalonia.Input.Key key)
+    {
+        if (_macros is null)
+            return false;
+        var slot = MacroShortcutKeys.IndexOf(key);
+        if (slot < 0 || !_macros.Macros.Any(macro => macro.Slot == slot))
+            return false;
+        _ = _macros.RunFromShortcutAsync(slot);
+        return true;
     }
 
     /// <summary>Opens the App Settings dialog, optionally on the Profiles leaf
@@ -1702,6 +1726,9 @@ public class MainViewModel : ViewModelBase, IDisposable
             _program.PropertyChanged -= OnProgramPropertyChanged;
         }
 
+        if (_macros is not null)
+            _macros.PropertyChanged -= OnMacrosPropertyChanged;
+
         _stateSubscription?.Dispose();
         _stateSubscription = null;
         _linesSubscription?.Dispose();
@@ -1766,6 +1793,25 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void OnProgramRowsChanged()
         => OnPropertyChanged(nameof(StatusBarBlocks));
+
+    /// <summary>
+    /// Surfaces macro refusals ("This macro has no code", "Wait for the machine to
+    /// stop") on the status bar: an F-key press normally happens while the macro
+    /// panel is closed, so its own status line would not be visible. Empty status
+    /// means "the last refusal was cleared by a run" — leave the bar alone then,
+    /// because other messages may be showing.
+    /// </summary>
+    private void OnMacrosPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(global::SenderNG.Modules.Plugins.MacroViewModel.Status))
+            return;
+
+        var message = _macros?.Status;
+        if (string.IsNullOrWhiteSpace(message))
+            return;
+
+        UiThread.Post(() => Status = message);
+    }
 
     private void OnProgramPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

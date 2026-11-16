@@ -418,4 +418,62 @@ public class KeymapDispatcherHeadlessTests
         Assert.Equal(0, invoked);
         Assert.False(menu.IsOpen);
     }
+
+    [AvaloniaFact]
+    public void Dispatcher_runs_an_F_key_macro_and_swallows_auto_repeat()
+    {
+        var seen = new List<Key>();
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-dispatch-" + Guid.NewGuid().ToString("N"));
+        var window = new Window();
+        window.Show();
+        using var dispatcher = new KeymapDispatcher(
+            window, new KeymapController(new HotkeyService(new SettingsService(dir))), _ => null,
+            key => { seen.Add(key); return true; });
+
+        window.KeyPressQwerty(PhysicalKey.F1, RawInputModifiers.None);
+        window.KeyPressQwerty(PhysicalKey.F1, RawInputModifiers.None); // held key repeats
+        Assert.Equal([Key.F1], seen);
+
+        window.KeyReleaseQwerty(PhysicalKey.F1, RawInputModifiers.None);
+        window.KeyPressQwerty(PhysicalKey.F1, RawInputModifiers.None);
+        Assert.Equal([Key.F1, Key.F1], seen);
+    }
+
+    [AvaloniaFact]
+    public void Dispatcher_leaves_an_unclaimed_F_key_and_modified_F_keys_alone()
+    {
+        var seen = new List<Key>();
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-dispatch-" + Guid.NewGuid().ToString("N"));
+        var window = new Window();
+        window.Show();
+        using var dispatcher = new KeymapDispatcher(
+            window, new KeymapController(new HotkeyService(new SettingsService(dir))), _ => null,
+            key => { seen.Add(key); return false; });
+
+        window.KeyPressQwerty(PhysicalKey.F1, RawInputModifiers.None);
+        window.KeyPressQwerty(PhysicalKey.F2, RawInputModifiers.Control);
+
+        // The dispatcher still offers a bare F-key (the owner decides), but a modified
+        // F-key is a plain keymap gesture and never reaches the macro surface.
+        Assert.Equal([Key.F1], seen);
+    }
+
+    [AvaloniaFact]
+    public void Dispatcher_commits_pending_input_before_running_a_macro_shortcut()
+    {
+        var order = new List<string>();
+        var dir = Path.Combine(Path.GetTempPath(), "senderng-dispatch-" + Guid.NewGuid().ToString("N"));
+        var window = new Window();
+        window.Show();
+        using var dispatcher = new KeymapDispatcher(
+            window, new KeymapController(new HotkeyService(new SettingsService(dir))), _ => null,
+            key => { order.Add("run"); return true; },
+            () => order.Add("commit"));
+
+        window.KeyPressQwerty(PhysicalKey.F1, RawInputModifiers.None);
+        Assert.Equal(["commit", "run"], order); // commit first: the run reads the model
+
+        window.KeyPressQwerty(PhysicalKey.F2, RawInputModifiers.Control);
+        Assert.Equal(["commit", "run"], order); // modified F-keys stay keymap gestures
+    }
 }

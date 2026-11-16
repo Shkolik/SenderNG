@@ -37,6 +37,7 @@ using CNC.Core.Abstractions;
 using CNC.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using SenderNG.ViewModels;
+using SenderNG.Modules.Plugins;
 using SenderNG.Core.Localization;
 using SenderNG.Core.Modules;
 
@@ -500,6 +501,54 @@ public class MainViewModelCycleControlTests
         services.AddSingleton(_ => new DemoGrblService(settings.Load()));
         services.AddSingleton<RealGrblService>();
         return services.BuildServiceProvider();
+    }
+
+    [Fact]
+    public void Shortcut_mapping_covers_the_first_twelve_slots_only()
+    {
+        var settings = MakeSettings();
+        var grbl = new DemoGrblService(settings.Load());
+        var services = new ServiceCollection();
+        services.AddSingleton(settings);
+        services.AddSingleton(grbl);
+        services.AddSingleton(_ => new MacroViewModel(settings, grbl));
+        var provider = services.BuildServiceProvider();
+
+        var vm = new MainViewModel(grbl, settings, provider);
+
+        // No macro yet: the slot is not claimed, so the key is not consumed.
+        Assert.False(vm.TryRunMacroShortcut(Avalonia.Input.Key.F1));
+
+        // Empty code keeps the claim position-based (the count is what claims the
+        // slot) without firing G-code into the demo service just to test mapping.
+        vm.Macros!.Macros.Add(new MacroItem { Name = "Macro 1" });
+        vm.Macros.Macros.Add(new MacroItem { Name = "Macro 2" });
+
+        Assert.True(vm.TryRunMacroShortcut(Avalonia.Input.Key.F1));
+        Assert.True(vm.TryRunMacroShortcut(Avalonia.Input.Key.F2));
+        Assert.False(vm.TryRunMacroShortcut(Avalonia.Input.Key.F3));
+        Assert.False(vm.TryRunMacroShortcut(Avalonia.Input.Key.F12));
+    }
+
+    [Fact]
+    public void Macro_refusals_reach_the_main_status_bar()
+    {
+        var settings = MakeSettings();
+        var grbl = new DemoGrblService(settings.Load());
+        var services = new ServiceCollection();
+        services.AddSingleton(settings);
+        services.AddSingleton(grbl);
+        services.AddSingleton(_ => new MacroViewModel(settings, grbl));
+        var provider = services.BuildServiceProvider();
+
+        var vm = new MainViewModel(grbl, settings, provider);
+        vm.Macros!.Macros.Add(new MacroItem { Name = "Empty" });
+
+        Assert.True(vm.TryRunMacroShortcut(Avalonia.Input.Key.F1));
+
+        // The macro panel may be closed when the F-key is pressed: the refusal
+        // must reach the always-visible status-bar message.
+        Assert.Equal("This macro has no code", vm.Message);
     }
 
     [Fact]

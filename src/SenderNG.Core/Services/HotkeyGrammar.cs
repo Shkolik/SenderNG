@@ -55,6 +55,17 @@ public static class HotkeyGrammar
     public const char Separator = '+';
     public const string None = "(none)";
 
+    /// <summary>
+    /// Gestures reserved for the macro module's positional shortcuts: the first
+    /// twelve macros own F1…F12. The hotkey editor refuses to bind them, and the
+    /// main key pump routes them to macros instead of the keymap, so this list is
+    /// the single source of truth for what a "macro shortcut" is.
+    /// </summary>
+    public static IReadOnlyList<string> MacroShortcutGestures { get; } =
+    [
+        "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+    ];
+
     private static readonly HashSet<string> ModifierNames = new(StringComparer.Ordinal)
     {
         "Ctrl", "Alt", "Shift", "Win",
@@ -110,6 +121,19 @@ public static class HotkeyGrammar
     }
 
     public static bool HasModifiers(string gesture) => gesture.Contains(Separator);
+
+    /// <summary>True when <paramref name="gesture"/> is one of the reserved bare
+    /// macro shortcuts (F1…F12 with no modifiers).</summary>
+    public static bool IsMacroShortcut(string? gesture)
+    {
+        if (!TryNormalize(gesture, out var normalized) || normalized is null || HasModifiers(normalized))
+            return false;
+
+        for (var i = 0; i < MacroShortcutGestures.Count; i++)
+            if (string.Equals(MacroShortcutGestures[i], normalized, StringComparison.Ordinal))
+                return true;
+        return false;
+    }
 
     public static bool IsModifierKey(string keyName) => ModifierNames.Contains(keyName);
 

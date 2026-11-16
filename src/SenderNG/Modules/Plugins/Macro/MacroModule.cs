@@ -55,6 +55,11 @@ public class MacroModule : IModule, ILocalizedModule
             ["module.macro.namePlaceholder"] = "Macro name",
             ["module.macro.codePlaceholder"] = "G-code lines, one per line",
             ["module.macro.newMacro"] = "Macro {0}",
+            ["module.macro.shortcut"] = "Shortcut",
+            ["module.macro.shortcutHint"] = "Press the key to run",
+            ["module.macro.shortNamePlaceholder"] = "Short name (optional)",
+            ["module.macro.machineBusy"] = "Wait for the machine to stop",
+            ["module.macro.empty"] = "This macro has no code",
         };
 
 

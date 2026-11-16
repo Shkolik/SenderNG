@@ -84,8 +84,34 @@ public class HotkeysSettingsLeafTests
     }
 
     [Fact]
-    public void In_scope_conflict_unbinds_the_displaced_action()
+    public void Function_keys_are_reserved_for_macros()
     {
+        var (_, leaf, hotkeys) = Make();
+        var row = leaf.Groups[0].Rows.Single(r => r.ActionId == "cycle.start");
+        leaf.BeginRecord(row);
+
+        leaf.ApplyRecordedGesture("F5");   // the macro module owns F1–F12
+
+        Assert.True(row.IsRecording);      // still armed: press a bindable key
+        Assert.True(row.HasMessage);
+        Assert.Equal("Alt+R", hotkeys.GestureFor("cycle.start"));
+    }
+
+    [Fact]
+    public void Modified_function_keys_are_still_bindable()
+    {
+        var (_, leaf, hotkeys) = Make();
+        var row = leaf.Groups[0].Rows.Single(r => r.ActionId == "cycle.start");
+        leaf.BeginRecord(row);
+
+        leaf.ApplyRecordedGesture("Ctrl+F5");
+
+        Assert.False(row.IsRecording);
+        Assert.Equal("Ctrl+F5", hotkeys.GestureFor("cycle.start"));
+    }
+
+    [Fact]
+    public void In_scope_conflict_unbinds_the_displaced_action()    {
         var (_, leaf, hotkeys) = Make();
         var row = leaf.Groups[0].Rows.Single(r => r.ActionId == "cycle.hold");
         leaf.BeginRecord(row);

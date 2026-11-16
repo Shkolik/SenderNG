@@ -115,4 +115,29 @@ public class HotkeysEditorHeadlessTests
         Assert.False(row.IsRecording);
         Assert.Equal("Alt+R", hotkeys.GestureFor("cycle.start"));
     }
+
+    [AvaloniaFact]
+    public async Task Function_keys_are_refused_and_keep_the_recorder_armed()
+    {
+        var (view, leaf, hotkeys) = Make();
+        var window = new Window { Width = 920, Height = 560, Content = view };
+        window.Show();
+        await Pump();
+
+        var row = leaf.Groups[0].Rows.Single(r => r.ActionId == "cycle.start");
+        leaf.BeginRecord(row);
+        await Pump();
+
+        view.RaiseEvent(new KeyEventArgs
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Key = Key.F5,
+            KeyModifiers = KeyModifiers.None,
+        });
+        await Pump();
+
+        Assert.True(row.IsRecording);   // F1–F12 belong to the macro module
+        Assert.True(row.HasMessage);
+        Assert.Equal("Alt+R", hotkeys.GestureFor("cycle.start"));
+    }
 }

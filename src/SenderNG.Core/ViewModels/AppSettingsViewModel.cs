@@ -1692,6 +1692,16 @@ public sealed class HotkeysSettingsLeaf : AppSettingsLeaf, IDisposable
         _recordingRow.Message = Resolve("appSettings.hotkeys.invalid", "Unsupported shortcut");
     }
 
+    /// <summary>F1–F12 are the macro module's positional shortcuts: the recorder
+    /// refuses them and stays armed so the operator can press another key.</summary>
+    public void ReportReservedFunctionKey()
+    {
+        if (_recordingRow is null)
+            return;
+        _recordingRow.Message = Resolve("appSettings.hotkeys.reservedFunctionKey",
+            "F1–F12 are macro shortcuts");
+    }
+
     /// <summary>Commit a gesture captured by the host recorder. Conflicts inside the
     /// same scope are warning-and-unbind-the-displaced (cross-scope is legal).</summary>
     public void ApplyRecordedGesture(string gesture)
@@ -1699,6 +1709,12 @@ public sealed class HotkeysSettingsLeaf : AppSettingsLeaf, IDisposable
         var row = _recordingRow;
         if (row is null)
             return;
+
+        if (HotkeyGrammar.IsMacroShortcut(gesture))
+        {
+            ReportReservedFunctionKey();
+            return;
+        }
 
         row.IsRecording = false;
         _recordingRow = null;

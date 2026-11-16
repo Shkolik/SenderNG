@@ -560,11 +560,13 @@ public class ProfileSwitchReReadTests
         var (dir, settings) = MakeSettings();
         var vm = new MacroViewModel(settings, new StubGrbl());
         vm.AddMacroCommand.Execute(null); // auto-saves "Macro 1" into the default profile
+        vm.SelectedMacro = vm.Macros[0];
 
         var second = settings.CreateProfile("second", MachineTypes.Mill);
         settings.Activate(second.Id);
 
         Assert.Empty(vm.Macros); // the new machine has no macros
+        Assert.Null(vm.SelectedMacro); // the old selection belonged to the old list
         vm.AddMacroCommand.Execute(null);
 
         // The second add went to the ACTIVE machine; the default machine keeps
