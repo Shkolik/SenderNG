@@ -387,6 +387,9 @@ public class ProgramViewModel : ViewModelBase, ILoadedProgramSource, IProgramTra
             RefreshLimits();
         ProgramChanged?.Invoke();
         RowsChanged?.Invoke();
+        // A new program always starts at its first line, same as Rewind: the pane
+        // may have been scrolled to the previous file's send frontier.
+        ScrollRequested?.Invoke(0);
     }
 
     /// <summary>Rows from a precomputed limits pass (single emulator run, off the UI thread).</summary>

@@ -319,4 +319,16 @@ public class ProgramViewModelRunTests
 
         Assert.Empty(vm.ProgramRows);
     }
+
+    [Fact]
+    public void Loading_a_program_requests_scroll_to_its_first_line()
+    {
+        var vm = new ProgramViewModel();
+        var scrolledTo = -1;
+        vm.ScrollRequested += i => scrolledTo = i;
+
+        vm.LoadGCode("G0 X0\nG0 Y0\nM30");
+
+        Assert.Equal(0, scrolledTo);
+    }
 }
