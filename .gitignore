@@ -63,6 +63,7 @@ TurningProfiles.xml
 docs/plans/
 docs/screenshots/
 docs/superpowers/
+docs/source_images/
 
 # Isolated git worktrees
 .worktrees/
